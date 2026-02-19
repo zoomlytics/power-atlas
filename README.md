@@ -3,6 +3,8 @@
 **Status:** Private research repository  
 **Phase:** Experimental architecture & semantic foundation design
 
+> ⚠️ **Not production ready**: Power Atlas is in an experimental research phase and is not suitable for production deployment or operational decision support.
+
 Power Atlas is a research-first initiative to design and build an evidence-based platform for modeling networks of power, influence, and structural relationships across time.
 
 The project explores how influence propagates through complex systems — including people, organizations, institutions, capital flows, ideas, and events — while preserving transparency, source attribution, and ethical safeguards.
@@ -16,6 +18,23 @@ Power Atlas combines elements of:
 - AI-assisted research workflows  
 
 The current focus is on establishing a trustworthy structural and semantic foundation before product-level development.
+
+## Documentation Philosophy (v0.1)
+
+Current documentation is intentionally architecture-first and versioned as **v0.1** while core models are still unstable.
+
+- Prioritize principles, constraints, and system boundaries over implementation detail.
+- Keep ontology/provenance semantics explicit and reviewable before scaling features.
+- Use lightweight, versioned artifacts that can evolve without implying production guarantees.
+
+Documentation artifacts are planned under `/docs` and will be aligned to these principles:
+
+- `/docs/architecture`
+- `/docs/ontology`
+- `/docs/provenance`
+- `/docs/metrics`
+- `/docs/agents`
+- `/docs/risk-model`
 
 ---
 
@@ -188,6 +207,12 @@ Planned documentation areas include:
 - `/research`
 
 Each area will evolve as versioned architectural artifacts.
+
+### Documentation Roadmap (Summary)
+
+- **v0.1 (current):** Establish principles, constraints, and structural vocabulary.
+- **Next:** Expand `/docs/*` artifacts with clearer cross-links between architecture, ontology, provenance, and risk assumptions.
+- **Later:** Introduce tighter contributor onboarding once documentation baselines stabilize.
 
 ---
 
