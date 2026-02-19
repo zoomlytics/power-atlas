@@ -25,14 +25,18 @@ class AGEHelper:
         try:
             with self._get_connection() as conn:
                 with conn.cursor() as cur:
+                    # Load AGE extension and set search path
+                    cur.execute("LOAD 'age'")
+                    cur.execute("SET search_path = ag_catalog, '$user', public")
+                    
                     # Check if graph exists
                     cur.execute(
                         "SELECT * FROM ag_catalog.ag_graph WHERE name = %s",
                         (self.graph_name,)
                     )
                     if cur.fetchone() is None:
-                        # Create graph
-                        cur.execute(f"SELECT create_graph('{self.graph_name}')")
+                        # Create graph using ag_catalog prefix
+                        cur.execute(f"SELECT ag_catalog.create_graph('{self.graph_name}')")
                         conn.commit()
                         logger.info(f"Created graph: {self.graph_name}")
                     else:
@@ -58,7 +62,8 @@ class AGEHelper:
         try:
             with self._get_connection() as conn:
                 with conn.cursor() as cur:
-                    # Set search path to include ag_catalog
+                    # Load AGE and set search path
+                    cur.execute("LOAD 'age'")
                     cur.execute("SET search_path = ag_catalog, '$user', public")
                     
                     # Prepare the Cypher query wrapped in AGE's SQL function

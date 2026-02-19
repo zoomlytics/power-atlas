@@ -1,13 +1,10 @@
 #!/bin/bash
 set -e
 
-# Wait for PostgreSQL to be ready
-echo "Waiting for PostgreSQL to start..."
-until pg_isready -h localhost -U "$POSTGRES_USER"; do
-  sleep 1
-done
+# This script runs during database initialization
+# The database is already running when init scripts are called
 
-echo "PostgreSQL is ready!"
+echo "Ensuring power_atlas database exists..."
 
 # Create the database if it doesn't exist
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "postgres" <<-EOSQL
@@ -15,13 +12,13 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "postgres" <<-EOSQL
     WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'power_atlas')\gexec
 EOSQL
 
-echo "Database 'power_atlas' ensured to exist"
+echo "Ensuring Apache AGE extension is created..."
 
 # Connect to the database and create the AGE extension
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "power_atlas" <<-EOSQL
     CREATE EXTENSION IF NOT EXISTS age;
     LOAD 'age';
-    SET search_path = ag_catalog, "$user", public;
+    SET search_path = ag_catalog, "\$user", public;
 EOSQL
 
-echo "Apache AGE extension created and loaded successfully!"
+echo "Apache AGE setup complete!"
