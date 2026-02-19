@@ -226,7 +226,7 @@ MATCH (n) DETACH DELETE n
 **Solution**: Ensure you're using the correct Apache AGE Docker image:
 ```yaml
 postgres:
-  image: apache/age:PG16_latest
+  image: apache/age:release_PG16_1.6.0
 ```
 
 ### Shared preload libraries error

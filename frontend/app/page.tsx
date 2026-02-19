@@ -10,6 +10,7 @@ export default function Home() {
   const [results, setResults] = useState<any>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
   useEffect(() => {
     checkHealth()
@@ -32,6 +33,7 @@ export default function Home() {
     setLoading(true)
     setError(null)
     setResults(null)
+    setSuccessMessage(null)
     
     try {
       const response = await fetch(`${BACKEND_URL}/cypher`, {
@@ -59,6 +61,7 @@ export default function Home() {
   const seedGraph = async () => {
     setLoading(true)
     setError(null)
+    setSuccessMessage(null)
     
     try {
       const response = await fetch(`${BACKEND_URL}/seed`, {
@@ -70,7 +73,7 @@ export default function Home() {
       if (!response.ok) {
         setError(data.detail || 'Seeding failed')
       } else {
-        alert(data.message || 'Graph seeded successfully!')
+        setSuccessMessage(data.message || 'Graph seeded successfully!')
         checkHealth()
       }
     } catch (err: any) {
@@ -107,6 +110,14 @@ export default function Home() {
             </div>
           </div>
         </div>
+
+        {/* Success Message */}
+        {successMessage && (
+          <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+            <h3 className="text-green-800 font-semibold mb-1">Success</h3>
+            <p className="text-green-700 text-sm">{successMessage}</p>
+          </div>
+        )}
 
         {/* Seed Button */}
         <div className="mb-6">

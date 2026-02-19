@@ -47,6 +47,10 @@ services:
       dockerfile: Dockerfile
     container_name: power-atlas-frontend
     environment:
+      # Public URL used by browser-based (client-side) code when accessing the backend from the host
+      # This must be http://localhost:8000 because the requests are made from the user's browser,
+      # not from within the container. If server-side requests are needed in the future,
+      # add BACKEND_INTERNAL_URL: http://backend:8000 for container-to-container communication.
       NEXT_PUBLIC_BACKEND_URL: http://localhost:8000
     ports:
       - "3000:3000"

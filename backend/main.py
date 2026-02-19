@@ -5,6 +5,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Dict, Any, Optional
+from contextlib import asynccontextmanager
 import logging
 import os
 from age_helper import AGEHelper
@@ -15,22 +16,6 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
-
-# Create FastAPI app
-app = FastAPI(
-    title="Power Atlas API",
-    description="Backend API for Power Atlas graph database",
-    version="0.1.0"
-)
-
-# Configure CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # In production, specify exact origins
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 # Database connection configuration
 DATABASE_URL = os.getenv(
@@ -43,10 +28,12 @@ GRAPH_NAME = os.getenv("GRAPH_NAME", "power_atlas_graph")
 age_helper: Optional[AGEHelper] = None
 
 
-@app.on_event("startup")
-async def startup_event():
-    """Initialize the AGE helper on startup"""
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Manage application lifespan - startup and shutdown"""
     global age_helper
+    
+    # Startup
     try:
         logger.info("Initializing Apache AGE connection...")
         age_helper = AGEHelper(DATABASE_URL, GRAPH_NAME)
@@ -54,6 +41,31 @@ async def startup_event():
     except Exception as e:
         logger.error(f"Failed to initialize Apache AGE: {e}")
         # Don't raise here to allow the app to start and show errors in health check
+    
+    yield
+    
+    # Shutdown
+    if age_helper:
+        age_helper.close()
+        logger.info("Apache AGE connection closed")
+
+
+# Create FastAPI app with lifespan
+app = FastAPI(
+    title="Power Atlas API",
+    description="Backend API for Power Atlas graph database",
+    version="0.1.0",
+    lifespan=lifespan
+)
+
+# Configure CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # In production, specify exact origins
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/health")
