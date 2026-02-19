@@ -54,8 +54,10 @@ class AGEHelper:
                     (self.graph_name,)
                 )
                 if cur.fetchone() is None:
-                    # Create graph using parameterized query
-                    cur.execute("SELECT ag_catalog.create_graph(%s)", (self.graph_name,))
+                    # Create graph using validated graph_name (regex-validated in __init__)
+                    # Note: PostgreSQL doesn't support parameterization for identifiers,
+                    # so we use f-string with validated input
+                    cur.execute(f"SELECT ag_catalog.create_graph('{self.graph_name}')")
                     conn.commit()
                     logger.info(f"Created graph: {self.graph_name}")
                 else:
@@ -79,10 +81,11 @@ class AGEHelper:
         Returns:
             List of result dictionaries
             
-        Note:
+        Security Note:
             This is a local development tool. The query parameter is directly interpolated
-            into the AGE SQL wrapper. In a production environment, implement proper query
-            parameterization or input validation.
+            into the AGE SQL wrapper. **DO NOT use in production without implementing proper
+            input validation or parameterization.** For production use, implement query
+            sanitization or a query builder that prevents SQL injection.
         """
         if params is None:
             params = {}
