@@ -1,10 +1,43 @@
 # Power Atlas
 
-A minimal local development stack for graph database experimentation with **Apache AGE** (A Graph Extension for PostgreSQL), **FastAPI**, and **Next.js**.
+**Status:** Private research repository  
+**Phase:** Experimental architecture & semantic foundation design
 
-## Overview
+Power Atlas is a research-first initiative to design and build an evidence-based platform for modeling networks of power, influence, and structural relationships across time.
 
-Power Atlas provides a simple, reproducible environment for working with graph databases locally. It's designed for research and experimentation, not production use.
+The project explores how influence propagates through complex systems — including people, organizations, institutions, capital flows, ideas, and events — while preserving transparency, source attribution, and ethical safeguards.
+
+Power Atlas combines elements of:
+
+- Structured knowledge systems  
+- Knowledge graph modeling  
+- Investigative research tooling  
+- Network science  
+- AI-assisted research workflows  
+
+The current focus is on establishing a trustworthy structural and semantic foundation before product-level development.
+
+---
+
+## Core Design Principles
+
+Power Atlas is guided by the following principles:
+
+- **Evidence-first** — All modeled relationships must be supported by sources.
+- **Source attribution required** — Provenance is not optional.
+- **Time-aware modeling** — Relationships are temporally scoped.
+- **Confidence scoring** — Distinguish between verified fact, allegation, and inference.
+- **Human-in-the-loop oversight** — Automated systems assist but do not autonomously publish.
+- **Structural analysis over narrative speculation** — Emphasis on relationships and topology rather than interpretation.
+- **Political neutrality** — The system models structure, not ideology.
+- **Architectural clarity over rapid productization** — Foundations precede features.
+- **Modular experimentation** — Components are treated as replaceable until stabilized.
+
+---
+
+## Current Technical Scaffold (Experimental)
+
+This repository currently contains a minimal experimental stack used to explore semantic modeling and graph capabilities:
 
 ### Stack
 
@@ -13,10 +46,36 @@ Power Atlas provides a simple, reproducible environment for working with graph d
 - **Frontend**: Next.js (React + TypeScript) + Tailwind CSS
 - **Orchestration**: Docker Compose
 
-## Prerequisites
+Apache AGE is being used as an experimental graph laboratory and is not considered a long-term commitment.
 
-- [Docker](https://docs.docker.com/get-docker/) (with Docker Compose)
-- That's it! Everything else runs in containers.
+The focus at this stage is on ontology formalization, provenance modeling, temporal semantics, and graph experimentation — not UI polish or production readiness.
+
+---
+
+## Current Focus Areas
+
+- Ontology formalization
+- Provenance and confidence schema design
+- Temporal relationship modeling
+- Graph capability experiments (centrality, pathfinding, multiplex tagging)
+- Dataset ingestion spikes
+- Entity resolution strategy
+- Agent workflow architecture
+
+---
+
+## Non-Goals (Current Phase)
+
+Power Atlas is not currently:
+
+- A public investigative platform
+- A journalism outlet
+- A political advocacy tool
+- A production-ready analytics platform
+
+The present goal is foundational research and architectural clarity.
+
+---
 
 ## Quick Start
 
@@ -64,6 +123,8 @@ Open your browser and navigate to:
    MATCH (p:Person) WHERE p.age > 30 RETURN p
    ```
 
+---
+
 ## Architecture
 
 ### Backend API Endpoints
@@ -89,7 +150,11 @@ Open your browser and navigate to:
   }
   ```
 
-### Directory Structure
+---
+
+## Repository Structure (Evolving)
+
+Current layout:
 
 ```
 power-atlas/
@@ -112,6 +177,20 @@ power-atlas/
 └── README.md          # This file
 ```
 
+Planned documentation areas include:
+
+- `/docs/architecture`
+- `/docs/ontology`
+- `/docs/provenance`
+- `/docs/metrics`
+- `/docs/agents`
+- `/docs/risk-model`
+- `/research`
+
+Each area will evolve as versioned architectural artifacts.
+
+---
+
 ## Configuration
 
 Copy `.env.example` to `.env` and adjust as needed:
@@ -128,6 +207,8 @@ cp .env.example .env
 - `POSTGRES_DB` - Database name
 - `GRAPH_NAME` - Apache AGE graph name
 - `NEXT_PUBLIC_BACKEND_URL` - Backend API URL for frontend
+
+---
 
 ## Development
 
@@ -182,6 +263,8 @@ docker compose logs -f postgres
 docker compose logs -f frontend
 ```
 
+---
+
 ## Cypher Query Examples
 
 ### Create nodes
@@ -216,6 +299,8 @@ MATCH (p:Person) WHERE p.age > 30 RETURN p.name, p.age
 ```cypher
 MATCH (n) DETACH DELETE n
 ```
+
+---
 
 ## Troubleshooting
 
@@ -287,25 +372,29 @@ docker compose up --build
 - Check that node labels and property names are correct
 - Ensure graph exists: queries run against `power_atlas_graph`
 
-## Resetting Everything
+---
 
-To completely reset the environment:
+## Philosophy
 
-```bash
-# Stop and remove containers, networks, and volumes
-docker compose down -v
+Power Atlas models structural relationships.
 
-# Rebuild and start fresh
-docker compose up --build
-```
+It does not assert intent, motive, or wrongdoing.
 
-## Contributing
+It aims to provide clarity about how entities connect over time, while preserving transparency, uncertainty representation, and ethical restraint.
 
-This is a minimal research scaffold. Feel free to extend it for your needs, but keep changes focused and well-documented.
+---
+
+## Contributing / Contact
+
+Private repository — contributor model under consideration.
+
+---
 
 ## License
 
-MIT
+**TBD**
+
+---
 
 ## Resources
 
