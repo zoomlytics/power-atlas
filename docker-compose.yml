@@ -4,6 +4,9 @@ services:
     container_name: power-atlas-postgres
     environment:
       POSTGRES_USER: postgres
+      # WARNING: Default password for LOCAL DEVELOPMENT ONLY
+      # Change these credentials for any non-local deployment
+      # Use .env.example for proper secret management
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: power_atlas
     ports:

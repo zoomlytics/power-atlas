@@ -1,33 +1,39 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'
+
+interface QueryResult {
+  status: string;
+  results: Array<{ result: string }>;
+  count: number;
+}
 
 export default function Home() {
   const [healthStatus, setHealthStatus] = useState<{status: string, message?: string} | null>(null)
   const [query, setQuery] = useState('MATCH (n:Person) RETURN n')
-  const [results, setResults] = useState<any>(null)
+  const [results, setResults] = useState<QueryResult | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
-  useEffect(() => {
-    checkHealth()
-  }, [])
-
-  const checkHealth = async () => {
+  const checkHealth = useCallback(async () => {
     try {
       const response = await fetch(`${BACKEND_URL}/health`)
       const data = await response.json()
       setHealthStatus(data)
-    } catch (err) {
+    } catch (err: unknown) {
       setHealthStatus({
         status: 'error',
         message: 'Cannot connect to backend'
       })
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    checkHealth()
+  }, [checkHealth])
 
   const runQuery = async () => {
     setLoading(true)
@@ -51,8 +57,9 @@ export default function Home() {
       } else {
         setResults(data)
       }
-    } catch (err: any) {
-      setError(err.message || 'Failed to connect to backend')
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to connect to backend'
+      setError(errorMessage)
     } finally {
       setLoading(false)
     }
@@ -76,8 +83,9 @@ export default function Home() {
         setSuccessMessage(data.message || 'Graph seeded successfully!')
         checkHealth()
       }
-    } catch (err: any) {
-      setError(err.message || 'Failed to connect to backend')
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to connect to backend'
+      setError(errorMessage)
     } finally {
       setLoading(false)
     }
