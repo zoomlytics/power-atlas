@@ -5,8 +5,8 @@ WORKDIR /app
 # Copy package.json and package-lock.json first for better caching and consistent installs
 COPY package*.json ./
 
-# Install dependencies (npm ci is preferred but using npm install as fallback)
-RUN npm ci --legacy-peer-deps || npm install --legacy-peer-deps
+# Install dependencies
+RUN npm ci --legacy-peer-deps
 
 # Copy source code
 COPY . .
@@ -15,12 +15,12 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED 1
 RUN npm run build
 
-# Create non-root user for running the application
+# Create non-root user and set ownership after build
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S nextjs -u 1001 && \
     chown -R nextjs:nodejs /app
 
-# Switch to non-root user
+# Switch to non-root user for runtime
 USER nextjs
 
 # Expose port
