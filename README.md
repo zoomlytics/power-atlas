@@ -30,6 +30,7 @@ Current documentation is intentionally architecture-first and versioned as **v0.
 Documentation artifacts are planned under `/docs` and will be aligned to these principles:
 
 - `/docs/architecture`
+  - Initial draft: [`/docs/architecture/v0.1.md`](/docs/architecture/v0.1.md)
 - `/docs/ontology`
 - `/docs/provenance`
 - `/docs/metrics`
