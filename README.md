@@ -32,6 +32,7 @@ Documentation artifacts are planned under `/docs` and will be aligned to these p
 - `/docs/architecture`
   - Initial draft: [`/docs/architecture/v0.1.md`](/docs/architecture/v0.1.md)
 - `/docs/ontology`
+  - Initial draft: [`/docs/ontology/v0.1.md`](/docs/ontology/v0.1.md)
 - `/docs/provenance`
 - `/docs/metrics`
 - `/docs/agents`
