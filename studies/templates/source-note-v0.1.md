@@ -1,0 +1,53 @@
+# Study Notes — [Title / Source]
+Version: v0.1  
+Status: Draft | In Review | Superseded | Abandoned  
+Domain: [network-theory | sampling | investigative-methods | data-sources | identity | risk | other]  
+Author:  
+Date: YYYY-MM-DD  
+Tags:  
+Source: [link]  
+Accessed: YYYY-MM-DD  
+
+---
+
+## Optional: Agent / Tool Metadata (recommended for AI-generated notes)
+
+Tool: [e.g., ChatGPT / Claude / Copilot / other]  
+Run date: YYYY-MM-DD  
+Input(s):  
+- [link]
+Prompt (optional):  
+[Paste prompt here or link to it]
+
+Edits:
+- [ ] Output is verbatim
+- [ ] Output is lightly edited
+- [ ] Output is heavily edited / reorganized
+
+---
+
+## Notes (raw capture)
+
+Use any structure that helps you work quickly:
+- bullets
+- headings
+- pasted excerpts (use quotes)
+- timestamps
+- TODOs
+- contradictions / doubts
+
+### Excerpts (optional)
+
+> Paste short excerpts only. Prefer links for full text.
+
+### Observations / Reactions (optional)
+
+-  
+
+### Questions (optional)
+
+-  
+
+## Sources (if multiple)
+
+- [Source title](https://example.com) — Accessed: YYYY-MM-DD
