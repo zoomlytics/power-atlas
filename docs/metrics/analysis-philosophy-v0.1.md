@@ -25,12 +25,15 @@ This document does **not** define algorithms, thresholds, engine choices, or req
 
 ## 2) Definitions (v0.1)
 
-- **Metric:** A derived structural summary from a selected claim graph view (for example degree counts, reachability, or ranking scores).
+- **Graph view / projection:** A constructed analysis view derived from claims under explicit filters (for example relationship categories, temporal scope, confidence posture, provenance scope, and contradiction handling).
+- **Metric:** A derived structural summary from a selected claim-mediated graph view/projection (for example degree counts, reachability, or ranking scores). Metric outputs inherit the assumptions of that projection.
 - **Centrality:** A family of topology-derived ranking heuristics over a chosen graph projection.
 - **Ranking:** Any ordered output that compares entities/claims by a computed criterion.
 - **Pathfinding:** Computed traversal output that shows one or more structural routes between selected nodes.
 - **Cluster / component output:** Grouping output produced under explicit modeling assumptions.
 - **Analysis output:** Any derived score, rank, path, grouping, delta, or anomaly indicator shown to users or systems.
+- **Entity/relationship metric:** A derived summary over projected entities and structural relationships.
+- **Claim-level metric:** A derived summary over claims as epistemic units (for example claim density, contradiction density, or confidence-state composition in a scope).
 
 All definitions are conceptual and implementation-agnostic.
 
@@ -95,6 +98,16 @@ For any analysis output, users should be able to inspect:
 
 Metrics should remain claim-mediated and must not bypass evidence/provenance requirements.
 
+### Projection Disclosure Minimum (conceptual)
+
+Any analysis output should be able to disclose, at minimum:
+
+- **Time basis:** valid-time vs record-time and as-of/interval window,
+- **Included claim/relationship categories,**
+- **Confidence filter posture:** whether alleged/disputed/unknown claims are included,
+- **Provenance scope:** which sources and ingestion/derivation processes are included or excluded,
+- **Contradiction handling posture:** whether conflicting attributed claims were included side-by-side.
+
 ## 7) Temporal & Contradiction Handling
 
 - Prefer time-sliced graph views; avoid collapsing incompatible windows into an "ever-graph."
@@ -108,12 +121,19 @@ Primary risks and mitigation posture:
 
 - **Narrative escalation risk:** prevent semantics drift from structure to motive/culpability; require explicit non-implication language.
 - **False precision / authority laundering:** require provenance, time scope, and confidence context around numeric outputs.
-- **Coverage bias:** acknowledge that documentation density can inflate apparent centrality.
+- **Coverage bias:** acknowledge that documentation density can inflate apparent centrality. High centrality may reflect documentation/ingestion density (what data is available), not real-world centrality.
 - **Temporal collapse:** enforce explicit time windows and avoid indiscriminate aggregation across periods.
 - **Feedback loops / Goodhart effects:** avoid using raw metric rankings as sole ingestion/review priority signals.
+- **Ranking harms / defamation-by-ordering:** treat ordered outputs as heuristics under assumptions, not implied endorsement or judgment.
 - **Privacy / harm risk:** minimize unnecessary linkage exposure and avoid outputs that materially increase re-identification or reputational harm.
 
-## 9) Review Checklist (v0.1 Guardrail Test)
+## 9) Builder Anti-Patterns (v0.1)
+
+- Do not label metric outputs as "influence score" or "power score" in Semantic Core language.
+- Do not default analysis to an "ever-graph"; require explicit temporal scope.
+- Do not present a score/rank without traceable linkage to inputs, filters, provenance scope, and time basis.
+
+## 10) Review Checklist (v0.1 Guardrail Test)
 
 - [ ] Replaceability test: if graph engine/API/UI changed tomorrow, would the meaning of this analysis output remain intact?
 - [ ] Auditability test: can we trace why the result occurred (inputs, filters, time slice, provenance, derivation context)?
@@ -122,7 +142,12 @@ Primary risks and mitigation posture:
 - [ ] Temporal integrity test: are valid-time and record-time boundaries explicit and non-collapsed?
 - [ ] Contradiction handling test: are conflicting attributed claims represented without forced semantic resolution?
 
-## 10) Open Consumption Mode Question (Tracked)
+## 11) Communication Templates (Optional, Non-Binding)
+
+- "Centrality here is computed on the selected projection and should be interpreted only as a structural heuristic; it does not imply influence, intent, or wrongdoing."
+- "Paths shown reflect available claims under the selected time window and provenance scope; they do not imply coordination or causation."
+
+## 12) Open Consumption Mode Question (Tracked)
 
 v0.1 keeps both consumption modes open:
 
@@ -131,7 +156,7 @@ v0.1 keeps both consumption modes open:
 
 These guardrails apply to both modes until later versions explicitly refine mode-specific policies.
 
-## 11) Versioning & Forward Path
+## 13) Versioning & Forward Path
 
 - This document is **Metrics & Network Analysis Philosophy v0.1**.
 - v0.2+ may tighten review criteria, disclosure expectations, or output labeling requirements.
