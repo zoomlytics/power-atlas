@@ -34,9 +34,16 @@ Documentation artifacts are planned under `/docs` and will be aligned to these p
   - Temporal modeling draft: [`/docs/architecture/temporal-modeling-v0.1.md`](/docs/architecture/temporal-modeling-v0.1.md)
 - `/docs/ontology`
   - Initial draft: [`/docs/ontology/v0.1.md`](/docs/ontology/v0.1.md)
+  - Direction draft: [`/docs/ontology/v0.2-direction.md`](/docs/ontology/v0.2-direction.md)
+  - Entity resolution draft: [`/docs/ontology/entity-resolution-v0.1.md`](/docs/ontology/entity-resolution-v0.1.md)
+  - Semantic invariants draft: [`/docs/ontology/validation/semantic-invariants-v0.1.md`](/docs/ontology/validation/semantic-invariants-v0.1.md)
 - `/docs/provenance`
+  - Initial draft: [`/docs/provenance/v0.1.md`](/docs/provenance/v0.1.md)
+  - Epistemic invariants draft: [`/docs/provenance/epistemic-invariants-v0.1.md`](/docs/provenance/epistemic-invariants-v0.1.md)
 - `/docs/metrics`
+  - Analysis philosophy draft: [`/docs/metrics/analysis-philosophy-v0.1.md`](/docs/metrics/analysis-philosophy-v0.1.md)
 - `/docs/agents`
+  - Governance draft: [`/docs/agents/governance-v0.1.md`](/docs/agents/governance-v0.1.md)
 - `/docs/risk`
   - Initial draft: [`/docs/risk/risk-model-v0.1.md`](/docs/risk/risk-model-v0.1.md)
 
