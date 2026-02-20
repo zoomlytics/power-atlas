@@ -37,7 +37,8 @@ Documentation artifacts are planned under `/docs` and will be aligned to these p
 - `/docs/provenance`
 - `/docs/metrics`
 - `/docs/agents`
-- `/docs/risk-model`
+- `/docs/risk`
+  - Initial draft: [`/docs/risk/risk-model-v0.1.md`](/docs/risk/risk-model-v0.1.md)
 
 ---
 
@@ -206,7 +207,7 @@ Planned documentation areas include:
 - `/docs/provenance`
 - `/docs/metrics`
 - `/docs/agents`
-- `/docs/risk-model`
+- `/docs/risk`
 - `/research`
 
 Each area will evolve as versioned architectural artifacts.
