@@ -49,7 +49,7 @@ Private-research status does not remove risk categories below; privacy, misuse, 
    - Linking records across contexts can increase re-identification exposure.
    - Combined metadata may reveal sensitive relationships not obvious in source artifacts alone.
 
-2. **Defamation / reputational harm / defamation-by-ordering**
+2. **Defamation / reputational harm / implied wrongdoing by ordering**
    - Structural rankings or ordering may be interpreted as implied wrongdoing or importance.
    - Ambiguous links may be over-read as factual endorsement.
 
