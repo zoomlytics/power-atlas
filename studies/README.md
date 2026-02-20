@@ -78,5 +78,5 @@ Start with:
 ## Research workflow & tracks
 
 - Use `/studies/workflow/README.md` for the shared workflow, depth levels, and track taxonomy.
-- Track selection tree and track cards live in `/studies/workflow/` (A–G + Misc).
+- Track selection tree and track cards live in `/studies/workflow/` (Tracks A–G + M).
 - The study charter snippet (`study-charter-snippet-v0.1.md`) can be pasted at the top of Notes docs.

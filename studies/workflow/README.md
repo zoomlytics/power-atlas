@@ -15,7 +15,7 @@ It complements (and does not replace) the **artifact templates** under [`/studie
 
 ## 0) Quick start (what to do first)
 
-1) Pick a **Track** (A–G, or Misc) using the decision tree below.  
+1) Pick a **Track** (A–G or Track M for Misc/Hybrid) using the decision tree below.  
 2) Choose a **Depth level** (Level 1/2/3) and a **timebox**.  
 3) Start a **Notes** document (raw capture) using the template:
    - `/studies/templates/source-note-v0.1.md`
@@ -48,7 +48,7 @@ Tracks do **not** change this backbone; tracks change:
 
 ## 2) Track taxonomy (v0.1)
 
-Choose exactly **one Primary track**. Optionally assign Secondary tracks in tags.
+Choose exactly **one Primary track** (A–G or M). Optionally assign Secondary tracks in tags.
 
 ### Tracks (primary)
 - **Track A — Conceptual / Scientific Research** (`conceptual-research`)
@@ -73,6 +73,8 @@ Track cards live in `/studies/workflow/`:
 ---
 
 ## 3) Track selection decision tree (v0.1)
+
+> Note: the **canonical source of truth** for the decision tree is `/studies/workflow/track-selection-decision-tree-v0.1.md`. This copy is for convenience; if they ever diverge, update the standalone decision-tree file first.
 
 Answer in order and choose the first strong match:
 
