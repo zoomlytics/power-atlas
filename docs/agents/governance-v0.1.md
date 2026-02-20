@@ -161,7 +161,7 @@ This governance document defines control posture and guardrails. A future risk m
 - **Governance charter:** policy boundary and control expectations
 - **Risk model:** structured description of failure modes, severity, and escalation paths
 
-Until risk modeling is expanded, this v0.1 governance posture remains the default boundary for agent behavior.
+Until risk modeling is expanded, this v0.1 governance posture remains the default boundary for agent behavior (see [`/docs/risk/risk-model-v0.1.md`](/docs/risk/risk-model-v0.1.md)).
 
 ---
 
