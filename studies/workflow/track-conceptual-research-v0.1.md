@@ -1,4 +1,4 @@
-# Track Card — Conceptual / Scientific Research (conceptual-research) — v0.1
+# Track A — Conceptual / Scientific Research (conceptual-research) — v0.1
 
 **Track slug:** conceptual-research  
 **Applies to:** scientific literature, academic frameworks, theory (network science, sampling, temporal models, etc.)  

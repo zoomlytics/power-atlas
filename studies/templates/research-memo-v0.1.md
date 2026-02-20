@@ -1,6 +1,7 @@
 # Research Memo — [Title]
 Version: v0.1  
 Status: Draft | In Review | Superseded | Abandoned  
+Track: [conceptual-research | methods-techniques | tech-evaluation | data-source | case-study | similar-platforms | internal-spike | misc]  
 Domain: [network-theory | sampling | investigative-methods | data-sources | identity | risk | other]  
 Author:  
 Reviewers:  

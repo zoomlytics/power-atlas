@@ -1,4 +1,4 @@
-# Track Card — Methods / Techniques (methods-techniques) — v0.1
+# Track B — Methods / Techniques Research (methods-techniques) — v0.1
 
 **Track slug:** methods-techniques  
 **Applies to:** methods that could shape core capabilities (ER, extraction, uncertainty, evaluation, review workflows)  

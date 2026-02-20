@@ -1,4 +1,4 @@
-# Track Card — Journalistic / Investigative Case Study (case-study) — v0.1
+# Track E — Journalistic / Investigative Case Study (case-study) — v0.1
 
 **Track slug:** case-study  
 **Applies to:** investigative workflows, published network maps, case reconstructions  

@@ -1,4 +1,4 @@
-# Track Card — Misc / Hybrid (misc) — v0.1
+# Track M — Misc / Hybrid (misc) — v0.1
 
 **Track slug:** misc  
 **Applies to:** studies that do not fit A–G *yet* or are genuinely cross-cutting  

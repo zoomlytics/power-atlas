@@ -1,4 +1,4 @@
-# Track Card — Internal Design Spike / Thought Experiment (internal-spike) — v0.1
+# Track G — Internal Design Spike / Thought Experiment (internal-spike) — v0.1
 
 **Track slug:** internal-spike  
 **Applies to:** internal conceptual stress tests; not primarily about external sources  

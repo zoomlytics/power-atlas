@@ -1,4 +1,4 @@
-# Track Card — Similar Platforms Review (similar-platforms) — v0.1
+# Track F — Similar Platforms Review (similar-platforms) — v0.1
 
 **Track slug:** similar-platforms  
 **Applies to:** comparative reviews of tools/platforms with adjacent capabilities (OSINT, link analysis, KG tools, “influence scoring”)  
