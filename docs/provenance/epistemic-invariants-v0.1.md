@@ -7,6 +7,12 @@ This companion document defines testable epistemic invariants aligned to:
 
 It is implementation-agnostic and does not introduce schema, API, or storage requirements.
 
+## How to use this companion draft
+
+- Apply these checks during ontology, provenance, ingestion, and agent-governance reviews.
+- Treat invariant breaks as epistemic-risk findings that require explicit rationale and versioned documentation updates.
+- Keep enforcement mechanism choices separate from semantic meaning.
+
 ## Invariants
 
 1. **Attribution required** — Every claim is attributable to source origin, derivation process, asserting agent, or a documented combination.
@@ -15,3 +21,9 @@ It is implementation-agnostic and does not introduce schema, API, or storage req
 4. **Revision auditability** — Confidence revision does not erase prior claim provenance or epistemic state history.
 5. **Structural independence** — Removing or changing confidence metadata does not alter structural meaning.
 6. **Replaceability pass condition** — Replacing storage/API/UI does not change provenance or confidence semantics.
+
+## Non-goals
+
+- Defining confidence scoring formulas, thresholds, or ranking policy.
+- Requiring a specific provenance schema or storage layout.
+- Resolving disagreement by collapsing competing attributed claims into one canonical claim.
