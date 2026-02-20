@@ -34,7 +34,7 @@ Location (recommended): `/studies/summaries/`
 ### 3) Memo (governance-facing synthesis)
 **Goal:** low-volume, high-rigor synthesis that explicitly addresses assumptions, relevance, risks, and “what not to borrow.”
 
-Template (separately maintained): `research-memo-v0.1.md`
+Template (stored in this `/studies/templates/` directory; completed memos live in `/studies/memos/`): `research-memo-v0.1.md`
 
 Location (recommended): `/studies/memos/`
 
