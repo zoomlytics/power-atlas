@@ -153,10 +153,8 @@ This document does **not**:
 - define legal standards, liability positions, or compliance coverage,
 - guarantee prevention of misuse, abuse, defamation, privacy harm, or re-identification,
 - guarantee correctness of sourced or derived claims.
-- provide safe-use certification,
-- promise that outputs cannot cause harm.
 
-v0.1 is a boundary-and-review posture; it is not a safety certification.
+v0.1 is a boundary-and-review posture; it is not a safety certification and does not promise outputs cannot cause harm.
 
 ---
 
