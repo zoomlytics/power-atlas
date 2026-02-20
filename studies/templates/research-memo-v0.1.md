@@ -347,7 +347,7 @@ Extract constraints and cautions about referral-based discovery that could infor
 
 - Connectivity is treated as a practical proxy for discoverability.
 - Referral edges are often treated instrumentally (as a method), not as meaningful social ties.
-- Bias is acknowledged but not always quantifiable in practice; measurement error is not always modeled explicitly.
+- Bias is acknowledged but not always quantifiable in practice; measurement error may not be modeled explicitly.
 
 ## 5. Relevance to Power Atlas (Most Important Section)
 
