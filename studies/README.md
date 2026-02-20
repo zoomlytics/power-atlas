@@ -74,3 +74,9 @@ Start with:
 - `templates/summary-brief-v0.1.md`
 - `templates/summary-detailed-v0.1.md`
 - (and the memo template used in `/studies/memos/`)
+
+## Research workflow & tracks
+
+- Use `/studies/workflow/README.md` for the shared workflow, depth levels, and track taxonomy.
+- Track selection tree and track cards live in `/studies/workflow/` (Tracks A–G + M).
+- The study charter snippet (`study-charter-snippet-v0.1.md`) can be pasted at the top of Notes docs.
