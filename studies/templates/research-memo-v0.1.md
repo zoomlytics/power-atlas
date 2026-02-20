@@ -1,6 +1,6 @@
 # Research Memo — [Title]
 Version: v0.1  
-Status: Draft | In Review | Final (v0.1) | Superseded | Abandoned  
+Status: Draft | In Review | Superseded | Abandoned  
 Domain: [network-theory | sampling | investigative-methods | data-sources | identity | risk | other]  
 Author:  
 Reviewers:  
@@ -24,12 +24,11 @@ This memo template is designed to produce **comparable, governance-relevant rese
 Use one of the following:
 - **Draft** — incomplete, exploratory, may lack citations or internal consistency.
 - **In Review** — ready for critique; core claims and sources are present.
-- **Final (v0.1)** — stable enough to cite in other documents; “final” applies to this version only.
 - **Superseded** — replaced by a newer memo version (link to the newer memo near the top).
 - **Abandoned** — intentionally discontinued (state why).
 
 ### Review Metadata
-- Populate **Reviewers** and **Reviewed on** when moving to **In Review** or **Final (v0.1)**.
+- Populate **Reviewers** and **Reviewed on** when moving to **In Review**.
 - Review should reflect **critical reading**, not agreement.
 - If review occurred in an issue/PR/discussion, add a link near the top of the memo.
 

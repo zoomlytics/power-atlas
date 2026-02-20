@@ -1,6 +1,6 @@
 # Study Summary (Detailed) — [Title]
 Version: v0.1  
-Status: Draft | In Review | Final | Superseded | Abandoned  
+Status: Draft | In Review | Superseded | Abandoned  
 Domain: [network-theory | sampling | investigative-methods | data-sources | identity | risk | other]  
 Author:  
 Date: YYYY-MM-DD  
