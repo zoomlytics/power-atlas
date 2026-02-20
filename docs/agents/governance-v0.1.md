@@ -30,9 +30,14 @@ This document is conceptual and implementation-agnostic. It does **not** define 
 - **Agent / automation:** Any system process that generates, transforms, ranks, or proposes semantic artifacts.
 - **Candidate output:** A non-authoritative, reviewable artifact (for example proposed entities/claims/links) that is explicitly marked as unreviewed.
 - **Review event:** An attributable decision event performed by a human reviewer that records decision and rationale.
-- **Approval:** A review decision that permits candidate output to enter authoritative semantic use.
+- **Approval:** A review decision that permits candidate output to enter authoritative semantic use; approval is publish-permission, not a truth claim beyond the output's provenance/evidence/confidence context.
 - **Audit trail:** Non-erasing record of who/what did what, when, and why.
 - **Publishing (v0.1):** Any action that makes new or revised semantic content available for downstream interpretation outside a private draft context.
+
+### Candidate vs authoritative boundary (v0.1)
+
+- Candidate outputs are **not semantically authoritative** and must be clearly labeled as unreviewed.
+- Authoritative/approved semantic content is part of the shared semantic record and is review-gated before publishing.
 
 ### What counts as publishing in v0.1
 
@@ -42,6 +47,7 @@ Publishing includes:
 - **API-visible:** content returned by non-debug endpoints intended for consumption as asserted structure.
 - **Exports:** dataset dumps, reports, share links, or snapshots intended for use outside immediate developer sandbox.
 - **Authoritative persistence:** writing candidate/derived claims into authoritative namespaces/stores, unless clearly partitioned as draft/staging.
+- **Shared-environment writes:** writing into any shared semantic context (for example team-accessible DB/graph namespace/shared index) unless explicitly segregated as draft/staging.
 
 Usually not publishing:
 
@@ -74,6 +80,8 @@ Usually not publishing:
 
 ## 4) v0.1 Guardrails (Allowed, Must-Review, Prohibited)
 
+These are governance guardrails, not workflow mandates.
+
 ### 4.1 Allowed without explicit human review (v0.1)
 Allowed only when outputs remain non-authoritative, clearly labeled, and reversible:
 
@@ -89,6 +97,8 @@ Allowed only when outputs remain non-authoritative, clearly labeled, and reversi
 - confidence upgrades/downgrades that change epistemic interpretation,
 - supersession, retraction, or materially revised claim interpretation,
 - entity resolution merge/split decisions affecting authoritative identity semantics,
+- changes to projection/filter defaults that alter default inclusion posture (for example alleged/disputed claim inclusion) for shared views/metrics,
+- bulk operations that materially change shared semantic scope (for example mass authoritative ingestion, global supersession/retraction),
 - exports or API/UI exposure of content represented as shared semantic record.
 
 Guiding rule: **If it changes what users may believe about the world, it needs an attributable review event.**
@@ -114,7 +124,19 @@ For each review-governed semantic change, the system should preserve at minimum:
 - change type (new claim, confidence update, supersession, merge/split, etc.),
 - traceability to provenance/evidence context where applicable.
 
+Review events are provenance-relevant and should satisfy attribution and revision-auditability expectations (see [`/docs/provenance/epistemic-invariants-v0.1.md`](/docs/provenance/epistemic-invariants-v0.1.md)).
+
 Review records are revision events, not destructive overwrites.
+
+### Disclosure expectations for agent outputs (conceptual minimum)
+
+Agent-generated outputs should be disclosable with, at minimum:
+
+- agent identity/version/config context (or equivalent run identifier),
+- input scope (corpus or dataset slice used),
+- time basis used (valid-time vs record-time where relevant),
+- confidence inclusion posture used by the process,
+- trace links to provenance/evidence where applicable.
 
 ---
 
@@ -164,3 +186,9 @@ This is a versioned governance draft for v0.1 and should be updated as:
 - umbrella agent/automation principles are refined.
 
 Governance is a maintained boundary artifact, not a one-time policy note.
+
+## 10) Open Questions (v0.2+)
+
+- Should review thresholds vary by entity class or sensitivity level?
+- What minimum safe separation should exist between staging and authoritative namespaces?
+- Under what bounded conditions, if any, can limited publishing be auto-approved?
