@@ -23,7 +23,7 @@ This document extends and remains consistent with:
 - Provenance & Confidence Charter v0.1: [`/docs/provenance/v0.1.md`](/docs/provenance/v0.1.md)
 - Epistemic Invariants v0.1: [`/docs/provenance/epistemic-invariants-v0.1.md`](/docs/provenance/epistemic-invariants-v0.1.md)
 - Semantic Invariants v0.1: [`/docs/ontology/validation/semantic-invariants-v0.1.md`](/docs/ontology/validation/semantic-invariants-v0.1.md)
-- Ontology v0.2 Direction (context): [`/docs/ontology/v0.2-direction.md`](/docs/ontology/v0.2-direction.md)
+- Ontology v0.2 Direction (optional context): [`/docs/ontology/v0.2-direction.md`](/docs/ontology/v0.2-direction.md)
 
 Entity resolution in v0.1 is epistemic: merge/split/link decisions are claim-mediated, attributed, evidence-linked, and revisable.
 Multiple conflicting resolution claims about the same records/entities may coexist concurrently when distinguished by provenance, temporal context, and confidence.
@@ -32,7 +32,7 @@ Multiple conflicting resolution claims about the same records/entities may coexi
 
 - **Entity**: A distinguishable participant in structural modeling (per Ontology Charter v0.1).
 - **Record / representation / mention**: A sourced reference to an entity.
-- **Profile / alias**: Alternative names or representations associated with records or entities.
+- **Profile / alias**: Alternative names or representations associated with records or entities; useful as evidence for link hypotheses, not definitive identity by default.
 - **Identity / equivalence**: An assertion that two or more records refer to the same real-world entity under stated context; this is distinct from continuity over time.
 - **Identifier**: A handle, registry ID, account, or similar token that serves as evidence for identity, not identity by default.
 - **Resolution claim**: An attributed, auditable identity assertion.
@@ -64,7 +64,7 @@ Multiple conflicting resolution claims about the same records/entities may coexi
 ### Default posture (v0.1)
 
 - **Default:** prefer link-hypothesis claims over merges unless strong attributable evidence exists.
-- Merges must remain claim-mediated and reversible through revision trace; they are never silent or implicit.
+- Merge decisions follow Principle #3 and Principle #4: claim-mediated, auditable, and reversible through revision trace.
 
 ## 5) Minimum Conceptual Requirements (v0.1)
 
