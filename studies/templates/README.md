@@ -86,6 +86,8 @@ If notes or summaries were produced with an AI tool/agent, include lightweight m
 
 This is recommended for auditability but not required in v0.1.
 
-## Workflow & track taxonomy
+## Workflow Docs
 
-See `/studies/workflow/README.md` for the research workflow, track selection decision tree, and track cards. A reusable study charter snippet is available at `/studies/workflow/study-charter-snippet-v0.1.md` and can be pasted at the top of Notes.
+- Process and taxonomy reference: `/studies/workflow/README.md`
+- Track selection decision tree and track cards: `/studies/workflow/`
+- Study charter snippet: `/studies/workflow/study-charter-snippet-v0.1.md`

@@ -15,7 +15,7 @@ It complements (and does not replace) the **artifact templates** under [`/studie
 
 ## 0) Quick start (what to do first)
 
-1) Pick a **Track** (A–G or Track M for Misc/Hybrid) using the decision tree below.  
+1) Pick a **Track** (A–G or Track M for Misc/Hybrid) using the canonical decision tree: `/studies/workflow/track-selection-decision-tree-v0.1.md`.  
 2) Choose a **Depth level** (Level 1/2/3) and a **timebox**.  
 3) Start a **Notes** document (raw capture) using the template:
    - `/studies/templates/source-note-v0.1.md`
@@ -74,33 +74,15 @@ Track cards live in `/studies/workflow/`:
 
 ## 3) Track selection decision tree (v0.1)
 
-> Note: the **canonical source of truth** for the decision tree is `/studies/workflow/track-selection-decision-tree-v0.1.md`. This copy is for convenience; if they ever diverge, update the standalone decision-tree file first.
+Use the canonical decision tree in `/studies/workflow/track-selection-decision-tree-v0.1.md`.
 
-Answer in order; pick the first strong match.
+Quick guidance:
+- answer the prompts in order,
+- pick the first strong match,
+- choose one **primary track**,
+- if no track fits, use **Track M — Misc / Hybrid (misc)** with a resolution plan.
 
-1) Is the primary object of study a **dataset/API/registry/leak** you might ingest or rely on?
-- Yes → **Track D — data-source**
-
-2) Is the primary object of study a **software technology/platform** you might adopt (DB, engine, framework, tool)?
-- Yes → **Track C — tech-evaluation**
-
-3) Is the primary object of study a **product/tool similar to Power Atlas** (OSINT, link analysis, KG exploration, “influence scoring”), mainly to learn patterns/hazards?
-- Yes → **Track F — similar-platforms**
-
-4) Is the primary object of study an **investigative/journalistic case** where the output is a network and you want to understand the method and build evaluation scenarios?
-- Yes → **Track E — case-study**
-
-5) Is the primary object of study an **academic/scientific body of work** (theory, field, conceptual framework) to borrow vocabulary/constraints/cautions?
-- Yes → **Track A — conceptual-research**
-
-6) Is the primary object of study a **method/technique** that could shape core capabilities (ER, extraction, uncertainty, evaluation, review workflows)?
-- Yes → **Track B — methods-techniques**
-
-7) Is this primarily an **internal question** meant to stress-test semantics/governance (“what if we…”), not external literature?
-- Yes → **Track G — internal-spike**
-
-8) None fit well → **Track M — misc**
-- Required: state why, and propose intended reclassification or split plan.
+If you have any process question about track routing, refer to the standalone decision-tree doc first.
 
 ### Hybrid guidance (important)
 - Always choose one **primary track**.
@@ -219,7 +201,7 @@ Minimum metadata (recommended):
 AI generates notes/summaries/memo drafts; a human reviewer validates.
 
 Recommended gating rule (v0.1 posture):
-- AI-first artifacts may remain **Draft** until a human is listed as reviewer and the memo status moves to **In Review**.
+- AI-first artifacts must remain **Draft** unless the Research Memo has **Reviewers** populated and **Reviewed on** set (or explicitly `N/A` with rationale), then it may move to **In Review**.
 
 ---
 
@@ -243,7 +225,7 @@ If time-sensitive:
 
 ## 8) Minimal conventions (v0.1)
 
-1) Every study artifact must state **Track** near the top (even Notes).  
+1) Every study artifact must state **Track** near the top (even Notes). Use controlled slugs: `conceptual-research | methods-techniques | tech-evaluation | data-source | case-study | similar-platforms | internal-spike | misc`.  
 2) If Track = `misc`, include a **resolution plan** (reclassify or split).  
 3) Follow naming convention: `YYYY-MM-DD__slug__type.md` (see `/studies/README.md`).  
 4) Include a **Sources** section (links-first).  

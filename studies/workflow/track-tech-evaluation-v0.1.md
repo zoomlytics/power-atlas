@@ -1,4 +1,4 @@
-# Track Card — Technology / Platform Evaluation (tech-evaluation) — v0.1
+# Track C — Technology / Platform Evaluation (tech-evaluation) — v0.1
 
 **Track slug:** tech-evaluation  
 **Applies to:** databases, engines, frameworks, pipelines, infra/tooling candidates  
