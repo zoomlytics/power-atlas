@@ -367,6 +367,7 @@ Extract constraints and cautions about referral-based discovery that could infor
 - UI temptation: “Most connected discovered actors” lists.
 - System temptation: use referral pathways as a heuristic for “power,” which is not warranted.
 
+_Sections 6–9 omitted for brevity in this mini example; see the full template above for all sections._
 ## 10. Sources
 - [Primary paper/book] (add citation)
 - [Secondary critique] (add citation)
