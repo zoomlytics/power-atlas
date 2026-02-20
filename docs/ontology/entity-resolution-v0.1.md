@@ -23,26 +23,29 @@ This document extends and remains consistent with:
 - Provenance & Confidence Charter v0.1: [`/docs/provenance/v0.1.md`](/docs/provenance/v0.1.md)
 - Epistemic Invariants v0.1: [`/docs/provenance/epistemic-invariants-v0.1.md`](/docs/provenance/epistemic-invariants-v0.1.md)
 - Semantic Invariants v0.1: [`/docs/ontology/validation/semantic-invariants-v0.1.md`](/docs/ontology/validation/semantic-invariants-v0.1.md)
+- Ontology v0.2 Direction (context): [`/docs/ontology/v0.2-direction.md`](/docs/ontology/v0.2-direction.md)
 
 Entity resolution in v0.1 is epistemic: merge/split/link decisions are claim-mediated, attributed, evidence-linked, and revisable.
+Multiple conflicting resolution claims about the same records/entities may coexist concurrently when distinguished by provenance, temporal context, and confidence.
 
 ## 3) Definitions (Conceptual, Non-prescriptive)
 
 - **Entity**: A distinguishable participant in structural modeling (per Ontology Charter v0.1).
 - **Record / representation / mention**: A sourced reference to an entity.
-- **Identity / equivalence**: An assertion that two or more records refer to the same real-world entity under stated context.
+- **Profile / alias**: Alternative names or representations associated with records or entities.
+- **Identity / equivalence**: An assertion that two or more records refer to the same real-world entity under stated context; this is distinct from continuity over time.
 - **Identifier**: A handle, registry ID, account, or similar token that serves as evidence for identity, not identity by default.
 - **Resolution claim**: An attributed, auditable identity assertion.
 - **Resolution actions**:
-  - **Link**: Two records may refer to the same entity.
-  - **Merge**: Treat records as one entity for a stated purpose.
+  - **Link**: Two records may possibly refer to the same entity without asserting equivalence as settled.
+  - **Merge**: A claim that records should be treated as one entity for a stated purpose, without deleting prior records/representations.
   - **Split**: Undo or avoid conflation.
   - **Defer**: Explicitly choose not to resolve yet.
 
 ## 4) Guiding Principles (v0.1)
 
 1. **Claim-mediated identity**
-   - Identity/equivalence assertions are claims: attributable, evidence-linked, time-scoped, and revisable.
+   - Identity/equivalence assertions are claims: attributable, evidence-linked, time-qualified, and revisable.
 2. **Conservative default posture**
    - Prefer *link-with-uncertainty* over irreversible merge when evidence is weak or ambiguous.
 3. **No silent merges**
@@ -58,6 +61,11 @@ Entity resolution in v0.1 is epistemic: merge/split/link decisions are claim-med
 8. **Replaceability**
    - Resolution semantics must remain stable across storage, graph, API, and UI changes.
 
+### Default posture (v0.1)
+
+- **Default:** prefer link-hypothesis claims over merges unless strong attributable evidence exists.
+- Merges must remain claim-mediated and reversible through revision trace; they are never silent or implicit.
+
 ## 5) Minimum Conceptual Requirements (v0.1)
 
 Each identity-related assertion must be able to express:
@@ -65,7 +73,7 @@ Each identity-related assertion must be able to express:
 - **Attribution:** who/what asserted the resolution (source, agent, process).
 - **Evidence linkage:** supporting artifacts, or explicit "evidence absent/unknown."
 - **Temporal context:** when the assertion applies (valid time and/or record time where meaningful).
-- **Confidence / epistemic status:** verified/alleged/inferred/disputed/unknown (conceptually).
+- **Confidence / epistemic status:** verified/alleged/inferred/disputed/unknown (conceptually, aligned with [`/docs/provenance/v0.1.md`](/docs/provenance/v0.1.md)).
 - **Revision trace:** supersession/retraction without erasing earlier resolution states.
 - **Contestability:** ability to represent challenges/counterclaims and why they exist.
 
@@ -78,18 +86,23 @@ Each identity-related assertion must be able to express:
 - Assets / properties (e.g., parcels, vessels, aircraft)
 - Documents / source artifacts
 - Events (e.g., filings, meetings, incorporations)
-- Roles / positions
+- Roles / positions (often represented as claims/relationships in practice)
 - Financial instruments / transactions (if/when modeled)
 
 (These are illustrative categories encountered in v0.1, not a finalized ontology taxonomy.)
 
 ## 7) Boundary Cases (Illustrative, Narrative)
 
-1. **Common-name collision (people):** Similar names with partial overlap should produce a link hypothesis claim, not immediate merge.
-2. **Org naming / subsidiary confusion:** Closely named entities across datasets may remain separate while equivalence claims coexist with provenance.
-3. **Identifier ambiguity:** Shared inboxes or reused handles are evidence signals, not merge decisions by default.
-4. **Temporal identity drift:** Renames, relocations, and address reuse require time-qualified reasoning.
-5. **Adversarial/deceptive records:** Shell entities and obfuscation require explicit uncertainty and defer/link options over forced resolution.
+1. **Common-name collision (people):** Similar names with partial overlap should produce a link hypothesis claim, not immediate merge.  
+   **Expected handling (v0.1):** defer merge; represent link-hypothesis with attribution/evidence/time/confidence.
+2. **Org naming / subsidiary confusion:** Closely named entities across datasets may remain separate while equivalence claims coexist with provenance.  
+   **Expected handling (v0.1):** allow competing claims; merge only with strong attributable evidence.
+3. **Identifier ambiguity:** Shared inboxes or reused handles are evidence signals, not merge decisions by default.  
+   **Expected handling (v0.1):** treat identifier overlap as non-definitive evidence; prefer link/defer.
+4. **Temporal identity drift:** Renames, relocations, and address reuse require time-qualified reasoning.  
+   **Expected handling (v0.1):** represent identity assertions with temporal qualifiers and preserve revision trace.
+5. **Adversarial/deceptive records:** Shell entities and obfuscation require explicit uncertainty and defer/link options over forced resolution.  
+   **Expected handling (v0.1):** represent dispute/uncertainty explicitly; avoid forced merge.
 
 ## 8) Risk and Ethics Considerations
 
@@ -107,6 +120,13 @@ This document does **not**:
 - define operational workflows, moderation policies, or reviewer queues,
 - mandate a single "truth identity" or force resolution in ambiguous cases,
 - define performance/latency targets for resolution.
+
+### Anti-patterns (what not to do)
+
+- Do not overwrite or delete prior identity assertions or their provenance.
+- Do not treat shared identifiers as definitive identity by default.
+- Do not collapse identities just to simplify UI or downstream analytics.
+- Do not encode interpretive judgments (intent, motive, wrongdoing) as resolution status.
 
 ## 10) Open Questions (v0.2+)
 
