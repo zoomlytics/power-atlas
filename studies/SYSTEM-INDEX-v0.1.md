@@ -1,6 +1,6 @@
 # Studies System Index (v0.1)
 
-This is the primary entrypoint for navigating the `/studies` system.
+This is the central index for navigating the `/studies` directory.
 
 Use it to quickly understand artifact types, naming and track conventions, lifecycle states, and where to start for AI-assisted or manual review.
 
