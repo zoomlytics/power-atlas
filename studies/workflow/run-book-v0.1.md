@@ -6,9 +6,10 @@ Practical, phased workflow for running studies in an **AI-first (human-gated)** 
 
 ## Bundle map (what to attach, when)
 
-- **Start bundle (Phase A):** study charter snippet + source-note template.
+- **Start bundle (Phase A):** minimal study orientation snippet only (do not attach broader templates yet).
 - **Track bundle (Phase B):** selected track card + summary-brief template + summary-detailed template.
 - **Memo bundle (Phase C):** research-memo template (+ Appendix A when relevant for data-source studies).
+- For phase checklists + track manifests, see `/studies/workflow/context-packs-v0.1.md`.
 
 ---
 
