@@ -33,7 +33,7 @@ Use one primary track slug per study:
 - `case-study`
 - `similar-platforms`
 - `internal-spike`
-- `misc` (temporary classification; include a dedicated `Resolution plan` section in the artifact body with target track and reclassification/split trigger)
+- `misc` (temporary classification; include a dedicated `Track resolution plan` section in the artifact body with target track and reclassification/split trigger)
 
 Track cards and prompt packs live under `/studies/workflow/` and `/studies/workflow/prompts/`.
 
