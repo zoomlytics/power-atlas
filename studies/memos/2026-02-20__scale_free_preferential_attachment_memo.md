@@ -9,6 +9,12 @@ Reviewed on:
 Date: 2026-02-20  
 Tags: scale-free-networks, preferential-attachment, robustness, heavy-tails, network-growth, epistemic-risk  
 Concept classifications: [Structural, Epistemic, Methodological, Analytical, Governance-related]  
+Related studies:  
+- Parent study: [/studies/summaries/conceptual-research/scale_free_preferential_attachment/2026-02-20__scale_free_preferential_attachment_detailed.md](/studies/summaries/conceptual-research/scale_free_preferential_attachment/2026-02-20__scale_free_preferential_attachment_detailed.md)  
+- Follow-on studies: None yet  
+- Related/branch studies (optional): None yet  
+- Notes: N/A  
+- Brief summary: N/A  
 
 ---
 
@@ -191,9 +197,8 @@ Historically, this work shaped how complex systems are conceptualized across phy
 
 ## 10. Sources
 
-- Barabási, A.-L., & Albert, R. (1999). Emergence of Scaling in Random Networks. Science.  
-- Albert, R., Jeong, H., & Barabási, A.-L. (2000). Error and attack tolerance of complex networks. Nature.  
-- Bianconi, G., & Barabási, A.-L. (2001). Bose–Einstein condensation in complex networks. Physical Review Letters.  
-- Clauset, A., Shalizi, C. R., & Newman, M. E. J. (2009). Power-law distributions in empirical data. SIAM Review.  
-- Broido, A. D., & Clauset, A. (2019). Scale-free networks are rare. Nature Communications.
-
+- Barabási, A.-L., & Albert, R. (1999). Emergence of Scaling in Random Networks. Science. https://www.science.org/doi/10.1126/science.286.5439.509 — Accessed: 2026-02-20  
+- Albert, R., Jeong, H., & Barabási, A.-L. (2000). Error and attack tolerance of complex networks. Nature. https://www.nature.com/articles/35019019 — Accessed: 2026-02-20  
+- Bianconi, G., & Barabási, A.-L. (2001). Bose–Einstein condensation in complex networks. Physical Review Letters. https://link.aps.org/doi/10.1103/PhysRevLett.86.5632 — Accessed: 2026-02-20  
+- Clauset, A., Shalizi, C. R., & Newman, M. E. J. (2009). Power-law distributions in empirical data. SIAM Review. https://epubs.siam.org/doi/10.1137/070710111 — Accessed: 2026-02-20  
+- Broido, A. D., & Clauset, A. (2019). Scale-free networks are rare. Nature Communications. https://www.nature.com/articles/s41467-019-08746-5 — Accessed: 2026-02-20

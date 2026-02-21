@@ -6,10 +6,13 @@ Domain: network-theory
 Author:  
 Date: 2026-02-20  
 Tags: scale-free-networks, preferential-attachment, robustness, hubs, heavy-tails, multiplex, network-growth  
-Related:  
-- Notes:  
-- Brief summary:  
-- Memo:  
+Related studies:  
+- Parent study: N/A  
+- Follow-on studies: None yet  
+- Related/branch studies (optional): None yet  
+- Notes: N/A  
+- Brief summary: N/A  
+- Memo: [/studies/memos/2026-02-20__scale_free_preferential_attachment_memo.md](/studies/memos/2026-02-20__scale_free_preferential_attachment_memo.md)  
 
 ---
 
@@ -179,20 +182,36 @@ Albert et al. (2000): Differential fragmentation under targeted removal.
 
 ---
 
-## 8. Sources (links-first)
+## 8. Contested / debate map
 
-- Barabási, A.-L., & Albert, R. (1999). Emergence of Scaling in Random Networks. Science. https://www.science.org/doi/10.1126/science.286.5439.509  
-- Albert, R., Jeong, H., & Barabási, A.-L. (2000). Error and attack tolerance of complex networks. Nature. https://www.nature.com/articles/35019019  
-- Bianconi, G., & Barabási, A.-L. (2001). Bose–Einstein condensation in complex networks. Physical Review Letters. https://link.aps.org/doi/10.1103/PhysRevLett.86.5632  
-- Clauset, A., Shalizi, C. R., & Newman, M. E. J. (2009). Power-law distributions in empirical data. SIAM Review. https://epubs.siam.org/doi/10.1137/070710111  
-- Broido, A. D., & Clauset, A. (2019). Scale-free networks are rare. Nature Communications. https://www.nature.com/articles/s41467-019-08746-5
+- Major claim: Networks with heavy-tailed structure are robust to random failure but vulnerable to targeted hub removal.  
+- Strongest counterclaim: This robustness pattern is often model-dependent and may not transfer cleanly to multiplex, weighted, or uncertainty-laden empirical networks.  
+- Disagreement type: empirical  
+- What evidence would change your current stance: Replicated cross-domain studies showing robustness findings remain stable under realistic edge uncertainty, temporal shifts, and multilayer structure.
 
 ---
 
-## 9. Suggested next steps/focus area
+## 9. Phase A/B decision record (lightweight)
+
+- Phase A decision (if known): Continue to Phase B  
+- Phase B decision (this artifact): Escalate to Phase C  
+- Rationale / trigger(s): Persistent ambiguity around measurement quality, mechanism identification, and misuse risk warranted memo escalation.
+
+---
+
+## 10. Sources (links-first)
+
+- Barabási, A.-L., & Albert, R. (1999). Emergence of Scaling in Random Networks. Science. https://www.science.org/doi/10.1126/science.286.5439.509 — Accessed: 2026-02-20  
+- Albert, R., Jeong, H., & Barabási, A.-L. (2000). Error and attack tolerance of complex networks. Nature. https://www.nature.com/articles/35019019 — Accessed: 2026-02-20  
+- Bianconi, G., & Barabási, A.-L. (2001). Bose–Einstein condensation in complex networks. Physical Review Letters. https://link.aps.org/doi/10.1103/PhysRevLett.86.5632 — Accessed: 2026-02-20  
+- Clauset, A., Shalizi, C. R., & Newman, M. E. J. (2009). Power-law distributions in empirical data. SIAM Review. https://epubs.siam.org/doi/10.1137/070710111 — Accessed: 2026-02-20  
+- Broido, A. D., & Clauset, A. (2019). Scale-free networks are rare. Nature Communications. https://www.nature.com/articles/s41467-019-08746-5 — Accessed: 2026-02-20
+
+---
+
+## 11. Suggested next steps/focus area
 
 1. Formalize claim-level robustness framework.  
 2. Develop uncertainty-aware attachment testing.  
 3. Compare static vs time-sliced diagnostics.  
 4. Evaluate stability under confidence thresholds.
-
