@@ -9,6 +9,8 @@ Tags:
 Related studies:  
 - Parent study: [link or N/A]  
 - Follow-on studies: [link(s) or None yet]  
+- Related/branch studies (optional): [link(s) when a study splits]  
+- Guidance: keep this block in sync as studies split, branch, or supersede.  
 - Notes: [link(s) to /studies/notes/... if any]  
 - Brief summary: [link if any]  
 - Memo: [link if any]  
@@ -66,7 +68,20 @@ Research-oriented questions only (not implementation tickets).
 -  
 -  
 
-## 8. Sources (links-first)
+## 8. Contested / debate map (required for Track A; optional otherwise)
+
+- Major claim:
+- Strongest counterclaim:
+- Disagreement type: empirical | definitional | normative
+- What evidence would change your current stance:
+
+## 9. Phase A/B decision record (lightweight)
+
+- Phase A decision (if known): Stop | Continue to Phase B | Escalate to Phase C | N/A
+- Phase B decision (this artifact): Stop | Continue in Phase B | Escalate to Phase C
+- Rationale / trigger(s):
+
+## 10. Sources (links-first)
 
 - [Source title](https://example.com) — Accessed: YYYY-MM-DD
 - [Source title](https://example.com) — Accessed: YYYY-MM-DD
