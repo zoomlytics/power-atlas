@@ -23,7 +23,7 @@ Capture only what is needed to orient:
 - Why now (decision/uncertainty reduced)
 - Non-goals
 - Initial risk sensitivities
-- Timebox + depth target (initially Level 1 unless clearly deeper)
+- Timebox + depth target (initially Level 1 unless clearly deeper; see depth levels in `/studies/workflow/README.md`)
 
 ### Scout map outputs (required)
 Produce a short scout map section in notes with:
@@ -100,7 +100,7 @@ Escalate when any of the below are true:
 
 ## Split / branch rule (required)
 
-Run **multiple studies once meaningfully distinct**. Split when one or more diverge:
+Run **multiple studies when they become meaningfully distinct**. Split when one or more diverge:
 - **Question:** distinct core question or decision
 - **Sources:** different primary corpus or critique ecosystem
 - **Failure modes:** different harms, errors, or misuse patterns
