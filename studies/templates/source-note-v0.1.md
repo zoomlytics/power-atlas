@@ -6,6 +6,9 @@ Domain: [network-theory | sampling | investigative-methods | data-sources | iden
 Author:  
 Date: YYYY-MM-DD  
 Tags:  
+Related studies:  
+- Parent study: [link or N/A]  
+- Follow-on studies: [link(s) or None yet]  
 Source: [link]  
 Accessed: YYYY-MM-DD  
 
