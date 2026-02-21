@@ -9,6 +9,9 @@ Reviewed on: YYYY-MM-DD
 Date: YYYY-MM-DD  
 Tags:  
 Concept classifications: []  
+Related studies:  
+- Parent study: [link or N/A]  
+- Follow-on studies: [link(s) or None yet]  
 
 ---
 

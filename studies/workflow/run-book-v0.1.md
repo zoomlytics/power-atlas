@@ -101,17 +101,36 @@ Escalate when any of the below are true:
 
 ## Split / branch rule (required)
 
-Run **multiple studies when they become meaningfully distinct**. Split when one or more diverge:
+Run **multiple studies when they become meaningfully distinct**. Create a new study slug once any one of these diverges:
 - **Question:** distinct core question or decision
 - **Sources:** different primary corpus or critique ecosystem
 - **Failure modes:** different harms, errors, or misuse patterns
 - **Integration target:** different landing zone in docs/ontology/simulations/memo posture
 
-### Common Track A split example
-If starting from “scale-free networks,” split into separate studies when needed:
-- **Measurement study:** how/if scale-freeness is measured and diagnosed
-- **Mechanisms study:** proposed generative mechanisms and assumptions
-- **Robustness study:** replication quality, boundary conditions, and critiques
+Default bias: if uncertain, **split** rather than forcing mixed concerns into one study.
+
+### Naming rules (required)
+- Use **hyphenated, lowercase slugs** (example: `scale-free-mechanisms`).
+- Use file suffixes: `YYYY-MM-DD__slug__notes.md`, `YYYY-MM-DD__slug__brief.md`, `YYYY-MM-DD__slug__detailed.md`, `YYYY-MM-DD__slug__memo-v0.1.md`.
+
+### Directory layout rules (required)
+- Notes and summaries live under track + slug:
+  - `/studies/notes/<track-slug>/<study-slug>/`
+  - `/studies/summaries/<track-slug>/<study-slug>/`
+- Memos are **flat by default** under `/studies/memos/`.
+- Exception policy for memos: use `/studies/memos/<track-slug>/` only for large grouped series (e.g., many closely related memos in the same track), and keep old links stable.
+
+### Cross-linking + supersession rules (required)
+- Include a **Related studies** block near the top of each artifact:
+  - `Parent study:` upstream study link (or `N/A`)
+  - `Follow-on studies:` child study links (or `None yet`)
+- If a memo is replaced, create a new memo file and mark the older memo `Status: Superseded` with `Superseded by: [link]`.
+
+### Track A pilot split mapping (example)
+If starting from the pilot topic “scale-free preferential attachment,” likely split map:
+- `scale-free-measurement` (diagnostics + evidence quality)
+- `scale-free-mechanisms` (generative assumptions)
+- `scale-free-robustness` (replication limits + critiques)
 
 ---
 

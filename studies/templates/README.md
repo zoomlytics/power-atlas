@@ -55,6 +55,8 @@ Slug guidance:
 - hyphen-separated
 - stable over time (don’t rename unless necessary)
 
+For split criteria, directory layout, cross-linking (`Related studies` block), and memo supersession policy, use `/studies/workflow/run-book-v0.1.md`.
+
 ## Sources & Citations (v0.1 policy)
 
 Links-first, minimal friction:
