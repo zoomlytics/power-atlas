@@ -12,6 +12,8 @@ Concept classifications: []
 Related studies:  
 - Parent study: [link or N/A]  
 - Follow-on studies: [link(s) or None yet]  
+- Related/branch studies (optional): [link(s) when a study splits]  
+- Guidance: keep this block in sync as studies split, branch, or supersede.  
 
 ---
 
@@ -256,6 +258,25 @@ Examples:
 
 ---
 
+## 8.1 Rhetorical Guardrails — “What not to say” (Required for Track A; recommended otherwise)
+
+Capture phrases that overclaim, flatten uncertainty, or launder authority.
+
+- Phrase to avoid:
+  - Why it is risky:
+  - Safer alternative phrasing:
+
+---
+
+## 8.2 Red-team misuse audit prompts (Required for Track A; recommended otherwise)
+
+- How could this memo be misquoted to imply certainty, guilt, or authority it does not claim?
+- What downstream misuse becomes easier if caveats are dropped?
+- Which terms, labels, or visuals are easiest to weaponize?
+- What friction/disclaimer should accompany high-risk claims?
+
+---
+
 ## 9. Implications for Future Research (Optional)
 
 What adjacent domains should be studied next?
@@ -271,9 +292,14 @@ Also include any explicit follow-ups:
 
 ---
 
-## 10. Sources
+## 10. Sources (links-first)
 
 Cite primary sources, papers, talks, platforms, or books.
+
+Prefer links-first entries here too; include accessed dates for web sources when available.
+
+Example:
+- [Source title](https://example.com) — Accessed: YYYY-MM-DD
 
 (Optional) Add a short note per source:
 - why it matters

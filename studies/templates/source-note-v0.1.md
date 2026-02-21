@@ -9,6 +9,8 @@ Tags:
 Related studies:  
 - Parent study: [link or N/A]  
 - Follow-on studies: [link(s) or None yet]  
+- Related/branch studies (optional): [link(s) when a study splits]  
+- Guidance: keep this block in sync as studies split, branch, or supersede.  
 Source: [link]  
 Accessed: YYYY-MM-DD  
 
