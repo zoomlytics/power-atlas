@@ -6,19 +6,21 @@ These artifacts are distinct from any “research” the *system itself* may per
 
 ## Artifact Types (3-layer workflow)
 
-### 1) Notes (raw capture)
-**Goal:** high-volume capture with minimal friction.
+### 1) Notes (raw capture, optional)
+**Goal:** high-volume capture with minimal friction when useful.
 
 Typical inputs:
 - reading notes, excerpts, timestamps
 - rough thoughts and questions
 - agent-generated outputs (LLM summaries, extraction tables)
 
-Template: `source-note-v0.1.md`
+Template (optional): `source-note-v0.1.md`
 
 Location (recommended): `/studies/notes/`
 
-### 2) Summaries (working synthesis)
+Guidance and conventions: `/studies/notes/README.md`
+
+### 2) Summaries (working synthesis, default start for AI-first flows)
 **Goal:** medium-volume synthesis that’s readable and shareable.
 
 Two levels:
@@ -30,6 +32,10 @@ Templates:
 - `summary-detailed-v0.1.md`
 
 Location (recommended): `/studies/summaries/`
+
+Notes linkage rule:
+- if Notes exist, link them from the summary/memo
+- if Notes do not exist, state `Notes: N/A`
 
 ### 3) Memo (governance-facing synthesis)
 **Goal:** low-volume, high-rigor synthesis that explicitly addresses assumptions, relevance, risks, and “what not to borrow.”
@@ -44,10 +50,14 @@ Use the following file naming convention:
 
 `YYYY-MM-DD__slug__type.md`
 
+Notes may add a short note label segment:
+
+`YYYY-MM-DD__slug__note__<short-label>.md`
+
 Examples:
 - `2026-02-20__network-sampling__brief.md`
 - `2026-02-20__network-sampling__detailed.md`
-- `2026-02-20__network-sampling__notes.md`
+- `2026-02-20__network-sampling__note__triage.md`
 - `2026-02-20__network-sampling__memo-v0.1.md`
 
 Slug guidance:

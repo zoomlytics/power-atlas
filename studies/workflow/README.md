@@ -17,9 +17,11 @@ It complements (and does not replace) the **artifact templates** under [`/studie
 
 1) Pick a **Track** (A–G or Track M for Misc/Hybrid) using the canonical decision tree: `/studies/workflow/track-selection-decision-tree-v0.1.md`.  
 2) Choose a **Depth level** (Level 1/2/3) and a **timebox**.  
-3) Start a **Notes** document (raw capture) using the template:
-   - `/studies/templates/source-note-v0.1.md`
-4) As you learn, create a **Brief** and/or **Detailed** summary:
+3) Start with one of:
+   - **AI-first/default:** create a Brief and/or Detailed summary first
+   - **Human/manual triage:** create Notes first (freeform or template-driven)
+   Notes guidance: `/studies/notes/README.md`
+4) As you learn, create or update **Brief** and/or **Detailed** summaries:
    - `/studies/templates/summary-brief-v0.1.md`
    - `/studies/templates/summary-detailed-v0.1.md`
 5) If the study is governance-relevant or likely to affect architecture/ontology/metrics/risk posture, create a **Research Memo**:
@@ -32,7 +34,7 @@ It complements (and does not replace) the **artifact templates** under [`/studie
 All studies follow the same backbone stages:
 
 1. **Intake & scoping**
-2. **Acquisition & capture (Notes)**
+2. **Acquisition & capture (Notes, optional lane)**
 3. **Synthesis (Summaries)**
 4. **Governance-facing evaluation (Memo when warranted)**
 5. **Integration outputs (where findings land)**
@@ -101,7 +103,7 @@ Choose a level up front. Most studies should stop at Level 1 or Level 2.
 ### Level 1 — Triage scan (fast)
 **Use when:** deciding whether to invest more time.  
 **Outputs:**
-- Notes (required)
+- Notes (optional)
 - Brief summary (recommended)
 
 **Stop rule:** you can answer:
@@ -113,7 +115,7 @@ Choose a level up front. Most studies should stop at Level 1 or Level 2.
 ### Level 2 — Working understanding (default)
 **Use when:** likely relevant, but not yet governance-critical.  
 **Outputs:**
-- Notes (required)
+- Notes (optional)
 - Detailed summary (recommended)
 - Brief summary (recommended)
 
@@ -140,7 +142,7 @@ Choose a level up front. Most studies should stop at Level 1 or Level 2.
 ## 5) Workflow stages (how to run a study)
 
 ### 5.1 Intake & scoping (always do)
-Write a short “study charter” at the top of your Notes doc (or in a separate charter doc if/when introduced).
+Write a short “study charter” at the top of your first study artifact (summary or notes), or in a separate charter doc if/when introduced.
 
 Minimum fields (recommended):
 - Track (primary + optional secondary)
@@ -151,8 +153,8 @@ Minimum fields (recommended):
 - Output target (notes only / brief / detailed / memo expected)
 - Any risk sensitivities (privacy, defamation-by-ordering, licensing)
 
-### 5.2 Acquisition & capture (Notes)
-Use `/studies/templates/source-note-v0.1.md`.
+### 5.2 Acquisition & capture (Notes, optional lane)
+Use `/studies/templates/source-note-v0.1.md` when you want structured note capture, or freeform notes as documented in `/studies/notes/README.md`.
 
 Guidance:
 - capture quotes sparingly; prefer links + page/timestamp pointers
@@ -165,6 +167,7 @@ Use brief/detailed summary templates.
 Guidance:
 - summaries should be readable without the raw notes
 - include Sources section (links-first)
+- add `Notes:` with links when notes exist; otherwise `Notes: N/A`
 
 ### 5.4 Governance-facing evaluation (Memo when warranted)
 Use `/studies/templates/research-memo-v0.1.md`.
@@ -173,6 +176,7 @@ Guidance:
 - keep language neutral and implementation-agnostic
 - emphasize Section 5 (Relevance to Power Atlas), Section 6 (Borrow), Section 7 (Do Not Borrow)
 - explicitly call out operationalization hazards and misuse risks when relevant
+- include `Notes:` links when present; otherwise `Notes: N/A`
 
 ### 5.5 Integration outputs (required to avoid “dead memos”)
 Every Level 2+ study should end with one of:
@@ -230,9 +234,10 @@ If time-sensitive:
 
 1) Every study artifact must state **Track** near the top (even Notes). Use controlled slugs: `conceptual-research | methods-techniques | tech-evaluation | data-source | case-study | similar-platforms | internal-spike | misc`.  
 2) If Track = `misc`, include a **resolution plan** (reclassify or split).  
-3) Follow naming convention: `YYYY-MM-DD__slug__type.md` (see `/studies/README.md`).  
+3) Follow naming convention: `YYYY-MM-DD__slug__type.md` (see `/studies/README.md`; **Notes** use `YYYY-MM-DD__slug__note__<short-label>.md`).  
 4) Include a **Sources** section (links-first).  
 5) Default: do not commit large binaries; use `/studies/_assets/` only when justified.
+6) Notes are optional; summaries/memos must either link Notes artifacts or mark `Notes: N/A`.
 
 ---
 
