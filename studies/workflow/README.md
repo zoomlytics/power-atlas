@@ -84,6 +84,7 @@ Quick guidance:
 
 If you have any process question about track routing, refer to the standalone decision-tree doc first.
 - For phased execution guidance (A/B/C, split rule, AI-first gating), use `/studies/workflow/run-book-v0.1.md`.
+- For reusable track prompt packs, use `/studies/workflow/prompts/README.md`.
 
 ### Hybrid guidance (important)
 - Always choose one **primary track**.
