@@ -33,7 +33,7 @@ Use one primary track slug per study:
 - `case-study`
 - `similar-platforms`
 - `internal-spike`
-- `misc` (temporary classification; include a resolution plan)
+- `misc` (temporary classification; include a dedicated `Resolution plan` section in the artifact body with target track and reclassification/split trigger)
 
 Track cards and prompt packs live under `/studies/workflow/` and `/studies/workflow/prompts/`.
 
@@ -89,7 +89,9 @@ Read these first:
 
 ## Registry pointer
 
-If a formal study registry file exists in a later version, treat it as the inventory entrypoint and read it after this index. In v0.1, use the directory indexes in `notes/`, `summaries/`, and `memos/` as the practical registry layer.
+Registry precedence rules:
+- If `/studies/REGISTRY.md` exists (including when directory indexes also exist), use it as the canonical inventory entrypoint and treat directory indexes as navigation helpers.
+- In v0.1, use the directory indexes in `notes/`, `summaries/`, and `memos/` as the practical registry layer.
 
 ## Review checklist
 
