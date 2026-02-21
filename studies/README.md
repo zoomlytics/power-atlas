@@ -20,11 +20,13 @@ Examples:
 - implementation tickets or feature commitments
 - large binary dumps (PDF collections, videos) unless explicitly justified (see Asset policy below)
 
-## Directory layout (recommended)
+## Directory layout (v0.1 canonical)
 
 - `_system/` — standardized workflow + template system
 - `_studies/` — study artifacts organized by track/slug (`<track>/<study>/notes|summaries|memos/`)
 - `_assets/` — exception-only storage for small, license-permitted artifacts
+
+We intentionally do not maintain a global registry in v0.1. The canonical inventory is the directory structure under `/studies/_studies/`.
 
 ## Workflow (3 layers)
 
@@ -39,7 +41,7 @@ All study artifacts should use:
 `YYYY-MM-DD__slug__type.md`
 
 Examples:
-- `2026-02-20__network-sampling__notes.md`
+- `2026-02-20__network-sampling__note__triage.md`
 - `2026-02-20__network-sampling__brief.md`
 - `2026-02-20__network-sampling__detailed.md`
 - `2026-02-20__network-sampling__memo-v0.1.md`

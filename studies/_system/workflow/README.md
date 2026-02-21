@@ -86,6 +86,7 @@ Quick guidance:
 
 If you have any process question about track routing, refer to the standalone decision-tree doc first.
 - For phased execution guidance (A/B/C, split rule, naming/layout/cross-link conventions, AI-first gating), use `/studies/_system/workflow/run-book-v0.1.md`.
+- For lane definitions and file expectations (`notes/`, `summaries/`, `memos/`), use `/studies/_system/workflow/lanes-v0.1.md`.
 - For phase-by-phase context attachments (including deep research mode guidance), use `/studies/_system/workflow/context-packs-v0.1.md`.
 - For reusable track prompt packs, use `/studies/_system/workflow/prompts/README.md`.
 

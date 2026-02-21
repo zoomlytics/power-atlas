@@ -16,6 +16,7 @@ Artifact ladder (increasing rigor):
 ## Workflow backbone docs (v0.1)
 
 - `/studies/_system/workflow/README.md`
+- `/studies/_system/workflow/lanes-v0.1.md`
 - `/studies/_system/workflow/run-book-v0.1.md`
 - `/studies/_system/workflow/context-packs-v0.1.md`
 - `/studies/_system/templates/README.md`
@@ -47,7 +48,7 @@ Common outputs:
 - Brief summary: `YYYY-MM-DD__slug__brief.md`
 - Detailed summary: `YYYY-MM-DD__slug__detailed.md`
 - Memo: `YYYY-MM-DD__slug__memo-v0.1.md`
-- Notes: `YYYY-MM-DD__slug__note__<short-label>.md`
+- Notes: `YYYY-MM-DD__slug__note__<label>.md`
 
 ## Lifecycle states and cross-linking
 
@@ -87,11 +88,9 @@ Read these first:
    - `/studies/_studies/<track-slug>/<study-slug>/memos/`
    - `/studies/_system/workflow/prompts/README.md`
 
-## Registry pointer
+## Canonical inventory (no registry in v0.1)
 
-Registry precedence rules:
-- If `/studies/REGISTRY.md` exists (including when directory indexes also exist), use it as the canonical inventory entrypoint and treat directory indexes as navigation helpers.
-- In v0.1, use the track/slug directory layout in `_studies/` as the practical registry layer.
+We intentionally do not maintain a global registry in v0.1. The canonical inventory is the directory structure under `/studies/_studies/`.
 
 ## Review checklist
 
