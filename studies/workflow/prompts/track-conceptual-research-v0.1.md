@@ -74,7 +74,7 @@ Required sections:
 Task: Produce a file-ready brief summary for Track A.
 
 Output path convention:
-/studies/summaries/conceptual-research/<study-slug>/YYYY-MM-DD__<study-slug>_brief.md
+/studies/summaries/conceptual-research/<study-slug>/YYYY-MM-DD__<study-slug>__brief.md
 
 Use template shape from /studies/templates/summary-brief-v0.1.md.
 
@@ -101,7 +101,7 @@ Guardrails:
 Task: Produce a file-ready detailed summary for Track A.
 
 Output path convention:
-/studies/summaries/conceptual-research/<study-slug>/YYYY-MM-DD__<study-slug>_detailed.md
+/studies/summaries/conceptual-research/<study-slug>/YYYY-MM-DD__<study-slug>__detailed.md
 
 Use template shape from /studies/templates/summary-detailed-v0.1.md.
 
@@ -131,7 +131,7 @@ Track A risk checks (must be explicit):
 Task: Draft a file-ready research memo for Track A escalation.
 
 Output path convention:
-/studies/memos/YYYY-MM-DD__<study-slug>_memo.md
+/studies/memos/YYYY-MM-DD__<study-slug>__memo-v0.1.md
 
 Follow /studies/templates/research-memo-v0.1.md section order. If a section is not applicable, write N/A with brief reason.
 
