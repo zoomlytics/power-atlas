@@ -55,6 +55,8 @@ Slug guidance:
 - hyphen-separated
 - stable over time (don’t rename unless necessary)
 
+For split criteria, directory layout, cross-linking (`Related studies` block), and memo supersession policy, use `/studies/workflow/run-book-v0.1.md`.
+
 ## Sources & Citations (v0.1 policy)
 
 Links-first, minimal friction:
@@ -89,5 +91,6 @@ This is recommended for auditability but not required in v0.1.
 ## Workflow Docs
 
 - Process and taxonomy reference: `/studies/workflow/README.md`
+- Run book (phased execution + AI-first gating): `/studies/workflow/run-book-v0.1.md`
 - Track selection decision tree and track cards: `/studies/workflow/`
 - Study charter snippet: `/studies/workflow/study-charter-snippet-v0.1.md`

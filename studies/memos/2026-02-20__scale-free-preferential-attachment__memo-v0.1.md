@@ -9,6 +9,12 @@ Reviewed on:
 Date: 2026-02-20  
 Tags: scale-free-networks, preferential-attachment, robustness, heavy-tails, network-growth, epistemic-risk  
 Concept classifications: [Structural, Epistemic, Methodological, Analytical, Governance-related]  
+Related studies:  
+- Parent study: [/studies/summaries/conceptual-research/scale-free-preferential-attachment/2026-02-20__scale-free-preferential-attachment__detailed.md](/studies/summaries/conceptual-research/scale-free-preferential-attachment/2026-02-20__scale-free-preferential-attachment__detailed.md)  
+- Follow-on studies: None yet  
+- Related/branch studies (optional): None yet  
+- Notes: N/A  
+- Brief summary: N/A  
 
 ---
 
@@ -175,6 +181,33 @@ Historically, this work shaped how complex systems are conceptualized across phy
 
 ---
 
+## 8.1 Rhetorical Guardrails — "What not to say" (Required for Track A)
+
+- Phrase to avoid: "hub," "key actor," "important node," or "super-spreader" applied to individuals or groups without explicit source-bounded qualification.
+  - Why it is risky: launders authority via structural prominence; implies causal power or moral importance that topology does not support.
+  - Safer alternative phrasing: "high-degree node in the studied network," "structurally prominent in this dataset," with explicit caveats on domain and time window.
+- Phrase to avoid: presenting degree, centrality, or "rich-get-richer" dynamics as inevitable, desirable, or normatively justified.
+  - Why it is risky: naturalizes inequality and forecloses design alternatives.
+  - Safer alternative phrasing: "one mechanism that can produce heterogeneity under these assumptions," with boundary conditions stated.
+- Phrase to avoid: policy or product recommendations derived from structural metrics alone.
+  - Why it is risky: misreads descriptive topology as prescriptive authority.
+  - Safer alternative phrasing: keep recommendations conditional on explicit evidence beyond structure; mark as out-of-scope when not supported.
+
+---
+
+## 8.2 Red-team misuse audit (Required for Track A)
+
+- How could this memo be misquoted to imply certainty, guilt, or authority it does not claim?
+  - Over-interpreting network metrics as power rankings; using robustness concepts to rationalize removal or suppression of high-degree nodes; citing preferential attachment as evidence that inequality is unavoidable.
+- What downstream misuse becomes easier if caveats are dropped?
+  - Targeting individuals via "most connected" lists; reputational harm via implied structural guilt-by-association; strategic gaming of connection metrics.
+- Which terms, labels, or visuals are easiest to weaponize?
+  - "Hub," "super-spreader," degree-ranked leaderboards, centrality scores presented without confidence intervals or domain qualifiers.
+- What friction/disclaimer should accompany high-risk claims?
+  - All structural diagnostics should be labeled with domain scope, time window, and explicit statement that topology ≠ power/authority; leaderboard-style visualizations should be avoided; uncertainty should be displayed alongside any metric.
+
+---
+
 ## 9. Implications for Future Research (Optional)
 
 - Study claim-level robustness under uncertainty.  
@@ -189,11 +222,10 @@ Historically, this work shaped how complex systems are conceptualized across phy
 
 ---
 
-## 10. Sources
+## 10. Sources (links-first)
 
-- Barabási, A.-L., & Albert, R. (1999). Emergence of Scaling in Random Networks. Science.  
-- Albert, R., Jeong, H., & Barabási, A.-L. (2000). Error and attack tolerance of complex networks. Nature.  
-- Bianconi, G., & Barabási, A.-L. (2001). Bose–Einstein condensation in complex networks. Physical Review Letters.  
-- Clauset, A., Shalizi, C. R., & Newman, M. E. J. (2009). Power-law distributions in empirical data. SIAM Review.  
-- Broido, A. D., & Clauset, A. (2019). Scale-free networks are rare. Nature Communications.
-
+- Barabási, A.-L., & Albert, R. (1999). Emergence of Scaling in Random Networks. Science. https://www.science.org/doi/10.1126/science.286.5439.509 — Accessed: 2026-02-20  
+- Albert, R., Jeong, H., & Barabási, A.-L. (2000). Error and attack tolerance of complex networks. Nature. https://www.nature.com/articles/35019019 — Accessed: 2026-02-20  
+- Bianconi, G., & Barabási, A.-L. (2001). Bose–Einstein condensation in complex networks. Physical Review Letters. https://link.aps.org/doi/10.1103/PhysRevLett.86.5632 — Accessed: 2026-02-20  
+- Clauset, A., Shalizi, C. R., & Newman, M. E. J. (2009). Power-law distributions in empirical data. SIAM Review. https://epubs.siam.org/doi/10.1137/070710111 — Accessed: 2026-02-20  
+- Broido, A. D., & Clauset, A. (2019). Scale-free networks are rare. Nature Communications. https://www.nature.com/articles/s41467-019-08746-5 — Accessed: 2026-02-20
