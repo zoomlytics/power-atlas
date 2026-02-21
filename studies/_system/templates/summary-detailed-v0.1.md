@@ -11,7 +11,7 @@ Related studies:
 - Follow-on studies: [link(s) or None yet]  
 - Related/branch studies (optional): [link(s) when a study splits]  
 - Guidance: keep this block in sync as studies split, branch, or supersede.  
-- Notes: [link(s) to /studies/notes/... if any, else `N/A`]  
+- Notes: [link(s) to /studies/_studies/<track-slug>/<study-slug>/notes/... if any, else `N/A`]  
 - Brief summary: [link if any]  
 - Memo: [link if any]  
 

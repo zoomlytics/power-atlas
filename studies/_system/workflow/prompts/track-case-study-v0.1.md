@@ -5,7 +5,7 @@ Use this pack for `Track: case-study` studies.
 ## Tier 0
 
 Reuse Tier 0 orientation from:
-`/studies/workflow/prompts/track-conceptual-research-v0.1.md`
+`/studies/_system/workflow/prompts/track-conceptual-research-v0.1.md`
 
 ## Phase A prompt (Scout)
 
@@ -22,10 +22,10 @@ Require at least one conflicting account/source for the case.
 Task: Produce file-ready case-study summaries.
 
 Brief path:
-/studies/summaries/case-study/<study-slug>/YYYY-MM-DD__<study-slug>__brief.md
+/studies/_studies/case-study/<study-slug>/summaries/YYYY-MM-DD__<study-slug>__brief.md
 
 Detailed path:
-/studies/summaries/case-study/<study-slug>/YYYY-MM-DD__<study-slug>__detailed.md
+/studies/_studies/case-study/<study-slug>/summaries/YYYY-MM-DD__<study-slug>__detailed.md
 
 Use v0.1 summary templates. Include timeline, actors, evidence strength, uncertainties, and:
 Decision: Stop | Continue in Phase B | Escalate to Phase C
@@ -35,7 +35,7 @@ Decision: Stop | Continue in Phase B | Escalate to Phase C
 
 ```text
 Task: Draft escalation memo for Track E when depth rules or governance risk require Phase C.
-Path: /studies/memos/YYYY-MM-DD__<study-slug>__memo-v0.1.md
+Path: /studies/_studies/<track-slug>/<study-slug>/memos/YYYY-MM-DD__<study-slug>__memo-v0.1.md
 Include misuse/misread risks, unresolved evidence conflicts, and recommendation with:
 Decision: Stop | Continue in Phase C
 ```

@@ -16,9 +16,9 @@ Typical inputs:
 
 Template (optional): `source-note-v0.1.md`
 
-Location (recommended): `/studies/notes/`
+Location (recommended): `/studies/_studies/<track-slug>/<study-slug>/notes/`
 
-Guidance and conventions: `/studies/notes/README.md`
+Guidance and conventions: `/studies/_system/workflow/run-book-v0.1.md`
 
 ### 2) Summaries (working synthesis, default start for AI-first flows)
 **Goal:** medium-volume synthesis that’s readable and shareable.
@@ -31,7 +31,7 @@ Templates:
 - `summary-brief-v0.1.md`
 - `summary-detailed-v0.1.md`
 
-Location (recommended): `/studies/summaries/`
+Location (recommended): `/studies/_studies/<track-slug>/<study-slug>/summaries/`
 
 Notes linkage rule:
 - if Notes exist, link them from the summary/memo
@@ -40,9 +40,9 @@ Notes linkage rule:
 ### 3) Memo (governance-facing synthesis)
 **Goal:** low-volume, high-rigor synthesis that explicitly addresses assumptions, relevance, risks, and “what not to borrow.”
 
-Template (stored in this `/studies/templates/` directory; completed memos live in `/studies/memos/`): `research-memo-v0.1.md`
+Template (stored in this `/studies/_system/templates/` directory; completed memos live in `/studies/_studies/<track-slug>/<study-slug>/memos/`): `research-memo-v0.1.md`
 
-Location (recommended): `/studies/memos/`
+Location (recommended): `/studies/_studies/<track-slug>/<study-slug>/memos/`
 
 ## Naming Convention (required)
 
@@ -65,7 +65,7 @@ Slug guidance:
 - hyphen-separated
 - stable over time (don’t rename unless necessary)
 
-For split criteria, directory layout, cross-linking (`Related studies` block), and memo supersession policy, use `/studies/workflow/run-book-v0.1.md`.
+For split criteria, directory layout, cross-linking (`Related studies` block), and memo supersession policy, use `/studies/_system/workflow/run-book-v0.1.md`.
 
 ## Sources & Citations (v0.1 policy)
 
@@ -100,7 +100,7 @@ This is recommended for auditability but not required in v0.1.
 
 ## Workflow Docs
 
-- Process and taxonomy reference: `/studies/workflow/README.md`
-- Run book (phased execution + AI-first gating): `/studies/workflow/run-book-v0.1.md`
-- Track selection decision tree and track cards: `/studies/workflow/`
-- Study charter snippet: `/studies/workflow/study-charter-snippet-v0.1.md`
+- Process and taxonomy reference: `/studies/_system/workflow/README.md`
+- Run book (phased execution + AI-first gating): `/studies/_system/workflow/run-book-v0.1.md`
+- Track selection decision tree and track cards: `/studies/_system/workflow/`
+- Study charter snippet: `/studies/_system/workflow/study-charter-snippet-v0.1.md`

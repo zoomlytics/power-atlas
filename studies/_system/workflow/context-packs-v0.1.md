@@ -18,12 +18,12 @@ Purpose: define exactly what to attach/paste into GPT at each phase, while keepi
 ### Phase B — Structured synthesis
 - [ ] Attach selected **track card** (A–G or M).
 - [ ] Attach relevant summary template(s):
-  - `/studies/templates/summary-brief-v0.1.md` (required for brief output)
-  - `/studies/templates/summary-detailed-v0.1.md` (required for detailed output)
+  - `/studies/_system/templates/summary-brief-v0.1.md` (required for brief output)
+  - `/studies/_system/templates/summary-detailed-v0.1.md` (required for detailed output)
 - [ ] Keep context limited to the selected track + summary format needed for current depth.
 
 ### Phase C — Governance memo
-- [ ] Attach `/studies/templates/research-memo-v0.1.md`.
+- [ ] Attach `/studies/_system/templates/research-memo-v0.1.md`.
 - [ ] Attach selective guardrails **only if relevant to the study decision**:
   - risk: `/docs/risk/risk-model-v0.1.md`
   - metrics posture: `/docs/metrics/analysis-philosophy-v0.1.md`
@@ -42,14 +42,14 @@ Purpose: define exactly what to attach/paste into GPT at each phase, while keepi
 
 | Track | Attach track card | Attach summary template(s) |
 |---|---|---|
-| Track A (`conceptual-research`) | `/studies/workflow/track-conceptual-research-v0.1.md` | brief and/or detailed as needed |
-| Track B (`methods-techniques`) | `/studies/workflow/track-methods-techniques-v0.1.md` | brief and/or detailed as needed |
-| Track C (`tech-evaluation`) | `/studies/workflow/track-tech-evaluation-v0.1.md` | brief and/or detailed as needed |
-| Track D (`data-source`) | `/studies/workflow/track-data-source-v0.1.md` | brief and/or detailed as needed |
-| Track E (`case-study`) | `/studies/workflow/track-case-study-v0.1.md` | brief and/or detailed as needed |
-| Track F (`similar-platforms`) | `/studies/workflow/track-similar-platforms-v0.1.md` | brief and/or detailed as needed |
-| Track G (`internal-spike`) | `/studies/workflow/track-internal-spike-v0.1.md` | brief and/or detailed as needed |
-| Track M (`misc`) | `/studies/workflow/track-misc-v0.1.md` | brief and/or detailed as needed |
+| Track A (`conceptual-research`) | `/studies/_system/workflow/track-conceptual-research-v0.1.md` | brief and/or detailed as needed |
+| Track B (`methods-techniques`) | `/studies/_system/workflow/track-methods-techniques-v0.1.md` | brief and/or detailed as needed |
+| Track C (`tech-evaluation`) | `/studies/_system/workflow/track-tech-evaluation-v0.1.md` | brief and/or detailed as needed |
+| Track D (`data-source`) | `/studies/_system/workflow/track-data-source-v0.1.md` | brief and/or detailed as needed |
+| Track E (`case-study`) | `/studies/_system/workflow/track-case-study-v0.1.md` | brief and/or detailed as needed |
+| Track F (`similar-platforms`) | `/studies/_system/workflow/track-similar-platforms-v0.1.md` | brief and/or detailed as needed |
+| Track G (`internal-spike`) | `/studies/_system/workflow/track-internal-spike-v0.1.md` | brief and/or detailed as needed |
+| Track M (`misc`) | `/studies/_system/workflow/track-misc-v0.1.md` | brief and/or detailed as needed |
 
 Use the summary template that matches the current output target/depth:
 - fast triage synthesis: brief
@@ -57,7 +57,7 @@ Use the summary template that matches the current output target/depth:
 - escalation-ready synthesis: detailed (plus brief when useful)
 
 ### Phase C manifest (all tracks)
-- **Required:** `/studies/templates/research-memo-v0.1.md`
+- **Required:** `/studies/_system/templates/research-memo-v0.1.md`
 - **Optional (relevance-gated):** risk/metrics/provenance guardrails listed in Section 1 / Phase C.
 
 ---

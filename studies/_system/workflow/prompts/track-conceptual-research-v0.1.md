@@ -74,9 +74,9 @@ Required sections:
 Task: Produce a file-ready brief summary for Track A.
 
 Output path convention:
-/studies/summaries/conceptual-research/<study-slug>/YYYY-MM-DD__<study-slug>__brief.md
+/studies/_studies/conceptual-research/<study-slug>/summaries/YYYY-MM-DD__<study-slug>__brief.md
 
-Use template shape from /studies/templates/summary-brief-v0.1.md.
+Use template shape from /studies/_system/templates/summary-brief-v0.1.md.
 
 Hard requirements:
 - Keep Track as conceptual-research
@@ -101,9 +101,9 @@ Guardrails:
 Task: Produce a file-ready detailed summary for Track A.
 
 Output path convention:
-/studies/summaries/conceptual-research/<study-slug>/YYYY-MM-DD__<study-slug>__detailed.md
+/studies/_studies/conceptual-research/<study-slug>/summaries/YYYY-MM-DD__<study-slug>__detailed.md
 
-Use template shape from /studies/templates/summary-detailed-v0.1.md.
+Use template shape from /studies/_system/templates/summary-detailed-v0.1.md.
 
 Hard requirements:
 - Include explicit assumptions list (separate implicit vs explicit assumptions)
@@ -131,9 +131,9 @@ Track A risk checks (must be explicit):
 Task: Draft a file-ready research memo for Track A escalation.
 
 Output path convention:
-/studies/memos/YYYY-MM-DD__<study-slug>__memo-v0.1.md
+/studies/_studies/<track-slug>/<study-slug>/memos/YYYY-MM-DD__<study-slug>__memo-v0.1.md
 
-Follow /studies/templates/research-memo-v0.1.md section order. If a section is not applicable, write N/A with brief reason.
+Follow /studies/_system/templates/research-memo-v0.1.md section order. If a section is not applicable, write N/A with brief reason.
 
 Required additions in the memo body:
 1) What not to say (rhetorical guardrails)

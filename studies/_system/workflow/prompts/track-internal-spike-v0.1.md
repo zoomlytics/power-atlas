@@ -5,7 +5,7 @@ Use this pack for `Track: internal-spike` studies.
 ## Tier 0
 
 Reuse Tier 0 orientation from:
-`/studies/workflow/prompts/track-conceptual-research-v0.1.md`
+`/studies/_system/workflow/prompts/track-conceptual-research-v0.1.md`
 
 ## Phase A prompt (Scout)
 
@@ -21,10 +21,10 @@ Decision: Stop | Continue to Phase B | Escalate to Phase C
 Task: Produce file-ready internal-spike summaries.
 
 Brief path:
-/studies/summaries/internal-spike/<study-slug>/YYYY-MM-DD__<study-slug>__brief.md
+/studies/_studies/internal-spike/<study-slug>/summaries/YYYY-MM-DD__<study-slug>__brief.md
 
 Detailed path:
-/studies/summaries/internal-spike/<study-slug>/YYYY-MM-DD__<study-slug>__detailed.md
+/studies/_studies/internal-spike/<study-slug>/summaries/YYYY-MM-DD__<study-slug>__detailed.md
 
 Use v0.1 summary templates. Include setup, findings, limitations, reproducibility notes, and:
 Decision: Stop | Continue in Phase B | Escalate to Phase C
@@ -34,7 +34,7 @@ Decision: Stop | Continue in Phase B | Escalate to Phase C
 
 ```text
 Task: Draft escalation memo for Track G when spike results affect architecture/governance decisions.
-Path: /studies/memos/YYYY-MM-DD__<study-slug>__memo-v0.1.md
+Path: /studies/_studies/<track-slug>/<study-slug>/memos/YYYY-MM-DD__<study-slug>__memo-v0.1.md
 Include recommendation, rollback/fallback options, and:
 Decision: Stop | Continue in Phase C
 ```

@@ -4,7 +4,7 @@ This directory contains reusable, track-specific prompt packs for study executio
 
 ## Phase usage (A/B/C)
 
-Use prompts according to the workflow phases in `/studies/workflow/run-book-v0.1.md`:
+Use prompts according to the workflow phases in `/studies/_system/workflow/run-book-v0.1.md`:
 
 - **Phase A — Scope and route:** define study question, choose track/depth/timebox, and set non-goals.
 - **Phase B — Capture and synthesize:** produce notes and summaries with explicit sources, assumptions, and uncertainty.
@@ -18,7 +18,7 @@ Prompts should request **file-ready markdown outputs** (not chat prose) that can
 - include `Track` near the top using controlled slugs
 - include a `Sources` section (links-first)
 - when `Track = misc`, include a resolution plan
-- include a `Related studies` block (Parent + Follow-ons) and follow memo supersession links from `/studies/workflow/run-book-v0.1.md`
+- include a `Related studies` block (Parent + Follow-ons) and follow memo supersession links from `/studies/_system/workflow/run-book-v0.1.md`
 
 ## Self-heal pattern (missing templates/context)
 

@@ -15,12 +15,12 @@ Artifact ladder (increasing rigor):
 
 ## Workflow backbone docs (v0.1)
 
-- `/studies/workflow/README.md`
-- `/studies/workflow/run-book-v0.1.md`
-- `/studies/workflow/context-packs-v0.1.md`
-- `/studies/templates/README.md`
-- `/studies/notes/README.md`
-- `/studies/workflow/prompts/README.md`
+- `/studies/_system/workflow/README.md`
+- `/studies/_system/workflow/run-book-v0.1.md`
+- `/studies/_system/workflow/context-packs-v0.1.md`
+- `/studies/_system/templates/README.md`
+- `/studies/_studies/<track-slug>/<study-slug>/notes/`
+- `/studies/_system/workflow/prompts/README.md`
 
 ## Canonical track slugs
 
@@ -35,7 +35,7 @@ Use one primary track slug per study:
 - `internal-spike`
 - `misc` (temporary classification; include a dedicated `Track resolution plan` section in the artifact body with target track and reclassification/split trigger)
 
-Track cards and prompt packs live under `/studies/workflow/` and `/studies/workflow/prompts/`.
+Track cards and prompt packs live under `/studies/_system/workflow/` and `/studies/_system/workflow/prompts/`.
 
 ## Naming conventions (v0.1)
 
@@ -66,32 +66,32 @@ Cross-link practices:
 
 ## Directory layout
 
-- `/studies/templates/` — canonical templates
-- `/studies/notes/` — optional capture lane
-- `/studies/summaries/` — brief/detailed synthesis lane
-- `/studies/memos/` — governance-facing synthesis lane
-- `/studies/workflow/` — process and track definitions
-- `/studies/workflow/prompts/` — reusable prompt packs
+- `/studies/_system/templates/` — canonical templates
+- `/studies/_studies/<track-slug>/<study-slug>/notes/` — optional capture lane
+- `/studies/_studies/<track-slug>/<study-slug>/summaries/` — brief/detailed synthesis lane
+- `/studies/_studies/<track-slug>/<study-slug>/memos/` — governance-facing synthesis lane
+- `/studies/_system/workflow/` — process and track definitions
+- `/studies/_system/workflow/prompts/` — reusable prompt packs
 - `/studies/_assets/` — exception-only small assets
 
 ## Minimum review set (newcomers and AI)
 
 Read these first:
 1. `/studies/SYSTEM-INDEX-v0.1.md`
-2. `/studies/workflow/README.md`
-3. `/studies/workflow/run-book-v0.1.md`
-4. `/studies/templates/README.md`
-5. Directory indexes:
-   - `/studies/notes/README.md`
-   - `/studies/summaries/README.md`
-   - `/studies/memos/README.md`
-   - `/studies/workflow/prompts/README.md`
+2. `/studies/_system/workflow/README.md`
+3. `/studies/_system/workflow/run-book-v0.1.md`
+4. `/studies/_system/templates/README.md`
+5. Artifact directories:
+   - `/studies/_studies/<track-slug>/<study-slug>/notes/`
+   - `/studies/_studies/<track-slug>/<study-slug>/summaries/`
+   - `/studies/_studies/<track-slug>/<study-slug>/memos/`
+   - `/studies/_system/workflow/prompts/README.md`
 
 ## Registry pointer
 
 Registry precedence rules:
 - If `/studies/REGISTRY.md` exists (including when directory indexes also exist), use it as the canonical inventory entrypoint and treat directory indexes as navigation helpers.
-- In v0.1, use the directory indexes in `notes/`, `summaries/`, and `memos/` as the practical registry layer.
+- In v0.1, use the track/slug directory layout in `_studies/` as the practical registry layer.
 
 ## Review checklist
 

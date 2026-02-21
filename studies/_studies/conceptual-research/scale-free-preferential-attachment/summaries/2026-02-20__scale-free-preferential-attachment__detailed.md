@@ -12,7 +12,7 @@ Related studies:
 - Related/branch studies (optional): None yet  
 - Notes: N/A  
 - Brief summary: N/A  
-- Memo: [/studies/memos/2026-02-20__scale-free-preferential-attachment__memo-v0.1.md](/studies/memos/2026-02-20__scale-free-preferential-attachment__memo-v0.1.md)  
+- Memo: [/studies/_studies/conceptual-research/scale-free-preferential-attachment/memos/2026-02-20__scale-free-preferential-attachment__memo-v0.1.md](/studies/_studies/conceptual-research/scale-free-preferential-attachment/memos/2026-02-20__scale-free-preferential-attachment__memo-v0.1.md)  
 
 ---
 
