@@ -12,7 +12,7 @@ Reuse Tier 0 orientation from:
 ```text
 Task: Run a Track F similar-platforms scout.
 Output must include: comparison scope, platform set, inclusion/exclusion criteria, evidence quality, transferability risks, and Phase A decision line:
-Decision: Stop | Continue | Escalate
+Decision: Stop | Continue to Phase B | Escalate to Phase C
 ```
 
 ## Phase B prompt (Brief + detailed outputs)
@@ -27,7 +27,7 @@ Detailed path:
 /studies/summaries/similar-platforms/<study-slug>/YYYY-MM-DD__<study-slug>__detailed.md
 
 Use v0.1 summary templates. Include comparison matrix (claims vs evidence), context mismatch notes, and:
-Decision: Stop | Continue | Escalate
+Decision: Stop | Continue in Phase B | Escalate to Phase C
 ```
 
 ## Phase C prompt (Memo; when depth/escalation warrants)
@@ -36,7 +36,7 @@ Decision: Stop | Continue | Escalate
 Task: Draft escalation memo for Track F when findings shape strategic direction.
 Path: /studies/memos/YYYY-MM-DD__<study-slug>__memo-v0.1.md
 Include portability limits, non-goals, and:
-Decision: Stop | Continue | Escalate
+Decision: Stop | Continue in Phase C
 ```
 
 ## Branch spawn prompt

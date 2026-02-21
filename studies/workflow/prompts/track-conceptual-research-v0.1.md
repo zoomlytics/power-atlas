@@ -7,7 +7,7 @@ Use this pack for `Track: conceptual-research` studies.
 ## Tier 0 — Minimal Power Atlas orientation snippet (reuse at start)
 
 ```text
-You are supporting Power Atlas conceptual research. Stay evidence-first, neutral, and structural.
+You are supporting Power Atlas research. Stay evidence-first, neutral, and structural.
 Do not narrow too early to one theory, one metric, one author, or one rhetorical frame.
 Treat centrality/statistical prominence as descriptive signals, not proof of influence/importance.
 Surface assumptions explicitly, separate descriptive vs normative claims, and avoid false universality across domains.
@@ -60,7 +60,7 @@ Required sections:
    - For each split: draft study slug + one-line question + why separate
 
 7) Phase A Decision Record (must be last)
-   - Decision: Stop | Continue | Escalate
+   - Decision: Stop | Continue to Phase B | Escalate to Phase C
    - Rationale (3-6 bullets)
    - Key uncertainties
    - Trigger(s) that would change this decision
@@ -83,7 +83,7 @@ Hard requirements:
 - Include explicit "Assumptions" section (bulleted)
 - Include "Contested / debate map" section (concise bullets: claims vs strongest counterclaims)
 - Include decision line exactly:
-  Decision: Stop | Continue | Escalate
+  Decision: Stop | Continue in Phase B | Escalate to Phase C
 - Include links-first Sources; when source is a web link include accessed date
 
 Guardrails:
@@ -113,7 +113,7 @@ Hard requirements:
   - disagreement type (empirical / definitional / normative)
   - what evidence would change stance
 - Include decision line exactly:
-  Decision: Stop | Continue | Escalate
+  Decision: Stop | Continue in Phase B | Escalate to Phase C
 - Include links-first Sources; when source is a web link include accessed date
 
 Track A risk checks (must be explicit):
@@ -150,7 +150,7 @@ Required additions in the memo body:
    - If source uses web URL, append "Accessed: YYYY-MM-DD"
 
 4) Decision line near close:
-   Decision: Stop | Continue | Escalate
+   Decision: Stop | Continue in Phase C
 
 Non-negotiable Track A guardrails:
 - Separate descriptive structure from normative interpretation

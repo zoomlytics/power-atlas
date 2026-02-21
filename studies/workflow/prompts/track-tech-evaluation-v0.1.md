@@ -12,7 +12,7 @@ Reuse Tier 0 orientation from:
 ```text
 Task: Run a Track C tech-evaluation scout.
 Output must include: evaluation objective, candidate options, constraints, decision criteria, risk flags, and Phase A decision line:
-Decision: Stop | Continue | Escalate
+Decision: Stop | Continue to Phase B | Escalate to Phase C
 ```
 
 ## Phase B prompt (Brief + detailed outputs)
@@ -27,7 +27,7 @@ Detailed path:
 /studies/summaries/tech-evaluation/<study-slug>/YYYY-MM-DD__<study-slug>__detailed.md
 
 Use v0.1 summary templates. Include option comparison, assumptions, operational/security implications, and:
-Decision: Stop | Continue | Escalate
+Decision: Stop | Continue in Phase B | Escalate to Phase C
 ```
 
 ## Phase C prompt (Memo; when depth/escalation warrants)
@@ -36,7 +36,7 @@ Decision: Stop | Continue | Escalate
 Task: Draft escalation memo for Track C when evaluation informs architecture/governance commitments.
 Path: /studies/memos/YYYY-MM-DD__<study-slug>__memo-v0.1.md
 Include recommendation rationale, exit strategy, and:
-Decision: Stop | Continue | Escalate
+Decision: Stop | Continue in Phase C
 ```
 
 ## Branch spawn prompt
