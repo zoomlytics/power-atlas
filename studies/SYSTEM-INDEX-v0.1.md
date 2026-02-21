@@ -48,7 +48,7 @@ Common outputs:
 - Brief summary: `YYYY-MM-DD__slug__brief.md`
 - Detailed summary: `YYYY-MM-DD__slug__detailed.md`
 - Memo: `YYYY-MM-DD__slug__memo-v0.1.md`
-- Notes: `YYYY-MM-DD__slug__note__<label>.md`
+- Notes: `YYYY-MM-DD__slug__note__<short-label>.md`
 
 ## Lifecycle states and cross-linking
 
