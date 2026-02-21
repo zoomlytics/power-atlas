@@ -5,7 +5,7 @@ Use this pack for `Track: data-source` studies.
 ## Tier 0
 
 Reuse Tier 0 orientation from:
-`/studies/workflow/prompts/track-conceptual-research-v0.1.md`
+`/studies/_system/workflow/prompts/track-conceptual-research-v0.1.md`
 
 ## Phase A prompt (Scout)
 
@@ -21,10 +21,10 @@ Decision: Stop | Continue to Phase B | Escalate to Phase C
 Task: Produce file-ready data-source summaries.
 
 Brief path:
-/studies/summaries/data-source/<study-slug>/YYYY-MM-DD__<study-slug>__brief.md
+/studies/_studies/data-source/<study-slug>/summaries/YYYY-MM-DD__<study-slug>__brief.md
 
 Detailed path:
-/studies/summaries/data-source/<study-slug>/YYYY-MM-DD__<study-slug>__detailed.md
+/studies/_studies/data-source/<study-slug>/summaries/YYYY-MM-DD__<study-slug>__detailed.md
 
 Use v0.1 summary templates. Include source metadata, confidence limits, legal/ethical constraints, integration readiness, and:
 Decision: Stop | Continue in Phase B | Escalate to Phase C
@@ -34,7 +34,7 @@ Decision: Stop | Continue in Phase B | Escalate to Phase C
 
 ```text
 Task: Draft escalation memo for Track D when depth rules or governance risk require Phase C.
-Path: /studies/memos/YYYY-MM-DD__<study-slug>__memo-v0.1.md
+Path: /studies/_studies/<track-slug>/<study-slug>/memos/YYYY-MM-DD__<study-slug>__memo-v0.1.md
 Include risk acceptance/rejection rationale, required safeguards, and:
 Decision: Stop | Continue in Phase C
 ```

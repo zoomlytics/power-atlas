@@ -22,10 +22,8 @@ Examples:
 
 ## Directory layout (recommended)
 
-- `templates/` — standardized starting points (see `templates/README.md`)
-- `notes/` — raw capture (high volume, low structure)
-- `summaries/` — working summaries (medium structure)
-- `memos/` — governance-facing synthesis (highest rigor)
+- `_system/` — standardized workflow + template system
+- `_studies/` — study artifacts organized by track/slug (`<track>/<study>/notes|summaries|memos/`)
 - `_assets/` — exception-only storage for small, license-permitted artifacts
 
 ## Workflow (3 layers)
@@ -70,13 +68,13 @@ If included, store under `_assets/` and reference from a note/summary/memo.
 
 Start with:
 
-- `templates/source-note-v0.1.md`
-- `templates/summary-brief-v0.1.md`
-- `templates/summary-detailed-v0.1.md`
-- (and the memo template used in `/studies/memos/`)
+- `_system/templates/source-note-v0.1.md`
+- `_system/templates/summary-brief-v0.1.md`
+- `_system/templates/summary-detailed-v0.1.md`
+- (and the memo template used in `/studies/_studies/<track-slug>/<study-slug>/memos/`)
 
 ## Workflow Docs
 
-- Process and taxonomy reference: `/studies/workflow/README.md`
-- Track selection tree and track cards: `/studies/workflow/` (Tracks A–G + M)
-- Study charter snippet: `/studies/workflow/study-charter-snippet-v0.1.md`
+- Process and taxonomy reference: `/studies/_system/workflow/README.md`
+- Track selection tree and track cards: `/studies/_system/workflow/` (Tracks A–G + M)
+- Study charter snippet: `/studies/_system/workflow/study-charter-snippet-v0.1.md`

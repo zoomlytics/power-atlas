@@ -9,7 +9,7 @@ Practical, phased workflow for running studies in an **AI-first (human-gated)** 
 - **Start bundle (Phase A):** minimal study orientation snippet only (do not attach broader templates yet).
 - **Track bundle (Phase B):** selected track card + summary-brief template + summary-detailed template.
 - **Memo bundle (Phase C):** research-memo template (+ Appendix A when relevant for data-source studies).
-- For phase checklists + track manifests, see `/studies/workflow/context-packs-v0.1.md`.
+- For phase checklists + track manifests, see `/studies/_system/workflow/context-packs-v0.1.md`.
 
 ---
 
@@ -24,7 +24,7 @@ Capture only what is needed to orient:
 - Why now (decision/uncertainty reduced)
 - Non-goals
 - Initial risk sensitivities
-- Timebox + depth target (initially Level 1 unless clearly deeper; see depth levels in `/studies/workflow/README.md`)
+- Timebox + depth target (initially Level 1 unless clearly deeper; see depth levels in `/studies/_system/workflow/README.md`)
 
 ### Scout map outputs (required)
 Produce a short scout map section in your first artifact (notes or summary) with:
@@ -52,9 +52,9 @@ Include rationale, open questions, and explicit trigger(s) for next step.
 
 ### When to attach the track bundle
 Attach the track bundle as soon as Phase A says **Continue**:
-- selected track card from `/studies/workflow/`
-- `/studies/templates/summary-brief-v0.1.md`
-- `/studies/templates/summary-detailed-v0.1.md`
+- selected track card from `/studies/_system/workflow/`
+- `/studies/_system/templates/summary-brief-v0.1.md`
+- `/studies/_system/templates/summary-detailed-v0.1.md`
 
 ### Produce file-ready summaries
 Build both summary artifacts as ready-to-commit files (even if one is short):
@@ -90,7 +90,7 @@ Escalate when any of the below are true:
 - recommendation language could be misread as operational mandate
 
 ### Attach the memo bundle
-- `/studies/templates/research-memo-v0.1.md`
+- `/studies/_system/templates/research-memo-v0.1.md`
 - include Appendix A when needed (especially data-source studies)
 - link back to the source notes + summaries used as evidence base (or explicitly `Notes: N/A` if no notes were created)
 
@@ -116,12 +116,12 @@ Default bias: if uncertain, **split** rather than forcing mixed concerns into on
 
 ### Directory layout rules (required)
 - Notes and summaries live under track + slug:
-  - `/studies/notes/<track-slug>/<study-slug>/`
-  - `/studies/summaries/<track-slug>/<study-slug>/`
+  - `/studies/_studies/<track-slug>/<study-slug>/notes/`
+  - `/studies/_studies/<track-slug>/<study-slug>/summaries/`
 - Notes lane is optional; summaries/memos remain valid with `Notes: N/A`.
 - Keep empty placeholder folders with `.keep` files when needed.
-- Memos are **flat by default** under `/studies/memos/`.
-- Exception policy for memos: use `/studies/memos/<track-slug>/` only for large grouped series (e.g., many closely related memos in the same track), and keep old links stable.
+- Memos live under track + slug:
+  - `/studies/_studies/<track-slug>/<study-slug>/memos/`
 
 ### Cross-linking + supersession rules (required)
 - Include a **Related studies** block near the top of each artifact:

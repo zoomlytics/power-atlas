@@ -10,7 +10,7 @@ Date: 2026-02-20
 Tags: scale-free-networks, preferential-attachment, robustness, heavy-tails, network-growth, epistemic-risk  
 Concept classifications: [Structural, Epistemic, Methodological, Analytical, Governance-related]  
 Related studies:  
-- Parent study: [/studies/summaries/conceptual-research/scale-free-preferential-attachment/2026-02-20__scale-free-preferential-attachment__detailed.md](/studies/summaries/conceptual-research/scale-free-preferential-attachment/2026-02-20__scale-free-preferential-attachment__detailed.md)  
+- Parent study: [/studies/_studies/conceptual-research/scale-free-preferential-attachment/summaries/2026-02-20__scale-free-preferential-attachment__detailed.md](/studies/_studies/conceptual-research/scale-free-preferential-attachment/summaries/2026-02-20__scale-free-preferential-attachment__detailed.md)  
 - Follow-on studies: None yet  
 - Related/branch studies (optional): None yet  
 - Notes: N/A  

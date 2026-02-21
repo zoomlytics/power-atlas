@@ -2,7 +2,7 @@
 
 This document defines a **repeatable workflow** for conducting background studies that inform Power Atlas architecture, ontology, provenance/governance posture, metrics philosophy, risk thinking, and implementation exploration.
 
-It complements (and does not replace) the **artifact templates** under [`/studies/templates/`](/studies/templates/).
+It complements (and does not replace) the **artifact templates** under [`/studies/_system/templates/`](/studies/_system/templates/).
 
 **Key intent (v0.1):**
 - keep research **consistent and searchable** across contributors,
@@ -15,17 +15,17 @@ It complements (and does not replace) the **artifact templates** under [`/studie
 
 ## 0) Quick start (what to do first)
 
-1) Pick a **Track** (A–G or Track M for Misc/Hybrid) using the canonical decision tree: `/studies/workflow/track-selection-decision-tree-v0.1.md`.  
+1) Pick a **Track** (A–G or Track M for Misc/Hybrid) using the canonical decision tree: `/studies/_system/workflow/track-selection-decision-tree-v0.1.md`.  
 2) Choose a **Depth level** (Level 1/2/3) and a **timebox**.  
 3) Start with one of:
    - **AI-first/default:** create a Brief and/or Detailed summary first
    - **Human/manual triage:** create Notes first (freeform or template-driven)
-   Notes guidance: `/studies/notes/README.md`
+   Notes guidance: `/studies/_system/workflow/run-book-v0.1.md`
 4) As you learn, create or update **Brief** and/or **Detailed** summaries:
-   - `/studies/templates/summary-brief-v0.1.md`
-   - `/studies/templates/summary-detailed-v0.1.md`
+   - `/studies/_system/templates/summary-brief-v0.1.md`
+   - `/studies/_system/templates/summary-detailed-v0.1.md`
 5) If the study is governance-relevant or likely to affect architecture/ontology/metrics/risk posture, create a **Research Memo**:
-   - `/studies/templates/research-memo-v0.1.md`
+   - `/studies/_system/templates/research-memo-v0.1.md`
 
 ---
 
@@ -62,7 +62,7 @@ Choose exactly **one Primary track** (A–G or M). Optionally assign Secondary t
 - **Track G — Internal Design Spike / Thought Experiment** (`internal-spike`)
 - **Track M — Misc / Hybrid** (`misc`) *(temporary classification; requires a resolution plan)*
 
-Track cards live in `/studies/workflow/`:
+Track cards live in `/studies/_system/workflow/`:
 - `track-conceptual-research-v0.1.md`
 - `track-methods-techniques-v0.1.md`
 - `track-tech-evaluation-v0.1.md`
@@ -76,7 +76,7 @@ Track cards live in `/studies/workflow/`:
 
 ## 3) Track selection decision tree (v0.1)
 
-Use the canonical decision tree in `/studies/workflow/track-selection-decision-tree-v0.1.md`.
+Use the canonical decision tree in `/studies/_system/workflow/track-selection-decision-tree-v0.1.md`.
 
 Quick guidance:
 - answer the prompts in order,
@@ -85,9 +85,9 @@ Quick guidance:
 - if no track fits, use **Track M — Misc / Hybrid (misc)** with a resolution plan.
 
 If you have any process question about track routing, refer to the standalone decision-tree doc first.
-- For phased execution guidance (A/B/C, split rule, naming/layout/cross-link conventions, AI-first gating), use `/studies/workflow/run-book-v0.1.md`.
-- For phase-by-phase context attachments (including deep research mode guidance), use `/studies/workflow/context-packs-v0.1.md`.
-- For reusable track prompt packs, use `/studies/workflow/prompts/README.md`.
+- For phased execution guidance (A/B/C, split rule, naming/layout/cross-link conventions, AI-first gating), use `/studies/_system/workflow/run-book-v0.1.md`.
+- For phase-by-phase context attachments (including deep research mode guidance), use `/studies/_system/workflow/context-packs-v0.1.md`.
+- For reusable track prompt packs, use `/studies/_system/workflow/prompts/README.md`.
 
 ### Hybrid guidance (important)
 - Always choose one **primary track**.
@@ -154,7 +154,7 @@ Minimum fields (recommended):
 - Any risk sensitivities (privacy, defamation-by-ordering, licensing)
 
 ### 5.2 Acquisition & capture (Notes, optional lane)
-Use `/studies/templates/source-note-v0.1.md` when you want structured note capture, or freeform notes as documented in `/studies/notes/README.md`.
+Use `/studies/_system/templates/source-note-v0.1.md` when you want structured note capture, or freeform notes as documented in `/studies/_system/workflow/run-book-v0.1.md`.
 
 Guidance:
 - capture quotes sparingly; prefer links + page/timestamp pointers
@@ -170,7 +170,7 @@ Guidance:
 - add `Notes:` with links when notes exist; otherwise `Notes: N/A`
 
 ### 5.4 Governance-facing evaluation (Memo when warranted)
-Use `/studies/templates/research-memo-v0.1.md`.
+Use `/studies/_system/templates/research-memo-v0.1.md`.
 
 Guidance:
 - keep language neutral and implementation-agnostic
