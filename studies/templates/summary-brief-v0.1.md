@@ -41,9 +41,9 @@ What this is, what it claims/does, and why it matters (or might matter) for Powe
 ## Contested / debate map (required for Track A; optional otherwise)
 
 - Major claim:
-  - Strongest counterclaim:
-  - Disagreement type: empirical | definitional | normative
-  - What evidence would change your current stance:
+- Strongest counterclaim:
+- Disagreement type: empirical | definitional | normative
+- What evidence would change your current stance:
 
 ## Phase A/B decision record (lightweight)
 

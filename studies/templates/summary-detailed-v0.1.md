@@ -71,9 +71,9 @@ Research-oriented questions only (not implementation tickets).
 ## 8. Contested / debate map (required for Track A; optional otherwise)
 
 - Major claim:
-  - Strongest counterclaim:
-  - Disagreement type: empirical | definitional | normative
-  - What evidence would change your current stance:
+- Strongest counterclaim:
+- Disagreement type: empirical | definitional | normative
+- What evidence would change your current stance:
 
 ## 9. Phase A/B decision record (lightweight)
 
