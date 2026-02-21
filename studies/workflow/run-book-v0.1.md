@@ -27,7 +27,7 @@ Capture only what is needed to orient:
 - Timebox + depth target (initially Level 1 unless clearly deeper; see depth levels in `/studies/workflow/README.md`)
 
 ### Scout map outputs (required)
-Produce a short scout map section in notes with:
+Produce a short scout map section in your first artifact (notes or summary) with:
 - **Angles:** 3–6 plausible interpretive angles/frame choices
 - **Glossary:** key terms with working definitions
 - **Hazards:** obvious misuse, policy, epistemic, or framing hazards
@@ -62,6 +62,7 @@ Build both summary artifacts as ready-to-commit files (even if one is short):
 - **Detailed:** assumptions, pressure points, evidence quality, transfer limits
 
 Both must be readable without raw notes and include a links-first **Sources** section.
+Add `Notes:` links when note artifacts exist; otherwise mark `Notes: N/A`.
 
 ### Contested / debate map (required for Track A; optional otherwise)
 In detailed summary, include a dedicated **Contested / debate map** section:
@@ -91,7 +92,7 @@ Escalate when any of the below are true:
 ### Attach the memo bundle
 - `/studies/templates/research-memo-v0.1.md`
 - include Appendix A when needed (especially data-source studies)
-- link back to the source notes + summaries used as evidence base
+- link back to the source notes + summaries used as evidence base (or explicitly `Notes: N/A` if no notes were created)
 
 ### Required safeguards in memo
 - **What not to say** vocabulary list (phrases that overclaim, decontextualize, or launder authority)
@@ -111,12 +112,14 @@ Default bias: if uncertain, **split** rather than forcing mixed concerns into on
 
 ### Naming rules (required)
 - Use **hyphenated, lowercase slugs** (example: `scale-free-mechanisms`).
-- Use file suffixes: `YYYY-MM-DD__slug__notes.md`, `YYYY-MM-DD__slug__brief.md`, `YYYY-MM-DD__slug__detailed.md`, `YYYY-MM-DD__slug__memo-v0.1.md`.
+- Use file suffixes: `YYYY-MM-DD__slug__note__<short-label>.md`, `YYYY-MM-DD__slug__brief.md`, `YYYY-MM-DD__slug__detailed.md`, `YYYY-MM-DD__slug__memo-v0.1.md`.
 
 ### Directory layout rules (required)
 - Notes and summaries live under track + slug:
   - `/studies/notes/<track-slug>/<study-slug>/`
   - `/studies/summaries/<track-slug>/<study-slug>/`
+- Notes lane is optional; summaries/memos remain valid with `Notes: N/A`.
+- Keep empty placeholder folders with `.keep` files when needed.
 - Memos are **flat by default** under `/studies/memos/`.
 - Exception policy for memos: use `/studies/memos/<track-slug>/` only for large grouped series (e.g., many closely related memos in the same track), and keep old links stable.
 

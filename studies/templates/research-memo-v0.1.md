@@ -13,6 +13,7 @@ Related studies:
 - Parent study: [link or N/A]  
 - Follow-on studies: [link(s) or None yet]  
 - Related/branch studies (optional): [link(s) when a study splits]  
+- Notes: [link(s) to /studies/notes/... if any, else `N/A`]  
 - Guidance: keep this block in sync as studies split, branch, or supersede.  
 
 ---
