@@ -12,7 +12,7 @@ Reuse Tier 0 orientation from:
 ```text
 Task: Run a Track G internal-spike scout.
 Output must include: spike objective, assumptions, experiment shape, constraints/timebox, success/fail signals, and Phase A decision line:
-Decision: Stop | Continue | Escalate
+Decision: Stop | Continue to Phase B | Escalate to Phase C
 ```
 
 ## Phase B prompt (Brief + detailed outputs)
@@ -27,7 +27,7 @@ Detailed path:
 /studies/summaries/internal-spike/<study-slug>/YYYY-MM-DD__<study-slug>__detailed.md
 
 Use v0.1 summary templates. Include setup, findings, limitations, reproducibility notes, and:
-Decision: Stop | Continue | Escalate
+Decision: Stop | Continue in Phase B | Escalate to Phase C
 ```
 
 ## Phase C prompt (Memo; when depth/escalation warrants)
@@ -36,7 +36,7 @@ Decision: Stop | Continue | Escalate
 Task: Draft escalation memo for Track G when spike results affect architecture/governance decisions.
 Path: /studies/memos/YYYY-MM-DD__<study-slug>__memo-v0.1.md
 Include recommendation, rollback/fallback options, and:
-Decision: Stop | Continue | Escalate
+Decision: Stop | Continue in Phase C
 ```
 
 ## Branch spawn prompt

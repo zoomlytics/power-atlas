@@ -12,7 +12,7 @@ Reuse Tier 0 orientation from:
 ```text
 Task: Run a Track B methods-techniques scout.
 Output must include: problem framing, candidate methods, assumptions, required data/inputs, failure modes, and Phase A decision line:
-Decision: Stop | Continue | Escalate
+Decision: Stop | Continue to Phase B | Escalate to Phase C
 ```
 
 ## Phase B prompt (Brief + detailed outputs)
@@ -27,7 +27,7 @@ Detailed path:
 /studies/summaries/methods-techniques/<study-slug>/YYYY-MM-DD__<study-slug>__detailed.md
 
 Use v0.1 summary templates. Include comparison table (fit, assumptions, limits), implementation notes, and:
-Decision: Stop | Continue | Escalate
+Decision: Stop | Continue in Phase B | Escalate to Phase C
 ```
 
 ## Phase C prompt (Memo; when depth/escalation warrants)
@@ -36,7 +36,7 @@ Decision: Stop | Continue | Escalate
 Task: Draft escalation memo for Track B when method choice has governance or architecture impact.
 Path: /studies/memos/YYYY-MM-DD__<study-slug>__memo-v0.1.md
 Include trade-off rationale, rejected alternatives, and:
-Decision: Stop | Continue | Escalate
+Decision: Stop | Continue in Phase C
 ```
 
 ## Branch spawn prompt

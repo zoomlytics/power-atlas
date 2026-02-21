@@ -63,7 +63,7 @@ Build both summary artifacts as ready-to-commit files (even if one is short):
 
 Both must be readable without raw notes and include a links-first **Sources** section.
 
-### Contested / debate map (required section)
+### Contested / debate map (required for Track A; optional otherwise)
 In detailed summary, include a dedicated **Contested / debate map** section:
 - major claims and strongest counterclaims
 - which disagreements are empirical vs definitional vs normative

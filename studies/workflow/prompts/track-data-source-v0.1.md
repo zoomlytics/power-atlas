@@ -12,7 +12,7 @@ Reuse Tier 0 orientation from:
 ```text
 Task: Run a Track D data-source scout.
 Output must include: source scope, access/licensing constraints, provenance quality, update cadence, known biases, and Phase A decision line:
-Decision: Stop | Continue | Escalate
+Decision: Stop | Continue to Phase B | Escalate to Phase C
 ```
 
 ## Phase B prompt (Brief + detailed outputs)
@@ -27,7 +27,7 @@ Detailed path:
 /studies/summaries/data-source/<study-slug>/YYYY-MM-DD__<study-slug>__detailed.md
 
 Use v0.1 summary templates. Include source metadata, confidence limits, legal/ethical constraints, integration readiness, and:
-Decision: Stop | Continue | Escalate
+Decision: Stop | Continue in Phase B | Escalate to Phase C
 ```
 
 ## Phase C prompt (Memo; when depth/escalation warrants)
@@ -36,7 +36,7 @@ Decision: Stop | Continue | Escalate
 Task: Draft escalation memo for Track D when depth rules or governance risk require Phase C.
 Path: /studies/memos/YYYY-MM-DD__<study-slug>__memo-v0.1.md
 Include risk acceptance/rejection rationale, required safeguards, and:
-Decision: Stop | Continue | Escalate
+Decision: Stop | Continue in Phase C
 ```
 
 ## Branch spawn prompt
