@@ -50,6 +50,10 @@ Use the following file naming convention:
 
 `YYYY-MM-DD__slug__type.md`
 
+Notes may add a short note label segment:
+
+`YYYY-MM-DD__slug__note__<short-label>.md`
+
 Examples:
 - `2026-02-20__network-sampling__brief.md`
 - `2026-02-20__network-sampling__detailed.md`

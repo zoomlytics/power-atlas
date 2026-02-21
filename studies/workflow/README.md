@@ -234,7 +234,7 @@ If time-sensitive:
 
 1) Every study artifact must state **Track** near the top (even Notes). Use controlled slugs: `conceptual-research | methods-techniques | tech-evaluation | data-source | case-study | similar-platforms | internal-spike | misc`.  
 2) If Track = `misc`, include a **resolution plan** (reclassify or split).  
-3) Follow naming convention: `YYYY-MM-DD__slug__type.md` (see `/studies/README.md`).  
+3) Follow naming convention: `YYYY-MM-DD__slug__type.md` (see `/studies/README.md`; **Notes** use `YYYY-MM-DD__slug__note__<short-label>.md`).  
 4) Include a **Sources** section (links-first).  
 5) Default: do not commit large binaries; use `/studies/_assets/` only when justified.
 6) Notes are optional; summaries/memos must either link Notes artifacts or mark `Notes: N/A`.
