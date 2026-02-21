@@ -1,4 +1,4 @@
-# Track C Prompt Pack — Methods / Techniques (v0.1)
+# Track B Prompt Pack — Methods / Techniques (v0.1)
 
 Use this pack for `Track: methods-techniques` studies.
 
@@ -10,7 +10,7 @@ Reuse Tier 0 orientation from:
 ## Phase A prompt (Scout)
 
 ```text
-Task: Run a Track C methods-techniques scout.
+Task: Run a Track B methods-techniques scout.
 Output must include: problem framing, candidate methods, assumptions, required data/inputs, failure modes, and Phase A decision line:
 Decision: Stop | Continue | Escalate
 ```
@@ -33,7 +33,7 @@ Decision: Stop | Continue | Escalate
 ## Phase C prompt (Memo; when depth/escalation warrants)
 
 ```text
-Task: Draft escalation memo for Track C when method choice has governance or architecture impact.
+Task: Draft escalation memo for Track B when method choice has governance or architecture impact.
 Path: /studies/memos/YYYY-MM-DD__<study-slug>__memo-v0.1.md
 Include trade-off rationale, rejected alternatives, and:
 Decision: Stop | Continue | Escalate

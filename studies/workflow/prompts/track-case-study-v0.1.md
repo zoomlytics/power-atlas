@@ -1,4 +1,4 @@
-# Track B Prompt Pack — Case Study (v0.1)
+# Track E Prompt Pack — Case Study (v0.1)
 
 Use this pack for `Track: case-study` studies.
 
@@ -10,7 +10,7 @@ Reuse Tier 0 orientation from:
 ## Phase A prompt (Scout)
 
 ```text
-Task: Run a Track B case-study scout.
+Task: Run a Track E case-study scout.
 Output must include: scope framing, case boundary (who/what/when), source landscape, key unknowns, and Phase A decision line:
 Decision: Stop | Continue | Escalate
 Require at least one conflicting account/source for the case.
@@ -34,7 +34,7 @@ Decision: Stop | Continue | Escalate
 ## Phase C prompt (Memo; when depth/escalation warrants)
 
 ```text
-Task: Draft escalation memo for Track B when depth rules or governance risk require Phase C.
+Task: Draft escalation memo for Track E when depth rules or governance risk require Phase C.
 Path: /studies/memos/YYYY-MM-DD__<study-slug>__memo-v0.1.md
 Include misuse/misread risks, unresolved evidence conflicts, and recommendation with:
 Decision: Stop | Continue | Escalate

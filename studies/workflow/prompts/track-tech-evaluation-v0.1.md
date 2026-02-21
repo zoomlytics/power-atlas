@@ -1,4 +1,4 @@
-# Track E Prompt Pack — Tech Evaluation (v0.1)
+# Track C Prompt Pack — Tech Evaluation (v0.1)
 
 Use this pack for `Track: tech-evaluation` studies.
 
@@ -10,7 +10,7 @@ Reuse Tier 0 orientation from:
 ## Phase A prompt (Scout)
 
 ```text
-Task: Run a Track E tech-evaluation scout.
+Task: Run a Track C tech-evaluation scout.
 Output must include: evaluation objective, candidate options, constraints, decision criteria, risk flags, and Phase A decision line:
 Decision: Stop | Continue | Escalate
 ```
@@ -33,7 +33,7 @@ Decision: Stop | Continue | Escalate
 ## Phase C prompt (Memo; when depth/escalation warrants)
 
 ```text
-Task: Draft escalation memo for Track E when evaluation informs architecture/governance commitments.
+Task: Draft escalation memo for Track C when evaluation informs architecture/governance commitments.
 Path: /studies/memos/YYYY-MM-DD__<study-slug>__memo-v0.1.md
 Include recommendation rationale, exit strategy, and:
 Decision: Stop | Continue | Escalate
