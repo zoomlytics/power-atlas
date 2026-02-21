@@ -195,7 +195,7 @@ Historically, this work shaped how complex systems are conceptualized across phy
 
 ---
 
-## 10. Sources
+## 10. Sources (links-first)
 
 - Barabási, A.-L., & Albert, R. (1999). Emergence of Scaling in Random Networks. Science. https://www.science.org/doi/10.1126/science.286.5439.509 — Accessed: 2026-02-20  
 - Albert, R., Jeong, H., & Barabási, A.-L. (2000). Error and attack tolerance of complex networks. Nature. https://www.nature.com/articles/35019019 — Accessed: 2026-02-20  
