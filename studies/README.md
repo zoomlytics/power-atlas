@@ -23,7 +23,7 @@ Examples:
 ## Directory layout (v0.1 canonical)
 
 - `_system/` — standardized workflow + template system
-- `_studies/` — study artifacts organized by track/slug (`<track>/<study>/notes|summaries|memos/`)
+- `_studies/` — study artifacts organized by track/study slug (`<track-slug>/<study-slug>/{notes,summaries,memos}/`)
 - `_assets/` — exception-only storage for small, license-permitted artifacts
 
 We intentionally do not maintain a global registry in v0.1. The canonical inventory is the directory structure under `/studies/_studies/`.
