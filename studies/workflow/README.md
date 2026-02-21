@@ -83,6 +83,7 @@ Quick guidance:
 - if no track fits, use **Track M — Misc / Hybrid (misc)** with a resolution plan.
 
 If you have any process question about track routing, refer to the standalone decision-tree doc first.
+- For phased execution guidance (A/B/C, split rule, AI-first gating), use `/studies/workflow/run-book-v0.1.md`.
 
 ### Hybrid guidance (important)
 - Always choose one **primary track**.
