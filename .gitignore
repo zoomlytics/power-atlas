@@ -44,3 +44,9 @@ dist/
 .cache/
 *.bak
 *.tmp
+
+# Pipeline run artifacts
+/pipelines/runs/*
+!/pipelines/runs/.gitkeep
+/pipelines/logs/*
+!/pipelines/logs/.gitkeep

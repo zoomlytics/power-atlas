@@ -211,6 +211,12 @@ power-atlas/
 │   │   └── globals.css # Global styles
 │   ├── Dockerfile      # Frontend container
 │   └── package.json    # Node dependencies
+├── pipelines/           # Scripts-first Neo4j workflows (ingest/query/experiment)
+│   ├── ingest/         # Ingestion scripts
+│   ├── query/          # Query/report scripts
+│   ├── experiment/     # Exploratory scripts
+│   ├── runs/           # Run artifacts
+│   └── logs/           # Script logs
 ├── docker-compose.yml  # Container orchestration
 ├── .env.example        # Environment variables template
 └── README.md          # This file
@@ -267,6 +273,22 @@ docker compose up backend
 ```bash
 docker compose up backend frontend
 ```
+
+### Scripts-first Neo4j workflow
+
+The `pipelines/` directory is the standard location for ingest/query/experiment scripts and run artifacts.
+
+```bash
+cp .env.example .env
+# set a strong NEO4J_PASSWORD, then:
+set -a && source .env && set +a
+
+python pipelines/ingest/<script>.py
+python pipelines/query/<script>.py
+python pipelines/experiment/<script>.py
+```
+
+Write run artifacts to `pipelines/runs/` and logs to `pipelines/logs/`.
 
 ### Rebuilding after changes
 
