@@ -148,11 +148,18 @@ Open your browser and navigate to:
    ```
 4. You should see a version string confirming the Graph Data Science plugin is loaded.
 
-### 5. Run a demo
+### 5. Run a demo (Neo4j Browser)
 
-1. Click the **"Seed Demo Graph"** button to create sample data
-   - This creates 3 Person nodes (Alice, Bob, Charlie)
-   - Adds KNOWS relationships between them
+Run these in Neo4j Browser to create and query demo data:
+
+1. Seed sample nodes and relationships:
+   ```cypher
+   CREATE (a:Person {name: 'Alice', age: 30}),
+          (b:Person {name: 'Bob', age: 35}),
+          (c:Person {name: 'Charlie', age: 28}),
+          (a)-[:KNOWS {since: 2020}]->(b),
+          (b)-[:KNOWS {since: 2021}]->(c);
+   ```
 
 2. Try example queries:
    ```cypher
