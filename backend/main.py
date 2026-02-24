@@ -1,7 +1,7 @@
 """
 Power Atlas Backend - FastAPI application
 """
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict
 import logging
@@ -42,6 +42,7 @@ async def health_check() -> Dict[str, str]:
 
 @app.get(
     "/graph/status",
+    status_code=503,
     responses={
         503: {
             "description": "Graph integration is not configured yet",
@@ -58,16 +59,13 @@ async def health_check() -> Dict[str, str]:
         }
     },
 )
-async def graph_status() -> None:
+async def graph_status() -> Dict[str, str]:
     """
     Placeholder endpoint for future graph integration.
 
     This endpoint currently always responds with HTTP 503.
     """
-    raise HTTPException(
-        status_code=503,
-        detail="Graph integration is not configured yet"
-    )
+    return {"detail": "Graph integration is not configured yet"}
 
 
 @app.get("/")
