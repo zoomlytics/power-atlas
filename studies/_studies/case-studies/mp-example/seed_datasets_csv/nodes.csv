@@ -1,0 +1,51 @@
+id,label,type
+aleksandr-kogan,Aleksandr Kogan,person
+alexander-nix,Alexander Nix,person
+amazon,Amazon,org
+amazon-web-services,Amazon Web Services,org
+andrew-breitbart,Andrew Breitbart,person
+apple,Apple,org
+bill-montgomery,Bill Montgomery,person
+breitbart-news,Breitbart News,org
+cambridge-analytica,Cambridge Analytica,org
+candace-owens,Candace Owens,person
+charlie-kirk,Charlie Kirk,person
+christopher-wylie,Christopher Wylie,person
+content-moderation,Content moderation,concept
+dan-bongino,Dan Bongino,person
+data-privacy,Data privacy,concept
+donald-trump,Donald Trump,person
+erika-kirk,Erika Kirk,person
+facebook,Facebook,org
+facebook-ca-scandal-2018,Facebook–Cambridge Analytica data scandal,event
+federal-trade-commission,Federal Trade Commission,org
+foster-friess,Foster Friess,person
+ftc-facebook-penalty-2019,FTC Facebook penalty (2019),event
+george-farmer,George Farmer,person
+global-science-research,Global Science Research,org
+google,Google,org
+heritage-foundation,The Heritage Foundation,org
+ico-facebook-fine-2018,ICO Facebook fine (2018),event
+january-6-capitol-attack,January 6 United States Capitol attack,event
+jared-thomson,Jared Thomson,person
+john-matze,John Matze,person
+make-america-number-1-pac,Make America Number 1 PAC,org
+mark-zuckerberg,Mark Zuckerberg,person
+meta-platforms,Meta Platforms,org
+nigel-oakes,Nigel Oakes,person
+parlement-technologies,Parlement Technologies,org
+parler,Parler,org
+parler-deplatforming-2021,Parler deplatforming (Jan 2021),event
+political-microtargeting,Political microtargeting,concept
+qanon,QAnon,concept
+rebekah-mercer,Rebekah Mercer,person
+renaissance-technologies,Renaissance Technologies,org
+robert-mercer,Robert Mercer,person
+scl-group,SCL Group,org
+starboard,Starboard,org
+steve-bannon,Steve Bannon,person
+trump-2016-campaign,Trump 2016 Campaign,org
+turning-point-action,Turning Point Action,org
+turning-point-uk,Turning Point UK,org
+turning-point-usa,Turning Point USA,org
+uk-ico,UK Information Commissioner's Office,org
