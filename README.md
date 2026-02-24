@@ -114,7 +114,11 @@ git clone https://github.com/zoomlytics/power-atlas.git
 cd power-atlas
 ```
 
-### 2. Start the stack
+### 2. Configure environment
+
+Copy `.env.example` to `.env` and set a strong `NEO4J_AUTH` value (format: `neo4j/<password>`).
+
+### 3. Start the stack
 
 ```bash
 docker compose up --build
@@ -123,18 +127,39 @@ docker compose up --build
 This will:
 - Start the FastAPI backend on port 8000
 - Start the Next.js frontend on port 3000
+- Start Neo4j 5.x with the Graph Data Science plugin on ports 7474 (Browser) and 7687 (Bolt)
 
-### 3. Access the application
+### 4. Access the application
 
 Open your browser and navigate to:
 - **Frontend**: http://localhost:3000
 - **Backend API Docs**: http://localhost:8000/docs
+- **Neo4j Browser**: http://localhost:7474 (user: `neo4j`, password from `NEO4J_AUTH`)
 
-### 4. Run a demo
+> ⚠️ Set `NEO4J_AUTH` to a strong value before running in any shared or production-like environment. The example value is a placeholder and must be replaced.
 
-1. Click the **"Seed Demo Graph"** button to create sample data
-   - This creates 3 Person nodes (Alice, Bob, Charlie)
-   - Adds KNOWS relationships between them
+#### Verify Neo4j + GDS
+
+1. Open Neo4j Browser at http://localhost:7474 and log in with the credentials set in `NEO4J_AUTH` (e.g., `neo4j/<your-password>`).
+2. Ensure GDS procedures are available (defaults allow `gds.*` for local use). If you overrode `NEO4J_UNRESTRICTED_PROCS`, set it to `gds.*` for this step.
+3. Run:
+   ```cypher
+   CALL gds.version();
+   ```
+4. You should see a version string confirming the Graph Data Science plugin is loaded.
+
+### 5. Run a demo (Neo4j Browser)
+
+Run these in Neo4j Browser to create and query demo data:
+
+1. Seed sample nodes and relationships:
+   ```cypher
+   CREATE (a:Person {name: 'Alice', age: 30}),
+          (b:Person {name: 'Bob', age: 35}),
+          (c:Person {name: 'Charlie', age: 28}),
+          (a)-[:KNOWS {since: 2020}]->(b),
+          (b)-[:KNOWS {since: 2021}]->(c);
+   ```
 
 2. Try example queries:
    ```cypher
@@ -231,6 +256,8 @@ cp .env.example .env
 ### Environment Variables
 
 - `NEXT_PUBLIC_BACKEND_URL` - Backend API URL for frontend
+- `NEO4J_AUTH` - Neo4j username/password pair (configure via `.env` with a strong password)
+- `NEO4J_UNRESTRICTED_PROCS` - Procedures allowed without restriction (defaults to `gds.*` for local GDS/graph verification; clear or tighten for hardened environments)
 
 ---
 
