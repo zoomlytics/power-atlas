@@ -42,7 +42,6 @@ async def health_check() -> Dict[str, str]:
 
 @app.get(
     "/graph/status",
-    status_code=503,
     responses={
         503: {
             "description": "Graph integration is not configured yet",
