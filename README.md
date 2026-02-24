@@ -141,11 +141,12 @@ Open your browser and navigate to:
 #### Verify Neo4j + GDS
 
 1. Open Neo4j Browser at http://localhost:7474 and log in with the credentials set in `NEO4J_AUTH` (e.g., `neo4j/<your-password>`).
-2. Run:
+2. Ensure GDS procedures are available (defaults allow `gds.*` for local use). If you overrode `NEO4J_UNRESTRICTED_PROCS`, set it to `gds.*` for this step.
+3. Run:
    ```cypher
    CALL gds.version();
    ```
-3. You should see a version string confirming the Graph Data Science plugin is loaded.
+4. You should see a version string confirming the Graph Data Science plugin is loaded.
 
 ### 5. Run a demo
 

@@ -37,8 +37,8 @@ services:
       NEO4J_AUTH: ${NEO4J_AUTH:?Set NEO4J_AUTH in .env}
       NEO4J_PLUGINS: '["graph-data-science"]'
       NEO4J_ACCEPT_LICENSE_AGREEMENT: "yes"
-      # Restrict procedure access; set to gds.* only for local development experiments.
-      NEO4J_dbms_security_procedures_unrestricted: ${NEO4J_UNRESTRICTED_PROCS:-}
+      # Loosen procedure restrictions (unrestrict); set to gds.* only for local development experiments.
+      NEO4J_dbms_security_procedures_unrestricted: ${NEO4J_UNRESTRICTED_PROCS:-gds.*}
     healthcheck:
       test:
         - CMD-SHELL
@@ -48,8 +48,9 @@ services:
       retries: 10
       start_period: 30s
     ports:
-      - "7474:7474"
-      - "7687:7687"
+      # Bind to loopback by default to keep Neo4j local-only. To expose externally, change to 0.0.0.0 or remove host IP.
+      - "127.0.0.1:7474:7474"
+      - "127.0.0.1:7687:7687"
     volumes:
       - neo4j_data:/data
       - neo4j_logs:/logs
