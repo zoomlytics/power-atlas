@@ -269,6 +269,8 @@ cp .env.example .env
 docker compose up backend
 ```
 
+> **Note:** Starting the backend requires a `.env` file with `NEO4J_PASSWORD` set (used by Docker Compose variable substitution). Copy `.env.example` to `.env` and set a password before running.
+
 **Frontend only** (requires backend):
 ```bash
 docker compose up backend frontend

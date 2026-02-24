@@ -27,10 +27,12 @@ cp .env.example .env  # once
 # set a strong NEO4J_PASSWORD and any local overrides
 set -a && source .env && set +a
 
-# run scripts (examples)
+# run scripts (examples - see each subdirectory for scripts as they are added)
 python pipelines/ingest/<script>.py
 python pipelines/query/<script>.py
 python pipelines/experiment/<script>.py
 ```
+
+> **Note:** Example scripts for each workflow stage are coming soon. Check `ingest/`, `query/`, and `experiment/` subdirectories as the migration progresses.
 
 Write run outputs under `pipelines/runs/` and logs under `pipelines/logs/`.
