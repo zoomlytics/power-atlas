@@ -55,8 +55,8 @@ export default function Home() {
         <div className="bg-white p-6 rounded-lg border">
           <h2 className="text-xl font-semibold text-gray-900 mb-2">Graph Integration</h2>
           <p className="text-gray-700 text-sm">
-            Demo AGE/PG query and seed endpoints have been removed. Backend graph APIs are currently
-            in a placeholder state while Neo4j integration is prepared.
+            Backend graph APIs are currently placeholder-only while Neo4j integration is finalized.
+            Use the scripts in <code>pipelines/</code> to run Neo4j + GDS ingestion and query workflows.
           </p>
         </div>
       </div>
