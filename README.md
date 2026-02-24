@@ -250,7 +250,7 @@ cp .env.example .env
 
 - `NEXT_PUBLIC_BACKEND_URL` - Backend API URL for frontend
 - `NEO4J_AUTH` - Neo4j username/password pair (configure via `.env` with a strong password)
-- `NEO4J_UNRESTRICTED_PROCS` - Procedures allowed without restriction (leave empty unless explicitly needed, e.g., `gds.*` for local graph experiments)
+- `NEO4J_UNRESTRICTED_PROCS` - Procedures allowed without restriction (defaults to `gds.*` for local GDS/graph verification; clear or tighten for hardened environments)
 
 ---
 
