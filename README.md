@@ -114,7 +114,11 @@ git clone https://github.com/zoomlytics/power-atlas.git
 cd power-atlas
 ```
 
-### 2. Start the stack
+### 2. Configure environment
+
+Copy `.env.example` to `.env` and set a strong `NEO4J_AUTH` value (format: `neo4j/<password>`).
+
+### 3. Start the stack
 
 ```bash
 docker compose up --build
@@ -125,23 +129,25 @@ This will:
 - Start the Next.js frontend on port 3000
 - Start Neo4j 5.x with the Graph Data Science plugin on ports 7474 (Browser) and 7687 (Bolt)
 
-### 3. Access the application
+### 4. Access the application
 
 Open your browser and navigate to:
 - **Frontend**: http://localhost:3000
 - **Backend API Docs**: http://localhost:8000/docs
-- **Neo4j Browser**: http://localhost:7474 (user: `neo4j`, password: `poweratlas`)
+- **Neo4j Browser**: http://localhost:7474 (user: `neo4j`, password from `NEO4J_AUTH`)
+
+> ⚠️ Set `NEO4J_AUTH` to a strong value before running in any shared or production-like environment. The example value is a placeholder and must be replaced.
 
 #### Verify Neo4j + GDS
 
-1. Open Neo4j Browser at http://localhost:7474 and log in with `neo4j` / `poweratlas`.
+1. Open Neo4j Browser at http://localhost:7474 and log in with the credentials set in `NEO4J_AUTH` (e.g., `neo4j/<your-password>`).
 2. Run:
    ```cypher
    CALL gds.version();
    ```
 3. You should see a version string confirming the Graph Data Science plugin is loaded.
 
-### 4. Run a demo
+### 5. Run a demo
 
 1. Click the **"Seed Demo Graph"** button to create sample data
    - This creates 3 Person nodes (Alice, Bob, Charlie)
@@ -242,6 +248,8 @@ cp .env.example .env
 ### Environment Variables
 
 - `NEXT_PUBLIC_BACKEND_URL` - Backend API URL for frontend
+- `NEO4J_AUTH` - Neo4j username/password pair (configure via `.env` with a strong password)
+- `NEO4J_UNRESTRICTED_PROCS` - Procedures allowed without restriction (leave empty unless explicitly needed, e.g., `gds.*` for local graph experiments)
 
 ---
 
