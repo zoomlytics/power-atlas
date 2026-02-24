@@ -185,19 +185,10 @@ Run these in Neo4j Browser to create and query demo data:
   {"status": "ok", "message": "Backend is healthy"}
   ```
 
-- **POST /cypher** - Execute Cypher queries
+- **GET /graph/status** - Placeholder graph integration status
   ```json
   {
-    "query": "MATCH (n:Person) RETURN n",
-    "params": {}
-  }
-  ```
-
-- **POST /seed** - Seed demo graph data
-  ```json
-  {
-    "status": "success",
-    "message": "Demo graph created with 3 persons and 2 relationships"
+    "detail": "Graph integration is not configured yet"
   }
   ```
 

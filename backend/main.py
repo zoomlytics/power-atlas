@@ -3,8 +3,7 @@ Power Atlas Backend - FastAPI application
 """
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from typing import Dict, Any, Optional
+from typing import Dict
 import logging
 
 # Configure logging
@@ -41,43 +40,17 @@ async def health_check() -> Dict[str, str]:
     """
     return {"status": "ok", "message": "Backend is healthy"}
 
-
-class CypherQuery(BaseModel):
-    """Model for Cypher query request"""
-    query: str
-    params: Optional[Dict[str, Any]] = None
-
-
-@app.post("/cypher", deprecated=True)
-async def execute_cypher(cypher_query: CypherQuery) -> Dict[str, Any]:
+@app.get("/graph/status")
+async def graph_status() -> Dict[str, str]:
     """
-    Execute a Cypher query.
-    Note: Graph query service is currently not configured.
+    Placeholder endpoint for future graph integration.
     
-    Args:
-        cypher_query: CypherQuery model with query and optional params
-        
     Returns:
-        Dictionary with results or error
+        Dictionary with graph integration status
     """
     raise HTTPException(
         status_code=503,
-        detail="Graph query service is not configured"
-    )
-
-
-@app.post("/seed", deprecated=True)
-async def seed_graph() -> Dict[str, Any]:
-    """
-    Seed the graph database with demo data.
-    Note: Graph seed service is currently not configured.
-    
-    Returns:
-        Dictionary with status
-    """
-    raise HTTPException(
-        status_code=503,
-        detail="Graph seed service is not configured"
+        detail="Graph integration is not configured yet"
     )
 
 
