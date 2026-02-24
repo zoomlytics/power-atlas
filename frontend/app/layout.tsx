@@ -3,7 +3,7 @@ import './globals.css'
 
 export const metadata: Metadata = {
   title: 'Power Atlas',
-  description: 'Graph database exploration tool with Apache AGE',
+  description: 'Graph exploration tool',
 }
 
 export default function RootLayout({
