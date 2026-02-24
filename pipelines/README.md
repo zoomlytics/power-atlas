@@ -12,7 +12,7 @@ This directory is the scripts-first workspace for:
 
 All scripts should read Neo4j settings from environment variables loaded from the repository `.env`:
 
-- `NEO4J_URI`
+- `NEO4J_URI` — use `bolt://localhost:7687` (the default in `.env.example`) when running scripts on the host. The Docker Compose backend uses `bolt://neo4j:7687` internally and does **not** rely on this value.
 - `NEO4J_USERNAME`
 - `NEO4J_PASSWORD`
 - `NEO4J_UNRESTRICTED_PROCS` (optional; used by the Docker Compose Neo4j service to allow specific procedures)
