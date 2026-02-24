@@ -72,11 +72,9 @@ This repository currently contains a minimal experimental stack used to explore 
 ### Stack
 
 - **Backend**: Python + FastAPI
-- **Database**: PostgreSQL + Apache AGE (graph extension)
+- **Database**: Graph backend integration is currently not configured
 - **Frontend**: Next.js (React + TypeScript) + Tailwind CSS
 - **Orchestration**: Docker Compose
-
-Apache AGE is being used as an experimental graph laboratory and is not considered a long-term commitment.
 
 The focus at this stage is on ontology formalization, provenance modeling, temporal semantics, and graph experimentation — not UI polish or production readiness.
 
@@ -123,8 +121,6 @@ docker compose up --build
 ```
 
 This will:
-- Start PostgreSQL with Apache AGE extension
-- Initialize the `power_atlas` database
 - Start the FastAPI backend on port 8000
 - Start the Next.js frontend on port 3000
 
@@ -161,7 +157,7 @@ Open your browser and navigate to:
 
 - **GET /health** - Health check endpoint
   ```json
-  {"status": "ok", "message": "Backend and database are healthy"}
+  {"status": "ok", "message": "Backend is healthy"}
   ```
 
 - **POST /cypher** - Execute Cypher queries
@@ -190,7 +186,6 @@ Current layout:
 power-atlas/
 ├── backend/              # FastAPI application
 │   ├── main.py          # Main API endpoints
-│   ├── age_helper.py    # Apache AGE integration
 │   ├── requirements.txt # Python dependencies
 │   └── Dockerfile       # Backend container
 ├── frontend/            # Next.js application
@@ -200,8 +195,6 @@ power-atlas/
 │   │   └── globals.css # Global styles
 │   ├── Dockerfile      # Frontend container
 │   └── package.json    # Node dependencies
-├── infra/              # Infrastructure scripts
-│   └── init-age.sh     # Database initialization
 ├── docker-compose.yml  # Container orchestration
 ├── .env.example        # Environment variables template
 └── README.md          # This file
@@ -237,11 +230,6 @@ cp .env.example .env
 
 ### Environment Variables
 
-- `DATABASE_URL` - PostgreSQL connection string
-- `POSTGRES_USER` - Database user
-- `POSTGRES_PASSWORD` - Database password
-- `POSTGRES_DB` - Database name
-- `GRAPH_NAME` - Apache AGE graph name
 - `NEXT_PUBLIC_BACKEND_URL` - Backend API URL for frontend
 
 ---
@@ -252,32 +240,12 @@ cp .env.example .env
 
 **Backend only:**
 ```bash
-docker compose up postgres backend
+docker compose up backend
 ```
 
 **Frontend only** (requires backend):
 ```bash
-docker compose up postgres backend frontend
-```
-
-### Accessing the database directly
-
-```bash
-docker compose exec postgres psql -U postgres -d power_atlas
-```
-
-Then in psql:
-```sql
-LOAD 'age';
-SET search_path = ag_catalog, "$user", public;
-
--- List all graphs
-SELECT * FROM ag_catalog.ag_graph;
-
--- Run a Cypher query
-SELECT * FROM cypher('power_atlas_graph', $$
-    MATCH (n:Person) RETURN n
-$$) as (result agtype);
+docker compose up backend frontend
 ```
 
 ### Rebuilding after changes
@@ -295,7 +263,6 @@ docker compose logs -f
 
 # Specific service
 docker compose logs -f backend
-docker compose logs -f postgres
 docker compose logs -f frontend
 ```
 
@@ -340,36 +307,13 @@ MATCH (n) DETACH DELETE n
 
 ## Troubleshooting
 
-### Apache AGE extension not found
+### Backend health check fails
 
-**Error**: `extension "age" does not exist`
+**Error**: `Cannot connect to backend`
 
-**Solution**: Ensure you're using the correct Apache AGE Docker image:
-```yaml
-postgres:
-  image: apache/age:release_PG16_1.6.0
-```
-
-### Shared preload libraries error
-
-**Error**: `shared_preload_libraries not configured`
-
-**Solution**: The docker-compose.yml already includes this configuration:
-```yaml
-command: 
-  - "postgres"
-  - "-c"
-  - "shared_preload_libraries=age"
-```
-
-### Backend can't connect to database
-
-**Error**: `could not connect to server`
-
-**Solution**: 
-- Ensure PostgreSQL is healthy: `docker compose ps`
-- Check logs: `docker compose logs postgres`
-- Wait for the health check to pass (may take 30-60 seconds on first start)
+**Solution**:
+- Verify backend is running: http://localhost:8000/health
+- Check backend logs: `docker compose logs backend`
 
 ### Frontend can't connect to backend
 
@@ -390,25 +334,6 @@ ports:
   - "3001:3000"  # Use 3001 instead of 3000
   - "8001:8000"  # Use 8001 instead of 8000
 ```
-
-### Database initialization issues
-
-**Solution**: Clean up and restart:
-```bash
-docker compose down -v  # Remove volumes
-docker compose up --build
-```
-
-### Query execution errors
-
-**Error**: `syntax error in Cypher query`
-
-**Solution**: 
-- Verify Cypher syntax matches Apache AGE documentation
-- Check that node labels and property names are correct
-- Ensure graph exists: queries run against `power_atlas_graph`
-
----
 
 ## Philosophy
 
@@ -434,7 +359,5 @@ Private repository — contributor model under consideration.
 
 ## Resources
 
-- [Apache AGE Documentation](https://age.apache.org/)
 - [FastAPI Documentation](https://fastapi.tiangolo.com/)
 - [Next.js Documentation](https://nextjs.org/docs)
-- [Cypher Query Language](https://neo4j.com/docs/cypher-manual/current/)
