@@ -72,7 +72,7 @@ This repository currently contains a minimal experimental stack used to explore 
 ### Stack
 
 - **Backend**: Python + FastAPI
-- **Database**: Graph backend integration is currently not configured
+- **Database**: Neo4j 5.x with Graph Data Science (via Docker Compose)
 - **Frontend**: Next.js (React + TypeScript) + Tailwind CSS
 - **Orchestration**: Docker Compose
 
@@ -289,6 +289,8 @@ python pipelines/experiment/<script>.py
 ```
 
 Write run artifacts to `pipelines/runs/` and logs to `pipelines/logs/`.
+
+> Studies under `/studies` and versioned architecture/ontology docs under `/docs` remain unchanged by this stack update; they continue to capture historical research and should be referenced as-is.
 
 ### Rebuilding after changes
 
