@@ -242,6 +242,31 @@ Each area will evolve as versioned architectural artifacts.
 
 ---
 
+## Upgrading from Apache AGE
+
+> ⚠️ **Breaking change**: This version replaces the previous PostgreSQL + Apache AGE database with Neo4j + Graph Data Science (GDS).
+
+If you previously ran the stack with the Apache AGE / PostgreSQL configuration:
+
+- The `postgres_data` Docker volume is **no longer used** and will not be migrated automatically.
+- Any graph data stored in the old PostgreSQL/AGE volume must be exported and re-ingested manually if needed.
+- Run `docker compose down -v` to remove the old volumes once you no longer need that data.
+
+No automated migration path is provided. This stack is experimental scaffolding; data migration is out of scope.
+
+---
+
+## Licensing
+
+By running this stack you accept the following license agreements:
+
+- **Neo4j Community Edition**: [Neo4j Software License Agreement](https://neo4j.com/licensing/)
+- **Neo4j Graph Data Science (GDS)**: [GDS License](https://neo4j.com/graph-data-science-software/) — GDS has a separate license from the Neo4j database. Review it before use.
+
+The `NEO4J_ACCEPT_LICENSE_AGREEMENT` variable in `.env` must be set to `yes` to confirm acceptance. The placeholder value in `.env.example` will cause Docker Compose to fail until you explicitly change it after reviewing the license terms.
+
+---
+
 ## Configuration
 
 Copy `.env.example` to `.env` and adjust as needed:
@@ -252,10 +277,13 @@ cp .env.example .env
 
 ### Environment Variables
 
+- `BACKEND_PORT` - Host port for the backend service (defaults to `8000`)
+- `FRONTEND_PORT` - Host port for the frontend service (defaults to `3000`)
 - `NEXT_PUBLIC_BACKEND_URL` - Backend API URL for frontend
 - `NEO4J_URI` - Neo4j Bolt URI used by services (for Docker Compose backend defaults, `bolt://neo4j:7687`)
 - `NEO4J_USERNAME` - Neo4j username (defaults to `neo4j` in Compose)
 - `NEO4J_PASSWORD` - Neo4j password (required; set a strong value in `.env`)
+- `NEO4J_ACCEPT_LICENSE_AGREEMENT` - Must be set to `yes` after reviewing [Neo4j and GDS license terms](#licensing)
 - `NEO4J_UNRESTRICTED_PROCS` - Procedures allowed without restriction (defaults to `gds.*` for local GDS/graph verification; clear or tighten for hardened environments)
 
 ---
