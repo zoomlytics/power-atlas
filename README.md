@@ -116,7 +116,7 @@ cd power-atlas
 
 ### 2. Configure environment
 
-Copy `.env.example` to `.env` and set a strong `NEO4J_AUTH` value (format: `neo4j/<password>`).
+Copy `.env.example` to `.env` and set strong Neo4j connection values (`NEO4J_URI`, `NEO4J_USERNAME`, `NEO4J_PASSWORD`).
 
 ### 3. Start the stack
 
@@ -134,13 +134,13 @@ This will:
 Open your browser and navigate to:
 - **Frontend**: http://localhost:3000
 - **Backend API Docs**: http://localhost:8000/docs
-- **Neo4j Browser**: http://localhost:7474 (user: `neo4j`, password from `NEO4J_AUTH`)
+- **Neo4j Browser**: http://localhost:7474 (user from `NEO4J_USERNAME`, password from `NEO4J_PASSWORD`)
 
-> ⚠️ Set `NEO4J_AUTH` to a strong value before running in any shared or production-like environment. The example value is a placeholder and must be replaced.
+> ⚠️ Set a strong `NEO4J_PASSWORD` before running in any shared or production-like environment. The example value is a placeholder and must be replaced.
 
 #### Verify Neo4j + GDS
 
-1. Open Neo4j Browser at http://localhost:7474 and log in with the credentials set in `NEO4J_AUTH` (e.g., `neo4j/<your-password>`).
+1. Open Neo4j Browser at http://localhost:7474 and log in with `NEO4J_USERNAME` and `NEO4J_PASSWORD`.
 2. Ensure GDS procedures are available (defaults allow `gds.*` for local use). If you overrode `NEO4J_UNRESTRICTED_PROCS`, set it to `gds.*` for this step.
 3. Run:
    ```cypher
@@ -256,7 +256,9 @@ cp .env.example .env
 ### Environment Variables
 
 - `NEXT_PUBLIC_BACKEND_URL` - Backend API URL for frontend
-- `NEO4J_AUTH` - Neo4j username/password pair (configure via `.env` with a strong password)
+- `NEO4J_URI` - Neo4j Bolt URI used by services (for Docker Compose backend defaults, `bolt://neo4j:7687`)
+- `NEO4J_USERNAME` - Neo4j username (defaults to `neo4j` in Compose)
+- `NEO4J_PASSWORD` - Neo4j password (required; set a strong value in `.env`)
 - `NEO4J_UNRESTRICTED_PROCS` - Procedures allowed without restriction (defaults to `gds.*` for local GDS/graph verification; clear or tighten for hardened environments)
 
 ---
