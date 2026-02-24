@@ -123,12 +123,23 @@ docker compose up --build
 This will:
 - Start the FastAPI backend on port 8000
 - Start the Next.js frontend on port 3000
+- Start Neo4j 5.x with the Graph Data Science plugin on ports 7474 (Browser) and 7687 (Bolt)
 
 ### 3. Access the application
 
 Open your browser and navigate to:
 - **Frontend**: http://localhost:3000
 - **Backend API Docs**: http://localhost:8000/docs
+- **Neo4j Browser**: http://localhost:7474 (user: `neo4j`, password: `poweratlas`)
+
+#### Verify Neo4j + GDS
+
+1. Open Neo4j Browser at http://localhost:7474 and log in with `neo4j` / `poweratlas`.
+2. Run:
+   ```cypher
+   CALL gds.version();
+   ```
+3. You should see a version string confirming the Graph Data Science plugin is loaded.
 
 ### 4. Run a demo
 
