@@ -1,6 +1,7 @@
 """
 Power Atlas Backend - FastAPI application
 """
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict
@@ -13,11 +14,19 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Manage application lifespan events."""
+    logger.info("Power Atlas API starting up")
+    yield
+
+
 # Create FastAPI app
 app = FastAPI(
     title="Power Atlas API",
     description="Backend API for Power Atlas",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 # Configure CORS
