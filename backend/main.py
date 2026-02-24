@@ -48,7 +48,7 @@ class CypherQuery(BaseModel):
     params: Optional[Dict[str, Any]] = None
 
 
-@app.post("/cypher")
+@app.post("/cypher", deprecated=True)
 async def execute_cypher(cypher_query: CypherQuery) -> Dict[str, Any]:
     """
     Execute a Cypher query.
@@ -66,7 +66,7 @@ async def execute_cypher(cypher_query: CypherQuery) -> Dict[str, Any]:
     )
 
 
-@app.post("/seed")
+@app.post("/seed", deprecated=True)
 async def seed_graph() -> Dict[str, Any]:
     """
     Seed the graph database with demo data.
