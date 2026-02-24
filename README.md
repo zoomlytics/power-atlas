@@ -72,11 +72,9 @@ This repository currently contains a minimal experimental stack used to explore 
 ### Stack
 
 - **Backend**: Python + FastAPI
-- **Database**: PostgreSQL + Apache AGE (graph extension)
+- **Database**: Neo4j 5.x with Graph Data Science (via Docker Compose)
 - **Frontend**: Next.js (React + TypeScript) + Tailwind CSS
 - **Orchestration**: Docker Compose
-
-Apache AGE is being used as an experimental graph laboratory and is not considered a long-term commitment.
 
 The focus at this stage is on ontology formalization, provenance modeling, temporal semantics, and graph experimentation — not UI polish or production readiness.
 
@@ -116,29 +114,52 @@ git clone https://github.com/zoomlytics/power-atlas.git
 cd power-atlas
 ```
 
-### 2. Start the stack
+### 2. Configure environment
+
+Copy `.env.example` to `.env` and set strong Neo4j connection values (`NEO4J_URI`, `NEO4J_USERNAME`, `NEO4J_PASSWORD`).
+
+### 3. Start the stack
 
 ```bash
 docker compose up --build
 ```
 
 This will:
-- Start PostgreSQL with Apache AGE extension
-- Initialize the `power_atlas` database
 - Start the FastAPI backend on port 8000
 - Start the Next.js frontend on port 3000
+- Start Neo4j 5.x with the Graph Data Science plugin on ports 7474 (Browser) and 7687 (Bolt)
 
-### 3. Access the application
+### 4. Access the application
 
 Open your browser and navigate to:
 - **Frontend**: http://localhost:3000
 - **Backend API Docs**: http://localhost:8000/docs
+- **Neo4j Browser**: http://localhost:7474 (user from `NEO4J_USERNAME`, password from `NEO4J_PASSWORD`)
 
-### 4. Run a demo
+> ⚠️ Set a strong `NEO4J_PASSWORD` before running in any shared or production-like environment. The example value is a placeholder and must be replaced.
 
-1. Click the **"Seed Demo Graph"** button to create sample data
-   - This creates 3 Person nodes (Alice, Bob, Charlie)
-   - Adds KNOWS relationships between them
+#### Verify Neo4j + GDS
+
+1. Open Neo4j Browser at http://localhost:7474 and log in with `NEO4J_USERNAME` and `NEO4J_PASSWORD`.
+2. Ensure GDS procedures are available (defaults allow `gds.*` for local use). If you overrode `NEO4J_UNRESTRICTED_PROCS`, set it to `gds.*` for this step.
+3. Run:
+   ```cypher
+   CALL gds.version();
+   ```
+4. You should see a version string confirming the Graph Data Science plugin is loaded.
+
+### 5. Run a demo (Neo4j Browser)
+
+Run these in Neo4j Browser to create and query demo data:
+
+1. Seed sample nodes and relationships:
+   ```cypher
+   CREATE (a:Person {name: 'Alice', age: 30}),
+          (b:Person {name: 'Bob', age: 35}),
+          (c:Person {name: 'Charlie', age: 28}),
+          (a)-[:KNOWS {since: 2020}]->(b),
+          (b)-[:KNOWS {since: 2021}]->(c);
+   ```
 
 2. Try example queries:
    ```cypher
@@ -161,22 +182,13 @@ Open your browser and navigate to:
 
 - **GET /health** - Health check endpoint
   ```json
-  {"status": "ok", "message": "Backend and database are healthy"}
+  {"status": "ok", "message": "Backend is healthy"}
   ```
 
-- **POST /cypher** - Execute Cypher queries
+- **GET /graph/status** - Placeholder graph integration status (**HTTP 503**)
   ```json
   {
-    "query": "MATCH (n:Person) RETURN n",
-    "params": {}
-  }
-  ```
-
-- **POST /seed** - Seed demo graph data
-  ```json
-  {
-    "status": "success",
-    "message": "Demo graph created with 3 persons and 2 relationships"
+    "detail": "Graph integration is not configured yet"
   }
   ```
 
@@ -190,7 +202,6 @@ Current layout:
 power-atlas/
 ├── backend/              # FastAPI application
 │   ├── main.py          # Main API endpoints
-│   ├── age_helper.py    # Apache AGE integration
 │   ├── requirements.txt # Python dependencies
 │   └── Dockerfile       # Backend container
 ├── frontend/            # Next.js application
@@ -200,8 +211,12 @@ power-atlas/
 │   │   └── globals.css # Global styles
 │   ├── Dockerfile      # Frontend container
 │   └── package.json    # Node dependencies
-├── infra/              # Infrastructure scripts
-│   └── init-age.sh     # Database initialization
+├── pipelines/           # Scripts-first Neo4j workflows (ingest/query/experiment)
+│   ├── ingest/         # Ingestion scripts
+│   ├── query/          # Query/report scripts
+│   ├── experiment/     # Exploratory scripts
+│   ├── runs/           # Run artifacts
+│   └── logs/           # Script logs
 ├── docker-compose.yml  # Container orchestration
 ├── .env.example        # Environment variables template
 └── README.md          # This file
@@ -227,6 +242,31 @@ Each area will evolve as versioned architectural artifacts.
 
 ---
 
+## Upgrading from Apache AGE
+
+> ⚠️ **Breaking change**: This version replaces the previous PostgreSQL + Apache AGE database with Neo4j + Graph Data Science (GDS).
+
+If you previously ran the stack with the Apache AGE / PostgreSQL configuration:
+
+- The `postgres_data` Docker volume is **no longer used** and will not be migrated automatically.
+- Any graph data stored in the old PostgreSQL/AGE volume must be exported and re-ingested manually if needed.
+- Run `docker compose down -v` to remove the old volumes once you no longer need that data.
+
+No automated migration path is provided. This stack is experimental scaffolding; data migration is out of scope.
+
+---
+
+## Licensing
+
+By running this stack you accept the following license agreements:
+
+- **Neo4j Community Edition**: [Neo4j Software License Agreement](https://neo4j.com/licensing/)
+- **Neo4j Graph Data Science (GDS)**: [GDS License](https://neo4j.com/graph-data-science-software/) — GDS has a separate license from the Neo4j database. Review it before use.
+
+The `NEO4J_ACCEPT_LICENSE_AGREEMENT` variable in `.env` must be set to `yes` to confirm acceptance. The placeholder value in `.env.example` will cause Docker Compose to fail until you explicitly change it after reviewing the license terms.
+
+---
+
 ## Configuration
 
 Copy `.env.example` to `.env` and adjust as needed:
@@ -237,12 +277,14 @@ cp .env.example .env
 
 ### Environment Variables
 
-- `DATABASE_URL` - PostgreSQL connection string
-- `POSTGRES_USER` - Database user
-- `POSTGRES_PASSWORD` - Database password
-- `POSTGRES_DB` - Database name
-- `GRAPH_NAME` - Apache AGE graph name
+- `BACKEND_PORT` - Host port for the backend service (defaults to `8000`)
+- `FRONTEND_PORT` - Host port for the frontend service (defaults to `3000`)
 - `NEXT_PUBLIC_BACKEND_URL` - Backend API URL for frontend
+- `NEO4J_URI` - Neo4j Bolt URI used by services (for Docker Compose backend defaults, `bolt://neo4j:7687`)
+- `NEO4J_USERNAME` - Neo4j username (defaults to `neo4j` in Compose)
+- `NEO4J_PASSWORD` - Neo4j password (required; set a strong value in `.env`)
+- `NEO4J_ACCEPT_LICENSE_AGREEMENT` - Must be set to `yes` after reviewing [Neo4j and GDS license terms](#licensing)
+- `NEO4J_UNRESTRICTED_PROCS` - Procedures allowed without restriction (defaults to `gds.*` for local GDS/graph verification; clear or tighten for hardened environments)
 
 ---
 
@@ -252,33 +294,33 @@ cp .env.example .env
 
 **Backend only:**
 ```bash
-docker compose up postgres backend
+docker compose up backend
 ```
+
+> **Note:** Starting the backend requires a `.env` file with `NEO4J_PASSWORD` set (used by Docker Compose variable substitution). Copy `.env.example` to `.env` and set a password before running.
 
 **Frontend only** (requires backend):
 ```bash
-docker compose up postgres backend frontend
+docker compose up backend frontend
 ```
 
-### Accessing the database directly
+### Scripts-first Neo4j workflow
+
+The `pipelines/` directory is the standard location for ingest/query/experiment scripts and run artifacts.
 
 ```bash
-docker compose exec postgres psql -U postgres -d power_atlas
+cp .env.example .env
+# set a strong NEO4J_PASSWORD, then:
+set -a && source .env && set +a
+
+python pipelines/ingest/<script>.py
+python pipelines/query/<script>.py
+python pipelines/experiment/<script>.py
 ```
 
-Then in psql:
-```sql
-LOAD 'age';
-SET search_path = ag_catalog, "$user", public;
+Write run artifacts to `pipelines/runs/` and logs to `pipelines/logs/`.
 
--- List all graphs
-SELECT * FROM ag_catalog.ag_graph;
-
--- Run a Cypher query
-SELECT * FROM cypher('power_atlas_graph', $$
-    MATCH (n:Person) RETURN n
-$$) as (result agtype);
-```
+> Studies under `/studies` and versioned architecture/ontology docs under `/docs` remain unchanged by this stack update; they continue to capture historical research and should be referenced as-is.
 
 ### Rebuilding after changes
 
@@ -295,7 +337,6 @@ docker compose logs -f
 
 # Specific service
 docker compose logs -f backend
-docker compose logs -f postgres
 docker compose logs -f frontend
 ```
 
@@ -340,36 +381,13 @@ MATCH (n) DETACH DELETE n
 
 ## Troubleshooting
 
-### Apache AGE extension not found
+### Backend health check fails
 
-**Error**: `extension "age" does not exist`
+**Error**: `Cannot connect to backend`
 
-**Solution**: Ensure you're using the correct Apache AGE Docker image:
-```yaml
-postgres:
-  image: apache/age:release_PG16_1.6.0
-```
-
-### Shared preload libraries error
-
-**Error**: `shared_preload_libraries not configured`
-
-**Solution**: The docker-compose.yml already includes this configuration:
-```yaml
-command: 
-  - "postgres"
-  - "-c"
-  - "shared_preload_libraries=age"
-```
-
-### Backend can't connect to database
-
-**Error**: `could not connect to server`
-
-**Solution**: 
-- Ensure PostgreSQL is healthy: `docker compose ps`
-- Check logs: `docker compose logs postgres`
-- Wait for the health check to pass (may take 30-60 seconds on first start)
+**Solution**:
+- Verify backend is running: http://localhost:8000/health
+- Check backend logs: `docker compose logs backend`
 
 ### Frontend can't connect to backend
 
@@ -390,25 +408,6 @@ ports:
   - "3001:3000"  # Use 3001 instead of 3000
   - "8001:8000"  # Use 8001 instead of 8000
 ```
-
-### Database initialization issues
-
-**Solution**: Clean up and restart:
-```bash
-docker compose down -v  # Remove volumes
-docker compose up --build
-```
-
-### Query execution errors
-
-**Error**: `syntax error in Cypher query`
-
-**Solution**: 
-- Verify Cypher syntax matches Apache AGE documentation
-- Check that node labels and property names are correct
-- Ensure graph exists: queries run against `power_atlas_graph`
-
----
 
 ## Philosophy
 
@@ -434,7 +433,5 @@ Private repository — contributor model under consideration.
 
 ## Resources
 
-- [Apache AGE Documentation](https://age.apache.org/)
 - [FastAPI Documentation](https://fastapi.tiangolo.com/)
 - [Next.js Documentation](https://nextjs.org/docs)
-- [Cypher Query Language](https://neo4j.com/docs/cypher-manual/current/)
