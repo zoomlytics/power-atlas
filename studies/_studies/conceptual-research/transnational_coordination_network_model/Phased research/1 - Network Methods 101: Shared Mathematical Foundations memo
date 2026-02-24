@@ -1,0 +1,434 @@
+# Network Methods 101: Shared Mathematical Foundations
+
+**Internal Technical Memo**
+
+---
+
+## 1. Purpose and Scope
+
+This memo establishes a shared mathematical vocabulary and set of modeling conventions for network-based analysis within Power Atlas. It synthesizes canonical methodological foundations from Newman (2010), Barabási (2016), and Granovetter (1973), focusing strictly on mathematical representations, metrics, and algorithmic properties.
+
+This document does **not** make sociological claims. All outputs of network analysis are treated as **computational artifacts** subject to uncertainty, parameter dependence, and model error.
+
+![alt text](image.png)
+![alt text](image-1.png)
+
+---
+
+## 2. Canonical Graph Vocabulary
+
+### 2.1 Graph
+
+A graph is an ordered pair:
+
+\[
+G = (V, E)
+\]
+
+- \( V \): set of nodes (vertices)  
+- \( E \subseteq V \times V \): set of edges  
+
+Edges may be:
+
+- Undirected: \( (i,j) = (j,i) \)  
+- Directed: \( (i,j) \neq (j,i) \)
+
+---
+
+### 2.2 Adjacency Matrix
+
+\[
+A_{ij} =
+\begin{cases}
+w_{ij} & \text{if edge from } i \text{ to } j \\
+0 & \text{otherwise}
+\end{cases}
+\]
+
+- Binary graphs: \( w_{ij} \in \{0,1\} \)  
+- Weighted graphs: \( w_{ij} \in \mathbb{R}^+ \)
+
+**Intuition:**  
+Matrix encoding of connectivity.
+
+**Implementation Implications**
+
+- Dense matrix: \(O(n^2)\) storage  
+- Sparse matrix: store only nonzero entries  
+
+**Failure Modes**
+
+- Dense storage infeasible for large \(n\)  
+- Implicit assumption of static snapshot  
+
+**Power Atlas Considerations**
+
+- Store as sparse representations  
+- Associate each matrix with:
+  - Time window  
+  - Edge type  
+  - Provenance  
+
+---
+
+### 2.3 Edge List
+
+\[
+E = \{(i,j,w_{ij})\}
+\]
+
+**Intuition:**  
+Record of observed relations.
+
+**Implementation Implications**
+
+- Append-friendly  
+- Natural for event-based ingestion  
+
+**Failure Modes**
+
+- Harder to compute matrix operations directly  
+
+**Power Atlas**
+
+- Canonical storage format  
+- Derived matrices are computed artifacts  
+
+---
+
+### 2.4 Directed vs Undirected
+
+- Directed: citation, command, flow  
+- Undirected: co-membership, co-attendance  
+
+**Failure Mode**
+
+- Treating symmetric relations as directional or vice versa  
+
+---
+
+### 2.5 Weighted vs Unweighted
+
+Weights encode:
+
+- Frequency  
+- Duration  
+- Intensity  
+- Confidence  
+
+**Failure Mode**
+
+- Interpreting weights as comparable across edge types  
+
+---
+
+### 2.6 Bipartite Graph
+
+\[
+G = (P \cup I, E), \quad E \subseteq P \times I
+\]
+
+No edges within the same partition.
+
+Adjacency:
+
+\[
+B_{pi} =
+\begin{cases}
+1 & p \text{ connected to } i \\
+0 & \text{otherwise}
+\end{cases}
+\]
+
+---
+
+### 2.7 Projection
+
+\[
+A = B B^{T}
+\]
+
+Produces one-mode graph among \(P\).
+
+**Failure Mode**
+
+- Clique inflation  
+- Density distortion  
+
+---
+
+### 2.8 Sparse vs Dense
+
+Density:
+
+\[
+\rho = \frac{|E|}{|V|(|V|-1)}
+\]
+
+Most real-world networks are sparse.
+
+---
+
+## 3. Mathematical Foundations
+
+### 3.1 Centrality Measures
+
+#### Degree Centrality
+
+\[
+k_i = \sum_j A_{ij}
+\]
+
+**Intuition:** local activity  
+
+**Does Not Measure**
+
+- Brokerage  
+- Influence  
+- Control  
+
+---
+
+#### Betweenness Centrality
+
+\[
+C_B(i) = \sum_{s \neq i \neq t} \frac{\sigma_{st}(i)}{\sigma_{st}}
+\]
+
+where \( \sigma_{st} \) is number of shortest paths between \(s\) and \(t\).
+
+**Intuition:** position on shortest paths  
+
+**Computational Cost**
+
+- \(O(nm)\) with Brandes algorithm  
+
+**Instability**
+
+- Small edge changes → large score shifts  
+
+**Does Not Measure**
+
+- Authority  
+- Popularity  
+
+---
+
+#### Eigenvector Centrality
+
+\[
+x_i = \frac{1}{\lambda} \sum_j A_{ij} x_j
+\]
+
+Principal eigenvector of \(A\).
+
+**Intuition:** connected to important nodes  
+
+**Failure Modes**
+
+- Dominated by giant component  
+- Undefined for disconnected graphs without modification  
+
+---
+
+### 3.2 Modularity and Community Detection
+
+#### Modularity
+
+\[
+Q = \frac{1}{2m} \sum_{ij} \left[A_{ij} - \frac{k_i k_j}{2m}\right] \delta(c_i, c_j)
+\]
+
+**Interpretation**
+
+Difference between observed and random-graph expectation.
+
+**Key Properties**
+
+- Resolution limit  
+- Many near-optimal solutions  
+- NP-hard optimization  
+
+**Implication**
+
+Communities are **hypotheses**, not ground truth.
+
+**Power Atlas**
+
+- Store:
+  - Algorithm name  
+  - Parameters  
+  - Random seed  
+  - Timestamp  
+
+---
+
+### 3.3 Weighted Projection from Bipartite Graphs
+
+#### Raw Projection
+
+\[
+A = B B^T
+\]
+
+\[
+A_{pq} = \sum_i B_{pi} B_{qi}
+\]
+
+Counts shared institutions.
+
+---
+
+#### Weighting Options
+
+- Binary thresholding  
+- Duration overlap:
+
+\[
+A_{pq} = \sum_i \min(d_{pi}, d_{qi})
+\]
+
+- Time decay:
+
+\[
+w = e^{-\lambda \Delta t}
+\]
+
+---
+
+#### Biases
+
+- High-degree institutions dominate  
+- Artificial cliques  
+
+---
+
+#### Mitigations
+
+- Degree-normalized weights  
+- Statistical significance filtering  
+- Retain bipartite form whenever possible  
+
+---
+
+### 3.4 Brokerage and Bridging
+
+#### Weak Ties (Granovetter)
+
+Edges with low interaction strength often bridge clusters.
+
+---
+
+#### Betweenness as Proxy
+
+Imperfect proxy for brokerage.
+
+---
+
+#### Structural Holes (Conceptual)
+
+Nodes connecting otherwise disconnected groups experience reduced redundancy.
+
+---
+
+#### Cross-Layer Brokerage
+
+Brokerage across edge types or layers may differ from single-layer analysis.
+
+---
+
+#### Instability Sources
+
+- Time window selection  
+- Weighting scheme  
+- Missing data  
+
+---
+
+#### Key Clarification
+
+Brokerage ≠ influence  
+Brokerage ≠ intent  
+Brokerage ≠ control  
+
+---
+
+## 4. Modeling Conventions for Power Atlas
+
+### Node Identity
+
+- Stable internal ID  
+- Canonical name  
+- Alias table  
+
+### Edge Typing
+
+- Each edge has type:
+  - membership  
+  - transaction  
+  - communication  
+  - citation  
+
+### Temporal Scoping
+
+Edges must include:
+
+- start_time  
+- end_time (nullable)  
+
+### Provenance
+
+Each edge must record:
+
+- Source  
+- Extraction method  
+- Confidence  
+
+---
+
+## 5. Known Failure Modes and Epistemic Limits
+
+- Missing data bias  
+- Survivorship bias  
+- Boundary specification problem  
+- Parameter dependence  
+- Projection artifacts  
+- Overinterpretation of centrality  
+
+No single metric encodes “importance.”
+
+---
+
+## 6. Architectural Implications
+
+- Separate raw observations from derived graphs  
+- All metrics stored as parameterized artifacts  
+- Recomputable pipelines  
+- Versioned models  
+- Auditable provenance  
+
+---
+
+## 7. Glossary of Core Terms
+
+- **Node**: entity in graph  
+- **Edge**: relation  
+- **Degree**: number of connections  
+- **Path**: sequence of edges  
+- **Component**: connected subgraph  
+- **Projection**: one-mode reduction of bipartite graph  
+- **Modularity**: community quality function  
+- **Centrality**: numeric node descriptor  
+
+---
+
+## 8. Bibliography
+
+Barabási, A.-L. (2016). *Network Science*. Cambridge University Press.  
+
+Granovetter, M. S. (1973). The Strength of Weak Ties. *American Journal of Sociology*, 78(6), 1360–1380.  
+
+Newman, M. (2010). *Networks: An Introduction*. Oxford University Press.
+
+---
+
