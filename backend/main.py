@@ -14,7 +14,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Create FastAPI app with lifespan
+# Create FastAPI app
 app = FastAPI(
     title="Power Atlas API",
     description="Backend API for Power Atlas",
@@ -51,7 +51,8 @@ class CypherQuery(BaseModel):
 @app.post("/cypher")
 async def execute_cypher(cypher_query: CypherQuery) -> Dict[str, Any]:
     """
-    Execute a Cypher query
+    Execute a Cypher query.
+    Note: Graph query service is currently not configured.
     
     Args:
         cypher_query: CypherQuery model with query and optional params
@@ -68,7 +69,8 @@ async def execute_cypher(cypher_query: CypherQuery) -> Dict[str, Any]:
 @app.post("/seed")
 async def seed_graph() -> Dict[str, Any]:
     """
-    Seed the graph database with demo data
+    Seed the graph database with demo data.
+    Note: Graph seed service is currently not configured.
     
     Returns:
         Dictionary with status

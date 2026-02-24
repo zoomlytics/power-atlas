@@ -335,16 +335,6 @@ ports:
   - "8001:8000"  # Use 8001 instead of 8000
 ```
 
-### Query execution errors
-
-**Error**: `syntax error in Cypher query`
-
-**Solution**: 
-- Verify Cypher syntax
-- Check that node labels and property names are correct
-
----
-
 ## Philosophy
 
 Power Atlas models structural relationships.
@@ -371,4 +361,3 @@ Private repository — contributor model under consideration.
 
 - [FastAPI Documentation](https://fastapi.tiangolo.com/)
 - [Next.js Documentation](https://nextjs.org/docs)
-- [Cypher Query Language](https://neo4j.com/docs/cypher-manual/current/)
