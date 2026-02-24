@@ -185,7 +185,7 @@ Run these in Neo4j Browser to create and query demo data:
   {"status": "ok", "message": "Backend is healthy"}
   ```
 
-- **GET /graph/status** - Placeholder graph integration status
+- **GET /graph/status** - Placeholder graph integration status (**HTTP 503**)
   ```json
   {
     "detail": "Graph integration is not configured yet"

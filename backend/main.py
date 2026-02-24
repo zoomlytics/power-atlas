@@ -40,13 +40,16 @@ async def health_check() -> Dict[str, str]:
     """
     return {"status": "ok", "message": "Backend is healthy"}
 
-@app.get("/graph/status")
-async def graph_status() -> Dict[str, str]:
+@app.get(
+    "/graph/status",
+    status_code=503,
+    responses={503: {"description": "Graph integration is not configured yet"}},
+)
+async def graph_status() -> None:
     """
     Placeholder endpoint for future graph integration.
-    
-    Returns:
-        Dictionary with graph integration status
+
+    This endpoint currently always responds with HTTP 503.
     """
     raise HTTPException(
         status_code=503,
