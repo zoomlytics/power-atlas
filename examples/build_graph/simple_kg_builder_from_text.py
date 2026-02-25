@@ -46,7 +46,7 @@ NODE_TYPES: list[EntityInputType] = [
     "Person",
     # ... or with a dict if more details are needed,
     # such as a description:
-    {"label": "House", "description": "Family the person belongs to"},
+    {"label": "House", "description": "Family the person belongs to", "properties": [{"name": "name", "type": "STRING"}]},
     # or a list of properties the LLM will try to attach to the entity:
     {"label": "Planet", "properties": [{"name": "weather", "type": "STRING"}]},
 ]
