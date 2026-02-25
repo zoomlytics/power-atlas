@@ -7,6 +7,10 @@ if needed.
 NB: when building a KG from text, no 'Document' node is created in the Knowledge Graph.
 """
 
+import os
+print("RUNNING FILE:", __file__)
+print("CWD:", os.getcwd())
+
 import asyncio
 import logging
 
@@ -61,6 +65,12 @@ PATTERNS = [
     ("House", "RULES", "Planet"),
 ]
 
+import json
+print("SCHEMA:", json.dumps(
+    {"node_types": NODE_TYPES, "relationship_types": RELATIONSHIP_TYPES, "patterns": PATTERNS},
+    indent=2,
+    default=str,
+))
 
 async def define_and_run_pipeline(
     neo4j_driver: neo4j.Driver,
