@@ -45,10 +45,20 @@ services:
     container_name: power-atlas-neo4j
     environment:
       NEO4J_AUTH: ${NEO4J_USERNAME:-neo4j}/${NEO4J_PASSWORD:?Set NEO4J_PASSWORD in .env}
-      NEO4J_PLUGINS: '["graph-data-science"]'
+
+      # Install both plugins: GDS (already used) + APOC (needed by neo4j_graphrag writer)
+      NEO4J_PLUGINS: '["graph-data-science","apoc"]'
+
       NEO4J_ACCEPT_LICENSE_AGREEMENT: ${NEO4J_ACCEPT_LICENSE_AGREEMENT:?Set NEO4J_ACCEPT_LICENSE_AGREEMENT (e.g. 'yes') in .env after reviewing Neo4j and GDS license terms}
-      # Loosen procedure restrictions (unrestrict); set to gds.* only for local development experiments.
-      NEO4J_dbms_security_procedures_unrestricted: ${NEO4J_UNRESTRICTED_PROCS:-gds.*}
+
+      # Loosen procedure restrictions for local dev.
+      # Keep your existing env var, but default it to allow BOTH apoc.* and gds.*.
+      NEO4J_dbms_security_procedures_unrestricted: ${NEO4J_UNRESTRICTED_PROCS:-apoc.*,gds.*}
+
+      # Neo4j 5 also supports allowlisting procedures. This is safer than unrestricted alone.
+      # (Optional but recommended)
+      NEO4J_dbms_security_procedures_allowlist: ${NEO4J_ALLOWLIST_PROCS:-apoc.*,gds.*}
+      
     healthcheck:
       test:
         - CMD-SHELL
