@@ -28,7 +28,7 @@ logging.getLogger("neo4j_graphrag").setLevel(logging.DEBUG)
 
 # Neo4j db infos
 URI = "neo4j://localhost:7687"
-AUTH = ("neo4j", "password")
+AUTH = ("neo4j", "testtesttest")
 DATABASE = "neo4j"
 
 # Text to process
