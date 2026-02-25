@@ -1,0 +1,4 @@
+neo4j-graphrag[openai]
+python-dotenv
+pydantic>=2.6,<3
+neo4j>=5,<6
