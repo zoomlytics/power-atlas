@@ -322,6 +322,16 @@ Write run artifacts to `pipelines/runs/` and logs to `pipelines/logs/`.
 
 > Studies under `/studies` and versioned architecture/ontology docs under `/docs` remain unchanged by this stack update; they continue to capture historical research and should be referenced as-is.
 
+### Vendor metadata sync
+
+When the `vendor/neo4j-graphrag-python` submodule pin changes, run:
+
+```bash
+python scripts/sync_vendor_version.py
+```
+
+Use `python scripts/sync_vendor_version.py --check` to verify it is in sync.
+
 ### Rebuilding after changes
 
 ```bash
