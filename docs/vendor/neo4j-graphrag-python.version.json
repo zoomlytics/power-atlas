@@ -1,0 +1,5 @@
+{
+  "upstream_repo_url": "https://github.com/neo4j/neo4j-graphrag-python.git",
+  "pinned_commit_sha": "74bb97ca3cf9a04bf69e68b1504b17a90c5ec029",
+  "tag": "1.13.1"
+}
