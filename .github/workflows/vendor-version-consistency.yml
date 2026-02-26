@@ -1,0 +1,22 @@
+name: Vendor version consistency
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  check-neo4j-graphrag-version-pin:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Verify submodule pin matches docs version metadata
+        run: python3 scripts/sync_vendor_version.py --check
