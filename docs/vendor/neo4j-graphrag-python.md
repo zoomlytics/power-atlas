@@ -12,6 +12,7 @@
 - Version metadata file: [`/docs/vendor/neo4j-graphrag-python.version.json`](/docs/vendor/neo4j-graphrag-python.version.json)
 - Upstream README at pinned commit: https://github.com/neo4j/neo4j-graphrag-python/blob/74bb97ca3cf9a04bf69e68b1504b17a90c5ec029/README.md
 - Upstream docs root at pinned commit: https://github.com/neo4j/neo4j-graphrag-python/tree/74bb97ca3cf9a04bf69e68b1504b17a90c5ec029/docs
+- Upstream examples folder at pinned commit: https://github.com/neo4j/neo4j-graphrag-python/tree/74bb97ca3cf9a04bf69e68b1504b17a90c5ec029/examples
 
 ## Features and APIs Used in Power Atlas
 
