@@ -15,27 +15,47 @@ VERSION_FILE = REPO_ROOT / "docs/vendor/neo4j-graphrag-python.version.json"
 
 
 def get_gitlink_sha(repo_root: Path = REPO_ROOT, submodule_path: str = SUBMODULE_PATH) -> str:
-    result = subprocess.run(
-        ["git", "ls-files", "--stage", "--", submodule_path],
-        cwd=repo_root,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    line = result.stdout.strip()
-    if not line:
-        raise RuntimeError(f"No gitlink entry found for {submodule_path}")
+    try:
+        result = subprocess.run(
+            ["git", "ls-files", "--stage", "--", submodule_path],
+            cwd=repo_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        raise RuntimeError(
+            f"Failed to query gitlink SHA for {submodule_path!r} in repository {repo_root}: {exc}"
+        ) from exc
 
+    lines = [ln for ln in result.stdout.splitlines() if ln.strip()]
+    if not lines:
+        raise RuntimeError(f"No gitlink entry found for {submodule_path}")
+    if len(lines) > 1:
+        raise RuntimeError(
+            f"Multiple gitlink entries found for {submodule_path}: {result.stdout!r}"
+        )
+
+    line = lines[0]
     parts = line.split()
     if len(parts) < 2:
-        raise RuntimeError(f"Unexpected gitlink format: {line}")
+        raise RuntimeError(f"Unexpected git output format for gitlink {submodule_path}: {line!r}")
     return parts[1]
 
 
 def sync_version_file(version_file: Path = VERSION_FILE, gitlink_sha: str | None = None, check_only: bool = False) -> int:
     sha = gitlink_sha or get_gitlink_sha()
 
-    data = json.loads(version_file.read_text(encoding="utf-8"))
+    try:
+        data = json.loads(version_file.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        raise RuntimeError(f"Version file not found: {version_file}")
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"Invalid JSON in version file {version_file}: {exc}") from exc
+
+    if "pinned_commit_sha" not in data:
+        raise RuntimeError(f"Version file {version_file} is missing the 'pinned_commit_sha' field")
+
     current_sha = data.get("pinned_commit_sha")
     if current_sha == sha:
         print(f"{version_file} already in sync ({sha})")
@@ -49,7 +69,7 @@ def sync_version_file(version_file: Path = VERSION_FILE, gitlink_sha: str | None
         return 1
 
     data["pinned_commit_sha"] = sha
-    version_file.write_text(f"{json.dumps(data, indent=2, ensure_ascii=False)}\n", encoding="utf-8")
+    version_file.write_text(f"{json.dumps(data, indent=2, ensure_ascii=False, sort_keys=False)}\n", encoding="utf-8")
     print(f"Updated {version_file} pinned_commit_sha to {sha}")
     return 0
 
