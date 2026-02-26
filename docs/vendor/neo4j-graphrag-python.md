@@ -69,5 +69,5 @@ These are used for:
    - `examples/build_graph/simple_kg_builder_from_pdf.py`
 4. Validate local runtime assumptions (Neo4j connectivity, APOC availability, `OPENAI_API_KEY`).
 5. If upstream changes require dependency constraints, update `requirements.txt` accordingly.
-6. Update [`/docs/vendor/neo4j-graphrag-python.version.json`](/docs/vendor/neo4j-graphrag-python.version.json) with the new commit/tag metadata.
+6. Run `python scripts/sync_vendor_version.py` to automatically sync [`/docs/vendor/neo4j-graphrag-python.version.json`](/docs/vendor/neo4j-graphrag-python.version.json) to the current submodule gitlink SHA.
 7. Update this document with the new pinned commit and refreshed upstream links.
