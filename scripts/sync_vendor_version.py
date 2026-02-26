@@ -49,7 +49,7 @@ def sync_version_file(version_file: Path = VERSION_FILE, gitlink_sha: str | None
         return 1
 
     data["pinned_commit_sha"] = sha
-    version_file.write_text(f"{json.dumps(data, indent=2)}\n", encoding="utf-8")
+    version_file.write_text(f"{json.dumps(data, indent=2, ensure_ascii=False)}\n", encoding="utf-8")
     print(f"Updated {version_file} pinned_commit_sha to {sha}")
     return 0
 
