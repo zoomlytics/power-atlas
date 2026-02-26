@@ -91,6 +91,7 @@ class SyncVendorVersionTests(unittest.TestCase):
             self.assertEqual(exit_code, 0)
             data = json.loads(version_file.read_text(encoding="utf-8"))
             self.assertEqual(data, version_content)
+            self.assertEqual(list(data.keys()), list(version_content.keys()))
 
     def test_sync_raises_when_version_file_missing(self):
         with tempfile.TemporaryDirectory() as tmpdir:
