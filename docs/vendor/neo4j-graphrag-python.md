@@ -61,13 +61,23 @@ These are used for:
 ## Vendor Update Procedure
 
 1. Inspect upstream release notes/changelog for API or behavior changes.
-2. Update submodule reference:
+2. Bump the submodule pin and stage it:
    - `git submodule update --remote vendor/neo4j-graphrag-python`
-   - confirm new pinned commit in `git submodule status`.
-3. Verify Power Atlas integration points still match upstream API:
+   - `git add vendor/neo4j-graphrag-python`
+   - verify the new SHA with `git submodule status -- vendor/neo4j-graphrag-python`.
+3. Regenerate version metadata so docs and gitlink stay aligned:
+   - run `python scripts/sync_vendor_version.py`
+   - review `docs/vendor/neo4j-graphrag-python.version.json` and confirm `pinned_commit_sha` matches step 2 (update `tag` in the same file when moving to a new upstream release tag).
+4. Update links in this vendor contract page to stable commit-pinned URLs:
+   - update `Pinned commit`
+   - update `Upstream README at pinned commit`
+   - update `Upstream docs root at pinned commit`
+   - always use `/blob/<sha>/...` or `/tree/<sha>/...` links (not branch-based links like `main`) so references remain stable over time.
+5. Verify Power Atlas integration points still match upstream API:
    - `examples/build_graph/simple_kg_builder_from_text.py`
    - `examples/build_graph/simple_kg_builder_from_pdf.py`
-4. Validate local runtime assumptions (Neo4j connectivity, APOC availability, `OPENAI_API_KEY`).
-5. If upstream changes require dependency constraints, update `requirements.txt` accordingly.
-6. Run `python scripts/sync_vendor_version.py` to automatically sync [`/docs/vendor/neo4j-graphrag-python.version.json`](/docs/vendor/neo4j-graphrag-python.version.json) to the current submodule gitlink SHA.
-7. Update this document with the new pinned commit and refreshed upstream links.
+6. Validate local runtime assumptions (Neo4j connectivity, APOC availability, `OPENAI_API_KEY`).
+7. If upstream changes require dependency constraints, update `requirements.txt` accordingly.
+8. Verify CI consistency before/after pushing:
+   - local check: `python scripts/sync_vendor_version.py --check`
+   - confirm `.github/workflows/vendor-version-consistency.yml` passes in GitHub Actions for the PR.
