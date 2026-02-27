@@ -39,7 +39,6 @@ USERNAME = os.getenv("NEO4J_USERNAME", "neo4j")
 PASSWORD = os.getenv("NEO4J_PASSWORD", "testtesttest")
 DATABASE = os.getenv("NEO4J_DATABASE", "neo4j")
 AUTH = (USERNAME, PASSWORD)
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 root_dir = Path(__file__).parents[1]
 file_path = root_dir / "data" / "Harry Potter and the Chamber of Secrets Summary.pdf"
