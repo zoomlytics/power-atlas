@@ -170,7 +170,7 @@ async def define_and_run_pipeline(
     for item in DOCUMENTS_TO_INGEST:
         file_path = item["file_path"]
         document_metadata = item["document_metadata"]
-        file_path_str = file_path.resolve().as_posix()
+        file_path_str = file_path.as_posix()
         print(f"[ingest] preparing path={file_path_str} metadata={document_metadata}")
         reset_document_lexical_graph(neo4j_driver, file_path_str)
         print(f"[ingest] running pipeline path={file_path_str}")
