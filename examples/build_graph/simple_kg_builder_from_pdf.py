@@ -23,8 +23,8 @@ from neo4j_graphrag.experimental.components.text_splitters.fixed_size_splitter i
 )
 
 # Tune these
-CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "2000"))       # characters (see note below)
-CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "200"))
+CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "1000"))       # characters (see note below)
+CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "100"))
 APPROXIMATE = os.getenv("CHUNK_APPROXIMATE", "true").lower() == "true"
 
 text_splitter = FixedSizeSplitter(
@@ -34,10 +34,12 @@ text_splitter = FixedSizeSplitter(
 )
 
 # Neo4j db infos
-URI = "neo4j://localhost:7687"
-AUTH = ("neo4j", "testtesttest")
-DATABASE = "neo4j"
-
+URI = os.getenv("NEO4J_URI", "neo4j://localhost:7687")
+USERNAME = os.getenv("NEO4J_USERNAME", "neo4j")
+PASSWORD = os.getenv("NEO4J_PASSWORD", "testtesttest")
+DATABASE = os.getenv("NEO4J_DATABASE", "neo4j")
+AUTH = (USERNAME, PASSWORD)
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 root_dir = Path(__file__).parents[1]
 file_path = root_dir / "data" / "Harry Potter and the Chamber of Secrets Summary.pdf"
@@ -45,12 +47,40 @@ file_path = root_dir / "data" / "Harry Potter and the Chamber of Secrets Summary
 
 # Instantiate NodeType and RelationshipType objects. This defines the
 # entities and relations the LLM will be looking for in the text.
-NODE_TYPES = ["Person", "Organization", "Location"]
-RELATIONSHIP_TYPES = ["SITUATED_AT", "INTERACTS", "LED_BY"]
+NODE_TYPES = [
+    {"label": "Character", "description": "A person or sentient being in the story"},
+    {"label": "Group", "description": "A group, faction, family, school house, or organization"},
+    {"label": "Location", "description": "A physical place or setting"},
+    {"label": "Artifact", "description": "A named object of plot significance (diary, sword, etc.)"},
+    {"label": "Creature", "description": "A non-human creature (basilisk, phoenix, etc.)"},
+    {"label": "Event", "description": "A major plot event or incident"},
+]
+
+RELATIONSHIP_TYPES = [
+    {"label": "ALLY_OF", "description": "Characters who cooperate"},
+    {"label": "ENEMY_OF", "description": "Characters who oppose each other"},
+    {"label": "MEMBER_OF", "description": "Character belongs to a group"},
+    {"label": "LOCATED_IN", "description": "Entity/event is located in a place"},
+    {"label": "OWNS", "description": "Character or group owns/possesses an artifact"},
+    {"label": "USES", "description": "Character uses an artifact"},
+    {"label": "INVOLVES", "description": "Event involves a character/creature/artifact"},
+    {"label": "CAUSES", "description": "Event causes another event"},
+]
+
 PATTERNS = [
-    ("Person", "SITUATED_AT", "Location"),
-    ("Person", "INTERACTS", "Person"),
-    ("Organization", "LED_BY", "Person"),
+    ("Character", "ALLY_OF", "Character"),
+    ("Character", "ENEMY_OF", "Character"),
+    ("Character", "MEMBER_OF", "Group"),
+    ("Group", "LOCATED_IN", "Location"),
+    ("Character", "LOCATED_IN", "Location"),
+    ("Event", "LOCATED_IN", "Location"),
+    ("Character", "OWNS", "Artifact"),
+    ("Group", "OWNS", "Artifact"),
+    ("Character", "USES", "Artifact"),
+    ("Event", "INVOLVES", "Character"),
+    ("Event", "INVOLVES", "Creature"),
+    ("Event", "INVOLVES", "Artifact"),
+    ("Event", "CAUSES", "Event"),
 ]
 
 
