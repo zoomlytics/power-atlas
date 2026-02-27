@@ -28,9 +28,9 @@ WITH node, score
 OPTIONAL MATCH (d:Document)<-[:FROM_DOCUMENT]-(node)
 WITH node, score, d, coalesce(d.path, "<unknown>") AS path
 WHERE d IS NOT NULL
-  AND ($corpus IS NULL OR coalesce(d.corpus, "") = $corpus)
-  AND ($doc_type IS NULL OR coalesce(d.doc_type, "") = $doc_type)
-  AND ($document_path IS NULL OR coalesce(d.path, "") = $document_path)
+  AND ($corpus IS NULL OR d.corpus = $corpus)
+  AND ($doc_type IS NULL OR d.doc_type = $doc_type)
+  AND ($document_path IS NULL OR d.path = $document_path)
 
 // Neighbor window: previous and next chunks from the same document, by index
 OPTIONAL MATCH (d)<-[:FROM_DOCUMENT]-(prev:Chunk {index: node.index - 1})
@@ -55,7 +55,7 @@ WITH
     END
   ) AS window_text
 
-RETURN DISTINCT
+RETURN
   (
     "[source: " + path + " | hitChunk: " + toString(node.index) + " | score: " + toString(score) + "]\n"
     + window_text
@@ -90,7 +90,7 @@ def _print_retriever_result(
     for i, item in enumerate(items, start=1):
         raw = _safe_get(item, "content", "")
         content = _unwrap_record_content(raw)
-        content = content.encode("utf-8").decode("unicode_escape")  # turn "\\n" into real newlines
+        content = _normalize_context_text(content)
         preview = shorten(content.replace("\n", " "), width=max_chars, placeholder="…")
         print(f"{i:02d}. {preview}")
 
@@ -123,7 +123,7 @@ def _dedupe_retrieved_items(retriever_result: Any) -> tuple[int, list[Any]]:
     seen: set[str] = set()
     for item in items:
         content = _unwrap_record_content(_safe_get(item, "content", ""))
-        key = content.encode("utf-8").decode("unicode_escape").strip()
+        key = _normalize_context_text(content)
         if key in seen:
             continue
         seen.add(key)
@@ -131,18 +131,28 @@ def _dedupe_retrieved_items(retriever_result: Any) -> tuple[int, list[Any]]:
     return len(items) - len(deduped), deduped
 
 
-_TRACE_HEADER = re.compile(r"^\[source: (?P<source>.+?) \| hitChunk: (?P<hit_chunk>\d+) \|", re.MULTILINE)
+_TRACE_HEADER = re.compile(r"^\[source: (?P<source>.+?) \| hitChunk: (?P<hit_chunk>\d+) \|")
+
+
+def _normalize_context_text(content: str) -> str:
+    return content.replace("\\r", "\r").replace("\\n", "\n").replace("\\t", "\t").strip()
 
 
 def _print_traceability(items: list[Any]) -> None:
     traces: list[str] = []
     for item in items:
         content = _unwrap_record_content(_safe_get(item, "content", ""))
-        text = content.encode("utf-8").decode("unicode_escape")
+        text = _normalize_context_text(content)
         match = _TRACE_HEADER.search(text)
         if match:
             traces.append(f"{match.group('source')}#chunk{match.group('hit_chunk')}")
-    unique_traces = list(dict.fromkeys(traces))
+    unique_traces: list[str] = []
+    seen: set[str] = set()
+    for trace in traces:
+        if trace in seen:
+            continue
+        seen.add(trace)
+        unique_traces.append(trace)
     if unique_traces:
         print("\n--- Retrieval trace (document#chunk) ---")
         for idx, trace in enumerate(unique_traces, start=1):
@@ -181,15 +191,22 @@ def main() -> None:
             "Retrieve evidence with optional corpus/doc_type/document filters.\n"
             "Examples:\n"
             "  python examples/retrieve/local_pdf_graphrag.py --query \"Summarize the document in 5 bullets.\"\n"
-            "  python examples/retrieve/local_pdf_graphrag.py --doc-type facts "
-            "--query \"What evidence mentions Lina Park and the Harbor Grid Upgrade Hearing?\""
+            "  python examples/retrieve/local_pdf_graphrag.py --doc-type facts --query \"What evidence mentions Lina Park and the Harbor Grid Upgrade Hearing?\""
         ),
         formatter_class=argparse.RawTextHelpFormatter,
     )
-    parser.add_argument("--query", default=os.getenv("QUERY_TEXT", "").strip())
-    parser.add_argument("--corpus", default=RETRIEVAL_CORPUS)
-    parser.add_argument("--doc-type", default=RETRIEVAL_DOC_TYPE)
-    parser.add_argument("--document-path", default=RETRIEVAL_DOCUMENT_PATH)
+    parser.add_argument("--query", default=os.getenv("QUERY_TEXT", "").strip(), help="Question/prompt to answer.")
+    parser.add_argument("--corpus", default=RETRIEVAL_CORPUS, help="Filter by Document.corpus (or empty for all).")
+    parser.add_argument(
+        "--doc-type",
+        default=RETRIEVAL_DOC_TYPE,
+        help="Filter by Document.doc_type: facts, narrative, or all.",
+    )
+    parser.add_argument(
+        "--document-path",
+        default=RETRIEVAL_DOCUMENT_PATH,
+        help="Optional absolute Document.path filter for per-document debugging.",
+    )
     args = parser.parse_args()
 
     query_params = _build_query_params(

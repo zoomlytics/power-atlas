@@ -37,20 +37,33 @@ class LocalPdfGraphRagScriptTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             module._build_query_params(corpus="", doc_type="memo", document_path="")
 
+    def test_normalize_context_text_unescapes_common_sequences(self):
+        module = _load_script_module("local_pdf_graphrag_normalize_test")
+        normalized = module._normalize_context_text("line1\\nline2\\tcell\\r")
+        self.assertEqual(normalized, "line1\nline2\tcell")
+
     def test_dedup_retrieved_items_removes_duplicate_contexts(self):
         module = _load_script_module("local_pdf_graphrag_dedupe_test")
-        duplicate_content = "[source: a.pdf | hitChunk: 1 | score: 0.9]\\nBody"
-        unique_content = "[source: b.pdf | hitChunk: 3 | score: 0.8]\\nBody"
+        duplicate_content = "<Record content='[source: a.pdf | hitChunk: 1 | score: 0.9]\\nBody'>"
+        unique_content = "<Record content='[source: b.pdf | hitChunk: 3 | score: 0.8]\\nBody'>"
         retriever_result = SimpleNamespace(
             items=[
                 SimpleNamespace(content=duplicate_content),
-                SimpleNamespace(content=duplicate_content),
+                SimpleNamespace(content="[source: a.pdf | hitChunk: 1 | score: 0.9]\\nBody"),
                 SimpleNamespace(content=unique_content),
             ]
         )
         removed, deduped = module._dedupe_retrieved_items(retriever_result)
         self.assertEqual(removed, 1)
         self.assertEqual(len(deduped), 2)
+
+    def test_dedup_retrieved_items_removes_identical_wrapped_duplicates(self):
+        module = _load_script_module("local_pdf_graphrag_dedupe_wrapped_test")
+        wrapped = "<Record content='[source: a.pdf | hitChunk: 2 | score: 0.7]\\nBody'>"
+        retriever_result = SimpleNamespace(items=[SimpleNamespace(content=wrapped), SimpleNamespace(content=wrapped)])
+        removed, deduped = module._dedupe_retrieved_items(retriever_result)
+        self.assertEqual(removed, 1)
+        self.assertEqual(len(deduped), 1)
 
 
 if __name__ == "__main__":
