@@ -21,10 +21,36 @@ TOP_K = int(os.getenv("TOP_K", "5"))
 RETRIEVAL_QUERY = """
 WITH node, score
 OPTIONAL MATCH (d:Document)<-[:FROM_DOCUMENT]-(node)
-WITH node, score, coalesce(d.path, "<unknown>") AS path
+WITH node, score, d, coalesce(d.path, "<unknown>") AS path
+
+// Neighbor window: previous and next chunks from the same document, by index
+OPTIONAL MATCH (d)<-[:FROM_DOCUMENT]-(prev:Chunk {index: node.index - 1})
+OPTIONAL MATCH (d)<-[:FROM_DOCUMENT]-(next:Chunk {index: node.index + 1})
+
+WITH node, score, path, prev, next
+WITH
+  node,
+  score,
+  path,
+  (
+    CASE
+      WHEN prev IS NULL THEN ""
+      ELSE ("[prev chunk: " + toString(prev.index) + "]\n" + coalesce(prev.text, "") + "\n\n")
+    END
+    +
+    ("[hit chunk: " + toString(node.index) + " | score: " + toString(score) + "]\n" + coalesce(node.text, ""))
+    +
+    CASE
+      WHEN next IS NULL THEN ""
+      ELSE ("\n\n[next chunk: " + toString(next.index) + "]\n" + coalesce(next.text, ""))
+    END
+  ) AS window_text
+
 RETURN
-  ("[source: " + path + " | chunk: " + toString(node.index) + " | score: " + toString(score) + "]\n"
-   + node.text) AS content
+  (
+    "[source: " + path + " | hitChunk: " + toString(node.index) + "]\n"
+    + window_text
+  ) AS content
 """
 
 
@@ -32,7 +58,7 @@ def _safe_get(obj: Any, attr: str, default: Any = None) -> Any:
     return getattr(obj, attr, default)
 
 
-def _print_retriever_result(retriever_result: Any, max_chars: int = 240) -> None:
+def _print_retriever_result(retriever_result: Any, max_chars: int = 400) -> None:
     items = _safe_get(retriever_result, "items", None)
     if not items:
         print("\n--- Retriever result (raw) ---")
@@ -99,7 +125,17 @@ def main() -> None:
 
         rag = GraphRAG(retriever=retriever, llm=llm)
 
-        query_text = os.getenv("QUERY_TEXT", "").strip() or "Summarize the document in 5 bullets."
+        user_question = os.getenv("QUERY_TEXT", "").strip() or "Summarize the document in 5 bullets."
+
+        # Force citation behavior using ONLY the headers we embed in retrieved context.
+        query_text = (
+            "You MUST answer using only the provided context.\n"
+            "Return exactly 5 bullets.\n"
+            "Every bullet MUST end with a citation copied exactly from the context header, "
+            "like: [source: … | hitChunk: …].\n"
+            "If the context is insufficient, say 'Insufficient context.' and still provide citations.\n\n"
+            f"Question: {user_question}"
+        )
 
         print("Connected to:", URI, "db:", DATABASE)
         print("Vector index:", INDEX_NAME, "top_k:", TOP_K)
