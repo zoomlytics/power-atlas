@@ -48,7 +48,7 @@ WITH
 
 RETURN
   (
-    "[source: " + path + " | hitChunk: " + toString(node.index) + "]\n"
+    "[source: " + path + " | hitChunk: " + toString(node.index) + " | score: " + toString(score) + "]\n"
     + window_text
   ) AS content
 """
@@ -134,6 +134,8 @@ def main() -> None:
             "Every bullet MUST end with a citation copied exactly from the context header, "
             "like: [source: … | hitChunk: …].\n"
             "If the context is insufficient, say 'Insufficient context.' and still provide citations.\n\n"
+            "Your bullets must cover the beginning, middle, and end of the document (chronological if possible).\n"
+            "Try to use different citations across bullets when possible.\n"
             f"Question: {user_question}"
         )
 
