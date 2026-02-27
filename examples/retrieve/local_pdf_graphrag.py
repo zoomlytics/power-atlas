@@ -159,6 +159,8 @@ def _normalize_context_text(content: str) -> str:
 
         def _decode_unicode_escape(match: re.Match[str]) -> str:
             code_point = int(match.group(1), 16)
+            if 0xD800 <= code_point <= 0xDFFF:
+                return match.group(0)
             return chr(code_point)
 
         text = _UNICODE_ESCAPE_PATTERN.sub(_decode_unicode_escape, text)
