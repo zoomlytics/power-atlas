@@ -8,6 +8,7 @@ OPENAI_API_KEY needs to be in the env vars.
 """
 
 import asyncio
+import os
 from pathlib import Path
 
 import neo4j
@@ -16,6 +17,21 @@ from neo4j_graphrag.experimental.pipeline.kg_builder import SimpleKGPipeline
 from neo4j_graphrag.experimental.pipeline.pipeline import PipelineResult
 from neo4j_graphrag.llm import LLMInterface
 from neo4j_graphrag.llm import OpenAILLM
+
+from neo4j_graphrag.experimental.components.text_splitters.fixed_size_splitter import (
+    FixedSizeSplitter,
+)
+
+# Tune these
+CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "2000"))       # characters (see note below)
+CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "200"))
+APPROXIMATE = os.getenv("CHUNK_APPROXIMATE", "true").lower() == "true"
+
+text_splitter = FixedSizeSplitter(
+    chunk_size=CHUNK_SIZE,
+    chunk_overlap=CHUNK_OVERLAP,
+    approximate=APPROXIMATE,
+)
 
 # Neo4j db infos
 URI = "neo4j://localhost:7687"
@@ -53,6 +69,7 @@ async def define_and_run_pipeline(
             "patterns": PATTERNS,
         },
         neo4j_database=DATABASE,
+        text_splitter=text_splitter,
     )
     return await kg_builder.run_async(
         file_path=str(file_path),
