@@ -132,6 +132,7 @@ def _dedupe_retrieved_items(retriever_result: Any) -> tuple[int, list[Any]]:
 
 
 _TRACE_HEADER = re.compile(r"^\[source: (?P<source>.+?) \| hitChunk: (?P<hit_chunk>\d+) \|")
+_ESCAPE_PATTERN = re.compile(r"\\n|\\r|\\t|\\\\|\\\"|\\'|\\u[0-9a-fA-F]{4}")
 
 
 def _normalize_context_text(content: str) -> str:
@@ -144,11 +145,12 @@ def _normalize_context_text(content: str) -> str:
     text = content.strip()
     if "\\" not in text:
         return text
-    if not re.search(r"""\\(?:[nrt"'\\]|u[0-9a-fA-F]{4})""", text):
+    if not _ESCAPE_PATTERN.search(text):
         return text
     try:
-        text = text.encode("utf-8").decode("unicode_escape")
-    except Exception:
+        # Decode escaped representations produced by Neo4j/Python repr strings.
+        text = text.encode("raw_unicode_escape").decode("unicode_escape")
+    except UnicodeDecodeError:
         text = text.replace("\\r", "\r").replace("\\n", "\n").replace("\\t", "\t")
     return text.strip()
 
@@ -226,7 +228,7 @@ def main() -> None:
         "--inspect-retrieval",
         action=argparse.BooleanOptionalAction,
         default=RETRIEVAL_INSPECT,
-        help="Print retrieved contexts before the answer (extra retrieval call only as fallback).",
+        help="Print retrieved contexts; fallback retrieval runs only if GraphRAG omits retriever_result.",
     )
     args = parser.parse_args()
 
