@@ -50,14 +50,14 @@ PASSWORD = os.getenv("NEO4J_PASSWORD", "testtesttest")
 DATABASE = os.getenv("NEO4J_DATABASE", "neo4j")
 AUTH = (USERNAME, PASSWORD)
 
-root_dir = Path(__file__).parents[1]
+root_dir = Path(__file__).resolve().parents[1]
 DOCUMENTS_TO_INGEST = (
     {
-        "file_path": root_dir / "data" / "power_atlas_factsheet.pdf",
+        "file_path": (root_dir / "data" / "power_atlas_factsheet.pdf").resolve(),
         "document_metadata": {"corpus": "power_atlas_demo", "doc_type": "facts"},
     },
     {
-        "file_path": root_dir / "data" / "power_atlas_analyst_note.pdf",
+        "file_path": (root_dir / "data" / "power_atlas_analyst_note.pdf").resolve(),
         "document_metadata": {"corpus": "power_atlas_demo", "doc_type": "narrative"},
     },
 )
@@ -128,15 +128,23 @@ KG_SCHEMA = GraphSchema(
 def reset_document_lexical_graph(
     neo4j_driver: neo4j.Driver, document_path: str
 ) -> None:
-    query = """
+    count_query = """
     MATCH (d:Document {path: $path})
     OPTIONAL MATCH (d)<-[:FROM_DOCUMENT]-(c:Chunk)
-    WITH collect(DISTINCT c) AS chunks, collect(DISTINCT d) AS docs
-    FOREACH (n IN chunks + docs | DETACH DELETE n)
-    RETURN size(docs) AS documents_deleted, size(chunks) AS chunks_deleted
+    RETURN count(DISTINCT d) AS documents_deleted, count(DISTINCT c) AS chunks_deleted
+    """
+    delete_chunks_query = """
+    MATCH (d:Document {path: $path})<-[:FROM_DOCUMENT]-(c:Chunk)
+    DETACH DELETE c
+    """
+    delete_document_query = """
+    MATCH (d:Document {path: $path})
+    DETACH DELETE d
     """
     with neo4j_driver.session(database=DATABASE) as session:
-        record = session.run(query, path=document_path).single()
+        record = session.run(count_query, path=document_path).single()
+        session.run(delete_chunks_query, path=document_path).consume()
+        session.run(delete_document_query, path=document_path).consume()
     documents_deleted = record["documents_deleted"] if record else 0
     chunks_deleted = record["chunks_deleted"] if record else 0
     print(
@@ -162,7 +170,7 @@ async def define_and_run_pipeline(
     for item in DOCUMENTS_TO_INGEST:
         file_path = item["file_path"]
         document_metadata = item["document_metadata"]
-        file_path_str = str(file_path)
+        file_path_str = file_path.resolve().as_posix()
         print(f"[ingest] preparing path={file_path_str} metadata={document_metadata}")
         reset_document_lexical_graph(neo4j_driver, file_path_str)
         print(f"[ingest] running pipeline path={file_path_str}")

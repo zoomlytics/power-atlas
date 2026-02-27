@@ -24,6 +24,9 @@ class SimpleKgBuilderFromPdfScriptTests(unittest.TestCase):
     def test_documents_and_metadata_are_configured_for_both_synthetic_pdfs(self):
         module = _load_script_module("simple_kg_builder_from_pdf_docs_test")
         files = {item["file_path"].name: item["document_metadata"] for item in module.DOCUMENTS_TO_INGEST}
+        for item in module.DOCUMENTS_TO_INGEST:
+            self.assertTrue(item["file_path"].is_absolute())
+            self.assertEqual(item["file_path"], item["file_path"].resolve())
 
         self.assertEqual(
             files,
