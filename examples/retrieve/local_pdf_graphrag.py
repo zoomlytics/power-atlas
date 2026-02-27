@@ -133,6 +133,8 @@ def _dedupe_retrieved_items(retriever_result: Any) -> tuple[int, list[Any]]:
 
 _TRACE_HEADER = re.compile(r"^\[source: (?P<source>.+?) \| hitChunk: (?P<hit_chunk>\d+) \|")
 _ESCAPE_PATTERN = re.compile(r"\\n|\\r|\\t|\\\\|\\\"|\\'|\\u[0-9a-fA-F]{4}")
+_UNICODE_ESCAPE_PATTERN = re.compile(r"\\u([0-9a-fA-F]{4})")
+_CONTROL_CHARS_PATTERN = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f]")
 
 
 def _normalize_context_text(content: str) -> str:
@@ -144,15 +146,23 @@ def _normalize_context_text(content: str) -> str:
     """
     text = content.strip()
     if "\\" not in text:
-        return text
-    if not _ESCAPE_PATTERN.search(text):
-        return text
-    try:
-        # Decode escaped representations produced by Neo4j/Python repr strings.
-        text = text.encode("raw_unicode_escape").decode("unicode_escape")
-    except UnicodeDecodeError:
-        text = text.replace("\\r", "\r").replace("\\n", "\n").replace("\\t", "\t")
-    return text.strip()
+        return _CONTROL_CHARS_PATTERN.sub("", text)
+    if _ESCAPE_PATTERN.search(text):
+        text = (
+            text.replace("\\r", "\r")
+            .replace("\\n", "\n")
+            .replace("\\t", "\t")
+            .replace("\\\\", "\\")
+            .replace('\\"', '"')
+            .replace("\\'", "'")
+        )
+
+        def _decode_unicode_escape(match: re.Match[str]) -> str:
+            code_point = int(match.group(1), 16)
+            return chr(code_point)
+
+        text = _UNICODE_ESCAPE_PATTERN.sub(_decode_unicode_escape, text)
+    return _CONTROL_CHARS_PATTERN.sub("", text).strip()
 
 
 def _print_traceability(items: list[Any]) -> None:
@@ -262,7 +272,7 @@ def main() -> None:
             "You MUST answer using only the provided context.\n"
             "Return exactly 5 bullets.\n"
             "Every bullet MUST end with a citation copied exactly from the context header, "
-            "like: [source: … | hitChunk: …].\n"
+            "like: [source: … | hitChunk: … | score: …].\n"
             "If the context is insufficient, say 'Insufficient context.' and still provide citations.\n\n"
             "Your bullets must cover the beginning, middle, and end of the document (chronological if possible).\n"
             "Try to use different citations across bullets when possible.\n"

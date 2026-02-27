@@ -43,6 +43,10 @@ class LocalPdfGraphRagScriptTests(unittest.TestCase):
         self.assertEqual(normalized, "line1\nline2\tcell")
         normalized_quotes = module._normalize_context_text("\\\"quoted\\\" and \\\\ slash and \\u2192")
         self.assertEqual(normalized_quotes, "\"quoted\" and \\ slash and →")
+        normalized_hex_escape = module._normalize_context_text("\\x1b[31mRed")
+        self.assertEqual(normalized_hex_escape, "\\x1b[31mRed")
+        sanitized_control = module._normalize_context_text("before\x1b[31mred")
+        self.assertEqual(sanitized_control, "before[31mred")
 
     def test_dedup_retrieved_items_removes_duplicate_contexts(self):
         module = _load_script_module("local_pdf_graphrag_dedupe_test")
