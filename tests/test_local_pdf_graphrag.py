@@ -41,6 +41,8 @@ class LocalPdfGraphRagScriptTests(unittest.TestCase):
         module = _load_script_module("local_pdf_graphrag_normalize_test")
         normalized = module._normalize_context_text("line1\\nline2\\tcell\\r")
         self.assertEqual(normalized, "line1\nline2\tcell")
+        normalized_quotes = module._normalize_context_text("\\\"quoted\\\" and \\\\ slash and \\u2192")
+        self.assertEqual(normalized_quotes, "\"quoted\" and \\ slash and →")
 
     def test_dedup_retrieved_items_removes_duplicate_contexts(self):
         module = _load_script_module("local_pdf_graphrag_dedupe_test")

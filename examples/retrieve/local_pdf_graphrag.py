@@ -22,13 +22,13 @@ TOP_K = int(os.getenv("TOP_K", "5"))
 RETRIEVAL_CORPUS = os.getenv("RETRIEVAL_CORPUS", "").strip()
 RETRIEVAL_DOC_TYPE = os.getenv("RETRIEVAL_DOC_TYPE", "all").strip().lower()
 RETRIEVAL_DOCUMENT_PATH = os.getenv("RETRIEVAL_DOCUMENT_PATH", "").strip()
+RETRIEVAL_INSPECT = os.getenv("RETRIEVAL_INSPECT", "false").strip().lower() == "true"
 
 RETRIEVAL_QUERY = """
 WITH node, score
-OPTIONAL MATCH (d:Document)<-[:FROM_DOCUMENT]-(node)
+MATCH (d:Document)<-[:FROM_DOCUMENT]-(node)
 WITH node, score, d, coalesce(d.path, "<unknown>") AS path
-WHERE d IS NOT NULL
-  AND ($corpus IS NULL OR d.corpus = $corpus)
+WHERE ($corpus IS NULL OR d.corpus = $corpus)
   AND ($doc_type IS NULL OR d.doc_type = $doc_type)
   AND ($document_path IS NULL OR d.path = $document_path)
 
@@ -135,7 +135,22 @@ _TRACE_HEADER = re.compile(r"^\[source: (?P<source>.+?) \| hitChunk: (?P<hit_chu
 
 
 def _normalize_context_text(content: str) -> str:
-    return content.replace("\\r", "\r").replace("\\n", "\n").replace("\\t", "\t").strip()
+    """
+    Normalize context text by decoding common escaped sequences.
+
+    This targets Neo4j/Python-style escaped content while avoiding unnecessary
+    transformations when there are no recognized escape patterns.
+    """
+    text = content.strip()
+    if "\\" not in text:
+        return text
+    if not re.search(r"""\\(?:[nrt"'\\]|u[0-9a-fA-F]{4})""", text):
+        return text
+    try:
+        text = text.encode("utf-8").decode("unicode_escape")
+    except Exception:
+        text = text.replace("\\r", "\r").replace("\\n", "\n").replace("\\t", "\t")
+    return text.strip()
 
 
 def _print_traceability(items: list[Any]) -> None:
@@ -207,6 +222,12 @@ def main() -> None:
         default=RETRIEVAL_DOCUMENT_PATH,
         help="Optional absolute Document.path filter for per-document debugging.",
     )
+    parser.add_argument(
+        "--inspect-retrieval",
+        action=argparse.BooleanOptionalAction,
+        default=RETRIEVAL_INSPECT,
+        help="Print retrieved contexts before the answer (extra retrieval call only as fallback).",
+    )
     args = parser.parse_args()
 
     query_params = _build_query_params(
@@ -252,32 +273,34 @@ def main() -> None:
         print("=" * 80)
         print("Q:", query_text)
 
-        # 1) Inspect retrieval directly (works even if GraphRAG response doesn't expose it)
-        try:
-            retriever_result = retriever.search(
-                query_text=query_text,
-                top_k=TOP_K,
-                query_params=query_params,
-            )
-        except TypeError:
-            # Some versions use retriever.search(query_text, retriever_config={...})
-            retriever_result = retriever.search(
-                query_text=query_text,
-                retriever_config={"top_k": TOP_K, "query_params": query_params},
-            )
-
-        duplicates_removed, deduped_items = _dedupe_retrieved_items(retriever_result)
-        if duplicates_removed:
-            print(f"[dedupe] removed {duplicates_removed} duplicate context item(s).")
-        _print_traceability(deduped_items)
-
-        _print_retriever_result(retriever_result, items_override=deduped_items)
-
-        # 2) Then generate the final answer
+        # 1) Generate final answer
         response = rag.search(
             query_text=query_text,
             retriever_config={"top_k": TOP_K, "query_params": query_params},
         )
+        retriever_result = _safe_get(response, "retriever_result", None)
+
+        if retriever_result is None and args.inspect_retrieval:
+            try:
+                retriever_result = retriever.search(
+                    query_text=query_text,
+                    top_k=TOP_K,
+                    query_params=query_params,
+                )
+            except TypeError:
+                retriever_result = retriever.search(
+                    query_text=query_text,
+                    retriever_config={"top_k": TOP_K, "query_params": query_params},
+                )
+
+        if retriever_result is not None:
+            duplicates_removed, deduped_items = _dedupe_retrieved_items(retriever_result)
+            if duplicates_removed:
+                print(f"[dedupe] removed {duplicates_removed} duplicate context item(s).")
+            _print_traceability(deduped_items)
+            if args.inspect_retrieval:
+                _print_retriever_result(retriever_result, items_override=deduped_items)
+
         answer = _safe_get(response, "answer", None)
 
         if answer is not None:
