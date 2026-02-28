@@ -18,7 +18,10 @@ class SyntheticExamplePdfTests(unittest.TestCase):
         self.assertTrue(analyst_note.exists(), f"Missing PDF artifact: {analyst_note}")
 
         if PdfReader is None:
-            self.skipTest("pypdf is not installed; skipping PDF content checks")
+            self.fail(
+                "pypdf is not installed; install 'pypdf' as a test dependency "
+                "so PDF content checks are executed."
+            )
 
         factsheet_text = "\n".join((page.extract_text() or "") for page in PdfReader(str(factsheet)).pages)
         analyst_note_text = "\n".join((page.extract_text() or "") for page in PdfReader(str(analyst_note)).pages)
