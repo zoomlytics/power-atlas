@@ -2,7 +2,7 @@ import importlib.util
 import os
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock
 
 
 SCRIPT_PATH = (
@@ -142,26 +142,44 @@ class SimpleKgBuilderFromPdfScriptTests(unittest.TestCase):
         )
         self.assertIn('doc.path IN ["/tmp/a.pdf", "/tmp/b.pdf"]', query)
 
-    def test_reset_document_derived_graph_calls_entity_then_lexical_reset(self):
+    def test_reset_document_derived_graph_runs_in_single_transaction(self):
         module = _load_script_module("simple_kg_builder_from_pdf_reset_combo_test")
-        driver = object()
-        call_order = []
-        with (
-            patch.object(module, "reset_document_entity_graph") as entity_reset,
-            patch.object(module, "reset_document_lexical_graph") as lexical_reset,
-        ):
-            entity_reset.side_effect = lambda *args, **kwargs: call_order.append(
-                "entity"
-            )
-            lexical_reset.side_effect = lambda *args, **kwargs: call_order.append(
-                "lexical"
-            )
-            module.reset_document_derived_graph(
-                neo4j_driver=driver, document_path="/tmp/doc.pdf"
-            )
-        entity_reset.assert_called_once_with(driver, "/tmp/doc.pdf")
-        lexical_reset.assert_called_once_with(driver, "/tmp/doc.pdf")
-        self.assertEqual(call_order, ["entity", "lexical"])
+        driver = MagicMock()
+        session = MagicMock()
+        tx = MagicMock()
+        driver.session.return_value.__enter__.return_value = session
+        session.begin_transaction.return_value.__enter__.return_value = tx
+
+        count_result = MagicMock()
+        count_result.single.return_value = {"documents_found": 1, "chunks_found": 2}
+        entity_summary = MagicMock()
+        entity_summary.counters.nodes_deleted = 3
+        entity_summary.counters.relationships_deleted = 4
+        entity_result = MagicMock()
+        entity_result.consume.return_value = entity_summary
+        delete_chunks_result = MagicMock()
+        delete_chunks_result.consume.return_value = MagicMock()
+        delete_document_result = MagicMock()
+        delete_document_result.consume.return_value = MagicMock()
+        tx.run.side_effect = [
+            count_result,
+            entity_result,
+            delete_chunks_result,
+            delete_document_result,
+        ]
+
+        module.reset_document_derived_graph(neo4j_driver=driver, document_path="/tmp/doc.pdf")
+
+        driver.session.assert_called_once_with(database=module.DATABASE)
+        session.begin_transaction.assert_called_once()
+        tx.commit.assert_called_once()
+        self.assertEqual(tx.run.call_count, 4)
+        first_query = tx.run.call_args_list[0].args[0]
+        second_query = tx.run.call_args_list[1].args[0]
+        self.assertIn("RETURN count(DISTINCT d)", first_query)
+        self.assertIn("OPTIONAL MATCH (c)<-[rel:", second_query)
+        for call in tx.run.call_args_list:
+            self.assertEqual(call.kwargs["path"], "/tmp/doc.pdf")
 
 
 if __name__ == "__main__":
