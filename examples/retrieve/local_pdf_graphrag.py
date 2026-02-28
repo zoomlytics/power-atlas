@@ -267,7 +267,7 @@ def main() -> None:
 
         rag = GraphRAG(retriever=retriever, llm=llm)
 
-        user_question = args.query or "Summarize the document in 5 bullets."
+        user_question = (args.query or "").strip() or "Summarize the document in 5 bullets."
 
         # Force citation behavior using ONLY the headers we embed in retrieved context.
         query_text = (
