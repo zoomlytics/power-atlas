@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 from typing import Iterable
 
+import logging
 import neo4j
 from dotenv import load_dotenv
 from neo4j_graphrag.embeddings import OpenAIEmbeddings
@@ -47,6 +48,8 @@ from neo4j_graphrag.llm import LLMInterface
 from neo4j_graphrag.llm import OpenAILLM
 from pypdf import PdfReader
 from pypdf.errors import PdfReadError
+
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 
@@ -202,13 +205,16 @@ def _read_document_chunks(
     lexical_graph_config: LexicalGraphConfig = LEXICAL_GRAPH_CONFIG,
 ) -> TextChunks:
     """Read chunks for a single document directly from Neo4j."""
-    return_properties = [".*"]
-    if not reader.fetch_embeddings:
-        return_properties.append(f"{lexical_graph_config.chunk_embedding_property}: null")
+    if reader.fetch_embeddings:
+        return_properties = ".*"
+    else:
+        return_properties = (
+            f".*, {lexical_graph_config.chunk_embedding_property}: null"
+        )
     query = (
         f"MATCH (d:`{lexical_graph_config.document_node_label}` {{path: $path}})"
         f"<-[:{lexical_graph_config.chunk_to_document_relationship_type}]-(c:`{lexical_graph_config.chunk_node_label}`) "
-        f"RETURN c {{ {', '.join(return_properties)} }} as chunk "
+        f"RETURN c {{ {return_properties} }} as chunk "
     )
     if lexical_graph_config.chunk_index_property:
         query += f"ORDER BY c.{lexical_graph_config.chunk_index_property}"
@@ -225,9 +231,8 @@ def _read_document_chunks(
             "text": chunk.pop(lexical_graph_config.chunk_text_property, ""),
             "index": chunk.pop(lexical_graph_config.chunk_index_property, -1),
         }
-        if (
-            uid := chunk.pop(lexical_graph_config.chunk_id_property, None)
-        ) is not None:
+        uid = chunk.pop(lexical_graph_config.chunk_id_property, None)
+        if uid is not None:
             input_data["uid"] = uid
         input_data["metadata"] = chunk
         chunks.append(TextChunk(**input_data))
@@ -237,9 +242,10 @@ def _read_document_chunks(
 def _attach_document_provenance(
     graph_nodes: Iterable[Neo4jNode], document_info: DocumentInfo
 ) -> None:
+    lexical_node_labels = set(LEXICAL_GRAPH_CONFIG.lexical_graph_node_labels)
     for node in graph_nodes:
         node_label = node.label  # Neo4jNode.label is a single primary label
-        if node_label in LEXICAL_GRAPH_CONFIG.lexical_graph_node_labels:
+        if node_label in lexical_node_labels:
             continue
         node.properties.setdefault(DOCUMENT_PATH_PROPERTY, document_info.path)
         if document_info.metadata:
@@ -357,9 +363,8 @@ async def _run_entity_pipeline(
             reader, file_path_str, lexical_graph_config=LEXICAL_GRAPH_CONFIG
         )
         if not document_chunks.chunks:
-            print(
-                f"[warning] no chunks found for {file_path_str}; "
-                "skipping entity pass"
+            logger.warning(
+                "No chunks found for %s; skipping entity pass", file_path_str
             )
             continue
         schema = await schema_builder.run(
