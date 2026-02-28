@@ -42,6 +42,7 @@ Optional tuning values used by scripts:
 - `TOP_K` (default `5`)
 - `RETRIEVAL_CORPUS`, `RETRIEVAL_DOC_TYPE`, `RETRIEVAL_DOCUMENT_PATH`
 - `RETRIEVAL_INSPECT` (default `false`; enables retrieval inspection output, mirroring `--inspect-retrieval`)
+- Two-pipeline toggles for ingestion (default shown): `RUN_LEXICAL_PIPELINE=true`, `RUN_ENTITY_PIPELINE=true`, `RESET_LEXICAL_GRAPH=true`, `RESET_ENTITY_GRAPH=false`
 
 ### Vector index check (required for retrieval)
 
@@ -72,7 +73,14 @@ Metadata written per document:
 - factsheet: `corpus=power_atlas_demo`, `doc_type=facts`
 - analyst note: `corpus=power_atlas_demo`, `doc_type=narrative`
 
-Reset logic: the ingest script calls `reset_document_lexical_graph(...)` for each document path before writing, deleting prior `Document` and connected `Chunk` nodes for that same path.
+Two-pipeline flow (aligned with the upstream vendor example):
+
+- **Pipeline A (lexical only)**: builds `Document` + `Chunk` nodes and embeddings. Controlled by `RUN_LEXICAL_PIPELINE` and `RESET_LEXICAL_GRAPH` (per-document reset only deletes the lexical graph; entity nodes remain).
+- **Pipeline B (entity)**: reads chunks from Neo4j via `Neo4jChunkReader` and runs extraction with `create_lexical_graph=False`, reusing the stored lexical graph and writing provenance (`FROM_CHUNK`, `FROM_DOCUMENT`, `document_path`). Controlled by `RUN_ENTITY_PIPELINE`; set `RESET_ENTITY_GRAPH=true` to drop only the extracted entity subgraph for a document before re-running extraction.
+- Entity extraction now uses a schema-with-properties pattern (`PropertyType`) for `Person`, `Organization`, `Event`, `FactSheet`, and `AnalystNote` plus relationship properties (for example `RELATED_TO.type`, `RELATED_TO.date`, `MENTIONED_IN.source_type`). Deduplication runs after both PDFs are processed, using label-specific keys (`name`, `firm_name`, `subject`) for consistent cross-document resolution.
+- Provenance chain to validate in graph queries: `Entity -[:FROM_CHUNK]-> Chunk -[:FROM_DOCUMENT]-> Document`.
+- Resolver pre-filter pattern now scopes to document provenance relationships (vendor-aligned): `WHERE (entity)-[:FROM_CHUNK]->(:Chunk)-[:FROM_DOCUMENT]->(doc:Document) AND doc.path IN [...]`.
+- Use `reset_document_derived_graph(...)` when you need a single safe utility call to reset both lexical (`Document`/`Chunk`) and entity-derived data for one document path.
 
 ## Retrieval + QA usage
 
@@ -101,8 +109,9 @@ python examples/retrieve/local_pdf_graphrag.py \
 Behavior notes:
 
 - Retrieval uses `TOP_K` for `top_k` and `NEO4J_VECTOR_INDEX` for the vector index (default: `chunk_embedding_index`).
-- Query params support corpus/doc-type/path filtering.
-- Prompt enforces **strict citations**: each answer bullet must include a source header like `[source: ... | hitChunk: ... | score: ...]`.
+- Retriever pre-filters support corpus/doc-type/path filtering via `filters=` when searching.
+- Context snippets are built via a dedicated retriever `result_formatter` for deterministic `[source ...]` headers and neighbor windows.
+- QA uses a `RagTemplate` with **strict citations**: each answer bullet must include a source header like `[source: ... | hitChunk: ... | score: ...]`.
 
 ## Cypher validation queries
 
@@ -157,6 +166,16 @@ ORDER BY label, entity;
 ```
 
 Expected signal: key entities (for example `Lina Park`, `Northbridge Energy Cooperative`, and `Harbor Grid Upgrade Hearing`) should appear with `docs` containing both synthetic PDF paths.
+
+### 5) Provenance chain sanity check
+
+```cypher
+MATCH (d:Document {corpus: 'power_atlas_demo'})<-[:FROM_DOCUMENT]-(c:Chunk)<-[:FROM_CHUNK]-(e)
+RETURN labels(e)[0] AS entity_label, coalesce(e.name, e.firm_name, e.subject, '<no-key>') AS entity_key,
+       d.path AS document_path, c.index AS chunk_index
+ORDER BY entity_label, entity_key, document_path, chunk_index
+LIMIT 50;
+```
 
 ## Example QA output (shape)
 

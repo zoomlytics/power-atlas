@@ -4,13 +4,14 @@ import argparse
 import os
 import re
 from textwrap import shorten
-from typing import Any
+from typing import Any, Mapping
 
 import neo4j
 from neo4j_graphrag.embeddings import OpenAIEmbeddings
-from neo4j_graphrag.generation import GraphRAG
+from neo4j_graphrag.generation import GraphRAG, RagTemplate
 from neo4j_graphrag.llm import OpenAILLM
 from neo4j_graphrag.retrievers import VectorCypherRetriever
+from neo4j_graphrag.types import RetrieverResultItem
 
 URI = os.getenv("NEO4J_URI", "neo4j://localhost:7687")
 USERNAME = os.getenv("NEO4J_USERNAME", "neo4j")
@@ -27,40 +28,41 @@ RETRIEVAL_INSPECT = os.getenv("RETRIEVAL_INSPECT", "false").strip().lower() == "
 RETRIEVAL_QUERY = """
 WITH node, score
 MATCH (d:Document)<-[:FROM_DOCUMENT]-(node)
-WITH node, score, d, coalesce(d.path, "<unknown>") AS path
-WHERE ($corpus IS NULL OR d.corpus = $corpus)
-  AND ($doc_type IS NULL OR d.doc_type = $doc_type)
-  AND ($document_path IS NULL OR d.path = $document_path)
-
-// Neighbor window: previous and next chunks from the same document, by index
 OPTIONAL MATCH (d)<-[:FROM_DOCUMENT]-(prev:Chunk {index: node.index - 1})
 OPTIONAL MATCH (d)<-[:FROM_DOCUMENT]-(next:Chunk {index: node.index + 1})
-
-WITH node, score, path, prev, next
-WITH
-  node,
-  score,
-  path,
-  (
-    CASE
-      WHEN prev IS NULL THEN ""
-      ELSE ("[prev chunk: " + toString(prev.index) + "]\n" + coalesce(prev.text, "") + "\n\n")
-    END
-    +
-    ("[hit chunk: " + toString(node.index) + " | score: " + toString(score) + "]\n" + coalesce(node.text, ""))
-    +
-    CASE
-      WHEN next IS NULL THEN ""
-      ELSE ("\n\n[next chunk: " + toString(next.index) + "]\n" + coalesce(next.text, ""))
-    END
-  ) AS window_text
-
 RETURN
-  (
-    "[source: " + path + " | hitChunk: " + toString(node.index) + " | score: " + toString(score) + "]\n"
-    + window_text
-  ) AS content
+  coalesce(d.path, "<unknown>") AS source_path,
+  node.index AS hit_chunk,
+  score AS similarity_score,
+  coalesce(node.text, "") AS hit_text,
+  prev.index AS prev_chunk,
+  coalesce(prev.text, "") AS prev_text,
+  next.index AS next_chunk,
+  coalesce(next.text, "") AS next_text
 """
+
+# Vendor references:
+# - result_formatter: https://github.com/neo4j/neo4j-graphrag-python/blob/main/examples/customize/retrievers/result_formatter_vector_cypher_retriever.py
+# - pre-filters: https://github.com/neo4j/neo4j-graphrag-python/blob/main/examples/customize/retrievers/use_pre_filters.py
+# - custom prompt: https://github.com/neo4j/neo4j-graphrag-python/blob/main/examples/customize/answer/custom_prompt.py
+QA_PROMPT_TEMPLATE = RagTemplate(
+    template=(
+        "You MUST answer using only the provided context.\n"
+        "Return exactly 5 bullets.\n"
+        "Every bullet MUST end with a citation copied exactly from the context header, "
+        "like: [source: … | hitChunk: … | score: …].\n"
+        "If the context is insufficient, say 'Insufficient context.' and still provide citations.\n"
+        "Your bullets must cover the beginning, middle, and end of the document (chronological if possible).\n"
+        "Try to use different citations across bullets when possible.\n\n"
+        "Context:\n"
+        "{context}\n\n"
+        "Examples:\n"
+        "{examples}\n\n"
+        "Question:\n"
+        "{query_text}\n\n"
+        "Answer:\n"
+    )
+)
 
 
 def _safe_get(obj: Any, attr: str, default: Any = None) -> Any:
@@ -115,6 +117,44 @@ def _build_query_params(corpus: str, doc_type: str, document_path: str) -> dict[
         "doc_type": _normalize_doc_type(doc_type),
         "document_path": _normalize_optional_filter(document_path),
     }
+
+
+def _build_retriever_filters(corpus: str, doc_type: str, document_path: str) -> dict[str, str]:
+    query_params = _build_query_params(corpus=corpus, doc_type=doc_type, document_path=document_path)
+    return {key: value for key, value in query_params.items() if value is not None}
+
+
+def _result_formatter(record: neo4j.Record | Mapping[str, Any]) -> RetrieverResultItem:
+    source_path = record.get("source_path") or "<unknown>"
+    hit_chunk = record.get("hit_chunk")
+    score = record.get("similarity_score")
+    hit_text = record.get("hit_text") or ""
+    prev_chunk = record.get("prev_chunk")
+    prev_text = record.get("prev_text") or ""
+    next_chunk = record.get("next_chunk")
+    next_text = record.get("next_text") or ""
+    hit_chunk_label = hit_chunk if hit_chunk is not None else "unknown"
+    score_label = score if score is not None else "n/a"
+
+    prev_block = (
+        ""
+        if prev_chunk is None
+        else f"[prev chunk: {prev_chunk}]\n{prev_text}\n\n"
+    )
+    hit_block = f"hit window (chunk {hit_chunk_label} | score: {score_label})\n{hit_text}"
+    next_block = (
+        ""
+        if next_chunk is None
+        else f"\n\n[next chunk: {next_chunk}]\n{next_text}"
+    )
+    content = (
+        f"[source: {source_path} | hitChunk: {hit_chunk_label} | score: {score_label}]\n"
+        f"{prev_block}{hit_block}{next_block}"
+    )
+    return RetrieverResultItem(
+        content=content,
+        metadata={"score": score, "source_path": source_path, "hit_chunk": hit_chunk},
+    )
 
 
 def _dedupe_retrieved_items(retriever_result: Any) -> tuple[int, list[Any]]:
@@ -244,7 +284,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    query_params = _build_query_params(
+    retriever_filters = _build_retriever_filters(
         corpus=args.corpus,
         doc_type=args.doc_type,
         document_path=args.document_path,
@@ -262,49 +302,38 @@ def main() -> None:
             index_name=INDEX_NAME,
             embedder=embedder,
             retrieval_query=RETRIEVAL_QUERY,
+            result_formatter=_result_formatter,
             neo4j_database=DATABASE,
         )
 
-        rag = GraphRAG(retriever=retriever, llm=llm)
+        rag = GraphRAG(retriever=retriever, llm=llm, prompt_template=QA_PROMPT_TEMPLATE)
 
         user_question = (args.query or "").strip() or "Summarize the document in 5 bullets."
 
-        # Force citation behavior using ONLY the headers we embed in retrieved context.
-        query_text = (
-            "You MUST answer using only the provided context.\n"
-            "Return exactly 5 bullets.\n"
-            "Every bullet MUST end with a citation copied exactly from the context header, "
-            "like: [source: … | hitChunk: … | score: …].\n"
-            "If the context is insufficient, say 'Insufficient context.' and still provide citations.\n\n"
-            "Your bullets must cover the beginning, middle, and end of the document (chronological if possible).\n"
-            "Try to use different citations across bullets when possible.\n"
-            f"Question: {user_question}"
-        )
-
         print("Connected to:", URI, "db:", DATABASE)
         print("Vector index:", INDEX_NAME, "top_k:", TOP_K)
-        print("Filters:", query_params)
+        print("Retriever filters (applied):", retriever_filters)
         print("=" * 80)
-        print("Q:", query_text)
+        print("Q:", user_question)
 
         # 1) Generate final answer
         response = rag.search(
-            query_text=query_text,
-            retriever_config={"top_k": TOP_K, "query_params": query_params},
+            query_text=user_question,
+            retriever_config={"top_k": TOP_K, "filters": retriever_filters},
         )
         retriever_result = _safe_get(response, "retriever_result", None)
 
         if retriever_result is None and args.inspect_retrieval:
             try:
                 retriever_result = retriever.search(
-                    query_text=query_text,
+                    query_text=user_question,
                     top_k=TOP_K,
-                    query_params=query_params,
+                    filters=retriever_filters,
                 )
             except TypeError:
                 retriever_result = retriever.search(
-                    query_text=query_text,
-                    retriever_config={"top_k": TOP_K, "query_params": query_params},
+                    query_text=user_question,
+                    retriever_config={"top_k": TOP_K, "filters": retriever_filters},
                 )
 
         if retriever_result is not None:
