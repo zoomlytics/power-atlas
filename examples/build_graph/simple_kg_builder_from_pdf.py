@@ -1,39 +1,55 @@
-"""This example illustrates how to get started easily with the SimpleKGPipeline
-and ingest PDF into a Neo4j Knowledge Graph.
+"""Canonical KG+RAG demo using a two-pipeline pattern.
 
-This example assumes a Neo4j db is up and running. Update the credentials below
-if needed.
-
-OPENAI_API_KEY needs to be in the env vars.
+Pipeline A (lexical): builds the lexical graph only (Document + Chunk, embeddings).
+Pipeline B (entity): reads chunks from Neo4j and extracts the entity graph with
+`create_lexical_graph=False`, reusing the stored lexical graph. Either pipeline can
+be re-run independently via environment flags to align with the upstream vendor
+example: `text_to_lexical_graph_to_entity_graph_two_pipelines.py`.
 """
+
+from __future__ import annotations
 
 import asyncio
 import os
 from pathlib import Path
+from typing import Iterable
 
 import neo4j
 from dotenv import load_dotenv
 from neo4j_graphrag.embeddings import OpenAIEmbeddings
+from neo4j_graphrag.experimental.components.embedder import TextChunkEmbedder
+from neo4j_graphrag.experimental.components.entity_relation_extractor import (
+    LLMEntityRelationExtractor,
+)
+from neo4j_graphrag.experimental.components.kg_writer import Neo4jWriter
+from neo4j_graphrag.experimental.components.lexical_graph import LexicalGraphBuilder
+from neo4j_graphrag.experimental.components.neo4j_reader import Neo4jChunkReader
 from neo4j_graphrag.experimental.components.schema import (
     GraphSchema,
     NodeType,
     Pattern,
     PropertyType,
     RelationshipType,
+    SchemaBuilder,
 )
-from neo4j_graphrag.experimental.pipeline.kg_builder import SimpleKGPipeline
-from neo4j_graphrag.experimental.pipeline.pipeline import PipelineResult
-from neo4j_graphrag.llm import LLMInterface
-from neo4j_graphrag.llm import OpenAILLM
-
 from neo4j_graphrag.experimental.components.text_splitters.fixed_size_splitter import (
     FixedSizeSplitter,
 )
+from neo4j_graphrag.experimental.components.types import (
+    DocumentInfo,
+    LexicalGraphConfig,
+    TextChunk,
+    TextChunks,
+)
+from neo4j_graphrag.experimental.pipeline.pipeline import PipelineResult
+from neo4j_graphrag.llm import LLMInterface
+from neo4j_graphrag.llm import OpenAILLM
+from pypdf import PdfReader
 
 load_dotenv()
 
-# Tune these
-CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "1000"))       # characters (see note below)
+# Chunking knobs (env overrides supported)
+CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "1000"))
 CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "100"))
 APPROXIMATE = os.getenv("CHUNK_APPROXIMATE", "true").lower() == "true"
 
@@ -50,6 +66,12 @@ PASSWORD = os.getenv("NEO4J_PASSWORD", "testtesttest")
 DATABASE = os.getenv("NEO4J_DATABASE", "neo4j")
 AUTH = (USERNAME, PASSWORD)
 
+# Pipeline toggles (lexical/entity can be run independently)
+RUN_LEXICAL_PIPELINE = os.getenv("RUN_LEXICAL_PIPELINE", "true").lower() == "true"
+RUN_ENTITY_PIPELINE = os.getenv("RUN_ENTITY_PIPELINE", "true").lower() == "true"
+RESET_LEXICAL_GRAPH = os.getenv("RESET_LEXICAL_GRAPH", "true").lower() == "true"
+RESET_ENTITY_GRAPH = os.getenv("RESET_ENTITY_GRAPH", "false").lower() == "true"
+
 root_dir = Path(__file__).resolve().parents[1]
 DOCUMENTS_TO_INGEST = (
     {
@@ -61,6 +83,10 @@ DOCUMENTS_TO_INGEST = (
         "document_metadata": {"corpus": "power_atlas_demo", "doc_type": "narrative"},
     },
 )
+
+# Keep labels and properties aligned with vendor defaults so Neo4jChunkReader can
+# round-trip chunk ids and provenance relationships (FROM_CHUNK, FROM_DOCUMENT).
+LEXICAL_GRAPH_CONFIG = LexicalGraphConfig()
 
 KG_SCHEMA = GraphSchema(
     node_types=(
@@ -125,9 +151,69 @@ KG_SCHEMA = GraphSchema(
 )
 
 
-def reset_document_lexical_graph(
-    neo4j_driver: neo4j.Driver, document_path: str
-) -> None:
+def _load_pdf_text(file_path: Path) -> str:
+    reader = PdfReader(str(file_path))
+    return "\n".join((page.extract_text() or "") for page in reader.pages)
+
+
+def _prepare_chunks_for_document(
+    chunks: TextChunks, document_info: DocumentInfo
+) -> TextChunks:
+    """Ensure each chunk carries a stable chunk id + document provenance properties.
+
+    Chunk ids are deterministic per (document path, chunk index) so the entity
+    pipeline can reattach FROM_CHUNK relationships without recreating the lexical
+    graph.
+    """
+    prepared: list[TextChunk] = []
+    for chunk in chunks.chunks:
+        chunk_id = f"{document_info.document_id}:{chunk.index}"
+        metadata = chunk.metadata.copy() if chunk.metadata else {}
+        metadata.update(
+            {
+                LEXICAL_GRAPH_CONFIG.chunk_id_property: chunk_id,
+                "document_path": document_info.path,
+            }
+        )
+        if document_info.metadata:
+            metadata.update(document_info.metadata)
+        prepared.append(
+            TextChunk(
+                text=chunk.text,
+                index=chunk.index,
+                uid=chunk_id,
+                metadata=metadata,
+            )
+        )
+    return TextChunks(chunks=prepared)
+
+
+def _filter_chunks_for_document(
+    chunks: TextChunks, document_path: str
+) -> TextChunks:
+    return TextChunks(
+        chunks=[
+            chunk
+            for chunk in chunks.chunks
+            if chunk.metadata and chunk.metadata.get("document_path") == document_path
+        ]
+    )
+
+
+def _attach_document_provenance(graph_nodes: Iterable, document_info: DocumentInfo):
+    for node in graph_nodes:
+        if node.label in LEXICAL_GRAPH_CONFIG.lexical_graph_node_labels:
+            continue
+        node.properties.setdefault("document_path", document_info.path)
+        if document_info.metadata:
+            for key, value in document_info.metadata.items():
+                node.properties.setdefault(key, value)
+        if document_info.document_type and "doc_type" not in node.properties:
+            node.properties.setdefault("doc_type", document_info.document_type)
+
+
+def reset_document_lexical_graph(neo4j_driver: neo4j.Driver, document_path: str) -> None:
+    """Remove only Document/Chunk nodes for a path; entity graph is left intact."""
     count_query = """
     MATCH (d:Document {path: $path})
     OPTIONAL MATCH (d)<-[:FROM_DOCUMENT]-(c:Chunk)
@@ -153,33 +239,135 @@ def reset_document_lexical_graph(
     )
 
 
-async def define_and_run_pipeline(
+def reset_document_entity_graph(neo4j_driver: neo4j.Driver, document_path: str) -> None:
+    """Remove entity nodes tied to a document while leaving lexical graph untouched."""
+    delete_entities_query = f"""
+    MATCH (d:`{LEXICAL_GRAPH_CONFIG.document_node_label}` {{path: $path}})
+    OPTIONAL MATCH (d)<-[:`{LEXICAL_GRAPH_CONFIG.chunk_to_document_relationship_type}`]-(c:`{LEXICAL_GRAPH_CONFIG.chunk_node_label}`)
+    OPTIONAL MATCH (c)<-[rel:`{LEXICAL_GRAPH_CONFIG.node_to_chunk_relationship_type}`]-(n)
+    WITH collect(DISTINCT n) AS entity_nodes, collect(DISTINCT rel) AS rels
+    FOREACH (r IN rels | DELETE r)
+    FOREACH (n IN entity_nodes | DETACH DELETE n)
+    """
+    with neo4j_driver.session(database=DATABASE) as session:
+        session.run(delete_entities_query, path=document_path).consume()
+    print(f"[reset] entity graph removed for path={document_path}")
+
+
+async def _run_lexical_pipeline(
+    neo4j_driver: neo4j.Driver,
+    document_info: DocumentInfo,
+    text: str,
+) -> PipelineResult:
+    splitter_result = await text_splitter.run(text)
+    prepared_chunks = _prepare_chunks_for_document(splitter_result, document_info)
+    embedded_chunks = await TextChunkEmbedder(embedder=OpenAIEmbeddings()).run(
+        prepared_chunks
+    )
+    lexical_graph = await LexicalGraphBuilder(config=LEXICAL_GRAPH_CONFIG).run(
+        text_chunks=embedded_chunks,
+        document_info=document_info,
+    )
+    writer = Neo4jWriter(
+        neo4j_driver,
+        neo4j_database=DATABASE,
+        clean_db=False,
+    )
+    writer_result = await writer.run(
+        graph=lexical_graph.graph,
+        lexical_graph_config=LEXICAL_GRAPH_CONFIG,
+    )
+    return PipelineResult(run_id=document_info.document_id, result=writer_result)
+
+
+async def _run_entity_pipeline(
     neo4j_driver: neo4j.Driver,
     llm: LLMInterface,
-) -> list[PipelineResult]:
-    # Create an instance of the SimpleKGPipeline
-    kg_builder = SimpleKGPipeline(
-        llm=llm,
-        driver=neo4j_driver,
-        embedder=OpenAIEmbeddings(),
-        schema=KG_SCHEMA,
+) -> PipelineResult | None:
+    reader = Neo4jChunkReader(
+        neo4j_driver,
         neo4j_database=DATABASE,
-        text_splitter=text_splitter,
+    )
+    schema_builder = SchemaBuilder()
+    extractor = LLMEntityRelationExtractor(
+        llm=llm,
+        create_lexical_graph=False,
+    )
+    writer = Neo4jWriter(
+        neo4j_driver,
+        neo4j_database=DATABASE,
+        clean_db=False,
     )
     results: list[PipelineResult] = []
     for item in DOCUMENTS_TO_INGEST:
         file_path = item["file_path"]
         document_metadata = item["document_metadata"]
         file_path_str = file_path.as_posix()
-        print(f"[ingest] preparing path={file_path_str} metadata={document_metadata}")
-        reset_document_lexical_graph(neo4j_driver, file_path_str)
-        print(f"[ingest] running pipeline path={file_path_str}")
-        result = await kg_builder.run_async(
-            file_path=file_path_str,
-            document_metadata=document_metadata,
+        print(f"[entity] reading chunks for path={file_path_str}")
+        document_info = DocumentInfo(
+            path=file_path_str,
+            metadata=document_metadata,
+            uid=file_path_str,
+            document_type=document_metadata.get("doc_type"),
         )
-        results.append(result)
-        print(f"[ingest] completed path={file_path_str}")
+        chunks = await reader.run(lexical_graph_config=LEXICAL_GRAPH_CONFIG)
+        document_chunks = _filter_chunks_for_document(chunks, file_path_str)
+        if not document_chunks.chunks:
+            print(f"[entity] no chunks found for {file_path_str}; skipping entity pass")
+            continue
+        schema = await schema_builder.run(
+            node_types=KG_SCHEMA.node_types,
+            relationship_types=KG_SCHEMA.relationship_types,
+            patterns=KG_SCHEMA.patterns,
+        )
+        graph = await extractor.run(
+            chunks=document_chunks,
+            lexical_graph_config=LEXICAL_GRAPH_CONFIG,
+            schema=schema,
+            document_info=document_info,
+        )
+        _attach_document_provenance(graph.nodes, document_info)
+        writer_result = await writer.run(
+            graph=graph,
+            lexical_graph_config=LEXICAL_GRAPH_CONFIG,
+        )
+        results.append(PipelineResult(run_id=file_path_str, result=writer_result))
+        print(f"[entity] completed extraction for path={file_path_str}")
+    return results[-1] if results else None
+
+
+async def define_and_run_pipeline(
+    neo4j_driver: neo4j.Driver,
+    llm: LLMInterface,
+) -> list[PipelineResult]:
+    results: list[PipelineResult] = []
+    for item in DOCUMENTS_TO_INGEST:
+        file_path = item["file_path"]
+        document_metadata = item["document_metadata"]
+        file_path_str = file_path.as_posix()
+        document_info = DocumentInfo(
+            path=file_path_str,
+            metadata=document_metadata,
+            uid=file_path_str,
+            document_type=document_metadata.get("doc_type"),
+        )
+        if RUN_LEXICAL_PIPELINE and RESET_LEXICAL_GRAPH:
+            reset_document_lexical_graph(neo4j_driver, file_path_str)
+        if RUN_LEXICAL_PIPELINE:
+            print(f"[lexical] running ingestion for {file_path_str}")
+            text = _load_pdf_text(file_path)
+            lexical_result = await _run_lexical_pipeline(
+                neo4j_driver,
+                document_info,
+                text=text,
+            )
+            results.append(lexical_result)
+        if RUN_ENTITY_PIPELINE and RESET_ENTITY_GRAPH:
+            reset_document_entity_graph(neo4j_driver, file_path_str)
+    if RUN_ENTITY_PIPELINE:
+        entity_result = await _run_entity_pipeline(neo4j_driver, llm)
+        if entity_result:
+            results.append(entity_result)
     return results
 
 
@@ -194,6 +382,11 @@ async def main() -> list[PipelineResult]:
     print(
         f"[config] chunk_size={CHUNK_SIZE} chunk_overlap={CHUNK_OVERLAP} "
         f"approximate={APPROXIMATE}"
+    )
+    print(
+        "[config] pipelines: "
+        f"lexical={RUN_LEXICAL_PIPELINE} reset_lexical={RESET_LEXICAL_GRAPH}; "
+        f"entity={RUN_ENTITY_PIPELINE} reset_entity={RESET_ENTITY_GRAPH}"
     )
     with neo4j.GraphDatabase.driver(URI, auth=AUTH) as driver:
         res = await define_and_run_pipeline(driver, llm)
