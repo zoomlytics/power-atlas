@@ -175,7 +175,7 @@ def _load_pdf_text(file_path: Path) -> str:
         return "\n".join((page.extract_text() or "") for page in reader.pages)
     except (PdfReadError, FileNotFoundError, OSError) as exc:  # pragma: no cover
         raise RuntimeError(
-            f"Failed to read PDF at {file_path}: {type(exc).__name__}"
+            f"Failed to read PDF at {file_path}: {type(exc).__name__}: {exc}"
         ) from exc
 
 
@@ -254,17 +254,33 @@ def _read_document_chunks(
 def _attach_document_provenance(
     graph_nodes: Iterable[Neo4jNode], document_info: DocumentInfo
 ) -> None:
+    def _add_multi_valued_property(properties: dict, key: str, value) -> None:
+        if value is None:
+            return
+        existing = properties.get(key)
+        if existing is None:
+            properties[key] = value
+        elif isinstance(existing, list):
+            if value not in existing:
+                existing.append(value)
+        elif existing != value:
+            properties[key] = [existing, value]
+
     lexical_node_labels = set(LEXICAL_GRAPH_CONFIG.lexical_graph_node_labels)
     for node in graph_nodes:
         node_label = node.label  # Neo4jNode.label is a single primary label
         if node_label in lexical_node_labels:
             continue
-        node.properties.setdefault(DOCUMENT_PATH_PROPERTY, document_info.path)
+        _add_multi_valued_property(
+            node.properties, DOCUMENT_PATH_PROPERTY, document_info.path
+        )
         if document_info.metadata:
             for key, value in document_info.metadata.items():
-                node.properties.setdefault(key, value)
+                _add_multi_valued_property(node.properties, key, value)
         if document_info.document_type:
-            node.properties.setdefault("doc_type", document_info.document_type)
+            _add_multi_valued_property(
+                node.properties, "doc_type", document_info.document_type
+            )
 
 
 def reset_document_lexical_graph(neo4j_driver: neo4j.Driver, document_path: str) -> None:
@@ -427,6 +443,12 @@ async def define_and_run_pipeline(
         )
         if RUN_LEXICAL_PIPELINE and RESET_LEXICAL_GRAPH:
             reset_document_lexical_graph(neo4j_driver, file_path_str)
+            if not RUN_ENTITY_PIPELINE:
+                logger.warning(
+                    "Lexical reset removed chunks for %s while entity pipeline is disabled; "
+                    "entity nodes may remain without provenance edges.",
+                    file_path_str,
+                )
         if RUN_LEXICAL_PIPELINE:
             print(f"[lexical] running ingestion for {file_path_str}")
             text = _load_pdf_text(file_path)

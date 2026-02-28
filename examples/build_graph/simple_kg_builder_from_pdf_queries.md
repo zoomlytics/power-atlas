@@ -43,8 +43,8 @@ ORDER BY c DESC;
 
 // 7b) Confirm provenance on entities uses the chunk+document ids written by the lexical pipeline
 MATCH (e)-[:FROM_CHUNK]->(c:Chunk)-[:FROM_DOCUMENT]->(d:Document)
-RETURN labels(e) AS entity_labels, e.document_path AS document_path, d.path AS doc_path, count(*) AS c
-ORDER BY c DESC, document_path
+RETURN labels(e) AS entity_labels, collect(DISTINCT d.path) AS document_paths, count(*) AS c
+ORDER BY c DESC, document_paths
 LIMIT 10;
 
 // 8) Sample a few Person/Organization/Location nodes
