@@ -255,6 +255,7 @@ def _attach_document_provenance(
     graph_nodes: Iterable[Neo4jNode], document_info: DocumentInfo
 ) -> None:
     def _add_multi_valued_property(properties: dict, key: str, value) -> None:
+        """Attach a value, converting to a list when multiple distinct values appear."""
         if value is None:
             return
         existing = properties.get(key)
