@@ -145,15 +145,23 @@ class SimpleKgBuilderFromPdfScriptTests(unittest.TestCase):
     def test_reset_document_derived_graph_calls_entity_then_lexical_reset(self):
         module = _load_script_module("simple_kg_builder_from_pdf_reset_combo_test")
         driver = object()
+        call_order = []
         with (
             patch.object(module, "reset_document_entity_graph") as entity_reset,
             patch.object(module, "reset_document_lexical_graph") as lexical_reset,
         ):
+            entity_reset.side_effect = lambda *args, **kwargs: call_order.append(
+                "entity"
+            )
+            lexical_reset.side_effect = lambda *args, **kwargs: call_order.append(
+                "lexical"
+            )
             module.reset_document_derived_graph(
                 neo4j_driver=driver, document_path="/tmp/doc.pdf"
             )
         entity_reset.assert_called_once_with(driver, "/tmp/doc.pdf")
-        lexical_reset.assert_called_once_with(driver, "/tmp/doc.pdf")
+       lexical_reset.assert_called_once_with(driver, "/tmp/doc.pdf")
+        self.assertEqual(call_order, ["entity", "lexical"])
 
 
 if __name__ == "__main__":
