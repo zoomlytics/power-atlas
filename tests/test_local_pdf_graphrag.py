@@ -38,6 +38,44 @@ class LocalPdfGraphRagScriptTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             module._build_query_params(corpus="", doc_type="memo", document_path="")
 
+    def test_build_retriever_filters_skips_empty_values(self):
+        module = _load_script_module("local_pdf_graphrag_filters_test")
+        self.assertEqual(
+            module._build_retriever_filters(corpus="power_atlas_demo", doc_type="all", document_path=""),
+            {"corpus": "power_atlas_demo"},
+        )
+        self.assertEqual(
+            module._build_retriever_filters(corpus="", doc_type="facts", document_path="/tmp/a.pdf"),
+            {"doc_type": "facts", "document_path": "/tmp/a.pdf"},
+        )
+
+    def test_result_formatter_builds_deterministic_source_header_and_window(self):
+        module = _load_script_module("local_pdf_graphrag_result_formatter_test")
+        formatted = module._result_formatter(
+            {
+                "source_path": "/tmp/demo.pdf",
+                "hit_chunk": 3,
+                "similarity_score": 0.83,
+                "hit_text": "hit body",
+                "prev_chunk": 2,
+                "prev_text": "prev body",
+                "next_chunk": 4,
+                "next_text": "next body",
+            }
+        )
+        self.assertIn("[source: /tmp/demo.pdf | hitChunk: 3 | score: 0.83]", formatted.content)
+        self.assertIn("[prev chunk: 2]\nprev body", formatted.content)
+        self.assertIn("[hit chunk: 3 | score: 0.83]\nhit body", formatted.content)
+        self.assertIn("[next chunk: 4]\nnext body", formatted.content)
+
+    def test_rag_prompt_template_keeps_strict_citation_instruction(self):
+        module = _load_script_module("local_pdf_graphrag_prompt_template_test")
+        template = module.QA_PROMPT_TEMPLATE.template
+        self.assertIn("Every bullet MUST end with a citation", template)
+        self.assertIn("{context}", template)
+        self.assertIn("{query_text}", template)
+        self.assertIn("{examples}", template)
+
     def test_normalize_context_text_unescapes_common_sequences(self):
         module = _load_script_module("local_pdf_graphrag_normalize_test")
         normalized = module._normalize_context_text("line1\\nline2\\tcell\\r")
