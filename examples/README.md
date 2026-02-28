@@ -107,8 +107,9 @@ python examples/retrieve/local_pdf_graphrag.py \
 Behavior notes:
 
 - Retrieval uses `TOP_K` for `top_k` and `NEO4J_VECTOR_INDEX` for the vector index (default: `chunk_embedding_index`).
-- Query params support corpus/doc-type/path filtering.
-- Prompt enforces **strict citations**: each answer bullet must include a source header like `[source: ... | hitChunk: ... | score: ...]`.
+- Retriever pre-filters support corpus/doc-type/path filtering via `filters=` when searching.
+- Context snippets are built via a dedicated retriever `result_formatter` for deterministic `[source ...]` headers and neighbor windows.
+- QA uses a `RagTemplate` with **strict citations**: each answer bullet must include a source header like `[source: ... | hitChunk: ... | score: ...]`.
 
 ## Cypher validation queries
 
