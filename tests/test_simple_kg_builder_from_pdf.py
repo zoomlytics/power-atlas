@@ -14,8 +14,9 @@ SCRIPT_PATH = (
 
 def _load_script_module(module_name: str):
     spec = importlib.util.spec_from_file_location(module_name, SCRIPT_PATH)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Cannot load module {module_name!r} from {SCRIPT_PATH}")
     module = importlib.util.module_from_spec(spec)
-    assert spec and spec.loader
     spec.loader.exec_module(module)
     return module
 
