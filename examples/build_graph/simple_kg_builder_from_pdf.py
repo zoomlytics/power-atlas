@@ -25,6 +25,9 @@ from neo4j_graphrag.experimental.components.entity_relation_extractor import (
 from neo4j_graphrag.experimental.components.kg_writer import Neo4jWriter
 from neo4j_graphrag.experimental.components.lexical_graph import LexicalGraphBuilder
 from neo4j_graphrag.experimental.components.neo4j_reader import Neo4jChunkReader
+from neo4j_graphrag.experimental.components.resolver import (
+    SinglePropertyExactMatchResolver,
+)
 from neo4j_graphrag.experimental.components.schema import (
     GraphSchema,
     NodeType,
@@ -118,6 +121,16 @@ KG_SCHEMA = GraphSchema(
                     description="Full name of the person.",
                     required=True,
                 ),
+                PropertyType(
+                    name="country",
+                    type="STRING",
+                    description="Country linked to the person when stated.",
+                ),
+                PropertyType(
+                    name="role",
+                    type="STRING",
+                    description="Role or title mentioned for the person.",
+                ),
             ),
             additional_properties=True,
         ),
@@ -130,6 +143,16 @@ KG_SCHEMA = GraphSchema(
                     type="STRING",
                     description="Official organization name.",
                     required=True,
+                ),
+                PropertyType(
+                    name="type",
+                    type="STRING",
+                    description="Organization category (e.g., cooperative, authority).",
+                ),
+                PropertyType(
+                    name="country",
+                    type="STRING",
+                    description="Primary country linked to the organization.",
                 ),
             ),
             additional_properties=True,
@@ -144,6 +167,62 @@ KG_SCHEMA = GraphSchema(
                     description="Canonical event name.",
                     required=True,
                 ),
+                PropertyType(
+                    name="date",
+                    type="DATE",
+                    description="Date of the event when explicitly provided.",
+                ),
+                PropertyType(
+                    name="location",
+                    type="STRING",
+                    description="Location where the event takes place.",
+                ),
+            ),
+            additional_properties=True,
+        ),
+        NodeType(
+            label="FactSheet",
+            description="Structured factsheet-style source content.",
+            properties=(
+                PropertyType(
+                    name="firm_name",
+                    type="STRING",
+                    description="Firm name reported by the factsheet.",
+                    required=True,
+                ),
+                PropertyType(
+                    name="country",
+                    type="STRING",
+                    description="Country referenced by the factsheet record.",
+                ),
+                PropertyType(
+                    name="filing_date",
+                    type="DATE",
+                    description="Factsheet filing/publication date when available.",
+                ),
+            ),
+            additional_properties=True,
+        ),
+        NodeType(
+            label="AnalystNote",
+            description="Narrative analyst note content.",
+            properties=(
+                PropertyType(
+                    name="subject",
+                    type="STRING",
+                    description="Primary subject line or topic in the analyst note.",
+                    required=True,
+                ),
+                PropertyType(
+                    name="note_date",
+                    type="DATE",
+                    description="Date of the analyst note when explicitly stated.",
+                ),
+                PropertyType(
+                    name="analyst",
+                    type="STRING",
+                    description="Analyst author when identified in the text.",
+                ),
             ),
             additional_properties=True,
         ),
@@ -152,7 +231,30 @@ KG_SCHEMA = GraphSchema(
         RelationshipType(
             label="RELATED_TO",
             description="General relationship between extracted entities.",
-            properties=(),
+            properties=(
+                PropertyType(
+                    name="type",
+                    type="STRING",
+                    description="Normalized relationship category when extractable.",
+                ),
+                PropertyType(
+                    name="date",
+                    type="DATE",
+                    description="Date associated with the relationship claim.",
+                ),
+            ),
+            additional_properties=True,
+        ),
+        RelationshipType(
+            label="MENTIONED_IN",
+            description="Links extracted entities to source-level factsheet/analyst-note entities.",
+            properties=(
+                PropertyType(
+                    name="source_type",
+                    type="STRING",
+                    description="Source subtype where the mention appears.",
+                ),
+            ),
             additional_properties=True,
         ),
     ),
@@ -162,11 +264,25 @@ KG_SCHEMA = GraphSchema(
         Pattern(source="Person", relationship="RELATED_TO", target="Event"),
         Pattern(source="Organization", relationship="RELATED_TO", target="Organization"),
         Pattern(source="Organization", relationship="RELATED_TO", target="Event"),
+        Pattern(source="Person", relationship="MENTIONED_IN", target="FactSheet"),
+        Pattern(source="Organization", relationship="MENTIONED_IN", target="FactSheet"),
+        Pattern(source="Event", relationship="MENTIONED_IN", target="FactSheet"),
+        Pattern(source="Person", relationship="MENTIONED_IN", target="AnalystNote"),
+        Pattern(source="Organization", relationship="MENTIONED_IN", target="AnalystNote"),
+        Pattern(source="Event", relationship="MENTIONED_IN", target="AnalystNote"),
     ),
     additional_node_types=True,
     additional_relationship_types=True,
     additional_patterns=True,
 )
+
+ENTITY_RESOLUTION_PROPERTY_BY_LABEL = {
+    "Person": "name",
+    "Organization": "name",
+    "Event": "name",
+    "FactSheet": "firm_name",
+    "AnalystNote": "subject",
+}
 
 
 def _load_pdf_text(file_path: Path) -> str:
@@ -426,6 +542,20 @@ async def _run_entity_pipeline(
         )
         results.append(PipelineResult(run_id=file_path_str, result=writer_result))
         print(f"[entity] completed extraction for path={file_path_str}")
+    for label, resolve_property in ENTITY_RESOLUTION_PROPERTY_BY_LABEL.items():
+        resolver = SinglePropertyExactMatchResolver(
+            neo4j_driver,
+            filter_query=f"WHERE '{label}' IN labels(entity)",
+            resolve_property=resolve_property,
+            neo4j_database=DATABASE,
+        )
+        stats = await resolver.run()
+        print(
+            "[entity] resolution "
+            f"label={label} property={resolve_property} "
+            f"nodes_considered={stats.number_of_nodes_to_resolve} "
+            f"nodes_created={stats.number_of_created_nodes}"
+        )
     return results
 
 

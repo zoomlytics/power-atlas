@@ -47,10 +47,37 @@ class SimpleKgBuilderFromPdfScriptTests(unittest.TestCase):
         module = _load_script_module("simple_kg_builder_from_pdf_schema_test")
         node_labels = {node.label for node in module.KG_SCHEMA.node_types}
         self.assertTrue(hasattr(module.KG_SCHEMA, "node_types"))
-        self.assertTrue({"Person", "Organization", "Event"}.issubset(node_labels))
+        self.assertTrue(
+            {
+                "Person",
+                "Organization",
+                "Event",
+                "FactSheet",
+                "AnalystNote",
+            }.issubset(node_labels)
+        )
 
         for node in module.KG_SCHEMA.node_types:
-            self.assertIn("name", {prop.name for prop in node.properties})
+            property_names = {prop.name for prop in node.properties}
+            for prop in node.properties:
+                self.assertIsInstance(prop, module.PropertyType)
+            if node.label == "FactSheet":
+                self.assertIn("firm_name", property_names)
+            elif node.label == "AnalystNote":
+                self.assertIn("subject", property_names)
+            else:
+                self.assertIn("name", property_names)
+
+    def test_entity_resolution_uses_label_specific_properties(self):
+        module = _load_script_module("simple_kg_builder_from_pdf_resolution_test")
+        expected = {
+            "Person": "name",
+            "Organization": "name",
+            "Event": "name",
+            "FactSheet": "firm_name",
+            "AnalystNote": "subject",
+        }
+        self.assertEqual(module.ENTITY_RESOLUTION_PROPERTY_BY_LABEL, expected)
 
     def test_chunk_settings_honor_environment_variables(self):
         previous_chunk_size = os.environ.get("CHUNK_SIZE")
