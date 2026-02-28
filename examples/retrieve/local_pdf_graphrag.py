@@ -41,11 +41,11 @@ RETURN
   coalesce(next.text, "") AS next_text
 """
 
+# Vendor references:
+# - result_formatter: https://github.com/neo4j/neo4j-graphrag-python/blob/main/examples/customize/retrievers/result_formatter_vector_cypher_retriever.py
+# - pre-filters: https://github.com/neo4j/neo4j-graphrag-python/blob/main/examples/customize/retrievers/use_pre_filters.py
+# - custom prompt: https://github.com/neo4j/neo4j-graphrag-python/blob/main/examples/customize/answer/custom_prompt.py
 QA_PROMPT_TEMPLATE = RagTemplate(
-    # Vendor references:
-    # - result_formatter: https://github.com/neo4j/neo4j-graphrag-python/blob/main/examples/customize/retrievers/result_formatter_vector_cypher_retriever.py
-    # - pre-filters: https://github.com/neo4j/neo4j-graphrag-python/blob/main/examples/customize/retrievers/use_pre_filters.py
-    # - custom prompt: https://github.com/neo4j/neo4j-graphrag-python/blob/main/examples/customize/answer/custom_prompt.py
     template=(
         "You MUST answer using only the provided context.\n"
         "Return exactly 5 bullets.\n"
@@ -125,28 +125,30 @@ def _build_retriever_filters(corpus: str, doc_type: str, document_path: str) -> 
 
 
 def _result_formatter(record: neo4j.Record) -> RetrieverResultItem:
-    source_path = record.get("source_path")
+    source_path = record.get("source_path") or "<unknown>"
     hit_chunk = record.get("hit_chunk")
     score = record.get("similarity_score")
-    hit_text = record.get("hit_text")
+    hit_text = record.get("hit_text") or ""
     prev_chunk = record.get("prev_chunk")
-    prev_text = record.get("prev_text")
+    prev_text = record.get("prev_text") or ""
     next_chunk = record.get("next_chunk")
-    next_text = record.get("next_text")
+    next_text = record.get("next_text") or ""
+    hit_chunk_label = hit_chunk if hit_chunk is not None else "unknown"
+    score_label = score if score is not None else "n/a"
 
     prev_block = (
         ""
         if prev_chunk is None
         else f"[prev chunk: {prev_chunk}]\n{prev_text}\n\n"
     )
-    hit_block = f"[hit chunk: {hit_chunk} | score: {score}]\n{hit_text}"
+    hit_block = f"[hitChunk: {hit_chunk_label} | score: {score_label}]\n{hit_text}"
     next_block = (
         ""
         if next_chunk is None
         else f"\n\n[next chunk: {next_chunk}]\n{next_text}"
     )
     content = (
-        f"[source: {source_path} | hitChunk: {hit_chunk} | score: {score}]\n"
+        f"[source: {source_path} | hitChunk: {hit_chunk_label} | score: {score_label}]\n"
         f"{prev_block}{hit_block}{next_block}"
     )
     return RetrieverResultItem(
