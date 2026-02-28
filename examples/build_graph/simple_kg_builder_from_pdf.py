@@ -420,7 +420,7 @@ def _build_document_scoped_filter_query(
         f"WHERE entity:{label} "
         f"AND (entity)-[:{node_to_chunk_rel}]->(:{chunk_label})"
         f"-[:{chunk_to_document_rel}]->(doc:{document_label}) "
-        f"AND doc.{DOCUMENT_PATH_PROPERTY} IN [{path_literals}]"
+        f"AND doc.path IN [{path_literals}]"
     )
 
 
