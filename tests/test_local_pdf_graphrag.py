@@ -65,7 +65,7 @@ class LocalPdfGraphRagScriptTests(unittest.TestCase):
         )
         self.assertIn("[source: /tmp/demo.pdf | hitChunk: 3 | score: 0.83]", formatted.content)
         self.assertIn("[prev chunk: 2]\nprev body", formatted.content)
-        self.assertIn("[hitChunk: 3 | score: 0.83]\nhit body", formatted.content)
+        self.assertIn("hit window (chunk 3 | score: 0.83)\nhit body", formatted.content)
         self.assertIn("[next chunk: 4]\nnext body", formatted.content)
 
     def test_rag_prompt_template_keeps_strict_citation_instruction(self):

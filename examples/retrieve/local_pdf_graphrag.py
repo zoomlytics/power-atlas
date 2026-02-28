@@ -4,7 +4,7 @@ import argparse
 import os
 import re
 from textwrap import shorten
-from typing import Any
+from typing import Any, Mapping
 
 import neo4j
 from neo4j_graphrag.embeddings import OpenAIEmbeddings
@@ -124,7 +124,7 @@ def _build_retriever_filters(corpus: str, doc_type: str, document_path: str) -> 
     return {key: value for key, value in query_params.items() if value is not None}
 
 
-def _result_formatter(record: neo4j.Record) -> RetrieverResultItem:
+def _result_formatter(record: neo4j.Record | Mapping[str, Any]) -> RetrieverResultItem:
     source_path = record.get("source_path") or "<unknown>"
     hit_chunk = record.get("hit_chunk")
     score = record.get("similarity_score")
@@ -141,7 +141,7 @@ def _result_formatter(record: neo4j.Record) -> RetrieverResultItem:
         if prev_chunk is None
         else f"[prev chunk: {prev_chunk}]\n{prev_text}\n\n"
     )
-    hit_block = f"[hitChunk: {hit_chunk_label} | score: {score_label}]\n{hit_text}"
+    hit_block = f"hit window (chunk {hit_chunk_label} | score: {score_label})\n{hit_text}"
     next_block = (
         ""
         if next_chunk is None
@@ -317,7 +317,8 @@ def main() -> None:
 
         print("Connected to:", URI, "db:", DATABASE)
         print("Vector index:", INDEX_NAME, "top_k:", TOP_K)
-        print("Filters:", query_params)
+        print("Query params:", query_params)
+        print("Retriever filters (applied):", retriever_filters)
         print("=" * 80)
         print("Q:", user_question)
 
