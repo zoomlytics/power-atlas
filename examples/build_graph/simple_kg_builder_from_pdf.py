@@ -38,6 +38,7 @@ from neo4j_graphrag.experimental.components.text_splitters.fixed_size_splitter i
 from neo4j_graphrag.experimental.components.types import (
     DocumentInfo,
     LexicalGraphConfig,
+    Neo4jNode,
     TextChunk,
     TextChunks,
 )
@@ -167,7 +168,7 @@ def _prepare_chunks_for_document(
     """
     prepared: list[TextChunk] = []
     for chunk in chunks.chunks:
-        chunk_id = f"{document_info.document_id}:{chunk.index}"
+        chunk_id = f"{document_info.uid}:{chunk.index}"
         metadata = chunk.metadata.copy() if chunk.metadata else {}
         metadata.update(
             {
@@ -200,7 +201,9 @@ def _filter_chunks_for_document(
     )
 
 
-def _attach_document_provenance(graph_nodes: Iterable, document_info: DocumentInfo):
+def _attach_document_provenance(
+    graph_nodes: Iterable[Neo4jNode], document_info: DocumentInfo
+) -> None:
     for node in graph_nodes:
         if node.label in LEXICAL_GRAPH_CONFIG.lexical_graph_node_labels:
             continue
@@ -277,7 +280,7 @@ async def _run_lexical_pipeline(
         graph=lexical_graph.graph,
         lexical_graph_config=LEXICAL_GRAPH_CONFIG,
     )
-    return PipelineResult(run_id=document_info.document_id, result=writer_result)
+    return PipelineResult(run_id=document_info.uid, result=writer_result)
 
 
 async def _run_entity_pipeline(
