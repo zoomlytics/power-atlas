@@ -170,7 +170,7 @@ Example strict-citation answer format:
 ## Troubleshooting
 
 - **`OPENAI_API_KEY` missing**: ingestion/retrieval will fail at model calls.
-- **No retrieval hits**: confirm ingest succeeded and `chunk_embedding_index` exists.
+- **No retrieval hits**: confirm ingest succeeded and the vector index named by `NEO4J_VECTOR_INDEX` exists (default: `chunk_embedding_index`).
 - **Unexpected empty results with filters**: verify `Document.corpus`, `Document.doc_type`, and `Document.path` values.
 - **Duplicate contexts in retrieval output**: the retrieval script de-duplicates normalized contexts before trace printing.
 
