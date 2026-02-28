@@ -92,11 +92,12 @@ class SimpleKgBuilderFromPdfScriptTests(unittest.TestCase):
             [f"{document_path}:0", f"{document_path}:1"],
         )
         for chunk in prepared.chunks:
-            self.assertEqual(chunk.metadata.get("document_path"), document_path)
+            self.assertEqual(
+                chunk.metadata.get(module.DOCUMENT_PATH_PROPERTY), document_path
+            )
             self.assertEqual(chunk.metadata.get("corpus"), "demo")
             self.assertEqual(chunk.metadata.get("doc_type"), "facts")
-            # chunk id is stored using the lexical graph config property so Neo4jChunkReader
-            # can round-trip ids for the entity pipeline.
+            # Keep chunk ids in metadata so Neo4jChunkReader can round-trip them.
             self.assertEqual(
                 chunk.metadata.get(module.LEXICAL_GRAPH_CONFIG.chunk_id_property),
                 chunk.uid,

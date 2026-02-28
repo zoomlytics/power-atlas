@@ -60,6 +60,9 @@ text_splitter = FixedSizeSplitter(
     approximate=APPROXIMATE,
 )
 
+# Shared property keys for provenance
+DOCUMENT_PATH_PROPERTY = "document_path"
+
 # Neo4j db infos
 URI = os.getenv("NEO4J_URI", "neo4j://localhost:7687")
 USERNAME = os.getenv("NEO4J_USERNAME", "neo4j")
@@ -173,7 +176,7 @@ def _prepare_chunks_for_document(
         metadata.update(
             {
                 LEXICAL_GRAPH_CONFIG.chunk_id_property: chunk_id,
-                "document_path": document_info.path,
+                DOCUMENT_PATH_PROPERTY: document_info.path,
             }
         )
         if document_info.metadata:
@@ -196,7 +199,8 @@ def _filter_chunks_for_document(
         chunks=[
             chunk
             for chunk in chunks.chunks
-            if chunk.metadata and chunk.metadata.get("document_path") == document_path
+            if chunk.metadata
+            and chunk.metadata.get(DOCUMENT_PATH_PROPERTY) == document_path
         ]
     )
 
@@ -207,7 +211,7 @@ def _attach_document_provenance(
     for node in graph_nodes:
         if node.label in LEXICAL_GRAPH_CONFIG.lexical_graph_node_labels:
             continue
-        node.properties.setdefault("document_path", document_info.path)
+        node.properties.setdefault(DOCUMENT_PATH_PROPERTY, document_info.path)
         if document_info.metadata:
             for key, value in document_info.metadata.items():
                 node.properties.setdefault(key, value)
@@ -244,14 +248,19 @@ def reset_document_lexical_graph(neo4j_driver: neo4j.Driver, document_path: str)
 
 def reset_document_entity_graph(neo4j_driver: neo4j.Driver, document_path: str) -> None:
     """Remove entity nodes tied to a document while leaving lexical graph untouched."""
-    delete_entities_query = f"""
-    MATCH (d:`{LEXICAL_GRAPH_CONFIG.document_node_label}` {{path: $path}})
-    OPTIONAL MATCH (d)<-[:`{LEXICAL_GRAPH_CONFIG.chunk_to_document_relationship_type}`]-(c:`{LEXICAL_GRAPH_CONFIG.chunk_node_label}`)
-    OPTIONAL MATCH (c)<-[rel:`{LEXICAL_GRAPH_CONFIG.node_to_chunk_relationship_type}`]-(n)
-    WITH collect(DISTINCT n) AS entity_nodes, collect(DISTINCT rel) AS rels
-    FOREACH (r IN rels | DELETE r)
-    FOREACH (n IN entity_nodes | DETACH DELETE n)
-    """
+    delete_entities_query = (
+        "MATCH (d:`{doc_label}` {{path: $path}}) "
+        "OPTIONAL MATCH (d)<-[:{chunk_rel}]-(c:`{chunk_label}`) "
+        "OPTIONAL MATCH (c)<-[rel:{node_to_chunk}]-(n) "
+        "WITH collect(DISTINCT n) AS entity_nodes, collect(DISTINCT rel) AS rels "
+        "FOREACH (r IN rels | DELETE r) "
+        "FOREACH (n IN entity_nodes | DETACH DELETE n)"
+    ).format(
+        doc_label=LEXICAL_GRAPH_CONFIG.document_node_label,
+        chunk_rel=LEXICAL_GRAPH_CONFIG.chunk_to_document_relationship_type,
+        chunk_label=LEXICAL_GRAPH_CONFIG.chunk_node_label,
+        node_to_chunk=LEXICAL_GRAPH_CONFIG.node_to_chunk_relationship_type,
+    )
     with neo4j_driver.session(database=DATABASE) as session:
         session.run(delete_entities_query, path=document_path).consume()
     print(f"[reset] entity graph removed for path={document_path}")
@@ -261,8 +270,9 @@ async def _run_lexical_pipeline(
     neo4j_driver: neo4j.Driver,
     document_info: DocumentInfo,
     text: str,
+    splitter: FixedSizeSplitter = text_splitter,
 ) -> PipelineResult:
-    splitter_result = await text_splitter.run(text)
+    splitter_result = await splitter.run(text)
     prepared_chunks = _prepare_chunks_for_document(splitter_result, document_info)
     embedded_chunks = await TextChunkEmbedder(embedder=OpenAIEmbeddings()).run(
         prepared_chunks
