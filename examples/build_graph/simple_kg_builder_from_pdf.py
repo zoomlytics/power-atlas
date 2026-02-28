@@ -542,10 +542,17 @@ async def _run_entity_pipeline(
         )
         results.append(PipelineResult(run_id=file_path_str, result=writer_result))
         print(f"[entity] completed extraction for path={file_path_str}")
+    # Limit entity resolution to the set of documents ingested in this run.
+    document_paths_literal = ", ".join(
+        f'"{item["file_path"].as_posix()}"' for item in DOCUMENTS_TO_INGEST
+    )
     for label, resolve_property in ENTITY_RESOLUTION_PROPERTY_BY_LABEL.items():
         resolver = SinglePropertyExactMatchResolver(
             neo4j_driver,
-            filter_query=f"WHERE '{label}' IN labels(entity)",
+            filter_query=(
+                f"WHERE entity:{label} "
+                f"AND entity.document_path IN [{document_paths_literal}]"
+            ),
             resolve_property=resolve_property,
             neo4j_database=DATABASE,
         )
