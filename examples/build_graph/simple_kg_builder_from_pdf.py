@@ -286,7 +286,7 @@ async def _run_lexical_pipeline(
 async def _run_entity_pipeline(
     neo4j_driver: neo4j.Driver,
     llm: LLMInterface,
-) -> PipelineResult | None:
+) -> list[PipelineResult]:
     reader = Neo4jChunkReader(
         neo4j_driver,
         neo4j_database=DATABASE,
@@ -336,7 +336,7 @@ async def _run_entity_pipeline(
         )
         results.append(PipelineResult(run_id=file_path_str, result=writer_result))
         print(f"[entity] completed extraction for path={file_path_str}")
-    return results[-1] if results else None
+    return results
 
 
 async def define_and_run_pipeline(
@@ -368,9 +368,8 @@ async def define_and_run_pipeline(
         if RUN_ENTITY_PIPELINE and RESET_ENTITY_GRAPH:
             reset_document_entity_graph(neo4j_driver, file_path_str)
     if RUN_ENTITY_PIPELINE:
-        entity_result = await _run_entity_pipeline(neo4j_driver, llm)
-        if entity_result:
-            results.append(entity_result)
+        entity_results = await _run_entity_pipeline(neo4j_driver, llm)
+        results.extend(entity_results)
     return results
 
 
