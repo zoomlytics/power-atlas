@@ -1,11 +1,16 @@
 import unittest
 from pathlib import Path
 
-from pypdf import PdfReader
+try:
+    from pypdf import PdfReader
+except ModuleNotFoundError:  # pypdf is an optional test dependency
+    PdfReader = None
 
 
 class SyntheticExamplePdfTests(unittest.TestCase):
     def test_synthetic_pdfs_exist_and_share_entities(self):
+        if PdfReader is None:
+            self.skipTest("pypdf is not installed; skipping PDF content checks")
         data_dir = Path(__file__).resolve().parents[1] / "examples" / "data"
         factsheet = data_dir / "power_atlas_factsheet.pdf"
         analyst_note = data_dir / "power_atlas_analyst_note.pdf"
