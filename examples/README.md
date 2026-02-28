@@ -17,7 +17,10 @@ cp .env.example .env
 
 # Ingestion script loads .env automatically.
 # Retrieval script reads environment variables from the shell.
+# Ensure .env values are exported to child processes.
+set -a
 source .env
+set +a
 ```
 
 Minimum values for this demo:
@@ -26,7 +29,7 @@ Minimum values for this demo:
 - `NEO4J_USERNAME` (default: `neo4j`)
 - `NEO4J_PASSWORD` (default in scripts is placeholder; set a real one)
 - `NEO4J_DATABASE` (default: `neo4j`)
-- `OPENAI_API_KEY` (required for ingestion and QA)
+- `OPENAI_API_KEY` (required for ingestion, retrieval, and QA)
 
 Optional tuning values used by scripts:
 
@@ -121,7 +124,9 @@ ORDER BY path;
 ```cypher
 MATCH (n)
 WHERE n:Person OR n:Organization OR n:Event
-RETURN labels(n)[0] AS label, coalesce(n.name, '<no-name>') AS name
+OPTIONAL MATCH (n)-[r]-()
+RETURN labels(n)[0] AS label, coalesce(n.name, '<no-name>') AS name, count(r) AS degree
+ORDER BY degree DESC, label, name
 LIMIT 25;
 ```
 
@@ -131,7 +136,9 @@ WHERE (a:Person OR a:Organization OR a:Event)
   AND (b:Person OR b:Organization OR b:Event)
 RETURN labels(a)[0] AS src_label, coalesce(a.name, '<no-name>') AS src,
        type(r) AS rel,
-       labels(b)[0] AS dst_label, coalesce(b.name, '<no-name>') AS dst
+       labels(b)[0] AS dst_label, coalesce(b.name, '<no-name>') AS dst,
+       count(*) AS occurrences
+ORDER BY occurrences DESC, src_label, src, rel, dst_label, dst
 LIMIT 50;
 ```
 
