@@ -284,11 +284,6 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    query_params = _build_query_params(
-        corpus=args.corpus,
-        doc_type=args.doc_type,
-        document_path=args.document_path,
-    )
     retriever_filters = _build_retriever_filters(
         corpus=args.corpus,
         doc_type=args.doc_type,
@@ -317,7 +312,6 @@ def main() -> None:
 
         print("Connected to:", URI, "db:", DATABASE)
         print("Vector index:", INDEX_NAME, "top_k:", TOP_K)
-        print("Query params:", query_params)
         print("Retriever filters (applied):", retriever_filters)
         print("=" * 80)
         print("Q:", user_question)
