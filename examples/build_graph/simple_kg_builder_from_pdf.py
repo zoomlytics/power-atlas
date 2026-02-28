@@ -409,10 +409,18 @@ def _build_document_scoped_filter_query(
         {path.replace("\\", "\\\\").replace('"', '\\"') for path in document_paths}
     )
     path_literals = ", ".join(f'"{path}"' for path in escaped_paths)
+
+    # Use the lexical graph configuration so this filter stays aligned with the schema.
+    chunk_label = LEXICAL_GRAPH_CONFIG.chunk_node_label
+    document_label = LEXICAL_GRAPH_CONFIG.document_node_label
+    node_to_chunk_rel = LEXICAL_GRAPH_CONFIG.node_to_chunk_relationship_type
+    chunk_to_document_rel = LEXICAL_GRAPH_CONFIG.chunk_to_document_relationship_type
+
     return (
         f"WHERE entity:{label} "
-        "AND (entity)-[:FROM_CHUNK]->(:Chunk)-[:FROM_DOCUMENT]->(doc:Document) "
-        f"AND doc.path IN [{path_literals}]"
+        f"AND (entity)-[:{node_to_chunk_rel}]->(:{chunk_label})"
+        f"-[:{chunk_to_document_rel}]->(doc:{document_label}) "
+        f"AND doc.{DOCUMENT_PATH_PROPERTY} IN [{path_literals}]"
     )
 
 
