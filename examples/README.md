@@ -77,6 +77,8 @@ Two-pipeline flow (aligned with the upstream vendor example):
 
 - **Pipeline A (lexical only)**: builds `Document` + `Chunk` nodes and embeddings. Controlled by `RUN_LEXICAL_PIPELINE` and `RESET_LEXICAL_GRAPH` (per-document reset only deletes the lexical graph; entity nodes remain).
 - **Pipeline B (entity)**: reads chunks from Neo4j via `Neo4jChunkReader` and runs extraction with `create_lexical_graph=False`, reusing the stored lexical graph and writing provenance (`FROM_CHUNK`, `FROM_DOCUMENT`, `document_path`). Controlled by `RUN_ENTITY_PIPELINE`; set `RESET_ENTITY_GRAPH=true` to drop only the extracted entity subgraph for a document before re-running extraction.
+- Entity extraction now uses a schema-with-properties pattern (`PropertyType`) for `Person`, `Organization`, `Event`, `FactSheet`, and `AnalystNote` plus relationship properties (for example `RELATED_TO.type`, `RELATED_TO.date`, `MENTIONED_IN.source_type`). Deduplication runs after both PDFs are processed, using label-specific keys (`name`, `firm_name`, `subject`) for consistent cross-document resolution.
+- Provenance chain to validate in graph queries: `Entity -[:FROM_CHUNK]-> Chunk -[:FROM_DOCUMENT]-> Document`.
 
 ## Retrieval + QA usage
 
@@ -161,6 +163,16 @@ ORDER BY label, entity;
 ```
 
 Expected signal: key entities (for example `Lina Park`, `Northbridge Energy Cooperative`, and `Harbor Grid Upgrade Hearing`) should appear with `docs` containing both synthetic PDF paths.
+
+### 5) Provenance chain sanity check
+
+```cypher
+MATCH (d:Document {corpus: 'power_atlas_demo'})<-[:FROM_DOCUMENT]-(c:Chunk)<-[:FROM_CHUNK]-(e)
+RETURN labels(e)[0] AS entity_label, coalesce(e.name, e.firm_name, e.subject, '<no-key>') AS entity_key,
+       d.path AS document_path, c.index AS chunk_index
+ORDER BY entity_label, entity_key, document_path, chunk_index
+LIMIT 50;
+```
 
 ## Example QA output (shape)
 
