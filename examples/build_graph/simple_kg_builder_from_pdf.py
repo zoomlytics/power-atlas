@@ -184,7 +184,7 @@ def _prepare_chunks_for_document(
 ) -> TextChunks:
     """Ensure each chunk carries a stable chunk id + document provenance properties.
 
-    Chunk ids are deterministic per (document path, chunk index) so the entity
+    Chunk ids are deterministic per (document uid, chunk index) so the entity
     pipeline can reattach FROM_CHUNK relationships without recreating the lexical
     graph.
     """
@@ -379,6 +379,11 @@ async def _run_entity_pipeline(
         neo4j_database=DATABASE,
     )
     schema_builder = SchemaBuilder()
+    schema = await schema_builder.run(
+        node_types=KG_SCHEMA.node_types,
+        relationship_types=KG_SCHEMA.relationship_types,
+        patterns=KG_SCHEMA.patterns,
+    )
     extractor = LLMEntityRelationExtractor(
         llm=llm,
         create_lexical_graph=False,
@@ -408,11 +413,6 @@ async def _run_entity_pipeline(
                 "No chunks found for %s; skipping entity pass", file_path_str
             )
             continue
-        schema = await schema_builder.run(
-            node_types=KG_SCHEMA.node_types,
-            relationship_types=KG_SCHEMA.relationship_types,
-            patterns=KG_SCHEMA.patterns,
-        )
         graph = await extractor.run(
             chunks=document_chunks,
             lexical_graph_config=LEXICAL_GRAPH_CONFIG,
