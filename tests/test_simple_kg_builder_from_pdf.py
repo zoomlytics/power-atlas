@@ -14,8 +14,8 @@ SCRIPT_PATH = (
 
 def _load_script_module(module_name: str):
     spec = importlib.util.spec_from_file_location(module_name, SCRIPT_PATH)
-    module = importlib.util.module_from_spec(spec)
     assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
 

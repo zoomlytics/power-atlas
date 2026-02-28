@@ -9,14 +9,16 @@ except ModuleNotFoundError:  # pypdf is an optional test dependency
 
 class SyntheticExamplePdfTests(unittest.TestCase):
     def test_synthetic_pdfs_exist_and_share_entities(self):
-        if PdfReader is None:
-            self.skipTest("pypdf is not installed; skipping PDF content checks")
         data_dir = Path(__file__).resolve().parents[1] / "examples" / "data"
         factsheet = data_dir / "power_atlas_factsheet.pdf"
         analyst_note = data_dir / "power_atlas_analyst_note.pdf"
 
+        # Always assert that the synthetic PDF artifacts exist, even if pypdf is missing.
         self.assertTrue(factsheet.exists())
         self.assertTrue(analyst_note.exists())
+
+        if PdfReader is None:
+            self.skipTest("pypdf is not installed; skipping PDF content checks")
 
         factsheet_text = "\n".join((page.extract_text() or "") for page in PdfReader(str(factsheet)).pages)
         analyst_note_text = "\n".join((page.extract_text() or "") for page in PdfReader(str(analyst_note)).pages)
