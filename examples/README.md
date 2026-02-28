@@ -99,7 +99,7 @@ python examples/retrieve/local_pdf_graphrag.py \
 
 Behavior notes:
 
-- Retrieval uses `top_k` from `TOP_K` and `chunk_embedding_index` (or `NEO4J_VECTOR_INDEX`).
+- Retrieval uses `TOP_K` for `top_k` and `NEO4J_VECTOR_INDEX` for the vector index (default: `chunk_embedding_index`).
 - Query params support corpus/doc-type/path filtering.
 - Prompt enforces **strict citations**: each answer bullet must include a source header like `[source: ... | hitChunk: ... | score: ...]`.
 
