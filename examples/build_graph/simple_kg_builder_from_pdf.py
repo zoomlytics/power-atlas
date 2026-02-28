@@ -192,14 +192,16 @@ def _prepare_chunks_for_document(
     for chunk in chunks.chunks:
         chunk_id = f"{document_info.uid}:{chunk.index}"
         metadata = chunk.metadata.copy() if chunk.metadata else {}
+        if document_info.metadata:
+            # Merge caller-provided document metadata first so reserved provenance
+            # keys are set last and cannot be overridden.
+            metadata.update(document_info.metadata)
         metadata.update(
             {
                 LEXICAL_GRAPH_CONFIG.chunk_id_property: chunk_id,
                 DOCUMENT_PATH_PROPERTY: document_info.path,
             }
         )
-        if document_info.metadata:
-            metadata.update(document_info.metadata)
         prepared.append(
             TextChunk(
                 text=chunk.text,
