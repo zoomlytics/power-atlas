@@ -442,6 +442,8 @@ async def define_and_run_pipeline(
             uid=file_path_str,
             document_type=document_metadata.get("doc_type"),
         )
+        if RUN_ENTITY_PIPELINE and RESET_ENTITY_GRAPH:
+            reset_document_entity_graph(neo4j_driver, file_path_str)
         if RUN_LEXICAL_PIPELINE and RESET_LEXICAL_GRAPH:
             reset_document_lexical_graph(neo4j_driver, file_path_str)
             if not RUN_ENTITY_PIPELINE:
@@ -459,8 +461,6 @@ async def define_and_run_pipeline(
                 text=text,
             )
             results.append(lexical_result)
-        if RUN_ENTITY_PIPELINE and RESET_ENTITY_GRAPH:
-            reset_document_entity_graph(neo4j_driver, file_path_str)
     if RUN_ENTITY_PIPELINE:
         entity_results = await _run_entity_pipeline(neo4j_driver, llm)
         results.extend(entity_results)
