@@ -8,6 +8,8 @@ This README documents the end-to-end demo in `/examples` for:
 
 ## Prerequisites
 
+Run all commands below from the repository root (the directory containing `.env.example` and `examples/`).
+
 1. **Python environment** with repository dependencies installed.
 2. **Neo4j 5.x** running and reachable.
 3. **Environment variables** configured in `.env` (copy from `.env.example`) and exported for retrieval:
@@ -42,12 +44,12 @@ Optional tuning values used by scripts:
 
 ### Vector index check (required for retrieval)
 
-Before running retrieval, ensure the vector index exists:
+Before running retrieval, ensure the vector index configured by `NEO4J_VECTOR_INDEX` exists (default: `chunk_embedding_index`). If you changed `NEO4J_VECTOR_INDEX`, replace the value in the query below:
 
 ```cypher
 SHOW INDEXES
 YIELD name, type, state
-WHERE name = 'chunk_embedding_index'
+WHERE name = 'chunk_embedding_index'  // replace with your NEO4J_VECTOR_INDEX value if different
 RETURN name, type, state;
 ```
 
