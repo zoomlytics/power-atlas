@@ -402,6 +402,28 @@ def _attach_document_provenance(
             )
 
 
+def _build_document_scoped_filter_query(
+    document_paths: Iterable[str], label: str
+) -> str:
+    escaped_paths = sorted(
+        {path.replace("\\", "\\\\").replace('"', '\\"') for path in document_paths}
+    )
+    path_literals = ", ".join(f'"{path}"' for path in escaped_paths)
+
+    # Use the lexical graph configuration so this filter stays aligned with the schema.
+    chunk_label = LEXICAL_GRAPH_CONFIG.chunk_node_label
+    document_label = LEXICAL_GRAPH_CONFIG.document_node_label
+    node_to_chunk_rel = LEXICAL_GRAPH_CONFIG.node_to_chunk_relationship_type
+    chunk_to_document_rel = LEXICAL_GRAPH_CONFIG.chunk_to_document_relationship_type
+
+    return (
+        f"WHERE entity:{label} "
+        f"AND (entity)-[:{node_to_chunk_rel}]->(:{chunk_label})"
+        f"-[:{chunk_to_document_rel}]->(doc:{document_label}) "
+        f"AND doc.path IN [{path_literals}]"
+    )
+
+
 def reset_document_lexical_graph(neo4j_driver: neo4j.Driver, document_path: str) -> None:
     """Remove only Document/Chunk nodes for a path; entity graph is left intact."""
     count_query = """
@@ -431,7 +453,19 @@ def reset_document_lexical_graph(neo4j_driver: neo4j.Driver, document_path: str)
 
 def reset_document_entity_graph(neo4j_driver: neo4j.Driver, document_path: str) -> None:
     """Remove entity nodes tied to a document while leaving lexical graph untouched."""
-    delete_entities_query = (
+    delete_entities_query = _build_delete_entities_query()
+    with neo4j_driver.session(database=DATABASE) as session:
+        summary = session.run(delete_entities_query, path=document_path).consume()
+    deleted_nodes = summary.counters.nodes_deleted if summary else 0
+    deleted_rels = summary.counters.relationships_deleted if summary else 0
+    print(
+        f"[reset] entity graph removed for path={document_path} "
+        f"nodes_deleted={deleted_nodes} rels_deleted={deleted_rels}"
+    )
+
+
+def _build_delete_entities_query() -> str:
+    return (
         "MATCH (d:`{doc_label}` {{path: $path}}) "
         "OPTIONAL MATCH (d)<-[:{chunk_rel}]-(c:`{chunk_label}`) "
         "OPTIONAL MATCH (c)<-[rel:{node_to_chunk}]-(n) "
@@ -449,13 +483,51 @@ def reset_document_entity_graph(neo4j_driver: neo4j.Driver, document_path: str) 
         chunk_label=LEXICAL_GRAPH_CONFIG.chunk_node_label,
         node_to_chunk=LEXICAL_GRAPH_CONFIG.node_to_chunk_relationship_type,
     )
+
+
+def reset_document_derived_graph(neo4j_driver: neo4j.Driver, document_path: str) -> None:
+    """Safely reset all graph data derived from a single document in one call."""
+    count_query = (
+        "MATCH (d:`{doc_label}` {{path: $path}}) "
+        "OPTIONAL MATCH (d)<-[:{chunk_rel}]-(c:`{chunk_label}`) "
+        "RETURN count(DISTINCT d) AS documents_found, count(DISTINCT c) AS chunks_found"
+    ).format(
+        doc_label=LEXICAL_GRAPH_CONFIG.document_node_label,
+        chunk_rel=LEXICAL_GRAPH_CONFIG.chunk_to_document_relationship_type,
+        chunk_label=LEXICAL_GRAPH_CONFIG.chunk_node_label,
+    )
+    delete_chunks_query = (
+        "MATCH (d:`{doc_label}` {{path: $path}})<-[:{chunk_rel}]-(c:`{chunk_label}`) "
+        "DETACH DELETE c"
+    ).format(
+        doc_label=LEXICAL_GRAPH_CONFIG.document_node_label,
+        chunk_rel=LEXICAL_GRAPH_CONFIG.chunk_to_document_relationship_type,
+        chunk_label=LEXICAL_GRAPH_CONFIG.chunk_node_label,
+    )
+    delete_document_query = (
+        "MATCH (d:`{doc_label}` {{path: $path}}) "
+        "DETACH DELETE d"
+    ).format(doc_label=LEXICAL_GRAPH_CONFIG.document_node_label)
     with neo4j_driver.session(database=DATABASE) as session:
-        summary = session.run(delete_entities_query, path=document_path).consume()
-    deleted_nodes = summary.counters.nodes_deleted if summary else 0
-    deleted_rels = summary.counters.relationships_deleted if summary else 0
+        with session.begin_transaction() as tx:
+            record = tx.run(count_query, path=document_path).single()
+            entity_summary = tx.run(
+                _build_delete_entities_query(), path=document_path
+            ).consume()
+            tx.run(delete_chunks_query, path=document_path).consume()
+            tx.run(delete_document_query, path=document_path).consume()
+            tx.commit()
+    documents_found = record["documents_found"] if record else 0
+    chunks_found = record["chunks_found"] if record else 0
+    entity_nodes_deleted = entity_summary.counters.nodes_deleted if entity_summary else 0
+    entity_rels_deleted = (
+        entity_summary.counters.relationships_deleted if entity_summary else 0
+    )
     print(
-        f"[reset] entity graph removed for path={document_path} "
-        f"nodes_deleted={deleted_nodes} rels_deleted={deleted_rels}"
+        f"[reset] derived graph removed for path={document_path} "
+        f"entity_nodes_deleted={entity_nodes_deleted} "
+        f"entity_rels_deleted={entity_rels_deleted} "
+        f"documents_found={documents_found} chunks_found={chunks_found}"
     )
 
 
@@ -543,16 +615,11 @@ async def _run_entity_pipeline(
         results.append(PipelineResult(run_id=file_path_str, result=writer_result))
         print(f"[entity] completed extraction for path={file_path_str}")
     # Limit entity resolution to the set of documents ingested in this run.
-    document_paths_literal = ", ".join(
-        f'"{item["file_path"].as_posix()}"' for item in DOCUMENTS_TO_INGEST
-    )
+    document_paths = [item["file_path"].as_posix() for item in DOCUMENTS_TO_INGEST]
     for label, resolve_property in ENTITY_RESOLUTION_PROPERTY_BY_LABEL.items():
         resolver = SinglePropertyExactMatchResolver(
             neo4j_driver,
-            filter_query=(
-                f"WHERE entity:{label} "
-                f"AND entity.{DOCUMENT_PATH_PROPERTY} IN [{document_paths_literal}]"
-            ),
+            filter_query=_build_document_scoped_filter_query(document_paths, label),
             resolve_property=resolve_property,
             neo4j_database=DATABASE,
         )
@@ -581,9 +648,16 @@ async def define_and_run_pipeline(
             uid=file_path_str,
             document_type=document_metadata.get("doc_type"),
         )
-        if RUN_ENTITY_PIPELINE and RESET_ENTITY_GRAPH:
+        if (
+            RUN_ENTITY_PIPELINE
+            and RESET_ENTITY_GRAPH
+            and RUN_LEXICAL_PIPELINE
+            and RESET_LEXICAL_GRAPH
+        ):
+            reset_document_derived_graph(neo4j_driver, file_path_str)
+        elif RUN_ENTITY_PIPELINE and RESET_ENTITY_GRAPH:
             reset_document_entity_graph(neo4j_driver, file_path_str)
-        if RUN_LEXICAL_PIPELINE and RESET_LEXICAL_GRAPH:
+        elif RUN_LEXICAL_PIPELINE and RESET_LEXICAL_GRAPH:
             reset_document_lexical_graph(neo4j_driver, file_path_str)
             if not RUN_ENTITY_PIPELINE:
                 logger.warning(

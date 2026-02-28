@@ -47,6 +47,10 @@ RETURN labels(e) AS entity_labels, collect(DISTINCT d.path) AS document_paths, c
 ORDER BY c DESC, document_paths
 LIMIT 10;
 
+// 7c) Example resolver pre-filter scope (same pattern used by script)
+// WHERE (entity)-[:FROM_CHUNK]->(:Chunk)-[:FROM_DOCUMENT]->(doc:Document)
+//   AND doc.path IN ["/absolute/path/to/doc.pdf"]
+
 // 8) Sample a few Person/Organization/Location nodes
 MATCH (p:Person) RETURN p LIMIT 10;
 MATCH (o:Organization) RETURN o LIMIT 10;
