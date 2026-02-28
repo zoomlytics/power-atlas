@@ -164,7 +164,9 @@ def _load_pdf_text(file_path: Path) -> str:
         reader = PdfReader(str(file_path))
         return "\n".join((page.extract_text() or "") for page in reader.pages)
     except (PdfReadError, FileNotFoundError, OSError) as exc:  # pragma: no cover
-        raise RuntimeError(f"Failed to read PDF at {file_path}") from exc
+        raise RuntimeError(
+            f"Failed to read PDF at {file_path}: {type(exc).__name__}"
+        ) from exc
 
 
 def _prepare_chunks_for_document(
@@ -218,12 +220,12 @@ def _read_document_chunks(
     )
     if lexical_graph_config.chunk_index_property:
         query += f"ORDER BY c.{lexical_graph_config.chunk_index_property}"
-    result, _, _ = reader.driver.execute_query(
+    result = reader.driver.execute_query(
         query,
         path=document_path,
         database_=reader.neo4j_database,
         routing_=neo4j.RoutingControl.READ,
-    )
+    )[0]
     chunks = []
     for record in result:
         chunk = record.get("chunk")
@@ -298,8 +300,13 @@ def reset_document_entity_graph(neo4j_driver: neo4j.Driver, document_path: str) 
         node_to_chunk=LEXICAL_GRAPH_CONFIG.node_to_chunk_relationship_type,
     )
     with neo4j_driver.session(database=DATABASE) as session:
-        session.run(delete_entities_query, path=document_path).consume()
-    print(f"[reset] entity graph removed for path={document_path}")
+        summary = session.run(delete_entities_query, path=document_path).consume()
+    deleted_nodes = summary.counters.nodes_deleted if summary else 0
+    deleted_rels = summary.counters.relationships_deleted if summary else 0
+    print(
+        f"[reset] entity graph removed for path={document_path} "
+        f"nodes_deleted={deleted_nodes} rels_deleted={deleted_rels}"
+    )
 
 
 async def _run_lexical_pipeline(
