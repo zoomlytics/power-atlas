@@ -160,7 +160,7 @@ class SimpleKgBuilderFromPdfScriptTests(unittest.TestCase):
                 neo4j_driver=driver, document_path="/tmp/doc.pdf"
             )
         entity_reset.assert_called_once_with(driver, "/tmp/doc.pdf")
-       lexical_reset.assert_called_once_with(driver, "/tmp/doc.pdf")
+        lexical_reset.assert_called_once_with(driver, "/tmp/doc.pdf")
         self.assertEqual(call_order, ["entity", "lexical"])
 
 
