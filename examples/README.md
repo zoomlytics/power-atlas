@@ -29,7 +29,7 @@ Minimum values for this demo:
 
 - `NEO4J_URI` (default in scripts: `neo4j://localhost:7687`)
 - `NEO4J_USERNAME` (default: `neo4j`)
-- `NEO4J_PASSWORD` (default in scripts is placeholder; set a real one)
+- `NEO4J_PASSWORD` (default in scripts: `testtesttest`; when running Neo4j via docker-compose or in any non-demo setup, set a real password and ensure it matches your Neo4j configuration)
 - `NEO4J_DATABASE` (default: `neo4j`)
 - `OPENAI_API_KEY` (required for ingestion, retrieval, and QA)
 
