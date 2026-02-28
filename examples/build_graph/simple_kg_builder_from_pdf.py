@@ -46,6 +46,7 @@ from neo4j_graphrag.experimental.pipeline.pipeline import PipelineResult
 from neo4j_graphrag.llm import LLMInterface
 from neo4j_graphrag.llm import OpenAILLM
 from pypdf import PdfReader
+from pypdf.errors import PdfReadError
 
 load_dotenv()
 
@@ -159,7 +160,7 @@ def _load_pdf_text(file_path: Path) -> str:
     try:
         reader = PdfReader(str(file_path))
         return "\n".join((page.extract_text() or "") for page in reader.pages)
-    except Exception as exc:  # pragma: no cover - exercised in integration runs
+    except (PdfReadError, FileNotFoundError, OSError) as exc:  # pragma: no cover
         raise RuntimeError(f"Failed to read PDF at {file_path}") from exc
 
 
@@ -195,30 +196,56 @@ def _prepare_chunks_for_document(
     return TextChunks(chunks=prepared)
 
 
-def _filter_chunks_for_document(
-    chunks: TextChunks, document_path: str
+def _read_document_chunks(
+    reader: Neo4jChunkReader,
+    document_path: str,
+    lexical_graph_config: LexicalGraphConfig = LEXICAL_GRAPH_CONFIG,
 ) -> TextChunks:
-    return TextChunks(
-        chunks=[
-            chunk
-            for chunk in chunks.chunks
-            if chunk.metadata
-            and chunk.metadata.get(DOCUMENT_PATH_PROPERTY) == document_path
-        ]
+    """Read chunks for a single document directly from Neo4j."""
+    return_properties = [".*"]
+    if not reader.fetch_embeddings:
+        return_properties.append(f"{lexical_graph_config.chunk_embedding_property}: null")
+    query = (
+        f"MATCH (d:`{lexical_graph_config.document_node_label}` {{path: $path}})"
+        f"<-[:{lexical_graph_config.chunk_to_document_relationship_type}]-(c:`{lexical_graph_config.chunk_node_label}`) "
+        f"RETURN c {{ {', '.join(return_properties)} }} as chunk "
     )
+    if lexical_graph_config.chunk_index_property:
+        query += f"ORDER BY c.{lexical_graph_config.chunk_index_property}"
+    result, _, _ = reader.driver.execute_query(
+        query,
+        path=document_path,
+        database_=reader.neo4j_database,
+        routing_=neo4j.RoutingControl.READ,
+    )
+    chunks = []
+    for record in result:
+        chunk = record.get("chunk")
+        input_data = {
+            "text": chunk.pop(lexical_graph_config.chunk_text_property, ""),
+            "index": chunk.pop(lexical_graph_config.chunk_index_property, -1),
+        }
+        if (
+            uid := chunk.pop(lexical_graph_config.chunk_id_property, None)
+        ) is not None:
+            input_data["uid"] = uid
+        input_data["metadata"] = chunk
+        chunks.append(TextChunk(**input_data))
+    return TextChunks(chunks=chunks)
 
 
 def _attach_document_provenance(
     graph_nodes: Iterable[Neo4jNode], document_info: DocumentInfo
 ) -> None:
     for node in graph_nodes:
-        if node.label in LEXICAL_GRAPH_CONFIG.lexical_graph_node_labels:
+        node_label = node.label  # Neo4jNode.label is a single primary label
+        if node_label in LEXICAL_GRAPH_CONFIG.lexical_graph_node_labels:
             continue
         node.properties.setdefault(DOCUMENT_PATH_PROPERTY, document_info.path)
         if document_info.metadata:
             for key, value in document_info.metadata.items():
                 node.properties.setdefault(key, value)
-        if document_info.document_type and "doc_type" not in node.properties:
+        if document_info.document_type:
             node.properties.setdefault("doc_type", document_info.document_type)
 
 
@@ -326,8 +353,9 @@ async def _run_entity_pipeline(
             uid=file_path_str,
             document_type=document_metadata.get("doc_type"),
         )
-        chunks = await reader.run(lexical_graph_config=LEXICAL_GRAPH_CONFIG)
-        document_chunks = _filter_chunks_for_document(chunks, file_path_str)
+        document_chunks = _read_document_chunks(
+            reader, file_path_str, lexical_graph_config=LEXICAL_GRAPH_CONFIG
+        )
         if not document_chunks.chunks:
             print(
                 f"[warning] no chunks found for {file_path_str}; "
