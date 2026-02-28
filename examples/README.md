@@ -41,6 +41,7 @@ Optional tuning values used by scripts:
 - `NEO4J_VECTOR_INDEX` (default `chunk_embedding_index`)
 - `TOP_K` (default `5`)
 - `RETRIEVAL_CORPUS`, `RETRIEVAL_DOC_TYPE`, `RETRIEVAL_DOCUMENT_PATH`
+- `RETRIEVAL_INSPECT` (default `false`; enables retrieval inspection output, mirroring `--inspect-retrieval`)
 
 ### Vector index check (required for retrieval)
 
