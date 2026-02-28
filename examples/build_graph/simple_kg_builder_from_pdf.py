@@ -46,8 +46,18 @@ from neo4j_graphrag.experimental.components.types import (
 from neo4j_graphrag.experimental.pipeline.pipeline import PipelineResult
 from neo4j_graphrag.llm import LLMInterface
 from neo4j_graphrag.llm import OpenAILLM
-from pypdf import PdfReader
-from pypdf.errors import PdfReadError
+try:
+    from pypdf import PdfReader
+    from pypdf.errors import PdfReadError
+except ImportError:  # optional dependency
+    class PdfReadError(RuntimeError):
+        """Raised when attempting to read PDFs without the optional pypdf dependency."""
+
+    def PdfReader(*args, **kwargs):  # type: ignore
+        raise RuntimeError(
+            "The 'pypdf' package is required to load PDF files in this example. "
+            "Install it with `pip install pypdf`, or disable the lexical pipeline."
+        )
 
 logger = logging.getLogger(__name__)
 
@@ -290,9 +300,13 @@ def reset_document_entity_graph(neo4j_driver: neo4j.Driver, document_path: str) 
         "MATCH (d:`{doc_label}` {{path: $path}}) "
         "OPTIONAL MATCH (d)<-[:{chunk_rel}]-(c:`{chunk_label}`) "
         "OPTIONAL MATCH (c)<-[rel:{node_to_chunk}]-(n) "
-        "WITH collect(DISTINCT n) AS entity_nodes, collect(DISTINCT rel) AS rels "
+        "WITH collect(DISTINCT n) AS candidate_nodes, collect(DISTINCT rel) AS rels "
         "FOREACH (r IN rels | DELETE r) "
-        "FOREACH (n IN entity_nodes | DETACH DELETE n)"
+        "WITH candidate_nodes "
+        "UNWIND candidate_nodes AS n "
+        "WITH DISTINCT n "
+        "WHERE NOT (n)-[:{node_to_chunk}]-() "
+        "DETACH DELETE n"
     ).format(
         doc_label=LEXICAL_GRAPH_CONFIG.document_node_label,
         chunk_rel=LEXICAL_GRAPH_CONFIG.chunk_to_document_relationship_type,
