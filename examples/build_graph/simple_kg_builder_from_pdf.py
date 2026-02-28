@@ -156,8 +156,11 @@ KG_SCHEMA = GraphSchema(
 
 
 def _load_pdf_text(file_path: Path) -> str:
-    reader = PdfReader(str(file_path))
-    return "\n".join((page.extract_text() or "") for page in reader.pages)
+    try:
+        reader = PdfReader(str(file_path))
+        return "\n".join((page.extract_text() or "") for page in reader.pages)
+    except Exception as exc:  # pragma: no cover - exercised in integration runs
+        raise RuntimeError(f"Failed to read PDF at {file_path}") from exc
 
 
 def _prepare_chunks_for_document(
@@ -326,7 +329,10 @@ async def _run_entity_pipeline(
         chunks = await reader.run(lexical_graph_config=LEXICAL_GRAPH_CONFIG)
         document_chunks = _filter_chunks_for_document(chunks, file_path_str)
         if not document_chunks.chunks:
-            print(f"[entity] no chunks found for {file_path_str}; skipping entity pass")
+            print(
+                f"[warning] no chunks found for {file_path_str}; "
+                "skipping entity pass"
+            )
             continue
         schema = await schema_builder.run(
             node_types=KG_SCHEMA.node_types,

@@ -72,7 +72,7 @@ class SimpleKgBuilderFromPdfScriptTests(unittest.TestCase):
                 os.environ["CHUNK_OVERLAP"] = previous_chunk_overlap
 
     def test_chunk_preparation_keeps_deterministic_ids_and_provenance(self):
-        module = _load_script_module("simple_kg_builder_from_pdf_chunk_prep_test")
+        module = _load_script_module("simple_kg_builder_from_pdf_chunk_prep")
         document_path = "/tmp/doc.pdf"
         document_info = module.DocumentInfo(
             path=document_path,
