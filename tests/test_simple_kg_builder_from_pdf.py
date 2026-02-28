@@ -46,7 +46,7 @@ class SimpleKgBuilderFromPdfScriptTests(unittest.TestCase):
     def test_schema_is_guided_and_not_free(self):
         module = _load_script_module("simple_kg_builder_from_pdf_schema_test")
         node_labels = {node.label for node in module.KG_SCHEMA.node_types}
-        self.assertNotEqual(module.KG_SCHEMA, "FREE")
+        self.assertTrue(hasattr(module.KG_SCHEMA, "node_types"))
         self.assertTrue({"Person", "Organization", "Event"}.issubset(node_labels))
 
         for node in module.KG_SCHEMA.node_types:
