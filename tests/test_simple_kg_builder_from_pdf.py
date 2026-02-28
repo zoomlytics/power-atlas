@@ -2,6 +2,7 @@ import importlib.util
 import os
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 SCRIPT_PATH = (
@@ -129,6 +130,30 @@ class SimpleKgBuilderFromPdfScriptTests(unittest.TestCase):
                 chunk.metadata.get(module.LEXICAL_GRAPH_CONFIG.chunk_id_property),
                 chunk.uid,
             )
+
+    def test_document_scoped_filter_query_uses_provenance_pattern(self):
+        module = _load_script_module("simple_kg_builder_from_pdf_filter_query_test")
+        query = module._build_document_scoped_filter_query(
+            ["/tmp/b.pdf", "/tmp/a.pdf"], "Person"
+        )
+        self.assertIn("WHERE entity:Person", query)
+        self.assertIn(
+            "(entity)-[:FROM_CHUNK]->(:Chunk)-[:FROM_DOCUMENT]->(doc:Document)", query
+        )
+        self.assertIn('doc.path IN ["/tmp/a.pdf", "/tmp/b.pdf"]', query)
+
+    def test_reset_document_derived_graph_calls_entity_then_lexical_reset(self):
+        module = _load_script_module("simple_kg_builder_from_pdf_reset_combo_test")
+        driver = object()
+        with (
+            patch.object(module, "reset_document_entity_graph") as entity_reset,
+            patch.object(module, "reset_document_lexical_graph") as lexical_reset,
+        ):
+            module.reset_document_derived_graph(
+                neo4j_driver=driver, document_path="/tmp/doc.pdf"
+            )
+        entity_reset.assert_called_once_with(driver, "/tmp/doc.pdf")
+        lexical_reset.assert_called_once_with(driver, "/tmp/doc.pdf")
 
 
 if __name__ == "__main__":

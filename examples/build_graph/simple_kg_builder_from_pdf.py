@@ -402,6 +402,20 @@ def _attach_document_provenance(
             )
 
 
+def _build_document_scoped_filter_query(
+    document_paths: Iterable[str], label: str
+) -> str:
+    escaped_paths = sorted(
+        {path.replace("\\", "\\\\").replace('"', '\\"') for path in document_paths}
+    )
+    path_literals = ", ".join(f'"{path}"' for path in escaped_paths)
+    return (
+        f"WHERE entity:{label} "
+        "AND (entity)-[:FROM_CHUNK]->(:Chunk)-[:FROM_DOCUMENT]->(doc:Document) "
+        f"AND doc.path IN [{path_literals}]"
+    )
+
+
 def reset_document_lexical_graph(neo4j_driver: neo4j.Driver, document_path: str) -> None:
     """Remove only Document/Chunk nodes for a path; entity graph is left intact."""
     count_query = """
@@ -457,6 +471,12 @@ def reset_document_entity_graph(neo4j_driver: neo4j.Driver, document_path: str) 
         f"[reset] entity graph removed for path={document_path} "
         f"nodes_deleted={deleted_nodes} rels_deleted={deleted_rels}"
     )
+
+
+def reset_document_derived_graph(neo4j_driver: neo4j.Driver, document_path: str) -> None:
+    """Safely reset all graph data derived from a single document in one call."""
+    reset_document_entity_graph(neo4j_driver, document_path)
+    reset_document_lexical_graph(neo4j_driver, document_path)
 
 
 async def _run_lexical_pipeline(
@@ -543,16 +563,11 @@ async def _run_entity_pipeline(
         results.append(PipelineResult(run_id=file_path_str, result=writer_result))
         print(f"[entity] completed extraction for path={file_path_str}")
     # Limit entity resolution to the set of documents ingested in this run.
-    document_paths_literal = ", ".join(
-        f'"{item["file_path"].as_posix()}"' for item in DOCUMENTS_TO_INGEST
-    )
+    document_paths = [item["file_path"].as_posix() for item in DOCUMENTS_TO_INGEST]
     for label, resolve_property in ENTITY_RESOLUTION_PROPERTY_BY_LABEL.items():
         resolver = SinglePropertyExactMatchResolver(
             neo4j_driver,
-            filter_query=(
-                f"WHERE entity:{label} "
-                f"AND entity.{DOCUMENT_PATH_PROPERTY} IN [{document_paths_literal}]"
-            ),
+            filter_query=_build_document_scoped_filter_query(document_paths, label),
             resolve_property=resolve_property,
             neo4j_database=DATABASE,
         )
@@ -581,9 +596,16 @@ async def define_and_run_pipeline(
             uid=file_path_str,
             document_type=document_metadata.get("doc_type"),
         )
-        if RUN_ENTITY_PIPELINE and RESET_ENTITY_GRAPH:
+        if (
+            RUN_ENTITY_PIPELINE
+            and RESET_ENTITY_GRAPH
+            and RUN_LEXICAL_PIPELINE
+            and RESET_LEXICAL_GRAPH
+        ):
+            reset_document_derived_graph(neo4j_driver, file_path_str)
+        elif RUN_ENTITY_PIPELINE and RESET_ENTITY_GRAPH:
             reset_document_entity_graph(neo4j_driver, file_path_str)
-        if RUN_LEXICAL_PIPELINE and RESET_LEXICAL_GRAPH:
+        elif RUN_LEXICAL_PIPELINE and RESET_LEXICAL_GRAPH:
             reset_document_lexical_graph(neo4j_driver, file_path_str)
             if not RUN_ENTITY_PIPELINE:
                 logger.warning(
