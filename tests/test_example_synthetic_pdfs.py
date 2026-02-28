@@ -14,8 +14,8 @@ class SyntheticExamplePdfTests(unittest.TestCase):
         analyst_note = data_dir / "power_atlas_analyst_note.pdf"
 
         # Always assert that the synthetic PDF artifacts exist, even if pypdf is missing.
-        self.assertTrue(factsheet.exists())
-        self.assertTrue(analyst_note.exists())
+        self.assertTrue(factsheet.exists(), f"Missing PDF artifact: {factsheet}")
+        self.assertTrue(analyst_note.exists(), f"Missing PDF artifact: {analyst_note}")
 
         if PdfReader is None:
             self.skipTest("pypdf is not installed; skipping PDF content checks")
