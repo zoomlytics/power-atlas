@@ -142,6 +142,51 @@ class SimpleKgBuilderFromPdfScriptTests(unittest.TestCase):
         )
         self.assertIn('doc.path IN ["/tmp/a.pdf", "/tmp/b.pdf"]', query)
 
+    def test_lexical_reset_with_entity_pipeline_and_no_entity_reset_warns(self):
+        """Default config (RESET_LEXICAL_GRAPH=true, RESET_ENTITY_GRAPH=false) + entity pipeline
+        enabled should emit a warning about potentially orphaned entity nodes."""
+        import asyncio
+        from unittest.mock import AsyncMock, patch
+
+        env_overrides = {
+            "RUN_LEXICAL_PIPELINE": "true",
+            "RESET_LEXICAL_GRAPH": "true",
+            "RUN_ENTITY_PIPELINE": "true",
+            "RESET_ENTITY_GRAPH": "false",
+        }
+        saved = {k: os.environ.get(k) for k in env_overrides}
+        try:
+            os.environ.update(env_overrides)
+            module = _load_script_module("simple_kg_builder_from_pdf_orphan_warn_test")
+            mock_driver = MagicMock()
+            mock_llm = MagicMock()
+
+            with (
+                patch.object(module, "reset_document_lexical_graph"),
+                patch.object(module, "_load_pdf_text", return_value="text"),
+                patch.object(
+                    module, "_run_lexical_pipeline",
+                    new_callable=AsyncMock, return_value=MagicMock(),
+                ),
+                patch.object(
+                    module, "_run_entity_pipeline",
+                    new_callable=AsyncMock, return_value=[],
+                ),
+                self.assertLogs(module.logger, level="WARNING") as cm,
+            ):
+                asyncio.run(module.define_and_run_pipeline(mock_driver, mock_llm))
+
+            self.assertTrue(
+                any("orphaned" in msg or "RESET_ENTITY_GRAPH" in msg for msg in cm.output),
+                f"Expected orphaned-entity warning, got: {cm.output}",
+            )
+        finally:
+            for k, v in saved.items():
+                if v is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = v
+
     def test_reset_document_derived_graph_runs_in_single_transaction(self):
         module = _load_script_module("simple_kg_builder_from_pdf_reset_combo_test")
         driver = MagicMock()

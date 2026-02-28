@@ -665,6 +665,13 @@ async def define_and_run_pipeline(
                     "entity nodes may remain without provenance edges.",
                     file_path_str,
                 )
+            elif not RESET_ENTITY_GRAPH:
+                logger.warning(
+                    "Lexical reset removed chunks/provenance for %s but RESET_ENTITY_GRAPH is "
+                    "disabled; entity nodes from prior runs may be orphaned. Set "
+                    "RESET_ENTITY_GRAPH=true or RESET_LEXICAL_GRAPH=false to avoid graph bloat.",
+                    file_path_str,
+                )
         if RUN_LEXICAL_PIPELINE:
             print(f"[lexical] running ingestion for {file_path_str}")
             text = _load_pdf_text(file_path)
