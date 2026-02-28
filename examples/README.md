@@ -10,10 +10,14 @@ This README documents the end-to-end demo in `/examples` for:
 
 1. **Python environment** with repository dependencies installed.
 2. **Neo4j 5.x** running and reachable.
-3. **Environment variables** configured in `.env` (copy from `.env.example`):
+3. **Environment variables** configured in `.env` (copy from `.env.example`) and exported for retrieval:
 
 ```bash
 cp .env.example .env
+
+# Ingestion script loads .env automatically.
+# Retrieval script reads environment variables from the shell.
+source .env
 ```
 
 Minimum values for this demo:
@@ -49,13 +53,13 @@ RETURN name, type, state;
 Script:
 
 ```bash
-python /home/runner/work/power-atlas/power-atlas/examples/build_graph/simple_kg_builder_from_pdf.py
+python examples/build_graph/simple_kg_builder_from_pdf.py
 ```
 
 What it ingests:
 
-- `/home/runner/work/power-atlas/power-atlas/examples/data/power_atlas_factsheet.pdf`
-- `/home/runner/work/power-atlas/power-atlas/examples/data/power_atlas_analyst_note.pdf`
+- `examples/data/power_atlas_factsheet.pdf`
+- `examples/data/power_atlas_analyst_note.pdf`
 
 Metadata written per document:
 
@@ -69,7 +73,7 @@ Reset logic: the ingest script calls `reset_document_lexical_graph(...)` for eac
 Script:
 
 ```bash
-python /home/runner/work/power-atlas/power-atlas/examples/retrieve/local_pdf_graphrag.py \
+python examples/retrieve/local_pdf_graphrag.py \
   --query "Summarize links between Lina Park, Northbridge Energy Cooperative, and the Harbor Grid Upgrade Hearing." \
   --corpus power_atlas_demo \
   --doc-type all \
@@ -80,11 +84,11 @@ Useful filter examples:
 
 ```bash
 # Facts only
-python /home/runner/work/power-atlas/power-atlas/examples/retrieve/local_pdf_graphrag.py \
+python examples/retrieve/local_pdf_graphrag.py \
   --doc-type facts --corpus power_atlas_demo --query "List key people."
 
 # Narrative only
-python /home/runner/work/power-atlas/power-atlas/examples/retrieve/local_pdf_graphrag.py \
+python examples/retrieve/local_pdf_graphrag.py \
   --doc-type narrative --corpus power_atlas_demo --query "What sequence of events is described?"
 ```
 
