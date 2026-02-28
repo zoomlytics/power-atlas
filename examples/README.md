@@ -78,7 +78,7 @@ Two-pipeline flow (aligned with the upstream vendor example):
 - **Pipeline A (lexical only)**: builds `Document` + `Chunk` nodes and embeddings. Controlled by `RUN_LEXICAL_PIPELINE` and `RESET_LEXICAL_GRAPH` (per-document reset only deletes the lexical graph; entity nodes remain).
 - **Pipeline B (entity)**: reads chunks from Neo4j via `Neo4jChunkReader` and runs extraction with `create_lexical_graph=False`, reusing the stored lexical graph and writing provenance (`FROM_CHUNK`, `FROM_DOCUMENT`, `document_path`). Controlled by `RUN_ENTITY_PIPELINE`; set `RESET_ENTITY_GRAPH=true` to drop only the extracted entity subgraph for a document before re-running extraction.
 - Entity extraction now uses a schema-with-properties pattern (`PropertyType`) for `Person`, `Organization`, `Event`, `FactSheet`, and `AnalystNote` plus relationship properties (for example `RELATED_TO.type`, `RELATED_TO.date`, `MENTIONED_IN.source_type`). Deduplication runs after both PDFs are processed, using label-specific keys (`name`, `firm_name`, `subject`) for consistent cross-document resolution.
-- Provenance chain to validate in graph queries: `Entity <-[:FROM_CHUNK]- Chunk <-[:FROM_DOCUMENT]- Document`.
+- Provenance chain to validate in graph queries: `Entity -[:FROM_CHUNK]-> Chunk -[:FROM_DOCUMENT]-> Document`.
 
 ## Retrieval + QA usage
 
