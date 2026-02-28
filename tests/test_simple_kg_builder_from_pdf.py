@@ -71,6 +71,38 @@ class SimpleKgBuilderFromPdfScriptTests(unittest.TestCase):
             else:
                 os.environ["CHUNK_OVERLAP"] = previous_chunk_overlap
 
+    def test_chunk_preparation_keeps_deterministic_ids_and_provenance(self):
+        module = _load_script_module("simple_kg_builder_from_pdf_chunk_prep")
+        document_path = "/tmp/doc.pdf"
+        document_info = module.DocumentInfo(
+            path=document_path,
+            metadata={"corpus": "demo", "doc_type": "facts"},
+            uid=document_path,
+            document_type="facts",
+        )
+        chunks = module.TextChunks(
+            chunks=[
+                module.TextChunk(text="a", index=0),
+                module.TextChunk(text="b", index=1),
+            ]
+        )
+        prepared = module._prepare_chunks_for_document(chunks, document_info)
+        self.assertEqual(
+            [chunk.uid for chunk in prepared.chunks],
+            [f"{document_path}:0", f"{document_path}:1"],
+        )
+        for chunk in prepared.chunks:
+            self.assertEqual(
+                chunk.metadata.get(module.DOCUMENT_PATH_PROPERTY), document_path
+            )
+            self.assertEqual(chunk.metadata.get("corpus"), "demo")
+            self.assertEqual(chunk.metadata.get("doc_type"), "facts")
+            # Keep chunk ids in metadata so Neo4jChunkReader can round-trip them.
+            self.assertEqual(
+                chunk.metadata.get(module.LEXICAL_GRAPH_CONFIG.chunk_id_property),
+                chunk.uid,
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

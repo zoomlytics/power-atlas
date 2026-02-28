@@ -42,6 +42,7 @@ Optional tuning values used by scripts:
 - `TOP_K` (default `5`)
 - `RETRIEVAL_CORPUS`, `RETRIEVAL_DOC_TYPE`, `RETRIEVAL_DOCUMENT_PATH`
 - `RETRIEVAL_INSPECT` (default `false`; enables retrieval inspection output, mirroring `--inspect-retrieval`)
+- Two-pipeline toggles for ingestion (default shown): `RUN_LEXICAL_PIPELINE=true`, `RUN_ENTITY_PIPELINE=true`, `RESET_LEXICAL_GRAPH=true`, `RESET_ENTITY_GRAPH=false`
 
 ### Vector index check (required for retrieval)
 
@@ -72,7 +73,10 @@ Metadata written per document:
 - factsheet: `corpus=power_atlas_demo`, `doc_type=facts`
 - analyst note: `corpus=power_atlas_demo`, `doc_type=narrative`
 
-Reset logic: the ingest script calls `reset_document_lexical_graph(...)` for each document path before writing, deleting prior `Document` and connected `Chunk` nodes for that same path.
+Two-pipeline flow (aligned with the upstream vendor example):
+
+- **Pipeline A (lexical only)**: builds `Document` + `Chunk` nodes and embeddings. Controlled by `RUN_LEXICAL_PIPELINE` and `RESET_LEXICAL_GRAPH` (per-document reset only deletes the lexical graph; entity nodes remain).
+- **Pipeline B (entity)**: reads chunks from Neo4j via `Neo4jChunkReader` and runs extraction with `create_lexical_graph=False`, reusing the stored lexical graph and writing provenance (`FROM_CHUNK`, `FROM_DOCUMENT`, `document_path`). Controlled by `RUN_ENTITY_PIPELINE`; set `RESET_ENTITY_GRAPH=true` to drop only the extracted entity subgraph for a document before re-running extraction.
 
 ## Retrieval + QA usage
 
