@@ -551,7 +551,7 @@ async def _run_entity_pipeline(
             neo4j_driver,
             filter_query=(
                 f"WHERE entity:{label} "
-                f"AND entity.document_path IN [{document_paths_literal}]"
+                f"AND entity.{DOCUMENT_PATH_PROPERTY} IN [{document_paths_literal}]"
             ),
             resolve_property=resolve_property,
             neo4j_database=DATABASE,
