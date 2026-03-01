@@ -136,6 +136,8 @@ def main() -> None:
             "If the context is insufficient, say 'Insufficient context.' and still provide citations.\n\n"
             "Your bullets must cover the beginning, middle, and end of the document (chronological if possible).\n"
             "Try to use different citations across bullets when possible.\n"
+            "IMPORTANT: You may ONLY cite a [source: ... | hitChunk: N ...] header that appears verbatim in the provided context blocks.\n"
+            "Do NOT cite prev/next chunk numbers unless they appear as hitChunk in a header.\n"
             f"Question: {user_question}"
         )
 
