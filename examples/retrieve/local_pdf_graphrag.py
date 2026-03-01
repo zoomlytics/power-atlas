@@ -308,7 +308,6 @@ def main() -> None:
 
         rag = GraphRAG(retriever=retriever, llm=llm, prompt_template=QA_PROMPT_TEMPLATE)
 
-<<<<<<< HEAD
         user_question = os.getenv("QUERY_TEXT", "").strip() or "Summarize the document in 5 bullets."
 
         # Force citation behavior using ONLY the headers we embed in retrieved context.
@@ -324,9 +323,6 @@ def main() -> None:
             "Do NOT cite prev/next chunk numbers unless they appear as hitChunk in a header.\n"
             f"Question: {user_question}"
         )
-=======
-        user_question = (args.query or "").strip() or "Summarize the document in 5 bullets."
->>>>>>> 4951fcbfad1b9717743f8f0843f809c38c536c2a
 
         print("Connected to:", URI, "db:", DATABASE)
         print("Vector index:", INDEX_NAME, "top_k:", TOP_K)
