@@ -41,6 +41,16 @@ MATCH (c:Chunk)-[r]->(x)
 RETURN type(r) AS rel, labels(x) AS x_labels, count(*) AS c
 ORDER BY c DESC;
 
+// 7b) Confirm provenance on entities uses the chunk+document ids written by the lexical pipeline
+MATCH (e)-[:FROM_CHUNK]->(c:Chunk)-[:FROM_DOCUMENT]->(d:Document)
+RETURN labels(e) AS entity_labels, collect(DISTINCT d.path) AS document_paths, count(*) AS c
+ORDER BY c DESC, document_paths
+LIMIT 10;
+
+// 7c) Example resolver pre-filter scope (same pattern used by script)
+// WHERE (entity)-[:FROM_CHUNK]->(:Chunk)-[:FROM_DOCUMENT]->(doc:Document)
+//   AND doc.path IN ["/absolute/path/to/doc.pdf"]
+
 // 8) Sample a few Person/Organization/Location nodes
 MATCH (p:Person) RETURN p LIMIT 10;
 MATCH (o:Organization) RETURN o LIMIT 10;
