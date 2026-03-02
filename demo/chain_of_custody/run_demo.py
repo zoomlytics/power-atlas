@@ -155,9 +155,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "reset",
         "ingest",
     ):
-        subparser = subparsers.add_parser(command)
+        subparsers.add_parser(command)
         if command == "ask":
-            subparser.add_argument("--question", default=None)
+            subparsers.choices[command].add_argument("--question", default=None)
     parser.set_defaults(command="ingest")
     return parser.parse_args(argv)
 
