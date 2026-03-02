@@ -1,4 +1,14 @@
-entity_id,name,entity_type
-ent_001,Meridian Port Authority,Organization
-ent_002,Helios Logistics Ltd,Organization
-ent_003,Lina Park,Person
+"entity_id","name","entity_type","aliases","description","wikidata_url"
+"Q1340293","Endeavor","organization","Endeavor Global|Endeavor Global Inc.","non-profit organization supporting entrepreneurship","https://www.wikidata.org/wiki/Q1340293"
+"Q6551937","Linda Rottenberg","person","","CEO of Endeavor","https://www.wikidata.org/wiki/Q6551937"
+"Q7982301","Wences Casares","person","","fintech entrepreneur","https://www.wikidata.org/wiki/Q7982301"
+"Q18208378","Xapo","organization","Xapo Bank","bitcoin banking services","https://www.wikidata.org/wiki/Q18208378"
+"Q328840","Visa Inc.","organization","Visa","financial services corporation","https://www.wikidata.org/wiki/Q328840"
+"Q950419","Mercado Libre","organization","MercadoLibre","e-commerce company","https://www.wikidata.org/wiki/Q950419"
+"Q348483","Pierre Omidyar","person","","founder of eBay","https://www.wikidata.org/wiki/Q348483"
+"Q317953","Larry Summers","person","","economist and government official","https://www.wikidata.org/wiki/Q317953"
+"Q2904131","Jeffrey Epstein","person","","financier","https://www.wikidata.org/wiki/Q2904131"
+"Q211098","Reid Hoffman","person","","entrepreneur and investor","https://www.wikidata.org/wiki/Q211098"
+"Q328520","Edgar Bronfman Jr.","person","","media executive","https://www.wikidata.org/wiki/Q328520"
+"Q5996574","Marcos Galperin","person","","businessman","https://www.wikidata.org/wiki/Q5996574"
+"Q5340595","Eduardo Elsztain","person","","business magnate","https://www.wikidata.org/wiki/Q5340595"
