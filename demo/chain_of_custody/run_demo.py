@@ -122,8 +122,7 @@ def run_demo(config: DemoConfig) -> Path:
     return manifest_path
 
 
-def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Chain of Custody demo orchestrator")
+def _add_common_args(parser: argparse.ArgumentParser) -> None:
     mode_group = parser.add_mutually_exclusive_group()
     mode_group.add_argument(
         "--dry-run",
@@ -144,6 +143,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--neo4j-password", default=os.getenv("NEO4J_PASSWORD", "CHANGE_ME_BEFORE_USE"))
     parser.add_argument("--neo4j-database", default=DEFAULT_DB)
     parser.add_argument("--openai-model", default=os.getenv("OPENAI_MODEL", "gpt-4o-mini"))
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    common_parser = argparse.ArgumentParser(add_help=False)
+    _add_common_args(common_parser)
+    parser = argparse.ArgumentParser(description="Chain of Custody demo orchestrator", parents=[common_parser])
     subparsers = parser.add_subparsers(dest="command")
     for command in (
         "lint-structured",
@@ -155,7 +160,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "reset",
         "ingest",
     ):
-        subparsers.add_parser(command)
+        subparsers.add_parser(command, parents=[common_parser])
         if command == "ask":
             subparsers.choices[command].add_argument("--question", default=None)
     parser.set_defaults(command="ingest")
@@ -164,18 +169,18 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    if not args.dry_run and args.neo4j_password in ("", "CHANGE_ME_BEFORE_USE"):
-        raise SystemExit("Set NEO4J_PASSWORD or pass --neo4j-password when using --live")
-    config = DemoConfig(
-        dry_run=args.dry_run,
-        output_dir=args.output_dir,
-        neo4j_uri=args.neo4j_uri,
-        neo4j_username=args.neo4j_username,
-        neo4j_password=args.neo4j_password,
-        neo4j_database=args.neo4j_database,
-        openai_model=args.openai_model,
-    )
     if args.command == "ingest":
+        if not args.dry_run and args.neo4j_password in ("", "CHANGE_ME_BEFORE_USE"):
+            raise SystemExit("Set NEO4J_PASSWORD or pass --neo4j-password when using --live")
+        config = DemoConfig(
+            dry_run=args.dry_run,
+            output_dir=args.output_dir,
+            neo4j_uri=args.neo4j_uri,
+            neo4j_username=args.neo4j_username,
+            neo4j_password=args.neo4j_password,
+            neo4j_database=args.neo4j_database,
+            openai_model=args.openai_model,
+        )
         manifest_path = run_demo(config)
         print(f"Demo manifest written to: {manifest_path}")
         return

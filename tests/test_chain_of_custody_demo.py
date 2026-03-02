@@ -1,8 +1,10 @@
 import importlib.util
+import io
 import json
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 
 
@@ -41,6 +43,34 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
             args = module.parse_args([command])
             self.assertEqual(args.command, command)
         self.assertEqual(module.parse_args([]).command, "ingest")
+        self.assertTrue(module.parse_args(["ingest", "--dry-run"]).dry_run)
+        self.assertTrue(module.parse_args(["--dry-run", "ingest"]).dry_run)
+
+    def test_reset_command_skips_password_validation(self):
+        module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_main_reset_test")
+        args = type(
+            "Args",
+            (),
+            {
+                "command": "reset",
+                "dry_run": False,
+                "output_dir": DEMO_DIR / "artifacts",
+                "neo4j_uri": "neo4j://localhost:7687",
+                "neo4j_username": "neo4j",
+                "neo4j_password": "CHANGE_ME_BEFORE_USE",
+                "neo4j_database": "neo4j",
+                "openai_model": "gpt-4o-mini",
+                "question": None,
+            },
+        )()
+        original_parse_args = module.parse_args
+        try:
+            module.parse_args = lambda: args
+            with io.StringIO() as buffer, redirect_stdout(buffer):
+                module.main()
+                self.assertIn("reset_demo_db.py --confirm", buffer.getvalue())
+        finally:
+            module.parse_args = original_parse_args
 
     def test_run_demo_dry_run_writes_manifest_with_expected_stages(self):
         module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_test")
