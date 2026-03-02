@@ -1,37 +1,37 @@
 version_: "1"
 template_: SimpleKGPipeline
 neo4j_config:
-  params_:
-    uri:
-      resolver_: ENV
-      var_: NEO4J_URI
-    user:
-      resolver_: ENV
-      var_: NEO4J_USERNAME
-    password:
-      resolver_: ENV
-      var_: NEO4J_PASSWORD
+ params_:
+   uri:
+     resolver_: ENV
+     var_: NEO4J_URI
+   user:
+     resolver_: ENV
+     var_: NEO4J_USERNAME
+   password:
+     resolver_: ENV
+     var_: NEO4J_PASSWORD
 llm_config:
-  class_: OpenAILLM
-  params_:
-    api_key:
-      resolver_: ENV
-      var_: OPENAI_API_KEY
-    model_name:
-      resolver_: ENV
-      var_: OPENAI_MODEL
+ class_: OpenAILLM
+ params_:
+   api_key:
+     resolver_: ENV
+     var_: OPENAI_API_KEY
+   model_name:
+     resolver_: ENV
+     var_: OPENAI_MODEL
 embedder_config:
-  class_: OpenAIEmbeddings
-  params_:
-    api_key:
-      resolver_: ENV
-      var_: OPENAI_API_KEY
-    model: text-embedding-3-small
+ class_: OpenAIEmbeddings
+ params_:
+   api_key:
+     resolver_: ENV
+     var_: OPENAI_API_KEY
+   model: text-embedding-3-small
 from_pdf: true
 text_splitter:
-  class_: text_splitters.fixed_size_splitter.FixedSizeSplitter
-  params_:
-    chunk_size: 1000
-    chunk_overlap: 200
+ class_: text_splitters.fixed_size_splitter.FixedSizeSplitter
+ params_:
+   chunk_size: 1000
+   chunk_overlap: 200
 pdf_loader:
-  class_: pdf_loader.PdfLoader
+ class_: pdf_loader.PdfLoader
