@@ -26,7 +26,7 @@ Self-contained demo workflow under `demo/chain_of_custody/` for evidence-driven 
 - Structured CSV ingest with claims-first modeling (`Claim`, `CanonicalEntity`, evidence-linked relationships)
 - Narrative claim extraction + mention resolution stages (deterministic canonical key resolution)
 - Retrieval and GraphRAG Q&A stage with strict citation expectations
-- Run artifacts written to `demo/chain_of_custody/artifacts/manifest.json`
+- Run artifacts written to `<output-dir>/manifest.json` (for the default orchestrator run this is typically `demo/chain_of_custody/artifacts/manifest.json`; override with `--output-dir`, and note that `smoke_test.py` uses an isolated temporary directory by default)
 
 ## Fixtures and reproducibility
 
