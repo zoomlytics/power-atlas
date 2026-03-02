@@ -30,6 +30,10 @@ def _timestamp() -> str:
     return datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
 
 
+def _make_run_id(scope: str) -> str:
+    return f"{scope}-{_timestamp()}"
+
+
 def _load_csv_rows(path: Path) -> list[dict[str, str]]:
     with path.open("r", encoding="utf-8", newline="") as handle:
         return list(csv.DictReader(handle))
@@ -101,20 +105,41 @@ def _run_retrieval_and_qa(config: DemoConfig) -> dict[str, Any]:
 
 def run_demo(config: DemoConfig) -> Path:
     config.output_dir.mkdir(parents=True, exist_ok=True)
+    structured_run_id = _make_run_id("structured-ingest")
+    unstructured_run_id = _make_run_id("unstructured-ingest")
+    resolution_run_id = _make_run_id("resolution")
 
     manifest = {
-        "run_id": f"chain-of-custody-{_timestamp()}",
+        "run_id": _make_run_id("chain-of-custody-batch"),
         "created_at": datetime.now(UTC).isoformat(),
+        "run_scopes": {
+            "batch_mode": "sequential_independent_runs",
+            "structured_ingest_run_id": structured_run_id,
+            "unstructured_ingest_run_id": unstructured_run_id,
+            "resolution_run_id": resolution_run_id,
+        },
         "config": {
             "dry_run": config.dry_run,
             "neo4j_database": config.neo4j_database,
             "openai_model": config.openai_model,
         },
         "stages": {
-            "structured_ingest": _run_structured_ingest(config),
-            "pdf_ingest": _run_pdf_ingest(config),
-            "claim_and_mention_extraction": _run_claim_and_mention_extraction(config),
-            "retrieval_and_qa": _run_retrieval_and_qa(config),
+            "structured_ingest": {
+                "run_id": structured_run_id,
+                **_run_structured_ingest(config),
+            },
+            "pdf_ingest": {
+                "run_id": unstructured_run_id,
+                **_run_pdf_ingest(config),
+            },
+            "claim_and_mention_extraction": {
+                "run_id": resolution_run_id,
+                **_run_claim_and_mention_extraction(config),
+            },
+            "retrieval_and_qa": {
+                "run_id": resolution_run_id,
+                **_run_retrieval_and_qa(config),
+            },
         },
     }
 

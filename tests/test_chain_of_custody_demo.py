@@ -97,6 +97,10 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
             self.assertTrue(manifest_path.exists())
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             self.assertTrue(manifest["config"]["dry_run"])
+            self.assertEqual(manifest["run_scopes"]["batch_mode"], "sequential_independent_runs")
+            self.assertIn("structured_ingest_run_id", manifest["run_scopes"])
+            self.assertIn("unstructured_ingest_run_id", manifest["run_scopes"])
+            self.assertIn("resolution_run_id", manifest["run_scopes"])
             self.assertEqual(
                 set(manifest["stages"].keys()),
                 {
@@ -105,6 +109,14 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
                     "claim_and_mention_extraction",
                     "retrieval_and_qa",
                 },
+            )
+            self.assertEqual(
+                manifest["stages"]["structured_ingest"]["run_id"],
+                manifest["run_scopes"]["structured_ingest_run_id"],
+            )
+            self.assertEqual(
+                manifest["stages"]["pdf_ingest"]["run_id"],
+                manifest["run_scopes"]["unstructured_ingest_run_id"],
             )
             claims_fixture_path = DEMO_DIR / "fixtures" / "structured" / "claims.csv"
             with claims_fixture_path.open(newline="", encoding="utf-8") as f:
@@ -227,6 +239,10 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
         self.assertIn("chain_custody_chunk_embedding_index", readme_text)
         self.assertIn("vendor examples use `NEO4J_USER`", readme_text)
         self.assertIn("blocked by [#150]", readme_text)
+        self.assertIn("## Conceptual model", readme_text)
+        self.assertIn("sequential independent runs", readme_text)
+        self.assertIn("zoomlytics/power-atlas#151", readme_text)
+        self.assertIn("non-destructive", readme_text)
         self.assertIsInstance(config, dict)
         self.assertIn("llm_config", config)
         self.assertIn("embedder_config", config)
