@@ -36,7 +36,9 @@ def main() -> None:
         ).consume()
 
         for index_name in ["chunk_embedding_index", "chain_custody_claim_embedding_index"]:
-            session.run(f"DROP INDEX {index_name} IF EXISTS").consume()
+            if not index_name.replace("_", "").isalnum():
+                raise ValueError(f"Unsafe index name: {index_name}")
+            session.run(f"DROP INDEX `{index_name}` IF EXISTS").consume()
 
     print("Chain of Custody demo graph reset complete.")
 

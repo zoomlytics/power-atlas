@@ -116,10 +116,14 @@ def _run_pdf_ingest(config: DemoConfig) -> dict[str, Any]:
     embedder = OpenAIEmbeddings(model="text-embedding-3-small")
     llm = OpenAILLM(model_name=config.openai_model)
 
-    _ = (splitter, embedder, llm)
     return {
         "status": "configured",
         "documents": [str(pdf_path)],
+        "pipeline_components": [
+            splitter.__class__.__name__,
+            embedder.__class__.__name__,
+            llm.__class__.__name__,
+        ],
         "note": "Runtime ingest uses vendor pipeline components; keep in dry-run for local smoke tests.",
     }
 
