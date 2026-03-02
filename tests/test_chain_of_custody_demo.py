@@ -234,6 +234,16 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
             self.assertEqual(pdf_manifest["run_scopes"]["batch_mode"], "single_independent_run")
             self.assertEqual(set(structured_manifest["stages"].keys()), {"structured_ingest"})
             self.assertEqual(set(pdf_manifest["stages"].keys()), {"pdf_ingest"})
+            self.assertIn("structured_ingest_run_id", structured_manifest["run_scopes"])
+            self.assertEqual(
+                structured_manifest["run_scopes"]["structured_ingest_run_id"],
+                structured_manifest["stages"]["structured_ingest"]["run_id"],
+            )
+            self.assertIn("unstructured_ingest_run_id", pdf_manifest["run_scopes"])
+            self.assertEqual(
+                pdf_manifest["run_scopes"]["unstructured_ingest_run_id"],
+                pdf_manifest["stages"]["pdf_ingest"]["run_id"],
+            )
             self.assertNotEqual(structured_manifest["run_id"], pdf_manifest["run_id"])
 
     def test_smoke_test_supports_output_dir_override(self):

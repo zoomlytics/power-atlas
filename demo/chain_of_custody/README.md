@@ -42,11 +42,16 @@ Self-contained demo workflow under `demo/chain_of_custody/` for evidence-driven 
 - Run artifacts written to `<output-dir>/manifest.json` with clean run boundaries (for the default orchestrator run this is typically `demo/chain_of_custody/artifacts/manifest.json`; override with `--output-dir`, and note that `smoke_test.py` uses an isolated temporary directory by default)
 
 Manifest run-boundary notes:
-- `run_id`: run boundary for the current manifest (`ingest` writes `manifest.json`; independent runs write `structured_ingest_manifest.json` / `pdf_ingest_manifest.json`)
-- `run_scopes.structured_ingest_run_id`: structured producer run boundary
-- `run_scopes.unstructured_ingest_run_id`: unstructured/PDF producer run boundary
-- `run_scopes.resolution_run_id`: optional convergence/resolution scope
-- each stage emits its own `run_id` so provenance remains non-destructive and auditable across reruns
+- **Batch orchestrator manifest** (`manifest.json`, produced by `ingest`):
+  - `run_id`: run boundary for the overall batch orchestrator run
+  - `run_scopes.structured_ingest_run_id`: structured producer run boundary
+  - `run_scopes.unstructured_ingest_run_id`: unstructured/PDF producer run boundary
+  - `run_scopes.resolution_run_id`: optional convergence/resolution scope
+- **Independent stage manifests** (`structured_ingest_manifest.json`, `pdf_ingest_manifest.json`, produced by `ingest-structured` / `ingest-pdf`):
+  - `run_id`: run boundary for that single producer run
+  - `run_scopes.batch_mode`: `single_independent_run`
+  - `run_scopes.structured_ingest_run_id` or `run_scopes.unstructured_ingest_run_id` (only the relevant producer scope key is present)
+- In all modes, each stage emits its own `run_id` so provenance remains non-destructive and auditable across reruns
 
 ## Fixtures and reproducibility
 

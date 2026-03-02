@@ -151,20 +151,21 @@ def run_demo(config: DemoConfig) -> Path:
 
 def run_independent_demo(config: DemoConfig, command: str) -> Path:
     config.output_dir.mkdir(parents=True, exist_ok=True)
-    stage_runners: dict[str, tuple[str, Any]] = {
-        "ingest-structured": ("structured_ingest", _run_structured_ingest),
-        "ingest-pdf": ("pdf_ingest", _run_pdf_ingest),
+    stage_runners: dict[str, tuple[str, str, Any]] = {
+        "ingest-structured": ("structured_ingest", "structured_ingest_run_id", _run_structured_ingest),
+        "ingest-pdf": ("pdf_ingest", "unstructured_ingest_run_id", _run_pdf_ingest),
     }
     if command not in stage_runners:
         raise ValueError(f"Unsupported independent command: {command}")
-    stage_name, stage_runner = stage_runners[command]
-    stage_run_id = _make_run_id(stage_name)
+    stage_name, run_scope_key, stage_runner = stage_runners[command]
+    run_scope = run_scope_key.removesuffix("_run_id")
+    stage_run_id = _make_run_id(run_scope)
     manifest = {
         "run_id": stage_run_id,
         "created_at": datetime.now(UTC).isoformat(),
         "run_scopes": {
             "batch_mode": "single_independent_run",
-            f"{stage_name}_run_id": stage_run_id,
+            run_scope_key: stage_run_id,
         },
         "config": {
             "dry_run": config.dry_run,
