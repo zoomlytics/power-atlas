@@ -39,14 +39,15 @@ Reset script deletes generic labels and drops the demo index `chain_custody_clai
 
 ## Vendor-resources alignment map
 
-This demo intentionally mirrors upstream patterns in `vendor-resources`:
+This demo intentionally mirrors upstream patterns in `vendor-resources`; use these local vendored files as the first source of truth:
 
-- KG pipeline composition: `vendor-resources/examples/build_graph/simple_kg_builder_from_pdf.py`
-- Two-stage lexical/entity pattern: `vendor-resources/examples/customize/build_graph/pipeline/text_to_lexical_graph_to_entity_graph_two_pipelines.py`
-- Retriever formatting and pre-filters: `vendor-resources/examples/customize/retrievers/result_formatter_vector_cypher_retriever.py`, `vendor-resources/examples/customize/retrievers/use_pre_filters.py`
-- GraphRAG Q&A and message history patterns: `vendor-resources/examples/question_answering/graphrag.py`, `vendor-resources/examples/question_answering/graphrag_with_message_history.py`
-
-Use these vendor examples as the first source of truth when evolving this demo.
+| Demo workflow part | Vendor-resources implementation(s) | Alignment + rationale for divergence |
+| --- | --- | --- |
+| PDF loader/split/embed/write (`ingest-pdf`) | `vendor-resources/examples/build_graph/simple_kg_builder_from_pdf.py`<br>`vendor-resources/examples/customize/build_graph/components/loaders/pdf_loader.py`<br>`vendor-resources/examples/customize/build_graph/components/writers/neo4j_writer.py` | We keep the same `SimpleKGPipeline` component family (`PdfLoader`, `FixedSizeSplitter`, `OpenAIEmbeddings`, Neo4j writer). Current demo defaults to `--dry-run` so fixture-driven runs stay reproducible without live OpenAI/Neo4j dependencies. |
+| Structured ingest (`ingest-structured`) | `vendor-resources/examples/customize/build_graph/pipeline/text_to_lexical_graph_to_entity_graph_two_pipelines.py` | We follow the two-stage lexical/entity modeling idea, but diverge by loading curated CSV fixtures first to enforce a deterministic `Claim`/`CanonicalEntity` schema for chain-of-custody provenance assertions. |
+| Claim extraction + resolver (`extract-claims`, `resolve-entities`) | `vendor-resources/examples/customize/build_graph/components/extractors/llm_entity_relation_extractor.py`<br>`vendor-resources/examples/customize/build_graph/components/resolvers/simple_entity_resolver_pre_filter.py` | Vendor examples are LLM-first; this demo keeps deterministic canonical key resolution in dry-run mode to make smoke tests stable while still documenting the planned `LLMEntityRelationExtractor` + resolver path for live runs. |
+| Retrieval (`ask`) | `vendor-resources/examples/retrieve/vector_cypher_retriever.py`<br>`vendor-resources/examples/customize/retrievers/result_formatter_vector_cypher_retriever.py`<br>`vendor-resources/examples/customize/retrievers/use_pre_filters.py` | We align on `VectorCypherRetriever` (+ optional `Text2CypherRetriever`) and result formatting/pre-filter patterns, then add graph expansion and evidence-link traversal so answers stay tied to explicit claim/evidence nodes. |
+| GraphRAG pipeline and prompting (`ask`) | `vendor-resources/examples/question_answering/graphrag.py`<br>`vendor-resources/examples/question_answering/graphrag_with_message_history.py`<br>`vendor-resources/examples/customize/answer/custom_prompt.py`<br>`vendor-resources/docs/source/user_guide_rag.rst` (see "GraphRAG Configuration", "Configuring the Prompt", and "Retriever Configuration") | We keep the standard `GraphRAG(retriever, llm, prompt_template=...)` contract from the user guide, but use a stricter citation-oriented prompt suffix so demo outputs cite provenance artifacts instead of producing uncited narrative text. |
 
 ## CLI scaffold and configuration
 
