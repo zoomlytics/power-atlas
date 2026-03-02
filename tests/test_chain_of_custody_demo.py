@@ -104,7 +104,14 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
                     "retrieval_and_qa",
                 },
             )
-            self.assertEqual(manifest["stages"]["structured_ingest"]["claims"], 37)
+            claims_fixture_path = DEMO_DIR / "fixtures" / "structured" / "claims.csv"
+            with claims_fixture_path.open(newline="", encoding="utf-8") as f:
+                reader = csv.DictReader(f)
+                expected_claim_count = sum(1 for _ in reader)
+            self.assertEqual(
+                manifest["stages"]["structured_ingest"]["claims"],
+                expected_claim_count,
+            )
 
     def test_fixture_manifest_tracks_dataset_and_provenance(self):
         fixture_manifest = DEMO_DIR / "fixtures" / "manifest.json"
