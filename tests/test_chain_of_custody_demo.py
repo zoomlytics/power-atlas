@@ -109,7 +109,18 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
         fixture_manifest = DEMO_DIR / "fixtures" / "manifest.json"
         data = json.loads(fixture_manifest.read_text(encoding="utf-8"))
         self.assertEqual(data["dataset"], "chain_of_custody_dataset_v1")
-        self.assertGreaterEqual(len(data["provenance"]), 2)
+        required_files = set(data["dataset_contract"]["required_files"])
+        provenance_paths = {item["path"] for item in data["provenance"]}
+        self.assertTrue(required_files.issubset(provenance_paths))
+
+    def test_fixtures_readme_exists_with_required_sections(self):
+        fixtures_readme = DEMO_DIR / "fixtures" / "README.md"
+        text = fixtures_readme.read_text(encoding="utf-8")
+        self.assertIn("## Data provenance", text)
+        self.assertIn("## License and attribution", text)
+        self.assertIn("## CSV schemas", text)
+        self.assertIn("## Canonical entity notes", text)
+        self.assertIn("## Golden questions for the demo", text)
 
     def test_run_pdf_ingest_non_dry_run_raises_not_implemented(self):
         module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_non_dry_test")
