@@ -81,8 +81,11 @@ def _run_structured_ingest(config: DemoConfig) -> dict[str, Any]:
             UNWIND $rels AS row
             MATCH (a:CanonicalEntity {entity_id: row.source_entity_id})
             MATCH (b:CanonicalEntity {entity_id: row.target_entity_id})
+            MATCH (c:Claim {claim_id: row.evidence_claim_id})
             MERGE (a)-[r:ASSERTS_RELATIONSHIP {relationship_id: row.relationship_id}]->(b)
             SET r.relation_type = row.relation_type, r.evidence_claim_id = row.evidence_claim_id
+            MERGE (c)-[:EVIDENCE_FOR]->(a)
+            MERGE (c)-[:EVIDENCE_FOR]->(b)
             """,
             rels=relationships,
         ).consume()
