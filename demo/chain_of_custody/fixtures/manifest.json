@@ -1,7 +1,7 @@
 {
   "dataset": "chain_of_custody_dataset_v1",
   "version": "1.0.0",
-  "license": "Research-only synthetic+curated demo artifacts (see fixtures/README.md)",
+  "license": "Research-only synthetic+curated demo artifacts (see demo/chain_of_custody/fixtures/README.md)",
   "attribution": [
     {
       "source": "Wikidata",

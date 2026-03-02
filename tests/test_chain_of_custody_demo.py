@@ -109,15 +109,9 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
         fixture_manifest = DEMO_DIR / "fixtures" / "manifest.json"
         data = json.loads(fixture_manifest.read_text(encoding="utf-8"))
         self.assertEqual(data["dataset"], "chain_of_custody_dataset_v1")
+        required_files = set(data["dataset_contract"]["required_files"])
         provenance_paths = {item["path"] for item in data["provenance"]}
-        self.assertTrue(
-            {
-                "demo/chain_of_custody/fixtures/unstructured/chain_of_custody.pdf",
-                "demo/chain_of_custody/fixtures/structured/entities.csv",
-                "demo/chain_of_custody/fixtures/structured/facts.csv",
-                "demo/chain_of_custody/fixtures/structured/relationships.csv",
-            }.issubset(provenance_paths)
-        )
+        self.assertTrue(required_files.issubset(provenance_paths))
 
     def test_fixtures_readme_exists_with_required_sections(self):
         fixtures_readme = DEMO_DIR / "fixtures" / "README.md"
