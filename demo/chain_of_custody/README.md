@@ -34,7 +34,7 @@ Self-contained demo workflow under `demo/chain_of_custody/` for evidence-driven 
 - `fixtures/unstructured/chain_of_custody.pdf`: fixture pointer to canonical source PDF
 - `fixtures/manifest.json`: dataset contract, provenance, and license note
 
-Reset script deletes generic labels and drops the default `chunk_embedding_index`; run it only against a dedicated demo database/graph to avoid wiping non-demo data.
+Reset script deletes generic labels and drops the default `chunk_embedding_index` and `chain_custody_claim_embedding_index`; run it only against a dedicated demo database/graph to avoid wiping non-demo data.
 
 ## Vendor-resources alignment map
 
