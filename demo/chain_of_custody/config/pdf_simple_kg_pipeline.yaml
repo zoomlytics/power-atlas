@@ -17,13 +17,16 @@ llm_config:
     api_key:
       resolver_: ENV
       var_: OPENAI_API_KEY
-    model_name: gpt-4o-mini
+    model_name:
+      resolver_: ENV
+      var_: OPENAI_MODEL
 embedder_config:
   class_: OpenAIEmbeddings
   params_:
     api_key:
       resolver_: ENV
       var_: OPENAI_API_KEY
+    model: text-embedding-3-small
 from_pdf: true
 text_splitter:
   class_: text_splitters.fixed_size_splitter.FixedSizeSplitter
