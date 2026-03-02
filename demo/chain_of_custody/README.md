@@ -6,6 +6,7 @@ Self-contained demo workflow under `demo/chain_of_custody/` for evidence-driven 
 
 1. **Reset graph safely**
    ```bash
+   export NEO4J_PASSWORD='your-neo4j-password'  # or pass --neo4j-password to the script
    python demo/chain_of_custody/reset_demo_db.py --confirm
    ```
 2. **Run orchestrator**
@@ -31,7 +32,7 @@ Self-contained demo workflow under `demo/chain_of_custody/` for evidence-driven 
 ## Fixtures and reproducibility
 
 - `fixtures/structured/*.csv`: claim/evidence graph seed rows
-- `fixtures/unstructured/chain_of_custody.pdf`: fixture pointer to canonical source PDF
+- `fixtures/unstructured/chain_of_custody.pdf`: canonical source PDF fixture used in this demo
 - `fixtures/manifest.json`: dataset contract, provenance, and license note
 
 Reset script deletes generic labels and drops the demo index `chain_custody_claim_embedding_index`; run it only against a dedicated demo database/graph to avoid wiping non-demo data.

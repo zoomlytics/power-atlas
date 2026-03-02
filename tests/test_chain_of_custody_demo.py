@@ -16,8 +16,11 @@ def _load_module(path: Path, module_name: str):
     if spec is None or spec.loader is None:
         raise ImportError(f"Cannot import {path}")
     module = importlib.util.module_from_spec(spec)
-    sys.modules[module_name] = module
-    spec.loader.exec_module(module)
+    try:
+        sys.modules[module_name] = module
+        spec.loader.exec_module(module)
+    finally:
+        sys.modules.pop(module_name, None)
     return module
 
 

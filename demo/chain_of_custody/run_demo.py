@@ -54,6 +54,8 @@ def _run_structured_ingest(config: DemoConfig) -> dict[str, Any]:
 
 def _run_pdf_ingest(config: DemoConfig) -> dict[str, Any]:
     pdf_path = FIXTURES_DIR / "unstructured" / "chain_of_custody.pdf"
+    if not pdf_path.exists():
+        raise FileNotFoundError(f"Required PDF fixture not found: {pdf_path}")
 
     if config.dry_run:
         return {
