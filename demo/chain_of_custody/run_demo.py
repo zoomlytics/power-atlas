@@ -122,8 +122,19 @@ def run_demo(config: DemoConfig) -> Path:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Chain of Custody demo orchestrator")
-    parser.add_argument("--dry-run", action="store_true", dest="dry_run", help="Run without live Neo4j/OpenAI calls")
-    parser.add_argument("--live", action="store_false", dest="dry_run", help="Enable live Neo4j/OpenAI calls")
+    mode_group = parser.add_mutually_exclusive_group()
+    mode_group.add_argument(
+        "--dry-run",
+        action="store_true",
+        dest="dry_run",
+        help="Run without live Neo4j/OpenAI calls",
+    )
+    mode_group.add_argument(
+        "--live",
+        action="store_false",
+        dest="dry_run",
+        help="Enable live Neo4j/OpenAI calls",
+    )
     parser.set_defaults(dry_run=True)
     parser.add_argument("--output-dir", type=Path, default=ARTIFACTS_DIR)
     parser.add_argument("--neo4j-uri", default=os.getenv("NEO4J_URI", "neo4j://localhost:7687"))
