@@ -126,6 +126,10 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
                 manifest["stages"]["structured_ingest"]["claims"],
                 expected_claim_count,
             )
+            self.assertNotEqual(
+                manifest["run_scopes"]["structured_ingest_run_id"],
+                manifest["run_scopes"]["unstructured_ingest_run_id"],
+            )
 
     def test_fixture_manifest_tracks_dataset_and_provenance(self):
         fixture_manifest = DEMO_DIR / "fixtures" / "manifest.json"
@@ -206,6 +210,31 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
         )
         with self.assertRaises(NotImplementedError):
             module._run_pdf_ingest(config)
+
+    def test_independent_ingest_commands_write_stage_manifests(self):
+        module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_independent_test")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = module.DemoConfig(
+                dry_run=True,
+                output_dir=Path(tmpdir),
+                neo4j_uri="neo4j://localhost:7687",
+                neo4j_username="neo4j",
+                neo4j_password="testtesttest",
+                neo4j_database="neo4j",
+                openai_model="gpt-4o-mini",
+            )
+            structured_manifest_path = module.run_independent_demo(config, "ingest-structured")
+            pdf_manifest_path = module.run_independent_demo(config, "ingest-pdf")
+            self.assertTrue(structured_manifest_path.exists())
+            self.assertTrue(pdf_manifest_path.exists())
+
+            structured_manifest = json.loads(structured_manifest_path.read_text(encoding="utf-8"))
+            pdf_manifest = json.loads(pdf_manifest_path.read_text(encoding="utf-8"))
+            self.assertEqual(structured_manifest["run_scopes"]["batch_mode"], "single_independent_run")
+            self.assertEqual(pdf_manifest["run_scopes"]["batch_mode"], "single_independent_run")
+            self.assertEqual(set(structured_manifest["stages"].keys()), {"structured_ingest"})
+            self.assertEqual(set(pdf_manifest["stages"].keys()), {"pdf_ingest"})
+            self.assertNotEqual(structured_manifest["run_id"], pdf_manifest["run_id"])
 
     def test_smoke_test_supports_output_dir_override(self):
         sys.path.insert(0, str(DEMO_DIR))

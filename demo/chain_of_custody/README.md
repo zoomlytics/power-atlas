@@ -42,7 +42,7 @@ Self-contained demo workflow under `demo/chain_of_custody/` for evidence-driven 
 - Run artifacts written to `<output-dir>/manifest.json` with clean run boundaries (for the default orchestrator run this is typically `demo/chain_of_custody/artifacts/manifest.json`; override with `--output-dir`, and note that `smoke_test.py` uses an isolated temporary directory by default)
 
 Manifest run-boundary notes:
-- `run_id`: batch orchestration run (if `ingest` is used)
+- `run_id`: run boundary for the current manifest (`ingest` writes `manifest.json`; independent runs write `structured_ingest_manifest.json` / `pdf_ingest_manifest.json`)
 - `run_scopes.structured_ingest_run_id`: structured producer run boundary
 - `run_scopes.unstructured_ingest_run_id`: unstructured/PDF producer run boundary
 - `run_scopes.resolution_run_id`: optional convergence/resolution scope
@@ -80,7 +80,7 @@ This demo intentionally mirrors upstream patterns in `vendor-resources`; use the
 
 ## CLI scaffold and configuration
 
-The orchestrator CLI exposes the following scaffolded subcommands:
+The orchestrator CLI exposes the following subcommands:
 `lint-structured`, `ingest-structured`, `ingest-pdf`, `extract-claims`,
 `resolve-entities`, `ask`, `reset`, and `ingest`.
 
