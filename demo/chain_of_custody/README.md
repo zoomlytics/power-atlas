@@ -65,6 +65,6 @@ The orchestrator CLI exposes the following scaffolded subcommands:
 Environment/configuration values used by this demo:
 
 - `NEO4J_URI`, `NEO4J_USERNAME`, `NEO4J_PASSWORD`, `NEO4J_DATABASE` (database defaults to `neo4j`)
-- `OPENAI_MODEL` (defaults to `gpt-4o-mini`)
+- `OPENAI_MODEL` (required for config-driven runs; the demo CLI defaults to `gpt-4o-mini` if unset)
 - Demo vector index used by retrieval/reset flow: `chain_custody_chunk_embedding_index` (label: `Chunk`, embedding property: `embedding`, dimensions: `1536`)
 - Deterministic index naming intentionally diverges from earlier claim-oriented naming so `reset_demo_db.py` can safely clean the exact demo-owned citation index.
