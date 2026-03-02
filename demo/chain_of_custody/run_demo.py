@@ -4,6 +4,7 @@ import argparse
 import csv
 import json
 import os
+import sys
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -122,8 +123,7 @@ def run_demo(config: DemoConfig) -> Path:
     return manifest_path
 
 
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Chain of Custody demo orchestrator")
+def _add_common_args(parser: argparse.ArgumentParser) -> None:
     mode_group = parser.add_mutually_exclusive_group()
     mode_group.add_argument(
         "--dry-run",
@@ -144,24 +144,89 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--neo4j-password", default=os.getenv("NEO4J_PASSWORD", "CHANGE_ME_BEFORE_USE"))
     parser.add_argument("--neo4j-database", default=DEFAULT_DB)
     parser.add_argument("--openai-model", default=os.getenv("OPENAI_MODEL", "gpt-4o-mini"))
-    return parser.parse_args()
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    raw_argv = list(argv) if argv is not None else sys.argv[1:]
+    common_parser = argparse.ArgumentParser(add_help=False, allow_abbrev=False)
+    _add_common_args(common_parser)
+    parser = argparse.ArgumentParser(
+        description="Chain of Custody demo orchestrator",
+        parents=[common_parser],
+        allow_abbrev=False,
+    )
+    subparsers = parser.add_subparsers(dest="command")
+    for command in (
+        "lint-structured",
+        "ingest-structured",
+        "ingest-pdf",
+        "extract-claims",
+        "resolve-entities",
+        "ask",
+        "reset",
+        "ingest",
+    ):
+        subparsers.add_parser(command, parents=[common_parser], allow_abbrev=False)
+        if command == "ask":
+            subparsers.choices[command].add_argument("--question", default=None)
+    parser.set_defaults(command="ingest")
+
+    # Enforce mutual exclusivity of --dry-run/--live while ignoring cases where
+    # those strings are used as *values* to other options that take an argument.
+    options_with_values = {
+        "--output-dir",
+        "--neo4j-uri",
+        "--neo4j-username",
+        "--neo4j-password",
+        "--neo4j-database",
+        "--openai-model",
+        "--question",
+    }
+    saw_dry_run_flag = False
+    saw_live_flag = False
+    i = 0
+    while i < len(raw_argv):
+        token = raw_argv[i]
+        if token in options_with_values:
+            # Skip the value associated with this option, even if it looks like a flag.
+            i += 2
+            continue
+        if token == "--dry-run":
+            saw_dry_run_flag = True
+        elif token == "--live":
+            saw_live_flag = True
+        i += 1
+
+    if saw_dry_run_flag and saw_live_flag:
+        parser.error("argument --dry-run: not allowed with argument --live")
+    return parser.parse_args(raw_argv)
 
 
 def main() -> None:
     args = parse_args()
-    if not args.dry_run and args.neo4j_password in ("", "CHANGE_ME_BEFORE_USE"):
-        raise SystemExit("Set NEO4J_PASSWORD or pass --neo4j-password when using --live")
-    config = DemoConfig(
-        dry_run=args.dry_run,
-        output_dir=args.output_dir,
-        neo4j_uri=args.neo4j_uri,
-        neo4j_username=args.neo4j_username,
-        neo4j_password=args.neo4j_password,
-        neo4j_database=args.neo4j_database,
-        openai_model=args.openai_model,
-    )
-    manifest_path = run_demo(config)
-    print(f"Demo manifest written to: {manifest_path}")
+    if args.command == "ingest":
+        if not args.dry_run and args.neo4j_password in ("", "CHANGE_ME_BEFORE_USE"):
+            raise SystemExit("Set NEO4J_PASSWORD or pass --neo4j-password when using --live")
+        config = DemoConfig(
+            dry_run=args.dry_run,
+            output_dir=args.output_dir,
+            neo4j_uri=args.neo4j_uri,
+            neo4j_username=args.neo4j_username,
+            neo4j_password=args.neo4j_password,
+            neo4j_database=args.neo4j_database,
+            openai_model=args.openai_model,
+        )
+        manifest_path = run_demo(config)
+        print(f"Demo manifest written to: {manifest_path}")
+        return
+    if args.command == "reset":
+        print("Stub: use demo/chain_of_custody/reset_demo_db.py --confirm to reset demo data.")
+        return
+    if args.command == "ask":
+        question = args.question or "<question>"
+        print(f"Stub: '{args.command}' planned for question: {question}")
+        return
+    print(f"Stub: '{args.command}' command scaffold is ready.")
 
 
 if __name__ == "__main__":

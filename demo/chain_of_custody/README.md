@@ -11,7 +11,7 @@ Self-contained demo workflow under `demo/chain_of_custody/` for evidence-driven 
    ```
 2. **Run orchestrator**
    ```bash
-   python demo/chain_of_custody/run_demo.py --dry-run
+   python demo/chain_of_custody/run_demo.py --dry-run ingest
    ```
 3. **Run smoke test**
    ```bash
@@ -47,3 +47,15 @@ This demo intentionally mirrors upstream patterns in `vendor-resources`:
 - GraphRAG Q&A and message history patterns: `vendor-resources/examples/question_answering/graphrag.py`, `vendor-resources/examples/question_answering/graphrag_with_message_history.py`
 
 Use these vendor examples as the first source of truth when evolving this demo.
+
+## CLI scaffold and configuration
+
+The orchestrator CLI exposes the following scaffolded subcommands:
+`lint-structured`, `ingest-structured`, `ingest-pdf`, `extract-claims`,
+`resolve-entities`, `ask`, `reset`, and `ingest`.
+
+Environment/configuration values used by this demo:
+
+- `NEO4J_URI`, `NEO4J_USERNAME`, `NEO4J_PASSWORD`, `NEO4J_DATABASE` (database defaults to `neo4j`)
+- `OPENAI_MODEL` (defaults to `gpt-4o-mini`)
+- Demo vector index name used by reset flow: `chain_custody_claim_embedding_index`
