@@ -1,0 +1,17 @@
+{
+  "dataset": "chain_of_custody_dataset_v1",
+  "version": "1.0.0",
+  "license": "Research-only synthetic+curated demo artifacts",
+  "provenance": [
+    {
+      "id": "pdf_chain_of_custody",
+      "kind": "pdf",
+      "path": "demo/data/unstructured/The Chain of Custody_ The _Mafia_ Holding The Elite's Bitcoin.pdf"
+    },
+    {
+      "id": "claims_csv",
+      "kind": "csv",
+      "path": "demo/chain_of_custody/fixtures/structured/claims.csv"
+    }
+  ]
+}

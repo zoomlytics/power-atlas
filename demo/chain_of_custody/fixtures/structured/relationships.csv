@@ -1,0 +1,3 @@
+relationship_id,source_entity_id,target_entity_id,relation_type,evidence_claim_id
+rel_001,ent_001,ent_002,AWARDED_CONTRACT_TO,clm_001
+rel_002,ent_003,ent_001,CHAIRED_HEARING_FOR,clm_002
