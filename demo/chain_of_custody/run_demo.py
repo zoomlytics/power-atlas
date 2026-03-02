@@ -170,7 +170,34 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         if command == "ask":
             subparsers.choices[command].add_argument("--question", default=None)
     parser.set_defaults(command="ingest")
-    if "--dry-run" in raw_argv and "--live" in raw_argv:
+
+    # Enforce mutual exclusivity of --dry-run/--live while ignoring cases where
+    # those strings are used as *values* to other options that take an argument.
+    options_with_values = {
+        "--output-dir",
+        "--neo4j-uri",
+        "--neo4j-username",
+        "--neo4j-password",
+        "--neo4j-database",
+        "--openai-model",
+        "--question",
+    }
+    saw_dry_run_flag = False
+    saw_live_flag = False
+    i = 0
+    while i < len(raw_argv):
+        token = raw_argv[i]
+        if token in options_with_values:
+            # Skip the value associated with this option, even if it looks like a flag.
+            i += 2
+            continue
+        if token == "--dry-run":
+            saw_dry_run_flag = True
+        elif token == "--live":
+            saw_live_flag = True
+        i += 1
+
+    if saw_dry_run_flag and saw_live_flag:
         parser.error("argument --dry-run: not allowed with argument --live")
     return parser.parse_args(raw_argv)
 
