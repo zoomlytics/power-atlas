@@ -46,55 +46,10 @@ def _run_structured_ingest(config: DemoConfig) -> dict[str, Any]:
             "entities": len(_load_csv_rows(entities_path)),
             "relationships": len(_load_csv_rows(relationships_path)),
         }
-
-    claims = _load_csv_rows(claims_path)
-    entities = _load_csv_rows(entities_path)
-    relationships = _load_csv_rows(relationships_path)
-    import neo4j
-
-    driver = neo4j.GraphDatabase.driver(
-        config.neo4j_uri,
-        auth=(config.neo4j_username, config.neo4j_password),
+    raise NotImplementedError(
+        "Non-dry-run structured ingest is not yet implemented for the current "
+        "fixtures/structured CSV schema. Run with --dry-run for now."
     )
-    with driver, driver.session(database=config.neo4j_database) as session:
-        session.run(
-            """
-            UNWIND $entities AS row
-            MERGE (e:CanonicalEntity {entity_id: row.entity_id})
-            SET e.name = row.name, e.entity_type = row.entity_type
-            """,
-            entities=entities,
-        ).consume()
-        session.run(
-            """
-            UNWIND $claims AS row
-            MERGE (c:Claim {claim_id: row.claim_id})
-            SET c.claim_text = row.claim_text,
-                c.confidence = toFloat(row.confidence),
-                c.source_uri = row.source_uri
-            """,
-            claims=claims,
-        ).consume()
-        session.run(
-            """
-            UNWIND $rels AS row
-            MATCH (a:CanonicalEntity {entity_id: row.source_entity_id})
-            MATCH (b:CanonicalEntity {entity_id: row.target_entity_id})
-            MATCH (c:Claim {claim_id: row.evidence_claim_id})
-            MERGE (a)-[r:ASSERTS_RELATIONSHIP {relationship_id: row.relationship_id}]->(b)
-            SET r.relation_type = row.relation_type, r.evidence_claim_id = row.evidence_claim_id
-            MERGE (c)-[:EVIDENCE_FOR]->(a)
-            MERGE (c)-[:EVIDENCE_FOR]->(b)
-            """,
-            rels=relationships,
-        ).consume()
-
-    return {
-        "status": "ingested",
-        "claims": len(claims),
-        "entities": len(entities),
-        "relationships": len(relationships),
-    }
 
 
 def _run_pdf_ingest(config: DemoConfig) -> dict[str, Any]:
@@ -167,11 +122,13 @@ def run_demo(config: DemoConfig) -> Path:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Chain of Custody demo orchestrator")
-    parser.add_argument("--dry-run", action="store_true", help="Run without live Neo4j/OpenAI calls")
+    parser.add_argument("--dry-run", action="store_true", dest="dry_run", help="Run without live Neo4j/OpenAI calls")
+    parser.add_argument("--live", action="store_false", dest="dry_run", help="Enable live Neo4j/OpenAI calls")
+    parser.set_defaults(dry_run=True)
     parser.add_argument("--output-dir", type=Path, default=ARTIFACTS_DIR)
     parser.add_argument("--neo4j-uri", default=os.getenv("NEO4J_URI", "neo4j://localhost:7687"))
     parser.add_argument("--neo4j-username", default=os.getenv("NEO4J_USERNAME", "neo4j"))
-    parser.add_argument("--neo4j-password", default=os.getenv("NEO4J_PASSWORD", "testtesttest"))
+    parser.add_argument("--neo4j-password", default=os.getenv("NEO4J_PASSWORD", "CHANGE_ME_BEFORE_USE"))
     parser.add_argument("--neo4j-database", default=DEFAULT_DB)
     parser.add_argument("--openai-model", default=os.getenv("OPENAI_MODEL", "gpt-4o-mini"))
     return parser.parse_args()
@@ -179,6 +136,8 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    if not args.dry_run and args.neo4j_password in ("", "CHANGE_ME_BEFORE_USE"):
+        raise SystemExit("Set NEO4J_PASSWORD or pass --neo4j-password when using --live")
     config = DemoConfig(
         dry_run=args.dry_run,
         output_dir=args.output_dir,

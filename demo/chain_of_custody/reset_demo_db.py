@@ -11,7 +11,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--confirm", action="store_true", help="required safety flag")
     parser.add_argument("--neo4j-uri", default=os.getenv("NEO4J_URI", "neo4j://localhost:7687"))
     parser.add_argument("--neo4j-username", default=os.getenv("NEO4J_USERNAME", "neo4j"))
-    parser.add_argument("--neo4j-password", default=os.getenv("NEO4J_PASSWORD", "testtesttest"))
+    parser.add_argument("--neo4j-password", default=os.getenv("NEO4J_PASSWORD"))
     parser.add_argument("--neo4j-database", default=os.getenv("NEO4J_DATABASE", "neo4j"))
     return parser.parse_args()
 
@@ -20,6 +20,8 @@ def main() -> None:
     args = parse_args()
     if not args.confirm:
         raise SystemExit("Refusing to run without --confirm")
+    if not args.neo4j_password:
+        raise SystemExit("NEO4J_PASSWORD environment variable or --neo4j-password must be set")
 
     driver = neo4j.GraphDatabase.driver(args.neo4j_uri, auth=(args.neo4j_username, args.neo4j_password))
     with driver, driver.session(database=args.neo4j_database) as session:

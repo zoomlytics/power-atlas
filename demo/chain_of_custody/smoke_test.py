@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import tempfile
 from contextlib import ExitStack
 from pathlib import Path
@@ -37,11 +38,11 @@ def _build_config(output_dir: Path) -> DemoConfig:
     return DemoConfig(
         dry_run=True,
         output_dir=output_dir,
-        neo4j_uri="neo4j://localhost:7687",
-        neo4j_username="neo4j",
-        neo4j_password="testtesttest",
-        neo4j_database="neo4j",
-        openai_model="gpt-4o-mini",
+        neo4j_uri=os.getenv("NEO4J_URI", "neo4j://localhost:7687"),
+        neo4j_username=os.getenv("NEO4J_USERNAME", "neo4j"),
+        neo4j_password=os.getenv("NEO4J_PASSWORD", "CHANGE_ME_BEFORE_USE"),
+        neo4j_database=os.getenv("NEO4J_DATABASE", "neo4j"),
+        openai_model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
     )
 
 
