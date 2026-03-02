@@ -25,6 +25,23 @@ def _load_module(path: Path, module_name: str):
 
 
 class ChainOfCustodyDemoTests(unittest.TestCase):
+    def test_parse_args_supports_expected_subcommands(self):
+        module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_parse_args_test")
+        expected = {
+            "lint-structured",
+            "ingest-structured",
+            "ingest-pdf",
+            "extract-claims",
+            "resolve-entities",
+            "ask",
+            "reset",
+            "ingest",
+        }
+        for command in expected:
+            args = module.parse_args([command])
+            self.assertEqual(args.command, command)
+        self.assertEqual(module.parse_args([]).command, "ingest")
+
     def test_run_demo_dry_run_writes_manifest_with_expected_stages(self):
         module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_test")
         with tempfile.TemporaryDirectory() as tmpdir:

@@ -122,7 +122,7 @@ def run_demo(config: DemoConfig) -> Path:
     return manifest_path
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Chain of Custody demo orchestrator")
     mode_group = parser.add_mutually_exclusive_group()
     mode_group.add_argument(
@@ -144,7 +144,22 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--neo4j-password", default=os.getenv("NEO4J_PASSWORD", "CHANGE_ME_BEFORE_USE"))
     parser.add_argument("--neo4j-database", default=DEFAULT_DB)
     parser.add_argument("--openai-model", default=os.getenv("OPENAI_MODEL", "gpt-4o-mini"))
-    return parser.parse_args()
+    subparsers = parser.add_subparsers(dest="command")
+    for command in (
+        "lint-structured",
+        "ingest-structured",
+        "ingest-pdf",
+        "extract-claims",
+        "resolve-entities",
+        "ask",
+        "reset",
+        "ingest",
+    ):
+        subparser = subparsers.add_parser(command)
+        if command == "ask":
+            subparser.add_argument("--question", default=None)
+    parser.set_defaults(command="ingest")
+    return parser.parse_args(argv)
 
 
 def main() -> None:
@@ -160,8 +175,18 @@ def main() -> None:
         neo4j_database=args.neo4j_database,
         openai_model=args.openai_model,
     )
-    manifest_path = run_demo(config)
-    print(f"Demo manifest written to: {manifest_path}")
+    if args.command == "ingest":
+        manifest_path = run_demo(config)
+        print(f"Demo manifest written to: {manifest_path}")
+        return
+    if args.command == "reset":
+        print("Stub: use demo/chain_of_custody/reset_demo_db.py --confirm to reset demo data.")
+        return
+    if args.command == "ask":
+        question = args.question or "<question>"
+        print(f"Stub: '{args.command}' planned for question: {question}")
+        return
+    print(f"Stub: '{args.command}' command scaffold is ready.")
 
 
 if __name__ == "__main__":
