@@ -108,27 +108,10 @@ def _run_pdf_ingest(config: DemoConfig) -> dict[str, Any]:
             "vendor_pattern": "SimpleKGPipeline + OpenAIEmbeddings + FixedSizeSplitter",
         }
 
-    from neo4j_graphrag.embeddings import OpenAIEmbeddings
-    from neo4j_graphrag.experimental.components.text_splitters.fixed_size_splitter import (
-        FixedSizeSplitter,
+    raise NotImplementedError(
+        "Non-dry-run PDF ingest is not implemented. "
+        "Run this demo with --dry-run until the vendor SimpleKGPipeline wiring is added."
     )
-    from neo4j_graphrag.llm import OpenAILLM
-
-    # Keep run-time configuration explicit and aligned with vendor-resources/examples.
-    splitter = FixedSizeSplitter(chunk_size=1000, chunk_overlap=100, approximate=True)
-    embedder = OpenAIEmbeddings(model="text-embedding-3-small")
-    llm = OpenAILLM(model_name=config.openai_model)
-
-    return {
-        "status": "configured",
-        "documents": [str(pdf_path)],
-        "pipeline_components": [
-            splitter.__class__.__name__,
-            embedder.__class__.__name__,
-            llm.__class__.__name__,
-        ],
-        "note": "Runtime ingest uses vendor pipeline components; keep in dry-run for local smoke tests.",
-    }
 
 
 def _run_claim_and_mention_extraction(config: DemoConfig) -> dict[str, Any]:

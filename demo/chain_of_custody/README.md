@@ -16,6 +16,7 @@ Self-contained demo workflow under `demo/chain_of_custody/` for evidence-driven 
    ```bash
    python demo/chain_of_custody/smoke_test.py
    ```
+   By default this writes artifacts to an isolated temporary directory (pass `--output-dir` to override).
 
 `--dry-run` keeps the workflow reproducible without requiring live OpenAI/Neo4j calls.
 

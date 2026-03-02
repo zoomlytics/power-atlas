@@ -1,16 +1,32 @@
 from __future__ import annotations
 
+import argparse
 import json
+import tempfile
 from pathlib import Path
 
-from run_demo import ARTIFACTS_DIR, DemoConfig, run_demo
+from run_demo import DemoConfig, run_demo
+
+
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Run chain_of_custody smoke test")
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=None,
+        help="Optional manifest output directory; defaults to an isolated temporary directory.",
+    )
+    return parser.parse_args()
 
 
 def main() -> None:
+    args = _parse_args()
+    output_dir = args.output_dir or Path(tempfile.mkdtemp(prefix="chain_of_custody_smoke_"))
+
     manifest_path = run_demo(
         DemoConfig(
             dry_run=True,
-            output_dir=ARTIFACTS_DIR,
+            output_dir=output_dir,
             neo4j_uri="neo4j://localhost:7687",
             neo4j_username="neo4j",
             neo4j_password="testtesttest",
