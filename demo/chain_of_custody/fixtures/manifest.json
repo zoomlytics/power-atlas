@@ -7,6 +7,11 @@
       "id": "pdf_chain_of_custody",
       "kind": "pdf",
       "path": "demo/chain_of_custody/fixtures/unstructured/chain_of_custody.pdf"
+    },
+    {
+      "id": "csv_chain_of_custody_claims",
+      "kind": "csv",
+      "path": "demo/chain_of_custody/fixtures/structured/claims.csv"
     }
   ]
 }
