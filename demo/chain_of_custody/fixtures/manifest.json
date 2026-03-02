@@ -1,7 +1,23 @@
 {
   "dataset": "chain_of_custody_dataset_v1",
   "version": "1.0.0",
-  "license": "Research-only synthetic+curated demo artifacts",
+  "license": "Research-only synthetic+curated demo artifacts (see fixtures/README.md)",
+  "attribution": [
+    {
+      "source": "Wikidata",
+      "url": "https://www.wikidata.org/",
+      "license": "CC0 1.0"
+    }
+  ],
+  "dataset_contract": {
+    "required_files": [
+      "demo/chain_of_custody/fixtures/unstructured/chain_of_custody.pdf",
+      "demo/chain_of_custody/fixtures/structured/claims.csv",
+      "demo/chain_of_custody/fixtures/structured/entities.csv",
+      "demo/chain_of_custody/fixtures/structured/facts.csv",
+      "demo/chain_of_custody/fixtures/structured/relationships.csv"
+    ]
+  },
   "provenance": [
     {
       "id": "pdf_chain_of_custody",
@@ -12,6 +28,21 @@
       "id": "csv_chain_of_custody_claims",
       "kind": "csv",
       "path": "demo/chain_of_custody/fixtures/structured/claims.csv"
+    },
+    {
+      "id": "csv_chain_of_custody_entities",
+      "kind": "csv",
+      "path": "demo/chain_of_custody/fixtures/structured/entities.csv"
+    },
+    {
+      "id": "csv_chain_of_custody_facts",
+      "kind": "csv",
+      "path": "demo/chain_of_custody/fixtures/structured/facts.csv"
+    },
+    {
+      "id": "csv_chain_of_custody_relationships",
+      "kind": "csv",
+      "path": "demo/chain_of_custody/fixtures/structured/relationships.csv"
     }
   ]
 }
