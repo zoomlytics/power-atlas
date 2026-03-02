@@ -37,7 +37,7 @@ def main() -> None:
             """
         ).consume()
 
-        for index_name in ["chain_custody_claim_embedding_index"]:
+        for index_name in ["chain_custody_chunk_embedding_index"]:
             if not index_name.replace("_", "").isalnum():
                 raise ValueError(f"Unsafe index name: {index_name}")
             session.run(f"DROP INDEX `{index_name}` IF EXISTS").consume()
