@@ -39,18 +39,23 @@ def _run_structured_ingest(config: DemoConfig) -> dict[str, Any]:
     entities_path = FIXTURES_DIR / "structured" / "entities.csv"
     relationships_path = FIXTURES_DIR / "structured" / "relationships.csv"
 
+    if config.dry_run:
+        def _safe_count(path: Path) -> int:
+            try:
+                return len(_load_csv_rows(path))
+            except FileNotFoundError:
+                return 0
+
+        return {
+            "status": "dry_run",
+            "claims": _safe_count(claims_path),
+            "entities": _safe_count(entities_path),
+            "relationships": _safe_count(relationships_path),
+        }
+
     claims = _load_csv_rows(claims_path)
     entities = _load_csv_rows(entities_path)
     relationships = _load_csv_rows(relationships_path)
-
-    if config.dry_run:
-        return {
-            "status": "dry_run",
-            "claims": len(claims),
-            "entities": len(entities),
-            "relationships": len(relationships),
-        }
-
     import neo4j
 
     driver = neo4j.GraphDatabase.driver(
