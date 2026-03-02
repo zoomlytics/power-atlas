@@ -8,6 +8,8 @@ import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
 
+import yaml
+
 
 DEMO_DIR = Path(__file__).resolve().parents[1] / "demo" / "chain_of_custody"
 RUN_DEMO_PATH = DEMO_DIR / "run_demo.py"
@@ -213,6 +215,7 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
     def test_readme_documents_config_driven_pdf_ingest_and_chunk_index(self):
         readme_text = (DEMO_DIR / "README.md").read_text(encoding="utf-8")
         config_text = (DEMO_DIR / "config" / "pdf_simple_kg_pipeline.yaml").read_text(encoding="utf-8")
+        config = yaml.safe_load(config_text)
         self.assertIn(
             "demo/chain_of_custody/config/pdf_simple_kg_pipeline.yaml",
             readme_text,
@@ -224,8 +227,12 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
         self.assertIn("chain_custody_chunk_embedding_index", readme_text)
         self.assertIn("vendor examples use `NEO4J_USER`", readme_text)
         self.assertIn("blocked by [#150]", readme_text)
-        self.assertIn("var_: OPENAI_MODEL", config_text)
-        self.assertIn("model: text-embedding-3-small", config_text)
+        self.assertIsInstance(config, dict)
+        self.assertIn("llm_config", config)
+        self.assertIn("embedder_config", config)
+        self.assertIn("from_pdf", config)
+        self.assertEqual(config["llm_config"]["params_"]["model_name"]["var_"], "OPENAI_MODEL")
+        self.assertEqual(config["embedder_config"]["params_"]["model"], "text-embedding-3-small")
 
 
 if __name__ == "__main__":
