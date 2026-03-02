@@ -105,12 +105,12 @@ def _run_retrieval_and_qa(config: DemoConfig) -> dict[str, Any]:
 
 def run_demo(config: DemoConfig) -> Path:
     config.output_dir.mkdir(parents=True, exist_ok=True)
-    structured_run_id = _make_run_id("structured-ingest")
-    unstructured_run_id = _make_run_id("unstructured-ingest")
+    structured_run_id = _make_run_id("structured_ingest")
+    unstructured_run_id = _make_run_id("unstructured_ingest")
     resolution_run_id = _make_run_id("resolution")
 
     manifest = {
-        "run_id": _make_run_id("chain-of-custody-batch"),
+        "run_id": _make_run_id("chain_of_custody_batch"),
         "created_at": datetime.now(UTC).isoformat(),
         "run_scopes": {
             "batch_mode": "sequential_independent_runs",
