@@ -1,3 +1,4 @@
+import csv
 import importlib.util
 import io
 import json
@@ -103,7 +104,7 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
                     "retrieval_and_qa",
                 },
             )
-            self.assertEqual(manifest["stages"]["structured_ingest"]["claims"], 2)
+            self.assertEqual(manifest["stages"]["structured_ingest"]["claims"], 37)
 
     def test_fixture_manifest_tracks_dataset_and_provenance(self):
         fixture_manifest = DEMO_DIR / "fixtures" / "manifest.json"
@@ -119,8 +120,57 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
         self.assertIn("## Data provenance", text)
         self.assertIn("## License and attribution", text)
         self.assertIn("## CSV schemas", text)
+        self.assertIn("## Claims curation contract", text)
         self.assertIn("## Canonical entity notes", text)
         self.assertIn("## Golden questions for the demo", text)
+
+    def test_claims_fixture_schema_and_source_linkage(self):
+        fixtures_dir = DEMO_DIR / "fixtures" / "structured"
+        claims_path = fixtures_dir / "claims.csv"
+        facts_path = fixtures_dir / "facts.csv"
+        relationships_path = fixtures_dir / "relationships.csv"
+
+        with claims_path.open(encoding="utf-8", newline="") as claims_file:
+            claims_reader = csv.DictReader(claims_file)
+            self.assertEqual(
+                claims_reader.fieldnames,
+                [
+                    "claim_id",
+                    "claim_type",
+                    "subject_id",
+                    "subject_label",
+                    "predicate_pid",
+                    "predicate_label",
+                    "object_id",
+                    "object_label",
+                    "value",
+                    "value_type",
+                    "claim_text",
+                    "confidence",
+                    "source",
+                    "source_url",
+                    "retrieved_at",
+                    "source_row_id",
+                ],
+            )
+            claims_rows = list(claims_reader)
+
+        self.assertGreaterEqual(len(claims_rows), 20)
+        self.assertLessEqual(len(claims_rows), 60)
+
+        with facts_path.open(encoding="utf-8", newline="") as facts_file:
+            fact_ids = {row["fact_id"] for row in csv.DictReader(facts_file)}
+        with relationships_path.open(encoding="utf-8", newline="") as relationships_file:
+            relationship_ids = {row["rel_id"] for row in csv.DictReader(relationships_file)}
+
+        for claim in claims_rows:
+            source_row_id = claim["source_row_id"]
+            if claim["claim_type"] == "fact":
+                self.assertIn(source_row_id, fact_ids)
+            elif claim["claim_type"] == "relationship":
+                self.assertIn(source_row_id, relationship_ids)
+            else:
+                self.fail(f"Unexpected claim_type: {claim['claim_type']}")
 
     def test_run_pdf_ingest_non_dry_run_raises_not_implemented(self):
         module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_non_dry_test")
