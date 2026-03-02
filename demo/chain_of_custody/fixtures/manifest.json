@@ -6,12 +6,7 @@
     {
       "id": "pdf_chain_of_custody",
       "kind": "pdf",
-      "path": "demo/data/unstructured/The Chain of Custody_ The _Mafia_ Holding The Elite's Bitcoin.pdf"
-    },
-    {
-      "id": "claims_csv",
-      "kind": "csv",
-      "path": "demo/chain_of_custody/fixtures/structured/claims.csv"
+      "path": "demo/chain_of_custody/fixtures/unstructured/chain_of_custody.pdf"
     }
   ]
 }
