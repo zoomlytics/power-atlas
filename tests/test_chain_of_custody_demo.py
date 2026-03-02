@@ -210,6 +210,20 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
         finally:
             sys.path.pop(0)
 
+    def test_readme_documents_config_driven_pdf_ingest_and_chunk_index(self):
+        readme_text = (DEMO_DIR / "README.md").read_text(encoding="utf-8")
+        self.assertIn(
+            "demo/chain_of_custody/config/pdf_simple_kg_pipeline.yaml",
+            readme_text,
+        )
+        self.assertIn(
+            "vendor-resources/examples/build_graph/from_config_files/simple_kg_pipeline_from_config_file.py",
+            readme_text,
+        )
+        self.assertIn("chain_custody_chunk_embedding_index", readme_text)
+        self.assertIn("blocked by [#150]", readme_text)
+        self.assertTrue((DEMO_DIR / "config" / "pdf_simple_kg_pipeline.yaml").exists())
+
 
 if __name__ == "__main__":
     unittest.main()

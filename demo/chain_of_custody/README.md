@@ -35,7 +35,7 @@ Self-contained demo workflow under `demo/chain_of_custody/` for evidence-driven 
 - `fixtures/unstructured/chain_of_custody.pdf`: canonical source PDF fixture used in this demo
 - `fixtures/manifest.json`: dataset contract, provenance, and license note
 
-Reset script deletes generic labels and drops the demo index `chain_custody_claim_embedding_index`; run it only against a dedicated demo database/graph to avoid wiping non-demo data.
+Reset script deletes generic labels and drops the demo index `chain_custody_chunk_embedding_index`; run it only against a dedicated demo database/graph to avoid wiping non-demo data.
 
 ## Vendor-resources alignment map
 
@@ -43,11 +43,18 @@ This demo intentionally mirrors upstream patterns in `vendor-resources`; use the
 
 | Demo workflow part | Vendor-resources implementation(s) | Alignment + rationale for divergence |
 | --- | --- | --- |
-| PDF loader/split/embed/write (`ingest-pdf`) | `vendor-resources/examples/build_graph/simple_kg_builder_from_pdf.py`<br>`vendor-resources/examples/customize/build_graph/components/loaders/pdf_loader.py`<br>`vendor-resources/examples/customize/build_graph/components/writers/neo4j_writer.py` | We keep the same `SimpleKGPipeline` component family (`PdfLoader`, `FixedSizeSplitter`, `OpenAIEmbeddings`, Neo4j writer). Current demo defaults to `--dry-run` so fixture-driven runs stay reproducible without live OpenAI/Neo4j dependencies. |
+| PDF loader/split/embed/write (`ingest-pdf`) | `vendor-resources/examples/build_graph/from_config_files/simple_kg_pipeline_from_config_file.py`<br>`vendor-resources/examples/build_graph/from_config_files/simple_kg_pipeline_config.yaml`<br>`vendor-resources/examples/build_graph/from_config_files/simple_kg_pipeline_config_url.json`<br>`vendor-resources/examples/build_graph/from_config_files/simple_kg_pipeline_from_config_file_with_url.py` | **Now config-driven.** We align on `PipelineRunner.from_config_file(...)` + `SimpleKGPipeline` and keep demo defaults in `demo/chain_of_custody/config/pdf_simple_kg_pipeline.yaml`. This gives task agents one deterministic config entrypoint for local fixture ingest and URL/file-path ingest variants while preserving `--dry-run` reproducibility. |
 | Structured ingest (`ingest-structured`) | `vendor-resources/examples/customize/build_graph/pipeline/text_to_lexical_graph_to_entity_graph_two_pipelines.py` | We follow the two-stage lexical/entity modeling idea, but diverge by loading curated CSV fixtures first to enforce a deterministic `Claim`/`CanonicalEntity` schema for chain-of-custody provenance assertions. |
 | Claim extraction + resolver (`extract-claims`, `resolve-entities`) | `vendor-resources/examples/customize/build_graph/components/extractors/llm_entity_relation_extractor.py`<br>`vendor-resources/examples/customize/build_graph/components/resolvers/simple_entity_resolver_pre_filter.py` | Vendor examples are LLM-first; this demo keeps deterministic canonical key resolution in dry-run mode to make smoke tests stable while still documenting the planned `LLMEntityRelationExtractor` + resolver path for live runs. |
 | Retrieval (`ask`) | `vendor-resources/examples/retrieve/vector_cypher_retriever.py`<br>`vendor-resources/examples/customize/retrievers/result_formatter_vector_cypher_retriever.py`<br>`vendor-resources/examples/customize/retrievers/use_pre_filters.py` | We align on `VectorCypherRetriever` (+ optional `Text2CypherRetriever`) and result formatting/pre-filter patterns, then add graph expansion and evidence-link traversal so answers stay tied to explicit claim/evidence nodes. |
 | GraphRAG pipeline and prompting (`ask`) | `vendor-resources/examples/question_answering/graphrag.py`<br>`vendor-resources/examples/question_answering/graphrag_with_message_history.py`<br>`vendor-resources/examples/customize/answer/custom_prompt.py`<br>`vendor-resources/docs/source/user_guide_rag.rst` (see "GraphRAG Configuration", "Configuring the Prompt", and "Retriever Configuration") | We keep the standard `GraphRAG(retriever, llm, prompt_template=...)` contract from the user guide, but use a stricter citation-oriented prompt suffix so demo outputs cite provenance artifacts instead of producing uncited narrative text. |
+
+## Config-driven vs custom workflow checklist
+
+- [x] **Config-driven**: PDF ingest pipeline shape (`SimpleKGPipeline` via `PipelineRunner`) is declared in `demo/chain_of_custody/config/pdf_simple_kg_pipeline.yaml`, aligned to vendor `from_config_files` examples.
+- [x] **Config-driven**: Demo retrieval/citation index contract uses `chain_custody_chunk_embedding_index` on label `Chunk` property `embedding` with dimensions `1536` (deterministic naming keeps reset + retrieval scripts aligned).
+- [ ] **Custom (planned follow-up, blocked by [#150](https://github.com/zoomlytics/power-atlas/issues/150))**: Wire `run_demo.py ingest-pdf` live path to execute the config file through `PipelineRunner` instead of the current `NotImplementedError`.
+- [x] **Custom by design**: Structured CSV ingest, deterministic canonical key resolution, and provenance-specific graph expansion remain demo-owned logic.
 
 ## CLI scaffold and configuration
 
@@ -59,4 +66,5 @@ Environment/configuration values used by this demo:
 
 - `NEO4J_URI`, `NEO4J_USERNAME`, `NEO4J_PASSWORD`, `NEO4J_DATABASE` (database defaults to `neo4j`)
 - `OPENAI_MODEL` (defaults to `gpt-4o-mini`)
-- Demo vector index name used by reset flow: `chain_custody_claim_embedding_index`
+- Demo vector index used by retrieval/reset flow: `chain_custody_chunk_embedding_index` (label: `Chunk`, embedding property: `embedding`, dimensions: `1536`)
+- Deterministic index naming intentionally diverges from earlier claim-oriented naming so `reset_demo_db.py` can safely clean the exact demo-owned citation index.
