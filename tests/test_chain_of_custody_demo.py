@@ -45,6 +45,8 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
         self.assertEqual(module.parse_args([]).command, "ingest")
         self.assertTrue(module.parse_args(["ingest", "--dry-run"]).dry_run)
         self.assertTrue(module.parse_args(["--dry-run", "ingest"]).dry_run)
+        with self.assertRaises(SystemExit):
+            module.parse_args(["--dry-run", "ingest", "--live"])
 
     def test_reset_command_skips_password_validation(self):
         module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_main_reset_test")

@@ -4,6 +4,7 @@ import argparse
 import csv
 import json
 import os
+import sys
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -146,6 +147,7 @@ def _add_common_args(parser: argparse.ArgumentParser) -> None:
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    raw_argv = list(argv) if argv is not None else sys.argv[1:]
     common_parser = argparse.ArgumentParser(add_help=False)
     _add_common_args(common_parser)
     parser = argparse.ArgumentParser(description="Chain of Custody demo orchestrator", parents=[common_parser])
@@ -164,7 +166,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         if command == "ask":
             subparsers.choices[command].add_argument("--question", default=None)
     parser.set_defaults(command="ingest")
-    return parser.parse_args(argv)
+    if "--dry-run" in raw_argv and "--live" in raw_argv:
+        parser.error("argument --dry-run: not allowed with argument --live")
+    return parser.parse_args(raw_argv)
 
 
 def main() -> None:
