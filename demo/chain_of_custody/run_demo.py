@@ -134,9 +134,19 @@ def _normalize_pipeline_result(value: Any) -> Any:
         json.dumps(value)
         return value
     except (TypeError, ValueError):
+        # Fall back to a compact, textual representation for non-JSON-serializable values.
+        try:
+            summary = repr(value)
+        except Exception:
+            summary = f"<unrepresentable {type(value).__name__} object>"
+
+        max_len = 200
+        if len(summary) > max_len:
+            summary = summary[: max_len - 3] + "..."
+
         return {
             "type": type(value).__name__,
-            "summary": "Non-JSON-serializable value; see 'type' field for details.",
+            "summary": summary,
         }
 
 
