@@ -301,8 +301,12 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
             calls["config_path"],
             str(DEMO_DIR / "config" / "pdf_simple_kg_pipeline.yaml"),
         )
-        self.assertEqual(calls["run_params"]["document_metadata"]["run_id"], "unstructured_ingest-test")
-        self.assertIn("source_uri", calls["run_params"]["document_metadata"])
+        self.assertEqual(
+            calls["run_params"]["pdf_loader"]["filepath"],
+            str(DEMO_DIR / "fixtures" / "unstructured" / "chain_of_custody.pdf"),
+        )
+        self.assertEqual(calls["run_params"]["pdf_loader"]["metadata"]["run_id"], "unstructured_ingest-test")
+        self.assertIn("source_uri", calls["run_params"]["pdf_loader"]["metadata"])
         self.assertTrue(
             any("SET d.run_id" in query for query, _ in calls.get("queries", [])),
             "Expected post-ingest provenance query to run",
@@ -562,7 +566,7 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
         self.assertIn("## Conceptual model", readme_text)
         self.assertIn("sequential independent runs", readme_text)
         self.assertIn("zoomlytics/power-atlas#151", readme_text)
-        self.assertIn("document_metadata.run_id/source_uri", readme_text)
+        self.assertIn("pdf_loader.metadata.run_id/source_uri", readme_text)
         self.assertIn("non-destructive", readme_text)
         self.assertIsInstance(config, dict)
         self.assertIn("llm_config", config)

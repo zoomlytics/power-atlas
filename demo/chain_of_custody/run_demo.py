@@ -135,9 +135,12 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                 pipeline.run(
                     {
                         "file_path": pdf_source_uri,
-                        "document_metadata": {
-                            "run_id": stage_run_id,
-                            "source_uri": pdf_source_uri,
+                        "pdf_loader": {
+                            "filepath": pdf_source_uri,
+                            "metadata": {
+                                "run_id": stage_run_id,
+                                "source_uri": pdf_source_uri,
+                            },
                         },
                     }
                 )
