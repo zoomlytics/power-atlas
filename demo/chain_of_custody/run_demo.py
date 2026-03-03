@@ -98,6 +98,8 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
 
     driver = neo4j.GraphDatabase.driver(config.neo4j_uri, auth=(config.neo4j_username, config.neo4j_password))
     with driver:
+        index_creation_strategy = "neo4j_graphrag.indexes.create_vector_index"
+        index_fallback_reason: str | None = None
         try:
             create_vector_index(
                 driver,
@@ -106,7 +108,9 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                 embedding_property=CHUNK_EMBEDDING_PROPERTY,
                 dimensions=CHUNK_EMBEDDING_DIMENSIONS,
             )
-        except Exception:
+        except Exception as exc:
+            index_creation_strategy = "cypher_fallback"
+            index_fallback_reason = str(exc)
             with driver.session(database=config.neo4j_database) as session:
                 session.run(
                     f"""
@@ -134,6 +138,10 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
         )
 
         with driver.session(database=config.neo4j_database) as session:
+            # Vendor versions can emit Chunk ordering/embedding fields as
+            # index/chunk_index and embedding/embedding_vector/vector/embeddings.
+            # Normalize them into the demo retrieval contract:
+            # Chunk.chunk_order + Chunk.embedding on every ingested Chunk.
             session.run(
                 """
                 MATCH (d:Document)
@@ -156,6 +164,20 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                 run_id=stage_run_id,
                 source_uri=pdf_source_uri,
             ).consume()
+            missing_embedding_count = session.run(
+                """
+                MATCH (d:Document)
+                WHERE d.path = $source_uri OR d.source_uri = $source_uri
+                MATCH (d)<-[:FROM_DOCUMENT]-(c:Chunk)
+                WHERE c.embedding IS NULL
+                RETURN count(c) AS missing_embedding_count
+                """,
+                source_uri=pdf_source_uri,
+            ).single()["missing_embedding_count"]
+            if missing_embedding_count:
+                raise ValueError(
+                    "Chunk embedding contract violation: expected :Chunk.embedding for all ingested chunks"
+                )
 
     return {
         "status": "live",
@@ -166,6 +188,7 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
             "label": CHUNK_EMBEDDING_LABEL,
             "embedding_property": CHUNK_EMBEDDING_PROPERTY,
             "dimensions": CHUNK_EMBEDDING_DIMENSIONS,
+            "creation_strategy": index_creation_strategy,
         },
         "pipeline_result": str(pipeline_result),
         "provenance": {
@@ -175,6 +198,7 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
             "chunk_id_property": "chunk_id",
             "page_property": "page_number",
         },
+        **({"vector_index_fallback_reason": index_fallback_reason} if index_fallback_reason else {}),
     }
 
 

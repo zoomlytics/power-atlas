@@ -215,6 +215,9 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
             def consume(self):
                 return None
 
+            def single(self):
+                return {"missing_embedding_count": 0}
+
         class _FakeSession:
             def __enter__(self):
                 return self
@@ -274,6 +277,7 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
                     sys.modules[name] = original
 
         self.assertEqual(result["status"], "live")
+        self.assertEqual(result["vector_index"]["creation_strategy"], "neo4j_graphrag.indexes.create_vector_index")
         self.assertEqual(calls["index_name"], "chain_custody_chunk_embedding_index")
         self.assertEqual(calls["index_kwargs"]["label"], "Chunk")
         self.assertEqual(calls["index_kwargs"]["embedding_property"], "embedding")
@@ -287,6 +291,92 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
         self.assertTrue(
             any("SET d.run_id" in query for query, _ in calls.get("queries", [])),
             "Expected post-ingest provenance query to run",
+        )
+
+    def test_run_pdf_ingest_non_dry_run_falls_back_to_cypher_index_creation(self):
+        module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_non_dry_fallback_test")
+        config = module.DemoConfig(
+            dry_run=False,
+            output_dir=DEMO_DIR / "artifacts",
+            neo4j_uri="neo4j://localhost:7687",
+            neo4j_username="neo4j",
+            neo4j_password="testtesttest",
+            neo4j_database="neo4j",
+            openai_model="gpt-4o-mini",
+        )
+        calls: dict[str, object] = {}
+
+        class _FakeResult:
+            def consume(self):
+                return None
+
+            def single(self):
+                return {"missing_embedding_count": 0}
+
+        class _FakeSession:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def run(self, query, **kwargs):
+                calls.setdefault("queries", []).append((query, kwargs))
+                return _FakeResult()
+
+        class _FakeDriver:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def session(self, **kwargs):
+                calls.setdefault("sessions", []).append(kwargs)
+                return _FakeSession()
+
+        class _FakePipeline:
+            async def run(self, params):
+                calls["run_params"] = params
+                return {"ok": True}
+
+        class _FakePipelineRunner:
+            @staticmethod
+            def from_config_file(path):
+                calls["config_path"] = str(path)
+                return _FakePipeline()
+
+        fake_neo4j = types.ModuleType("neo4j")
+        fake_neo4j.GraphDatabase = types.SimpleNamespace(driver=lambda *_args, **_kwargs: _FakeDriver())
+        fake_runner = types.ModuleType("neo4j_graphrag.experimental.pipeline.config.runner")
+        fake_runner.PipelineRunner = _FakePipelineRunner
+        fake_indexes = types.ModuleType("neo4j_graphrag.indexes")
+
+        def _raise_index_error(*_args, **_kwargs):
+            raise RuntimeError("index helper unavailable")
+
+        fake_indexes.create_vector_index = _raise_index_error
+
+        injected_modules = {
+            "neo4j": fake_neo4j,
+            "neo4j_graphrag.indexes": fake_indexes,
+            "neo4j_graphrag.experimental.pipeline.config.runner": fake_runner,
+        }
+        originals = {name: sys.modules.get(name) for name in injected_modules}
+        try:
+            sys.modules.update(injected_modules)
+            result = module._run_pdf_ingest(config, run_id="unstructured_ingest-test")
+        finally:
+            for name, original in originals.items():
+                if original is None:
+                    sys.modules.pop(name, None)
+                else:
+                    sys.modules[name] = original
+
+        self.assertEqual(result["vector_index"]["creation_strategy"], "cypher_fallback")
+        self.assertEqual(result["vector_index_fallback_reason"], "index helper unavailable")
+        self.assertTrue(
+            any("CREATE VECTOR INDEX `chain_custody_chunk_embedding_index` IF NOT EXISTS" in query for query, _ in calls["queries"])
         )
 
     def test_independent_ingest_commands_write_stage_manifests(self):
