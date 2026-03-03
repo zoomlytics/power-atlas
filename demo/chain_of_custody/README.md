@@ -2,6 +2,13 @@
 
 Self-contained demo workflow under `demo/chain_of_custody/` for evidence-driven influence research with structured and unstructured artifacts.
 
+## Conceptual model
+
+- **Independent ingestion runs**: structured ingest and unstructured/PDF ingest are separate producer runs with separate `run_id` boundaries; neither implies the other must also run.
+- **Layered graph model**: source assertions are preserved as written (with provenance), while canonical/resolved views are derived in a separate layer and may be revised over time.
+- **Explicit convergence**: cross-source links are an optional resolution step; they must be explainable and non-destructive (do not overwrite source assertions).
+- **Batch mode is convenience only**: `ingest` is documented as sequential independent runs in one command, each retaining its own `run_id`.
+
 ## Workflow (golden path)
 
 1. **Reset graph safely**
@@ -9,11 +16,16 @@ Self-contained demo workflow under `demo/chain_of_custody/` for evidence-driven 
    export NEO4J_PASSWORD='your-neo4j-password'  # or pass --neo4j-password to the script
    python demo/chain_of_custody/reset_demo_db.py --confirm
    ```
-2. **Run orchestrator**
+2. **Run independent ingestion runs (recommended)**
+   ```bash
+   python demo/chain_of_custody/run_demo.py --dry-run ingest-structured
+   python demo/chain_of_custody/run_demo.py --dry-run ingest-pdf
+   ```
+3. **Optional: run convenience batch orchestrator**
    ```bash
    python demo/chain_of_custody/run_demo.py --dry-run ingest
    ```
-3. **Run smoke test**
+4. **Run smoke test**
    ```bash
    python demo/chain_of_custody/smoke_test.py
    ```
@@ -27,7 +39,19 @@ Self-contained demo workflow under `demo/chain_of_custody/` for evidence-driven 
 - Structured CSV ingest with claims-first modeling (`Claim`, `CanonicalEntity`, evidence-linked relationships)
 - Narrative claim extraction + mention resolution stages (deterministic canonical key resolution)
 - Retrieval and GraphRAG Q&A stage with strict citation expectations
-- Run artifacts written to `<output-dir>/manifest.json` (for the default orchestrator run this is typically `demo/chain_of_custody/artifacts/manifest.json`; override with `--output-dir`, and note that `smoke_test.py` uses an isolated temporary directory by default)
+- Run artifacts written to `<output-dir>/manifest.json` with clean run boundaries (for the default orchestrator run this is typically `demo/chain_of_custody/artifacts/manifest.json`; override with `--output-dir`, and note that `smoke_test.py` uses an isolated temporary directory by default)
+
+Manifest run-boundary notes:
+- **Batch orchestrator manifest** (`manifest.json`, produced by `ingest`):
+  - `run_id`: run boundary for the overall batch orchestrator run
+  - `run_scopes.structured_ingest_run_id`: structured producer run boundary
+  - `run_scopes.unstructured_ingest_run_id`: unstructured/PDF producer run boundary
+  - `run_scopes.resolution_run_id`: optional convergence/resolution scope
+- **Independent stage manifests** (named `{stage_name}_{stage_run_id}_manifest.json`, e.g. `structured_ingest_structured_ingest-..._manifest.json` and `pdf_ingest_unstructured_ingest-..._manifest.json`, produced by `ingest-structured` / `ingest-pdf`):
+  - `run_id`: run boundary for that single producer run
+  - `run_scopes.batch_mode`: `single_independent_run`
+  - `run_scopes.structured_ingest_run_id` or `run_scopes.unstructured_ingest_run_id` (only the relevant producer scope key is present)
+- In all modes, each stage emits its own `run_id` so provenance remains non-destructive and auditable across reruns
 
 ## Fixtures and reproducibility
 
@@ -54,11 +78,14 @@ This demo intentionally mirrors upstream patterns in `vendor-resources`; use the
 - [x] **Config-driven**: PDF ingest pipeline shape (`SimpleKGPipeline` via `PipelineRunner`) is declared in `demo/chain_of_custody/config/pdf_simple_kg_pipeline.yaml`, aligned to vendor `from_config_files` examples.
 - [x] **Config-driven**: Demo retrieval/citation index contract uses `chain_custody_chunk_embedding_index` on label `Chunk` property `embedding` with dimensions `1536` (deterministic naming keeps reset + retrieval scripts aligned), pinned via `OpenAIEmbeddings` model `text-embedding-3-small` in the demo config.
 - [ ] **Custom (planned follow-up, blocked by [#150](https://github.com/zoomlytics/power-atlas/issues/150))**: Wire `run_demo.py ingest-pdf` live path to execute the config file through `PipelineRunner` instead of the current `NotImplementedError`.
+- [ ] **Custom (planned follow-up, scoped in [zoomlytics/power-atlas#151](https://github.com/zoomlytics/power-atlas/issues/151))**: Structured ingest live path should emit run-scoped provenance metadata (`run_id`, source URI, method/extractor, timestamps, confidence) without mutating source assertions.
+- [ ] **Planned retrieval/GraphRAG issue alignment**: Retrieval and answer synthesis should consume explicit run-scoped provenance links and avoid implicit structured↔unstructured coupling.
+- [ ] **Planned reset semantics alignment**: Reset behavior must remain run-scoped/non-destructive by default (targeted cleanup over blanket deletion when run IDs are available).
 - [x] **Custom by design**: Structured CSV ingest, deterministic canonical key resolution, and provenance-specific graph expansion remain demo-owned logic.
 
 ## CLI scaffold and configuration
 
-The orchestrator CLI exposes the following scaffolded subcommands:
+The orchestrator CLI exposes the following subcommands:
 `lint-structured`, `ingest-structured`, `ingest-pdf`, `extract-claims`,
 `resolve-entities`, `ask`, `reset`, and `ingest`.
 

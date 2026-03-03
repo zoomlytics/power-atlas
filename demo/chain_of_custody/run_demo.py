@@ -8,7 +8,8 @@ import sys
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
+from uuid import uuid4
 
 FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
 ARTIFACTS_DIR = Path(__file__).resolve().parent / "artifacts"
@@ -27,7 +28,11 @@ class DemoConfig:
 
 
 def _timestamp() -> str:
-    return datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    return datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")
+
+
+def _make_run_id(scope: str) -> str:
+    return f"{scope}-{_timestamp()}-{uuid4().hex[:8]}"
 
 
 def _load_csv_rows(path: Path) -> list[dict[str, str]]:
@@ -101,24 +106,80 @@ def _run_retrieval_and_qa(config: DemoConfig) -> dict[str, Any]:
 
 def run_demo(config: DemoConfig) -> Path:
     config.output_dir.mkdir(parents=True, exist_ok=True)
+    structured_run_id = _make_run_id("structured_ingest")
+    unstructured_run_id = _make_run_id("unstructured_ingest")
+    resolution_run_id = _make_run_id("resolution")
 
     manifest = {
-        "run_id": f"chain-of-custody-{_timestamp()}",
+        "run_id": _make_run_id("chain_of_custody_batch"),
         "created_at": datetime.now(UTC).isoformat(),
+        "run_scopes": {
+            "batch_mode": "sequential_independent_runs",
+            "structured_ingest_run_id": structured_run_id,
+            "unstructured_ingest_run_id": unstructured_run_id,
+            "resolution_run_id": resolution_run_id,
+        },
         "config": {
             "dry_run": config.dry_run,
             "neo4j_database": config.neo4j_database,
             "openai_model": config.openai_model,
         },
         "stages": {
-            "structured_ingest": _run_structured_ingest(config),
-            "pdf_ingest": _run_pdf_ingest(config),
-            "claim_and_mention_extraction": _run_claim_and_mention_extraction(config),
-            "retrieval_and_qa": _run_retrieval_and_qa(config),
+            "structured_ingest": {
+                **_run_structured_ingest(config),
+                "run_id": structured_run_id,
+            },
+            "pdf_ingest": {
+                **_run_pdf_ingest(config),
+                "run_id": unstructured_run_id,
+            },
+            "claim_and_mention_extraction": {
+                **_run_claim_and_mention_extraction(config),
+                "run_id": resolution_run_id,
+            },
+            "retrieval_and_qa": {
+                **_run_retrieval_and_qa(config),
+                "run_id": resolution_run_id,
+            },
         },
     }
 
     manifest_path = config.output_dir / "manifest.json"
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    return manifest_path
+
+
+def run_independent_demo(config: DemoConfig, command: str) -> Path:
+    config.output_dir.mkdir(parents=True, exist_ok=True)
+    stage_runners: dict[str, tuple[str, str, Callable[[DemoConfig], dict[str, Any]]]] = {
+        "ingest-structured": ("structured_ingest", "structured_ingest_run_id", _run_structured_ingest),
+        "ingest-pdf": ("pdf_ingest", "unstructured_ingest_run_id", _run_pdf_ingest),
+    }
+    if command not in stage_runners:
+        raise ValueError(f"Unsupported independent command: {command}")
+    stage_name, run_scope_key, stage_runner = stage_runners[command]
+    run_scope = run_scope_key.removesuffix("_run_id")
+    stage_run_id = _make_run_id(run_scope)
+    manifest = {
+        "run_id": stage_run_id,
+        "created_at": datetime.now(UTC).isoformat(),
+        "run_scopes": {
+            "batch_mode": "single_independent_run",
+            run_scope_key: stage_run_id,
+        },
+        "config": {
+            "dry_run": config.dry_run,
+            "neo4j_database": config.neo4j_database,
+            "openai_model": config.openai_model,
+        },
+        "stages": {
+            stage_name: {
+                **stage_runner(config),
+                "run_id": stage_run_id,
+            }
+        },
+    }
+    manifest_path = config.output_dir / f"{stage_name}_{stage_run_id}_manifest.json"
     manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     return manifest_path
 
@@ -204,7 +265,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    if args.command == "ingest":
+    if args.command in {"ingest", "ingest-structured", "ingest-pdf"}:
         if not args.dry_run and args.neo4j_password in ("", "CHANGE_ME_BEFORE_USE"):
             raise SystemExit("Set NEO4J_PASSWORD or pass --neo4j-password when using --live")
         config = DemoConfig(
@@ -216,8 +277,12 @@ def main() -> None:
             neo4j_database=args.neo4j_database,
             openai_model=args.openai_model,
         )
-        manifest_path = run_demo(config)
-        print(f"Demo manifest written to: {manifest_path}")
+        if args.command == "ingest":
+            manifest_path = run_demo(config)
+            print(f"Demo manifest written to: {manifest_path}")
+        elif args.command in {"ingest-structured", "ingest-pdf"}:
+            manifest_path = run_independent_demo(config, args.command)
+            print(f"Independent run manifest written to: {manifest_path}")
         return
     if args.command == "reset":
         print("Stub: use demo/chain_of_custody/reset_demo_db.py --confirm to reset demo data.")

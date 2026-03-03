@@ -97,6 +97,10 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
             self.assertTrue(manifest_path.exists())
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             self.assertTrue(manifest["config"]["dry_run"])
+            self.assertEqual(manifest["run_scopes"]["batch_mode"], "sequential_independent_runs")
+            self.assertIn("structured_ingest_run_id", manifest["run_scopes"])
+            self.assertIn("unstructured_ingest_run_id", manifest["run_scopes"])
+            self.assertIn("resolution_run_id", manifest["run_scopes"])
             self.assertEqual(
                 set(manifest["stages"].keys()),
                 {
@@ -106,6 +110,14 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
                     "retrieval_and_qa",
                 },
             )
+            self.assertEqual(
+                manifest["stages"]["structured_ingest"]["run_id"],
+                manifest["run_scopes"]["structured_ingest_run_id"],
+            )
+            self.assertEqual(
+                manifest["stages"]["pdf_ingest"]["run_id"],
+                manifest["run_scopes"]["unstructured_ingest_run_id"],
+            )
             claims_fixture_path = DEMO_DIR / "fixtures" / "structured" / "claims.csv"
             with claims_fixture_path.open(newline="", encoding="utf-8") as f:
                 reader = csv.DictReader(f)
@@ -113,6 +125,10 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
             self.assertEqual(
                 manifest["stages"]["structured_ingest"]["claims"],
                 expected_claim_count,
+            )
+            self.assertNotEqual(
+                manifest["run_scopes"]["structured_ingest_run_id"],
+                manifest["run_scopes"]["unstructured_ingest_run_id"],
             )
 
     def test_fixture_manifest_tracks_dataset_and_provenance(self):
@@ -195,6 +211,41 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
         with self.assertRaises(NotImplementedError):
             module._run_pdf_ingest(config)
 
+    def test_independent_ingest_commands_write_stage_manifests(self):
+        module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_independent_test")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = module.DemoConfig(
+                dry_run=True,
+                output_dir=Path(tmpdir),
+                neo4j_uri="neo4j://localhost:7687",
+                neo4j_username="neo4j",
+                neo4j_password="testtesttest",
+                neo4j_database="neo4j",
+                openai_model="gpt-4o-mini",
+            )
+            structured_manifest_path = module.run_independent_demo(config, "ingest-structured")
+            pdf_manifest_path = module.run_independent_demo(config, "ingest-pdf")
+            self.assertTrue(structured_manifest_path.exists())
+            self.assertTrue(pdf_manifest_path.exists())
+
+            structured_manifest = json.loads(structured_manifest_path.read_text(encoding="utf-8"))
+            pdf_manifest = json.loads(pdf_manifest_path.read_text(encoding="utf-8"))
+            self.assertEqual(structured_manifest["run_scopes"]["batch_mode"], "single_independent_run")
+            self.assertEqual(pdf_manifest["run_scopes"]["batch_mode"], "single_independent_run")
+            self.assertEqual(set(structured_manifest["stages"].keys()), {"structured_ingest"})
+            self.assertEqual(set(pdf_manifest["stages"].keys()), {"pdf_ingest"})
+            self.assertIn("structured_ingest_run_id", structured_manifest["run_scopes"])
+            self.assertEqual(
+                structured_manifest["run_scopes"]["structured_ingest_run_id"],
+                structured_manifest["stages"]["structured_ingest"]["run_id"],
+            )
+            self.assertIn("unstructured_ingest_run_id", pdf_manifest["run_scopes"])
+            self.assertEqual(
+                pdf_manifest["run_scopes"]["unstructured_ingest_run_id"],
+                pdf_manifest["stages"]["pdf_ingest"]["run_id"],
+            )
+            self.assertNotEqual(structured_manifest["run_id"], pdf_manifest["run_id"])
+
     def test_smoke_test_supports_output_dir_override(self):
         sys.path.insert(0, str(DEMO_DIR))
         try:
@@ -227,6 +278,10 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
         self.assertIn("chain_custody_chunk_embedding_index", readme_text)
         self.assertIn("vendor examples use `NEO4J_USER`", readme_text)
         self.assertIn("blocked by [#150]", readme_text)
+        self.assertIn("## Conceptual model", readme_text)
+        self.assertIn("sequential independent runs", readme_text)
+        self.assertIn("zoomlytics/power-atlas#151", readme_text)
+        self.assertIn("non-destructive", readme_text)
         self.assertIsInstance(config, dict)
         self.assertIn("llm_config", config)
         self.assertIn("embedder_config", config)
