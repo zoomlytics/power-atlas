@@ -202,7 +202,8 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                     WITH d
                     MATCH (d)<-[:FROM_DOCUMENT]-(c:Chunk)
                     WHERE c.run_id IS NULL OR c.run_id = $run_id
-                    WITH d, c, coalesce(c.chunk_order, toInteger(c.index), toInteger(c.chunk_index)) AS normalized_chunk_order
+                    WITH d, c,
+                         toInteger(coalesce(c.chunk_order, c.index, c.chunk_index)) AS normalized_chunk_order
                     SET c.run_id = coalesce(c.run_id, $run_id),
                         c.source_uri = coalesce(c.source_uri, d.source_uri, $source_uri),
                         c.chunk_order = normalized_chunk_order,
