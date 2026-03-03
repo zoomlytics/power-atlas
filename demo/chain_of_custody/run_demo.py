@@ -40,17 +40,22 @@ if PDF_PIPELINE_CONFIG_PATH.is_file():
         # If the config cannot be read or parsed, fall back to the defaults.
         _demo_contract = {}
 
-CHUNK_EMBEDDING_INDEX_NAME = _demo_contract.get(
+# The chunk embedding index contract lives under `demo_contract.chunk_embedding`
+# in pdf_simple_kg_pipeline.yaml. Use that if present; otherwise, fall back to
+# the hard-coded defaults above.
+_chunk_embedding_contract: dict[str, Any] = _demo_contract.get("chunk_embedding") or {}
+
+CHUNK_EMBEDDING_INDEX_NAME = _chunk_embedding_contract.get(
     "index_name", _DEFAULT_CHUNK_EMBEDDING_INDEX_NAME
 )
-CHUNK_EMBEDDING_LABEL = _demo_contract.get(
-    "index_label", _DEFAULT_CHUNK_EMBEDDING_LABEL
+CHUNK_EMBEDDING_LABEL = _chunk_embedding_contract.get(
+    "label", _DEFAULT_CHUNK_EMBEDDING_LABEL
 )
-CHUNK_EMBEDDING_PROPERTY = _demo_contract.get(
-    "index_property", _DEFAULT_CHUNK_EMBEDDING_PROPERTY
+CHUNK_EMBEDDING_PROPERTY = _chunk_embedding_contract.get(
+    "embedding_property", _DEFAULT_CHUNK_EMBEDDING_PROPERTY
 )
-CHUNK_EMBEDDING_DIMENSIONS = _demo_contract.get(
-    "index_dimensions", _DEFAULT_CHUNK_EMBEDDING_DIMENSIONS
+CHUNK_EMBEDDING_DIMENSIONS = _chunk_embedding_contract.get(
+    "dimensions", _DEFAULT_CHUNK_EMBEDDING_DIMENSIONS
 )
 @dataclass(frozen=True)
 class DemoConfig:
