@@ -100,6 +100,14 @@ def _validate_cypher_identifier(value: str, kind: str) -> None:
         raise ValueError(f"Unsafe {kind} for Cypher fallback: {value!r}")
 
 
+def _normalize_pipeline_result(value: Any) -> Any:
+    try:
+        json.dumps(value)
+        return value
+    except (TypeError, ValueError):
+        return {"type": type(value).__name__, "summary": str(value)}
+
+
 def _run_structured_ingest(config: DemoConfig) -> dict[str, Any]:
     claims_path = FIXTURES_DIR / "structured" / "claims.csv"
     entities_path = FIXTURES_DIR / "structured" / "entities.csv"
@@ -301,7 +309,7 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
             "dimensions": CHUNK_EMBEDDING_DIMENSIONS,
             "creation_strategy": index_creation_strategy,
         },
-        "pipeline_result": str(pipeline_result),
+        "pipeline_result": _normalize_pipeline_result(pipeline_result),
         "provenance": {
             "run_id": stage_run_id,
             "source_uri": pdf_source_uri,
