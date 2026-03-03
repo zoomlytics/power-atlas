@@ -134,7 +134,10 @@ def _normalize_pipeline_result(value: Any) -> Any:
         json.dumps(value)
         return value
     except (TypeError, ValueError):
-        return {"type": type(value).__name__, "summary": str(value)}
+        return {
+            "type": type(value).__name__,
+            "summary": "Non-JSON-serializable value; see 'type' field for details.",
+        }
 
 
 def _run_structured_ingest(config: DemoConfig) -> dict[str, Any]:
