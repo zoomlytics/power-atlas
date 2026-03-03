@@ -666,8 +666,10 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
             self.assertEqual(summary["counts"], {"documents": 0, "pages": 0, "chunks": 0})
             self.assertEqual(summary["embedding_model"], module.EMBEDDER_MODEL_NAME)
             self.assertEqual(summary["embedding_dimensions"], module.CHUNK_EMBEDDING_DIMENSIONS)
+            self.assertEqual(summary["vector_index"]["creation_strategy"], "dry_run")
             self.assertEqual(result["pdf_fingerprint_sha256"], expected_fingerprint)
             self.assertEqual(Path(result["pdf_ingest_dir"]), summary_path.parent)
+            self.assertEqual(result["vector_index"]["creation_strategy"], "dry_run")
 
     def test_run_pdf_ingest_non_dry_run_normalizes_non_json_pipeline_result(self):
         module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_result_fallback_test")
