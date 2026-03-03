@@ -287,7 +287,13 @@ def _lint_and_clean_structured_csvs(run_id: str, output_dir: Path) -> dict[str, 
                     # Keep only the expected header columns for downstream lint/dedup/write.
                     rows.append((row_number, {header: raw_row.get(header, "") for header in expected_headers}))
         except (OSError, csv.Error, UnicodeDecodeError) as exc:
-            _add_issue(file_name, 0, "", "READ_ERROR", f"Could not read structured CSV file '{file_name}': {exc}")
+            _add_issue(
+                file_name,
+                1,
+                "file",
+                "READ_ERROR",
+                f"Could not read structured CSV file '{file_name}': {exc}",
+            )
             cleaned_rows[file_name] = []
             cleaned_row_numbers[file_name] = []
             file_summaries[file_name] = {
