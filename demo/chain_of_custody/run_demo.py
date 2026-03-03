@@ -107,6 +107,7 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                 label=CHUNK_EMBEDDING_LABEL,
                 embedding_property=CHUNK_EMBEDDING_PROPERTY,
                 dimensions=CHUNK_EMBEDDING_DIMENSIONS,
+                similarity_fn="cosine",
             )
         except Exception as exc:
             index_creation_strategy = "cypher_fallback"
@@ -145,33 +146,56 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
             session.run(
                 """
                 MATCH (d:Document)
-                WHERE d.path = $source_uri OR d.source_uri = $source_uri
+                WHERE (d.path = $source_uri OR d.source_uri = $source_uri)
+                  AND (d.run_id IS NULL OR d.run_id = $run_id)
                 SET d.run_id = coalesce(d.run_id, $run_id),
                     d.source_uri = coalesce(d.source_uri, $source_uri)
                 WITH d
                 MATCH (d)<-[:FROM_DOCUMENT]-(c:Chunk)
-                WITH d, c ORDER BY coalesce(c.index, c.chunk_index, id(c))
-                WITH d, collect(c) AS chunks
-                UNWIND range(0, size(chunks) - 1) AS chunk_order
-                WITH d, chunks[chunk_order] AS c, chunk_order
+                WHERE c.run_id IS NULL OR c.run_id = $run_id
+                WITH d, c, coalesce(c.chunk_order, toInteger(c.index), toInteger(c.chunk_index)) AS normalized_chunk_order
                 SET c.run_id = coalesce(c.run_id, $run_id),
                     c.source_uri = coalesce(c.source_uri, d.source_uri, $source_uri),
-                    c.chunk_order = coalesce(c.chunk_order, chunk_order),
-                    c.chunk_id = coalesce(c.chunk_id, c.uid, d.source_uri + ':' + toString(chunk_order)),
+                    c.chunk_order = normalized_chunk_order,
+                    c.chunk_id = coalesce(
+                        c.chunk_id,
+                        c.uid,
+                        d.source_uri + ':' + toString(normalized_chunk_order)
+                    ),
                     c.page_number = coalesce(c.page_number, c.page),
                     c.embedding = coalesce(c.embedding, c.embedding_vector, c.vector, c.embeddings)
                 """,
                 run_id=stage_run_id,
                 source_uri=pdf_source_uri,
             ).consume()
+            missing_chunk_order_count = session.run(
+                """
+                MATCH (d:Document)
+                WHERE (d.path = $source_uri OR d.source_uri = $source_uri)
+                  AND d.run_id = $run_id
+                MATCH (d)<-[:FROM_DOCUMENT]-(c:Chunk)
+                WHERE c.run_id = $run_id
+                  AND c.chunk_order IS NULL
+                RETURN count(c) AS missing_chunk_order_count
+                """,
+                run_id=stage_run_id,
+                source_uri=pdf_source_uri,
+            ).single()["missing_chunk_order_count"]
+            if missing_chunk_order_count:
+                raise ValueError(
+                    "Chunk ordering contract violation: expected stable chunk index on all ingested chunks"
+                )
             missing_embedding_count = session.run(
                 """
                 MATCH (d:Document)
-                WHERE d.path = $source_uri OR d.source_uri = $source_uri
+                WHERE (d.path = $source_uri OR d.source_uri = $source_uri)
+                  AND d.run_id = $run_id
                 MATCH (d)<-[:FROM_DOCUMENT]-(c:Chunk)
-                WHERE c.embedding IS NULL
+                WHERE c.run_id = $run_id
+                  AND c.embedding IS NULL
                 RETURN count(c) AS missing_embedding_count
                 """,
+                run_id=stage_run_id,
                 source_uri=pdf_source_uri,
             ).single()["missing_embedding_count"]
             if missing_embedding_count:
@@ -277,8 +301,12 @@ def run_demo(config: DemoConfig) -> Path:
 
 def run_independent_demo(config: DemoConfig, command: str) -> Path:
     config.output_dir.mkdir(parents=True, exist_ok=True)
-    stage_runners: dict[str, tuple[str, str, Callable[[DemoConfig], dict[str, Any]]]] = {
-        "ingest-structured": ("structured_ingest", "structured_ingest_run_id", _run_structured_ingest),
+    stage_runners: dict[str, tuple[str, str, Callable[[DemoConfig, str], dict[str, Any]]]] = {
+        "ingest-structured": (
+            "structured_ingest",
+            "structured_ingest_run_id",
+            lambda cfg, _stage_run_id: _run_structured_ingest(cfg),
+        ),
         "ingest-pdf": ("pdf_ingest", "unstructured_ingest_run_id", _run_pdf_ingest),
     }
     if command not in stage_runners:
@@ -286,11 +314,7 @@ def run_independent_demo(config: DemoConfig, command: str) -> Path:
     stage_name, run_scope_key, stage_runner = stage_runners[command]
     run_scope = run_scope_key.removesuffix("_run_id")
     stage_run_id = _make_run_id(run_scope)
-    stage_output = (
-        _run_pdf_ingest(config, stage_run_id)
-        if command == "ingest-pdf"
-        else stage_runner(config)
-    )
+    stage_output = stage_runner(config, stage_run_id)
     manifest = {
         "run_id": stage_run_id,
         "created_at": datetime.now(UTC).isoformat(),

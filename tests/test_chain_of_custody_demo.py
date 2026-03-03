@@ -212,11 +212,14 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
         calls: dict[str, object] = {}
 
         class _FakeResult:
+            def __init__(self, single_payload=None):
+                self._single_payload = single_payload or {}
+
             def consume(self):
                 return None
 
             def single(self):
-                return {"missing_embedding_count": 0}
+                return self._single_payload
 
         class _FakeSession:
             def __enter__(self):
@@ -227,6 +230,10 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
 
             def run(self, query, **kwargs):
                 calls.setdefault("queries", []).append((query, kwargs))
+                if "missing_chunk_order_count" in query:
+                    return _FakeResult({"missing_chunk_order_count": 0})
+                if "missing_embedding_count" in query:
+                    return _FakeResult({"missing_embedding_count": 0})
                 return _FakeResult()
 
         class _FakeDriver:
@@ -282,6 +289,7 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
         self.assertEqual(calls["index_kwargs"]["label"], "Chunk")
         self.assertEqual(calls["index_kwargs"]["embedding_property"], "embedding")
         self.assertEqual(calls["index_kwargs"]["dimensions"], 1536)
+        self.assertEqual(calls["index_kwargs"]["similarity_fn"], "cosine")
         self.assertEqual(
             calls["config_path"],
             str(DEMO_DIR / "config" / "pdf_simple_kg_pipeline.yaml"),
@@ -292,6 +300,9 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
             any("SET d.run_id" in query for query, _ in calls.get("queries", [])),
             "Expected post-ingest provenance query to run",
         )
+        normalized_query = next(query for query, _ in calls["queries"] if "SET d.run_id" in query)
+        self.assertIn("d.run_id IS NULL OR d.run_id = $run_id", normalized_query)
+        self.assertNotIn("id(c)", normalized_query)
 
     def test_run_pdf_ingest_non_dry_run_falls_back_to_cypher_index_creation(self):
         module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_non_dry_fallback_test")
@@ -307,11 +318,14 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
         calls: dict[str, object] = {}
 
         class _FakeResult:
+            def __init__(self, single_payload=None):
+                self._single_payload = single_payload or {}
+
             def consume(self):
                 return None
 
             def single(self):
-                return {"missing_embedding_count": 0}
+                return self._single_payload
 
         class _FakeSession:
             def __enter__(self):
@@ -322,6 +336,10 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
 
             def run(self, query, **kwargs):
                 calls.setdefault("queries", []).append((query, kwargs))
+                if "missing_chunk_order_count" in query:
+                    return _FakeResult({"missing_chunk_order_count": 0})
+                if "missing_embedding_count" in query:
+                    return _FakeResult({"missing_embedding_count": 0})
                 return _FakeResult()
 
         class _FakeDriver:
@@ -446,6 +464,7 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
         self.assertIn("chain_custody_chunk_embedding_index", readme_text)
         self.assertIn("vendor examples use `NEO4J_USER`", readme_text)
         self.assertIn("config_url.json", readme_text)
+        self.assertIn("simple_kg_pipeline_config_url.json", readme_text)
         self.assertIn("simple_kg_builder_from_pdf.py", readme_text)
         self.assertIn("create_vector_index.py", readme_text)
         self.assertIn("## Conceptual model", readme_text)
