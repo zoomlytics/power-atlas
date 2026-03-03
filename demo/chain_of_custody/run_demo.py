@@ -36,7 +36,7 @@ _DEFAULT_CHUNK_EMBEDDING_DIMENSIONS = 1536
 _demo_contract: dict[str, Any] = {}
 _pipeline_config_data: dict[str, Any] = {}
 if PDF_PIPELINE_CONFIG_PATH.is_file():
-    _cfg_data: dict[str, Any] | Any = {}
+    _cfg_data: Any = {}
     try:
         with PDF_PIPELINE_CONFIG_PATH.open("r", encoding="utf-8") as _cfg_handle:
             _cfg_data = yaml.safe_load(_cfg_handle)
@@ -57,7 +57,6 @@ if PDF_PIPELINE_CONFIG_PATH.is_file():
             stacklevel=2,
         )
         _cfg_data = {}
-        cfg_is_mapping = False
     _pipeline_config_data = _cfg_data if cfg_is_mapping else {}
     _demo_contract = _cfg_data.get("demo_contract") if cfg_is_mapping else {}
     if _demo_contract is None:
