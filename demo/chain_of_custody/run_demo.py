@@ -216,6 +216,10 @@ def _deduplicate_rows(rows: list[dict[str, str]], headers: list[str]) -> tuple[l
     return deduped_rows, duplicates
 
 
+def _is_blank_csv_row(row: dict[str, str | None]) -> bool:
+    return all((value is None) or (not str(value).strip()) for value in row.values())
+
+
 def _lint_and_clean_structured_csvs(run_id: str, output_dir: Path) -> dict[str, Any]:
     structured_dir = FIXTURES_DIR / "structured"
     run_root = output_dir / "runs" / run_id
@@ -250,7 +254,9 @@ def _lint_and_clean_structured_csvs(run_id: str, output_dir: Path) -> dict[str, 
                     "HEADER_MISMATCH",
                     f"Expected {expected_headers}, got {actual_headers}",
                 )
-            rows = list(reader)
+            raw_rows = list(reader)
+            rows = [row for row in raw_rows if not _is_blank_csv_row(row)]
+            dropped_blank_rows = len(raw_rows) - len(rows)
 
         deduped = rows
         duplicates = 0
@@ -336,6 +342,7 @@ def _lint_and_clean_structured_csvs(run_id: str, output_dir: Path) -> dict[str, 
         cleaned_rows[file_name] = deduped
         file_summaries[file_name] = {
             "input_rows": len(rows),
+            "dropped_blank_rows": dropped_blank_rows,
             "output_rows": len(deduped),
             "deduplicated_rows": duplicates,
             "source_uri": str(source_path),
@@ -449,7 +456,6 @@ def _normalize_pipeline_result(value: Any) -> Any:
 
 
 def _run_structured_ingest(config: DemoConfig, run_id: str) -> dict[str, Any]:
-    claims_path = FIXTURES_DIR / "structured" / "claims.csv"
     lint_output = _lint_and_clean_structured_csvs(run_id=run_id, output_dir=config.output_dir)
 
     if config.dry_run:

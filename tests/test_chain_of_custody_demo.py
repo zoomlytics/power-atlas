@@ -352,6 +352,30 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
             self.assertEqual(result["files"]["entities.csv"]["output_rows"], len(rows))
             self.assertEqual(result["files"]["entities.csv"]["deduplicated_rows"], 1)
 
+    def test_structured_lint_ignores_blank_whitespace_rows(self):
+        module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_structured_blank_rows_test")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            copied_fixtures = Path(tmpdir) / "fixtures"
+            shutil.copytree(DEMO_DIR / "fixtures", copied_fixtures)
+            entities_path = copied_fixtures / "structured" / "entities.csv"
+            with entities_path.open("r", encoding="utf-8", newline="") as entities_file:
+                rows = list(csv.DictReader(entities_file))
+            with entities_path.open("a", encoding="utf-8", newline="") as entities_file:
+                entities_file.write("\n")
+                entities_file.write("  ,  ,  ,  ,  ,  \n")
+
+            output_dir = Path(tmpdir) / "output"
+            original_fixtures_dir = module.FIXTURES_DIR
+            try:
+                module.FIXTURES_DIR = copied_fixtures
+                result = module._lint_and_clean_structured_csvs("structured_ingest-test", output_dir)
+            finally:
+                module.FIXTURES_DIR = original_fixtures_dir
+
+            self.assertEqual(result["files"]["entities.csv"]["input_rows"], len(rows))
+            self.assertEqual(result["files"]["entities.csv"]["output_rows"], len(rows))
+            self.assertEqual(result["files"]["entities.csv"]["dropped_blank_rows"], 1)
+
     def test_run_pdf_ingest_non_dry_run_executes_config_pipeline_and_provenance_flow(self):
         module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_non_dry_test")
         config = module.DemoConfig(
