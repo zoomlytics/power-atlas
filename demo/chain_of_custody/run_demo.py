@@ -12,17 +12,46 @@ from pathlib import Path
 from typing import Any, Callable
 from uuid import uuid4
 
+import yaml
+
 FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
 ARTIFACTS_DIR = Path(__file__).resolve().parent / "artifacts"
 CONFIG_DIR = Path(__file__).resolve().parent / "config"
 PDF_PIPELINE_CONFIG_PATH = CONFIG_DIR / "pdf_simple_kg_pipeline.yaml"
 DEFAULT_DB = os.getenv("NEO4J_DATABASE", "neo4j")
-CHUNK_EMBEDDING_INDEX_NAME = "chain_custody_chunk_embedding_index"
-CHUNK_EMBEDDING_LABEL = "Chunk"
-CHUNK_EMBEDDING_PROPERTY = "embedding"
-CHUNK_EMBEDDING_DIMENSIONS = 1536
 
+# Default values for the chunk embedding index contract.
+# These are used as fallbacks if the YAML configuration does not provide them.
+_DEFAULT_CHUNK_EMBEDDING_INDEX_NAME = "chain_custody_chunk_embedding_index"
+_DEFAULT_CHUNK_EMBEDDING_LABEL = "Chunk"
+_DEFAULT_CHUNK_EMBEDDING_PROPERTY = "embedding"
+_DEFAULT_CHUNK_EMBEDDING_DIMENSIONS = 1536
 
+# Load the vector index contract from the pipeline config (if available) to avoid
+# drifting from the configuration defined under `demo_contract` in
+# pdf_simple_kg_pipeline.yaml.
+_demo_contract: dict[str, Any] = {}
+if PDF_PIPELINE_CONFIG_PATH.is_file():
+    try:
+        with PDF_PIPELINE_CONFIG_PATH.open("r", encoding="utf-8") as _cfg_handle:
+            _cfg_data = yaml.safe_load(_cfg_handle) or {}
+        _demo_contract = _cfg_data.get("demo_contract") or {}
+    except Exception:
+        # If the config cannot be read or parsed, fall back to the defaults.
+        _demo_contract = {}
+
+CHUNK_EMBEDDING_INDEX_NAME = _demo_contract.get(
+    "index_name", _DEFAULT_CHUNK_EMBEDDING_INDEX_NAME
+)
+CHUNK_EMBEDDING_LABEL = _demo_contract.get(
+    "index_label", _DEFAULT_CHUNK_EMBEDDING_LABEL
+)
+CHUNK_EMBEDDING_PROPERTY = _demo_contract.get(
+    "index_property", _DEFAULT_CHUNK_EMBEDDING_PROPERTY
+)
+CHUNK_EMBEDDING_DIMENSIONS = _demo_contract.get(
+    "index_dimensions", _DEFAULT_CHUNK_EMBEDDING_DIMENSIONS
+)
 @dataclass(frozen=True)
 class DemoConfig:
     dry_run: bool
