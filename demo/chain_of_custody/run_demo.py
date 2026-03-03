@@ -542,7 +542,10 @@ def _sha256_file(path: Path, *, chunk_size: int = 1024 * 1024) -> str:
             for chunk in iter(lambda: handle.read(chunk_size), b""):
                 hasher.update(chunk)
     except OSError as exc:
-        raise OSError(f"Unable to hash file {path}: {exc}") from exc
+        # Preserve the original OSError (and its attributes) while adding context when possible.
+        if hasattr(exc, "add_note"):
+            exc.add_note(f"While hashing file {path}")
+        raise
     return hasher.hexdigest()
 
 
