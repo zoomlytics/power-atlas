@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import csv
+import hashlib
 import json
 import os
 import re
@@ -33,6 +34,7 @@ _DEFAULT_CHUNK_EMBEDDING_DIMENSIONS = 1536
 # drifting from the configuration defined under `demo_contract` in
 # pdf_simple_kg_pipeline.yaml.
 _demo_contract: dict[str, Any] = {}
+_pipeline_config_data: dict[str, Any] = {}
 if PDF_PIPELINE_CONFIG_PATH.is_file():
     try:
         with PDF_PIPELINE_CONFIG_PATH.open("r", encoding="utf-8") as _cfg_handle:
@@ -44,12 +46,13 @@ if PDF_PIPELINE_CONFIG_PATH.is_file():
                 RuntimeWarning,
                 stacklevel=2,
             )
+            _cfg_data = {}
+        _pipeline_config_data = _cfg_data if isinstance(_cfg_data, dict) else {}
+        _demo_contract = _cfg_data.get("demo_contract")
+        if _demo_contract is None:
             _demo_contract = {}
         else:
-            _demo_contract = _cfg_data.get("demo_contract")
-            if _demo_contract is None:
-                _demo_contract = {}
-            elif not isinstance(_demo_contract, dict):
+            if not isinstance(_demo_contract, dict):
                 warnings.warn(
                     f"Falling back to default chunk embedding contract; expected mapping for demo_contract in "
                     f"{PDF_PIPELINE_CONFIG_PATH}, got {type(_demo_contract).__name__}",
@@ -94,6 +97,15 @@ CHUNK_EMBEDDING_PROPERTY = _chunk_embedding_contract.get(
 CHUNK_EMBEDDING_DIMENSIONS = _chunk_embedding_contract.get(
     "dimensions", _DEFAULT_CHUNK_EMBEDDING_DIMENSIONS
 )
+_DEFAULT_EMBEDDER_MODEL_NAME = "text-embedding-3-small"
+EMBEDDER_MODEL_NAME = _DEFAULT_EMBEDDER_MODEL_NAME
+_embedder_config = _pipeline_config_data.get("embedder_config", {})
+if isinstance(_embedder_config, dict):
+    _embedder_params = _embedder_config.get("params_")
+    if isinstance(_embedder_params, dict):
+        _embedder_model = _embedder_params.get("model")
+        if isinstance(_embedder_model, str):
+            EMBEDDER_MODEL_NAME = _embedder_model
 
 _STRUCTURED_FILE_HEADERS: dict[str, list[str]] = {
     "entities.csv": ["entity_id", "name", "entity_type", "aliases", "description", "wikidata_url"],
@@ -851,8 +863,32 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
         raise FileNotFoundError(f"Required PDF fixture not found: {pdf_path}")
     pdf_source_uri = str(pdf_path)
     stage_run_id = run_id or _make_run_id("unstructured_ingest")
+    run_root = config.output_dir / "runs" / stage_run_id
+    pdf_ingest_dir = run_root / "pdf_ingest"
+    pdf_ingest_dir.mkdir(parents=True, exist_ok=True)
+    ingest_summary_path = pdf_ingest_dir / "ingest_summary.json"
+    pdf_fingerprint_sha256 = hashlib.sha256(pdf_path.read_bytes()).hexdigest()
+    summary_counts = {"documents": 0, "pages": 0, "chunks": 0}
+    extraction_warnings: list[Any] = []
 
     if config.dry_run:
+        ingest_summary = {
+            "run_id": stage_run_id,
+            "source_uri": pdf_source_uri,
+            "pdf_fingerprint_sha256": pdf_fingerprint_sha256,
+            "counts": summary_counts,
+            "embedding_model": EMBEDDER_MODEL_NAME,
+            "embedding_dimensions": CHUNK_EMBEDDING_DIMENSIONS,
+            "vector_index": {
+                "index_name": CHUNK_EMBEDDING_INDEX_NAME,
+                "label": CHUNK_EMBEDDING_LABEL,
+                "embedding_property": CHUNK_EMBEDDING_PROPERTY,
+                "dimensions": CHUNK_EMBEDDING_DIMENSIONS,
+            },
+            "warnings": extraction_warnings,
+            "pipeline_config": str(PDF_PIPELINE_CONFIG_PATH),
+        }
+        ingest_summary_path.write_text(json.dumps(ingest_summary, indent=2), encoding="utf-8")
         return {
             "status": "dry_run",
             "documents": [pdf_source_uri],
@@ -864,6 +900,12 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                 "embedding_property": CHUNK_EMBEDDING_PROPERTY,
                 "dimensions": CHUNK_EMBEDDING_DIMENSIONS,
             },
+            "pdf_ingest_dir": str(pdf_ingest_dir),
+            "ingest_summary_path": str(ingest_summary_path),
+            "pdf_fingerprint_sha256": pdf_fingerprint_sha256,
+            "counts": summary_counts,
+            "embedding_model": EMBEDDER_MODEL_NAME,
+            "extraction_warnings": extraction_warnings,
         }
 
     if not os.getenv("OPENAI_API_KEY"):
@@ -883,11 +925,12 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
     previous_env = {key: (key in os.environ, os.environ.get(key)) for key in env_updates}
     os.environ.update(env_updates)
 
+    index_creation_strategy = "neo4j_graphrag.indexes.create_vector_index"
+    index_fallback_reason: str | None = None
+    pipeline_result: object | None = None
     try:
         driver = neo4j.GraphDatabase.driver(config.neo4j_uri, auth=(config.neo4j_username, config.neo4j_password))
         with driver:
-            index_creation_strategy = "neo4j_graphrag.indexes.create_vector_index"
-            index_fallback_reason: str | None = None
             try:
                 create_vector_index(
                     driver,
@@ -928,6 +971,12 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                     }
                 )
             )
+            if isinstance(pipeline_result, dict):
+                for warnings_key in ("warnings", "extraction_warnings"):
+                    maybe_warnings = pipeline_result.get(warnings_key)
+                    if isinstance(maybe_warnings, list):
+                        extraction_warnings = maybe_warnings
+                        break
 
             with driver.session(database=config.neo4j_database) as session:
                 # Vendor versions can emit Chunk ordering/embedding fields as
@@ -971,11 +1020,33 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                     """,
                     run_id=stage_run_id,
                     source_uri=pdf_source_uri,
-                ).single()
-                if run_counts["document_count"] == 0 or run_counts["chunk_count"] == 0:
+                ).single() or {}
+                document_count = int(run_counts.get("document_count") or 0)
+                chunk_count = int(run_counts.get("chunk_count") or 0)
+                if document_count == 0 or chunk_count == 0:
                     raise ValueError(
                         "Ingest contract violation: expected at least one Document and Chunk for this run"
                     )
+                page_count_result = session.run(
+                    """
+                    MATCH (d:Document)
+                    WHERE (d.path = $source_uri OR d.source_uri = $source_uri)
+                      AND d.run_id = $run_id
+                    MATCH (d)<-[:FROM_DOCUMENT]-(c:Chunk)
+                    WHERE c.run_id = $run_id
+                    WITH coalesce(c.page_number, c.page) AS page_val
+                    WHERE page_val IS NOT NULL
+                    RETURN count(DISTINCT page_val) AS page_count
+                    """,
+                    run_id=stage_run_id,
+                    source_uri=pdf_source_uri,
+                ).single() or {}
+                page_count = int(page_count_result.get("page_count") or 0)
+                summary_counts = {
+                    "documents": document_count,
+                    "pages": page_count,
+                    "chunks": chunk_count,
+                }
                 missing_chunk_order_count = session.run(
                     """
                     MATCH (d:Document)
@@ -1017,6 +1088,25 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
             else:
                 os.environ[key] = previous_value
 
+    ingest_summary = {
+        "run_id": stage_run_id,
+        "source_uri": pdf_source_uri,
+        "pdf_fingerprint_sha256": pdf_fingerprint_sha256,
+        "counts": summary_counts,
+        "embedding_model": EMBEDDER_MODEL_NAME,
+        "embedding_dimensions": CHUNK_EMBEDDING_DIMENSIONS,
+        "vector_index": {
+            "index_name": CHUNK_EMBEDDING_INDEX_NAME,
+            "label": CHUNK_EMBEDDING_LABEL,
+            "embedding_property": CHUNK_EMBEDDING_PROPERTY,
+            "dimensions": CHUNK_EMBEDDING_DIMENSIONS,
+            "creation_strategy": index_creation_strategy,
+        },
+        "warnings": extraction_warnings,
+        "pipeline_config": str(PDF_PIPELINE_CONFIG_PATH),
+    }
+    ingest_summary_path.write_text(json.dumps(ingest_summary, indent=2), encoding="utf-8")
+
     return {
         "status": "live",
         "documents": [pdf_source_uri],
@@ -1036,6 +1126,12 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
             "chunk_id_property": "chunk_id",
             "page_property": "page_number",
         },
+        "pdf_ingest_dir": str(pdf_ingest_dir),
+        "ingest_summary_path": str(ingest_summary_path),
+        "pdf_fingerprint_sha256": pdf_fingerprint_sha256,
+        "counts": summary_counts,
+        "embedding_model": EMBEDDER_MODEL_NAME,
+        "extraction_warnings": extraction_warnings,
         **({"vector_index_fallback_reason": index_fallback_reason} if index_fallback_reason else {}),
     }
 
