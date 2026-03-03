@@ -280,7 +280,7 @@ def _lint_and_clean_structured_csvs(run_id: str, output_dir: Path) -> dict[str, 
                         f"Unexpected extra columns detected: {extra_columns}",
                     )
                 # Keep only the expected header columns for downstream lint/dedup/write.
-                rows.append({header: (raw_row.get(header) or "") for header in expected_headers})
+                rows.append({header: raw_row.get(header, "") for header in expected_headers})
 
         deduped = rows
         duplicates = 0
