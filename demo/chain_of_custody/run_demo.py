@@ -946,7 +946,7 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
     try:
         driver = neo4j.GraphDatabase.driver(config.neo4j_uri, auth=(config.neo4j_username, config.neo4j_password))
         with driver:
-            index_creation_strategy: str | None = "neo4j_graphrag.indexes.create_vector_index"
+            index_creation_strategy: str = "neo4j_graphrag.indexes.create_vector_index"
             index_fallback_reason: str | None = None
             try:
                 create_vector_index(
@@ -1039,14 +1039,21 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                     source_uri=pdf_source_uri,
                 ).single()
                 run_counts = _record_as_mapping(run_counts)
-                document_count_raw = run_counts.get("document_count")
-                chunk_count_raw = run_counts.get("chunk_count")
-                if document_count_raw in (None, 0) or chunk_count_raw in (None, 0):
+                document_count_value = run_counts.get("document_count")
+                chunk_count_value = run_counts.get("chunk_count")
+                if document_count_value in (None, 0) or chunk_count_value in (None, 0):
                     raise ValueError(
                         "Ingest contract violation: expected at least one Document and Chunk for this run"
                     )
-                document_count = int(document_count_raw)
-                chunk_count = int(chunk_count_raw)
+                try:
+                    document_count = int(document_count_value)
+                    chunk_count = int(chunk_count_value)
+                except (TypeError, ValueError) as exc:
+                    raise ValueError("Ingest contract violation: unexpected count types") from exc
+                if document_count <= 0 or chunk_count <= 0:
+                    raise ValueError(
+                        "Ingest contract violation: expected at least one Document and Chunk for this run"
+                    )
                 page_count_result = session.run(
                     """
                     MATCH (d:Document)
@@ -1062,7 +1069,11 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                     source_uri=pdf_source_uri,
                 ).single()
                 page_count_result = _record_as_mapping(page_count_result)
-                page_count = int(page_count_result.get("page_count") or 0)
+                page_count_value = page_count_result.get("page_count")
+                try:
+                    page_count = int(page_count_value) if page_count_value is not None else 0
+                except (TypeError, ValueError) as exc:
+                    raise ValueError("Ingest contract violation: unexpected page count type") from exc
                 summary_counts = {
                     "documents": document_count,
                     "pages": page_count,
