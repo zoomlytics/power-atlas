@@ -126,20 +126,20 @@ def run_demo(config: DemoConfig) -> Path:
         },
         "stages": {
             "structured_ingest": {
-                "run_id": structured_run_id,
                 **_run_structured_ingest(config),
+                "run_id": structured_run_id,
             },
             "pdf_ingest": {
-                "run_id": unstructured_run_id,
                 **_run_pdf_ingest(config),
+                "run_id": unstructured_run_id,
             },
             "claim_and_mention_extraction": {
-                "run_id": resolution_run_id,
                 **_run_claim_and_mention_extraction(config),
+                "run_id": resolution_run_id,
             },
             "retrieval_and_qa": {
-                "run_id": resolution_run_id,
                 **_run_retrieval_and_qa(config),
+                "run_id": resolution_run_id,
             },
         },
     }
@@ -174,8 +174,8 @@ def run_independent_demo(config: DemoConfig, command: str) -> Path:
         },
         "stages": {
             stage_name: {
-                "run_id": stage_run_id,
                 **stage_runner(config),
+                "run_id": stage_run_id,
             }
         },
     }
