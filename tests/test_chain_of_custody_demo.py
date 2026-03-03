@@ -399,6 +399,12 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
                 any("SUPPORTED_BY" in query and "source_row_id" in query for query, _ in calls.get("queries", [])),
                 "Expected source_row_id evidence link query to run",
             )
+            claim_query = next((query for query, _ in calls["queries"] if "MERGE (claim:Claim" in query), None)
+            self.assertIsNotNone(claim_query, "Expected claim ingestion query to run")
+            self.assertIn("MERGE (claim:Claim {claim_id: trim(row.claim_id), run_id: $run_id})", claim_query)
+            self.assertIn("trim(coalesce(row.object_id, '')) = ''", claim_query)
+            self.assertIn("OPTIONAL MATCH (fact:Fact {fact_id: trim(row.source_row_id), run_id: $run_id})", claim_query)
+            self.assertIn("trim(row.claim_type) = 'fact'", claim_query)
 
     def test_structured_lint_deduplicates_duplicate_rows(self):
         module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_structured_dedup_test")
