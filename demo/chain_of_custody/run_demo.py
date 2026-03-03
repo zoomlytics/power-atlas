@@ -531,7 +531,15 @@ def _record_as_mapping(record: Any) -> dict[str, Any]:
     try:
         return record.data()  # type: ignore[union-attr]
     except AttributeError:
-        return record
+        return {}
+
+
+def _sha256_file(path: Path, *, chunk_size: int = 1024 * 1024) -> str:
+    hasher = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(chunk_size), b""):
+            hasher.update(chunk)
+    return hasher.hexdigest()
 
 
 def _run_structured_ingest(config: DemoConfig, run_id: str) -> dict[str, Any]:
@@ -877,7 +885,7 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
     pdf_ingest_dir = run_root / "pdf_ingest"
     pdf_ingest_dir.mkdir(parents=True, exist_ok=True)
     ingest_summary_path = pdf_ingest_dir / "ingest_summary.json"
-    pdf_fingerprint_sha256 = hashlib.sha256(pdf_path.read_bytes()).hexdigest()
+    pdf_fingerprint_sha256 = _sha256_file(pdf_path)
     summary_counts = {"documents": 0, "pages": 0, "chunks": 0}
     extraction_warnings: list[Any] = []
     pipeline_result: object | None = None
@@ -1033,12 +1041,14 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                     source_uri=pdf_source_uri,
                 ).single()
                 run_counts = _record_as_mapping(run_counts)
-                document_count = int(run_counts.get("document_count") or 0)
-                chunk_count = int(run_counts.get("chunk_count") or 0)
-                if document_count == 0 or chunk_count == 0:
+                document_count_raw = run_counts.get("document_count")
+                chunk_count_raw = run_counts.get("chunk_count")
+                if document_count_raw in (None, 0) or chunk_count_raw in (None, 0):
                     raise ValueError(
                         "Ingest contract violation: expected at least one Document and Chunk for this run"
                     )
+                document_count = int(document_count_raw)
+                chunk_count = int(chunk_count_raw)
                 page_count_result = session.run(
                     """
                     MATCH (d:Document)
