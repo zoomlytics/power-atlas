@@ -216,8 +216,15 @@ def _deduplicate_rows(rows: list[dict[str, str]], headers: list[str]) -> tuple[l
     return deduped_rows, duplicates
 
 
-def _is_blank_csv_row(row: dict[str, str | None]) -> bool:
-    return all((value is None) or (not str(value).strip()) for value in row.values())
+def _is_blank_csv_row(row: dict[str | None, str | list[str] | None]) -> bool:
+    for value in row.values():
+        if isinstance(value, list):
+            if any(str(item).strip() for item in value):
+                return False
+            continue
+        if value is not None and str(value).strip():
+            return False
+    return True
 
 
 def _lint_and_clean_structured_csvs(run_id: str, output_dir: Path) -> dict[str, Any]:
@@ -255,8 +262,25 @@ def _lint_and_clean_structured_csvs(run_id: str, output_dir: Path) -> dict[str, 
                     f"Expected {expected_headers}, got {actual_headers}",
                 )
             raw_rows = list(reader)
-            rows = [row for row in raw_rows if not _is_blank_csv_row(row)]
-            dropped_blank_rows = len(raw_rows) - len(rows)
+            rows: list[dict[str, str]] = []
+            dropped_blank_rows = 0
+            for row_number, raw_row in enumerate(raw_rows, start=2):
+                if _is_blank_csv_row(raw_row):
+                    dropped_blank_rows += 1
+                    continue
+                # csv.DictReader stores overflow columns under key `None` when a
+                # row has more fields than the header declaration.
+                extra_columns = raw_row.get(None)
+                if extra_columns and any(str(item).strip() for item in extra_columns):
+                    _add_issue(
+                        file_name,
+                        row_number,
+                        "header",
+                        "EXTRA_COLUMNS",
+                        f"Unexpected extra columns detected: {extra_columns}",
+                    )
+                # Keep only declared header columns for downstream lint/dedup/write.
+                rows.append({key: value for key, value in raw_row.items() if key is not None})
 
         deduped = rows
         duplicates = 0
