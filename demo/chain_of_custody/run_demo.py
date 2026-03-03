@@ -5,6 +5,7 @@ import asyncio
 import csv
 import json
 import os
+import re
 import sys
 import warnings
 from dataclasses import dataclass
@@ -88,6 +89,12 @@ def _load_csv_rows(path: Path) -> list[dict[str, str]]:
         return list(csv.DictReader(handle))
 
 
+def _validate_cypher_identifier(value: str, kind: str) -> None:
+    """Allow only Cypher-safe identifiers ([A-Za-z_][A-Za-z0-9_]*) for fallback interpolation."""
+    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", value):
+        raise ValueError(f"Unsafe {kind} for Cypher fallback: {value!r}")
+
+
 def _run_structured_ingest(config: DemoConfig) -> dict[str, Any]:
     claims_path = FIXTURES_DIR / "structured" / "claims.csv"
     entities_path = FIXTURES_DIR / "structured" / "entities.csv"
@@ -165,6 +172,9 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                 index_fallback_reason = (
                     f"{type(exc).__name__}: {exc_message}" if exc_message else type(exc).__name__
                 )
+                _validate_cypher_identifier(CHUNK_EMBEDDING_INDEX_NAME, "index name")
+                _validate_cypher_identifier(CHUNK_EMBEDDING_LABEL, "label")
+                _validate_cypher_identifier(CHUNK_EMBEDDING_PROPERTY, "property")
                 with driver.session(database=config.neo4j_database) as session:
                     session.run(
                         f"""
