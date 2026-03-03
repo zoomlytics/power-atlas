@@ -36,31 +36,9 @@ _DEFAULT_CHUNK_EMBEDDING_DIMENSIONS = 1536
 _demo_contract: dict[str, Any] = {}
 _pipeline_config_data: dict[str, Any] = {}
 if PDF_PIPELINE_CONFIG_PATH.is_file():
-    _cfg_data: dict[str, Any] = {}
     try:
         with PDF_PIPELINE_CONFIG_PATH.open("r", encoding="utf-8") as _cfg_handle:
-            _cfg_data = yaml.safe_load(_cfg_handle)
-        if not isinstance(_cfg_data, dict):
-            warnings.warn(
-                f"Falling back to default chunk embedding contract; expected mapping at top-level in "
-                f"{PDF_PIPELINE_CONFIG_PATH}, got {type(_cfg_data).__name__}",
-                RuntimeWarning,
-                stacklevel=2,
-            )
-            _cfg_data = {}
-        _pipeline_config_data = _cfg_data if isinstance(_cfg_data, dict) else {}
-        _demo_contract = _cfg_data.get("demo_contract")
-        if _demo_contract is None:
-            _demo_contract = {}
-        else:
-            if not isinstance(_demo_contract, dict):
-                warnings.warn(
-                    f"Falling back to default chunk embedding contract; expected mapping for demo_contract in "
-                    f"{PDF_PIPELINE_CONFIG_PATH}, got {type(_demo_contract).__name__}",
-                    RuntimeWarning,
-                    stacklevel=2,
-                )
-                _demo_contract = {}
+            cfg_data = yaml.safe_load(_cfg_handle)
     except (OSError, yaml.YAMLError) as exc:
         warnings.warn(
             f"Falling back to default chunk embedding contract; unable to load "
@@ -68,7 +46,27 @@ if PDF_PIPELINE_CONFIG_PATH.is_file():
             RuntimeWarning,
             stacklevel=2,
         )
-        # If the config cannot be read or parsed, fall back to the defaults.
+        cfg_data = {}
+    else:
+        if not isinstance(cfg_data, dict):
+            warnings.warn(
+                f"Falling back to default chunk embedding contract; expected mapping at top-level in "
+                f"{PDF_PIPELINE_CONFIG_PATH}, got {type(cfg_data).__name__}",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            cfg_data = {}
+    _pipeline_config_data = cfg_data if isinstance(cfg_data, dict) else {}
+    _demo_contract = cfg_data.get("demo_contract") if isinstance(cfg_data, dict) else {}
+    if _demo_contract is None:
+        _demo_contract = {}
+    elif not isinstance(_demo_contract, dict):
+        warnings.warn(
+            f"Falling back to default chunk embedding contract; expected mapping for demo_contract in "
+            f"{PDF_PIPELINE_CONFIG_PATH}, got {type(_demo_contract).__name__}",
+            RuntimeWarning,
+            stacklevel=2,
+        )
         _demo_contract = {}
 
 # The chunk embedding index contract lives under `demo_contract.chunk_embedding`
@@ -927,11 +925,12 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
     previous_env = {key: (key in os.environ, os.environ.get(key)) for key in env_updates}
     os.environ.update(env_updates)
 
-    index_creation_strategy = "neo4j_graphrag.indexes.create_vector_index"
+    index_creation_strategy: str | None = None
     index_fallback_reason: str | None = None
     try:
         driver = neo4j.GraphDatabase.driver(config.neo4j_uri, auth=(config.neo4j_username, config.neo4j_password))
         with driver:
+            index_creation_strategy = "neo4j_graphrag.indexes.create_vector_index"
             try:
                 create_vector_index(
                     driver,
@@ -1021,7 +1020,8 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                     """,
                     run_id=stage_run_id,
                     source_uri=pdf_source_uri,
-                ).single() or {}
+                ).single()
+                run_counts = run_counts if run_counts is not None else {}
                 document_count = int(run_counts.get("document_count") or 0)
                 chunk_count = int(run_counts.get("chunk_count") or 0)
                 if document_count == 0 or chunk_count == 0:
@@ -1041,7 +1041,8 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                     """,
                     run_id=stage_run_id,
                     source_uri=pdf_source_uri,
-                ).single() or {}
+                ).single()
+                page_count_result = page_count_result if page_count_result is not None else {}
                 page_count = int(page_count_result.get("page_count") or 0)
                 summary_counts = {
                     "documents": document_count,
@@ -1101,7 +1102,7 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
             "label": CHUNK_EMBEDDING_LABEL,
             "embedding_property": CHUNK_EMBEDDING_PROPERTY,
             "dimensions": CHUNK_EMBEDDING_DIMENSIONS,
-            "creation_strategy": index_creation_strategy,
+            "creation_strategy": index_creation_strategy or "unknown",
         },
         "warnings": extraction_warnings,
         "pipeline_config": str(PDF_PIPELINE_CONFIG_PATH),
@@ -1117,7 +1118,7 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
             "label": CHUNK_EMBEDDING_LABEL,
             "embedding_property": CHUNK_EMBEDDING_PROPERTY,
             "dimensions": CHUNK_EMBEDDING_DIMENSIONS,
-            "creation_strategy": index_creation_strategy,
+            "creation_strategy": index_creation_strategy or "unknown",
         },
         "pipeline_result": _normalize_pipeline_result(pipeline_result),
         "provenance": {
