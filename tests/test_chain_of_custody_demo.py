@@ -856,6 +856,42 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
         finally:
             yaml.safe_load = original_safe_load
 
+    def test_run_demo_warns_and_falls_back_when_pipeline_yaml_top_level_is_not_mapping(self):
+        original_safe_load = yaml.safe_load
+        try:
+            yaml.safe_load = lambda *_args, **_kwargs: []
+            with warnings.catch_warnings(record=True) as caught:
+                warnings.simplefilter("always")
+                module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_yaml_top_level_type_warn_test")
+            self.assertEqual(module.CHUNK_EMBEDDING_INDEX_NAME, "chain_custody_chunk_embedding_index")
+            self.assertEqual(module.CHUNK_EMBEDDING_LABEL, "Chunk")
+            self.assertEqual(module.CHUNK_EMBEDDING_PROPERTY, "embedding")
+            self.assertEqual(module.CHUNK_EMBEDDING_DIMENSIONS, 1536)
+            self.assertTrue(
+                any("expected mapping at top-level" in str(w.message) for w in caught),
+                "Expected warning when pipeline config top-level is not a mapping",
+            )
+        finally:
+            yaml.safe_load = original_safe_load
+
+    def test_run_demo_warns_and_falls_back_when_chunk_embedding_is_not_mapping(self):
+        original_safe_load = yaml.safe_load
+        try:
+            yaml.safe_load = lambda *_args, **_kwargs: {"demo_contract": {"chunk_embedding": []}}
+            with warnings.catch_warnings(record=True) as caught:
+                warnings.simplefilter("always")
+                module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_chunk_contract_type_warn_test")
+            self.assertEqual(module.CHUNK_EMBEDDING_INDEX_NAME, "chain_custody_chunk_embedding_index")
+            self.assertEqual(module.CHUNK_EMBEDDING_LABEL, "Chunk")
+            self.assertEqual(module.CHUNK_EMBEDDING_PROPERTY, "embedding")
+            self.assertEqual(module.CHUNK_EMBEDDING_DIMENSIONS, 1536)
+            self.assertTrue(
+                any("demo_contract.chunk_embedding" in str(w.message) for w in caught),
+                "Expected warning when chunk embedding contract is not a mapping",
+            )
+        finally:
+            yaml.safe_load = original_safe_load
+
 
 if __name__ == "__main__":
     unittest.main()

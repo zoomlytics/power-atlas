@@ -36,8 +36,27 @@ _demo_contract: dict[str, Any] = {}
 if PDF_PIPELINE_CONFIG_PATH.is_file():
     try:
         with PDF_PIPELINE_CONFIG_PATH.open("r", encoding="utf-8") as _cfg_handle:
-            _cfg_data = yaml.safe_load(_cfg_handle) or {}
-        _demo_contract = _cfg_data.get("demo_contract") or {}
+            _cfg_data = yaml.safe_load(_cfg_handle)
+        if not isinstance(_cfg_data, dict):
+            warnings.warn(
+                f"Falling back to default chunk embedding contract; expected mapping at top-level in "
+                f"{PDF_PIPELINE_CONFIG_PATH}, got {type(_cfg_data).__name__}",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            _demo_contract = {}
+        else:
+            _demo_contract = _cfg_data.get("demo_contract")
+            if _demo_contract is None:
+                _demo_contract = {}
+            elif not isinstance(_demo_contract, dict):
+                warnings.warn(
+                    f"Falling back to default chunk embedding contract; expected mapping for demo_contract in "
+                    f"{PDF_PIPELINE_CONFIG_PATH}, got {type(_demo_contract).__name__}",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
+                _demo_contract = {}
     except (OSError, yaml.YAMLError) as exc:
         warnings.warn(
             f"Falling back to default chunk embedding contract; unable to load "
@@ -51,7 +70,17 @@ if PDF_PIPELINE_CONFIG_PATH.is_file():
 # The chunk embedding index contract lives under `demo_contract.chunk_embedding`
 # in pdf_simple_kg_pipeline.yaml. Use that if present; otherwise, fall back to
 # the hard-coded defaults above.
-_chunk_embedding_contract: dict[str, Any] = _demo_contract.get("chunk_embedding") or {}
+_chunk_embedding_contract = _demo_contract.get("chunk_embedding")
+if _chunk_embedding_contract is None:
+    _chunk_embedding_contract = {}
+elif not isinstance(_chunk_embedding_contract, dict):
+    warnings.warn(
+        f"Falling back to default chunk embedding contract; expected mapping for demo_contract.chunk_embedding in "
+        f"{PDF_PIPELINE_CONFIG_PATH}, got {type(_chunk_embedding_contract).__name__}",
+        RuntimeWarning,
+        stacklevel=2,
+    )
+    _chunk_embedding_contract = {}
 
 CHUNK_EMBEDDING_INDEX_NAME = _chunk_embedding_contract.get(
     "index_name", _DEFAULT_CHUNK_EMBEDDING_INDEX_NAME
