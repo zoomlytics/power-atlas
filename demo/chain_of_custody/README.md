@@ -37,6 +37,7 @@ Self-contained demo workflow under `demo/chain_of_custody/` for evidence-driven 
 
 - PDF ingest (chunk/embed/store) using vendor-aligned component choices (`FixedSizeSplitter`, `OpenAIEmbeddings`, `OpenAILLM`)
 - Structured CSV ingest with claims-first modeling (`Claim`, `CanonicalEntity`, evidence-linked relationships)
+- Structured pre-ingest lint + deterministic dedup writes run-scoped artifacts under `runs/<run_id>/structured_clean/` plus `lint_report.json`
 - Narrative claim extraction + mention resolution stages (deterministic canonical key resolution)
 - Retrieval and GraphRAG Q&A stage with strict citation expectations
 - Run artifacts written to `<output-dir>/manifest.json` with clean run boundaries (for the default orchestrator run this is typically `demo/chain_of_custody/artifacts/manifest.json`; override with `--output-dir`, and note that `smoke_test.py` uses an isolated temporary directory by default)
@@ -88,6 +89,8 @@ This demo intentionally mirrors upstream patterns in `vendor-resources`; use the
 The orchestrator CLI exposes the following subcommands:
 `lint-structured`, `ingest-structured`, `ingest-pdf`, `extract-claims`,
 `resolve-entities`, `ask`, `reset`, and `ingest`.
+
+- `lint-structured` performs pre-ingest validation (headers, IDs, value type enums, parseable dates, common PID label sanity) and deterministic dedup for entities/facts/relationships before any graph write stage.
 
 Environment/configuration values used by this demo:
 

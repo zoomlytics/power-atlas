@@ -3,6 +3,7 @@ import importlib.util
 import io
 import json
 import os
+import shutil
 import types
 import sys
 import tempfile
@@ -292,6 +293,191 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
                 self.assertIn(source_row_id, relationship_ids)
             else:
                 self.fail(f"Unexpected claim_type: {claim['claim_type']}")
+
+    def test_structured_ingest_dry_run_emits_clean_run_artifacts(self):
+        module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_structured_clean_test")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = module.DemoConfig(
+                dry_run=True,
+                output_dir=Path(tmpdir),
+                neo4j_uri="neo4j://localhost:7687",
+                neo4j_username="neo4j",
+                neo4j_password="testtesttest",
+                neo4j_database="neo4j",
+                openai_model="gpt-4o-mini",
+            )
+            manifest_path = module.run_independent_demo(config, "ingest-structured")
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            stage = manifest["stages"]["structured_ingest"]
+            self.assertTrue(Path(stage["structured_clean_dir"]).exists())
+            self.assertTrue(Path(stage["lint_report_path"]).exists())
+            lint_report = json.loads(Path(stage["lint_report_path"]).read_text(encoding="utf-8"))
+            self.assertEqual(lint_report["summary"]["status"], "ok")
+            self.assertEqual(lint_report["summary"]["issue_count"], 0)
+            self.assertEqual(
+                lint_report["structured_clean_dir"],
+                stage["structured_clean_dir"],
+            )
+
+    def test_structured_lint_deduplicates_duplicate_rows(self):
+        module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_structured_dedup_test")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            copied_fixtures = Path(tmpdir) / "fixtures"
+            shutil.copytree(DEMO_DIR / "fixtures", copied_fixtures)
+            entities_path = copied_fixtures / "structured" / "entities.csv"
+            with entities_path.open("r", encoding="utf-8", newline="") as entities_file:
+                rows = list(csv.DictReader(entities_file))
+                headers = [
+                    "entity_id",
+                    "name",
+                    "entity_type",
+                    "aliases",
+                    "description",
+                    "wikidata_url",
+                ]
+            with entities_path.open("w", encoding="utf-8", newline="") as entities_file:
+                writer = csv.DictWriter(entities_file, fieldnames=headers)
+                writer.writeheader()
+                writer.writerows(rows + [rows[0]])
+
+            output_dir = Path(tmpdir) / "output"
+            original_fixtures_dir = module.FIXTURES_DIR
+            try:
+                module.FIXTURES_DIR = copied_fixtures
+                result = module._lint_and_clean_structured_csvs("structured_ingest-test", output_dir)
+            finally:
+                module.FIXTURES_DIR = original_fixtures_dir
+
+            self.assertEqual(result["files"]["entities.csv"]["input_rows"], len(rows) + 1)
+            self.assertEqual(result["files"]["entities.csv"]["output_rows"], len(rows))
+            self.assertEqual(result["files"]["entities.csv"]["deduplicated_rows"], 1)
+
+    def test_structured_lint_ignores_blank_whitespace_rows(self):
+        module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_structured_blank_rows_test")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            copied_fixtures = Path(tmpdir) / "fixtures"
+            shutil.copytree(DEMO_DIR / "fixtures", copied_fixtures)
+            entities_path = copied_fixtures / "structured" / "entities.csv"
+            with entities_path.open("r", encoding="utf-8", newline="") as entities_file:
+                rows = list(csv.DictReader(entities_file))
+            with entities_path.open("a", encoding="utf-8", newline="") as entities_file:
+                entities_file.write(",,,,,\n")
+                entities_file.write("  ,  ,  ,  ,  ,  \n")
+
+            output_dir = Path(tmpdir) / "output"
+            original_fixtures_dir = module.FIXTURES_DIR
+            try:
+                module.FIXTURES_DIR = copied_fixtures
+                result = module._lint_and_clean_structured_csvs("structured_ingest-test", output_dir)
+            finally:
+                module.FIXTURES_DIR = original_fixtures_dir
+
+            self.assertEqual(result["files"]["entities.csv"]["input_rows"], len(rows))
+            self.assertEqual(result["files"]["entities.csv"]["output_rows"], len(rows))
+            self.assertGreaterEqual(result["files"]["entities.csv"]["dropped_blank_rows"], 1)
+
+    def test_structured_lint_handles_entities_header_with_extra_column(self):
+        module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_structured_header_mismatch_test")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            copied_fixtures = Path(tmpdir) / "fixtures"
+            shutil.copytree(DEMO_DIR / "fixtures", copied_fixtures)
+            entities_path = copied_fixtures / "structured" / "entities.csv"
+            with entities_path.open("r", encoding="utf-8", newline="") as entities_file:
+                rows = list(csv.DictReader(entities_file))
+
+            mismatch_headers = [
+                "entity_id",
+                "name",
+                "entity_type",
+                "aliases",
+                "description",
+                "wikidata_url",
+                "unexpected_col",
+            ]
+            with entities_path.open("w", encoding="utf-8", newline="") as entities_file:
+                writer = csv.DictWriter(entities_file, fieldnames=mismatch_headers)
+                writer.writeheader()
+                writer.writerows([{**row, "unexpected_col": "extra"} for row in rows])
+
+            output_dir = Path(tmpdir) / "output"
+            original_fixtures_dir = module.FIXTURES_DIR
+            try:
+                module.FIXTURES_DIR = copied_fixtures
+                with self.assertRaises(ValueError):
+                    module._lint_and_clean_structured_csvs("structured_ingest-test", output_dir)
+            finally:
+                module.FIXTURES_DIR = original_fixtures_dir
+
+            lint_report_path = output_dir / "runs" / "structured_ingest-test" / "lint_report.json"
+            self.assertTrue(lint_report_path.exists())
+            lint_report = json.loads(lint_report_path.read_text(encoding="utf-8"))
+            self.assertGreater(lint_report["summary"]["issue_count"], 0)
+            self.assertEqual(lint_report["files"]["entities.csv"]["output_rows"], len(rows))
+            self.assertTrue(
+                any(issue["code"] == "HEADER_MISMATCH" and issue["file"] == "entities.csv" for issue in lint_report["issues"])
+            )
+
+    def test_structured_lint_reports_read_error_and_emits_lint_report(self):
+        module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_structured_missing_file_test")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            copied_fixtures = Path(tmpdir) / "fixtures"
+            shutil.copytree(DEMO_DIR / "fixtures", copied_fixtures)
+            missing_file = copied_fixtures / "structured" / "facts.csv"
+            missing_file.unlink()
+
+            output_dir = Path(tmpdir) / "output"
+            original_fixtures_dir = module.FIXTURES_DIR
+            try:
+                module.FIXTURES_DIR = copied_fixtures
+                with self.assertRaises(ValueError):
+                    module._lint_and_clean_structured_csvs("structured_ingest-test", output_dir)
+            finally:
+                module.FIXTURES_DIR = original_fixtures_dir
+
+            lint_report_path = output_dir / "runs" / "structured_ingest-test" / "lint_report.json"
+            self.assertTrue(lint_report_path.exists())
+            lint_report = json.loads(lint_report_path.read_text(encoding="utf-8"))
+            self.assertTrue(
+                any(issue["code"] == "READ_ERROR" and issue["file"] == "facts.csv" for issue in lint_report["issues"])
+            )
+            self.assertFalse(any(issue["code"] == "UNKNOWN_FACT_SOURCE_ROW" for issue in lint_report["issues"]))
+
+    def test_structured_lint_uses_original_row_numbers_after_blank_rows(self):
+        module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_structured_row_numbers_test")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            copied_fixtures = Path(tmpdir) / "fixtures"
+            shutil.copytree(DEMO_DIR / "fixtures", copied_fixtures)
+            claims_path = copied_fixtures / "structured" / "claims.csv"
+            with claims_path.open("r", encoding="utf-8", newline="") as claims_file:
+                baseline_line_count = sum(1 for _ in claims_file)
+            with claims_path.open("r", encoding="utf-8", newline="") as claims_file:
+                claims_reader = csv.DictReader(claims_file)
+                headers = claims_reader.fieldnames or []
+                claims_rows = list(claims_reader)
+            with claims_path.open("a", encoding="utf-8", newline="") as claims_file:
+                claims_file.write(",,,,,,,,,,,,,\n")
+                writer = csv.DictWriter(claims_file, fieldnames=headers)
+                writer.writerow({**claims_rows[0], "subject_id": "ent_DOES_NOT_EXIST"})
+
+            expected_row_number = baseline_line_count + 2
+            output_dir = Path(tmpdir) / "output"
+            original_fixtures_dir = module.FIXTURES_DIR
+            try:
+                module.FIXTURES_DIR = copied_fixtures
+                with self.assertRaises(ValueError):
+                    module._lint_and_clean_structured_csvs("structured_ingest-test", output_dir)
+            finally:
+                module.FIXTURES_DIR = original_fixtures_dir
+
+            lint_report_path = output_dir / "runs" / "structured_ingest-test" / "lint_report.json"
+            lint_report = json.loads(lint_report_path.read_text(encoding="utf-8"))
+            unknown_subject_issues = [
+                issue
+                for issue in lint_report["issues"]
+                if issue["code"] == "UNKNOWN_SUBJECT_ID" and issue["message"].endswith("'ent_DOES_NOT_EXIST'")
+            ]
+            self.assertEqual(len(unknown_subject_issues), 1)
+            self.assertEqual(unknown_subject_issues[0]["row"], expected_row_number)
 
     def test_run_pdf_ingest_non_dry_run_executes_config_pipeline_and_provenance_flow(self):
         module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_non_dry_test")
