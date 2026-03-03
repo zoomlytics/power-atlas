@@ -417,6 +417,65 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
                 any(issue["code"] == "HEADER_MISMATCH" and issue["file"] == "entities.csv" for issue in lint_report["issues"])
             )
 
+    def test_structured_lint_reports_read_error_and_emits_lint_report(self):
+        module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_structured_missing_file_test")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            copied_fixtures = Path(tmpdir) / "fixtures"
+            shutil.copytree(DEMO_DIR / "fixtures", copied_fixtures)
+            missing_file = copied_fixtures / "structured" / "facts.csv"
+            missing_file.unlink()
+
+            output_dir = Path(tmpdir) / "output"
+            original_fixtures_dir = module.FIXTURES_DIR
+            try:
+                module.FIXTURES_DIR = copied_fixtures
+                with self.assertRaises(ValueError):
+                    module._lint_and_clean_structured_csvs("structured_ingest-test", output_dir)
+            finally:
+                module.FIXTURES_DIR = original_fixtures_dir
+
+            lint_report_path = output_dir / "runs" / "structured_ingest-test" / "lint_report.json"
+            self.assertTrue(lint_report_path.exists())
+            lint_report = json.loads(lint_report_path.read_text(encoding="utf-8"))
+            self.assertTrue(
+                any(issue["code"] == "READ_ERROR" and issue["file"] == "facts.csv" for issue in lint_report["issues"])
+            )
+
+    def test_structured_lint_uses_original_row_numbers_after_blank_rows(self):
+        module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_structured_row_numbers_test")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            copied_fixtures = Path(tmpdir) / "fixtures"
+            shutil.copytree(DEMO_DIR / "fixtures", copied_fixtures)
+            claims_path = copied_fixtures / "structured" / "claims.csv"
+            with claims_path.open("r", encoding="utf-8", newline="") as claims_file:
+                claims_reader = csv.DictReader(claims_file)
+                headers = claims_reader.fieldnames or []
+                claims_rows = list(claims_reader)
+            with claims_path.open("a", encoding="utf-8", newline="") as claims_file:
+                claims_file.write(",,,,,,,,,,,,,\n")
+                writer = csv.DictWriter(claims_file, fieldnames=headers)
+                writer.writerow({**claims_rows[0], "subject_id": "ent_DOES_NOT_EXIST"})
+
+            expected_row_number = len(claims_rows) + 3
+            output_dir = Path(tmpdir) / "output"
+            original_fixtures_dir = module.FIXTURES_DIR
+            try:
+                module.FIXTURES_DIR = copied_fixtures
+                with self.assertRaises(ValueError):
+                    module._lint_and_clean_structured_csvs("structured_ingest-test", output_dir)
+            finally:
+                module.FIXTURES_DIR = original_fixtures_dir
+
+            lint_report_path = output_dir / "runs" / "structured_ingest-test" / "lint_report.json"
+            lint_report = json.loads(lint_report_path.read_text(encoding="utf-8"))
+            unknown_subject_issues = [
+                issue
+                for issue in lint_report["issues"]
+                if issue["code"] == "UNKNOWN_SUBJECT_ID" and issue["message"].endswith("'ent_DOES_NOT_EXIST'")
+            ]
+            self.assertEqual(len(unknown_subject_issues), 1)
+            self.assertEqual(unknown_subject_issues[0]["row"], expected_row_number)
+
     def test_run_pdf_ingest_non_dry_run_executes_config_pipeline_and_provenance_flow(self):
         module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_non_dry_test")
         config = module.DemoConfig(

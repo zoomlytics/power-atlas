@@ -202,12 +202,15 @@ def _is_parseable_date(value: str) -> bool:
     return bool(re.fullmatch(r"\d{4}", value))
 
 
-def _deduplicate_rows(rows: list[dict[str, str]], headers: list[str]) -> tuple[list[dict[str, str]], int]:
+def _deduplicate_rows(
+    rows: list[tuple[int, dict[str, str]]], headers: list[str]
+) -> tuple[list[tuple[int, dict[str, str]]], int]:
     seen: set[tuple[str, ...]] = set()
-    deduped_rows: list[dict[str, str]] = []
+    deduped_rows: list[tuple[int, dict[str, str]]] = []
     duplicates = 0
     for row in rows:
-        row_key = tuple((row.get(header) or "").strip() for header in headers)
+        _, row_data = row
+        row_key = tuple((row_data.get(header) or "").strip() for header in headers)
         if row_key in seen:
             duplicates += 1
             continue
@@ -235,6 +238,7 @@ def _lint_and_clean_structured_csvs(run_id: str, output_dir: Path) -> dict[str, 
 
     lint_issues: list[dict[str, Any]] = []
     cleaned_rows: dict[str, list[dict[str, str]]] = {}
+    cleaned_row_numbers: dict[str, list[int]] = {}
     file_summaries: dict[str, dict[str, Any]] = {}
 
     def _add_issue(file_name: str, row_number: int, field: str, code: str, message: str) -> None:
@@ -250,44 +254,57 @@ def _lint_and_clean_structured_csvs(run_id: str, output_dir: Path) -> dict[str, 
 
     for file_name, expected_headers in _STRUCTURED_FILE_HEADERS.items():
         source_path = structured_dir / file_name
-        with source_path.open("r", encoding="utf-8", newline="") as handle:
-            reader = csv.DictReader(handle)
-            actual_headers = reader.fieldnames or []
-            if actual_headers != expected_headers:
-                _add_issue(
-                    file_name,
-                    1,
-                    "header",
-                    "HEADER_MISMATCH",
-                    f"Expected {expected_headers}, got {actual_headers}",
-                )
-            raw_rows = list(reader)
-            rows: list[dict[str, str]] = []
-            dropped_blank_rows = 0
-            for row_number, raw_row in enumerate(raw_rows, start=2):
-                if _is_blank_csv_row(raw_row):
-                    dropped_blank_rows += 1
-                    continue
-                # csv.DictReader stores overflow columns under key `None` when a
-                # row has more fields than the header declaration.
-                extra_columns = raw_row.get(None)
-                if extra_columns and any(str(item).strip() for item in extra_columns):
+        rows: list[tuple[int, dict[str, str]]] = []
+        dropped_blank_rows = 0
+        try:
+            with source_path.open("r", encoding="utf-8", newline="") as handle:
+                reader = csv.DictReader(handle)
+                actual_headers = reader.fieldnames or []
+                if actual_headers != expected_headers:
                     _add_issue(
                         file_name,
-                        row_number,
+                        1,
                         "header",
-                        "EXTRA_COLUMNS",
-                        f"Unexpected extra columns detected: {extra_columns}",
+                        "HEADER_MISMATCH",
+                        f"Expected {expected_headers}, got {actual_headers}",
                     )
-                # Keep only the expected header columns for downstream lint/dedup/write.
-                rows.append({header: raw_row.get(header, "") for header in expected_headers})
+                raw_rows = list(reader)
+                for row_number, raw_row in enumerate(raw_rows, start=2):
+                    if _is_blank_csv_row(raw_row):
+                        dropped_blank_rows += 1
+                        continue
+                    # csv.DictReader stores overflow columns under key `None` when a
+                    # row has more fields than the header declaration.
+                    extra_columns = raw_row.get(None)
+                    if extra_columns and any(str(item).strip() for item in extra_columns):
+                        _add_issue(
+                            file_name,
+                            row_number,
+                            "header",
+                            "EXTRA_COLUMNS",
+                            f"Unexpected extra columns detected: {extra_columns}",
+                        )
+                    # Keep only the expected header columns for downstream lint/dedup/write.
+                    rows.append((row_number, {header: raw_row.get(header, "") for header in expected_headers}))
+        except OSError as exc:
+            _add_issue(file_name, 0, "", "READ_ERROR", f"Could not read structured CSV file '{file_name}': {exc}")
+            cleaned_rows[file_name] = []
+            cleaned_row_numbers[file_name] = []
+            file_summaries[file_name] = {
+                "input_rows": 0,
+                "dropped_blank_rows": 0,
+                "output_rows": 0,
+                "deduplicated_rows": 0,
+                "source_uri": str(source_path),
+            }
+            continue
 
         deduped = rows
         duplicates = 0
         if file_name in {"entities.csv", "facts.csv", "relationships.csv"}:
             deduped, duplicates = _deduplicate_rows(rows, expected_headers)
 
-        for row_offset, row in enumerate(deduped, start=2):
+        for row_number, row in deduped:
             id_field = {
                 "entities.csv": "entity_id",
                 "facts.csv": "fact_id",
@@ -297,18 +314,18 @@ def _lint_and_clean_structured_csvs(run_id: str, output_dir: Path) -> dict[str, 
             id_pattern = _ID_PATTERNS[id_field]
             id_value = (row.get(id_field) or "").strip()
             if not id_pattern.fullmatch(id_value):
-                _add_issue(file_name, row_offset, id_field, "INVALID_ID", f"Invalid {id_field}: {id_value!r}")
+                _add_issue(file_name, row_number, id_field, "INVALID_ID", f"Invalid {id_field}: {id_value!r}")
 
             predicate_pid = (row.get("predicate_pid") or "").strip()
             if "predicate_pid" in row and not _ID_PATTERNS["predicate_pid"].fullmatch(predicate_pid):
-                _add_issue(file_name, row_offset, "predicate_pid", "INVALID_PID", f"Invalid PID: {predicate_pid!r}")
+                _add_issue(file_name, row_number, "predicate_pid", "INVALID_PID", f"Invalid PID: {predicate_pid!r}")
             if predicate_pid in _COMMON_PREDICATE_LABELS:
                 expected_label = _COMMON_PREDICATE_LABELS[predicate_pid]
                 actual_label = (row.get("predicate_label") or "").strip()
                 if actual_label and actual_label != expected_label:
                     _add_issue(
                         file_name,
-                        row_offset,
+                        row_number,
                         "predicate_label",
                         "PID_LABEL_MISMATCH",
                         f"Expected label {expected_label!r} for {predicate_pid}, got {actual_label!r}",
@@ -319,19 +336,19 @@ def _lint_and_clean_structured_csvs(run_id: str, output_dir: Path) -> dict[str, 
                 if value_type not in _VALUE_TYPES:
                     _add_issue(
                         file_name,
-                        row_offset,
+                        row_number,
                         "value_type",
                         "INVALID_VALUE_TYPE",
                         f"Unsupported value_type {value_type!r}",
                     )
                 if value_type == "date" and not _is_parseable_date((row.get("value") or "").strip()):
-                    _add_issue(file_name, row_offset, "value", "INVALID_DATE_VALUE", "Expected parseable date value")
+                    _add_issue(file_name, row_number, "value", "INVALID_DATE_VALUE", "Expected parseable date value")
 
             retrieved_at = (row.get("retrieved_at") or "").strip()
             if "retrieved_at" in row and not _is_parseable_date(retrieved_at):
                 _add_issue(
                     file_name,
-                    row_offset,
+                    row_number,
                     "retrieved_at",
                     "INVALID_RETRIEVED_AT",
                     f"Expected parseable date, got {retrieved_at!r}",
@@ -340,15 +357,15 @@ def _lint_and_clean_structured_csvs(run_id: str, output_dir: Path) -> dict[str, 
             if "subject_id" in row:
                 subject_id = (row.get("subject_id") or "").strip()
                 if subject_id and not _ID_PATTERNS["entity_id"].fullmatch(subject_id):
-                    _add_issue(file_name, row_offset, "subject_id", "INVALID_SUBJECT_ID", f"Invalid ID: {subject_id!r}")
+                    _add_issue(file_name, row_number, "subject_id", "INVALID_SUBJECT_ID", f"Invalid ID: {subject_id!r}")
             if "object_id" in row:
                 object_id = (row.get("object_id") or "").strip()
                 if object_id and not _ID_PATTERNS["entity_id"].fullmatch(object_id):
-                    _add_issue(file_name, row_offset, "object_id", "INVALID_OBJECT_ID", f"Invalid ID: {object_id!r}")
+                    _add_issue(file_name, row_number, "object_id", "INVALID_OBJECT_ID", f"Invalid ID: {object_id!r}")
             if file_name == "claims.csv":
                 claim_type = (row.get("claim_type") or "").strip()
                 if claim_type not in {"fact", "relationship"}:
-                    _add_issue(file_name, row_offset, "claim_type", "INVALID_CLAIM_TYPE", f"Invalid claim_type {claim_type!r}")
+                    _add_issue(file_name, row_number, "claim_type", "INVALID_CLAIM_TYPE", f"Invalid claim_type {claim_type!r}")
                 confidence_text = (row.get("confidence") or "").strip()
                 try:
                     confidence = float(confidence_text)
@@ -357,13 +374,14 @@ def _lint_and_clean_structured_csvs(run_id: str, output_dir: Path) -> dict[str, 
                 except ValueError:
                     _add_issue(
                         file_name,
-                        row_offset,
+                        row_number,
                         "confidence",
                         "INVALID_CONFIDENCE",
                         f"Expected confidence in [0,1], got {confidence_text!r}",
                     )
 
-        cleaned_rows[file_name] = deduped
+        cleaned_rows[file_name] = [row for _, row in deduped]
+        cleaned_row_numbers[file_name] = [row_number for row_number, _ in deduped]
         file_summaries[file_name] = {
             "input_rows": len(rows),
             "dropped_blank_rows": dropped_blank_rows,
@@ -387,16 +405,19 @@ def _lint_and_clean_structured_csvs(run_id: str, output_dir: Path) -> dict[str, 
         for row in cleaned_rows.get("relationships.csv", [])
         if (row.get("rel_id") or "").strip()
     }
-    for row_offset, claim in enumerate(cleaned_rows["claims.csv"], start=2):
+    claims_rows = cleaned_rows.get("claims.csv", [])
+    claims_row_numbers = cleaned_row_numbers.get("claims.csv", [])
+    for index, claim in enumerate(claims_rows):
+        row_number = claims_row_numbers[index] if index < len(claims_row_numbers) else index + 2
         subject_id = (claim.get("subject_id") or "").strip()
         if subject_id and subject_id not in entity_ids:
-            _add_issue("claims.csv", row_offset, "subject_id", "UNKNOWN_SUBJECT_ID", f"Unknown subject_id {subject_id!r}")
+            _add_issue("claims.csv", row_number, "subject_id", "UNKNOWN_SUBJECT_ID", f"Unknown subject_id {subject_id!r}")
         source_row_id = (claim.get("source_row_id") or "").strip()
         claim_type = (claim.get("claim_type") or "").strip()
         if claim_type == "fact" and source_row_id not in fact_ids:
             _add_issue(
                 "claims.csv",
-                row_offset,
+                row_number,
                 "source_row_id",
                 "UNKNOWN_FACT_SOURCE_ROW",
                 f"Missing fact_id {source_row_id!r}",
@@ -404,7 +425,7 @@ def _lint_and_clean_structured_csvs(run_id: str, output_dir: Path) -> dict[str, 
         if claim_type == "relationship" and source_row_id not in relationship_ids:
             _add_issue(
                 "claims.csv",
-                row_offset,
+                row_number,
                 "source_row_id",
                 "UNKNOWN_REL_SOURCE_ROW",
                 f"Missing rel_id {source_row_id!r}",
