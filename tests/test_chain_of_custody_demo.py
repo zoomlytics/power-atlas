@@ -8,7 +8,7 @@ import sys
 import tempfile
 import unittest
 import warnings
-from contextlib import redirect_stdout
+from contextlib import contextmanager, redirect_stdout
 from pathlib import Path
 
 import yaml
@@ -33,6 +33,99 @@ def _load_module(path: Path, module_name: str):
 
 
 class ChainOfCustodyDemoTests(unittest.TestCase):
+    def _build_pdf_ingest_test_modules(
+        self,
+        *,
+        calls: dict[str, object],
+        query_payloads: dict[str, dict[str, int]] | None = None,
+        pipeline_result: object = None,
+        index_creator=None,
+    ) -> dict[str, types.ModuleType]:
+        query_payloads = query_payloads or {}
+        if pipeline_result is None:
+            pipeline_result = {"ok": True}
+
+        class _FakeResult:
+            def __init__(self, single_payload=None):
+                self._single_payload = single_payload or {}
+
+            def consume(self):
+                return None
+
+            def single(self):
+                return self._single_payload
+
+        class _FakeSession:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def run(self, query, **kwargs):
+                calls.setdefault("queries", []).append((query, kwargs))
+                for marker, payload in query_payloads.items():
+                    if marker in query:
+                        return _FakeResult(payload)
+                return _FakeResult()
+
+        class _FakeDriver:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def session(self, **kwargs):
+                calls.setdefault("sessions", []).append(kwargs)
+                return _FakeSession()
+
+        class _FakePipeline:
+            async def run(self, params):
+                calls["run_params"] = params
+                if callable(pipeline_result):
+                    return pipeline_result(params)
+                return pipeline_result
+
+        class _FakePipelineRunner:
+            @staticmethod
+            def from_config_file(path):
+                calls["config_path"] = str(path)
+                return _FakePipeline()
+
+        fake_neo4j = types.ModuleType("neo4j")
+        fake_neo4j.GraphDatabase = types.SimpleNamespace(driver=lambda *_args, **_kwargs: _FakeDriver())
+        fake_runner = types.ModuleType("neo4j_graphrag.experimental.pipeline.config.runner")
+        fake_runner.PipelineRunner = _FakePipelineRunner
+        fake_indexes = types.ModuleType("neo4j_graphrag.indexes")
+        fake_indexes.create_vector_index = index_creator or (lambda *_args, **_kwargs: None)
+
+        return {
+            "neo4j": fake_neo4j,
+            "neo4j_graphrag.indexes": fake_indexes,
+            "neo4j_graphrag.experimental.pipeline.config.runner": fake_runner,
+        }
+
+    @contextmanager
+    def _with_injected_pdf_ingest_modules(self, injected_modules: dict[str, types.ModuleType]):
+        originals = {name: sys.modules.get(name) for name in injected_modules}
+        had_openai_api_key = "OPENAI_API_KEY" in os.environ
+        original_openai_api_key = os.environ.get("OPENAI_API_KEY")
+        try:
+            sys.modules.update(injected_modules)
+            os.environ["OPENAI_API_KEY"] = "test-openai-api-key"
+            yield
+        finally:
+            for name, original in originals.items():
+                if original is None:
+                    sys.modules.pop(name, None)
+                else:
+                    sys.modules[name] = original
+            if had_openai_api_key:
+                os.environ["OPENAI_API_KEY"] = original_openai_api_key
+            else:
+                os.environ.pop("OPENAI_API_KEY", None)
+
     def test_parse_args_supports_expected_subcommands(self):
         module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_parse_args_test")
         expected = {
@@ -213,101 +306,20 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
         )
         calls: dict[str, object] = {}
 
-        class _FakeResult:
-            def __init__(self, single_payload=None):
-                self._single_payload = single_payload or {}
-
-            def consume(self):
-                return None
-
-            def single(self):
-                return self._single_payload
-
-        class _FakeSession:
-            def __enter__(self):
-                return self
-
-            def __exit__(self, exc_type, exc, tb):
-                return False
-
-            def run(self, query, **kwargs):
-                calls.setdefault("queries", []).append((query, kwargs))
-                if "document_count" in query and "chunk_count" in query:
-                    return _FakeResult({"document_count": 1, "chunk_count": 2})
-                if "missing_chunk_order_count" in query:
-                    return _FakeResult({"missing_chunk_order_count": 0})
-                if "missing_embedding_count" in query:
-                    return _FakeResult({"missing_embedding_count": 0})
-                return _FakeResult()
-
-        class _FakeDriver:
-            def __enter__(self):
-                return self
-
-            def __exit__(self, exc_type, exc, tb):
-                return False
-
-            def session(self, **kwargs):
-                calls.setdefault("sessions", []).append(kwargs)
-                return _FakeSession()
-
-        class _FakePipeline:
-            async def run(self, params):
-                calls["run_params"] = params
-                return {"ok": True}
-
-        class _FakePipelineRunner:
-            @staticmethod
-            def from_config_file(path):
-                calls["config_path"] = str(path)
-                return _FakePipeline()
-
-        fake_neo4j = types.ModuleType("neo4j")
-        fake_neo4j.GraphDatabase = types.SimpleNamespace(driver=lambda *_args, **_kwargs: _FakeDriver())
-        fake_runner = types.ModuleType("neo4j_graphrag.experimental.pipeline.config.runner")
-        fake_runner.PipelineRunner = _FakePipelineRunner
-        fake_indexes = types.ModuleType("neo4j_graphrag.indexes")
-        fake_indexes.create_vector_index = lambda _driver, index_name, database_=None, **kwargs: calls.update(
-            {"index_name": index_name, "index_kwargs": {"database_": database_, **kwargs}}
+        injected_modules = self._build_pdf_ingest_test_modules(
+            calls=calls,
+            query_payloads={
+                "document_count": {"document_count": 1, "chunk_count": 2},
+                "missing_chunk_order_count": {"missing_chunk_order_count": 0},
+                "missing_embedding_count": {"missing_embedding_count": 0},
+            },
+            index_creator=lambda _driver, index_name, database_=None, **kwargs: calls.update(
+                {"index_name": index_name, "index_kwargs": {"database_": database_, **kwargs}}
+            ),
         )
-
-        injected_modules = {
-            "neo4j": fake_neo4j,
-            "neo4j_graphrag.indexes": fake_indexes,
-            "neo4j_graphrag.experimental.pipeline.config.runner": fake_runner,
-        }
-        originals = {name: sys.modules.get(name) for name in injected_modules}
-        had_openai_api_key = "OPENAI_API_KEY" in os.environ
-        original_openai_api_key = os.environ.get("OPENAI_API_KEY")
-
-        def _restore_openai_api_key():
-            if had_openai_api_key:
-                os.environ["OPENAI_API_KEY"] = original_openai_api_key
-            else:
-                os.environ.pop("OPENAI_API_KEY", None)
-
-        self.addCleanup(_restore_openai_api_key)
-        os.environ["OPENAI_API_KEY"] = "test-openai-api-key"
-        original_env = {
-            key: (key in os.environ, os.environ.get(key))
-            for key in (
-                "NEO4J_URI",
-                "NEO4J_USERNAME",
-                "NEO4J_PASSWORD",
-                "NEO4J_DATABASE",
-                "OPENAI_MODEL",
-                "OPENAI_API_KEY",
-            )
-        }
-        try:
-            sys.modules.update(injected_modules)
+        initial_openai_state = ("OPENAI_API_KEY" in os.environ, os.environ.get("OPENAI_API_KEY"))
+        with self._with_injected_pdf_ingest_modules(injected_modules):
             result = module._run_pdf_ingest(config, run_id="unstructured_ingest-test")
-        finally:
-            for name, original in originals.items():
-                if original is None:
-                    sys.modules.pop(name, None)
-                else:
-                    sys.modules[name] = original
 
         self.assertEqual(result["status"], "live")
         self.assertEqual(result["vector_index"]["creation_strategy"], "neo4j_graphrag.indexes.create_vector_index")
@@ -318,36 +330,32 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
         self.assertEqual(calls["index_kwargs"]["dimensions"], 1536)
         self.assertEqual(calls["index_kwargs"]["similarity_fn"], "cosine")
         self.assertEqual(calls["index_kwargs"]["database_"], "neo4j")
-        try:
-            self.assertEqual(
-                calls["config_path"],
-                str(DEMO_DIR / "config" / "pdf_simple_kg_pipeline.yaml"),
+        self.assertEqual(
+            calls["config_path"],
+            str(DEMO_DIR / "config" / "pdf_simple_kg_pipeline.yaml"),
+        )
+        self.assertEqual(
+            calls["run_params"]["file_path"],
+            str(DEMO_DIR / "fixtures" / "unstructured" / "chain_of_custody.pdf"),
+        )
+        self.assertNotIn("pdf_loader", calls["run_params"])
+        self.assertTrue(
+            any("SET d.run_id" in query for query, _ in calls.get("queries", [])),
+            "Expected post-ingest provenance query to run",
+        )
+        normalized_query = next(query for query, _ in calls["queries"] if "SET d.run_id" in query)
+        self.assertIn("d.run_id IS NULL OR d.run_id = $run_id", normalized_query)
+        self.assertNotIn("id(c)", normalized_query)
+        self.assertTrue(
+            any(
+                "document_count" in query and "chunk_count" in query
+                for query, _ in calls["queries"]
             )
-            self.assertEqual(
-                calls["run_params"]["file_path"],
-                str(DEMO_DIR / "fixtures" / "unstructured" / "chain_of_custody.pdf"),
-            )
-            self.assertNotIn("pdf_loader", calls["run_params"])
-            self.assertTrue(
-                any("SET d.run_id" in query for query, _ in calls.get("queries", [])),
-                "Expected post-ingest provenance query to run",
-            )
-            normalized_query = next(query for query, _ in calls["queries"] if "SET d.run_id" in query)
-            self.assertIn("d.run_id IS NULL OR d.run_id = $run_id", normalized_query)
-            self.assertNotIn("id(c)", normalized_query)
-            self.assertTrue(
-                any(
-                    "document_count" in query and "chunk_count" in query
-                    for query, _ in calls["queries"]
-                )
-            )
-            restored_env = {key: (key in os.environ, os.environ.get(key)) for key in original_env}
-            self.assertEqual(restored_env, original_env)
-        finally:
-            if had_openai_api_key:
-                os.environ["OPENAI_API_KEY"] = original_openai_api_key
-            else:
-                os.environ.pop("OPENAI_API_KEY", None)
+        )
+        self.assertEqual(
+            ("OPENAI_API_KEY" in os.environ, os.environ.get("OPENAI_API_KEY")),
+            initial_openai_state,
+        )
 
     def test_run_pdf_ingest_non_dry_run_normalizes_non_json_pipeline_result(self):
         module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_result_fallback_test")
@@ -361,80 +369,17 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
             openai_model="gpt-4o-mini",
         )
 
-        class _FakeResult:
-            def __init__(self, single_payload=None):
-                self._single_payload = single_payload or {}
-
-            def consume(self):
-                return None
-
-            def single(self):
-                return self._single_payload
-
-        class _FakeSession:
-            def __enter__(self):
-                return self
-
-            def __exit__(self, exc_type, exc, tb):
-                return False
-
-            def run(self, query, **kwargs):
-                if "document_count" in query and "chunk_count" in query:
-                    return _FakeResult({"document_count": 1, "chunk_count": 1})
-                if "missing_chunk_order_count" in query:
-                    return _FakeResult({"missing_chunk_order_count": 0})
-                if "missing_embedding_count" in query:
-                    return _FakeResult({"missing_embedding_count": 0})
-                return _FakeResult()
-
-        class _FakeDriver:
-            def __enter__(self):
-                return self
-
-            def __exit__(self, exc_type, exc, tb):
-                return False
-
-            def session(self, **kwargs):
-                return _FakeSession()
-
-        class _FakePipeline:
-            async def run(self, params):
-                return object()
-
-        class _FakePipelineRunner:
-            @staticmethod
-            def from_config_file(path):
-                return _FakePipeline()
-
-        fake_neo4j = types.ModuleType("neo4j")
-        fake_neo4j.GraphDatabase = types.SimpleNamespace(driver=lambda *_args, **_kwargs: _FakeDriver())
-        fake_runner = types.ModuleType("neo4j_graphrag.experimental.pipeline.config.runner")
-        fake_runner.PipelineRunner = _FakePipelineRunner
-        fake_indexes = types.ModuleType("neo4j_graphrag.indexes")
-        fake_indexes.create_vector_index = lambda *_args, **_kwargs: None
-
-        injected_modules = {
-            "neo4j": fake_neo4j,
-            "neo4j_graphrag.indexes": fake_indexes,
-            "neo4j_graphrag.experimental.pipeline.config.runner": fake_runner,
-        }
-        originals = {name: sys.modules.get(name) for name in injected_modules}
-        had_openai_api_key = "OPENAI_API_KEY" in os.environ
-        original_openai_api_key = os.environ.get("OPENAI_API_KEY")
-        try:
-            sys.modules.update(injected_modules)
-            os.environ["OPENAI_API_KEY"] = "test-openai-api-key"
+        injected_modules = self._build_pdf_ingest_test_modules(
+            calls={},
+            query_payloads={
+                "document_count": {"document_count": 1, "chunk_count": 1},
+                "missing_chunk_order_count": {"missing_chunk_order_count": 0},
+                "missing_embedding_count": {"missing_embedding_count": 0},
+            },
+            pipeline_result=lambda _params: object(),
+        )
+        with self._with_injected_pdf_ingest_modules(injected_modules):
             result = module._run_pdf_ingest(config, run_id="unstructured_ingest-test")
-        finally:
-            for name, original in originals.items():
-                if original is None:
-                    sys.modules.pop(name, None)
-                else:
-                    sys.modules[name] = original
-            if had_openai_api_key:
-                os.environ["OPENAI_API_KEY"] = original_openai_api_key
-            else:
-                os.environ.pop("OPENAI_API_KEY", None)
 
         self.assertEqual(result["pipeline_result"]["type"], "object")
         self.assertIn("object object", result["pipeline_result"]["summary"])
@@ -452,88 +397,20 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
         )
         calls: dict[str, object] = {}
 
-        class _FakeResult:
-            def __init__(self, single_payload=None):
-                self._single_payload = single_payload or {}
-
-            def consume(self):
-                return None
-
-            def single(self):
-                return self._single_payload
-
-        class _FakeSession:
-            def __enter__(self):
-                return self
-
-            def __exit__(self, exc_type, exc, tb):
-                return False
-
-            def run(self, query, **kwargs):
-                calls.setdefault("queries", []).append((query, kwargs))
-                if "document_count" in query and "chunk_count" in query:
-                    return _FakeResult({"document_count": 1, "chunk_count": 2})
-                if "missing_chunk_order_count" in query:
-                    return _FakeResult({"missing_chunk_order_count": 0})
-                if "missing_embedding_count" in query:
-                    return _FakeResult({"missing_embedding_count": 0})
-                return _FakeResult()
-
-        class _FakeDriver:
-            def __enter__(self):
-                return self
-
-            def __exit__(self, exc_type, exc, tb):
-                return False
-
-            def session(self, **kwargs):
-                calls.setdefault("sessions", []).append(kwargs)
-                return _FakeSession()
-
-        class _FakePipeline:
-            async def run(self, params):
-                calls["run_params"] = params
-                return {"ok": True}
-
-        class _FakePipelineRunner:
-            @staticmethod
-            def from_config_file(path):
-                calls["config_path"] = str(path)
-                return _FakePipeline()
-
-        fake_neo4j = types.ModuleType("neo4j")
-        fake_neo4j.GraphDatabase = types.SimpleNamespace(driver=lambda *_args, **_kwargs: _FakeDriver())
-        fake_runner = types.ModuleType("neo4j_graphrag.experimental.pipeline.config.runner")
-        fake_runner.PipelineRunner = _FakePipelineRunner
-        fake_indexes = types.ModuleType("neo4j_graphrag.indexes")
-
         def _raise_index_error(*_args, **_kwargs):
             raise RuntimeError("index helper unavailable")
 
-        fake_indexes.create_vector_index = _raise_index_error
-
-        injected_modules = {
-            "neo4j": fake_neo4j,
-            "neo4j_graphrag.indexes": fake_indexes,
-            "neo4j_graphrag.experimental.pipeline.config.runner": fake_runner,
-        }
-        originals = {name: sys.modules.get(name) for name in injected_modules}
-        had_openai_api_key = "OPENAI_API_KEY" in os.environ
-        original_openai_api_key = os.environ.get("OPENAI_API_KEY")
-        try:
-            sys.modules.update(injected_modules)
-            os.environ["OPENAI_API_KEY"] = "test-openai-api-key"
+        injected_modules = self._build_pdf_ingest_test_modules(
+            calls=calls,
+            query_payloads={
+                "document_count": {"document_count": 1, "chunk_count": 2},
+                "missing_chunk_order_count": {"missing_chunk_order_count": 0},
+                "missing_embedding_count": {"missing_embedding_count": 0},
+            },
+            index_creator=_raise_index_error,
+        )
+        with self._with_injected_pdf_ingest_modules(injected_modules):
             result = module._run_pdf_ingest(config, run_id="unstructured_ingest-test")
-        finally:
-            for name, original in originals.items():
-                if original is None:
-                    sys.modules.pop(name, None)
-                else:
-                    sys.modules[name] = original
-            if had_openai_api_key:
-                os.environ["OPENAI_API_KEY"] = original_openai_api_key
-            else:
-                os.environ.pop("OPENAI_API_KEY", None)
 
         self.assertEqual(result["vector_index"]["creation_strategy"], "cypher_fallback")
         self.assertEqual(result["vector_index_fallback_reason"], "RuntimeError: index helper unavailable")
@@ -553,92 +430,33 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
             openai_model="gpt-4o-mini",
         )
         calls: dict[str, object] = {}
-
-        class _FakeResult:
-            def consume(self):
-                return None
-
-            def single(self):
-                return {}
-
-        class _FakeSession:
-            def __enter__(self):
-                return self
-
-            def __exit__(self, exc_type, exc, tb):
-                return False
-
-            def run(self, query, **kwargs):
-                calls.setdefault("queries", []).append((query, kwargs))
-                return _FakeResult()
-
-        class _FakeDriver:
-            def __enter__(self):
-                return self
-
-            def __exit__(self, exc_type, exc, tb):
-                return False
-
-            def session(self, **kwargs):
-                return _FakeSession()
-
-        class _FakePipeline:
-            async def run(self, params):
-                return {"ok": True}
-
-        class _FakePipelineRunner:
-            @staticmethod
-            def from_config_file(path):
-                return _FakePipeline()
-
-        fake_neo4j = types.ModuleType("neo4j")
-        fake_neo4j.GraphDatabase = types.SimpleNamespace(driver=lambda *_args, **_kwargs: _FakeDriver())
-        fake_runner = types.ModuleType("neo4j_graphrag.experimental.pipeline.config.runner")
-        fake_runner.PipelineRunner = _FakePipelineRunner
-        fake_indexes = types.ModuleType("neo4j_graphrag.indexes")
         def _raise_index_error(*_args, **_kwargs):
             raise RuntimeError("index helper unavailable")
-        fake_indexes.create_vector_index = _raise_index_error
-
-        injected_modules = {
-            "neo4j": fake_neo4j,
-            "neo4j_graphrag.indexes": fake_indexes,
-            "neo4j_graphrag.experimental.pipeline.config.runner": fake_runner,
-        }
-        originals = {name: sys.modules.get(name) for name in injected_modules}
-        had_openai_api_key = "OPENAI_API_KEY" in os.environ
-        original_openai_api_key = os.environ.get("OPENAI_API_KEY")
+        injected_modules = self._build_pdf_ingest_test_modules(
+            calls=calls,
+            index_creator=_raise_index_error,
+        )
         original_identifiers = {
             "CHUNK_EMBEDDING_INDEX_NAME": module.CHUNK_EMBEDDING_INDEX_NAME,
             "CHUNK_EMBEDDING_LABEL": module.CHUNK_EMBEDDING_LABEL,
             "CHUNK_EMBEDDING_PROPERTY": module.CHUNK_EMBEDDING_PROPERTY,
         }
         try:
-            sys.modules.update(injected_modules)
-            os.environ["OPENAI_API_KEY"] = "test-openai-api-key"
-            for attr_name, value, expected in [
-                ("CHUNK_EMBEDDING_INDEX_NAME", "bad`index", "Unsafe index name for Cypher fallback"),
-                ("CHUNK_EMBEDDING_LABEL", "Chunk:Bad", "Unsafe label for Cypher fallback"),
-                ("CHUNK_EMBEDDING_PROPERTY", "embedding`bad", "Unsafe property for Cypher fallback"),
-            ]:
-                for original_attr_name, original_value in original_identifiers.items():
-                    setattr(module, original_attr_name, original_value)
-                setattr(module, attr_name, value)
-                with self.assertRaisesRegex(ValueError, expected):
-                    module._run_pdf_ingest(config, run_id="unstructured_ingest-test")
-            self.assertFalse(calls.get("queries"))
+            with self._with_injected_pdf_ingest_modules(injected_modules):
+                for attr_name, value, expected in [
+                    ("CHUNK_EMBEDDING_INDEX_NAME", "bad`index", "Unsafe index name for Cypher fallback"),
+                    ("CHUNK_EMBEDDING_LABEL", "Chunk:Bad", "Unsafe label for Cypher fallback"),
+                    ("CHUNK_EMBEDDING_PROPERTY", "embedding`bad", "Unsafe property for Cypher fallback"),
+                ]:
+                    for original_attr_name, original_value in original_identifiers.items():
+                        setattr(module, original_attr_name, original_value)
+                    setattr(module, attr_name, value)
+                    with self.assertRaisesRegex(ValueError, expected):
+                        module._run_pdf_ingest(config, run_id="unstructured_ingest-test")
+                self.assertFalse(calls.get("queries"))
         finally:
             for attr_name, original_value in original_identifiers.items():
                 setattr(module, attr_name, original_value)
-            for name, original in originals.items():
-                if original is None:
-                    sys.modules.pop(name, None)
-                else:
-                    sys.modules[name] = original
-            if had_openai_api_key:
-                os.environ["OPENAI_API_KEY"] = original_openai_api_key
-            else:
-                os.environ.pop("OPENAI_API_KEY", None)
 
     def test_run_pdf_ingest_non_dry_run_raises_when_no_run_scoped_documents_or_chunks(self):
         module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_non_dry_missing_nodes_test")
@@ -652,80 +470,16 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
             openai_model="gpt-4o-mini",
         )
 
-        class _FakeResult:
-            def __init__(self, single_payload=None):
-                self._single_payload = single_payload or {}
-
-            def consume(self):
-                return None
-
-            def single(self):
-                return self._single_payload
-
-        class _FakeSession:
-            def __enter__(self):
-                return self
-
-            def __exit__(self, exc_type, exc, tb):
-                return False
-
-            def run(self, query, **kwargs):
-                if "document_count" in query and "chunk_count" in query:
-                    return _FakeResult({"document_count": 0, "chunk_count": 0})
-                return _FakeResult()
-
-        class _FakeDriver:
-            def __enter__(self):
-                return self
-
-            def __exit__(self, exc_type, exc, tb):
-                return False
-
-            def session(self, **kwargs):
-                return _FakeSession()
-
-        class _FakePipeline:
-            async def run(self, params):
-                return {"ok": True}
-
-        class _FakePipelineRunner:
-            @staticmethod
-            def from_config_file(path):
-                return _FakePipeline()
-
-        fake_neo4j = types.ModuleType("neo4j")
-        fake_neo4j.GraphDatabase = types.SimpleNamespace(driver=lambda *_args, **_kwargs: _FakeDriver())
-        fake_runner = types.ModuleType("neo4j_graphrag.experimental.pipeline.config.runner")
-        fake_runner.PipelineRunner = _FakePipelineRunner
-        fake_indexes = types.ModuleType("neo4j_graphrag.indexes")
-        fake_indexes.create_vector_index = lambda *_args, **_kwargs: None
-
-        injected_modules = {
-            "neo4j": fake_neo4j,
-            "neo4j_graphrag.indexes": fake_indexes,
-            "neo4j_graphrag.experimental.pipeline.config.runner": fake_runner,
-        }
-        originals = {name: sys.modules.get(name) for name in injected_modules}
-        had_openai_api_key = "OPENAI_API_KEY" in os.environ
-        original_openai_api_key = os.environ.get("OPENAI_API_KEY")
-        try:
-            sys.modules.update(injected_modules)
-            os.environ["OPENAI_API_KEY"] = "test-openai-api-key"
+        injected_modules = self._build_pdf_ingest_test_modules(
+            calls={},
+            query_payloads={"document_count": {"document_count": 0, "chunk_count": 0}},
+        )
+        with self._with_injected_pdf_ingest_modules(injected_modules):
             with self.assertRaisesRegex(
                 ValueError,
                 "expected at least one Document and Chunk for this run",
             ):
                 module._run_pdf_ingest(config, run_id="unstructured_ingest-test")
-        finally:
-            for name, original in originals.items():
-                if original is None:
-                    sys.modules.pop(name, None)
-                else:
-                    sys.modules[name] = original
-            if had_openai_api_key:
-                os.environ["OPENAI_API_KEY"] = original_openai_api_key
-            else:
-                os.environ.pop("OPENAI_API_KEY", None)
 
     def test_run_pdf_ingest_non_dry_run_requires_openai_api_key(self):
         module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_non_dry_requires_openai_key_test")
