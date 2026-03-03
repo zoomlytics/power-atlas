@@ -36,6 +36,7 @@ _DEFAULT_CHUNK_EMBEDDING_DIMENSIONS = 1536
 _demo_contract: dict[str, Any] = {}
 _pipeline_config_data: dict[str, Any] = {}
 if PDF_PIPELINE_CONFIG_PATH.is_file():
+    _cfg_data: dict[str, Any] | Any = {}
     try:
         with PDF_PIPELINE_CONFIG_PATH.open("r", encoding="utf-8") as _cfg_handle:
             _cfg_data = yaml.safe_load(_cfg_handle)
@@ -47,17 +48,18 @@ if PDF_PIPELINE_CONFIG_PATH.is_file():
             stacklevel=2,
         )
         _cfg_data = {}
-    else:
-        if not isinstance(_cfg_data, dict):
-            warnings.warn(
-                f"Falling back to default chunk embedding contract; expected mapping at top-level in "
-                f"{PDF_PIPELINE_CONFIG_PATH}, got {type(_cfg_data).__name__}",
-                RuntimeWarning,
-                stacklevel=2,
-            )
-            _cfg_data = {}
-    _pipeline_config_data = _cfg_data if isinstance(_cfg_data, dict) else {}
-    _demo_contract = _cfg_data.get("demo_contract") if isinstance(_cfg_data, dict) else {}
+    cfg_is_mapping = isinstance(_cfg_data, dict)
+    if not cfg_is_mapping:
+        warnings.warn(
+            f"Falling back to default chunk embedding contract; expected mapping at top-level in "
+            f"{PDF_PIPELINE_CONFIG_PATH}, got {type(_cfg_data).__name__}",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+        _cfg_data = {}
+        cfg_is_mapping = False
+    _pipeline_config_data = _cfg_data if cfg_is_mapping else {}
+    _demo_contract = _cfg_data.get("demo_contract") if cfg_is_mapping else {}
     if _demo_contract is None:
         _demo_contract = {}
     elif not isinstance(_demo_contract, dict):
@@ -946,7 +948,7 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
     try:
         driver = neo4j.GraphDatabase.driver(config.neo4j_uri, auth=(config.neo4j_username, config.neo4j_password))
         with driver:
-            index_creation_strategy: str = "neo4j_graphrag.indexes.create_vector_index"
+            index_creation_strategy = "neo4j_graphrag.indexes.create_vector_index"
             index_fallback_reason: str | None = None
             try:
                 create_vector_index(
@@ -1039,15 +1041,9 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                     source_uri=pdf_source_uri,
                 ).single()
                 run_counts = _record_as_mapping(run_counts)
-                document_count_value = run_counts.get("document_count")
-                chunk_count_value = run_counts.get("chunk_count")
-                if document_count_value in (None, 0) or chunk_count_value in (None, 0):
-                    raise ValueError(
-                        "Ingest contract violation: expected at least one Document and Chunk for this run"
-                    )
                 try:
-                    document_count = int(document_count_value)
-                    chunk_count = int(chunk_count_value)
+                    document_count = int(run_counts.get("document_count") or 0)
+                    chunk_count = int(run_counts.get("chunk_count") or 0)
                 except (TypeError, ValueError) as exc:
                     raise ValueError("Ingest contract violation: unexpected count types") from exc
                 if document_count <= 0 or chunk_count <= 0:
