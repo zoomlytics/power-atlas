@@ -308,29 +308,36 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
         self.assertEqual(calls["index_kwargs"]["dimensions"], 1536)
         self.assertEqual(calls["index_kwargs"]["similarity_fn"], "cosine")
         self.assertEqual(calls["index_kwargs"]["database_"], "neo4j")
-        self.assertEqual(
-            calls["config_path"],
-            str(DEMO_DIR / "config" / "pdf_simple_kg_pipeline.yaml"),
-        )
-        self.assertEqual(
-            calls["run_params"]["file_path"],
-            str(DEMO_DIR / "fixtures" / "unstructured" / "chain_of_custody.pdf"),
-        )
-        self.assertNotIn("pdf_loader", calls["run_params"])
-        self.assertTrue(
-            any("SET d.run_id" in query for query, _ in calls.get("queries", [])),
-            "Expected post-ingest provenance query to run",
-        )
-        normalized_query = next(query for query, _ in calls["queries"] if "SET d.run_id" in query)
-        self.assertIn("d.run_id IS NULL OR d.run_id = $run_id", normalized_query)
-        self.assertNotIn("id(c)", normalized_query)
-        self.assertTrue(any("document_count" in query and "chunk_count" in query for query, _ in calls["queries"]))
-        restored_env = {key: (key in os.environ, os.environ.get(key)) for key in original_env}
-        self.assertEqual(restored_env, original_env)
-        if had_openai_api_key:
-            os.environ["OPENAI_API_KEY"] = original_openai_api_key
-        else:
-            os.environ.pop("OPENAI_API_KEY", None)
+        try:
+            self.assertEqual(
+                calls["config_path"],
+                str(DEMO_DIR / "config" / "pdf_simple_kg_pipeline.yaml"),
+            )
+            self.assertEqual(
+                calls["run_params"]["file_path"],
+                str(DEMO_DIR / "fixtures" / "unstructured" / "chain_of_custody.pdf"),
+            )
+            self.assertNotIn("pdf_loader", calls["run_params"])
+            self.assertTrue(
+                any("SET d.run_id" in query for query, _ in calls.get("queries", [])),
+                "Expected post-ingest provenance query to run",
+            )
+            normalized_query = next(query for query, _ in calls["queries"] if "SET d.run_id" in query)
+            self.assertIn("d.run_id IS NULL OR d.run_id = $run_id", normalized_query)
+            self.assertNotIn("id(c)", normalized_query)
+            self.assertTrue(
+                any(
+                    "document_count" in query and "chunk_count" in query
+                    for query, _ in calls["queries"]
+                )
+            )
+            restored_env = {key: (key in os.environ, os.environ.get(key)) for key in original_env}
+            self.assertEqual(restored_env, original_env)
+        finally:
+            if had_openai_api_key:
+                os.environ["OPENAI_API_KEY"] = original_openai_api_key
+            else:
+                os.environ.pop("OPENAI_API_KEY", None)
 
     def test_run_pdf_ingest_non_dry_run_falls_back_to_cypher_index_creation(self):
         module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_non_dry_fallback_test")
