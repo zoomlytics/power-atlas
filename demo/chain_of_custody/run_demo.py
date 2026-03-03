@@ -537,9 +537,12 @@ def _record_as_mapping(record: Any) -> dict[str, Any]:
 
 def _sha256_file(path: Path, *, chunk_size: int = 1024 * 1024) -> str:
     hasher = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(chunk_size), b""):
-            hasher.update(chunk)
+    try:
+        with path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(chunk_size), b""):
+                hasher.update(chunk)
+    except OSError as exc:
+        raise OSError(f"Unable to hash file {path}: {exc}") from exc
     return hasher.hexdigest()
 
 
@@ -1040,11 +1043,16 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                     source_uri=pdf_source_uri,
                 ).single()
                 run_counts = _record_as_mapping(run_counts)
+                document_count_value = run_counts.get("document_count")
+                chunk_count_value = run_counts.get("chunk_count")
                 try:
                     document_count = int(run_counts.get("document_count") or 0)
                     chunk_count = int(run_counts.get("chunk_count") or 0)
                 except (TypeError, ValueError) as exc:
-                    raise ValueError("Ingest contract violation: unexpected count types") from exc
+                    raise ValueError(
+                        "Ingest contract violation: unexpected count types "
+                        f"(document_count={document_count_value!r}, chunk_count={chunk_count_value!r})"
+                    ) from exc
                 if document_count <= 0 or chunk_count <= 0:
                     raise ValueError(
                         "Ingest contract violation: expected at least one Document and Chunk for this run"
@@ -1068,7 +1076,9 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                 try:
                     page_count = int(page_count_value) if page_count_value is not None else 0
                 except (TypeError, ValueError) as exc:
-                    raise ValueError("Ingest contract violation: unexpected page count type") from exc
+                    raise ValueError(
+                        f"Ingest contract violation: unexpected page count type (value={page_count_value!r})"
+                    ) from exc
                 summary_counts = {
                     "documents": document_count,
                     "pages": page_count,
