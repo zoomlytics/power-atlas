@@ -893,7 +893,15 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
     pdf_ingest_dir.mkdir(parents=True, exist_ok=True)
     ingest_summary_path = pdf_ingest_dir / "ingest_summary.json"
     pdf_fingerprint_sha256 = _sha256_file(pdf_path)
-    pipeline_config_sha256 = _sha256_file(PDF_PIPELINE_CONFIG_PATH)
+    if PDF_PIPELINE_CONFIG_PATH.is_file():
+        pipeline_config_sha256 = _sha256_file(PDF_PIPELINE_CONFIG_PATH)
+    elif config.dry_run:
+        # Allow dry-run to proceed even if the pipeline config file is missing.
+        pipeline_config_sha256 = None
+    else:
+        raise FileNotFoundError(
+            f"Required PDF pipeline config not found: {PDF_PIPELINE_CONFIG_PATH}"
+        )
     summary_counts = {"documents": 0, "pages": 0, "chunks": 0}
     extraction_warnings: list[Any] = []
 
