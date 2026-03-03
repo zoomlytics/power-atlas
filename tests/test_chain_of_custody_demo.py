@@ -34,6 +34,19 @@ def _load_module(path: Path, module_name: str):
 
 
 class ChainOfCustodyDemoTests(unittest.TestCase):
+    @contextmanager
+    def _with_injected_modules(self, injected_modules: dict[str, types.ModuleType]):
+        originals = {name: sys.modules.get(name) for name in injected_modules}
+        try:
+            sys.modules.update(injected_modules)
+            yield
+        finally:
+            for name, original in originals.items():
+                if original is None:
+                    sys.modules.pop(name, None)
+                else:
+                    sys.modules[name] = original
+
     def _build_pdf_ingest_test_modules(
         self,
         *,
@@ -317,6 +330,74 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
             self.assertEqual(
                 lint_report["structured_clean_dir"],
                 stage["structured_clean_dir"],
+            )
+            self.assertTrue(Path(stage["structured_ingest_dir"]).exists())
+            self.assertTrue(Path(stage["ingest_summary_path"]).exists())
+            self.assertTrue(Path(stage["validation_warnings_path"]).exists())
+
+    def test_structured_ingest_non_dry_run_writes_claim_first_graph_and_artifacts(self):
+        module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_structured_live_test")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = module.DemoConfig(
+                dry_run=False,
+                output_dir=Path(tmpdir),
+                neo4j_uri="neo4j://localhost:7687",
+                neo4j_username="neo4j",
+                neo4j_password="testtesttest",
+                neo4j_database="neo4j",
+                openai_model="gpt-4o-mini",
+            )
+            calls: dict[str, object] = {}
+
+            class _FakeResult:
+                def consume(self):
+                    return None
+
+            class _FakeSession:
+                def __enter__(self):
+                    return self
+
+                def __exit__(self, exc_type, exc, tb):
+                    return False
+
+                def run(self, query, **kwargs):
+                    calls.setdefault("queries", []).append((query, kwargs))
+                    return _FakeResult()
+
+            class _FakeDriver:
+                def __enter__(self):
+                    return self
+
+                def __exit__(self, exc_type, exc, tb):
+                    return False
+
+                def session(self, **kwargs):
+                    calls.setdefault("sessions", []).append(kwargs)
+                    return _FakeSession()
+
+            fake_neo4j = types.ModuleType("neo4j")
+            fake_neo4j.GraphDatabase = types.SimpleNamespace(driver=lambda *_args, **_kwargs: _FakeDriver())
+
+            with self._with_injected_modules({"neo4j": fake_neo4j}):
+                result = module._run_structured_ingest(config, run_id="structured_ingest-test")
+
+            self.assertEqual(result["status"], "live")
+            self.assertGreater(result["claims"], 0)
+            self.assertEqual(result["validation_warning_count"], 0)
+            self.assertTrue(Path(result["structured_ingest_dir"]).exists())
+            self.assertTrue(Path(result["ingest_summary_path"]).exists())
+            self.assertTrue(Path(result["validation_warnings_path"]).exists())
+            ingest_summary = json.loads(Path(result["ingest_summary_path"]).read_text(encoding="utf-8"))
+            self.assertEqual(ingest_summary["run_id"], "structured_ingest-test")
+            self.assertEqual(ingest_summary["warning_count"], 0)
+            self.assertIn("counts", ingest_summary)
+            self.assertTrue(
+                any("MERGE (claim:Claim" in query for query, _ in calls.get("queries", [])),
+                "Expected claim ingestion query to run",
+            )
+            self.assertTrue(
+                any("SUPPORTED_BY" in query and "source_row_id" in query for query, _ in calls.get("queries", [])),
+                "Expected source_row_id evidence link query to run",
             )
 
     def test_structured_lint_deduplicates_duplicate_rows(self):
