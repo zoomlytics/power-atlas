@@ -583,6 +583,7 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
             calls=calls,
             query_payloads={
                 "document_count": {"document_count": 1, "chunk_count": 2},
+                "page_count": {"page_count": 2},
                 "missing_chunk_order_count": {"missing_chunk_order_count": 0},
                 "missing_embedding_count": {"missing_embedding_count": 0},
             },
@@ -590,11 +591,30 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
                 {"index_name": index_name, "index_kwargs": {"database_": database_, **kwargs}}
             ),
         )
+        expected_fingerprint = module._sha256_file(
+            DEMO_DIR / "fixtures" / "unstructured" / "chain_of_custody.pdf"
+        )
         initial_openai_state = ("OPENAI_API_KEY" in os.environ, os.environ.get("OPENAI_API_KEY"))
         with self._with_injected_pdf_ingest_modules(injected_modules):
             result = module._run_pdf_ingest(config, run_id="unstructured_ingest-test")
 
         self.assertEqual(result["status"], "live")
+        summary_path = Path(result["ingest_summary_path"])
+        self.assertTrue(summary_path.exists())
+        summary = json.loads(summary_path.read_text(encoding="utf-8"))
+        self.assertEqual(summary["counts"], {"documents": 1, "pages": 2, "chunks": 2})
+        self.assertEqual(result["counts"], summary["counts"])
+        self.assertEqual(result["pdf_fingerprint_sha256"], expected_fingerprint)
+        self.assertEqual(summary["pdf_fingerprint_sha256"], expected_fingerprint)
+        self.assertEqual(
+            summary["pipeline_config_sha256"],
+            module._sha256_file(DEMO_DIR / "config" / "pdf_simple_kg_pipeline.yaml"),
+        )
+        self.assertEqual(
+            result["pipeline_config_sha256"],
+            module._sha256_file(DEMO_DIR / "config" / "pdf_simple_kg_pipeline.yaml"),
+        )
+        self.assertEqual(summary["embedding_model"], module.EMBEDDER_MODEL_NAME)
         self.assertEqual(result["vector_index"]["creation_strategy"], "neo4j_graphrag.indexes.create_vector_index")
         self.assertEqual(result["pipeline_result"], {"ok": True})
         self.assertEqual(calls["index_name"], "chain_custody_chunk_embedding_index")
@@ -625,10 +645,48 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
                 for query, _ in calls["queries"]
             )
         )
+        self.assertNotIn("extraction_warnings", result)
+        self.assertIn("warnings", result)
         self.assertEqual(
             ("OPENAI_API_KEY" in os.environ, os.environ.get("OPENAI_API_KEY")),
             initial_openai_state,
         )
+
+    def test_run_pdf_ingest_dry_run_writes_summary_and_fingerprint(self):
+        module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_pdf_dry_summary_test")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = module.DemoConfig(
+                dry_run=True,
+                output_dir=Path(tmpdir),
+                neo4j_uri="neo4j://localhost:7687",
+                neo4j_username="neo4j",
+                neo4j_password="testtesttest",
+                neo4j_database="neo4j",
+                openai_model="gpt-4o-mini",
+            )
+            result = module._run_pdf_ingest(config, run_id="unstructured_ingest-test")
+            expected_fingerprint = module._sha256_file(
+                DEMO_DIR / "fixtures" / "unstructured" / "chain_of_custody.pdf"
+            )
+            summary_path = Path(result["ingest_summary_path"])
+            self.assertTrue(summary_path.exists())
+            summary = json.loads(summary_path.read_text(encoding="utf-8"))
+            self.assertEqual(summary["pdf_fingerprint_sha256"], expected_fingerprint)
+            self.assertEqual(summary["counts"], {"documents": 0, "pages": 0, "chunks": 0})
+            self.assertEqual(summary["embedding_model"], module.EMBEDDER_MODEL_NAME)
+            self.assertEqual(summary["embedding_dimensions"], module.CHUNK_EMBEDDING_DIMENSIONS)
+            self.assertEqual(
+                summary["pipeline_config_sha256"],
+                module._sha256_file(DEMO_DIR / "config" / "pdf_simple_kg_pipeline.yaml"),
+            )
+            self.assertEqual(summary["vector_index"]["creation_strategy"], "dry_run")
+            self.assertEqual(result["pdf_fingerprint_sha256"], expected_fingerprint)
+            self.assertEqual(
+                result["pipeline_config_sha256"],
+                module._sha256_file(DEMO_DIR / "config" / "pdf_simple_kg_pipeline.yaml"),
+            )
+            self.assertEqual(Path(result["pdf_ingest_dir"]), summary_path.parent)
+            self.assertEqual(result["vector_index"]["creation_strategy"], "dry_run")
 
     def test_run_pdf_ingest_non_dry_run_normalizes_non_json_pipeline_result(self):
         module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_result_fallback_test")
