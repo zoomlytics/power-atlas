@@ -5,6 +5,8 @@ import os
 
 import neo4j
 
+CHUNK_EMBEDDING_INDEX_NAME = "chain_custody_chunk_embedding_index"
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Reset Chain of Custody demo nodes and indexes.")
@@ -37,7 +39,9 @@ def main() -> None:
             """
         ).consume()
 
-        for index_name in ["chain_custody_chunk_embedding_index"]:
+        # Keep this reset contract aligned with demo/chain_of_custody/config/pdf_simple_kg_pipeline.yaml
+        # and run_demo.py deterministic vector index setup.
+        for index_name in [CHUNK_EMBEDDING_INDEX_NAME]:
             if not index_name.replace("_", "").isalnum():
                 raise ValueError(f"Unsafe index name: {index_name}")
             session.run(f"DROP INDEX `{index_name}` IF EXISTS").consume()

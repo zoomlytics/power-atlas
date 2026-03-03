@@ -1,21 +1,99 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import csv
 import json
 import os
+import re
 import sys
+import warnings
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Callable
 from uuid import uuid4
 
+import yaml
+
 FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
 ARTIFACTS_DIR = Path(__file__).resolve().parent / "artifacts"
+CONFIG_DIR = Path(__file__).resolve().parent / "config"
+PDF_PIPELINE_CONFIG_PATH = CONFIG_DIR / "pdf_simple_kg_pipeline.yaml"
 DEFAULT_DB = os.getenv("NEO4J_DATABASE", "neo4j")
 
+# Default values for the chunk embedding index contract.
+# These are used as fallbacks if the YAML configuration does not provide them.
+_DEFAULT_CHUNK_EMBEDDING_INDEX_NAME = "chain_custody_chunk_embedding_index"
+_DEFAULT_CHUNK_EMBEDDING_LABEL = "Chunk"
+_DEFAULT_CHUNK_EMBEDDING_PROPERTY = "embedding"
+_DEFAULT_CHUNK_EMBEDDING_DIMENSIONS = 1536
 
+# Load the vector index contract from the pipeline config (if available) to avoid
+# drifting from the configuration defined under `demo_contract` in
+# pdf_simple_kg_pipeline.yaml.
+_demo_contract: dict[str, Any] = {}
+if PDF_PIPELINE_CONFIG_PATH.is_file():
+    try:
+        with PDF_PIPELINE_CONFIG_PATH.open("r", encoding="utf-8") as _cfg_handle:
+            _cfg_data = yaml.safe_load(_cfg_handle)
+        if not isinstance(_cfg_data, dict):
+            warnings.warn(
+                f"Falling back to default chunk embedding contract; expected mapping at top-level in "
+                f"{PDF_PIPELINE_CONFIG_PATH}, got {type(_cfg_data).__name__}",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            _demo_contract = {}
+        else:
+            _demo_contract = _cfg_data.get("demo_contract")
+            if _demo_contract is None:
+                _demo_contract = {}
+            elif not isinstance(_demo_contract, dict):
+                warnings.warn(
+                    f"Falling back to default chunk embedding contract; expected mapping for demo_contract in "
+                    f"{PDF_PIPELINE_CONFIG_PATH}, got {type(_demo_contract).__name__}",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
+                _demo_contract = {}
+    except (OSError, yaml.YAMLError) as exc:
+        warnings.warn(
+            f"Falling back to default chunk embedding contract; unable to load "
+            f"{PDF_PIPELINE_CONFIG_PATH}: {exc}",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+        # If the config cannot be read or parsed, fall back to the defaults.
+        _demo_contract = {}
+
+# The chunk embedding index contract lives under `demo_contract.chunk_embedding`
+# in pdf_simple_kg_pipeline.yaml. Use that if present; otherwise, fall back to
+# the hard-coded defaults above.
+_chunk_embedding_contract = _demo_contract.get("chunk_embedding")
+if _chunk_embedding_contract is None:
+    _chunk_embedding_contract = {}
+elif not isinstance(_chunk_embedding_contract, dict):
+    warnings.warn(
+        f"Falling back to default chunk embedding contract; expected mapping for demo_contract.chunk_embedding in "
+        f"{PDF_PIPELINE_CONFIG_PATH}, got {type(_chunk_embedding_contract).__name__}",
+        RuntimeWarning,
+        stacklevel=2,
+    )
+    _chunk_embedding_contract = {}
+
+CHUNK_EMBEDDING_INDEX_NAME = _chunk_embedding_contract.get(
+    "index_name", _DEFAULT_CHUNK_EMBEDDING_INDEX_NAME
+)
+CHUNK_EMBEDDING_LABEL = _chunk_embedding_contract.get(
+    "label", _DEFAULT_CHUNK_EMBEDDING_LABEL
+)
+CHUNK_EMBEDDING_PROPERTY = _chunk_embedding_contract.get(
+    "embedding_property", _DEFAULT_CHUNK_EMBEDDING_PROPERTY
+)
+CHUNK_EMBEDDING_DIMENSIONS = _chunk_embedding_contract.get(
+    "dimensions", _DEFAULT_CHUNK_EMBEDDING_DIMENSIONS
+)
 @dataclass(frozen=True)
 class DemoConfig:
     dry_run: bool
@@ -40,6 +118,38 @@ def _load_csv_rows(path: Path) -> list[dict[str, str]]:
         return list(csv.DictReader(handle))
 
 
+def _validate_cypher_identifier(value: str, kind: str) -> None:
+    """Allow only Cypher-safe identifiers ([A-Za-z_][A-Za-z0-9_]*) for fallback interpolation."""
+    if not isinstance(value, str):
+        raise ValueError(
+            f"Invalid {kind} for Cypher fallback: expected a string, got "
+            f"{value!r} (type {type(value).__name__})"
+        )
+    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", value):
+        raise ValueError(f"Unsafe {kind} for Cypher fallback: {value!r}")
+
+
+def _normalize_pipeline_result(value: Any) -> Any:
+    try:
+        json.dumps(value)
+        return value
+    except (TypeError, ValueError):
+        # Fall back to a compact, textual representation for non-JSON-serializable values.
+        try:
+            summary = repr(value)
+        except Exception:
+            summary = f"<unrepresentable {type(value).__name__} object>"
+
+        max_len = 200
+        if len(summary) > max_len:
+            summary = summary[: max_len - 3] + "..."
+
+        return {
+            "type": type(value).__name__,
+            "summary": summary,
+        }
+
+
 def _run_structured_ingest(config: DemoConfig) -> dict[str, Any]:
     claims_path = FIXTURES_DIR / "structured" / "claims.csv"
     entities_path = FIXTURES_DIR / "structured" / "entities.csv"
@@ -58,22 +168,199 @@ def _run_structured_ingest(config: DemoConfig) -> dict[str, Any]:
     )
 
 
-def _run_pdf_ingest(config: DemoConfig) -> dict[str, Any]:
+def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, Any]:
     pdf_path = FIXTURES_DIR / "unstructured" / "chain_of_custody.pdf"
     if not pdf_path.exists():
         raise FileNotFoundError(f"Required PDF fixture not found: {pdf_path}")
+    pdf_source_uri = str(pdf_path)
+    stage_run_id = run_id or _make_run_id("unstructured_ingest")
 
     if config.dry_run:
         return {
             "status": "dry_run",
-            "documents": [str(pdf_path)],
+            "documents": [pdf_source_uri],
             "vendor_pattern": "SimpleKGPipeline + OpenAIEmbeddings + FixedSizeSplitter",
+            "pipeline_config": str(PDF_PIPELINE_CONFIG_PATH),
+            "vector_index": {
+                "index_name": CHUNK_EMBEDDING_INDEX_NAME,
+                "label": CHUNK_EMBEDDING_LABEL,
+                "embedding_property": CHUNK_EMBEDDING_PROPERTY,
+                "dimensions": CHUNK_EMBEDDING_DIMENSIONS,
+            },
         }
 
-    raise NotImplementedError(
-        "Non-dry-run PDF ingest is not implemented. "
-        "Run this demo with --dry-run until the vendor SimpleKGPipeline wiring is added."
-    )
+    if not os.getenv("OPENAI_API_KEY"):
+        raise SystemExit("Set OPENAI_API_KEY when using --live ingest-pdf")
+
+    import neo4j
+    from neo4j_graphrag.experimental.pipeline.config.runner import PipelineRunner
+    from neo4j_graphrag.indexes import create_vector_index
+
+    env_updates = {
+        "NEO4J_URI": config.neo4j_uri,
+        "NEO4J_USERNAME": config.neo4j_username,
+        "NEO4J_PASSWORD": config.neo4j_password,
+        "NEO4J_DATABASE": config.neo4j_database,
+        "OPENAI_MODEL": config.openai_model,
+    }
+    previous_env = {key: (key in os.environ, os.environ.get(key)) for key in env_updates}
+    os.environ.update(env_updates)
+
+    try:
+        driver = neo4j.GraphDatabase.driver(config.neo4j_uri, auth=(config.neo4j_username, config.neo4j_password))
+        with driver:
+            index_creation_strategy = "neo4j_graphrag.indexes.create_vector_index"
+            index_fallback_reason: str | None = None
+            try:
+                create_vector_index(
+                    driver,
+                    CHUNK_EMBEDDING_INDEX_NAME,
+                    label=CHUNK_EMBEDDING_LABEL,
+                    embedding_property=CHUNK_EMBEDDING_PROPERTY,
+                    dimensions=CHUNK_EMBEDDING_DIMENSIONS,
+                    similarity_fn="cosine",
+                    database_=config.neo4j_database,
+                )
+            except Exception as exc:
+                index_creation_strategy = "cypher_fallback"
+                exc_message = str(exc).splitlines()[0].strip()
+                index_fallback_reason = (
+                    f"{type(exc).__name__}: {exc_message}" if exc_message else type(exc).__name__
+                )
+                _validate_cypher_identifier(CHUNK_EMBEDDING_INDEX_NAME, "index name")
+                _validate_cypher_identifier(CHUNK_EMBEDDING_LABEL, "label")
+                _validate_cypher_identifier(CHUNK_EMBEDDING_PROPERTY, "property")
+                with driver.session(database=config.neo4j_database) as session:
+                    session.run(
+                        f"""
+                        CREATE VECTOR INDEX `{CHUNK_EMBEDDING_INDEX_NAME}` IF NOT EXISTS
+                        FOR (n:{CHUNK_EMBEDDING_LABEL}) ON (n.{CHUNK_EMBEDDING_PROPERTY})
+                        OPTIONS {{indexConfig: {{
+                            `vector.dimensions`: $dimensions,
+                            `vector.similarity_function`: 'cosine'
+                        }}}}
+                        """,
+                        dimensions=CHUNK_EMBEDDING_DIMENSIONS,
+                    ).consume()
+
+            pipeline = PipelineRunner.from_config_file(PDF_PIPELINE_CONFIG_PATH)
+            pipeline_result = asyncio.run(
+                pipeline.run(
+                    {
+                        "file_path": pdf_source_uri,
+                    }
+                )
+            )
+
+            with driver.session(database=config.neo4j_database) as session:
+                # Vendor versions can emit Chunk ordering/embedding fields as
+                # index/chunk_index and embedding/embedding_vector/vector/embeddings.
+                # Normalize them into the demo retrieval contract:
+                # Chunk.chunk_order + Chunk.embedding on every ingested Chunk.
+                session.run(
+                    """
+                    MATCH (d:Document)
+                    WHERE (d.path = $source_uri OR d.source_uri = $source_uri)
+                      AND (d.run_id IS NULL OR d.run_id = $run_id)
+                    SET d.run_id = coalesce(d.run_id, $run_id),
+                        d.source_uri = coalesce(d.source_uri, $source_uri)
+                    WITH d
+                    MATCH (d)<-[:FROM_DOCUMENT]-(c:Chunk)
+                    WHERE c.run_id IS NULL OR c.run_id = $run_id
+                    WITH d, c,
+                         toInteger(coalesce(c.chunk_order, c.index, c.chunk_index)) AS normalized_chunk_order
+                    SET c.run_id = coalesce(c.run_id, $run_id),
+                        c.source_uri = coalesce(c.source_uri, d.source_uri, $source_uri),
+                        c.chunk_order = normalized_chunk_order,
+                        c.chunk_id = coalesce(
+                            c.chunk_id,
+                            c.uid,
+                            d.source_uri + ':' + toString(normalized_chunk_order)
+                        ),
+                        c.page_number = coalesce(c.page_number, c.page),
+                        c.embedding = coalesce(c.embedding, c.embedding_vector, c.vector, c.embeddings)
+                    """,
+                    run_id=stage_run_id,
+                    source_uri=pdf_source_uri,
+                ).consume()
+                run_counts = session.run(
+                    """
+                    MATCH (d:Document)
+                    WHERE (d.path = $source_uri OR d.source_uri = $source_uri)
+                      AND d.run_id = $run_id
+                    OPTIONAL MATCH (d)<-[:FROM_DOCUMENT]-(c:Chunk)
+                    WHERE c.run_id = $run_id
+                    RETURN count(DISTINCT d) AS document_count, count(c) AS chunk_count
+                    """,
+                    run_id=stage_run_id,
+                    source_uri=pdf_source_uri,
+                ).single()
+                if run_counts["document_count"] == 0 or run_counts["chunk_count"] == 0:
+                    raise ValueError(
+                        "Ingest contract violation: expected at least one Document and Chunk for this run"
+                    )
+                missing_chunk_order_count = session.run(
+                    """
+                    MATCH (d:Document)
+                    WHERE (d.path = $source_uri OR d.source_uri = $source_uri)
+                      AND d.run_id = $run_id
+                    MATCH (d)<-[:FROM_DOCUMENT]-(c:Chunk)
+                    WHERE c.run_id = $run_id
+                      AND c.chunk_order IS NULL
+                    RETURN count(c) AS missing_chunk_order_count
+                    """,
+                    run_id=stage_run_id,
+                    source_uri=pdf_source_uri,
+                ).single()["missing_chunk_order_count"]
+                if missing_chunk_order_count:
+                    raise ValueError(
+                        "Chunk ordering contract violation: expected stable chunk index on all ingested chunks"
+                    )
+                missing_embedding_count = session.run(
+                    """
+                    MATCH (d:Document)
+                    WHERE (d.path = $source_uri OR d.source_uri = $source_uri)
+                      AND d.run_id = $run_id
+                    MATCH (d)<-[:FROM_DOCUMENT]-(c:Chunk)
+                    WHERE c.run_id = $run_id
+                      AND c.embedding IS NULL
+                    RETURN count(c) AS missing_embedding_count
+                    """,
+                    run_id=stage_run_id,
+                    source_uri=pdf_source_uri,
+                ).single()["missing_embedding_count"]
+                if missing_embedding_count:
+                    raise ValueError(
+                        "Chunk embedding contract violation: expected :Chunk.embedding for all ingested chunks"
+                    )
+    finally:
+        for key, (had_key, previous_value) in previous_env.items():
+            if not had_key:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = previous_value
+
+    return {
+        "status": "live",
+        "documents": [pdf_source_uri],
+        "pipeline_config": str(PDF_PIPELINE_CONFIG_PATH),
+        "vector_index": {
+            "index_name": CHUNK_EMBEDDING_INDEX_NAME,
+            "label": CHUNK_EMBEDDING_LABEL,
+            "embedding_property": CHUNK_EMBEDDING_PROPERTY,
+            "dimensions": CHUNK_EMBEDDING_DIMENSIONS,
+            "creation_strategy": index_creation_strategy,
+        },
+        "pipeline_result": _normalize_pipeline_result(pipeline_result),
+        "provenance": {
+            "run_id": stage_run_id,
+            "source_uri": pdf_source_uri,
+            "chunk_order_property": "chunk_order",
+            "chunk_id_property": "chunk_id",
+            "page_property": "page_number",
+        },
+        **({"vector_index_fallback_reason": index_fallback_reason} if index_fallback_reason else {}),
+    }
 
 
 def _run_claim_and_mention_extraction(config: DemoConfig) -> dict[str, Any]:
@@ -130,7 +417,7 @@ def run_demo(config: DemoConfig) -> Path:
                 "run_id": structured_run_id,
             },
             "pdf_ingest": {
-                **_run_pdf_ingest(config),
+                **_run_pdf_ingest(config, unstructured_run_id),
                 "run_id": unstructured_run_id,
             },
             "claim_and_mention_extraction": {
@@ -151,8 +438,12 @@ def run_demo(config: DemoConfig) -> Path:
 
 def run_independent_demo(config: DemoConfig, command: str) -> Path:
     config.output_dir.mkdir(parents=True, exist_ok=True)
-    stage_runners: dict[str, tuple[str, str, Callable[[DemoConfig], dict[str, Any]]]] = {
-        "ingest-structured": ("structured_ingest", "structured_ingest_run_id", _run_structured_ingest),
+    stage_runners: dict[str, tuple[str, str, Callable[[DemoConfig, str], dict[str, Any]]]] = {
+        "ingest-structured": (
+            "structured_ingest",
+            "structured_ingest_run_id",
+            lambda cfg, _stage_run_id: _run_structured_ingest(cfg),
+        ),
         "ingest-pdf": ("pdf_ingest", "unstructured_ingest_run_id", _run_pdf_ingest),
     }
     if command not in stage_runners:
@@ -160,6 +451,7 @@ def run_independent_demo(config: DemoConfig, command: str) -> Path:
     stage_name, run_scope_key, stage_runner = stage_runners[command]
     run_scope = run_scope_key.removesuffix("_run_id")
     stage_run_id = _make_run_id(run_scope)
+    stage_output = stage_runner(config, stage_run_id)
     manifest = {
         "run_id": stage_run_id,
         "created_at": datetime.now(UTC).isoformat(),
@@ -174,7 +466,7 @@ def run_independent_demo(config: DemoConfig, command: str) -> Path:
         },
         "stages": {
             stage_name: {
-                **stage_runner(config),
+                **stage_output,
                 "run_id": stage_run_id,
             }
         },
