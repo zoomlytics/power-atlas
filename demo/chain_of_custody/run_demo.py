@@ -530,7 +530,7 @@ def _record_as_mapping(record: Any) -> dict[str, Any]:
         return record
     try:
         return record.data()  # type: ignore[union-attr]
-    except Exception:
+    except AttributeError:
         return record
 
 
@@ -936,11 +936,12 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
     previous_env = {key: (key in os.environ, os.environ.get(key)) for key in env_updates}
     os.environ.update(env_updates)
 
-    index_creation_strategy: str | None = "neo4j_graphrag.indexes.create_vector_index"
+    index_creation_strategy: str | None = None
     index_fallback_reason: str | None = None
     try:
         driver = neo4j.GraphDatabase.driver(config.neo4j_uri, auth=(config.neo4j_username, config.neo4j_password))
         with driver:
+            index_creation_strategy = "neo4j_graphrag.indexes.create_vector_index"
             try:
                 create_vector_index(
                     driver,
@@ -1045,9 +1046,9 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                       AND d.run_id = $run_id
                     MATCH (d)<-[:FROM_DOCUMENT]-(c:Chunk)
                     WHERE c.run_id = $run_id
-                    WITH coalesce(c.page_number, c.page) AS page_val
-                    WHERE page_val IS NOT NULL
-                    RETURN count(DISTINCT page_val) AS page_count
+                    WITH coalesce(c.page_number, c.page) AS page_value
+                    WHERE page_value IS NOT NULL
+                    RETURN count(DISTINCT page_value) AS page_count
                     """,
                     run_id=stage_run_id,
                     source_uri=pdf_source_uri,
