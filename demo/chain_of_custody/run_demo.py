@@ -36,6 +36,7 @@ _DEFAULT_CHUNK_EMBEDDING_DIMENSIONS = 1536
 _demo_contract: dict[str, Any] = {}
 _pipeline_config_data: dict[str, Any] = {}
 if PDF_PIPELINE_CONFIG_PATH.is_file():
+    _cfg_data: dict[str, Any] = {}
     try:
         with PDF_PIPELINE_CONFIG_PATH.open("r", encoding="utf-8") as _cfg_handle:
             _cfg_data = yaml.safe_load(_cfg_handle)
@@ -870,6 +871,7 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
     pdf_fingerprint_sha256 = hashlib.sha256(pdf_path.read_bytes()).hexdigest()
     summary_counts = {"documents": 0, "pages": 0, "chunks": 0}
     extraction_warnings: list[Any] = []
+    pipeline_result: object | None = None
 
     if config.dry_run:
         ingest_summary = {
@@ -927,7 +929,6 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
 
     index_creation_strategy = "neo4j_graphrag.indexes.create_vector_index"
     index_fallback_reason: str | None = None
-    pipeline_result: object | None = None
     try:
         driver = neo4j.GraphDatabase.driver(config.neo4j_uri, auth=(config.neo4j_username, config.neo4j_password))
         with driver:
