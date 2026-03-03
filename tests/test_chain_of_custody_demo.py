@@ -409,7 +409,7 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
                     sys.modules[name] = original
 
         self.assertEqual(result["vector_index"]["creation_strategy"], "cypher_fallback")
-        self.assertEqual(result["vector_index_fallback_reason"], "index helper unavailable")
+        self.assertEqual(result["vector_index_fallback_reason"], "RuntimeError: index helper unavailable")
         self.assertTrue(
             any("CREATE VECTOR INDEX `chain_custody_chunk_embedding_index` IF NOT EXISTS" in query for query, _ in calls["queries"])
         )

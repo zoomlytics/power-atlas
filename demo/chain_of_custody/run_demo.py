@@ -117,7 +117,10 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                 )
             except Exception as exc:
                 index_creation_strategy = "cypher_fallback"
-                index_fallback_reason = str(exc)
+                exc_message = str(exc).splitlines()[0].strip()
+                index_fallback_reason = (
+                    f"{type(exc).__name__}: {exc_message}" if exc_message else type(exc).__name__
+                )
                 with driver.session(database=config.neo4j_database) as session:
                     session.run(
                         f"""
