@@ -91,6 +91,11 @@ def _load_csv_rows(path: Path) -> list[dict[str, str]]:
 
 def _validate_cypher_identifier(value: str, kind: str) -> None:
     """Allow only Cypher-safe identifiers ([A-Za-z_][A-Za-z0-9_]*) for fallback interpolation."""
+    if not isinstance(value, str):
+        raise ValueError(
+            f"Invalid {kind} for Cypher fallback: expected a string, got "
+            f"{value!r} (type {type(value).__name__})"
+        )
     if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", value):
         raise ValueError(f"Unsafe {kind} for Cypher fallback: {value!r}")
 
