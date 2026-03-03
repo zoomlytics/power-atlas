@@ -8,7 +8,7 @@ import sys
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 from uuid import uuid4
 
 FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
@@ -151,7 +151,7 @@ def run_demo(config: DemoConfig) -> Path:
 
 def run_independent_demo(config: DemoConfig, command: str) -> Path:
     config.output_dir.mkdir(parents=True, exist_ok=True)
-    stage_runners: dict[str, tuple[str, str, Any]] = {
+    stage_runners: dict[str, tuple[str, str, Callable[[DemoConfig], dict[str, Any]]]] = {
         "ingest-structured": ("structured_ingest", "structured_ingest_run_id", _run_structured_ingest),
         "ingest-pdf": ("pdf_ingest", "unstructured_ingest_run_id", _run_pdf_ingest),
     }
@@ -277,13 +277,12 @@ def main() -> None:
             neo4j_database=args.neo4j_database,
             openai_model=args.openai_model,
         )
-    if args.command == "ingest":
-        manifest_path = run_demo(config)
-        print(f"Demo manifest written to: {manifest_path}")
-        return
-    if args.command in {"ingest-structured", "ingest-pdf"}:
-        manifest_path = run_independent_demo(config, args.command)
-        print(f"Independent run manifest written to: {manifest_path}")
+        if args.command == "ingest":
+            manifest_path = run_demo(config)
+            print(f"Demo manifest written to: {manifest_path}")
+        elif args.command in {"ingest-structured", "ingest-pdf"}:
+            manifest_path = run_independent_demo(config, args.command)
+            print(f"Independent run manifest written to: {manifest_path}")
         return
     if args.command == "reset":
         print("Stub: use demo/chain_of_custody/reset_demo_db.py --confirm to reset demo data.")
