@@ -376,6 +376,47 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
             self.assertEqual(result["files"]["entities.csv"]["output_rows"], len(rows))
             self.assertGreaterEqual(result["files"]["entities.csv"]["dropped_blank_rows"], 1)
 
+    def test_structured_lint_handles_entities_header_with_extra_column(self):
+        module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_structured_header_mismatch_test")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            copied_fixtures = Path(tmpdir) / "fixtures"
+            shutil.copytree(DEMO_DIR / "fixtures", copied_fixtures)
+            entities_path = copied_fixtures / "structured" / "entities.csv"
+            with entities_path.open("r", encoding="utf-8", newline="") as entities_file:
+                rows = list(csv.DictReader(entities_file))
+
+            mismatch_headers = [
+                "entity_id",
+                "name",
+                "entity_type",
+                "aliases",
+                "description",
+                "wikidata_url",
+                "unexpected_col",
+            ]
+            with entities_path.open("w", encoding="utf-8", newline="") as entities_file:
+                writer = csv.DictWriter(entities_file, fieldnames=mismatch_headers)
+                writer.writeheader()
+                writer.writerows([{**row, "unexpected_col": "extra"} for row in rows])
+
+            output_dir = Path(tmpdir) / "output"
+            original_fixtures_dir = module.FIXTURES_DIR
+            try:
+                module.FIXTURES_DIR = copied_fixtures
+                with self.assertRaises(ValueError):
+                    module._lint_and_clean_structured_csvs("structured_ingest-test", output_dir)
+            finally:
+                module.FIXTURES_DIR = original_fixtures_dir
+
+            lint_report_path = output_dir / "runs" / "structured_ingest-test" / "lint_report.json"
+            self.assertTrue(lint_report_path.exists())
+            lint_report = json.loads(lint_report_path.read_text(encoding="utf-8"))
+            self.assertGreater(lint_report["summary"]["issue_count"], 0)
+            self.assertEqual(lint_report["files"]["entities.csv"]["output_rows"], len(rows))
+            self.assertTrue(
+                any(issue["code"] == "HEADER_MISMATCH" and issue["file"] == "entities.csv" for issue in lint_report["issues"])
+            )
+
     def test_run_pdf_ingest_non_dry_run_executes_config_pipeline_and_provenance_flow(self):
         module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_non_dry_test")
         config = module.DemoConfig(
