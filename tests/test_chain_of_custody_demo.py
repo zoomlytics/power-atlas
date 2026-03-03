@@ -2,6 +2,7 @@ import csv
 import importlib.util
 import io
 import json
+import os
 import types
 import sys
 import tempfile
@@ -230,6 +231,8 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
 
             def run(self, query, **kwargs):
                 calls.setdefault("queries", []).append((query, kwargs))
+                if "document_count" in query and "chunk_count" in query:
+                    return _FakeResult({"document_count": 1, "chunk_count": 2})
                 if "missing_chunk_order_count" in query:
                     return _FakeResult({"missing_chunk_order_count": 0})
                 if "missing_embedding_count" in query:
@@ -273,6 +276,10 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
             "neo4j_graphrag.experimental.pipeline.config.runner": fake_runner,
         }
         originals = {name: sys.modules.get(name) for name in injected_modules}
+        original_env = {
+            key: (key in os.environ, os.environ.get(key))
+            for key in ("NEO4J_URI", "NEO4J_USERNAME", "NEO4J_PASSWORD", "NEO4J_DATABASE", "OPENAI_MODEL")
+        }
         try:
             sys.modules.update(injected_modules)
             result = module._run_pdf_ingest(config, run_id="unstructured_ingest-test")
@@ -303,6 +310,9 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
         normalized_query = next(query for query, _ in calls["queries"] if "SET d.run_id" in query)
         self.assertIn("d.run_id IS NULL OR d.run_id = $run_id", normalized_query)
         self.assertNotIn("id(c)", normalized_query)
+        self.assertTrue(any("document_count" in query and "chunk_count" in query for query, _ in calls["queries"]))
+        restored_env = {key: (key in os.environ, os.environ.get(key)) for key in original_env}
+        self.assertEqual(restored_env, original_env)
 
     def test_run_pdf_ingest_non_dry_run_falls_back_to_cypher_index_creation(self):
         module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_non_dry_fallback_test")
@@ -336,6 +346,8 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
 
             def run(self, query, **kwargs):
                 calls.setdefault("queries", []).append((query, kwargs))
+                if "document_count" in query and "chunk_count" in query:
+                    return _FakeResult({"document_count": 1, "chunk_count": 2})
                 if "missing_chunk_order_count" in query:
                     return _FakeResult({"missing_chunk_order_count": 0})
                 if "missing_embedding_count" in query:
@@ -396,6 +408,86 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
         self.assertTrue(
             any("CREATE VECTOR INDEX `chain_custody_chunk_embedding_index` IF NOT EXISTS" in query for query, _ in calls["queries"])
         )
+
+    def test_run_pdf_ingest_non_dry_run_raises_when_no_run_scoped_documents_or_chunks(self):
+        module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_non_dry_missing_nodes_test")
+        config = module.DemoConfig(
+            dry_run=False,
+            output_dir=DEMO_DIR / "artifacts",
+            neo4j_uri="neo4j://localhost:7687",
+            neo4j_username="neo4j",
+            neo4j_password="testtesttest",
+            neo4j_database="neo4j",
+            openai_model="gpt-4o-mini",
+        )
+
+        class _FakeResult:
+            def __init__(self, single_payload=None):
+                self._single_payload = single_payload or {}
+
+            def consume(self):
+                return None
+
+            def single(self):
+                return self._single_payload
+
+        class _FakeSession:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def run(self, query, **kwargs):
+                if "document_count" in query and "chunk_count" in query:
+                    return _FakeResult({"document_count": 0, "chunk_count": 0})
+                return _FakeResult()
+
+        class _FakeDriver:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def session(self, **kwargs):
+                return _FakeSession()
+
+        class _FakePipeline:
+            async def run(self, params):
+                return {"ok": True}
+
+        class _FakePipelineRunner:
+            @staticmethod
+            def from_config_file(path):
+                return _FakePipeline()
+
+        fake_neo4j = types.ModuleType("neo4j")
+        fake_neo4j.GraphDatabase = types.SimpleNamespace(driver=lambda *_args, **_kwargs: _FakeDriver())
+        fake_runner = types.ModuleType("neo4j_graphrag.experimental.pipeline.config.runner")
+        fake_runner.PipelineRunner = _FakePipelineRunner
+        fake_indexes = types.ModuleType("neo4j_graphrag.indexes")
+        fake_indexes.create_vector_index = lambda *_args, **_kwargs: None
+
+        injected_modules = {
+            "neo4j": fake_neo4j,
+            "neo4j_graphrag.indexes": fake_indexes,
+            "neo4j_graphrag.experimental.pipeline.config.runner": fake_runner,
+        }
+        originals = {name: sys.modules.get(name) for name in injected_modules}
+        try:
+            sys.modules.update(injected_modules)
+            with self.assertRaisesRegex(
+                ValueError,
+                "expected at least one Document and Chunk for this run",
+            ):
+                module._run_pdf_ingest(config, run_id="unstructured_ingest-test")
+        finally:
+            for name, original in originals.items():
+                if original is None:
+                    sys.modules.pop(name, None)
+                else:
+                    sys.modules[name] = original
 
     def test_independent_ingest_commands_write_stage_manifests(self):
         module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_independent_test")

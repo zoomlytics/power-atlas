@@ -90,118 +90,145 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
     from neo4j_graphrag.experimental.pipeline.config.runner import PipelineRunner
     from neo4j_graphrag.indexes import create_vector_index
 
-    os.environ["NEO4J_URI"] = config.neo4j_uri
-    os.environ["NEO4J_USERNAME"] = config.neo4j_username
-    os.environ["NEO4J_PASSWORD"] = config.neo4j_password
-    os.environ["NEO4J_DATABASE"] = config.neo4j_database
-    os.environ["OPENAI_MODEL"] = config.openai_model
+    env_updates = {
+        "NEO4J_URI": config.neo4j_uri,
+        "NEO4J_USERNAME": config.neo4j_username,
+        "NEO4J_PASSWORD": config.neo4j_password,
+        "NEO4J_DATABASE": config.neo4j_database,
+        "OPENAI_MODEL": config.openai_model,
+    }
+    previous_env = {key: (key in os.environ, os.environ.get(key)) for key in env_updates}
+    os.environ.update(env_updates)
 
-    driver = neo4j.GraphDatabase.driver(config.neo4j_uri, auth=(config.neo4j_username, config.neo4j_password))
-    with driver:
-        index_creation_strategy = "neo4j_graphrag.indexes.create_vector_index"
-        index_fallback_reason: str | None = None
-        try:
-            create_vector_index(
-                driver,
-                CHUNK_EMBEDDING_INDEX_NAME,
-                label=CHUNK_EMBEDDING_LABEL,
-                embedding_property=CHUNK_EMBEDDING_PROPERTY,
-                dimensions=CHUNK_EMBEDDING_DIMENSIONS,
-                similarity_fn="cosine",
-            )
-        except Exception as exc:
-            index_creation_strategy = "cypher_fallback"
-            index_fallback_reason = str(exc)
-            with driver.session(database=config.neo4j_database) as session:
-                session.run(
-                    f"""
-                    CREATE VECTOR INDEX `{CHUNK_EMBEDDING_INDEX_NAME}` IF NOT EXISTS
-                    FOR (n:{CHUNK_EMBEDDING_LABEL}) ON (n.{CHUNK_EMBEDDING_PROPERTY})
-                    OPTIONS {{indexConfig: {{
-                        `vector.dimensions`: $dimensions,
-                        `vector.similarity_function`: 'cosine'
-                    }}}}
-                    """,
+    try:
+        driver = neo4j.GraphDatabase.driver(config.neo4j_uri, auth=(config.neo4j_username, config.neo4j_password))
+        with driver:
+            index_creation_strategy = "neo4j_graphrag.indexes.create_vector_index"
+            index_fallback_reason: str | None = None
+            try:
+                create_vector_index(
+                    driver,
+                    CHUNK_EMBEDDING_INDEX_NAME,
+                    label=CHUNK_EMBEDDING_LABEL,
+                    embedding_property=CHUNK_EMBEDDING_PROPERTY,
                     dimensions=CHUNK_EMBEDDING_DIMENSIONS,
-                ).consume()
+                    similarity_fn="cosine",
+                )
+            except Exception as exc:
+                index_creation_strategy = "cypher_fallback"
+                index_fallback_reason = str(exc)
+                with driver.session(database=config.neo4j_database) as session:
+                    session.run(
+                        f"""
+                        CREATE VECTOR INDEX `{CHUNK_EMBEDDING_INDEX_NAME}` IF NOT EXISTS
+                        FOR (n:{CHUNK_EMBEDDING_LABEL}) ON (n.{CHUNK_EMBEDDING_PROPERTY})
+                        OPTIONS {{indexConfig: {{
+                            `vector.dimensions`: $dimensions,
+                            `vector.similarity_function`: 'cosine'
+                        }}}}
+                        """,
+                        dimensions=CHUNK_EMBEDDING_DIMENSIONS,
+                    ).consume()
 
-        pipeline = PipelineRunner.from_config_file(PDF_PIPELINE_CONFIG_PATH)
-        pipeline_result = asyncio.run(
-            pipeline.run(
-                {
-                    "file_path": pdf_source_uri,
-                    "document_metadata": {
-                        "run_id": stage_run_id,
-                        "source_uri": pdf_source_uri,
-                    },
-                }
+            pipeline = PipelineRunner.from_config_file(PDF_PIPELINE_CONFIG_PATH)
+            pipeline_result = asyncio.run(
+                pipeline.run(
+                    {
+                        "file_path": pdf_source_uri,
+                        "document_metadata": {
+                            "run_id": stage_run_id,
+                            "source_uri": pdf_source_uri,
+                        },
+                    }
+                )
             )
-        )
 
-        with driver.session(database=config.neo4j_database) as session:
-            # Vendor versions can emit Chunk ordering/embedding fields as
-            # index/chunk_index and embedding/embedding_vector/vector/embeddings.
-            # Normalize them into the demo retrieval contract:
-            # Chunk.chunk_order + Chunk.embedding on every ingested Chunk.
-            session.run(
-                """
-                MATCH (d:Document)
-                WHERE (d.path = $source_uri OR d.source_uri = $source_uri)
-                  AND (d.run_id IS NULL OR d.run_id = $run_id)
-                SET d.run_id = coalesce(d.run_id, $run_id),
-                    d.source_uri = coalesce(d.source_uri, $source_uri)
-                WITH d
-                MATCH (d)<-[:FROM_DOCUMENT]-(c:Chunk)
-                WHERE c.run_id IS NULL OR c.run_id = $run_id
-                WITH d, c, coalesce(c.chunk_order, toInteger(c.index), toInteger(c.chunk_index)) AS normalized_chunk_order
-                SET c.run_id = coalesce(c.run_id, $run_id),
-                    c.source_uri = coalesce(c.source_uri, d.source_uri, $source_uri),
-                    c.chunk_order = normalized_chunk_order,
-                    c.chunk_id = coalesce(
-                        c.chunk_id,
-                        c.uid,
-                        d.source_uri + ':' + toString(normalized_chunk_order)
-                    ),
-                    c.page_number = coalesce(c.page_number, c.page),
-                    c.embedding = coalesce(c.embedding, c.embedding_vector, c.vector, c.embeddings)
-                """,
-                run_id=stage_run_id,
-                source_uri=pdf_source_uri,
-            ).consume()
-            missing_chunk_order_count = session.run(
-                """
-                MATCH (d:Document)
-                WHERE (d.path = $source_uri OR d.source_uri = $source_uri)
-                  AND d.run_id = $run_id
-                MATCH (d)<-[:FROM_DOCUMENT]-(c:Chunk)
-                WHERE c.run_id = $run_id
-                  AND c.chunk_order IS NULL
-                RETURN count(c) AS missing_chunk_order_count
-                """,
-                run_id=stage_run_id,
-                source_uri=pdf_source_uri,
-            ).single()["missing_chunk_order_count"]
-            if missing_chunk_order_count:
-                raise ValueError(
-                    "Chunk ordering contract violation: expected stable chunk index on all ingested chunks"
-                )
-            missing_embedding_count = session.run(
-                """
-                MATCH (d:Document)
-                WHERE (d.path = $source_uri OR d.source_uri = $source_uri)
-                  AND d.run_id = $run_id
-                MATCH (d)<-[:FROM_DOCUMENT]-(c:Chunk)
-                WHERE c.run_id = $run_id
-                  AND c.embedding IS NULL
-                RETURN count(c) AS missing_embedding_count
-                """,
-                run_id=stage_run_id,
-                source_uri=pdf_source_uri,
-            ).single()["missing_embedding_count"]
-            if missing_embedding_count:
-                raise ValueError(
-                    "Chunk embedding contract violation: expected :Chunk.embedding for all ingested chunks"
-                )
+            with driver.session(database=config.neo4j_database) as session:
+                # Vendor versions can emit Chunk ordering/embedding fields as
+                # index/chunk_index and embedding/embedding_vector/vector/embeddings.
+                # Normalize them into the demo retrieval contract:
+                # Chunk.chunk_order + Chunk.embedding on every ingested Chunk.
+                session.run(
+                    """
+                    MATCH (d:Document)
+                    WHERE (d.path = $source_uri OR d.source_uri = $source_uri)
+                      AND (d.run_id IS NULL OR d.run_id = $run_id)
+                    SET d.run_id = coalesce(d.run_id, $run_id),
+                        d.source_uri = coalesce(d.source_uri, $source_uri)
+                    WITH d
+                    MATCH (d)<-[:FROM_DOCUMENT]-(c:Chunk)
+                    WHERE c.run_id IS NULL OR c.run_id = $run_id
+                    WITH d, c, coalesce(c.chunk_order, toInteger(c.index), toInteger(c.chunk_index)) AS normalized_chunk_order
+                    SET c.run_id = coalesce(c.run_id, $run_id),
+                        c.source_uri = coalesce(c.source_uri, d.source_uri, $source_uri),
+                        c.chunk_order = normalized_chunk_order,
+                        c.chunk_id = coalesce(
+                            c.chunk_id,
+                            c.uid,
+                            d.source_uri + ':' + toString(normalized_chunk_order)
+                        ),
+                        c.page_number = coalesce(c.page_number, c.page),
+                        c.embedding = coalesce(c.embedding, c.embedding_vector, c.vector, c.embeddings)
+                    """,
+                    run_id=stage_run_id,
+                    source_uri=pdf_source_uri,
+                ).consume()
+                run_counts = session.run(
+                    """
+                    MATCH (d:Document)
+                    WHERE (d.path = $source_uri OR d.source_uri = $source_uri)
+                      AND d.run_id = $run_id
+                    OPTIONAL MATCH (d)<-[:FROM_DOCUMENT]-(c:Chunk)
+                    WHERE c.run_id = $run_id
+                    RETURN count(DISTINCT d) AS document_count, count(c) AS chunk_count
+                    """,
+                    run_id=stage_run_id,
+                    source_uri=pdf_source_uri,
+                ).single()
+                if run_counts["document_count"] == 0 or run_counts["chunk_count"] == 0:
+                    raise ValueError(
+                        "Ingest contract violation: expected at least one Document and Chunk for this run"
+                    )
+                missing_chunk_order_count = session.run(
+                    """
+                    MATCH (d:Document)
+                    WHERE (d.path = $source_uri OR d.source_uri = $source_uri)
+                      AND d.run_id = $run_id
+                    MATCH (d)<-[:FROM_DOCUMENT]-(c:Chunk)
+                    WHERE c.run_id = $run_id
+                      AND c.chunk_order IS NULL
+                    RETURN count(c) AS missing_chunk_order_count
+                    """,
+                    run_id=stage_run_id,
+                    source_uri=pdf_source_uri,
+                ).single()["missing_chunk_order_count"]
+                if missing_chunk_order_count:
+                    raise ValueError(
+                        "Chunk ordering contract violation: expected stable chunk index on all ingested chunks"
+                    )
+                missing_embedding_count = session.run(
+                    """
+                    MATCH (d:Document)
+                    WHERE (d.path = $source_uri OR d.source_uri = $source_uri)
+                      AND d.run_id = $run_id
+                    MATCH (d)<-[:FROM_DOCUMENT]-(c:Chunk)
+                    WHERE c.run_id = $run_id
+                      AND c.embedding IS NULL
+                    RETURN count(c) AS missing_embedding_count
+                    """,
+                    run_id=stage_run_id,
+                    source_uri=pdf_source_uri,
+                ).single()["missing_embedding_count"]
+                if missing_embedding_count:
+                    raise ValueError(
+                        "Chunk embedding contract violation: expected :Chunk.embedding for all ingested chunks"
+                    )
+    finally:
+        for key, (had_key, previous_value) in previous_env.items():
+            if not had_key:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = previous_value
 
     return {
         "status": "live",
