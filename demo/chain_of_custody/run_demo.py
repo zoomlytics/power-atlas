@@ -113,6 +113,7 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                     embedding_property=CHUNK_EMBEDDING_PROPERTY,
                     dimensions=CHUNK_EMBEDDING_DIMENSIONS,
                     similarity_fn="cosine",
+                    neo4j_database=config.neo4j_database,
                 )
             except Exception as exc:
                 index_creation_strategy = "cypher_fallback"

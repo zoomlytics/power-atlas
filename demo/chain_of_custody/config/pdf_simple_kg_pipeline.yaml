@@ -11,6 +11,9 @@ neo4j_config:
    password:
      resolver_: ENV
      var_: NEO4J_PASSWORD
+   database:
+     resolver_: ENV
+     var_: NEO4J_DATABASE
 llm_config:
  class_: OpenAILLM
  params_:

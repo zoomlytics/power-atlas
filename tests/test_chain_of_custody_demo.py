@@ -297,6 +297,7 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
         self.assertEqual(calls["index_kwargs"]["embedding_property"], "embedding")
         self.assertEqual(calls["index_kwargs"]["dimensions"], 1536)
         self.assertEqual(calls["index_kwargs"]["similarity_fn"], "cosine")
+        self.assertEqual(calls["index_kwargs"]["neo4j_database"], "neo4j")
         self.assertEqual(
             calls["config_path"],
             str(DEMO_DIR / "config" / "pdf_simple_kg_pipeline.yaml"),
@@ -571,8 +572,10 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
         self.assertIsInstance(config, dict)
         self.assertIn("llm_config", config)
         self.assertIn("embedder_config", config)
+        self.assertIn("neo4j_config", config)
         self.assertIn("from_pdf", config)
         self.assertIn("demo_contract", config)
+        self.assertEqual(config["neo4j_config"]["params_"]["database"]["var_"], "NEO4J_DATABASE")
         self.assertEqual(config["llm_config"]["params_"]["model_name"]["var_"], "OPENAI_MODEL")
         self.assertEqual(config["embedder_config"]["params_"]["model"], "text-embedding-3-small")
         self.assertEqual(config["demo_contract"]["chunk_embedding"]["dimensions"], 1536)
