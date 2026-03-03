@@ -2,6 +2,7 @@ import csv
 import importlib.util
 import io
 import json
+import types
 import sys
 import tempfile
 import unittest
@@ -197,7 +198,7 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
             else:
                 self.fail(f"Unexpected claim_type: {claim['claim_type']}")
 
-    def test_run_pdf_ingest_non_dry_run_raises_not_implemented(self):
+    def test_run_pdf_ingest_non_dry_run_executes_config_pipeline_and_provenance_flow(self):
         module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_non_dry_test")
         config = module.DemoConfig(
             dry_run=False,
@@ -208,8 +209,85 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
             neo4j_database="neo4j",
             openai_model="gpt-4o-mini",
         )
-        with self.assertRaises(NotImplementedError):
-            module._run_pdf_ingest(config)
+        calls: dict[str, object] = {}
+
+        class _FakeResult:
+            def consume(self):
+                return None
+
+        class _FakeSession:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def run(self, query, **kwargs):
+                calls.setdefault("queries", []).append((query, kwargs))
+                return _FakeResult()
+
+        class _FakeDriver:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def session(self, **kwargs):
+                calls.setdefault("sessions", []).append(kwargs)
+                return _FakeSession()
+
+        class _FakePipeline:
+            async def run(self, params):
+                calls["run_params"] = params
+                return {"ok": True}
+
+        class _FakePipelineRunner:
+            @staticmethod
+            def from_config_file(path):
+                calls["config_path"] = str(path)
+                return _FakePipeline()
+
+        fake_neo4j = types.ModuleType("neo4j")
+        fake_neo4j.GraphDatabase = types.SimpleNamespace(driver=lambda *_args, **_kwargs: _FakeDriver())
+        fake_runner = types.ModuleType("neo4j_graphrag.experimental.pipeline.config.runner")
+        fake_runner.PipelineRunner = _FakePipelineRunner
+        fake_indexes = types.ModuleType("neo4j_graphrag.indexes")
+        fake_indexes.create_vector_index = lambda _driver, index_name, **kwargs: calls.update(
+            {"index_name": index_name, "index_kwargs": kwargs}
+        )
+
+        injected_modules = {
+            "neo4j": fake_neo4j,
+            "neo4j_graphrag.indexes": fake_indexes,
+            "neo4j_graphrag.experimental.pipeline.config.runner": fake_runner,
+        }
+        originals = {name: sys.modules.get(name) for name in injected_modules}
+        try:
+            sys.modules.update(injected_modules)
+            result = module._run_pdf_ingest(config, run_id="unstructured_ingest-test")
+        finally:
+            for name, original in originals.items():
+                if original is None:
+                    sys.modules.pop(name, None)
+                else:
+                    sys.modules[name] = original
+
+        self.assertEqual(result["status"], "live")
+        self.assertEqual(calls["index_name"], "chain_custody_chunk_embedding_index")
+        self.assertEqual(calls["index_kwargs"]["label"], "Chunk")
+        self.assertEqual(calls["index_kwargs"]["embedding_property"], "embedding")
+        self.assertEqual(calls["index_kwargs"]["dimensions"], 1536)
+        self.assertEqual(
+            calls["config_path"],
+            str(DEMO_DIR / "config" / "pdf_simple_kg_pipeline.yaml"),
+        )
+        self.assertEqual(calls["run_params"]["document_metadata"]["run_id"], "unstructured_ingest-test")
+        self.assertIn("source_uri", calls["run_params"]["document_metadata"])
+        self.assertTrue(
+            any("SET d.run_id" in query for query, _ in calls.get("queries", [])),
+            "Expected post-ingest provenance query to run",
+        )
 
     def test_independent_ingest_commands_write_stage_manifests(self):
         module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_independent_test")
@@ -277,17 +355,22 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
         )
         self.assertIn("chain_custody_chunk_embedding_index", readme_text)
         self.assertIn("vendor examples use `NEO4J_USER`", readme_text)
-        self.assertIn("blocked by [#150]", readme_text)
+        self.assertIn("config_url.json", readme_text)
+        self.assertIn("simple_kg_builder_from_pdf.py", readme_text)
+        self.assertIn("create_vector_index.py", readme_text)
         self.assertIn("## Conceptual model", readme_text)
         self.assertIn("sequential independent runs", readme_text)
         self.assertIn("zoomlytics/power-atlas#151", readme_text)
+        self.assertIn("document_metadata.run_id/source_uri", readme_text)
         self.assertIn("non-destructive", readme_text)
         self.assertIsInstance(config, dict)
         self.assertIn("llm_config", config)
         self.assertIn("embedder_config", config)
         self.assertIn("from_pdf", config)
+        self.assertIn("demo_contract", config)
         self.assertEqual(config["llm_config"]["params_"]["model_name"]["var_"], "OPENAI_MODEL")
         self.assertEqual(config["embedder_config"]["params_"]["model"], "text-embedding-3-small")
+        self.assertEqual(config["demo_contract"]["chunk_embedding"]["dimensions"], 1536)
 
 
 if __name__ == "__main__":

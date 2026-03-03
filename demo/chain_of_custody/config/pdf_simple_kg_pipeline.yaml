@@ -23,11 +23,17 @@ llm_config:
 embedder_config:
  class_: OpenAIEmbeddings
  params_:
-   api_key:
-     resolver_: ENV
-     var_: OPENAI_API_KEY
-   model: text-embedding-3-small
+    api_key:
+      resolver_: ENV
+      var_: OPENAI_API_KEY
+    model: text-embedding-3-small
 from_pdf: true
+demo_contract:
+  chunk_embedding:
+    index_name: chain_custody_chunk_embedding_index
+    label: Chunk
+    embedding_property: embedding
+    dimensions: 1536
 text_splitter:
  class_: text_splitters.fixed_size_splitter.FixedSizeSplitter
  params_:

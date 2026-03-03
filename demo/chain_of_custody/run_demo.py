@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import csv
 import json
 import os
@@ -13,7 +14,13 @@ from uuid import uuid4
 
 FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
 ARTIFACTS_DIR = Path(__file__).resolve().parent / "artifacts"
+CONFIG_DIR = Path(__file__).resolve().parent / "config"
+PDF_PIPELINE_CONFIG_PATH = CONFIG_DIR / "pdf_simple_kg_pipeline.yaml"
 DEFAULT_DB = os.getenv("NEO4J_DATABASE", "neo4j")
+CHUNK_EMBEDDING_INDEX_NAME = "chain_custody_chunk_embedding_index"
+CHUNK_EMBEDDING_LABEL = "Chunk"
+CHUNK_EMBEDDING_PROPERTY = "embedding"
+CHUNK_EMBEDDING_DIMENSIONS = 1536
 
 
 @dataclass(frozen=True)
@@ -58,22 +65,117 @@ def _run_structured_ingest(config: DemoConfig) -> dict[str, Any]:
     )
 
 
-def _run_pdf_ingest(config: DemoConfig) -> dict[str, Any]:
+def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, Any]:
     pdf_path = FIXTURES_DIR / "unstructured" / "chain_of_custody.pdf"
     if not pdf_path.exists():
         raise FileNotFoundError(f"Required PDF fixture not found: {pdf_path}")
+    pdf_source_uri = str(pdf_path)
+    stage_run_id = run_id or _make_run_id("unstructured_ingest")
 
     if config.dry_run:
         return {
             "status": "dry_run",
-            "documents": [str(pdf_path)],
+            "documents": [pdf_source_uri],
             "vendor_pattern": "SimpleKGPipeline + OpenAIEmbeddings + FixedSizeSplitter",
+            "pipeline_config": str(PDF_PIPELINE_CONFIG_PATH),
+            "vector_index": {
+                "index_name": CHUNK_EMBEDDING_INDEX_NAME,
+                "label": CHUNK_EMBEDDING_LABEL,
+                "embedding_property": CHUNK_EMBEDDING_PROPERTY,
+                "dimensions": CHUNK_EMBEDDING_DIMENSIONS,
+            },
         }
 
-    raise NotImplementedError(
-        "Non-dry-run PDF ingest is not implemented. "
-        "Run this demo with --dry-run until the vendor SimpleKGPipeline wiring is added."
-    )
+    import neo4j
+    from neo4j_graphrag.experimental.pipeline.config.runner import PipelineRunner
+    from neo4j_graphrag.indexes import create_vector_index
+
+    os.environ["NEO4J_URI"] = config.neo4j_uri
+    os.environ["NEO4J_USERNAME"] = config.neo4j_username
+    os.environ["NEO4J_PASSWORD"] = config.neo4j_password
+    os.environ["NEO4J_DATABASE"] = config.neo4j_database
+    os.environ["OPENAI_MODEL"] = config.openai_model
+
+    driver = neo4j.GraphDatabase.driver(config.neo4j_uri, auth=(config.neo4j_username, config.neo4j_password))
+    with driver:
+        try:
+            create_vector_index(
+                driver,
+                CHUNK_EMBEDDING_INDEX_NAME,
+                label=CHUNK_EMBEDDING_LABEL,
+                embedding_property=CHUNK_EMBEDDING_PROPERTY,
+                dimensions=CHUNK_EMBEDDING_DIMENSIONS,
+            )
+        except Exception:
+            with driver.session(database=config.neo4j_database) as session:
+                session.run(
+                    f"""
+                    CREATE VECTOR INDEX `{CHUNK_EMBEDDING_INDEX_NAME}` IF NOT EXISTS
+                    FOR (n:{CHUNK_EMBEDDING_LABEL}) ON (n.{CHUNK_EMBEDDING_PROPERTY})
+                    OPTIONS {{indexConfig: {{
+                        `vector.dimensions`: $dimensions,
+                        `vector.similarity_function`: 'cosine'
+                    }}}}
+                    """,
+                    dimensions=CHUNK_EMBEDDING_DIMENSIONS,
+                ).consume()
+
+        pipeline = PipelineRunner.from_config_file(PDF_PIPELINE_CONFIG_PATH)
+        pipeline_result = asyncio.run(
+            pipeline.run(
+                {
+                    "file_path": pdf_source_uri,
+                    "document_metadata": {
+                        "run_id": stage_run_id,
+                        "source_uri": pdf_source_uri,
+                    },
+                }
+            )
+        )
+
+        with driver.session(database=config.neo4j_database) as session:
+            session.run(
+                """
+                MATCH (d:Document)
+                WHERE d.path = $source_uri OR d.source_uri = $source_uri
+                SET d.run_id = coalesce(d.run_id, $run_id),
+                    d.source_uri = coalesce(d.source_uri, $source_uri)
+                WITH d
+                MATCH (d)<-[:FROM_DOCUMENT]-(c:Chunk)
+                WITH d, c ORDER BY coalesce(c.index, c.chunk_index, id(c))
+                WITH d, collect(c) AS chunks
+                UNWIND range(0, size(chunks) - 1) AS chunk_order
+                WITH d, chunks[chunk_order] AS c, chunk_order
+                SET c.run_id = coalesce(c.run_id, $run_id),
+                    c.source_uri = coalesce(c.source_uri, d.source_uri, $source_uri),
+                    c.chunk_order = coalesce(c.chunk_order, chunk_order),
+                    c.chunk_id = coalesce(c.chunk_id, c.uid, d.source_uri + ':' + toString(chunk_order)),
+                    c.page_number = coalesce(c.page_number, c.page),
+                    c.embedding = coalesce(c.embedding, c.embedding_vector, c.vector, c.embeddings)
+                """,
+                run_id=stage_run_id,
+                source_uri=pdf_source_uri,
+            ).consume()
+
+    return {
+        "status": "live",
+        "documents": [pdf_source_uri],
+        "pipeline_config": str(PDF_PIPELINE_CONFIG_PATH),
+        "vector_index": {
+            "index_name": CHUNK_EMBEDDING_INDEX_NAME,
+            "label": CHUNK_EMBEDDING_LABEL,
+            "embedding_property": CHUNK_EMBEDDING_PROPERTY,
+            "dimensions": CHUNK_EMBEDDING_DIMENSIONS,
+        },
+        "pipeline_result": str(pipeline_result),
+        "provenance": {
+            "run_id": stage_run_id,
+            "source_uri": pdf_source_uri,
+            "chunk_order_property": "chunk_order",
+            "chunk_id_property": "chunk_id",
+            "page_property": "page_number",
+        },
+    }
 
 
 def _run_claim_and_mention_extraction(config: DemoConfig) -> dict[str, Any]:
@@ -130,7 +232,7 @@ def run_demo(config: DemoConfig) -> Path:
                 "run_id": structured_run_id,
             },
             "pdf_ingest": {
-                **_run_pdf_ingest(config),
+                **_run_pdf_ingest(config, unstructured_run_id),
                 "run_id": unstructured_run_id,
             },
             "claim_and_mention_extraction": {
@@ -160,6 +262,11 @@ def run_independent_demo(config: DemoConfig, command: str) -> Path:
     stage_name, run_scope_key, stage_runner = stage_runners[command]
     run_scope = run_scope_key.removesuffix("_run_id")
     stage_run_id = _make_run_id(run_scope)
+    stage_output = (
+        _run_pdf_ingest(config, stage_run_id)
+        if command == "ingest-pdf"
+        else stage_runner(config)
+    )
     manifest = {
         "run_id": stage_run_id,
         "created_at": datetime.now(UTC).isoformat(),
@@ -174,7 +281,7 @@ def run_independent_demo(config: DemoConfig, command: str) -> Path:
         },
         "stages": {
             stage_name: {
-                **stage_runner(config),
+                **stage_output,
                 "run_id": stage_run_id,
             }
         },
