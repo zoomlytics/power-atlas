@@ -77,7 +77,7 @@ This demo intentionally mirrors upstream patterns in `vendor-resources`; use the
 
 - [x] **Config-driven**: PDF ingest pipeline shape (`SimpleKGPipeline` via `PipelineRunner`) is declared in `demo/chain_of_custody/config/pdf_simple_kg_pipeline.yaml`, aligned to vendor `from_config_files` examples.
 - [x] **Config-driven**: Demo retrieval/citation index contract uses `chain_custody_chunk_embedding_index` on label `Chunk` property `embedding` with dimensions `1536` (deterministic naming keeps reset + retrieval scripts aligned), pinned via `OpenAIEmbeddings` model `text-embedding-3-small` in the demo config plus `demo_contract.chunk_embedding.dimensions`.
-- [x] **Config-driven**: `run_demo.py ingest-pdf --live` executes `PipelineRunner.from_config_file(...)` against `demo/chain_of_custody/config/pdf_simple_kg_pipeline.yaml` and passes run-scoped provenance via `pdf_loader.metadata`.
+- [x] **Config-driven**: `run_demo.py ingest-pdf --live` executes `PipelineRunner.from_config_file(...)` against `demo/chain_of_custody/config/pdf_simple_kg_pipeline.yaml` with template-aligned `file_path` input only.
 - [ ] **Custom (planned follow-up, scoped in [zoomlytics/power-atlas#151](https://github.com/zoomlytics/power-atlas/issues/151))**: Structured ingest live path should emit run-scoped provenance metadata (`run_id`, source URI, method/extractor, timestamps, confidence) without mutating source assertions.
 - [ ] **Planned retrieval/GraphRAG issue alignment**: Retrieval and answer synthesis should consume explicit run-scoped provenance links and avoid implicit structured↔unstructured coupling.
 - [ ] **Planned reset semantics alignment**: Reset behavior must remain run-scoped/non-destructive by default (targeted cleanup over blanket deletion when run IDs are available).
@@ -95,4 +95,4 @@ Environment/configuration values used by this demo:
 - `OPENAI_MODEL` (required for config-driven runs; the demo CLI defaults to `gpt-4o-mini` if unset)
 - Demo vector index used by retrieval/reset flow: `chain_custody_chunk_embedding_index` (label: `Chunk`, embedding property: `embedding`, dimensions: `1536`)
 - Deterministic index naming intentionally diverges from earlier claim-oriented naming so `reset_demo_db.py` can safely clean the exact demo-owned citation index.
-- Unstructured/PDF ingest remains independent from structured ingest: every run has its own `run_id`; live ingest writes `pdf_loader.metadata.run_id/source_uri` and then propagates those fields onto all `Chunk` nodes for citation/retrieval provenance.
+- Unstructured/PDF ingest remains independent from structured ingest: every run has its own `run_id`; live ingest uses run-scoped post-ingest normalization to propagate `run_id`/`source_uri` onto `Document` and `Chunk` nodes for citation/retrieval provenance.
