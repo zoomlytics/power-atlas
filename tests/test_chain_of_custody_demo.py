@@ -647,6 +647,7 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
             )
         )
         self.assertNotIn("extraction_warnings", result)
+        self.assertIn("warnings", result)
         self.assertEqual(
             ("OPENAI_API_KEY" in os.environ, os.environ.get("OPENAI_API_KEY")),
             initial_openai_state,
