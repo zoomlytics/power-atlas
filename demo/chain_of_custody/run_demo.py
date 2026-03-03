@@ -888,7 +888,6 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
     pdf_fingerprint_sha256 = _sha256_file(pdf_path)
     summary_counts = {"documents": 0, "pages": 0, "chunks": 0}
     extraction_warnings: list[Any] = []
-    pipeline_result: object | None = None
 
     if config.dry_run:
         ingest_summary = {
@@ -944,12 +943,11 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
     previous_env = {key: (key in os.environ, os.environ.get(key)) for key in env_updates}
     os.environ.update(env_updates)
 
-    index_creation_strategy: str | None = None
-    index_fallback_reason: str | None = None
     try:
+        index_creation_strategy: str | None = "neo4j_graphrag.indexes.create_vector_index"
+        index_fallback_reason: str | None = None
         driver = neo4j.GraphDatabase.driver(config.neo4j_uri, auth=(config.neo4j_username, config.neo4j_password))
         with driver:
-            index_creation_strategy = "neo4j_graphrag.indexes.create_vector_index"
             try:
                 create_vector_index(
                     driver,
