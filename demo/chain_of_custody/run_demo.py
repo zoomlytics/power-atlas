@@ -341,9 +341,21 @@ def _lint_and_clean_structured_csvs(run_id: str, output_dir: Path) -> dict[str, 
             "source_uri": str(source_path),
         }
 
-    entity_ids = {row["entity_id"] for row in cleaned_rows["entities.csv"]}
-    fact_ids = {row["fact_id"] for row in cleaned_rows["facts.csv"]}
-    relationship_ids = {row["rel_id"] for row in cleaned_rows["relationships.csv"]}
+    entity_ids = {
+        (row.get("entity_id") or "").strip()
+        for row in cleaned_rows.get("entities.csv", [])
+        if (row.get("entity_id") or "").strip()
+    }
+    fact_ids = {
+        (row.get("fact_id") or "").strip()
+        for row in cleaned_rows.get("facts.csv", [])
+        if (row.get("fact_id") or "").strip()
+    }
+    relationship_ids = {
+        (row.get("rel_id") or "").strip()
+        for row in cleaned_rows.get("relationships.csv", [])
+        if (row.get("rel_id") or "").strip()
+    }
     for row_offset, claim in enumerate(cleaned_rows["claims.csv"], start=2):
         subject_id = (claim.get("subject_id") or "").strip()
         if subject_id and subject_id not in entity_ids:
