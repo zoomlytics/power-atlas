@@ -266,8 +266,8 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
         fake_runner = types.ModuleType("neo4j_graphrag.experimental.pipeline.config.runner")
         fake_runner.PipelineRunner = _FakePipelineRunner
         fake_indexes = types.ModuleType("neo4j_graphrag.indexes")
-        fake_indexes.create_vector_index = lambda _driver, index_name, **kwargs: calls.update(
-            {"index_name": index_name, "index_kwargs": kwargs}
+        fake_indexes.create_vector_index = lambda _driver, index_name, database_=None, **kwargs: calls.update(
+            {"index_name": index_name, "index_kwargs": {"database_": database_, **kwargs}}
         )
 
         injected_modules = {
@@ -297,7 +297,7 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
         self.assertEqual(calls["index_kwargs"]["embedding_property"], "embedding")
         self.assertEqual(calls["index_kwargs"]["dimensions"], 1536)
         self.assertEqual(calls["index_kwargs"]["similarity_fn"], "cosine")
-        self.assertEqual(calls["index_kwargs"]["neo4j_database"], "neo4j")
+        self.assertEqual(calls["index_kwargs"]["database_"], "neo4j")
         self.assertEqual(
             calls["config_path"],
             str(DEMO_DIR / "config" / "pdf_simple_kg_pipeline.yaml"),
