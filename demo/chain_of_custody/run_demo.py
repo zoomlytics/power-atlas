@@ -933,7 +933,6 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
             "counts": summary_counts,
             "embedding_model": EMBEDDER_MODEL_NAME,
             "warnings": extraction_warnings,
-            "extraction_warnings": extraction_warnings,
         }
 
     if not os.getenv("OPENAI_API_KEY"):
