@@ -279,6 +279,14 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
         originals = {name: sys.modules.get(name) for name in injected_modules}
         had_openai_api_key = "OPENAI_API_KEY" in os.environ
         original_openai_api_key = os.environ.get("OPENAI_API_KEY")
+
+        def _restore_openai_api_key():
+            if had_openai_api_key:
+                os.environ["OPENAI_API_KEY"] = original_openai_api_key
+            else:
+                os.environ.pop("OPENAI_API_KEY", None)
+
+        self.addCleanup(_restore_openai_api_key)
         os.environ["OPENAI_API_KEY"] = "test-openai-api-key"
         original_env = {
             key: (key in os.environ, os.environ.get(key))
