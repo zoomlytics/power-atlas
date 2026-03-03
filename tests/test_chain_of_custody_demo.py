@@ -592,9 +592,9 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
                 {"index_name": index_name, "index_kwargs": {"database_": database_, **kwargs}}
             ),
         )
-        expected_fingerprint = hashlib.sha256(
-            (DEMO_DIR / "fixtures" / "unstructured" / "chain_of_custody.pdf").read_bytes()
-        ).hexdigest()
+        expected_fingerprint = module._sha256_file(
+            DEMO_DIR / "fixtures" / "unstructured" / "chain_of_custody.pdf"
+        )
         initial_openai_state = ("OPENAI_API_KEY" in os.environ, os.environ.get("OPENAI_API_KEY"))
         with self._with_injected_pdf_ingest_modules(injected_modules):
             result = module._run_pdf_ingest(config, run_id="unstructured_ingest-test")
@@ -607,6 +607,14 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
         self.assertEqual(result["counts"], summary["counts"])
         self.assertEqual(result["pdf_fingerprint_sha256"], expected_fingerprint)
         self.assertEqual(summary["pdf_fingerprint_sha256"], expected_fingerprint)
+        self.assertEqual(
+            summary["pipeline_config_sha256"],
+            module._sha256_file(DEMO_DIR / "config" / "pdf_simple_kg_pipeline.yaml"),
+        )
+        self.assertEqual(
+            result["pipeline_config_sha256"],
+            module._sha256_file(DEMO_DIR / "config" / "pdf_simple_kg_pipeline.yaml"),
+        )
         self.assertEqual(summary["embedding_model"], module.EMBEDDER_MODEL_NAME)
         self.assertEqual(result["vector_index"]["creation_strategy"], "neo4j_graphrag.indexes.create_vector_index")
         self.assertEqual(result["pipeline_result"], {"ok": True})
@@ -638,6 +646,7 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
                 for query, _ in calls["queries"]
             )
         )
+        self.assertNotIn("extraction_warnings", result)
         self.assertEqual(
             ("OPENAI_API_KEY" in os.environ, os.environ.get("OPENAI_API_KEY")),
             initial_openai_state,
@@ -656,9 +665,9 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
                 openai_model="gpt-4o-mini",
             )
             result = module._run_pdf_ingest(config, run_id="unstructured_ingest-test")
-            expected_fingerprint = hashlib.sha256(
-                (DEMO_DIR / "fixtures" / "unstructured" / "chain_of_custody.pdf").read_bytes()
-            ).hexdigest()
+            expected_fingerprint = module._sha256_file(
+                DEMO_DIR / "fixtures" / "unstructured" / "chain_of_custody.pdf"
+            )
             summary_path = Path(result["ingest_summary_path"])
             self.assertTrue(summary_path.exists())
             summary = json.loads(summary_path.read_text(encoding="utf-8"))
@@ -666,8 +675,16 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
             self.assertEqual(summary["counts"], {"documents": 0, "pages": 0, "chunks": 0})
             self.assertEqual(summary["embedding_model"], module.EMBEDDER_MODEL_NAME)
             self.assertEqual(summary["embedding_dimensions"], module.CHUNK_EMBEDDING_DIMENSIONS)
+            self.assertEqual(
+                summary["pipeline_config_sha256"],
+                module._sha256_file(DEMO_DIR / "config" / "pdf_simple_kg_pipeline.yaml"),
+            )
             self.assertEqual(summary["vector_index"]["creation_strategy"], "dry_run")
             self.assertEqual(result["pdf_fingerprint_sha256"], expected_fingerprint)
+            self.assertEqual(
+                result["pipeline_config_sha256"],
+                module._sha256_file(DEMO_DIR / "config" / "pdf_simple_kg_pipeline.yaml"),
+            )
             self.assertEqual(Path(result["pdf_ingest_dir"]), summary_path.parent)
             self.assertEqual(result["vector_index"]["creation_strategy"], "dry_run")
 

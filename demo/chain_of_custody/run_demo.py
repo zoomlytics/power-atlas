@@ -893,6 +893,7 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
     pdf_ingest_dir.mkdir(parents=True, exist_ok=True)
     ingest_summary_path = pdf_ingest_dir / "ingest_summary.json"
     pdf_fingerprint_sha256 = _sha256_file(pdf_path)
+    pipeline_config_sha256 = _sha256_file(PDF_PIPELINE_CONFIG_PATH)
     summary_counts = {"documents": 0, "pages": 0, "chunks": 0}
     extraction_warnings: list[Any] = []
 
@@ -913,6 +914,7 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
             },
             "warnings": extraction_warnings,
             "pipeline_config": str(PDF_PIPELINE_CONFIG_PATH),
+            "pipeline_config_sha256": pipeline_config_sha256,
         }
         ingest_summary_path.write_text(json.dumps(ingest_summary, indent=2), encoding="utf-8")
         return {
@@ -920,6 +922,7 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
             "documents": [pdf_source_uri],
             "vendor_pattern": "SimpleKGPipeline + OpenAIEmbeddings + FixedSizeSplitter",
             "pipeline_config": str(PDF_PIPELINE_CONFIG_PATH),
+            "pipeline_config_sha256": pipeline_config_sha256,
             "vector_index": {
                 "index_name": CHUNK_EMBEDDING_INDEX_NAME,
                 "label": CHUNK_EMBEDDING_LABEL,
@@ -1146,6 +1149,7 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
         },
         "warnings": extraction_warnings,
         "pipeline_config": str(PDF_PIPELINE_CONFIG_PATH),
+        "pipeline_config_sha256": pipeline_config_sha256,
     }
     ingest_summary_path.write_text(json.dumps(ingest_summary, indent=2), encoding="utf-8")
 
@@ -1153,6 +1157,7 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
         "status": "live",
         "documents": [pdf_source_uri],
         "pipeline_config": str(PDF_PIPELINE_CONFIG_PATH),
+        "pipeline_config_sha256": pipeline_config_sha256,
         "vector_index": {
             "index_name": CHUNK_EMBEDDING_INDEX_NAME,
             "label": CHUNK_EMBEDDING_LABEL,
@@ -1174,7 +1179,6 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
         "counts": summary_counts,
         "embedding_model": EMBEDDER_MODEL_NAME,
         "warnings": extraction_warnings,
-        "extraction_warnings": extraction_warnings,
         **({"vector_index_fallback_reason": index_fallback_reason} if index_fallback_reason else {}),
     }
 
