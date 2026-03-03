@@ -38,7 +38,7 @@ _pipeline_config_data: dict[str, Any] = {}
 if PDF_PIPELINE_CONFIG_PATH.is_file():
     try:
         with PDF_PIPELINE_CONFIG_PATH.open("r", encoding="utf-8") as _cfg_handle:
-            cfg_data = yaml.safe_load(_cfg_handle)
+            _cfg_data = yaml.safe_load(_cfg_handle)
     except (OSError, yaml.YAMLError) as exc:
         warnings.warn(
             f"Falling back to default chunk embedding contract; unable to load "
@@ -46,18 +46,18 @@ if PDF_PIPELINE_CONFIG_PATH.is_file():
             RuntimeWarning,
             stacklevel=2,
         )
-        cfg_data = {}
+        _cfg_data = {}
     else:
-        if not isinstance(cfg_data, dict):
+        if not isinstance(_cfg_data, dict):
             warnings.warn(
                 f"Falling back to default chunk embedding contract; expected mapping at top-level in "
-                f"{PDF_PIPELINE_CONFIG_PATH}, got {type(cfg_data).__name__}",
+                f"{PDF_PIPELINE_CONFIG_PATH}, got {type(_cfg_data).__name__}",
                 RuntimeWarning,
                 stacklevel=2,
             )
-            cfg_data = {}
-    _pipeline_config_data = cfg_data if isinstance(cfg_data, dict) else {}
-    _demo_contract = cfg_data.get("demo_contract") if isinstance(cfg_data, dict) else {}
+            _cfg_data = {}
+    _pipeline_config_data = _cfg_data if isinstance(_cfg_data, dict) else {}
+    _demo_contract = _cfg_data.get("demo_contract") if isinstance(_cfg_data, dict) else {}
     if _demo_contract is None:
         _demo_contract = {}
     elif not isinstance(_demo_contract, dict):
@@ -944,10 +944,10 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
     os.environ.update(env_updates)
 
     try:
-        index_creation_strategy: str | None = "neo4j_graphrag.indexes.create_vector_index"
-        index_fallback_reason: str | None = None
         driver = neo4j.GraphDatabase.driver(config.neo4j_uri, auth=(config.neo4j_username, config.neo4j_password))
         with driver:
+            index_creation_strategy: str | None = "neo4j_graphrag.indexes.create_vector_index"
+            index_fallback_reason: str | None = None
             try:
                 create_vector_index(
                     driver,
