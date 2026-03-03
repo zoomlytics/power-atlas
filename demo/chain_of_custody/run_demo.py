@@ -929,6 +929,7 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
             "pdf_fingerprint_sha256": pdf_fingerprint_sha256,
             "counts": summary_counts,
             "embedding_model": EMBEDDER_MODEL_NAME,
+            "warnings": extraction_warnings,
             "extraction_warnings": extraction_warnings,
         }
 
