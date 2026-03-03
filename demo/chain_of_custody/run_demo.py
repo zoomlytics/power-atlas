@@ -86,6 +86,9 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
             },
         }
 
+    if not os.getenv("OPENAI_API_KEY"):
+        raise SystemExit("Set OPENAI_API_KEY when using --live ingest-pdf")
+
     import neo4j
     from neo4j_graphrag.experimental.pipeline.config.runner import PipelineRunner
     from neo4j_graphrag.indexes import create_vector_index

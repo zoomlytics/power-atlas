@@ -276,9 +276,19 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
             "neo4j_graphrag.experimental.pipeline.config.runner": fake_runner,
         }
         originals = {name: sys.modules.get(name) for name in injected_modules}
+        had_openai_api_key = "OPENAI_API_KEY" in os.environ
+        original_openai_api_key = os.environ.get("OPENAI_API_KEY")
+        os.environ["OPENAI_API_KEY"] = "test-openai-api-key"
         original_env = {
             key: (key in os.environ, os.environ.get(key))
-            for key in ("NEO4J_URI", "NEO4J_USERNAME", "NEO4J_PASSWORD", "NEO4J_DATABASE", "OPENAI_MODEL")
+            for key in (
+                "NEO4J_URI",
+                "NEO4J_USERNAME",
+                "NEO4J_PASSWORD",
+                "NEO4J_DATABASE",
+                "OPENAI_MODEL",
+                "OPENAI_API_KEY",
+            )
         }
         try:
             sys.modules.update(injected_modules)
@@ -317,6 +327,10 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
         self.assertTrue(any("document_count" in query and "chunk_count" in query for query, _ in calls["queries"]))
         restored_env = {key: (key in os.environ, os.environ.get(key)) for key in original_env}
         self.assertEqual(restored_env, original_env)
+        if had_openai_api_key:
+            os.environ["OPENAI_API_KEY"] = original_openai_api_key
+        else:
+            os.environ.pop("OPENAI_API_KEY", None)
 
     def test_run_pdf_ingest_non_dry_run_falls_back_to_cypher_index_creation(self):
         module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_non_dry_fallback_test")
@@ -397,8 +411,11 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
             "neo4j_graphrag.experimental.pipeline.config.runner": fake_runner,
         }
         originals = {name: sys.modules.get(name) for name in injected_modules}
+        had_openai_api_key = "OPENAI_API_KEY" in os.environ
+        original_openai_api_key = os.environ.get("OPENAI_API_KEY")
         try:
             sys.modules.update(injected_modules)
+            os.environ["OPENAI_API_KEY"] = "test-openai-api-key"
             result = module._run_pdf_ingest(config, run_id="unstructured_ingest-test")
         finally:
             for name, original in originals.items():
@@ -406,6 +423,10 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
                     sys.modules.pop(name, None)
                 else:
                     sys.modules[name] = original
+            if had_openai_api_key:
+                os.environ["OPENAI_API_KEY"] = original_openai_api_key
+            else:
+                os.environ.pop("OPENAI_API_KEY", None)
 
         self.assertEqual(result["vector_index"]["creation_strategy"], "cypher_fallback")
         self.assertEqual(result["vector_index_fallback_reason"], "RuntimeError: index helper unavailable")
@@ -479,8 +500,11 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
             "neo4j_graphrag.experimental.pipeline.config.runner": fake_runner,
         }
         originals = {name: sys.modules.get(name) for name in injected_modules}
+        had_openai_api_key = "OPENAI_API_KEY" in os.environ
+        original_openai_api_key = os.environ.get("OPENAI_API_KEY")
         try:
             sys.modules.update(injected_modules)
+            os.environ["OPENAI_API_KEY"] = "test-openai-api-key"
             with self.assertRaisesRegex(
                 ValueError,
                 "expected at least one Document and Chunk for this run",
@@ -492,6 +516,34 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
                     sys.modules.pop(name, None)
                 else:
                     sys.modules[name] = original
+            if had_openai_api_key:
+                os.environ["OPENAI_API_KEY"] = original_openai_api_key
+            else:
+                os.environ.pop("OPENAI_API_KEY", None)
+
+    def test_run_pdf_ingest_non_dry_run_requires_openai_api_key(self):
+        module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_non_dry_requires_openai_key_test")
+        config = module.DemoConfig(
+            dry_run=False,
+            output_dir=DEMO_DIR / "artifacts",
+            neo4j_uri="neo4j://localhost:7687",
+            neo4j_username="neo4j",
+            neo4j_password="testtesttest",
+            neo4j_database="neo4j",
+            openai_model="gpt-4o-mini",
+        )
+        had_openai_api_key = "OPENAI_API_KEY" in os.environ
+        original_openai_api_key = os.environ.get("OPENAI_API_KEY")
+        try:
+            os.environ.pop("OPENAI_API_KEY", None)
+            with self.assertRaises(SystemExit) as raised:
+                module._run_pdf_ingest(config, run_id="unstructured_ingest-test")
+            self.assertEqual(str(raised.exception), "Set OPENAI_API_KEY when using --live ingest-pdf")
+        finally:
+            if had_openai_api_key:
+                os.environ["OPENAI_API_KEY"] = original_openai_api_key
+            else:
+                os.environ.pop("OPENAI_API_KEY", None)
 
     def test_independent_ingest_commands_write_stage_manifests(self):
         module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_independent_test")
@@ -574,7 +626,8 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
         self.assertIn("neo4j_config", config)
         self.assertIn("from_pdf", config)
         self.assertIn("demo_contract", config)
-        self.assertEqual(config["neo4j_config"]["params_"]["database"]["var_"], "NEO4J_DATABASE")
+        self.assertIn("neo4j_database", config)
+        self.assertEqual(config["neo4j_database"]["var_"], "NEO4J_DATABASE")
         self.assertEqual(config["llm_config"]["params_"]["model_name"]["var_"], "OPENAI_MODEL")
         self.assertEqual(config["embedder_config"]["params_"]["model"], "text-embedding-3-small")
         self.assertEqual(config["demo_contract"]["chunk_embedding"]["dimensions"], 1536)

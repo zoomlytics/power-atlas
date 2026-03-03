@@ -1,19 +1,19 @@
 version_: "1"
 template_: SimpleKGPipeline
 neo4j_config:
- params_:
-   uri:
-     resolver_: ENV
-     var_: NEO4J_URI
-   user:
-     resolver_: ENV
-     var_: NEO4J_USERNAME
-   password:
-     resolver_: ENV
-     var_: NEO4J_PASSWORD
-   database:
-     resolver_: ENV
-     var_: NEO4J_DATABASE
+  params_:
+    uri:
+      resolver_: ENV
+      var_: NEO4J_URI
+    user:
+      resolver_: ENV
+      var_: NEO4J_USERNAME
+    password:
+      resolver_: ENV
+      var_: NEO4J_PASSWORD
+neo4j_database:
+  resolver_: ENV
+  var_: NEO4J_DATABASE
 llm_config:
  class_: OpenAILLM
  params_:
