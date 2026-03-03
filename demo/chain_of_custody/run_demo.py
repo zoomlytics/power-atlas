@@ -455,7 +455,7 @@ def _run_structured_ingest(config: DemoConfig, run_id: str) -> dict[str, Any]:
     if config.dry_run:
         return {
             "status": "dry_run",
-            "claims": len(_load_csv_rows(claims_path)),
+            "claims": lint_output["files"]["claims.csv"]["output_rows"],
             "entities": lint_output["files"]["entities.csv"]["output_rows"],
             "relationships": lint_output["files"]["relationships.csv"]["output_rows"],
             "facts": lint_output["files"]["facts.csv"]["output_rows"],
