@@ -94,6 +94,78 @@ CHUNK_EMBEDDING_PROPERTY = _chunk_embedding_contract.get(
 CHUNK_EMBEDDING_DIMENSIONS = _chunk_embedding_contract.get(
     "dimensions", _DEFAULT_CHUNK_EMBEDDING_DIMENSIONS
 )
+
+_STRUCTURED_FILE_HEADERS: dict[str, list[str]] = {
+    "entities.csv": ["entity_id", "name", "entity_type", "aliases", "description", "wikidata_url"],
+    "facts.csv": [
+        "fact_id",
+        "subject_id",
+        "subject_label",
+        "predicate_pid",
+        "predicate_label",
+        "value",
+        "value_type",
+        "source",
+        "source_url",
+        "retrieved_at",
+    ],
+    "relationships.csv": [
+        "rel_id",
+        "subject_id",
+        "subject_label",
+        "predicate_pid",
+        "predicate_label",
+        "object_id",
+        "object_label",
+        "object_entity_type",
+        "source",
+        "source_url",
+        "retrieved_at",
+    ],
+    "claims.csv": [
+        "claim_id",
+        "claim_type",
+        "subject_id",
+        "subject_label",
+        "predicate_pid",
+        "predicate_label",
+        "object_id",
+        "object_label",
+        "value",
+        "value_type",
+        "claim_text",
+        "confidence",
+        "source",
+        "source_url",
+        "retrieved_at",
+        "source_row_id",
+    ],
+}
+_ID_PATTERNS = {
+    "entity_id": re.compile(r"^Q\d+$"),
+    "fact_id": re.compile(r"^F\d+$"),
+    "rel_id": re.compile(r"^R\d+$"),
+    "claim_id": re.compile(r"^C\d+$"),
+    "predicate_pid": re.compile(r"^P\d+$"),
+}
+_VALUE_TYPES = {"date", "url", "entity", "string", "number", "boolean"}
+_COMMON_PREDICATE_LABELS = {
+    "P22": "father",
+    "P25": "mother",
+    "P26": "spouse",
+    "P39": "position held",
+    "P108": "employer",
+    "P112": "founded by",
+    "P169": "chief executive officer",
+    "P463": "member of",
+    "P569": "date of birth",
+    "P570": "date of death",
+    "P571": "inception",
+    "P856": "official website",
+    "P1830": "owner of",
+}
+
+
 @dataclass(frozen=True)
 class DemoConfig:
     dry_run: bool
@@ -116,6 +188,220 @@ def _make_run_id(scope: str) -> str:
 def _load_csv_rows(path: Path) -> list[dict[str, str]]:
     with path.open("r", encoding="utf-8", newline="") as handle:
         return list(csv.DictReader(handle))
+
+
+def _is_parseable_date(value: str) -> bool:
+    if not value:
+        return False
+    for fmt in ("%Y-%m-%d", "%Y-%m"):
+        try:
+            datetime.strptime(value, fmt)
+            return True
+        except ValueError:
+            continue
+    return bool(re.fullmatch(r"\d{4}", value))
+
+
+def _deduplicate_rows(rows: list[dict[str, str]], headers: list[str]) -> tuple[list[dict[str, str]], int]:
+    seen: set[tuple[str, ...]] = set()
+    deduped_rows: list[dict[str, str]] = []
+    duplicates = 0
+    for row in rows:
+        row_key = tuple((row.get(header) or "").strip() for header in headers)
+        if row_key in seen:
+            duplicates += 1
+            continue
+        seen.add(row_key)
+        deduped_rows.append(row)
+    return deduped_rows, duplicates
+
+
+def _lint_and_clean_structured_csvs(run_id: str, output_dir: Path) -> dict[str, Any]:
+    structured_dir = FIXTURES_DIR / "structured"
+    run_root = output_dir / "runs" / run_id
+    clean_dir = run_root / "structured_clean"
+    clean_dir.mkdir(parents=True, exist_ok=True)
+
+    lint_issues: list[dict[str, Any]] = []
+    cleaned_rows: dict[str, list[dict[str, str]]] = {}
+    file_summaries: dict[str, dict[str, Any]] = {}
+
+    def _add_issue(file_name: str, row_number: int, field: str, code: str, message: str) -> None:
+        lint_issues.append(
+            {
+                "file": file_name,
+                "row": row_number,
+                "field": field,
+                "code": code,
+                "message": message,
+            }
+        )
+
+    for file_name, expected_headers in _STRUCTURED_FILE_HEADERS.items():
+        source_path = structured_dir / file_name
+        with source_path.open("r", encoding="utf-8", newline="") as handle:
+            reader = csv.DictReader(handle)
+            actual_headers = reader.fieldnames or []
+            if actual_headers != expected_headers:
+                _add_issue(
+                    file_name,
+                    1,
+                    "header",
+                    "HEADER_MISMATCH",
+                    f"Expected {expected_headers}, got {actual_headers}",
+                )
+            rows = list(reader)
+
+        deduped = rows
+        duplicates = 0
+        if file_name in {"entities.csv", "facts.csv", "relationships.csv"}:
+            deduped, duplicates = _deduplicate_rows(rows, expected_headers)
+
+        for row_offset, row in enumerate(deduped, start=2):
+            id_field = {
+                "entities.csv": "entity_id",
+                "facts.csv": "fact_id",
+                "relationships.csv": "rel_id",
+                "claims.csv": "claim_id",
+            }[file_name]
+            id_pattern = _ID_PATTERNS[id_field]
+            id_value = (row.get(id_field) or "").strip()
+            if not id_pattern.fullmatch(id_value):
+                _add_issue(file_name, row_offset, id_field, "INVALID_ID", f"Invalid {id_field}: {id_value!r}")
+
+            predicate_pid = (row.get("predicate_pid") or "").strip()
+            if "predicate_pid" in row and not _ID_PATTERNS["predicate_pid"].fullmatch(predicate_pid):
+                _add_issue(file_name, row_offset, "predicate_pid", "INVALID_PID", f"Invalid PID: {predicate_pid!r}")
+            if predicate_pid in _COMMON_PREDICATE_LABELS:
+                expected_label = _COMMON_PREDICATE_LABELS[predicate_pid]
+                actual_label = (row.get("predicate_label") or "").strip()
+                if actual_label and actual_label != expected_label:
+                    _add_issue(
+                        file_name,
+                        row_offset,
+                        "predicate_label",
+                        "PID_LABEL_MISMATCH",
+                        f"Expected label {expected_label!r} for {predicate_pid}, got {actual_label!r}",
+                    )
+
+            if "value_type" in row:
+                value_type = (row.get("value_type") or "").strip()
+                if value_type not in _VALUE_TYPES:
+                    _add_issue(
+                        file_name,
+                        row_offset,
+                        "value_type",
+                        "INVALID_VALUE_TYPE",
+                        f"Unsupported value_type {value_type!r}",
+                    )
+                if value_type == "date" and not _is_parseable_date((row.get("value") or "").strip()):
+                    _add_issue(file_name, row_offset, "value", "INVALID_DATE_VALUE", "Expected parseable date value")
+
+            retrieved_at = (row.get("retrieved_at") or "").strip()
+            if "retrieved_at" in row and not _is_parseable_date(retrieved_at):
+                _add_issue(
+                    file_name,
+                    row_offset,
+                    "retrieved_at",
+                    "INVALID_RETRIEVED_AT",
+                    f"Expected parseable date, got {retrieved_at!r}",
+                )
+
+            if "subject_id" in row:
+                subject_id = (row.get("subject_id") or "").strip()
+                if subject_id and not _ID_PATTERNS["entity_id"].fullmatch(subject_id):
+                    _add_issue(file_name, row_offset, "subject_id", "INVALID_SUBJECT_ID", f"Invalid ID: {subject_id!r}")
+            if "object_id" in row:
+                object_id = (row.get("object_id") or "").strip()
+                if object_id and not _ID_PATTERNS["entity_id"].fullmatch(object_id):
+                    _add_issue(file_name, row_offset, "object_id", "INVALID_OBJECT_ID", f"Invalid ID: {object_id!r}")
+            if file_name == "claims.csv":
+                claim_type = (row.get("claim_type") or "").strip()
+                if claim_type not in {"fact", "relationship"}:
+                    _add_issue(file_name, row_offset, "claim_type", "INVALID_CLAIM_TYPE", f"Invalid claim_type {claim_type!r}")
+                confidence_text = (row.get("confidence") or "").strip()
+                try:
+                    confidence = float(confidence_text)
+                    if confidence < 0 or confidence > 1:
+                        raise ValueError("out_of_range")
+                except ValueError:
+                    _add_issue(
+                        file_name,
+                        row_offset,
+                        "confidence",
+                        "INVALID_CONFIDENCE",
+                        f"Expected confidence in [0,1], got {confidence_text!r}",
+                    )
+
+        cleaned_rows[file_name] = deduped
+        file_summaries[file_name] = {
+            "input_rows": len(rows),
+            "output_rows": len(deduped),
+            "deduplicated_rows": duplicates,
+            "source_uri": str(source_path),
+        }
+
+    entity_ids = {row["entity_id"] for row in cleaned_rows["entities.csv"]}
+    fact_ids = {row["fact_id"] for row in cleaned_rows["facts.csv"]}
+    relationship_ids = {row["rel_id"] for row in cleaned_rows["relationships.csv"]}
+    for row_offset, claim in enumerate(cleaned_rows["claims.csv"], start=2):
+        subject_id = (claim.get("subject_id") or "").strip()
+        if subject_id and subject_id not in entity_ids:
+            _add_issue("claims.csv", row_offset, "subject_id", "UNKNOWN_SUBJECT_ID", f"Unknown subject_id {subject_id!r}")
+        source_row_id = (claim.get("source_row_id") or "").strip()
+        claim_type = (claim.get("claim_type") or "").strip()
+        if claim_type == "fact" and source_row_id not in fact_ids:
+            _add_issue(
+                "claims.csv",
+                row_offset,
+                "source_row_id",
+                "UNKNOWN_FACT_SOURCE_ROW",
+                f"Missing fact_id {source_row_id!r}",
+            )
+        if claim_type == "relationship" and source_row_id not in relationship_ids:
+            _add_issue(
+                "claims.csv",
+                row_offset,
+                "source_row_id",
+                "UNKNOWN_REL_SOURCE_ROW",
+                f"Missing rel_id {source_row_id!r}",
+            )
+
+    for file_name, expected_headers in _STRUCTURED_FILE_HEADERS.items():
+        output_path = clean_dir / file_name
+        with output_path.open("w", encoding="utf-8", newline="") as handle:
+            writer = csv.DictWriter(handle, fieldnames=expected_headers)
+            writer.writeheader()
+            writer.writerows(cleaned_rows[file_name])
+
+    lint_issues = sorted(
+        lint_issues,
+        key=lambda issue: (issue["file"], issue["row"], issue["field"], issue["code"], issue["message"]),
+    )
+    lint_report = {
+        "run_id": run_id,
+        "dataset_id": "chain_of_custody_dataset_v1",
+        "method": "structured_pre_ingest_lint_and_dedup",
+        "source_uri": str(structured_dir),
+        "structured_clean_dir": str(clean_dir),
+        "files": file_summaries,
+        "issues": lint_issues,
+        "summary": {
+            "issue_count": len(lint_issues),
+            "status": "failed" if lint_issues else "ok",
+        },
+    }
+    lint_report_path = run_root / "lint_report.json"
+    lint_report_path.write_text(json.dumps(lint_report, indent=2, sort_keys=True), encoding="utf-8")
+    if lint_issues:
+        raise ValueError(f"Structured CSV lint failed with {len(lint_issues)} issue(s): {lint_report_path}")
+    return {
+        "run_id": run_id,
+        "structured_clean_dir": str(clean_dir),
+        "lint_report_path": str(lint_report_path),
+        "lint_summary": lint_report["summary"],
+        "files": file_summaries,
+    }
 
 
 def _validate_cypher_identifier(value: str, kind: str) -> None:
@@ -150,17 +436,20 @@ def _normalize_pipeline_result(value: Any) -> Any:
         }
 
 
-def _run_structured_ingest(config: DemoConfig) -> dict[str, Any]:
+def _run_structured_ingest(config: DemoConfig, run_id: str) -> dict[str, Any]:
     claims_path = FIXTURES_DIR / "structured" / "claims.csv"
-    entities_path = FIXTURES_DIR / "structured" / "entities.csv"
-    relationships_path = FIXTURES_DIR / "structured" / "relationships.csv"
+    lint_output = _lint_and_clean_structured_csvs(run_id=run_id, output_dir=config.output_dir)
 
     if config.dry_run:
         return {
             "status": "dry_run",
             "claims": len(_load_csv_rows(claims_path)),
-            "entities": len(_load_csv_rows(entities_path)),
-            "relationships": len(_load_csv_rows(relationships_path)),
+            "entities": lint_output["files"]["entities.csv"]["output_rows"],
+            "relationships": lint_output["files"]["relationships.csv"]["output_rows"],
+            "facts": lint_output["files"]["facts.csv"]["output_rows"],
+            "structured_clean_dir": lint_output["structured_clean_dir"],
+            "lint_report_path": lint_output["lint_report_path"],
+            "lint_summary": lint_output["lint_summary"],
         }
     raise NotImplementedError(
         "Non-dry-run structured ingest is not yet implemented for the current "
@@ -413,7 +702,7 @@ def run_demo(config: DemoConfig) -> Path:
         },
         "stages": {
             "structured_ingest": {
-                **_run_structured_ingest(config),
+                **_run_structured_ingest(config, structured_run_id),
                 "run_id": structured_run_id,
             },
             "pdf_ingest": {
@@ -442,7 +731,7 @@ def run_independent_demo(config: DemoConfig, command: str) -> Path:
         "ingest-structured": (
             "structured_ingest",
             "structured_ingest_run_id",
-            lambda cfg, _stage_run_id: _run_structured_ingest(cfg),
+            lambda cfg, stage_run_id: _run_structured_ingest(cfg, stage_run_id),
         ),
         "ingest-pdf": ("pdf_ingest", "unstructured_ingest_run_id", _run_pdf_ingest),
     }
@@ -557,6 +846,20 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    if args.command == "lint-structured":
+        config = DemoConfig(
+            dry_run=True,
+            output_dir=args.output_dir,
+            neo4j_uri=args.neo4j_uri,
+            neo4j_username=args.neo4j_username,
+            neo4j_password=args.neo4j_password,
+            neo4j_database=args.neo4j_database,
+            openai_model=args.openai_model,
+        )
+        run_id = _make_run_id("structured_lint")
+        lint_result = _lint_and_clean_structured_csvs(run_id=run_id, output_dir=config.output_dir)
+        print(f"Structured lint report written to: {lint_result['lint_report_path']}")
+        return
     if args.command in {"ingest", "ingest-structured", "ingest-pdf"}:
         if not args.dry_run and args.neo4j_password in ("", "CHANGE_ME_BEFORE_USE"):
             raise SystemExit("Set NEO4J_PASSWORD or pass --neo4j-password when using --live")
