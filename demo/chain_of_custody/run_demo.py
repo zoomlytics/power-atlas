@@ -523,6 +523,17 @@ def _normalize_pipeline_result(value: Any) -> Any:
         }
 
 
+def _record_as_mapping(record: Any) -> dict[str, Any]:
+    if record is None:
+        return {}
+    if isinstance(record, dict):
+        return record
+    try:
+        return record.data()  # type: ignore[union-attr]
+    except Exception:
+        return record
+
+
 def _run_structured_ingest(config: DemoConfig, run_id: str) -> dict[str, Any]:
     lint_output = _lint_and_clean_structured_csvs(run_id=run_id, output_dir=config.output_dir)
     structured_clean_dir = Path(lint_output["structured_clean_dir"])
@@ -925,12 +936,11 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
     previous_env = {key: (key in os.environ, os.environ.get(key)) for key in env_updates}
     os.environ.update(env_updates)
 
-    index_creation_strategy: str | None = None
+    index_creation_strategy: str | None = "neo4j_graphrag.indexes.create_vector_index"
     index_fallback_reason: str | None = None
     try:
         driver = neo4j.GraphDatabase.driver(config.neo4j_uri, auth=(config.neo4j_username, config.neo4j_password))
         with driver:
-            index_creation_strategy = "neo4j_graphrag.indexes.create_vector_index"
             try:
                 create_vector_index(
                     driver,
@@ -1021,7 +1031,7 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                     run_id=stage_run_id,
                     source_uri=pdf_source_uri,
                 ).single()
-                run_counts = run_counts if run_counts is not None else {}
+                run_counts = _record_as_mapping(run_counts)
                 document_count = int(run_counts.get("document_count") or 0)
                 chunk_count = int(run_counts.get("chunk_count") or 0)
                 if document_count == 0 or chunk_count == 0:
@@ -1042,7 +1052,7 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                     run_id=stage_run_id,
                     source_uri=pdf_source_uri,
                 ).single()
-                page_count_result = page_count_result if page_count_result is not None else {}
+                page_count_result = _record_as_mapping(page_count_result)
                 page_count = int(page_count_result.get("page_count") or 0)
                 summary_counts = {
                     "documents": document_count,
