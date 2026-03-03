@@ -149,6 +149,7 @@ _ID_PATTERNS = {
     "predicate_pid": re.compile(r"^P\d+$"),
 }
 _VALUE_TYPES = {"date", "url", "entity", "string", "number", "boolean"}
+_CSV_FIRST_DATA_ROW = 2
 _COMMON_PREDICATE_LABELS = {
     "P22": "father",
     "P25": "mother",
@@ -525,7 +526,7 @@ def _run_structured_ingest(config: DemoConfig, run_id: str) -> dict[str, Any]:
     fact_ids = {row["fact_id"] for row in facts_rows}
     relationship_ids = {row["rel_id"] for row in relationship_rows}
     validation_warnings: list[dict[str, Any]] = []
-    for row_index, claim in enumerate(claims_rows, start=2):
+    for row_index, claim in enumerate(claims_rows, start=_CSV_FIRST_DATA_ROW):
         claim_type = (claim.get("claim_type") or "").strip()
         source_row_id = (claim.get("source_row_id") or "").strip()
         if claim_type == "fact" and source_row_id not in fact_ids:
@@ -535,7 +536,7 @@ def _run_structured_ingest(config: DemoConfig, run_id: str) -> dict[str, Any]:
                     "row": row_index,
                     "claim_id": claim.get("claim_id"),
                     "code": "BROKEN_FACT_SOURCE_ROW",
-                    "message": f"Missing fact source_row_id {source_row_id!r}",
+                    "message": f"Fact with fact_id not found for source_row_id {source_row_id!r}",
                 }
             )
         if claim_type == "relationship" and source_row_id not in relationship_ids:
@@ -545,7 +546,7 @@ def _run_structured_ingest(config: DemoConfig, run_id: str) -> dict[str, Any]:
                     "row": row_index,
                     "claim_id": claim.get("claim_id"),
                     "code": "BROKEN_REL_SOURCE_ROW",
-                    "message": f"Missing relationship source_row_id {source_row_id!r}",
+                    "message": f"Relationship with rel_id not found for source_row_id {source_row_id!r}",
                 }
             )
 
@@ -751,7 +752,10 @@ def _run_structured_ingest(config: DemoConfig, run_id: str) -> dict[str, Any]:
                     claim.value = row.value,
                     claim.value_type = row.value_type,
                     claim.claim_text = row.claim_text,
-                    claim.confidence = toFloat(row.confidence),
+                    claim.confidence = CASE
+                        WHEN coalesce(row.confidence, '') =~ '^[+-]?(\\d+\\.?\\d*|\\.\\d+)$' THEN toFloat(row.confidence)
+                        ELSE NULL
+                    END,
                     claim.source = row.source,
                     claim.source_url = row.source_url,
                     claim.retrieved_at = row.retrieved_at,
