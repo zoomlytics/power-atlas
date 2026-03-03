@@ -179,7 +179,7 @@ def run_independent_demo(config: DemoConfig, command: str) -> Path:
             }
         },
     }
-    manifest_path = config.output_dir / f"{stage_name}_manifest.json"
+    manifest_path = config.output_dir / f"{stage_name}_{stage_run_id}_manifest.json"
     manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     return manifest_path
 
