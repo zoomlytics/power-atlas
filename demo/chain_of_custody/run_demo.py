@@ -240,6 +240,7 @@ def _lint_and_clean_structured_csvs(run_id: str, output_dir: Path) -> dict[str, 
     cleaned_rows: dict[str, list[dict[str, str]]] = {}
     cleaned_row_numbers: dict[str, list[int]] = {}
     file_summaries: dict[str, dict[str, Any]] = {}
+    read_error_files: set[str] = set()
 
     def _add_issue(file_name: str, row_number: int, field: str, code: str, message: str) -> None:
         lint_issues.append(
@@ -294,6 +295,7 @@ def _lint_and_clean_structured_csvs(run_id: str, output_dir: Path) -> dict[str, 
                 "READ_ERROR",
                 f"Could not read structured CSV file '{file_name}': {exc}",
             )
+            read_error_files.add(file_name)
             cleaned_rows[file_name] = []
             cleaned_row_numbers[file_name] = []
             file_summaries[file_name] = {
@@ -413,14 +415,17 @@ def _lint_and_clean_structured_csvs(run_id: str, output_dir: Path) -> dict[str, 
     }
     claims_rows = cleaned_rows.get("claims.csv", [])
     claims_row_numbers = cleaned_row_numbers.get("claims.csv", [])
+    can_validate_entities = "entities.csv" not in read_error_files
+    can_validate_facts = "facts.csv" not in read_error_files
+    can_validate_relationships = "relationships.csv" not in read_error_files
     for index, claim in enumerate(claims_rows):
         row_number = claims_row_numbers[index] if index < len(claims_row_numbers) else index + 2
         subject_id = (claim.get("subject_id") or "").strip()
-        if subject_id and subject_id not in entity_ids:
+        if can_validate_entities and subject_id and subject_id not in entity_ids:
             _add_issue("claims.csv", row_number, "subject_id", "UNKNOWN_SUBJECT_ID", f"Unknown subject_id {subject_id!r}")
         source_row_id = (claim.get("source_row_id") or "").strip()
         claim_type = (claim.get("claim_type") or "").strip()
-        if claim_type == "fact" and source_row_id not in fact_ids:
+        if can_validate_facts and claim_type == "fact" and source_row_id not in fact_ids:
             _add_issue(
                 "claims.csv",
                 row_number,
@@ -428,7 +433,7 @@ def _lint_and_clean_structured_csvs(run_id: str, output_dir: Path) -> dict[str, 
                 "UNKNOWN_FACT_SOURCE_ROW",
                 f"Missing fact_id {source_row_id!r}",
             )
-        if claim_type == "relationship" and source_row_id not in relationship_ids:
+        if can_validate_relationships and claim_type == "relationship" and source_row_id not in relationship_ids:
             _add_issue(
                 "claims.csv",
                 row_number,

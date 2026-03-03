@@ -440,6 +440,7 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
             self.assertTrue(
                 any(issue["code"] == "READ_ERROR" and issue["file"] == "facts.csv" for issue in lint_report["issues"])
             )
+            self.assertFalse(any(issue["code"] == "UNKNOWN_FACT_SOURCE_ROW" for issue in lint_report["issues"]))
 
     def test_structured_lint_uses_original_row_numbers_after_blank_rows(self):
         module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_structured_row_numbers_test")
@@ -447,6 +448,8 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
             copied_fixtures = Path(tmpdir) / "fixtures"
             shutil.copytree(DEMO_DIR / "fixtures", copied_fixtures)
             claims_path = copied_fixtures / "structured" / "claims.csv"
+            with claims_path.open("r", encoding="utf-8", newline="") as claims_file:
+                baseline_line_count = sum(1 for _ in claims_file)
             with claims_path.open("r", encoding="utf-8", newline="") as claims_file:
                 claims_reader = csv.DictReader(claims_file)
                 headers = claims_reader.fieldnames or []
@@ -456,7 +459,7 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
                 writer = csv.DictWriter(claims_file, fieldnames=headers)
                 writer.writerow({**claims_rows[0], "subject_id": "ent_DOES_NOT_EXIST"})
 
-            expected_row_number = len(claims_rows) + 3
+            expected_row_number = baseline_line_count + 2
             output_dir = Path(tmpdir) / "output"
             original_fixtures_dir = module.FIXTURES_DIR
             try:
