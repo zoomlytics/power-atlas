@@ -6,6 +6,7 @@ import csv
 import json
 import os
 import sys
+import warnings
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -36,7 +37,13 @@ if PDF_PIPELINE_CONFIG_PATH.is_file():
         with PDF_PIPELINE_CONFIG_PATH.open("r", encoding="utf-8") as _cfg_handle:
             _cfg_data = yaml.safe_load(_cfg_handle) or {}
         _demo_contract = _cfg_data.get("demo_contract") or {}
-    except Exception:
+    except (OSError, yaml.YAMLError) as exc:
+        warnings.warn(
+            f"Falling back to default chunk embedding contract; unable to load "
+            f"{PDF_PIPELINE_CONFIG_PATH}: {exc}",
+            RuntimeWarning,
+            stacklevel=2,
+        )
         # If the config cannot be read or parsed, fall back to the defaults.
         _demo_contract = {}
 

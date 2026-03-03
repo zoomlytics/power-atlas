@@ -7,6 +7,7 @@ import types
 import sys
 import tempfile
 import unittest
+import warnings
 from contextlib import redirect_stdout
 from pathlib import Path
 
@@ -638,6 +639,24 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
         self.assertEqual(config["llm_config"]["params_"]["model_name"]["var_"], "OPENAI_MODEL")
         self.assertEqual(config["embedder_config"]["params_"]["model"], "text-embedding-3-small")
         self.assertEqual(config["demo_contract"]["chunk_embedding"]["dimensions"], 1536)
+
+    def test_run_demo_warns_and_falls_back_when_pipeline_yaml_cannot_be_parsed(self):
+        original_safe_load = yaml.safe_load
+        try:
+            yaml.safe_load = lambda *_args, **_kwargs: (_ for _ in ()).throw(yaml.YAMLError("bad yaml"))
+            with warnings.catch_warnings(record=True) as caught:
+                warnings.simplefilter("always")
+                module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_yaml_warn_test")
+            self.assertEqual(module.CHUNK_EMBEDDING_INDEX_NAME, "chain_custody_chunk_embedding_index")
+            self.assertEqual(module.CHUNK_EMBEDDING_LABEL, "Chunk")
+            self.assertEqual(module.CHUNK_EMBEDDING_PROPERTY, "embedding")
+            self.assertEqual(module.CHUNK_EMBEDDING_DIMENSIONS, 1536)
+            self.assertTrue(
+                any("Falling back to default chunk embedding contract" in str(w.message) for w in caught),
+                "Expected warning when pipeline config cannot be parsed",
+            )
+        finally:
+            yaml.safe_load = original_safe_load
 
 
 if __name__ == "__main__":
