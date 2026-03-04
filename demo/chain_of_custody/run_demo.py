@@ -12,10 +12,9 @@ import warnings
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Callable
+from typing import TYPE_CHECKING, Any, Callable
 from uuid import uuid4
 
-import neo4j
 import yaml
 from neo4j_graphrag.experimental.components.entity_relation_extractor import (
     LLMEntityRelationExtractor,
@@ -32,6 +31,9 @@ from neo4j_graphrag.experimental.components.types import (
     TextChunk,
 )
 from neo4j_graphrag.llm import OpenAILLM
+
+if TYPE_CHECKING:
+    import neo4j
 try:
     from demo.chain_of_custody.run_scoped_chunk_reader import RunScopedNeo4jChunkReader
 except ModuleNotFoundError:
@@ -679,7 +681,7 @@ def _fallback_identifier(chunk_ids: list[str]) -> str:
 
 
 async def _async_read_chunks_and_extract(
-    driver: neo4j.Driver,
+    driver: "neo4j.Driver",
     *,
     run_id: str,
     source_uri: str | None,
@@ -747,6 +749,10 @@ def _prepare_extracted_rows(
         chunk_id = relationship.source_id if source_is_chunk else relationship.target_id
         node_id = relationship.target_id if source_is_chunk else relationship.source_id
         node_chunk_map.setdefault(node_id, []).append(chunk_id)
+
+    # Normalize chunk IDs per node for deterministic ordering and to avoid duplicates.
+    for node_id, chunk_ids in node_chunk_map.items():
+        node_chunk_map[node_id] = sorted(set(chunk_ids))
 
     for node in graph.nodes:
         node_chunk_ids = _chunk_id_from_node_id(node.id, node_chunk_map, relationship_type=node_chunk_rel_type)
@@ -857,7 +863,7 @@ def _prepare_extracted_rows(
 
 
 def _write_extracted_rows(
-    driver: neo4j.Driver,
+    driver: "neo4j.Driver",
     *,
     neo4j_database: str,
     claim_rows: list[dict[str, Any]],
@@ -1659,6 +1665,11 @@ def _run_claim_and_mention_extraction(
         }
         summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
         return summary
+
+    if not os.getenv("OPENAI_API_KEY"):
+        raise ValueError("OPENAI_API_KEY environment variable is required for live claim extraction.")
+
+    import neo4j
 
     driver = neo4j.GraphDatabase.driver(config.neo4j_uri, auth=(config.neo4j_username, config.neo4j_password))
     with driver:

@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Optional
-
-import neo4j
+from typing import TYPE_CHECKING
 from neo4j_graphrag.experimental.components.neo4j_reader import Neo4jChunkReader
 from neo4j_graphrag.experimental.components.types import (
     LexicalGraphConfig,
@@ -11,6 +9,9 @@ from neo4j_graphrag.experimental.components.types import (
     TextChunks,
 )
 from pydantic import validate_call
+
+if TYPE_CHECKING:
+    import neo4j
 
 logger = logging.getLogger(__name__)
 
@@ -20,13 +21,13 @@ class RunScopedNeo4jChunkReader(Neo4jChunkReader):
 
     def __init__(
         self,
-        driver: neo4j.Driver,
+        driver: "neo4j.Driver",
         *,
         run_id: str,
         source_uri: str | None = None,
         corpus: str | None = None,
         fetch_embeddings: bool = False,
-        neo4j_database: Optional[str] = None,
+        neo4j_database: str | None = None,
     ):
         super().__init__(
             driver=driver,
@@ -63,6 +64,8 @@ class RunScopedNeo4jChunkReader(Neo4jChunkReader):
         self,
         lexical_graph_config: LexicalGraphConfig = LexicalGraphConfig(),
     ) -> TextChunks:
+        import neo4j
+
         query = self._get_query(
             lexical_graph_config.chunk_node_label,
             lexical_graph_config.chunk_index_property,
