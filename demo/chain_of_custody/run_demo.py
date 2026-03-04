@@ -792,7 +792,7 @@ def _prepare_extracted_rows(
                 if len(unique_pages) > 1:
                     base_props["pages"] = unique_pages
 
-        fallback_chunk_id = (
+        fallback_chunk_label = (
             f"{node_chunk_ids[0]}_and_{len(node_chunk_ids) - 1}_more"
             if len(node_chunk_ids) > 1
             else node_chunk_ids[0]
@@ -807,13 +807,16 @@ def _prepare_extracted_rows(
                 ).strip()
             )
             properties = dict(base_props)
-            properties["claim_text"] = claim_text or f"claim_for_{fallback_chunk_id}"
+            properties["claim_text"] = claim_text or f"claim_for_{fallback_chunk_label}"
             for key in ("subject", "predicate", "object", "value", "claim_type"):
                 if key in node.properties:
                     properties[key] = node.properties[key]
             claim_rows.append(
                 {
                     "claim_id": node.id,
+                    # Keep singular chunk_id for backward compatibility with consumers
+                    # that expect a single chunk reference, while chunk_ids carries the
+                    # complete list for multi-chunk extractions.
                     "chunk_id": node_chunk_ids[0],
                     "chunk_ids": node_chunk_ids,
                     "run_id": chunk_run_id,
@@ -829,7 +832,7 @@ def _prepare_extracted_rows(
                     or node.properties.get("text")
                     or ""
                 ).strip()
-            ) or f"mention_for_{fallback_chunk_id}"
+            ) or f"mention_for_{fallback_chunk_label}"
             properties = dict(base_props)
             properties["name"] = mention_text
             entity_type = node.properties.get("entity_type") or node.properties.get("type")
@@ -838,6 +841,7 @@ def _prepare_extracted_rows(
             mention_rows.append(
                 {
                     "mention_id": node.id,
+                    # Preserve backward compatibility with single-chunk consumers.
                     "chunk_id": node_chunk_ids[0],
                     "chunk_ids": node_chunk_ids,
                     "run_id": chunk_run_id,
