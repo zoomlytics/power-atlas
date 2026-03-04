@@ -1024,9 +1024,9 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                 # Chunk.chunk_order + Chunk.embedding on every ingested Chunk.
                 # Character offsets follow a zero-based, inclusive end_char convention for citation tokens.
                 # The FixedSizeSplitter chunk_size is 1000 characters in pdf_simple_kg_pipeline.yaml (DEFAULT_CHUNK_SIZE),
-                # so we use that as the deterministic fallback stride when start offsets are absent and subtract 1 from
-                # chunk_length when computing end_char to honor the inclusive convention. Vendor-provided end offsets
-                # (existing_end_char) are assumed to already use the same inclusive convention.
+                # so we use that as the deterministic fallback stride when start offsets are absent, and propagate the
+                # MISSING_CHUNK_OFFSET sentinel (-1) when chunk ordering metadata is unavailable. Vendor-provided end
+                # offsets (existing_end_char) are assumed to already use the same inclusive convention.
                 session.run(
                     """
                     MATCH (d:Document)
@@ -1040,7 +1040,7 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                     WITH d,
                          c,
                          toInteger(coalesce(c.chunk_order, c.index, c.chunk_index)) AS normalized_chunk_order,
-                         coalesce(toInteger(coalesce(c.chunk_order, c.index, c.chunk_index)), 0) AS fallback_chunk_order,
+                         coalesce(normalized_chunk_order, 0) AS fallback_chunk_order,
                          coalesce(c.page_number, c.page) AS normalized_page,
                          coalesce(c.start_char, c.start_offset, c.start, c.offset) AS existing_start_char,
                          coalesce(c.end_char, c.end_offset, c.end) AS existing_end_char,
@@ -1074,7 +1074,7 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                              WHEN c.end_char IS NOT NULL THEN c.end_char
                              WHEN existing_end_char IS NOT NULL THEN existing_end_char
                              WHEN start_char_value = $missing_chunk_offset THEN $missing_chunk_offset
-                             WHEN chunk_length IS NULL OR chunk_length <= 0 THEN start_char_value - 1
+                             WHEN chunk_length IS NULL OR chunk_length <= 0 THEN start_char_value
                              ELSE start_char_value + chunk_length - 1
                          END,
                          c.embedding = coalesce(c.embedding, c.embedding_vector, c.vector, c.embeddings)
