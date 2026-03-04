@@ -619,9 +619,12 @@ def _claim_extraction_schema() -> GraphSchema:
     )
 
 
-def _chunk_id_from_node_id(node_id: str) -> str:
-    if ":" in node_id:
-        return node_id.split(":", 1)[0]
+def _chunk_id_from_node_id(node_id: str, known_chunk_ids: set[str]) -> str:
+    if node_id in known_chunk_ids:
+        return node_id
+    for chunk_id in known_chunk_ids:
+        if node_id.startswith(f"{chunk_id}:"):
+            return chunk_id
     return node_id
 
 
@@ -669,7 +672,7 @@ async def _async_read_chunks_and_extract(
     source_uri: str | None,
     neo4j_database: str,
     model_name: str,
-) -> tuple[Neo4jGraph, list[str]]:
+) -> tuple[Neo4jGraph, list[TextChunk]]:
     lexical_config = _claim_extraction_lexical_config()
     chunk_reader = RunScopedNeo4jChunkReader(
         driver,
@@ -681,7 +684,7 @@ async def _async_read_chunks_and_extract(
     text_chunks = await chunk_reader.run(lexical_graph_config=lexical_config)
     llm = OpenAILLM(
         model_name=model_name,
-        model_params={"temperature": 0, "response_format": {"type": "json_object"}},
+        model_params={"temperature": 0},
     )
     extractor = LLMEntityRelationExtractor(
         llm=llm,
@@ -712,12 +715,13 @@ def _prepare_extracted_rows(
     for chunk in text_chunks:
         metadata = chunk.metadata or {}
         metadata.setdefault("run_id", run_id)
-        chunk_meta[chunk.chunk_id] = metadata
+        chunk_meta[chunk.uid] = metadata
     claim_rows: list[dict[str, Any]] = []
     mention_rows: list[dict[str, Any]] = []
+    known_chunk_ids = set(chunk_meta)
 
     for node in graph.nodes:
-        node_chunk_id = _chunk_id_from_node_id(node.id)
+        node_chunk_id = _chunk_id_from_node_id(node.id, known_chunk_ids)
         metadata = chunk_meta.get(node_chunk_id)
         if metadata is None:
             raise ValueError(f"Extracted node {node.id!r} is missing chunk metadata for run {run_id}")
