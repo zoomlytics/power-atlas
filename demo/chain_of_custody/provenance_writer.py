@@ -33,6 +33,7 @@ class ProvenanceNeo4jWriter(Neo4jWriter):
         lexical_graph_config: LexicalGraphConfig,
         run_id: str | None,
     ) -> None:
+        """Propagate run/dataset/source metadata to Document and Chunk nodes before writing."""
         document_label = lexical_graph_config.document_node_label
         chunk_label = lexical_graph_config.chunk_node_label
         chunk_to_document_rel = lexical_graph_config.chunk_to_document_relationship_type
@@ -71,7 +72,7 @@ class ProvenanceNeo4jWriter(Neo4jWriter):
             if run_id:
                 props.setdefault("run_id", run_id)
             if self.dataset_id:
-                dataset_value = doc_props.get("dataset_id", self.dataset_id) if doc_props else self.dataset_id
+                dataset_value = (doc_props or {}).get("dataset_id", self.dataset_id)
                 props.setdefault("dataset_id", dataset_value)
             if doc_props:
                 source_uri = doc_props.get("source_uri")
