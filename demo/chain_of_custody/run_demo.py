@@ -1030,17 +1030,37 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                     WITH d
                     MATCH (d)<-[:FROM_DOCUMENT]-(c:Chunk)
                     WHERE c.run_id IS NULL OR c.run_id = $run_id
-                    WITH d, c,
-                         toInteger(coalesce(c.chunk_order, c.index, c.chunk_index)) AS normalized_chunk_order
+                    WITH d,
+                         c,
+                         toInteger(coalesce(c.chunk_order, c.index, c.chunk_index)) AS normalized_chunk_order,
+                         coalesce(c.page_number, c.page) AS normalized_page,
+                         coalesce(c.start_char, c.start_offset, c.start, c.offset) AS existing_start_char,
+                         coalesce(c.end_char, c.end_offset, c.end) AS existing_end_char,
+                         coalesce(size(c.text), size(c.body), size(c.content)) AS chunk_length
+                    WITH d,
+                         c,
+                         normalized_chunk_order,
+                         normalized_page,
+                         chunk_length,
+                         coalesce(existing_start_char, coalesce(normalized_chunk_order, 0) * 1000) AS start_char_value,
+                         existing_end_char
                     SET c.run_id = coalesce(c.run_id, $run_id),
                         c.source_uri = coalesce(c.source_uri, d.source_uri, $source_uri),
                         c.chunk_order = normalized_chunk_order,
+                        c.chunk_index = coalesce(c.chunk_index, normalized_chunk_order),
                         c.chunk_id = coalesce(
                             c.chunk_id,
                             c.uid,
-                            d.source_uri + ':' + toString(normalized_chunk_order)
+                            d.source_uri + ':' + toString(coalesce(c.chunk_index, normalized_chunk_order))
                         ),
-                        c.page_number = coalesce(c.page_number, c.page),
+                        c.page_number = normalized_page,
+                        c.page = coalesce(c.page, normalized_page),
+                        c.start_char = coalesce(c.start_char, start_char_value),
+                        c.end_char = coalesce(
+                            c.end_char,
+                            existing_end_char,
+                            start_char_value + coalesce(chunk_length, 0) - 1
+                        ),
                         c.embedding = coalesce(c.embedding, c.embedding_vector, c.vector, c.embeddings)
                     """,
                     run_id=stage_run_id,
@@ -1179,7 +1199,10 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
             "source_uri": pdf_source_uri,
             "chunk_order_property": "chunk_order",
             "chunk_id_property": "chunk_id",
+            "chunk_index_property": "chunk_index",
             "page_property": "page_number",
+            "start_char_property": "start_char",
+            "end_char_property": "end_char",
         },
         "pdf_ingest_dir": str(pdf_ingest_dir),
         "ingest_summary_path": str(ingest_summary_path),
@@ -1206,16 +1229,47 @@ def _run_claim_and_mention_extraction(config: DemoConfig) -> dict[str, Any]:
 
 
 def _run_retrieval_and_qa(config: DemoConfig) -> dict[str, Any]:
+    example_source_uri = (FIXTURES_DIR / "unstructured" / "chain_of_custody.pdf").resolve().as_uri()
+    example_citation_token = (
+        "[CITATION|chunk_id=example_chunk|run_id=<run_id>|"
+        f"source_uri={example_source_uri}|chunk_index=0|page=1|start_char=0|end_char=999]"
+    )
+    retrieval_query_contract = """
+    RETURN c.text AS chunk_text,
+           c.chunk_id AS chunk_id,
+           c.run_id AS run_id,
+           c.source_uri AS source_uri,
+           c.chunk_index AS chunk_index,
+           coalesce(c.page_number, c.page) AS page,
+           c.start_char AS start_char,
+           c.end_char AS end_char,
+           score AS similarityScore
+    """
+    citation_example = {
+        "chunk_id": "example_chunk",
+        "run_id": "<run_id>",
+        "source_uri": example_source_uri,
+        "chunk_index": 0,
+        "page": 1,
+        "start_char": 0,
+        "end_char": 999,
+    }
     if config.dry_run:
         return {
             "status": "dry_run",
             "retrievers": ["VectorCypherRetriever", "graph expansion"],
             "qa": "GraphRAG strict citations",
+            "citation_token_example": example_citation_token,
+            "citation_example": citation_example,
+            "retrieval_query_contract": retrieval_query_contract.strip(),
         }
     return {
         "status": "configured",
         "retrievers": ["VectorCypherRetriever", "Text2CypherRetriever"],
         "qa": "GraphRAG prompt template with strict citation suffix",
+        "citation_token_example": example_citation_token,
+        "citation_example": citation_example,
+        "retrieval_query_contract": retrieval_query_contract.strip(),
     }
 
 

@@ -32,6 +32,40 @@ def _validate_manifest(manifest_path: Path) -> None:
     missing = required_stages.difference(manifest.get("stages", {}))
     if missing:
         raise SystemExit(f"Missing stages in manifest: {sorted(missing)}")
+    retrieval_stage = manifest["stages"]["retrieval_and_qa"]
+    token = retrieval_stage.get("citation_token_example")
+    if not isinstance(token, str):
+        raise SystemExit("Missing citation_token_example in retrieval_and_qa stage")
+    if not token.startswith("[CITATION|") or not token.endswith("]"):
+        raise SystemExit("Citation token must start with '[CITATION|' and end with ']'")
+    body = token[len("[CITATION|") : -1]
+    parts = body.split("|")
+    parsed = {}
+    for part in parts:
+        if "=" not in part:
+            raise SystemExit(f"Malformed citation segment (expected key=value): {part!r}")
+        key, value = part.split("=", 1)
+        parsed[key] = value
+    required_keys = {
+        "chunk_id",
+        "run_id",
+        "source_uri",
+        "chunk_index",
+        "page",
+        "start_char",
+        "end_char",
+    }
+    missing_keys = required_keys.difference(parsed)
+    if missing_keys:
+        raise SystemExit(f"Missing citation fields in token: {sorted(missing_keys)}")
+    for key in required_keys:
+        if not parsed[key]:
+            raise SystemExit(f"Citation field {key!r} must be non-empty")
+    citation_example = retrieval_stage.get("citation_example")
+    if not isinstance(citation_example, dict):
+        raise SystemExit("Missing citation_example in retrieval_and_qa stage")
+    if required_keys.difference(citation_example):
+        raise SystemExit("citation_example missing required citation fields")
 
 
 def _build_config(output_dir: Path) -> DemoConfig:
