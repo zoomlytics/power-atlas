@@ -863,13 +863,15 @@ def _write_extracted_rows(
     claim_rows: list[dict[str, Any]],
     mention_rows: list[dict[str, Any]],
 ) -> None:
+    chunk_label = CHUNK_EMBEDDING_LABEL
+    chunk_id_property = "chunk_id"
     if claim_rows:
         driver.execute_query(
-            """
+            f"""
             UNWIND $rows AS row
             UNWIND row.chunk_ids AS chunk_id
-            MATCH (chunk:Chunk {chunk_id: chunk_id, run_id: row.run_id})
-            MERGE (claim:ExtractedClaim {claim_id: row.claim_id, run_id: row.run_id})
+            MATCH (chunk:`{chunk_label}` {{{chunk_id_property}: chunk_id, run_id: row.run_id}})
+            MERGE (claim:ExtractedClaim {{claim_id: row.claim_id, run_id: row.run_id}})
             SET claim += row.properties
             MERGE (claim)-[supported_by:SUPPORTED_BY]->(chunk)
             SET supported_by.run_id = row.run_id,
@@ -883,11 +885,11 @@ def _write_extracted_rows(
         )
     if mention_rows:
         driver.execute_query(
-            """
+            f"""
             UNWIND $rows AS row
             UNWIND row.chunk_ids AS chunk_id
-            MATCH (chunk:Chunk {chunk_id: chunk_id, run_id: row.run_id})
-            MERGE (mention:EntityMention {mention_id: row.mention_id, run_id: row.run_id})
+            MATCH (chunk:`{chunk_label}` {{{chunk_id_property}: chunk_id, run_id: row.run_id}})
+            MERGE (mention:EntityMention {{mention_id: row.mention_id, run_id: row.run_id}})
             SET mention += row.properties
             MERGE (mention)-[mentioned:MENTIONED_IN]->(chunk)
             SET mentioned.run_id = row.run_id,
