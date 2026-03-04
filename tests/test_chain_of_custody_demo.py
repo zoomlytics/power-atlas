@@ -586,6 +586,8 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
                 "page_count": {"page_count": 2},
                 "missing_chunk_order_count": {"missing_chunk_order_count": 0},
                 "missing_embedding_count": {"missing_embedding_count": 0},
+                "missing_page_count": {"missing_page_count": 0},
+                "missing_char_offset_count": {"missing_char_offset_count": 0},
             },
             index_creator=lambda _driver, index_name, database_=None, **kwargs: calls.update(
                 {"index_name": index_name, "index_kwargs": {"database_": database_, **kwargs}}
@@ -639,11 +641,29 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
         normalized_query = next(query for query, _ in calls["queries"] if "SET d.run_id" in query)
         self.assertIn("d.run_id IS NULL OR d.run_id = $run_id", normalized_query)
         self.assertNotIn("id(c)", normalized_query)
+        normalization_entry = next(
+            ((query, kwargs) for query, kwargs in calls["queries"] if "start_char" in query and "chunk_index" in query),
+            None,
+        )
+        self.assertIsNotNone(normalization_entry, "Expected chunk normalization query to run")
+        self.assertEqual(
+            normalization_entry[1].get("default_chunk_stride"),
+            module.CHUNK_FALLBACK_STRIDE,
+        )
+        self.assertIn("toIntegerOrNull", normalization_entry[0])
         self.assertTrue(
             any(
                 "document_count" in query and "chunk_count" in query
                 for query, _ in calls["queries"]
             )
+        )
+        self.assertTrue(
+            any("missing_page_count" in query for query, _ in calls["queries"]),
+            "Expected missing page validation query",
+        )
+        self.assertTrue(
+            any("missing_char_offset_count" in query for query, _ in calls["queries"]),
+            "Expected missing char offset validation query",
         )
         self.assertNotIn("extraction_warnings", result)
         self.assertIn("warnings", result)
@@ -706,6 +726,8 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
                 "document_count": {"document_count": 1, "chunk_count": 1},
                 "missing_chunk_order_count": {"missing_chunk_order_count": 0},
                 "missing_embedding_count": {"missing_embedding_count": 0},
+                "missing_page_count": {"missing_page_count": 0},
+                "missing_char_offset_count": {"missing_char_offset_count": 0},
             },
             pipeline_result=lambda _params: object(),
         )
@@ -737,6 +759,8 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
                 "document_count": {"document_count": 1, "chunk_count": 2},
                 "missing_chunk_order_count": {"missing_chunk_order_count": 0},
                 "missing_embedding_count": {"missing_embedding_count": 0},
+                "missing_page_count": {"missing_page_count": 0},
+                "missing_char_offset_count": {"missing_char_offset_count": 0},
             },
             index_creator=_raise_index_error,
         )
@@ -803,7 +827,11 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
 
         injected_modules = self._build_pdf_ingest_test_modules(
             calls={},
-            query_payloads={"document_count": {"document_count": 0, "chunk_count": 0}},
+            query_payloads={
+                "document_count": {"document_count": 0, "chunk_count": 0},
+                "missing_page_count": {"missing_page_count": 0},
+                "missing_char_offset_count": {"missing_char_offset_count": 0},
+            },
         )
         with self._with_injected_pdf_ingest_modules(injected_modules):
             with self.assertRaisesRegex(

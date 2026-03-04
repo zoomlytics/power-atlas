@@ -22,6 +22,8 @@ ARTIFACTS_DIR = Path(__file__).resolve().parent / "artifacts"
 CONFIG_DIR = Path(__file__).resolve().parent / "config"
 PDF_PIPELINE_CONFIG_PATH = CONFIG_DIR / "pdf_simple_kg_pipeline.yaml"
 DEFAULT_DB = os.getenv("NEO4J_DATABASE", "neo4j")
+_DEFAULT_CHUNK_SIZE = 1000  # FixedSizeSplitter chunk_size in pdf_simple_kg_pipeline.yaml
+_DEFAULT_CHUNK_OVERLAP = 0
 
 # Default values for the chunk embedding index contract.
 # These are used as fallbacks if the YAML configuration does not provide them.
@@ -106,6 +108,24 @@ if isinstance(_embedder_config, dict):
         _embedder_model = _embedder_params.get("model")
         if isinstance(_embedder_model, str):
             EMBEDDER_MODEL_NAME = _embedder_model
+
+_text_splitter_config = _pipeline_config_data.get("text_splitter", {})
+_chunk_size = _DEFAULT_CHUNK_SIZE
+_chunk_overlap = _DEFAULT_CHUNK_OVERLAP
+if isinstance(_text_splitter_config, dict):
+    _text_splitter_params = _text_splitter_config.get("params_")
+    if isinstance(_text_splitter_params, dict):
+        maybe_chunk_size = _text_splitter_params.get("chunk_size")
+        maybe_chunk_overlap = _text_splitter_params.get("chunk_overlap")
+        try:
+            _chunk_size = int(maybe_chunk_size)
+        except (TypeError, ValueError):
+            _chunk_size = _DEFAULT_CHUNK_SIZE
+        try:
+            _chunk_overlap = int(maybe_chunk_overlap)
+        except (TypeError, ValueError):
+            _chunk_overlap = _DEFAULT_CHUNK_OVERLAP
+CHUNK_FALLBACK_STRIDE = max(_chunk_size - _chunk_overlap, 1)
 
 _STRUCTURED_FILE_HEADERS: dict[str, list[str]] = {
     "entities.csv": ["entity_id", "name", "entity_type", "aliases", "description", "wikidata_url"],
@@ -883,10 +903,11 @@ def _run_structured_ingest(config: DemoConfig, run_id: str) -> dict[str, Any]:
 
 
 def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, Any]:
-    pdf_path = FIXTURES_DIR / "unstructured" / "chain_of_custody.pdf"
+    pdf_path = (FIXTURES_DIR / "unstructured" / "chain_of_custody.pdf").resolve()
     if not pdf_path.exists():
         raise FileNotFoundError(f"Required PDF fixture not found: {pdf_path}")
-    pdf_source_uri = str(pdf_path)
+    pdf_file_path = str(pdf_path)
+    pdf_source_uri = pdf_path.as_uri()
     stage_run_id = run_id or _make_run_id("unstructured_ingest")
     run_root = config.output_dir / "runs" / stage_run_id
     pdf_ingest_dir = run_root / "pdf_ingest"
@@ -1004,7 +1025,7 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
             pipeline_result = asyncio.run(
                 pipeline.run(
                     {
-                        "file_path": pdf_source_uri,
+                        "file_path": pdf_file_path,
                     }
                 )
             )
@@ -1020,42 +1041,80 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                 # index/chunk_index and embedding/embedding_vector/vector/embeddings.
                 # Normalize them into the demo retrieval contract:
                 # Chunk.chunk_order + Chunk.embedding on every ingested Chunk.
+                # Character offsets follow a zero-based, inclusive end_char convention for citation tokens.
+                # The FixedSizeSplitter stride (chunk_size - chunk_overlap) from the pipeline config is used as the
+                # deterministic fallback when start offsets are absent. Vendor-provided end offsets (existing_end_char)
+                # are assumed to already use the same inclusive convention.
                 session.run(
                     """
                     MATCH (d:Document)
-                    WHERE (d.path = $source_uri OR d.source_uri = $source_uri)
+                    WHERE (d.path = $file_path OR d.source_uri = $source_uri)
                       AND (d.run_id IS NULL OR d.run_id = $run_id)
                     SET d.run_id = coalesce(d.run_id, $run_id),
                         d.source_uri = coalesce(d.source_uri, $source_uri)
                     WITH d
                     MATCH (d)<-[:FROM_DOCUMENT]-(c:Chunk)
                     WHERE c.run_id IS NULL OR c.run_id = $run_id
-                    WITH d, c,
-                         toInteger(coalesce(c.chunk_order, c.index, c.chunk_index)) AS normalized_chunk_order
-                    SET c.run_id = coalesce(c.run_id, $run_id),
-                        c.source_uri = coalesce(c.source_uri, d.source_uri, $source_uri),
-                        c.chunk_order = normalized_chunk_order,
-                        c.chunk_id = coalesce(
-                            c.chunk_id,
-                            c.uid,
-                            d.source_uri + ':' + toString(normalized_chunk_order)
-                        ),
-                        c.page_number = coalesce(c.page_number, c.page),
-                        c.embedding = coalesce(c.embedding, c.embedding_vector, c.vector, c.embeddings)
+                    WITH d,
+                         c,
+                         toIntegerOrNull(coalesce(c.chunk_order, c.index, c.chunk_index)) AS normalized_chunk_order,
+                         coalesce(toIntegerOrNull(coalesce(c.chunk_order, c.index, c.chunk_index)), 0) AS fallback_chunk_order,
+                         toIntegerOrNull(coalesce(c.page_number, c.page)) AS normalized_page,
+                         toIntegerOrNull(coalesce(c.start_char, c.start_offset, c.start, c.offset)) AS existing_start_char,
+                         toIntegerOrNull(coalesce(c.end_char, c.end_offset, c.end)) AS existing_end_char,
+                         coalesce(size(c.text), size(c.body), size(c.content)) AS chunk_length
+                    WITH d,
+                         c,
+                         normalized_chunk_order,
+                         fallback_chunk_order,
+                         normalized_page,
+                         chunk_length,
+                         CASE
+                             WHEN existing_start_char IS NOT NULL THEN existing_start_char
+                             ELSE fallback_chunk_order * $default_chunk_stride
+                         END AS start_char_value,
+                         existing_end_char,
+                         toIntegerOrNull(c.chunk_index) AS chunk_index_int,
+                         toIntegerOrNull(c.start_char) AS start_char_int,
+                         toIntegerOrNull(c.end_char) AS end_char_int,
+                         coalesce(toString(c.uid), toString(coalesce(chunk_index_int, fallback_chunk_order))) AS missing_chunk_discriminator
+                      SET c.run_id = coalesce(c.run_id, $run_id),
+                          c.source_uri = coalesce(c.source_uri, d.source_uri, $source_uri),
+                          c.chunk_order = normalized_chunk_order,
+                          c.chunk_index = coalesce(chunk_index_int, normalized_chunk_order),
+                          c.chunk_id = CASE
+                              WHEN c.chunk_id IS NOT NULL THEN c.chunk_id
+                              WHEN c.uid IS NOT NULL THEN c.uid
+                              WHEN normalized_chunk_order IS NULL THEN d.source_uri + ':missing_chunk_order:' + missing_chunk_discriminator
+                              ELSE d.source_uri + ':' + toString(normalized_chunk_order)
+                          END,
+                         c.page_number = normalized_page,
+                         c.page = normalized_page,
+                         c.start_char = coalesce(start_char_int, start_char_value),
+                         c.end_char = CASE
+                             WHEN end_char_int IS NOT NULL THEN end_char_int
+                             WHEN existing_end_char IS NOT NULL THEN existing_end_char
+                             WHEN chunk_length IS NULL OR chunk_length <= 0 THEN start_char_value
+                             ELSE start_char_value + chunk_length - 1
+                         END,
+                         c.embedding = coalesce(c.embedding, c.embedding_vector, c.vector, c.embeddings)
                     """,
                     run_id=stage_run_id,
+                    file_path=pdf_file_path,
                     source_uri=pdf_source_uri,
+                    default_chunk_stride=CHUNK_FALLBACK_STRIDE,
                 ).consume()
                 run_counts = session.run(
                     """
                     MATCH (d:Document)
-                    WHERE (d.path = $source_uri OR d.source_uri = $source_uri)
+                    WHERE (d.path = $file_path OR d.source_uri = $source_uri)
                       AND d.run_id = $run_id
                     OPTIONAL MATCH (d)<-[:FROM_DOCUMENT]-(c:Chunk)
                     WHERE c.run_id = $run_id
                     RETURN count(DISTINCT d) AS document_count, count(c) AS chunk_count
                     """,
                     run_id=stage_run_id,
+                    file_path=pdf_file_path,
                     source_uri=pdf_source_uri,
                 ).single()
                 run_counts = _record_as_mapping(run_counts)
@@ -1076,7 +1135,7 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                 page_count_result = session.run(
                     """
                     MATCH (d:Document)
-                    WHERE (d.path = $source_uri OR d.source_uri = $source_uri)
+                    WHERE (d.path = $file_path OR d.source_uri = $source_uri)
                       AND d.run_id = $run_id
                     MATCH (d)<-[:FROM_DOCUMENT]-(c:Chunk)
                     WHERE c.run_id = $run_id
@@ -1085,6 +1144,7 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                     RETURN count(DISTINCT page_value) AS page_count
                     """,
                     run_id=stage_run_id,
+                    file_path=pdf_file_path,
                     source_uri=pdf_source_uri,
                 ).single()
                 page_count_result = _record_as_mapping(page_count_result)
@@ -1103,7 +1163,7 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                 missing_chunk_order_count = session.run(
                     """
                     MATCH (d:Document)
-                    WHERE (d.path = $source_uri OR d.source_uri = $source_uri)
+                    WHERE (d.path = $file_path OR d.source_uri = $source_uri)
                       AND d.run_id = $run_id
                     MATCH (d)<-[:FROM_DOCUMENT]-(c:Chunk)
                     WHERE c.run_id = $run_id
@@ -1111,6 +1171,7 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                     RETURN count(c) AS missing_chunk_order_count
                     """,
                     run_id=stage_run_id,
+                    file_path=pdf_file_path,
                     source_uri=pdf_source_uri,
                 ).single()["missing_chunk_order_count"]
                 if missing_chunk_order_count:
@@ -1120,7 +1181,7 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                 missing_embedding_count = session.run(
                     """
                     MATCH (d:Document)
-                    WHERE (d.path = $source_uri OR d.source_uri = $source_uri)
+                    WHERE (d.path = $file_path OR d.source_uri = $source_uri)
                       AND d.run_id = $run_id
                     MATCH (d)<-[:FROM_DOCUMENT]-(c:Chunk)
                     WHERE c.run_id = $run_id
@@ -1128,12 +1189,45 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                     RETURN count(c) AS missing_embedding_count
                     """,
                     run_id=stage_run_id,
+                    file_path=pdf_file_path,
                     source_uri=pdf_source_uri,
                 ).single()["missing_embedding_count"]
                 if missing_embedding_count:
                     raise ValueError(
                         "Chunk embedding contract violation: expected :Chunk.embedding for all ingested chunks"
                     )
+                missing_page_count = session.run(
+                    """
+                    MATCH (d:Document)
+                    WHERE (d.path = $file_path OR d.source_uri = $source_uri)
+                      AND d.run_id = $run_id
+                    MATCH (d)<-[:FROM_DOCUMENT]-(c:Chunk)
+                    WHERE c.run_id = $run_id
+                      AND coalesce(c.page_number, c.page) IS NULL
+                    RETURN count(c) AS missing_page_count
+                    """,
+                    run_id=stage_run_id,
+                    file_path=pdf_file_path,
+                    source_uri=pdf_source_uri,
+                ).single()["missing_page_count"]
+                if missing_page_count:
+                    raise ValueError("Chunk page contract violation: expected page/page_number on all chunks")
+                missing_char_offset_count = session.run(
+                    """
+                    MATCH (d:Document)
+                    WHERE (d.path = $file_path OR d.source_uri = $source_uri)
+                      AND d.run_id = $run_id
+                    MATCH (d)<-[:FROM_DOCUMENT]-(c:Chunk)
+                    WHERE c.run_id = $run_id
+                      AND (c.start_char IS NULL OR c.end_char IS NULL)
+                    RETURN count(c) AS missing_char_offset_count
+                    """,
+                    run_id=stage_run_id,
+                    file_path=pdf_file_path,
+                    source_uri=pdf_source_uri,
+                ).single()["missing_char_offset_count"]
+                if missing_char_offset_count:
+                    raise ValueError("Chunk offset contract violation: expected start_char/end_char on all chunks")
     finally:
         for key, (had_key, previous_value) in previous_env.items():
             if not had_key:
@@ -1179,7 +1273,10 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
             "source_uri": pdf_source_uri,
             "chunk_order_property": "chunk_order",
             "chunk_id_property": "chunk_id",
+            "chunk_index_property": "chunk_index",
             "page_property": "page_number",
+            "start_char_property": "start_char",
+            "end_char_property": "end_char",
         },
         "pdf_ingest_dir": str(pdf_ingest_dir),
         "ingest_summary_path": str(ingest_summary_path),
@@ -1206,16 +1303,47 @@ def _run_claim_and_mention_extraction(config: DemoConfig) -> dict[str, Any]:
 
 
 def _run_retrieval_and_qa(config: DemoConfig) -> dict[str, Any]:
+    example_source_uri = (FIXTURES_DIR / "unstructured" / "chain_of_custody.pdf").resolve().as_uri()
+    example_citation_token = (
+        "[CITATION|chunk_id=example_chunk|run_id=example_run_id|"
+        f"source_uri={example_source_uri}|chunk_index=0|page=1|start_char=0|end_char=999]"
+    )
+    retrieval_query_contract = """
+    RETURN c.text AS chunk_text,
+           c.chunk_id AS chunk_id,
+           c.run_id AS run_id,
+           c.source_uri AS source_uri,
+           c.chunk_index AS chunk_index,
+           coalesce(c.page_number, c.page) AS page,
+           c.start_char AS start_char,
+           c.end_char AS end_char,
+           score AS similarityScore
+    """
+    citation_example = {
+        "chunk_id": "example_chunk",
+        "run_id": "example_run_id",
+        "source_uri": example_source_uri,
+        "chunk_index": 0,
+        "page": 1,
+        "start_char": 0,
+        "end_char": 999,
+    }
     if config.dry_run:
         return {
             "status": "dry_run",
             "retrievers": ["VectorCypherRetriever", "graph expansion"],
             "qa": "GraphRAG strict citations",
+            "citation_token_example": example_citation_token,
+            "citation_example": citation_example,
+            "retrieval_query_contract": retrieval_query_contract.strip(),
         }
     return {
         "status": "configured",
         "retrievers": ["VectorCypherRetriever", "Text2CypherRetriever"],
         "qa": "GraphRAG prompt template with strict citation suffix",
+        "citation_token_example": example_citation_token,
+        "citation_example": citation_example,
+        "retrieval_query_contract": retrieval_query_contract.strip(),
     }
 
 
