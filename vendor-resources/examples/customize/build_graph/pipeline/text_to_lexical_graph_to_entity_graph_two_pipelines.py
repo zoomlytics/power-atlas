@@ -7,6 +7,8 @@
 from __future__ import annotations
 
 import asyncio
+import sys
+from pathlib import Path
 
 from neo4j_graphrag.embeddings.openai import OpenAIEmbeddings
 from neo4j_graphrag.experimental.components.embedder import TextChunkEmbedder
@@ -29,6 +31,14 @@ from neo4j_graphrag.experimental.components.types import LexicalGraphConfig
 from neo4j_graphrag.experimental.pipeline import Pipeline
 from neo4j_graphrag.experimental.pipeline.pipeline import PipelineResult
 from neo4j_graphrag.llm import LLMInterface, OpenAILLM
+
+_EXAMPLES_ROOT = Path(__file__).resolve().parents[3]
+if str(_EXAMPLES_ROOT) not in sys.path:
+    sys.path.append(str(_EXAMPLES_ROOT))
+
+from customize.build_graph.components.chunk_reader.neo4j_chunk_reader import (  # noqa: E402
+    RunScopedNeo4jChunkReader,
+)
 
 import neo4j
 
@@ -95,6 +105,10 @@ async def read_chunk_and_perform_entity_extraction(
     neo4j_driver: neo4j.Driver,
     llm: LLMInterface,
     lexical_graph_config: LexicalGraphConfig,
+    *,
+    run_id: str | None = None,
+    source_uri: str | None = None,
+    use_run_scoped_reader: bool = True,
 ) -> PipelineResult:
     """This is where we define and run the KG builder pipeline, instantiating a few
     components:
@@ -111,12 +125,24 @@ async def read_chunk_and_perform_entity_extraction(
     """
     pipe = Pipeline()
     # define the components
-    pipe.add_component(Neo4jChunkReader(neo4j_driver), "reader")
+    reader = (
+        RunScopedNeo4jChunkReader(
+            neo4j_driver,
+            run_id=run_id,
+            source_uri=source_uri,
+            neo4j_database=None,
+            fail_on_empty=True,
+        )
+        if use_run_scoped_reader and run_id
+        else Neo4jChunkReader(neo4j_driver)
+    )
+    pipe.add_component(reader, "reader")
     pipe.add_component(SchemaBuilder(), "schema")
     pipe.add_component(
         LLMEntityRelationExtractor(
             llm=llm,
             create_lexical_graph=False,
+            use_structured_output=True,
         ),
         "extractor",
     )
