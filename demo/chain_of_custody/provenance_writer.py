@@ -16,7 +16,7 @@ from pydantic import validate_call
 
 
 class ProvenanceNeo4jWriter(Neo4jWriter):
-    """Neo4j writer that ensures provenance fields are attached before ingest."""
+    """Neo4j writer that applies run_id/dataset_id/source_uri to Document and Chunk nodes before ingest."""
 
     def __init__(
         self,
@@ -71,7 +71,7 @@ class ProvenanceNeo4jWriter(Neo4jWriter):
             if run_id:
                 props.setdefault("run_id", run_id)
             if self.dataset_id:
-                dataset_value = doc_props.get("dataset_id") if doc_props else self.dataset_id
+                dataset_value = doc_props.get("dataset_id", self.dataset_id) if doc_props else self.dataset_id
                 props.setdefault("dataset_id", dataset_value)
             if doc_props:
                 source_uri = doc_props.get("source_uri")

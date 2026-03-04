@@ -84,6 +84,7 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
                     query_payloads.items(), key=lambda item: len(item[0]), reverse=True
                 ):
                     if marker in query:
+                        calls.setdefault("matched_markers", []).append(marker)
                         return _FakeResult(payload)
                 return _FakeResult()
 
@@ -686,6 +687,37 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
             ("OPENAI_API_KEY" in os.environ, os.environ.get("OPENAI_API_KEY")),
             initial_openai_state,
         )
+
+    def test_pdf_ingest_query_payload_prefers_specific_markers(self):
+        module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_marker_test")
+        config = module.DemoConfig(
+            dry_run=False,
+            output_dir=DEMO_DIR / "artifacts",
+            neo4j_uri="neo4j://localhost:7687",
+            neo4j_username="neo4j",
+            neo4j_password="testtesttest",
+            neo4j_database="neo4j",
+            openai_model="gpt-4o-mini",
+        )
+        calls: dict[str, object] = {}
+        injected_modules = self._build_pdf_ingest_test_modules(
+            calls=calls,
+            query_payloads={
+                "missing_page_count": {"missing_page_count": 0},
+                "page_count": {"page_count": 2},
+                "document_count": {"document_count": 1, "chunk_count": 2},
+                "missing_chunk_order_count": {"missing_chunk_order_count": 0},
+                "missing_embedding_count": {"missing_embedding_count": 0},
+                "missing_char_offset_count": {"missing_char_offset_count": 0},
+            },
+        )
+        with self._with_injected_pdf_ingest_modules(injected_modules):
+            module._run_pdf_ingest(config, run_id="unstructured_ingest-test")
+
+        self.assertIn("matched_markers", calls)
+        # The missing_page_count marker should match the query containing it, not page_count.
+        self.assertIn("missing_page_count", calls["matched_markers"])
+        self.assertGreaterEqual(calls["matched_markers"].count("missing_page_count"), 1)
 
     def test_run_pdf_ingest_dry_run_writes_summary_and_fingerprint(self):
         module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_pdf_dry_summary_test")
