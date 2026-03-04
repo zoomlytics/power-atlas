@@ -1036,7 +1036,7 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                     WHERE c.run_id IS NULL OR c.run_id = $run_id
                     WITH d,
                          c,
-                         toInteger(coalesce(c.chunk_order, c.index, c.chunk_index)) AS normalized_chunk_order,
+                         toInteger(coalesce(c.chunk_order, c.index, c.chunk_index, 0)) AS normalized_chunk_order,
                          coalesce(c.page_number, c.page) AS normalized_page,
                          coalesce(c.start_char, c.start_offset, c.start, c.offset) AS existing_start_char,
                          coalesce(c.end_char, c.end_offset, c.end) AS existing_end_char,
@@ -1046,7 +1046,7 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                          normalized_chunk_order,
                          normalized_page,
                          chunk_length,
-                         coalesce(existing_start_char, coalesce(normalized_chunk_order, 0) * 1000) AS start_char_value,
+                         coalesce(existing_start_char, normalized_chunk_order * 1000) AS start_char_value,
                          existing_end_char
                     SET c.run_id = coalesce(c.run_id, $run_id),
                         c.source_uri = coalesce(c.source_uri, d.source_uri, $source_uri),
@@ -1060,15 +1060,12 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                         c.page_number = normalized_page,
                         c.page = coalesce(c.page, normalized_page),
                         c.start_char = coalesce(c.start_char, start_char_value),
-                        c.end_char = coalesce(
-                            c.end_char,
-                            existing_end_char,
-                            start_char_value
-                            + CASE
-                                  WHEN chunk_length IS NULL OR chunk_length <= 0 THEN 0
-                                  ELSE chunk_length - 1
-                              END
-                        ),
+                        c.end_char = CASE
+                            WHEN c.end_char IS NOT NULL THEN c.end_char
+                            WHEN existing_end_char IS NOT NULL THEN existing_end_char
+                            WHEN chunk_length IS NULL OR chunk_length <= 0 THEN start_char_value
+                            ELSE start_char_value + chunk_length - 1
+                        END,
                         c.embedding = coalesce(c.embedding, c.embedding_vector, c.vector, c.embeddings)
                     """,
                     run_id=stage_run_id,

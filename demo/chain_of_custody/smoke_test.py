@@ -44,9 +44,9 @@ def _validate_manifest(manifest_path: Path) -> None:
     for part in parts:
         if "=" not in part:
             raise SystemExit(f"Malformed citation segment (expected key=value): {part!r}")
-        if part.startswith("="):
-            raise SystemExit(f"Citation segment key must be non-empty: {part!r}")
         key, value = part.split("=", 1)
+        if not key:
+            raise SystemExit("Citation segment key must be non-empty")
         parsed[key] = value
     required_keys = {
         "chunk_id",
