@@ -668,6 +668,16 @@ def _coerce_confidence(value: Any) -> float | None:
     return numeric
 
 
+def _fallback_identifier(chunk_ids: list[str]) -> str:
+    if not chunk_ids:
+        return "unknown_chunk"
+    if len(chunk_ids) == 1:
+        return chunk_ids[0]
+    if len(chunk_ids) == 2:
+        return f"{chunk_ids[0]}_and_{chunk_ids[1]}"
+    return f"{chunk_ids[0]}_and_{len(chunk_ids) - 1}_more"
+
+
 async def _async_read_chunks_and_extract(
     driver: neo4j.Driver,
     *,
@@ -732,6 +742,8 @@ def _prepare_extracted_rows(
         target_is_chunk = relationship.target_id in known_chunk_ids
         if not source_is_chunk and not target_is_chunk:
             continue
+        if source_is_chunk and target_is_chunk:
+            continue
         chunk_id = relationship.source_id if source_is_chunk else relationship.target_id
         node_id = relationship.target_id if source_is_chunk else relationship.source_id
         node_chunk_map.setdefault(node_id, []).append(chunk_id)
@@ -773,27 +785,21 @@ def _prepare_extracted_rows(
             base_props["confidence"] = node_confidence
         # Maintain primary single-valued fields for backward compatibility, while also
         # exposing the full lists for multi-chunk/page extractions.
-        chunk_indexes = [meta.get("chunk_index") for meta in metadata_by_chunk if "chunk_index" in meta]
+        chunk_indexes = [meta.get("chunk_index") for meta in metadata_by_chunk if meta.get("chunk_index") is not None]
         if chunk_indexes:
-            unique_indexes = sorted({idx for idx in chunk_indexes if idx is not None})
+            unique_indexes = sorted(set(chunk_indexes))
             if unique_indexes:
                 base_props["chunk_index"] = unique_indexes[0]
                 if len(unique_indexes) > 1:
                     base_props["chunk_indexes"] = unique_indexes
-        page_numbers = [meta.get("page_number") for meta in metadata_by_chunk if "page_number" in meta]
+        page_numbers = [meta.get("page_number") for meta in metadata_by_chunk if meta.get("page_number") is not None]
         if page_numbers:
-            unique_pages = sorted({page for page in page_numbers if page is not None})
+            unique_pages = sorted(set(page_numbers))
             if unique_pages:
                 base_props["page"] = unique_pages[0]
                 if len(unique_pages) > 1:
                     base_props["pages"] = unique_pages
-
-        if len(node_chunk_ids) == 1:
-            fallback_identifier = node_chunk_ids[0]
-        elif len(node_chunk_ids) == 2:
-            fallback_identifier = f"{node_chunk_ids[0]}_and_{node_chunk_ids[1]}"
-        else:
-            fallback_identifier = f"{node_chunk_ids[0]}_and_{len(node_chunk_ids) - 1}_more"
+        fallback_identifier = _fallback_identifier(node_chunk_ids)
         if node.label == "ExtractedClaim":
             claim_text = (
                 str(
