@@ -77,7 +77,10 @@ def _validate_manifest(manifest_path: Path) -> None:
         start_char = int(parsed["start_char"])
         end_char = int(parsed["end_char"])
     except (TypeError, ValueError):
-        raise SystemExit("Citation fields 'start_char' and 'end_char' must be integers")
+        raise SystemExit(
+            "Citation fields 'start_char' and 'end_char' must be integers "
+            f"(got start_char={parsed.get('start_char')!r}, end_char={parsed.get('end_char')!r})"
+        )
     if end_char < start_char:
         raise SystemExit(
             f"Citation field 'end_char' must be >= 'start_char' "
