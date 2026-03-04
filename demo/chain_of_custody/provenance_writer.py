@@ -103,9 +103,11 @@ class ProvenanceNeo4jWriter(Neo4jWriter):
         graph: Neo4jGraph,
         lexical_graph_config: LexicalGraphConfig = LexicalGraphConfig(),
     ) -> KGWriterModel:
+        # Do not propagate the orchestration RunContext.run_id into provenance by default.
+        # Only apply run_id when it is provided via document metadata or explicit caller input.
         self._apply_provenance(
             graph=graph,
             lexical_graph_config=lexical_graph_config,
-            run_id=context_.run_id,
+            run_id=None,
         )
         return await super().run(graph=graph, lexical_graph_config=lexical_graph_config)
