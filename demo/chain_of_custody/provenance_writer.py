@@ -43,12 +43,21 @@ class ProvenanceNeo4jWriter(Neo4jWriter):
             if node.label != document_label:
                 continue
             props = dict(node.properties or {})
-            if run_id:
+            metadata = props.get("metadata")
+            metadata_props = metadata if isinstance(metadata, dict) else {}
+            metadata_run_id = metadata_props.get("run_id")
+            metadata_dataset_id = metadata_props.get("dataset_id")
+            metadata_source_uri = metadata_props.get("source_uri")
+            if metadata_run_id:
+                props.setdefault("run_id", metadata_run_id)
+            elif run_id:
                 props.setdefault("run_id", run_id)
-            if self.dataset_id:
+            if metadata_dataset_id:
+                props.setdefault("dataset_id", metadata_dataset_id)
+            elif self.dataset_id:
                 props.setdefault("dataset_id", self.dataset_id)
             # Prefer explicit source_uri if present; otherwise fall back to the path.
-            source_uri = props.get("source_uri") or props.get("path")
+            source_uri = props.get("source_uri") or metadata_source_uri or props.get("path")
             if source_uri:
                 props.setdefault("source_uri", source_uri)
             node.properties = props

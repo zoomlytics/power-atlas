@@ -127,6 +127,14 @@ if isinstance(_text_splitter_config, dict):
             _chunk_overlap = _DEFAULT_CHUNK_OVERLAP
 CHUNK_FALLBACK_STRIDE = max(_chunk_size - _chunk_overlap, 1)
 
+_DEFAULT_DATASET_ID = "chain_of_custody_dataset_v1"
+DATASET_ID = _DEFAULT_DATASET_ID
+_kg_writer_config = _pipeline_config_data.get("kg_writer")
+_kg_writer_params = _kg_writer_config.get("params_") if isinstance(_kg_writer_config, dict) else {}
+_cfg_dataset_id = _kg_writer_params.get("dataset_id") if isinstance(_kg_writer_params, dict) else None
+if isinstance(_cfg_dataset_id, str) and _cfg_dataset_id:
+    DATASET_ID = _cfg_dataset_id
+
 _STRUCTURED_FILE_HEADERS: dict[str, list[str]] = {
     "entities.csv": ["entity_id", "name", "entity_type", "aliases", "description", "wikidata_url"],
     "facts.csv": [
@@ -488,7 +496,7 @@ def _lint_and_clean_structured_csvs(run_id: str, output_dir: Path) -> dict[str, 
     )
     lint_report = {
         "run_id": run_id,
-        "dataset_id": "chain_of_custody_dataset_v1",
+        "dataset_id": DATASET_ID,
         "method": "structured_pre_ingest_lint_and_dedup",
         "source_uri": str(structured_dir),
         "structured_clean_dir": str(clean_dir),
@@ -577,7 +585,7 @@ def _run_structured_ingest(config: DemoConfig, run_id: str) -> dict[str, Any]:
     relationship_rows = _load_csv_rows(structured_clean_dir / "relationships.csv")
     claims_rows = _load_csv_rows(structured_clean_dir / "claims.csv")
     source_uri = str(FIXTURES_DIR / "structured")
-    dataset_id = "chain_of_custody_dataset_v1"
+    dataset_id = DATASET_ID
     ingested_at = datetime.now(UTC).isoformat()
 
     fact_ids = {row["fact_id"] for row in facts_rows}
@@ -614,7 +622,7 @@ def _run_structured_ingest(config: DemoConfig, run_id: str) -> dict[str, Any]:
     validation_warnings_path.write_text(json.dumps(validation_warnings, indent=2), encoding="utf-8")
     ingest_summary = {
         "run_id": run_id,
-        "dataset_id": dataset_id,
+        "dataset_id": DATASET_ID,
         "source_uri": source_uri,
         "ingested_at": ingested_at,
         "counts": {
@@ -908,7 +916,7 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
         raise FileNotFoundError(f"Required PDF fixture not found: {pdf_path}")
     pdf_file_path = str(pdf_path)
     pdf_source_uri = pdf_path.as_uri()
-    dataset_id = "chain_of_custody_dataset_v1"
+    dataset_id = DATASET_ID
     stage_run_id = run_id or _make_run_id("unstructured_ingest")
     run_root = config.output_dir / "runs" / stage_run_id
     pdf_ingest_dir = run_root / "pdf_ingest"
