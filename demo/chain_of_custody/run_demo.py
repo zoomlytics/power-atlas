@@ -22,7 +22,8 @@ ARTIFACTS_DIR = Path(__file__).resolve().parent / "artifacts"
 CONFIG_DIR = Path(__file__).resolve().parent / "config"
 PDF_PIPELINE_CONFIG_PATH = CONFIG_DIR / "pdf_simple_kg_pipeline.yaml"
 DEFAULT_DB = os.getenv("NEO4J_DATABASE", "neo4j")
-DEFAULT_CHUNK_SIZE = 1000  # FixedSizeSplitter chunk_size in pdf_simple_kg_pipeline.yaml
+_DEFAULT_CHUNK_SIZE = 1000  # FixedSizeSplitter chunk_size in pdf_simple_kg_pipeline.yaml
+_DEFAULT_CHUNK_OVERLAP = 0
 MISSING_CHUNK_OFFSET = -1  # Sentinel for chunks with no ordering metadata
 
 # Default values for the chunk embedding index contract.
@@ -108,6 +109,24 @@ if isinstance(_embedder_config, dict):
         _embedder_model = _embedder_params.get("model")
         if isinstance(_embedder_model, str):
             EMBEDDER_MODEL_NAME = _embedder_model
+
+_text_splitter_config = _pipeline_config_data.get("text_splitter", {})
+_chunk_size = _DEFAULT_CHUNK_SIZE
+_chunk_overlap = _DEFAULT_CHUNK_OVERLAP
+if isinstance(_text_splitter_config, dict):
+    _text_splitter_params = _text_splitter_config.get("params_")
+    if isinstance(_text_splitter_params, dict):
+        maybe_chunk_size = _text_splitter_params.get("chunk_size")
+        maybe_chunk_overlap = _text_splitter_params.get("chunk_overlap")
+        try:
+            _chunk_size = int(maybe_chunk_size)
+        except (TypeError, ValueError):
+            _chunk_size = _DEFAULT_CHUNK_SIZE
+        try:
+            _chunk_overlap = int(maybe_chunk_overlap)
+        except (TypeError, ValueError):
+            _chunk_overlap = _DEFAULT_CHUNK_OVERLAP
+CHUNK_FALLBACK_STRIDE = max(_chunk_size - _chunk_overlap, 1)
 
 _STRUCTURED_FILE_HEADERS: dict[str, list[str]] = {
     "entities.csv": ["entity_id", "name", "entity_type", "aliases", "description", "wikidata_url"],
@@ -1023,10 +1042,10 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                 # Normalize them into the demo retrieval contract:
                 # Chunk.chunk_order + Chunk.embedding on every ingested Chunk.
                 # Character offsets follow a zero-based, inclusive end_char convention for citation tokens.
-                # The FixedSizeSplitter chunk_size is 1000 characters in pdf_simple_kg_pipeline.yaml (DEFAULT_CHUNK_SIZE),
-                # so we use that as the deterministic fallback stride when start offsets are absent, and propagate the
-                # MISSING_CHUNK_OFFSET sentinel (-1) when chunk ordering metadata is unavailable. Vendor-provided end
-                # offsets (existing_end_char) are assumed to already use the same inclusive convention.
+                # The FixedSizeSplitter stride (chunk_size - chunk_overlap) from the pipeline config is used as the
+                # deterministic fallback when start offsets are absent, and the MISSING_CHUNK_OFFSET sentinel (-1)
+                # propagates when chunk ordering metadata is unavailable. Vendor-provided end offsets (existing_end_char)
+                # are assumed to already use the same inclusive convention.
                 session.run(
                     """
                     MATCH (d:Document)
@@ -1039,39 +1058,42 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                     WHERE c.run_id IS NULL OR c.run_id = $run_id
                     WITH d,
                          c,
-                         toInteger(coalesce(c.chunk_order, c.index, c.chunk_index)) AS normalized_chunk_order,
-                         coalesce(normalized_chunk_order, 0) AS fallback_chunk_order,
-                         coalesce(c.page_number, c.page) AS normalized_page,
-                         coalesce(c.start_char, c.start_offset, c.start, c.offset) AS existing_start_char,
-                         coalesce(c.end_char, c.end_offset, c.end) AS existing_end_char,
+                         toIntegerOrNull(coalesce(c.chunk_order, c.index, c.chunk_index)) AS normalized_chunk_order,
+                         coalesce(toIntegerOrNull(coalesce(c.chunk_order, c.index, c.chunk_index)), 0) AS fallback_chunk_order,
+                         toIntegerOrNull(coalesce(c.page_number, c.page)) AS normalized_page,
+                         toIntegerOrNull(coalesce(c.start_char, c.start_offset, c.start, c.offset)) AS existing_start_char,
+                         toIntegerOrNull(coalesce(c.end_char, c.end_offset, c.end)) AS existing_end_char,
                          coalesce(size(c.text), size(c.body), size(c.content)) AS chunk_length
-                     WITH d,
-                          c,
-                          normalized_chunk_order,
-                          fallback_chunk_order,
-                          normalized_page,
-                          chunk_length,
-                          CASE
-                              WHEN existing_start_char IS NOT NULL THEN existing_start_char
-                              WHEN normalized_chunk_order IS NULL THEN $missing_chunk_offset
-                              ELSE fallback_chunk_order * $default_chunk_size
-                          END AS start_char_value,
-                          existing_end_char
+                    WITH d,
+                         c,
+                         normalized_chunk_order,
+                         fallback_chunk_order,
+                         normalized_page,
+                         chunk_length,
+                         CASE
+                             WHEN existing_start_char IS NOT NULL THEN existing_start_char
+                             WHEN normalized_chunk_order IS NULL THEN $missing_chunk_offset
+                             ELSE fallback_chunk_order * $default_chunk_stride
+                         END AS start_char_value,
+                         existing_end_char,
+                         toIntegerOrNull(c.chunk_index) AS chunk_index_int,
+                         toIntegerOrNull(c.start_char) AS start_char_int,
+                         toIntegerOrNull(c.end_char) AS end_char_int
                      SET c.run_id = coalesce(c.run_id, $run_id),
                          c.source_uri = coalesce(c.source_uri, d.source_uri, $source_uri),
                          c.chunk_order = normalized_chunk_order,
-                         c.chunk_index = coalesce(c.chunk_index, normalized_chunk_order),
+                         c.chunk_index = coalesce(chunk_index_int, normalized_chunk_order),
                          c.chunk_id = CASE
                              WHEN c.chunk_id IS NOT NULL THEN c.chunk_id
                              WHEN c.uid IS NOT NULL THEN c.uid
-                             WHEN normalized_chunk_order IS NULL THEN d.source_uri + ':missing_chunk_order'
+                             WHEN normalized_chunk_order IS NULL THEN d.source_uri + ':missing_chunk_order:' + coalesce(toString(c.uid), toString(id(c)))
                              ELSE d.source_uri + ':' + toString(normalized_chunk_order)
                          END,
                          c.page_number = normalized_page,
                          c.page = normalized_page,
-                         c.start_char = coalesce(c.start_char, start_char_value),
+                         c.start_char = coalesce(start_char_int, start_char_value),
                          c.end_char = CASE
-                             WHEN c.end_char IS NOT NULL THEN c.end_char
+                             WHEN end_char_int IS NOT NULL THEN end_char_int
                              WHEN existing_end_char IS NOT NULL THEN existing_end_char
                              WHEN start_char_value = $missing_chunk_offset THEN $missing_chunk_offset
                              WHEN chunk_length IS NULL OR chunk_length <= 0 THEN start_char_value
@@ -1081,7 +1103,7 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                     """,
                     run_id=stage_run_id,
                     source_uri=pdf_source_uri,
-                    default_chunk_size=DEFAULT_CHUNK_SIZE,
+                    default_chunk_stride=CHUNK_FALLBACK_STRIDE,
                     missing_chunk_offset=MISSING_CHUNK_OFFSET,
                 ).consume()
                 run_counts = session.run(
@@ -1172,6 +1194,36 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                     raise ValueError(
                         "Chunk embedding contract violation: expected :Chunk.embedding for all ingested chunks"
                     )
+                missing_page_count = session.run(
+                    """
+                    MATCH (d:Document)
+                    WHERE (d.path = $source_uri OR d.source_uri = $source_uri)
+                      AND d.run_id = $run_id
+                    MATCH (d)<-[:FROM_DOCUMENT]-(c:Chunk)
+                    WHERE c.run_id = $run_id
+                      AND coalesce(c.page_number, c.page) IS NULL
+                    RETURN count(c) AS missing_page_count
+                    """,
+                    run_id=stage_run_id,
+                    source_uri=pdf_source_uri,
+                ).single()["missing_page_count"]
+                if missing_page_count:
+                    raise ValueError("Chunk page contract violation: expected page/page_number on all chunks")
+                missing_char_offset_count = session.run(
+                    """
+                    MATCH (d:Document)
+                    WHERE (d.path = $source_uri OR d.source_uri = $source_uri)
+                      AND d.run_id = $run_id
+                    MATCH (d)<-[:FROM_DOCUMENT]-(c:Chunk)
+                    WHERE c.run_id = $run_id
+                      AND (c.start_char IS NULL OR c.end_char IS NULL)
+                    RETURN count(c) AS missing_char_offset_count
+                    """,
+                    run_id=stage_run_id,
+                    source_uri=pdf_source_uri,
+                ).single()["missing_char_offset_count"]
+                if missing_char_offset_count:
+                    raise ValueError("Chunk offset contract violation: expected start_char/end_char on all chunks")
     finally:
         for key, (had_key, previous_value) in previous_env.items():
             if not had_key:

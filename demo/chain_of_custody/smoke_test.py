@@ -64,6 +64,15 @@ def _validate_manifest(manifest_path: Path) -> None:
         value = parsed.get(key)
         if value is None or value == "":
             raise SystemExit(f"Citation field {key!r} must be non-empty")
+    numeric_keys = {"chunk_index", "page", "start_char", "end_char"}
+    for key in numeric_keys:
+        raw_value = parsed.get(key)
+        try:
+            int_value = int(raw_value)
+        except (TypeError, ValueError):
+            raise SystemExit(f"Citation field {key!r} must be an integer (got {raw_value!r})")
+        if int_value < -1:
+            raise SystemExit(f"Citation field {key!r} must be >= -1 (got {int_value})")
     citation_example = retrieval_stage.get("citation_example")
     if not isinstance(citation_example, dict):
         raise SystemExit("Missing citation_example in retrieval_and_qa stage")
