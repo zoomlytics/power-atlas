@@ -42,7 +42,7 @@ def _validate_manifest(manifest_path: Path) -> None:
     parts = body.split("|")
     parsed = {}
     for part in parts:
-        if "=" not in part:
+        if "=" not in part or part.startswith("="):
             raise SystemExit(f"Malformed citation segment (expected key=value): {part!r}")
         key, value = part.split("=", 1)
         if not key:

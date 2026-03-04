@@ -1051,10 +1051,11 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                         c.chunk_id = coalesce(
                             c.chunk_id,
                             c.uid,
-                            d.source_uri + ':' + toString(coalesce(c.chunk_index, 0))
+                            d.source_uri + ':' + toString(coalesce(normalized_chunk_order, 0))
                         ),
                         c.page_number = normalized_page,
                         c.page = coalesce(c.page, normalized_page),
+                        // Character offsets are zero-based and end_char is inclusive.
                         c.start_char = coalesce(c.start_char, start_char_value),
                         c.end_char = coalesce(
                             c.end_char,
