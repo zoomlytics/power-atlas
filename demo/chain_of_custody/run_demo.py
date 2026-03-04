@@ -754,8 +754,24 @@ def _prepare_extracted_rows(
 
     # Normalize chunk IDs per node for deterministic ordering and to avoid duplicates.
     for node_id, chunk_ids in node_chunk_map.items():
-        node_chunk_map[node_id] = sorted(set(chunk_ids))
+        # De-duplicate while preserving original association order.
+        seen: set[str] = set()
+        unique_chunk_ids: list[str] = []
+        for cid in chunk_ids:
+            if cid in seen:
+                continue
+            seen.add(cid)
+            unique_chunk_ids.append(cid)
+        # Sort by numeric chunk_index from chunk_meta when available, falling back
+        # to a stable deterministic order for chunks without chunk_index.
+        def _chunk_sort_key(cid: str) -> tuple[float, str]:
+            meta = chunk_meta.get(cid, {})
+            idx = meta.get("chunk_index")
+            # Chunks without an index are ordered after indexed ones, by id.
+            return (float(idx) if isinstance(idx, (int, float)) else float("inf"), cid)
 
+        unique_chunk_ids.sort(key=_chunk_sort_key)
+        node_chunk_map[node_id] = unique_chunk_ids
     for node in graph.nodes:
         node_chunk_ids = _chunk_id_from_node_id(node.id, node_chunk_map, relationship_type=node_chunk_rel_type)
         metadata_by_chunk = []
