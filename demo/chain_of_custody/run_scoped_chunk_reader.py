@@ -53,6 +53,7 @@ class RunScopedNeo4jChunkReader(Neo4jChunkReader):
         index_property: str,
         embedding_property: str,
     ) -> str:
+        safe_chunk_label = self._validate_identifier(chunk_label, "chunk_label")
         filters = ["c.run_id = $run_id"]
         if self.source_uri is not None:
             filters.append("c.source_uri = $source_uri")
@@ -64,7 +65,7 @@ class RunScopedNeo4jChunkReader(Neo4jChunkReader):
             safe_embedding_property = self._validate_identifier(embedding_property, "embedding_property")
             return_properties.append(f"{safe_embedding_property}: null")
 
-        query = f"MATCH (c:`{chunk_label}`)\nWHERE {' AND '.join(filters)}\nRETURN c {{ {', '.join(return_properties)} }} as chunk "
+        query = f"MATCH (c:`{safe_chunk_label}`)\nWHERE {' AND '.join(filters)}\nRETURN c {{ {', '.join(return_properties)} }} as chunk "
         if index_property:
             safe_index_property = self._validate_identifier(index_property, "index_property")
             query += f"ORDER BY c.{safe_index_property}"
