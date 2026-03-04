@@ -74,8 +74,12 @@ class ProvenanceNeo4jWriter(Neo4jWriter):
                 props.setdefault("run_id", doc_run_id)
             elif run_id:
                 props.setdefault("run_id", run_id)
-            if self.dataset_id:
-                dataset_value = (doc_props or {}).get("dataset_id", self.dataset_id)
+            dataset_value = None
+            if doc_props and doc_props.get("dataset_id") is not None:
+                dataset_value = doc_props.get("dataset_id")
+            elif self.dataset_id is not None:
+                dataset_value = self.dataset_id
+            if dataset_value is not None:
                 props.setdefault("dataset_id", dataset_value)
             if doc_props:
                 source_uri = doc_props.get("source_uri")
