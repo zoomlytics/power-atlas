@@ -23,6 +23,7 @@ CONFIG_DIR = Path(__file__).resolve().parent / "config"
 PDF_PIPELINE_CONFIG_PATH = CONFIG_DIR / "pdf_simple_kg_pipeline.yaml"
 DEFAULT_DB = os.getenv("NEO4J_DATABASE", "neo4j")
 DEFAULT_CHUNK_SIZE = 1000  # FixedSizeSplitter chunk_size in pdf_simple_kg_pipeline.yaml
+MISSING_CHUNK_OFFSET = -1  # Sentinel for chunks with no ordering metadata
 
 # Default values for the chunk embedding index contract.
 # These are used as fallbacks if the YAML configuration does not provide them.
@@ -1044,43 +1045,44 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                          coalesce(c.start_char, c.start_offset, c.start, c.offset) AS existing_start_char,
                          coalesce(c.end_char, c.end_offset, c.end) AS existing_end_char,
                          coalesce(size(c.text), size(c.body), size(c.content)) AS chunk_length
-                    WITH d,
-                         c,
-                         normalized_chunk_order,
-                         fallback_chunk_order,
-                         normalized_page,
-                         chunk_length,
-                         CASE
-                             WHEN existing_start_char IS NOT NULL THEN existing_start_char
-                             WHEN normalized_chunk_order IS NULL THEN -1
-                             ELSE fallback_chunk_order * $default_chunk_size
-                         END AS start_char_value,
-                         existing_end_char
-                    SET c.run_id = coalesce(c.run_id, $run_id),
-                        c.source_uri = coalesce(c.source_uri, d.source_uri, $source_uri),
-                        c.chunk_order = normalized_chunk_order,
-                        c.chunk_index = coalesce(c.chunk_index, normalized_chunk_order),
-                        c.chunk_id = CASE
-                            WHEN c.chunk_id IS NOT NULL THEN c.chunk_id
-                            WHEN c.uid IS NOT NULL THEN c.uid
-                            WHEN normalized_chunk_order IS NULL THEN d.source_uri + ':missing_chunk_order'
-                            ELSE d.source_uri + ':' + toString(fallback_chunk_order)
-                        END,
-                        c.page_number = normalized_page,
-                        c.page = coalesce(c.page, normalized_page),
-                        c.start_char = coalesce(c.start_char, start_char_value),
-                        c.end_char = CASE
-                            WHEN c.end_char IS NOT NULL THEN c.end_char
-                            WHEN existing_end_char IS NOT NULL THEN existing_end_char
-                            WHEN start_char_value < 0 THEN -1
-                            WHEN chunk_length IS NULL OR chunk_length <= 0 THEN start_char_value
-                            ELSE start_char_value + chunk_length - 1
-                        END,
-                        c.embedding = coalesce(c.embedding, c.embedding_vector, c.vector, c.embeddings)
+                     WITH d,
+                          c,
+                          normalized_chunk_order,
+                          fallback_chunk_order,
+                          normalized_page,
+                          chunk_length,
+                          CASE
+                              WHEN existing_start_char IS NOT NULL THEN existing_start_char
+                              WHEN normalized_chunk_order IS NULL THEN $missing_chunk_offset
+                              ELSE fallback_chunk_order * $default_chunk_size
+                          END AS start_char_value,
+                          existing_end_char
+                     SET c.run_id = coalesce(c.run_id, $run_id),
+                         c.source_uri = coalesce(c.source_uri, d.source_uri, $source_uri),
+                         c.chunk_order = normalized_chunk_order,
+                         c.chunk_index = coalesce(c.chunk_index, normalized_chunk_order),
+                         c.chunk_id = CASE
+                             WHEN c.chunk_id IS NOT NULL THEN c.chunk_id
+                             WHEN c.uid IS NOT NULL THEN c.uid
+                             WHEN normalized_chunk_order IS NULL THEN d.source_uri + ':missing_chunk_order'
+                             ELSE d.source_uri + ':' + toString(fallback_chunk_order)
+                         END,
+                         c.page_number = normalized_page,
+                         c.page = coalesce(c.page, normalized_page),
+                         c.start_char = coalesce(c.start_char, start_char_value),
+                         c.end_char = CASE
+                             WHEN c.end_char IS NOT NULL THEN c.end_char
+                             WHEN existing_end_char IS NOT NULL THEN existing_end_char
+                             WHEN start_char_value = $missing_chunk_offset THEN $missing_chunk_offset
+                             WHEN chunk_length IS NULL OR chunk_length <= 0 THEN start_char_value
+                             ELSE start_char_value + chunk_length - 1
+                         END,
+                         c.embedding = coalesce(c.embedding, c.embedding_vector, c.vector, c.embeddings)
                     """,
                     run_id=stage_run_id,
                     source_uri=pdf_source_uri,
                     default_chunk_size=DEFAULT_CHUNK_SIZE,
+                    missing_chunk_offset=MISSING_CHUNK_OFFSET,
                 ).consume()
                 run_counts = session.run(
                     """
