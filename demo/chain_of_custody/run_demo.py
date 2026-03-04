@@ -1682,6 +1682,7 @@ def _run_claim_and_mention_extraction(
             mention_rows=mention_rows,
         )
 
+    all_extracted_rows = claim_rows + mention_rows
     summary = {
         "status": "live",
         "run_id": run_id,
@@ -1690,7 +1691,7 @@ def _run_claim_and_mention_extraction(
         "prompt_version": CLAIM_EXTRACTION_PROMPT_VERSION,
         "claims": len(claim_rows),
         "mentions": len(mention_rows),
-        "chunk_ids": sorted({chunk_id for row in claim_rows + mention_rows for chunk_id in row["chunk_ids"]}),
+        "chunk_ids": sorted({chunk_id for row in all_extracted_rows for chunk_id in row["chunk_ids"]}),
         "warnings": [],
     }
     summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
