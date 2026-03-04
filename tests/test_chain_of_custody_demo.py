@@ -78,8 +78,13 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
 
             def run(self, query, **kwargs):
                 calls.setdefault("queries", []).append((query, kwargs))
-                for marker, payload in query_payloads.items():
+                # Sort by marker length so specific markers (e.g., "missing_page_count")
+                # take precedence over substrings like "page_count".
+                for marker, payload in sorted(
+                    query_payloads.items(), key=lambda item: len(item[0]), reverse=True
+                ):
                     if marker in query:
+                        calls.setdefault("matched_markers", []).append(marker)
                         return _FakeResult(payload)
                 return _FakeResult()
 
@@ -608,6 +613,7 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
         self.assertEqual(result["counts"], summary["counts"])
         self.assertEqual(result["pdf_fingerprint_sha256"], expected_fingerprint)
         self.assertEqual(summary["pdf_fingerprint_sha256"], expected_fingerprint)
+        self.assertEqual(summary["dataset_id"], "chain_of_custody_dataset_v1")
         self.assertEqual(
             summary["pipeline_config_sha256"],
             module._sha256_file(DEMO_DIR / "config" / "pdf_simple_kg_pipeline.yaml"),
@@ -619,6 +625,7 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
         self.assertEqual(summary["embedding_model"], module.EMBEDDER_MODEL_NAME)
         self.assertEqual(result["vector_index"]["creation_strategy"], "neo4j_graphrag.indexes.create_vector_index")
         self.assertEqual(result["pipeline_result"], {"ok": True})
+        self.assertEqual(result["provenance"]["dataset_id"], "chain_of_custody_dataset_v1")
         self.assertEqual(calls["index_name"], "chain_custody_chunk_embedding_index")
         self.assertEqual(calls["index_kwargs"]["label"], "Chunk")
         self.assertEqual(calls["index_kwargs"]["embedding_property"], "embedding")
@@ -632,6 +639,15 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
         self.assertEqual(
             calls["run_params"]["file_path"],
             str(DEMO_DIR / "fixtures" / "unstructured" / "chain_of_custody.pdf"),
+        )
+        expected_pdf_uri = (DEMO_DIR / "fixtures" / "unstructured" / "chain_of_custody.pdf").resolve().as_uri()
+        self.assertEqual(
+            calls["run_params"]["document_metadata"],
+            {
+                "run_id": "unstructured_ingest-test",
+                "dataset_id": "chain_of_custody_dataset_v1",
+                "source_uri": expected_pdf_uri,
+            },
         )
         self.assertNotIn("pdf_loader", calls["run_params"])
         self.assertTrue(
@@ -672,6 +688,37 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
             initial_openai_state,
         )
 
+    def test_pdf_ingest_query_payload_prefers_specific_markers(self):
+        module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_marker_test")
+        config = module.DemoConfig(
+            dry_run=False,
+            output_dir=DEMO_DIR / "artifacts",
+            neo4j_uri="neo4j://localhost:7687",
+            neo4j_username="neo4j",
+            neo4j_password="testtesttest",
+            neo4j_database="neo4j",
+            openai_model="gpt-4o-mini",
+        )
+        calls: dict[str, object] = {}
+        injected_modules = self._build_pdf_ingest_test_modules(
+            calls=calls,
+            query_payloads={
+                "missing_page_count": {"missing_page_count": 0},
+                "page_count": {"page_count": 2},
+                "document_count": {"document_count": 1, "chunk_count": 2},
+                "missing_chunk_order_count": {"missing_chunk_order_count": 0},
+                "missing_embedding_count": {"missing_embedding_count": 0},
+                "missing_char_offset_count": {"missing_char_offset_count": 0},
+            },
+        )
+        with self._with_injected_pdf_ingest_modules(injected_modules):
+            module._run_pdf_ingest(config, run_id="unstructured_ingest-test")
+
+        self.assertIn("matched_markers", calls)
+        # The missing_page_count marker should match the query containing it, not page_count.
+        self.assertIn("missing_page_count", calls["matched_markers"])
+        self.assertGreaterEqual(calls["matched_markers"].count("missing_page_count"), 1)
+
     def test_run_pdf_ingest_dry_run_writes_summary_and_fingerprint(self):
         module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_pdf_dry_summary_test")
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -693,6 +740,7 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
             summary = json.loads(summary_path.read_text(encoding="utf-8"))
             self.assertEqual(summary["pdf_fingerprint_sha256"], expected_fingerprint)
             self.assertEqual(summary["counts"], {"documents": 0, "pages": 0, "chunks": 0})
+            self.assertEqual(summary["dataset_id"], "chain_of_custody_dataset_v1")
             self.assertEqual(summary["embedding_model"], module.EMBEDDER_MODEL_NAME)
             self.assertEqual(summary["embedding_dimensions"], module.CHUNK_EMBEDDING_DIMENSIONS)
             self.assertEqual(
@@ -945,8 +993,12 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
         self.assertIn("neo4j_config", config)
         self.assertIn("from_pdf", config)
         self.assertIn("demo_contract", config)
-        self.assertIn("neo4j_database", config)
-        self.assertEqual(config["neo4j_database"]["var_"], "NEO4J_DATABASE")
+        neo4j_database_value = config.get("neo4j_database") or config.get("kg_writer", {}).get("params_", {}).get("neo4j_database")
+        self.assertIsNotNone(neo4j_database_value)
+        if isinstance(neo4j_database_value, dict):
+            self.assertEqual(neo4j_database_value.get("var_"), "NEO4J_DATABASE")
+        else:
+            self.assertEqual(neo4j_database_value, "neo4j")
         self.assertEqual(config["llm_config"]["params_"]["model_name"]["var_"], "OPENAI_MODEL")
         self.assertEqual(config["embedder_config"]["params_"]["model"], "text-embedding-3-small")
         self.assertEqual(config["demo_contract"]["chunk_embedding"]["dimensions"], 1536)
