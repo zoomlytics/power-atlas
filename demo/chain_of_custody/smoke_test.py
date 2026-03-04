@@ -73,8 +73,11 @@ def _validate_manifest(manifest_path: Path) -> None:
             raise SystemExit(f"Citation field {key!r} must be an integer (got {raw_value!r})")
         if int_value < 0:
             raise SystemExit(f"Citation field {key!r} must be >= 0 (got {int_value})")
-    start_char = int(parsed["start_char"])
-    end_char = int(parsed["end_char"])
+    try:
+        start_char = int(parsed["start_char"])
+        end_char = int(parsed["end_char"])
+    except (TypeError, ValueError):
+        raise SystemExit("Citation fields 'start_char' and 'end_char' must be integers")
     if end_char < start_char:
         raise SystemExit(
             f"Citation field 'end_char' must be >= 'start_char' "
