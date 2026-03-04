@@ -670,7 +670,7 @@ def _coerce_confidence(value: Any) -> float | None:
 
 def _fallback_identifier(chunk_ids: list[str]) -> str:
     if not chunk_ids:
-        return "unknown_chunk"
+        raise ValueError("Cannot build fallback identifier without chunk ids")
     if len(chunk_ids) == 1:
         return chunk_ids[0]
     if len(chunk_ids) == 2:
