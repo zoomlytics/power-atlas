@@ -44,10 +44,7 @@ def _validate_manifest(manifest_path: Path) -> None:
     for part in parts:
         if "=" not in part:
             raise SystemExit(f"Malformed citation segment (expected key=value): {part!r}")
-        try:
-            key, value = part.split("=", 1)
-        except ValueError as exc:
-            raise SystemExit(f"Malformed citation segment (expected key=value): {part!r}") from exc
+        key, value = part.split("=", 1)
         if not key:
             raise SystemExit("Citation segment key must be non-empty")
         parsed[key] = value

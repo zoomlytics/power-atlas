@@ -1040,7 +1040,7 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                     WITH d,
                          c,
                          toInteger(coalesce(c.chunk_order, c.index, c.chunk_index)) AS normalized_chunk_order,
-                         coalesce(toInteger(coalesce(c.chunk_order, c.index, c.chunk_index)), 0) AS fallback_chunk_order,
+                         coalesce(normalized_chunk_order, 0) AS fallback_chunk_order,
                          coalesce(c.page_number, c.page) AS normalized_page,
                          coalesce(c.start_char, c.start_offset, c.start, c.offset) AS existing_start_char,
                          coalesce(c.end_char, c.end_offset, c.end) AS existing_end_char,
@@ -1065,10 +1065,10 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                              WHEN c.chunk_id IS NOT NULL THEN c.chunk_id
                              WHEN c.uid IS NOT NULL THEN c.uid
                              WHEN normalized_chunk_order IS NULL THEN d.source_uri + ':missing_chunk_order'
-                             ELSE d.source_uri + ':' + toString(fallback_chunk_order)
+                             ELSE d.source_uri + ':' + toString(normalized_chunk_order)
                          END,
                          c.page_number = normalized_page,
-                         c.page = coalesce(c.page, normalized_page),
+                         c.page = normalized_page,
                          c.start_char = coalesce(c.start_char, start_char_value),
                          c.end_char = CASE
                              WHEN c.end_char IS NOT NULL THEN c.end_char
