@@ -771,13 +771,12 @@ def _prepare_extracted_rows(
         node_confidence = _coerce_confidence(node.properties.get("confidence"))
         if node_confidence is not None:
             base_props["confidence"] = node_confidence
+        # Maintain primary single-valued fields for backward compatibility, while also
+        # exposing the full lists for multi-chunk/page extractions.
         chunk_indexes = [meta.get("chunk_index") for meta in metadata_by_chunk if "chunk_index" in meta]
         if chunk_indexes:
             unique_indexes = sorted({idx for idx in chunk_indexes if idx is not None})
             if unique_indexes:
-                # Preserve backward compatibility with existing consumers that expect a single
-                # chunk_index by keeping the primary (lowest) index while also retaining the full
-                # list for multi-chunk extractions.
                 base_props["chunk_index"] = unique_indexes[0]
                 if len(unique_indexes) > 1:
                     base_props["chunk_indexes"] = unique_indexes
@@ -785,18 +784,16 @@ def _prepare_extracted_rows(
         if page_numbers:
             unique_pages = sorted({page for page in page_numbers if page is not None})
             if unique_pages:
-                # Preserve backward compatibility with existing consumers that expect a single
-                # page by keeping the primary (lowest) page while also retaining the full list
-                # for multi-chunk/page extractions.
                 base_props["page"] = unique_pages[0]
                 if len(unique_pages) > 1:
                     base_props["pages"] = unique_pages
 
-        fallback_identifier = (
-            f"{node_chunk_ids[0]}_and_{len(node_chunk_ids) - 1}_more"
-            if len(node_chunk_ids) > 1
-            else node_chunk_ids[0]
-        )
+        if len(node_chunk_ids) == 1:
+            fallback_identifier = node_chunk_ids[0]
+        elif len(node_chunk_ids) == 2:
+            fallback_identifier = f"{node_chunk_ids[0]}_and_{node_chunk_ids[1]}"
+        else:
+            fallback_identifier = f"{node_chunk_ids[0]}_and_{len(node_chunk_ids) - 1}_more"
         if node.label == "ExtractedClaim":
             claim_text = (
                 str(
