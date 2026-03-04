@@ -1059,7 +1059,11 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                         c.end_char = coalesce(
                             c.end_char,
                             existing_end_char,
-                            start_char_value + coalesce(chunk_length, 0) - 1
+                            start_char_value
+                            + CASE
+                                  WHEN chunk_length IS NULL OR chunk_length <= 0 THEN 0
+                                  ELSE chunk_length - 1
+                              END
                         ),
                         c.embedding = coalesce(c.embedding, c.embedding_vector, c.vector, c.embeddings)
                     """,
