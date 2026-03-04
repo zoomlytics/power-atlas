@@ -56,8 +56,8 @@ Manifest run-boundary notes:
 
 ## Run ID provenance contract
 
-- Vendor pipelines maintain an orchestration `run_id` (from `PipelineResult.run_id` / `RunContext.run_id`) for callbacks and notifications; the demo now passes this run scope into `document_metadata` for PDF ingest so vendor writers can see it.
-- Persisted provenance for reset/retrieval uses the same run scope stored on `Document`/`Chunk` nodes (`run_id`, plus `dataset_id` and `source_uri` where applicable); normalization still runs post-ingest to keep legacy reset/retrieval scripts aligned.
+- Vendor pipelines emit an orchestration `run_id` at execution time (`PipelineResult.run_id` / `RunContext.run_id`) for callbacks/notifications; the demo does **not** inject this orchestration id into graph nodes.
+- The demo supplies its own stage run scope (`run_id`, plus `dataset_id`/`source_uri` when present) via `document_metadata` for PDF ingest and persists those fields on `Document`/`Chunk` nodes; post-ingest normalization still runs to keep reset/retrieval scripts aligned on the same persisted provenance.
 
 ## Fixtures and reproducibility
 

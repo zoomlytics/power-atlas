@@ -69,7 +69,10 @@ class ProvenanceNeo4jWriter(Neo4jWriter):
             props = dict(node.properties or {})
             doc_id = chunk_to_document.get(node.id)
             doc_props = document_props.get(doc_id) if doc_id else None
-            if run_id:
+            doc_run_id = doc_props.get("run_id") if doc_props else None
+            if doc_run_id is not None:
+                props.setdefault("run_id", doc_run_id)
+            elif run_id:
                 props.setdefault("run_id", run_id)
             if self.dataset_id:
                 dataset_value = (doc_props or {}).get("dataset_id", self.dataset_id)
