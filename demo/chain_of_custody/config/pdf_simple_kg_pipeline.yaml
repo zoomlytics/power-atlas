@@ -11,7 +11,6 @@ neo4j_config:
     password:
       resolver_: ENV
       var_: NEO4J_PASSWORD
-neo4j_database: neo4j
 llm_config:
  class_: OpenAILLM
  params_:
@@ -48,4 +47,7 @@ kg_writer:
     driver:
       resolver_: CONFIG_KEY
       key_: neo4j_config.default
+    neo4j_database:
+      resolver_: ENV
+      var_: NEO4J_DATABASE
     dataset_id: chain_of_custody_dataset_v1

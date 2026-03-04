@@ -961,8 +961,8 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
         self.assertIn("neo4j_config", config)
         self.assertIn("from_pdf", config)
         self.assertIn("demo_contract", config)
-        self.assertIn("neo4j_database", config)
-        neo4j_database_value = config["neo4j_database"]
+        neo4j_database_value = config.get("neo4j_database") or config["kg_writer"]["params_"].get("neo4j_database")
+        self.assertIsNotNone(neo4j_database_value)
         if isinstance(neo4j_database_value, dict):
             self.assertEqual(neo4j_database_value.get("var_"), "NEO4J_DATABASE")
         else:
