@@ -1076,17 +1076,18 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                          existing_end_char,
                          toIntegerOrNull(c.chunk_index) AS chunk_index_int,
                          toIntegerOrNull(c.start_char) AS start_char_int,
-                         toIntegerOrNull(c.end_char) AS end_char_int
-                     SET c.run_id = coalesce(c.run_id, $run_id),
-                         c.source_uri = coalesce(c.source_uri, d.source_uri, $source_uri),
-                         c.chunk_order = normalized_chunk_order,
-                         c.chunk_index = coalesce(chunk_index_int, normalized_chunk_order),
-                         c.chunk_id = CASE
-                             WHEN c.chunk_id IS NOT NULL THEN c.chunk_id
-                             WHEN c.uid IS NOT NULL THEN c.uid
-                             WHEN normalized_chunk_order IS NULL THEN d.source_uri + ':missing_chunk_order:' + coalesce(toString(c.uid), toString(coalesce(chunk_index_int, fallback_chunk_order)))
-                             ELSE d.source_uri + ':' + toString(normalized_chunk_order)
-                         END,
+                         toIntegerOrNull(c.end_char) AS end_char_int,
+                         coalesce(toString(c.uid), toString(coalesce(chunk_index_int, fallback_chunk_order))) AS missing_chunk_discriminator
+                      SET c.run_id = coalesce(c.run_id, $run_id),
+                          c.source_uri = coalesce(c.source_uri, d.source_uri, $source_uri),
+                          c.chunk_order = normalized_chunk_order,
+                          c.chunk_index = coalesce(chunk_index_int, normalized_chunk_order),
+                          c.chunk_id = CASE
+                              WHEN c.chunk_id IS NOT NULL THEN c.chunk_id
+                              WHEN c.uid IS NOT NULL THEN c.uid
+                              WHEN normalized_chunk_order IS NULL THEN d.source_uri + ':missing_chunk_order:' + missing_chunk_discriminator
+                              ELSE d.source_uri + ':' + toString(normalized_chunk_order)
+                          END,
                          c.page_number = normalized_page,
                          c.page = normalized_page,
                          c.start_char = coalesce(start_char_int, start_char_value),
