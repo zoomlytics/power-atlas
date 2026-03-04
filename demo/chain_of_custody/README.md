@@ -5,6 +5,7 @@ Self-contained demo workflow under `demo/chain_of_custody/` for evidence-driven 
 ## Conceptual model
 
 - **Independent ingestion runs**: structured ingest and unstructured/PDF ingest are separate producer runs with separate `run_id` boundaries; neither implies the other must also run.
+- Note: `extract-claims` runs “within” the unstructured ingest run_id (it is not a separate run); it only adds derived nodes/edges and preserves the lexical layer as immutable evidence.
 - **Layered graph model**: source assertions are preserved as written (with provenance), while canonical/resolved views are derived in a separate layer and may be revised over time.
 - **Explicit convergence**: cross-source links are an optional resolution step; they must be explainable and non-destructive (do not overwrite source assertions).
 - **Batch mode is convenience only**: `ingest` is documented as sequential independent runs in one command, each retaining its own `run_id`.
