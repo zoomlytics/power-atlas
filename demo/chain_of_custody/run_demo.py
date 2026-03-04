@@ -775,8 +775,9 @@ def _prepare_extracted_rows(
         if chunk_indexes:
             unique_indexes = sorted({idx for idx in chunk_indexes if idx is not None})
             if unique_indexes:
-                # Preserve backward compatibility by keeping the primary (lowest) index while
-                # retaining the full list when multiple chunks are referenced.
+                # Preserve backward compatibility with existing consumers that expect a single
+                # chunk_index by keeping the primary (lowest) index while also retaining the full
+                # list for multi-chunk extractions.
                 base_props["chunk_index"] = unique_indexes[0]
                 if len(unique_indexes) > 1:
                     base_props["chunk_indexes"] = unique_indexes
@@ -784,13 +785,14 @@ def _prepare_extracted_rows(
         if page_numbers:
             unique_pages = sorted({page for page in page_numbers if page is not None})
             if unique_pages:
-                # Preserve backward compatibility by keeping the primary (lowest) page while
-                # retaining the full list when multiple pages are referenced.
+                # Preserve backward compatibility with existing consumers that expect a single
+                # page by keeping the primary (lowest) page while also retaining the full list
+                # for multi-chunk/page extractions.
                 base_props["page"] = unique_pages[0]
                 if len(unique_pages) > 1:
                     base_props["pages"] = unique_pages
 
-        fallback_chunk_suffix = (
+        fallback_chunk_id = (
             f"{node_chunk_ids[0]}_and_{len(node_chunk_ids) - 1}_more"
             if len(node_chunk_ids) > 1
             else node_chunk_ids[0]
@@ -805,7 +807,7 @@ def _prepare_extracted_rows(
                 ).strip()
             )
             properties = dict(base_props)
-            properties["claim_text"] = claim_text or f"claim_for_{fallback_chunk_suffix}"
+            properties["claim_text"] = claim_text or f"claim_for_{fallback_chunk_id}"
             for key in ("subject", "predicate", "object", "value", "claim_type"):
                 if key in node.properties:
                     properties[key] = node.properties[key]
@@ -827,7 +829,7 @@ def _prepare_extracted_rows(
                     or node.properties.get("text")
                     or ""
                 ).strip()
-            ) or f"mention_for_{fallback_chunk_suffix}"
+            ) or f"mention_for_{fallback_chunk_id}"
             properties = dict(base_props)
             properties["name"] = mention_text
             entity_type = node.properties.get("entity_type") or node.properties.get("type")
@@ -1826,7 +1828,7 @@ def run_independent_demo(config: DemoConfig, command: str) -> Path:
                 "CHAIN_OF_CUSTODY_UNSTRUCTURED_RUN_ID is not set. When running "
                 "'extract-claims' independently, set this to the run_id from a prior "
                 "'ingest' or 'ingest-pdf' command whose chunks you want to process "
-                "(for example, unstructured_ingest-20250304T120000Z)."
+                "(for example, unstructured_ingest-20260301T120000Z)."
             )
         stage_run_id = env_run_id
     else:
