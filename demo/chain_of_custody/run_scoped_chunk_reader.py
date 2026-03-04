@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from typing import TYPE_CHECKING
+import re
 from neo4j_graphrag.experimental.components.neo4j_reader import Neo4jChunkReader
 from neo4j_graphrag.experimental.components.types import (
     LexicalGraphConfig,
@@ -38,6 +39,14 @@ class RunScopedNeo4jChunkReader(Neo4jChunkReader):
         self.source_uri = source_uri
         self.corpus = corpus
 
+    @staticmethod
+    def _validate_identifier(value: str, kind: str) -> str:
+        if not isinstance(value, str):
+            raise ValueError(f"Invalid {kind}: expected string, got {type(value).__name__}")
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", value):
+            raise ValueError(f"Unsafe {kind}: {value!r}")
+        return value
+
     def _get_query(
         self,
         chunk_label: str,
@@ -45,18 +54,20 @@ class RunScopedNeo4jChunkReader(Neo4jChunkReader):
         embedding_property: str,
     ) -> str:
         filters = ["c.run_id = $run_id"]
-        if self.source_uri:
+        if self.source_uri is not None:
             filters.append("c.source_uri = $source_uri")
-        if self.corpus:
+        if self.corpus is not None:
             filters.append("c.corpus = $corpus")
 
         return_properties = [".*"]
         if not self.fetch_embeddings:
-            return_properties.append(f"{embedding_property}: null")
+            safe_embedding_property = self._validate_identifier(embedding_property, "embedding_property")
+            return_properties.append(f"{safe_embedding_property}: null")
 
         query = f"MATCH (c:`{chunk_label}`)\nWHERE {' AND '.join(filters)}\nRETURN c {{ {', '.join(return_properties)} }} as chunk "
         if index_property:
-            query += f"ORDER BY c.{index_property}"
+            safe_index_property = self._validate_identifier(index_property, "index_property")
+            query += f"ORDER BY c.{safe_index_property}"
         return query
 
     @validate_call

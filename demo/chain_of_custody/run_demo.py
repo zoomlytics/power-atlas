@@ -703,7 +703,7 @@ async def _async_read_chunks_and_extract(
     )
     extractor = LLMEntityRelationExtractor(
         llm=llm,
-        create_lexical_graph=False,
+        create_lexical_graph=True,
         use_structured_output=True,
     )
     try:
@@ -742,14 +742,14 @@ def _prepare_extracted_rows(
     for relationship in graph.relationships:
         if relationship.type != node_chunk_rel_type:
             continue
-        source_is_chunk = relationship.source_id in known_chunk_ids
-        target_is_chunk = relationship.target_id in known_chunk_ids
+        source_is_chunk = relationship.start_node_id in known_chunk_ids
+        target_is_chunk = relationship.end_node_id in known_chunk_ids
         if not source_is_chunk and not target_is_chunk:
             continue
         if source_is_chunk and target_is_chunk:
             continue
-        chunk_id = relationship.source_id if source_is_chunk else relationship.target_id
-        node_id = relationship.target_id if source_is_chunk else relationship.source_id
+        chunk_id = relationship.start_node_id if source_is_chunk else relationship.end_node_id
+        node_id = relationship.end_node_id if source_is_chunk else relationship.start_node_id
         node_chunk_map.setdefault(node_id, []).append(chunk_id)
 
     # Normalize chunk IDs per node for deterministic ordering and to avoid duplicates.
@@ -773,6 +773,8 @@ def _prepare_extracted_rows(
         unique_chunk_ids.sort(key=_chunk_sort_key)
         node_chunk_map[node_id] = unique_chunk_ids
     for node in graph.nodes:
+        if node.id not in node_chunk_map:
+            continue
         node_chunk_ids = _chunk_id_from_node_id(node.id, node_chunk_map, relationship_type=node_chunk_rel_type)
         metadata_by_chunk = []
         for chunk_id in node_chunk_ids:
