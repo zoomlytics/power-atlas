@@ -1048,7 +1048,7 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                 session.run(
                     """
                     MATCH (d:Document)
-                    WHERE d.path = $file_path OR d.source_uri = $source_uri
+                    WHERE (d.path = $file_path OR d.source_uri = $source_uri)
                       AND (d.run_id IS NULL OR d.run_id = $run_id)
                     SET d.run_id = coalesce(d.run_id, $run_id),
                         d.source_uri = coalesce(d.source_uri, $source_uri)
@@ -1084,7 +1084,7 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                          c.chunk_id = CASE
                              WHEN c.chunk_id IS NOT NULL THEN c.chunk_id
                              WHEN c.uid IS NOT NULL THEN c.uid
-                             WHEN normalized_chunk_order IS NULL THEN d.source_uri + ':missing_chunk_order:' + coalesce(toString(c.uid), toString(id(c)))
+                             WHEN normalized_chunk_order IS NULL THEN d.source_uri + ':missing_chunk_order:' + coalesce(toString(c.uid), toString(coalesce(chunk_index_int, fallback_chunk_order)))
                              ELSE d.source_uri + ':' + toString(normalized_chunk_order)
                          END,
                          c.page_number = normalized_page,
@@ -1106,7 +1106,7 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                 run_counts = session.run(
                     """
                     MATCH (d:Document)
-                    WHERE d.path = $file_path OR d.source_uri = $source_uri
+                    WHERE (d.path = $file_path OR d.source_uri = $source_uri)
                       AND d.run_id = $run_id
                     OPTIONAL MATCH (d)<-[:FROM_DOCUMENT]-(c:Chunk)
                     WHERE c.run_id = $run_id
@@ -1134,7 +1134,7 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                 page_count_result = session.run(
                     """
                     MATCH (d:Document)
-                    WHERE d.path = $file_path OR d.source_uri = $source_uri
+                    WHERE (d.path = $file_path OR d.source_uri = $source_uri)
                       AND d.run_id = $run_id
                     MATCH (d)<-[:FROM_DOCUMENT]-(c:Chunk)
                     WHERE c.run_id = $run_id
@@ -1162,7 +1162,7 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                 missing_chunk_order_count = session.run(
                     """
                     MATCH (d:Document)
-                    WHERE d.path = $file_path OR d.source_uri = $source_uri
+                    WHERE (d.path = $file_path OR d.source_uri = $source_uri)
                       AND d.run_id = $run_id
                     MATCH (d)<-[:FROM_DOCUMENT]-(c:Chunk)
                     WHERE c.run_id = $run_id
@@ -1170,6 +1170,7 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                     RETURN count(c) AS missing_chunk_order_count
                     """,
                     run_id=stage_run_id,
+                    file_path=pdf_file_path,
                     source_uri=pdf_source_uri,
                 ).single()["missing_chunk_order_count"]
                 if missing_chunk_order_count:
@@ -1179,7 +1180,7 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                 missing_embedding_count = session.run(
                     """
                     MATCH (d:Document)
-                    WHERE (d.path = $source_uri OR d.source_uri = $source_uri)
+                    WHERE (d.path = $file_path OR d.source_uri = $source_uri)
                       AND d.run_id = $run_id
                     MATCH (d)<-[:FROM_DOCUMENT]-(c:Chunk)
                     WHERE c.run_id = $run_id
@@ -1187,6 +1188,7 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                     RETURN count(c) AS missing_embedding_count
                     """,
                     run_id=stage_run_id,
+                    file_path=pdf_file_path,
                     source_uri=pdf_source_uri,
                 ).single()["missing_embedding_count"]
                 if missing_embedding_count:
@@ -1196,7 +1198,7 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                 missing_page_count = session.run(
                     """
                     MATCH (d:Document)
-                    WHERE (d.path = $source_uri OR d.source_uri = $source_uri)
+                    WHERE (d.path = $file_path OR d.source_uri = $source_uri)
                       AND d.run_id = $run_id
                     MATCH (d)<-[:FROM_DOCUMENT]-(c:Chunk)
                     WHERE c.run_id = $run_id
@@ -1212,7 +1214,7 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                 missing_char_offset_count = session.run(
                     """
                     MATCH (d:Document)
-                    WHERE d.path = $file_path OR d.source_uri = $source_uri
+                    WHERE (d.path = $file_path OR d.source_uri = $source_uri)
                       AND d.run_id = $run_id
                     MATCH (d)<-[:FROM_DOCUMENT]-(c:Chunk)
                     WHERE c.run_id = $run_id

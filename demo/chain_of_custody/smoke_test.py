@@ -71,8 +71,15 @@ def _validate_manifest(manifest_path: Path) -> None:
             int_value = int(raw_value)
         except (TypeError, ValueError):
             raise SystemExit(f"Citation field {key!r} must be an integer (got {raw_value!r})")
-        if int_value < -1:
-            raise SystemExit(f"Citation field {key!r} must be >= -1 (got {int_value})")
+        if int_value < 0:
+            raise SystemExit(f"Citation field {key!r} must be >= 0 (got {int_value})")
+    start_char = int(parsed["start_char"])
+    end_char = int(parsed["end_char"])
+    if end_char < start_char:
+        raise SystemExit(
+            f"Citation field 'end_char' must be >= 'start_char' "
+            f"(got start_char={start_char}, end_char={end_char})"
+        )
     citation_example = retrieval_stage.get("citation_example")
     if not isinstance(citation_example, dict):
         raise SystemExit("Missing citation_example in retrieval_and_qa stage")
