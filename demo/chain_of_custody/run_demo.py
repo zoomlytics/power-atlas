@@ -1051,7 +1051,7 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                         c.chunk_id = coalesce(
                             c.chunk_id,
                             c.uid,
-                            d.source_uri + ':' + toString(coalesce(c.chunk_index, normalized_chunk_order))
+                            d.source_uri + ':' + toString(coalesce(c.chunk_index, 0))
                         ),
                         c.page_number = normalized_page,
                         c.page = coalesce(c.page, normalized_page),
@@ -1235,7 +1235,7 @@ def _run_claim_and_mention_extraction(config: DemoConfig) -> dict[str, Any]:
 def _run_retrieval_and_qa(config: DemoConfig) -> dict[str, Any]:
     example_source_uri = (FIXTURES_DIR / "unstructured" / "chain_of_custody.pdf").resolve().as_uri()
     example_citation_token = (
-        "[CITATION|chunk_id=example_chunk|run_id=<run_id>|"
+        "[CITATION|chunk_id=example_chunk|run_id=example_run_id|"
         f"source_uri={example_source_uri}|chunk_index=0|page=1|start_char=0|end_char=999]"
     )
     retrieval_query_contract = """
@@ -1251,7 +1251,7 @@ def _run_retrieval_and_qa(config: DemoConfig) -> dict[str, Any]:
     """
     citation_example = {
         "chunk_id": "example_chunk",
-        "run_id": "<run_id>",
+        "run_id": "example_run_id",
         "source_uri": example_source_uri,
         "chunk_index": 0,
         "page": 1,

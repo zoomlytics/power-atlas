@@ -67,7 +67,8 @@ def _validate_manifest(manifest_path: Path) -> None:
     if not isinstance(citation_example, dict):
         raise SystemExit("Missing citation_example in retrieval_and_qa stage")
     if required_keys.difference(citation_example):
-        raise SystemExit("citation_example missing required citation fields")
+        missing_example = sorted(required_keys.difference(citation_example))
+        raise SystemExit(f"citation_example missing required citation fields: {missing_example}")
 
 
 def _build_config(output_dir: Path) -> DemoConfig:
