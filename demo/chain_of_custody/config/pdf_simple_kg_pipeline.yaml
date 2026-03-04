@@ -42,7 +42,7 @@ text_splitter:
 pdf_loader:
  class_: pdf_loader.PdfLoader
 kg_writer:
-  class_: provenance_writer.ProvenanceNeo4jWriter
+  class_: demo.chain_of_custody.provenance_writer.ProvenanceNeo4jWriter
   params_:
     driver:
       resolver_: CONFIG_KEY
