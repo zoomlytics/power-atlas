@@ -61,7 +61,8 @@ def _validate_manifest(manifest_path: Path) -> None:
     if missing_keys:
         raise SystemExit(f"Missing citation fields in token: {sorted(missing_keys)}")
     for key in required_keys:
-        if not parsed[key]:
+        value = parsed.get(key)
+        if value is None or value == "":
             raise SystemExit(f"Citation field {key!r} must be non-empty")
     citation_example = retrieval_stage.get("citation_example")
     if not isinstance(citation_example, dict):

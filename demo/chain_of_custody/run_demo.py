@@ -22,6 +22,7 @@ ARTIFACTS_DIR = Path(__file__).resolve().parent / "artifacts"
 CONFIG_DIR = Path(__file__).resolve().parent / "config"
 PDF_PIPELINE_CONFIG_PATH = CONFIG_DIR / "pdf_simple_kg_pipeline.yaml"
 DEFAULT_DB = os.getenv("NEO4J_DATABASE", "neo4j")
+DEFAULT_CHUNK_SIZE = 1000  # FixedSizeSplitter chunk_size in pdf_simple_kg_pipeline.yaml
 
 # Default values for the chunk embedding index contract.
 # These are used as fallbacks if the YAML configuration does not provide them.
@@ -1021,9 +1022,10 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                 # Normalize them into the demo retrieval contract:
                 # Chunk.chunk_order + Chunk.embedding on every ingested Chunk.
                 # Character offsets follow a zero-based, inclusive end_char convention for citation tokens.
-                # The FixedSizeSplitter chunk_size is 1000 characters in pdf_simple_kg_pipeline.yaml,
-                # so we use 1000 as the deterministic fallback stride when start offsets are absent and
-                # subtract 1 from chunk_length when computing end_char to honor the inclusive convention.
+                # The FixedSizeSplitter chunk_size is 1000 characters in pdf_simple_kg_pipeline.yaml (DEFAULT_CHUNK_SIZE),
+                # so we use that as the deterministic fallback stride when start offsets are absent and subtract 1 from
+                # chunk_length when computing end_char to honor the inclusive convention. Vendor-provided end offsets
+                # (existing_end_char) are assumed to already use the same inclusive convention.
                 session.run(
                     """
                     MATCH (d:Document)
@@ -1036,7 +1038,8 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                     WHERE c.run_id IS NULL OR c.run_id = $run_id
                     WITH d,
                          c,
-                         toInteger(coalesce(c.chunk_order, c.index, c.chunk_index, 0)) AS normalized_chunk_order,
+                         toInteger(coalesce(c.chunk_order, c.index, c.chunk_index)) AS normalized_chunk_order,
+                         coalesce(toInteger(coalesce(c.chunk_order, c.index, c.chunk_index)), 0) AS fallback_chunk_order,
                          coalesce(c.page_number, c.page) AS normalized_page,
                          coalesce(c.start_char, c.start_offset, c.start, c.offset) AS existing_start_char,
                          coalesce(c.end_char, c.end_offset, c.end) AS existing_end_char,
@@ -1044,9 +1047,10 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                     WITH d,
                          c,
                          normalized_chunk_order,
+                         fallback_chunk_order,
                          normalized_page,
                          chunk_length,
-                         coalesce(existing_start_char, normalized_chunk_order * 1000) AS start_char_value,
+                         coalesce(existing_start_char, fallback_chunk_order * DEFAULT_CHUNK_SIZE) AS start_char_value,
                          existing_end_char
                     SET c.run_id = coalesce(c.run_id, $run_id),
                         c.source_uri = coalesce(c.source_uri, d.source_uri, $source_uri),
@@ -1055,7 +1059,7 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                         c.chunk_id = coalesce(
                             c.chunk_id,
                             c.uid,
-                            d.source_uri + ':' + toString(coalesce(normalized_chunk_order, 0))
+                            d.source_uri + ':' + toString(fallback_chunk_order)
                         ),
                         c.page_number = normalized_page,
                         c.page = coalesce(c.page, normalized_page),
