@@ -650,10 +650,6 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
             normalization_entry[1].get("default_chunk_stride"),
             module.CHUNK_FALLBACK_STRIDE,
         )
-        self.assertEqual(
-            normalization_entry[1].get("missing_chunk_offset"),
-            module.MISSING_CHUNK_OFFSET,
-        )
         self.assertIn("toIntegerOrNull", normalization_entry[0])
         self.assertTrue(
             any(

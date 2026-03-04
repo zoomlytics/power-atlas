@@ -24,7 +24,6 @@ PDF_PIPELINE_CONFIG_PATH = CONFIG_DIR / "pdf_simple_kg_pipeline.yaml"
 DEFAULT_DB = os.getenv("NEO4J_DATABASE", "neo4j")
 _DEFAULT_CHUNK_SIZE = 1000  # FixedSizeSplitter chunk_size in pdf_simple_kg_pipeline.yaml
 _DEFAULT_CHUNK_OVERLAP = 0
-MISSING_CHUNK_OFFSET = -1  # Sentinel for chunks with no ordering metadata
 
 # Default values for the chunk embedding index contract.
 # These are used as fallbacks if the YAML configuration does not provide them.
@@ -904,10 +903,11 @@ def _run_structured_ingest(config: DemoConfig, run_id: str) -> dict[str, Any]:
 
 
 def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, Any]:
-    pdf_path = FIXTURES_DIR / "unstructured" / "chain_of_custody.pdf"
+    pdf_path = (FIXTURES_DIR / "unstructured" / "chain_of_custody.pdf").resolve()
     if not pdf_path.exists():
         raise FileNotFoundError(f"Required PDF fixture not found: {pdf_path}")
-    pdf_source_uri = str(pdf_path)
+    pdf_file_path = str(pdf_path)
+    pdf_source_uri = pdf_path.as_uri()
     stage_run_id = run_id or _make_run_id("unstructured_ingest")
     run_root = config.output_dir / "runs" / stage_run_id
     pdf_ingest_dir = run_root / "pdf_ingest"
@@ -1025,7 +1025,7 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
             pipeline_result = asyncio.run(
                 pipeline.run(
                     {
-                        "file_path": pdf_source_uri,
+                        "file_path": pdf_file_path,
                     }
                 )
             )
@@ -1043,13 +1043,12 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                 # Chunk.chunk_order + Chunk.embedding on every ingested Chunk.
                 # Character offsets follow a zero-based, inclusive end_char convention for citation tokens.
                 # The FixedSizeSplitter stride (chunk_size - chunk_overlap) from the pipeline config is used as the
-                # deterministic fallback when start offsets are absent, and the MISSING_CHUNK_OFFSET sentinel (-1)
-                # propagates when chunk ordering metadata is unavailable. Vendor-provided end offsets (existing_end_char)
+                # deterministic fallback when start offsets are absent. Vendor-provided end offsets (existing_end_char)
                 # are assumed to already use the same inclusive convention.
                 session.run(
                     """
                     MATCH (d:Document)
-                    WHERE (d.path = $source_uri OR d.source_uri = $source_uri)
+                    WHERE d.path IN [$file_path, $source_uri] OR d.source_uri IN [$file_path, $source_uri]
                       AND (d.run_id IS NULL OR d.run_id = $run_id)
                     SET d.run_id = coalesce(d.run_id, $run_id),
                         d.source_uri = coalesce(d.source_uri, $source_uri)
@@ -1072,7 +1071,6 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                          chunk_length,
                          CASE
                              WHEN existing_start_char IS NOT NULL THEN existing_start_char
-                             WHEN normalized_chunk_order IS NULL THEN $missing_chunk_offset
                              ELSE fallback_chunk_order * $default_chunk_stride
                          END AS start_char_value,
                          existing_end_char,
@@ -1095,27 +1093,27 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                          c.end_char = CASE
                              WHEN end_char_int IS NOT NULL THEN end_char_int
                              WHEN existing_end_char IS NOT NULL THEN existing_end_char
-                             WHEN start_char_value = $missing_chunk_offset THEN $missing_chunk_offset
                              WHEN chunk_length IS NULL OR chunk_length <= 0 THEN start_char_value
                              ELSE start_char_value + chunk_length - 1
                          END,
                          c.embedding = coalesce(c.embedding, c.embedding_vector, c.vector, c.embeddings)
                     """,
                     run_id=stage_run_id,
+                    file_path=pdf_file_path,
                     source_uri=pdf_source_uri,
                     default_chunk_stride=CHUNK_FALLBACK_STRIDE,
-                    missing_chunk_offset=MISSING_CHUNK_OFFSET,
                 ).consume()
                 run_counts = session.run(
                     """
                     MATCH (d:Document)
-                    WHERE (d.path = $source_uri OR d.source_uri = $source_uri)
+                    WHERE d.path IN [$file_path, $source_uri] OR d.source_uri IN [$file_path, $source_uri]
                       AND d.run_id = $run_id
                     OPTIONAL MATCH (d)<-[:FROM_DOCUMENT]-(c:Chunk)
                     WHERE c.run_id = $run_id
                     RETURN count(DISTINCT d) AS document_count, count(c) AS chunk_count
                     """,
                     run_id=stage_run_id,
+                    file_path=pdf_file_path,
                     source_uri=pdf_source_uri,
                 ).single()
                 run_counts = _record_as_mapping(run_counts)
@@ -1136,7 +1134,7 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                 page_count_result = session.run(
                     """
                     MATCH (d:Document)
-                    WHERE (d.path = $source_uri OR d.source_uri = $source_uri)
+                    WHERE d.path IN [$file_path, $source_uri] OR d.source_uri IN [$file_path, $source_uri]
                       AND d.run_id = $run_id
                     MATCH (d)<-[:FROM_DOCUMENT]-(c:Chunk)
                     WHERE c.run_id = $run_id
@@ -1145,6 +1143,7 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                     RETURN count(DISTINCT page_value) AS page_count
                     """,
                     run_id=stage_run_id,
+                    file_path=pdf_file_path,
                     source_uri=pdf_source_uri,
                 ).single()
                 page_count_result = _record_as_mapping(page_count_result)
@@ -1163,7 +1162,7 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                 missing_chunk_order_count = session.run(
                     """
                     MATCH (d:Document)
-                    WHERE (d.path = $source_uri OR d.source_uri = $source_uri)
+                    WHERE d.path IN [$file_path, $source_uri] OR d.source_uri IN [$file_path, $source_uri]
                       AND d.run_id = $run_id
                     MATCH (d)<-[:FROM_DOCUMENT]-(c:Chunk)
                     WHERE c.run_id = $run_id
@@ -1205,6 +1204,7 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                     RETURN count(c) AS missing_page_count
                     """,
                     run_id=stage_run_id,
+                    file_path=pdf_file_path,
                     source_uri=pdf_source_uri,
                 ).single()["missing_page_count"]
                 if missing_page_count:
@@ -1212,7 +1212,7 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                 missing_char_offset_count = session.run(
                     """
                     MATCH (d:Document)
-                    WHERE (d.path = $source_uri OR d.source_uri = $source_uri)
+                    WHERE d.path IN [$file_path, $source_uri] OR d.source_uri IN [$file_path, $source_uri]
                       AND d.run_id = $run_id
                     MATCH (d)<-[:FROM_DOCUMENT]-(c:Chunk)
                     WHERE c.run_id = $run_id
@@ -1220,6 +1220,7 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                     RETURN count(c) AS missing_char_offset_count
                     """,
                     run_id=stage_run_id,
+                    file_path=pdf_file_path,
                     source_uri=pdf_source_uri,
                 ).single()["missing_char_offset_count"]
                 if missing_char_offset_count:
