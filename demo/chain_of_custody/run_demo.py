@@ -792,7 +792,7 @@ def _prepare_extracted_rows(
                 if len(unique_pages) > 1:
                     base_props["pages"] = unique_pages
 
-        fallback_chunk_label = (
+        fallback_identifier = (
             f"{node_chunk_ids[0]}_and_{len(node_chunk_ids) - 1}_more"
             if len(node_chunk_ids) > 1
             else node_chunk_ids[0]
@@ -807,7 +807,7 @@ def _prepare_extracted_rows(
                 ).strip()
             )
             properties = dict(base_props)
-            properties["claim_text"] = claim_text or f"claim_for_{fallback_chunk_label}"
+            properties["claim_text"] = claim_text or f"claim_for_{fallback_identifier}"
             for key in ("subject", "predicate", "object", "value", "claim_type"):
                 if key in node.properties:
                     properties[key] = node.properties[key]
@@ -832,7 +832,7 @@ def _prepare_extracted_rows(
                     or node.properties.get("text")
                     or ""
                 ).strip()
-            ) or f"mention_for_{fallback_chunk_label}"
+            ) or f"mention_for_{fallback_identifier}"
             properties = dict(base_props)
             properties["name"] = mention_text
             entity_type = node.properties.get("entity_type") or node.properties.get("type")
@@ -1683,6 +1683,7 @@ def _run_claim_and_mention_extraction(
         )
 
     all_extracted_rows = claim_rows + mention_rows
+    unique_chunk_ids = {chunk_id for row in all_extracted_rows for chunk_id in row["chunk_ids"]}
     summary = {
         "status": "live",
         "run_id": run_id,
@@ -1691,7 +1692,7 @@ def _run_claim_and_mention_extraction(
         "prompt_version": CLAIM_EXTRACTION_PROMPT_VERSION,
         "claims": len(claim_rows),
         "mentions": len(mention_rows),
-        "chunk_ids": sorted({chunk_id for row in all_extracted_rows for chunk_id in row["chunk_ids"]}),
+        "chunk_ids": sorted(unique_chunk_ids),
         "warnings": [],
     }
     summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
