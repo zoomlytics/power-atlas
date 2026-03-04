@@ -729,8 +729,10 @@ def _prepare_extracted_rows(
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     chunk_meta = {}
     for chunk in text_chunks:
-        metadata = chunk.metadata or {}
+        metadata = dict(chunk.metadata or {})
         metadata.setdefault("run_id", run_id)
+        if getattr(chunk, "index", None) is not None:
+            metadata.setdefault("chunk_index", chunk.index)
         chunk_meta[chunk.uid] = metadata
     claim_rows: list[dict[str, Any]] = []
     mention_rows: list[dict[str, Any]] = []
@@ -1850,7 +1852,7 @@ def run_independent_demo(config: DemoConfig, command: str) -> Path:
                 "CHAIN_OF_CUSTODY_UNSTRUCTURED_RUN_ID is not set. When running "
                 "'extract-claims' independently, set this to the run_id from a prior "
                 "'ingest' or 'ingest-pdf' command whose chunks you want to process "
-                "(for example, unstructured_ingest-20260301T120000Z)."
+                "(for example, a value like 'unstructured_ingest-20260304T224739123456Z-1a2b3c4d')."
             )
         stage_run_id = env_run_id
     else:
