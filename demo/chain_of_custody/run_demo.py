@@ -1021,6 +1021,9 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                 # Normalize them into the demo retrieval contract:
                 # Chunk.chunk_order + Chunk.embedding on every ingested Chunk.
                 # Character offsets follow a zero-based, inclusive end_char convention for citation tokens.
+                # The FixedSizeSplitter chunk_size is 1000 characters in pdf_simple_kg_pipeline.yaml,
+                # so we use 1000 as the deterministic fallback stride when start offsets are absent and
+                # subtract 1 from chunk_length when computing end_char to honor the inclusive convention.
                 session.run(
                     """
                     MATCH (d:Document)
