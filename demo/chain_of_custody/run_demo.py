@@ -1040,7 +1040,7 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                     WITH d,
                          c,
                          toInteger(coalesce(c.chunk_order, c.index, c.chunk_index)) AS normalized_chunk_order,
-                         coalesce(normalized_chunk_order, 0) AS fallback_chunk_order,
+                         coalesce(toInteger(coalesce(c.chunk_order, c.index, c.chunk_index)), 0) AS fallback_chunk_order,
                          coalesce(c.page_number, c.page) AS normalized_page,
                          coalesce(c.start_char, c.start_offset, c.start, c.offset) AS existing_start_char,
                          coalesce(c.end_char, c.end_offset, c.end) AS existing_end_char,
@@ -1074,7 +1074,7 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                              WHEN c.end_char IS NOT NULL THEN c.end_char
                              WHEN existing_end_char IS NOT NULL THEN existing_end_char
                              WHEN start_char_value = $missing_chunk_offset THEN $missing_chunk_offset
-                             WHEN chunk_length IS NULL OR chunk_length <= 0 THEN start_char_value
+                             WHEN chunk_length IS NULL OR chunk_length <= 0 THEN start_char_value - 1
                              ELSE start_char_value + chunk_length - 1
                          END,
                          c.embedding = coalesce(c.embedding, c.embedding_vector, c.vector, c.embeddings)
