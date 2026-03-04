@@ -582,6 +582,7 @@ def _claim_extraction_lexical_config() -> LexicalGraphConfig:
         chunk_index_property="chunk_index",
         chunk_text_property="text",
         chunk_embedding_property=CHUNK_EMBEDDING_PROPERTY,
+        node_to_chunk_relationship_type="MENTIONED_IN",
     )
 
 
@@ -619,13 +620,15 @@ def _claim_extraction_schema() -> GraphSchema:
     )
 
 
-def _chunk_id_from_node_id(node_id: str, known_chunk_ids: set[str]) -> str:
-    if node_id in known_chunk_ids:
-        return node_id
-    for chunk_id in known_chunk_ids:
-        if node_id.startswith(f"{chunk_id}:"):
-            return chunk_id
-    return node_id
+def _chunk_id_from_node_id(
+    node_id: str, node_chunk_map: dict[str, list[str]], *, relationship_type: str
+) -> list[str]:
+    if node_id in node_chunk_map:
+        return node_chunk_map[node_id]
+    raise ValueError(
+        f"Unable to resolve chunk id(s) for node id {node_id!r}; no {relationship_type!r} "
+        "relationships connect it to known chunks."
+    )
 
 
 def _record_as_mapping(record: Any) -> dict[str, Any]:
@@ -672,7 +675,7 @@ async def _async_read_chunks_and_extract(
     source_uri: str | None,
     neo4j_database: str,
     model_name: str,
-) -> tuple[Neo4jGraph, list[TextChunk]]:
+) -> tuple[Neo4jGraph, list[TextChunk], LexicalGraphConfig]:
     lexical_config = _claim_extraction_lexical_config()
     chunk_reader = RunScopedNeo4jChunkReader(
         driver,
@@ -699,7 +702,7 @@ async def _async_read_chunks_and_extract(
         )
     finally:
         await llm.async_client.close()
-    return graph, text_chunks.chunks
+    return graph, text_chunks.chunks, lexical_config
 
 
 def _prepare_extracted_rows(
@@ -710,6 +713,7 @@ def _prepare_extracted_rows(
     source_uri: str | None,
     extractor_model: str,
     extracted_at: str,
+    lexical_graph_config: LexicalGraphConfig,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     chunk_meta = {}
     for chunk in text_chunks:
@@ -719,34 +723,52 @@ def _prepare_extracted_rows(
     claim_rows: list[dict[str, Any]] = []
     mention_rows: list[dict[str, Any]] = []
     known_chunk_ids = set(chunk_meta)
+    node_chunk_map: dict[str, list[str]] = {}
+    node_chunk_rel_type = lexical_graph_config.node_to_chunk_relationship_type
+    for relationship in graph.relationships:
+        if relationship.type != node_chunk_rel_type:
+            continue
+        source_is_chunk = relationship.source_id in known_chunk_ids
+        target_is_chunk = relationship.target_id in known_chunk_ids
+        if not source_is_chunk and not target_is_chunk:
+            continue
+        chunk_id = relationship.source_id if source_is_chunk else relationship.target_id
+        node_id = relationship.target_id if source_is_chunk else relationship.source_id
+        node_chunk_map.setdefault(node_id, []).append(chunk_id)
 
     for node in graph.nodes:
-        node_chunk_id = _chunk_id_from_node_id(node.id, known_chunk_ids)
-        metadata = chunk_meta.get(node_chunk_id)
-        if metadata is None:
+        node_chunk_ids = _chunk_id_from_node_id(node.id, node_chunk_map, relationship_type=node_chunk_rel_type)
+        metadata_by_chunk = []
+        for chunk_id in node_chunk_ids:
+            metadata = chunk_meta.get(chunk_id)
+            if metadata is None:
+                raise ValueError(f"Extracted node {node.id!r} is missing chunk metadata for run {run_id}")
+            metadata_by_chunk.append(metadata)
+        if not metadata_by_chunk:
             raise ValueError(f"Extracted node {node.id!r} is missing chunk metadata for run {run_id}")
-        chunk_run_id = metadata.get("run_id") or run_id
-        if chunk_run_id != run_id:
+        chunk_run_ids = {metadata.get("run_id") or run_id for metadata in metadata_by_chunk}
+        if len(chunk_run_ids) != 1 or run_id not in chunk_run_ids:
             raise ValueError(
                 f"Chunk run_id mismatch for extracted node {node.id!r}: expected {run_id}, "
-                f"got {chunk_run_id}"
+                f"got {sorted(chunk_run_ids)}"
             )
-        provenance_source = metadata.get("source_uri") or source_uri
+        chunk_run_id = run_id
+        provenance_source = (metadata_by_chunk[0].get("source_uri") or source_uri) if metadata_by_chunk else source_uri
         base_props = {
             "run_id": chunk_run_id,
             "source_uri": provenance_source,
             "extractor_model": extractor_model,
             "extracted_at": extracted_at,
             "prompt_version": CLAIM_EXTRACTION_PROMPT_VERSION,
-            "chunk_ids": [node_chunk_id],
+            "chunk_ids": node_chunk_ids,
         }
         node_confidence = _coerce_confidence(node.properties.get("confidence"))
         if node_confidence is not None:
             base_props["confidence"] = node_confidence
-        if "chunk_index" in metadata:
-            base_props["chunk_index"] = metadata.get("chunk_index")
-        if "page_number" in metadata:
-            base_props["page"] = metadata.get("page_number")
+        if "chunk_index" in metadata_by_chunk[0]:
+            base_props["chunk_index"] = metadata_by_chunk[0].get("chunk_index")
+        if "page_number" in metadata_by_chunk[0]:
+            base_props["page"] = metadata_by_chunk[0].get("page_number")
 
         if node.label == "ExtractedClaim":
             claim_text = (
@@ -758,14 +780,14 @@ def _prepare_extracted_rows(
                 ).strip()
             )
             properties = dict(base_props)
-            properties["claim_text"] = claim_text or f"claim_for_{node_chunk_id}"
+            properties["claim_text"] = claim_text or f"claim_for_{node_chunk_ids[0]}"
             for key in ("subject", "predicate", "object", "value", "claim_type"):
                 if key in node.properties:
                     properties[key] = node.properties[key]
             claim_rows.append(
                 {
                     "claim_id": node.id,
-                    "chunk_id": node_chunk_id,
+                    "chunk_ids": node_chunk_ids,
                     "run_id": chunk_run_id,
                     "source_uri": provenance_source,
                     "properties": properties,
@@ -779,7 +801,7 @@ def _prepare_extracted_rows(
                     or node.properties.get("text")
                     or ""
                 ).strip()
-            ) or f"mention_for_{node_chunk_id}"
+            ) or f"mention_for_{node_chunk_ids[0]}"
             properties = dict(base_props)
             properties["name"] = mention_text
             entity_type = node.properties.get("entity_type") or node.properties.get("type")
@@ -788,7 +810,7 @@ def _prepare_extracted_rows(
             mention_rows.append(
                 {
                     "mention_id": node.id,
-                    "chunk_id": node_chunk_id,
+                    "chunk_ids": node_chunk_ids,
                     "run_id": chunk_run_id,
                     "source_uri": provenance_source,
                     "properties": properties,
@@ -809,7 +831,8 @@ def _write_extracted_rows(
         driver.execute_query(
             """
             UNWIND $rows AS row
-            MATCH (chunk:Chunk {chunk_id: row.chunk_id, run_id: row.run_id})
+            UNWIND row.chunk_ids AS chunk_id
+            MATCH (chunk:Chunk {chunk_id: chunk_id, run_id: row.run_id})
             MERGE (claim:ExtractedClaim {claim_id: row.claim_id, run_id: row.run_id})
             SET claim += row.properties
             MERGE (claim)-[supported_by:SUPPORTED_BY]->(chunk)
@@ -817,7 +840,7 @@ def _write_extracted_rows(
                 supported_by.source_uri = row.source_uri,
                 supported_by.extracted_at = row.properties.extracted_at,
                 supported_by.prompt_version = row.properties.prompt_version,
-                supported_by.chunk_id = row.chunk_id
+                supported_by.chunk_id = chunk_id
             """,
             parameters_={"rows": claim_rows},
             database_=neo4j_database,
@@ -826,7 +849,8 @@ def _write_extracted_rows(
         driver.execute_query(
             """
             UNWIND $rows AS row
-            MATCH (chunk:Chunk {chunk_id: row.chunk_id, run_id: row.run_id})
+            UNWIND row.chunk_ids AS chunk_id
+            MATCH (chunk:Chunk {chunk_id: chunk_id, run_id: row.run_id})
             MERGE (mention:EntityMention {mention_id: row.mention_id, run_id: row.run_id})
             SET mention += row.properties
             MERGE (mention)-[mentioned:MENTIONED_IN]->(chunk)
@@ -834,7 +858,7 @@ def _write_extracted_rows(
                 mentioned.source_uri = row.source_uri,
                 mentioned.extracted_at = row.properties.extracted_at,
                 mentioned.prompt_version = row.properties.prompt_version,
-                mentioned.chunk_id = row.chunk_id
+                mentioned.chunk_id = chunk_id
             """,
             parameters_={"rows": mention_rows},
             database_=neo4j_database,
@@ -1600,7 +1624,7 @@ def _run_claim_and_mention_extraction(
 
     driver = neo4j.GraphDatabase.driver(config.neo4j_uri, auth=(config.neo4j_username, config.neo4j_password))
     with driver:
-        graph, text_chunks = asyncio.run(
+        graph, text_chunks, lexical_config = asyncio.run(
             _async_read_chunks_and_extract(
                 driver,
                 run_id=run_id,
@@ -1616,6 +1640,7 @@ def _run_claim_and_mention_extraction(
             source_uri=source_uri,
             extractor_model=config.openai_model,
             extracted_at=extracted_at,
+            lexical_graph_config=lexical_config,
         )
         _write_extracted_rows(
             driver,
@@ -1632,7 +1657,7 @@ def _run_claim_and_mention_extraction(
         "prompt_version": CLAIM_EXTRACTION_PROMPT_VERSION,
         "claims": len(claim_rows),
         "mentions": len(mention_rows),
-        "chunk_ids": sorted({row["chunk_id"] for row in claim_rows + mention_rows}),
+        "chunk_ids": sorted({chunk_id for row in claim_rows + mention_rows for chunk_id in row["chunk_ids"]}),
         "warnings": [],
     }
     summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
@@ -1767,8 +1792,17 @@ def run_independent_demo(config: DemoConfig, command: str) -> Path:
         raise ValueError(f"Unsupported independent command: {command}")
     stage_name, run_scope_key, stage_runner = stage_runners[command]
     run_scope = run_scope_key.removesuffix("_run_id")
-    env_run_id = os.getenv("CHAIN_OF_CUSTODY_UNSTRUCTURED_RUN_ID")
-    stage_run_id = env_run_id if command == "extract-claims" and env_run_id else _make_run_id(run_scope)
+    if command == "extract-claims":
+        env_run_id = os.getenv("CHAIN_OF_CUSTODY_UNSTRUCTURED_RUN_ID")
+        if not env_run_id:
+            raise ValueError(
+                "CHAIN_OF_CUSTODY_UNSTRUCTURED_RUN_ID is not set. When running "
+                "'extract-claims' independently, set this to the unstructured "
+                "ingest run_id whose chunks you want to process."
+            )
+        stage_run_id = env_run_id
+    else:
+        stage_run_id = _make_run_id(run_scope)
     stage_output = stage_runner(config, stage_run_id)
     manifest = {
         "run_id": stage_run_id,
@@ -1815,6 +1849,20 @@ def _add_common_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--neo4j-password", default=os.getenv("NEO4J_PASSWORD", "CHANGE_ME_BEFORE_USE"))
     parser.add_argument("--neo4j-database", default=DEFAULT_DB)
     parser.add_argument("--openai-model", default=os.getenv("OPENAI_MODEL", "gpt-4o-mini"))
+
+
+def _build_demo_config_from_args(args: argparse.Namespace) -> DemoConfig:
+    if not args.dry_run and args.neo4j_password in ("", "CHANGE_ME_BEFORE_USE"):
+        raise SystemExit("Set NEO4J_PASSWORD or pass --neo4j-password when using --live")
+    return DemoConfig(
+        dry_run=args.dry_run,
+        output_dir=args.output_dir,
+        neo4j_uri=args.neo4j_uri,
+        neo4j_username=args.neo4j_username,
+        neo4j_password=args.neo4j_password,
+        neo4j_database=args.neo4j_database,
+        openai_model=args.openai_model,
+    )
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -1889,39 +1937,15 @@ def main() -> None:
         lint_result = _lint_and_clean_structured_csvs(run_id=run_id, output_dir=config.output_dir)
         print(f"Structured lint report written to: {lint_result['lint_report_path']}")
         return
-    if args.command in {"ingest", "ingest-structured", "ingest-pdf"}:
-        if not args.dry_run and args.neo4j_password in ("", "CHANGE_ME_BEFORE_USE"):
-            raise SystemExit("Set NEO4J_PASSWORD or pass --neo4j-password when using --live")
-        config = DemoConfig(
-            dry_run=args.dry_run,
-            output_dir=args.output_dir,
-            neo4j_uri=args.neo4j_uri,
-            neo4j_username=args.neo4j_username,
-            neo4j_password=args.neo4j_password,
-            neo4j_database=args.neo4j_database,
-            openai_model=args.openai_model,
-        )
+    config_commands = {"ingest", "ingest-structured", "ingest-pdf", "extract-claims"}
+    if args.command in config_commands:
+        config = _build_demo_config_from_args(args)
         if args.command == "ingest":
             manifest_path = run_demo(config)
             print(f"Demo manifest written to: {manifest_path}")
-        elif args.command in {"ingest-structured", "ingest-pdf"}:
+        else:
             manifest_path = run_independent_demo(config, args.command)
             print(f"Independent run manifest written to: {manifest_path}")
-        return
-    if args.command == "extract-claims":
-        if not args.dry_run and args.neo4j_password in ("", "CHANGE_ME_BEFORE_USE"):
-            raise SystemExit("Set NEO4J_PASSWORD or pass --neo4j-password when using --live")
-        config = DemoConfig(
-            dry_run=args.dry_run,
-            output_dir=args.output_dir,
-            neo4j_uri=args.neo4j_uri,
-            neo4j_username=args.neo4j_username,
-            neo4j_password=args.neo4j_password,
-            neo4j_database=args.neo4j_database,
-            openai_model=args.openai_model,
-        )
-        manifest_path = run_independent_demo(config, args.command)
-        print(f"Independent run manifest written to: {manifest_path}")
         return
     if args.command == "reset":
         print("Stub: use demo/chain_of_custody/reset_demo_db.py --confirm to reset demo data.")
