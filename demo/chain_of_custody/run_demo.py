@@ -753,7 +753,13 @@ def _prepare_extracted_rows(
                 f"got {sorted(chunk_run_ids)}"
             )
         chunk_run_id = run_id
-        provenance_source = metadata_by_chunk[0].get("source_uri") or source_uri
+        provenance_sources = {meta.get("source_uri") or source_uri for meta in metadata_by_chunk}
+        if len(provenance_sources) > 1:
+            raise ValueError(
+                f"Extracted node {node.id!r} spans multiple source_uris; "
+                f"expected a single source for run {run_id}, got {sorted(provenance_sources)}"
+            )
+        provenance_source = next(iter(provenance_sources)) if provenance_sources else source_uri
         base_props = {
             "run_id": chunk_run_id,
             "source_uri": provenance_source,
@@ -769,6 +775,8 @@ def _prepare_extracted_rows(
         if chunk_indexes:
             unique_indexes = sorted({idx for idx in chunk_indexes if idx is not None})
             if unique_indexes:
+                # Preserve backward compatibility by keeping the primary (lowest) index while
+                # retaining the full list when multiple chunks are referenced.
                 base_props["chunk_index"] = unique_indexes[0]
                 if len(unique_indexes) > 1:
                     base_props["chunk_indexes"] = unique_indexes
@@ -776,10 +784,17 @@ def _prepare_extracted_rows(
         if page_numbers:
             unique_pages = sorted({page for page in page_numbers if page is not None})
             if unique_pages:
+                # Preserve backward compatibility by keeping the primary (lowest) page while
+                # retaining the full list when multiple pages are referenced.
                 base_props["page"] = unique_pages[0]
                 if len(unique_pages) > 1:
                     base_props["pages"] = unique_pages
 
+        fallback_chunk_suffix = (
+            f"{node_chunk_ids[0]}_and_{len(node_chunk_ids) - 1}_more"
+            if len(node_chunk_ids) > 1
+            else node_chunk_ids[0]
+        )
         if node.label == "ExtractedClaim":
             claim_text = (
                 str(
@@ -790,7 +805,7 @@ def _prepare_extracted_rows(
                 ).strip()
             )
             properties = dict(base_props)
-            properties["claim_text"] = claim_text or f"claim_for_{node_chunk_ids[0]}"
+            properties["claim_text"] = claim_text or f"claim_for_{fallback_chunk_suffix}"
             for key in ("subject", "predicate", "object", "value", "claim_type"):
                 if key in node.properties:
                     properties[key] = node.properties[key]
@@ -812,7 +827,7 @@ def _prepare_extracted_rows(
                     or node.properties.get("text")
                     or ""
                 ).strip()
-            ) or f"mention_for_{node_chunk_ids[0]}"
+            ) or f"mention_for_{fallback_chunk_suffix}"
             properties = dict(base_props)
             properties["name"] = mention_text
             entity_type = node.properties.get("entity_type") or node.properties.get("type")
