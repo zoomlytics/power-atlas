@@ -1020,6 +1020,7 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                 # index/chunk_index and embedding/embedding_vector/vector/embeddings.
                 # Normalize them into the demo retrieval contract:
                 # Chunk.chunk_order + Chunk.embedding on every ingested Chunk.
+                # Character offsets follow a zero-based, inclusive end_char convention for citation tokens.
                 session.run(
                     """
                     MATCH (d:Document)
@@ -1055,7 +1056,6 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                         ),
                         c.page_number = normalized_page,
                         c.page = coalesce(c.page, normalized_page),
-                        // Character offsets are zero-based and end_char is inclusive.
                         c.start_char = coalesce(c.start_char, start_char_value),
                         c.end_char = coalesce(
                             c.end_char,
