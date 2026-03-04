@@ -1763,11 +1763,8 @@ def run_independent_demo(config: DemoConfig, command: str) -> Path:
         raise ValueError(f"Unsupported independent command: {command}")
     stage_name, run_scope_key, stage_runner = stage_runners[command]
     run_scope = run_scope_key.removesuffix("_run_id")
-    stage_run_id = (
-        os.getenv("CHAIN_OF_CUSTODY_UNSTRUCTURED_RUN_ID")
-        if command == "extract-claims" and os.getenv("CHAIN_OF_CUSTODY_UNSTRUCTURED_RUN_ID")
-        else _make_run_id(run_scope)
-    )
+    env_run_id = os.getenv("CHAIN_OF_CUSTODY_UNSTRUCTURED_RUN_ID")
+    stage_run_id = env_run_id if command == "extract-claims" and env_run_id else _make_run_id(run_scope)
     stage_output = stage_runner(config, stage_run_id)
     manifest = {
         "run_id": stage_run_id,
