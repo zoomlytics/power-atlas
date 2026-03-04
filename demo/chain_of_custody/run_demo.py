@@ -769,12 +769,16 @@ def _prepare_extracted_rows(
         if chunk_indexes:
             unique_indexes = sorted({idx for idx in chunk_indexes if idx is not None})
             if unique_indexes:
-                base_props["chunk_index"] = unique_indexes[0] if len(unique_indexes) == 1 else unique_indexes
+                base_props["chunk_index"] = unique_indexes[0]
+                if len(unique_indexes) > 1:
+                    base_props["chunk_indexes"] = unique_indexes
         page_numbers = [meta.get("page_number") for meta in metadata_by_chunk if "page_number" in meta]
         if page_numbers:
             unique_pages = sorted({page for page in page_numbers if page is not None})
             if unique_pages:
-                base_props["page"] = unique_pages[0] if len(unique_pages) == 1 else unique_pages
+                base_props["page"] = unique_pages[0]
+                if len(unique_pages) > 1:
+                    base_props["pages"] = unique_pages
 
         if node.label == "ExtractedClaim":
             claim_text = (
@@ -793,6 +797,7 @@ def _prepare_extracted_rows(
             claim_rows.append(
                 {
                     "claim_id": node.id,
+                    "chunk_id": node_chunk_ids[0],
                     "chunk_ids": node_chunk_ids,
                     "run_id": chunk_run_id,
                     "source_uri": provenance_source,
@@ -816,6 +821,7 @@ def _prepare_extracted_rows(
             mention_rows.append(
                 {
                     "mention_id": node.id,
+                    "chunk_id": node_chunk_ids[0],
                     "chunk_ids": node_chunk_ids,
                     "run_id": chunk_run_id,
                     "source_uri": provenance_source,
@@ -1804,7 +1810,8 @@ def run_independent_demo(config: DemoConfig, command: str) -> Path:
             raise ValueError(
                 "CHAIN_OF_CUSTODY_UNSTRUCTURED_RUN_ID is not set. When running "
                 "'extract-claims' independently, set this to the run_id from a prior "
-                "'ingest' or 'ingest-pdf' command whose chunks you want to process."
+                "'ingest' or 'ingest-pdf' command whose chunks you want to process "
+                "(for example, unstructured_ingest-20250304T120000Z)."
             )
         stage_run_id = env_run_id
     else:
