@@ -54,6 +54,11 @@ Manifest run-boundary notes:
   - `run_scopes.structured_ingest_run_id` or `run_scopes.unstructured_ingest_run_id` (only the relevant producer scope key is present)
 - In all modes, each stage emits its own `run_id` so provenance remains non-destructive and auditable across reruns
 
+## Run ID provenance contract
+
+- Vendor pipelines maintain an orchestration `run_id` (from `PipelineResult.run_id` / `RunContext.run_id`) for callbacks and notifications; the demo now passes this run scope into `document_metadata` for PDF ingest so vendor writers can see it.
+- Persisted provenance for reset/retrieval uses the same run scope stored on `Document`/`Chunk` nodes (`run_id`, plus `dataset_id` and `source_uri` where applicable); normalization still runs post-ingest to keep legacy reset/retrieval scripts aligned.
+
 ## Fixtures and reproducibility
 
 - `fixtures/structured/*.csv`: claim/evidence graph seed rows

@@ -908,6 +908,7 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
         raise FileNotFoundError(f"Required PDF fixture not found: {pdf_path}")
     pdf_file_path = str(pdf_path)
     pdf_source_uri = pdf_path.as_uri()
+    dataset_id = "chain_of_custody_dataset_v1"
     stage_run_id = run_id or _make_run_id("unstructured_ingest")
     run_root = config.output_dir / "runs" / stage_run_id
     pdf_ingest_dir = run_root / "pdf_ingest"
@@ -929,6 +930,7 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
     if config.dry_run:
         ingest_summary = {
             "run_id": stage_run_id,
+            "dataset_id": dataset_id,
             "source_uri": pdf_source_uri,
             "pdf_fingerprint_sha256": pdf_fingerprint_sha256,
             "counts": summary_counts,
@@ -1026,6 +1028,11 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                 pipeline.run(
                     {
                         "file_path": pdf_file_path,
+                        "document_metadata": {
+                            "run_id": stage_run_id,
+                            "dataset_id": dataset_id,
+                            "source_uri": pdf_source_uri,
+                        },
                     }
                 )
             )
@@ -1051,7 +1058,8 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                     WHERE (d.path = $file_path OR d.source_uri = $source_uri)
                       AND (d.run_id IS NULL OR d.run_id = $run_id)
                     SET d.run_id = coalesce(d.run_id, $run_id),
-                        d.source_uri = coalesce(d.source_uri, $source_uri)
+                        d.source_uri = coalesce(d.source_uri, $source_uri),
+                        d.dataset_id = coalesce(d.dataset_id, $dataset_id)
                     WITH d
                     MATCH (d)<-[:FROM_DOCUMENT]-(c:Chunk)
                     WHERE c.run_id IS NULL OR c.run_id = $run_id
@@ -1078,30 +1086,32 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
                          toIntegerOrNull(c.start_char) AS start_char_int,
                          toIntegerOrNull(c.end_char) AS end_char_int,
                          coalesce(toString(c.uid), toString(coalesce(chunk_index_int, fallback_chunk_order))) AS missing_chunk_discriminator
-                      SET c.run_id = coalesce(c.run_id, $run_id),
-                          c.source_uri = coalesce(c.source_uri, d.source_uri, $source_uri),
-                          c.chunk_order = normalized_chunk_order,
-                          c.chunk_index = coalesce(chunk_index_int, normalized_chunk_order),
-                          c.chunk_id = CASE
-                              WHEN c.chunk_id IS NOT NULL THEN c.chunk_id
-                              WHEN c.uid IS NOT NULL THEN c.uid
-                              WHEN normalized_chunk_order IS NULL THEN d.source_uri + ':missing_chunk_order:' + missing_chunk_discriminator
-                              ELSE d.source_uri + ':' + toString(normalized_chunk_order)
+                       SET c.run_id = coalesce(c.run_id, $run_id),
+                           c.source_uri = coalesce(c.source_uri, d.source_uri, $source_uri),
+                           c.dataset_id = coalesce(c.dataset_id, d.dataset_id, $dataset_id),
+                           c.chunk_order = normalized_chunk_order,
+                           c.chunk_index = coalesce(chunk_index_int, normalized_chunk_order),
+                           c.chunk_id = CASE
+                               WHEN c.chunk_id IS NOT NULL THEN c.chunk_id
+                               WHEN c.uid IS NOT NULL THEN c.uid
+                               WHEN normalized_chunk_order IS NULL THEN d.source_uri + ':missing_chunk_order:' + missing_chunk_discriminator
+                               ELSE d.source_uri + ':' + toString(normalized_chunk_order)
+                           END,
+                          c.page_number = normalized_page,
+                          c.page = normalized_page,
+                          c.start_char = coalesce(start_char_int, start_char_value),
+                          c.end_char = CASE
+                              WHEN end_char_int IS NOT NULL THEN end_char_int
+                              WHEN existing_end_char IS NOT NULL THEN existing_end_char
+                              WHEN chunk_length IS NULL OR chunk_length <= 0 THEN start_char_value
+                              ELSE start_char_value + chunk_length - 1
                           END,
-                         c.page_number = normalized_page,
-                         c.page = normalized_page,
-                         c.start_char = coalesce(start_char_int, start_char_value),
-                         c.end_char = CASE
-                             WHEN end_char_int IS NOT NULL THEN end_char_int
-                             WHEN existing_end_char IS NOT NULL THEN existing_end_char
-                             WHEN chunk_length IS NULL OR chunk_length <= 0 THEN start_char_value
-                             ELSE start_char_value + chunk_length - 1
-                         END,
-                         c.embedding = coalesce(c.embedding, c.embedding_vector, c.vector, c.embeddings)
+                          c.embedding = coalesce(c.embedding, c.embedding_vector, c.vector, c.embeddings)
                     """,
                     run_id=stage_run_id,
                     file_path=pdf_file_path,
                     source_uri=pdf_source_uri,
+                    dataset_id=dataset_id,
                     default_chunk_stride=CHUNK_FALLBACK_STRIDE,
                 ).consume()
                 run_counts = session.run(
@@ -1237,6 +1247,7 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
 
     ingest_summary = {
         "run_id": stage_run_id,
+        "dataset_id": dataset_id,
         "source_uri": pdf_source_uri,
         "pdf_fingerprint_sha256": pdf_fingerprint_sha256,
         "counts": summary_counts,
@@ -1270,6 +1281,7 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
         "pipeline_result": _normalize_pipeline_result(pipeline_result),
         "provenance": {
             "run_id": stage_run_id,
+            "dataset_id": dataset_id,
             "source_uri": pdf_source_uri,
             "chunk_order_property": "chunk_order",
             "chunk_id_property": "chunk_id",
