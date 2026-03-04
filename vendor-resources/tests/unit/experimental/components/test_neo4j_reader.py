@@ -16,20 +16,46 @@ from unittest.mock import Mock
 
 import neo4j
 import pytest
-import sys
+import importlib.util
 from pathlib import Path
 from neo4j_graphrag.experimental.components.neo4j_reader import (
     Neo4jChunkReader,
 )
 from neo4j_graphrag.experimental.components.types import LexicalGraphConfig, TextChunks
 
-_EXAMPLES_ROOT = Path(__file__).resolve().parents[4] / "examples"
-if str(_EXAMPLES_ROOT) not in sys.path:
-    sys.path.append(str(_EXAMPLES_ROOT))
 
-from customize.build_graph.components.chunk_reader.neo4j_chunk_reader import (  # noqa: E402
-    RunScopedNeo4jChunkReader,
-)
+def _load_run_scoped_reader_class():
+    test_path = Path(__file__).resolve()
+    examples_root = None
+    for parent in test_path.parents:
+        if parent.name == "vendor-resources":
+            candidate = parent / "examples"
+            if candidate.exists():
+                examples_root = candidate
+                break
+    if examples_root is None:
+        raise RuntimeError("Unable to locate vendor-resources/examples directory")
+    utils_path = (
+        examples_root
+        / "customize"
+        / "build_graph"
+        / "components"
+        / "chunk_reader"
+        / "utils.py"
+    )
+    if not utils_path.exists():
+        raise RuntimeError(f"Expected chunk reader utilities at {utils_path} were not found")
+    spec = importlib.util.spec_from_file_location("chunk_reader_utils", utils_path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Unable to load chunk reader utilities from {utils_path}")
+    utils_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(utils_module)
+    return utils_module.load_run_scoped_reader()
+
+
+@pytest.fixture(scope="module")
+def run_scoped_reader_cls():
+    return _load_run_scoped_reader_class()
 
 
 @pytest.mark.asyncio
@@ -140,7 +166,9 @@ async def test_neo4j_chunk_reader_fetch_embedding(driver: Mock) -> None:
 
 
 @pytest.mark.asyncio
-async def test_run_scoped_chunk_reader_filters(driver: Mock) -> None:
+async def test_run_scoped_chunk_reader_filters(
+    driver: Mock, run_scoped_reader_cls
+) -> None:
     driver.execute_query.return_value = (
         [
             neo4j.Record(
@@ -158,7 +186,7 @@ async def test_run_scoped_chunk_reader_filters(driver: Mock) -> None:
         None,
         None,
     )
-    chunk_reader = RunScopedNeo4jChunkReader(
+    chunk_reader = run_scoped_reader_cls(
         driver,
         run_id="run-123",
         source_uri="file://source.pdf",
@@ -181,9 +209,9 @@ async def test_run_scoped_chunk_reader_filters(driver: Mock) -> None:
 
 
 @pytest.mark.asyncio
-async def test_run_scoped_chunk_reader_empty(driver: Mock) -> None:
+async def test_run_scoped_chunk_reader_empty(driver: Mock, run_scoped_reader_cls) -> None:
     driver.execute_query.return_value = ([], None, None)
-    chunk_reader = RunScopedNeo4jChunkReader(driver, run_id="missing-run")
+    chunk_reader = run_scoped_reader_cls(driver, run_id="missing-run")
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="missing-run"):
         await chunk_reader.run()

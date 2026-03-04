@@ -7,7 +7,7 @@
 from __future__ import annotations
 
 import asyncio
-import sys
+import importlib.util
 from pathlib import Path
 
 from neo4j_graphrag.embeddings.openai import OpenAIEmbeddings
@@ -32,13 +32,25 @@ from neo4j_graphrag.experimental.pipeline import Pipeline
 from neo4j_graphrag.experimental.pipeline.pipeline import PipelineResult
 from neo4j_graphrag.llm import LLMInterface, OpenAILLM
 
-_EXAMPLES_ROOT = Path(__file__).resolve().parents[3]
-if str(_EXAMPLES_ROOT) not in sys.path:
-    sys.path.append(str(_EXAMPLES_ROOT))
-
-from customize.build_graph.components.chunk_reader.neo4j_chunk_reader import (  # noqa: E402
-    RunScopedNeo4jChunkReader,
-)
+pipeline_path = Path(__file__).resolve()
+components_root = None
+for parent in pipeline_path.parents:
+    if parent.name == "build_graph":
+        candidate = parent / "components"
+        if candidate.exists():
+            components_root = candidate
+            break
+if components_root is None:
+    raise RuntimeError("Unable to locate build_graph/components directory")
+utils_path = components_root / "chunk_reader" / "utils.py"
+if not utils_path.exists():
+    raise RuntimeError(f"Chunk reader utilities not found at {utils_path}")
+spec = importlib.util.spec_from_file_location("chunk_reader_utils", utils_path)
+if spec is None or spec.loader is None:
+    raise ImportError(f"Unable to load chunk reader utilities from {utils_path}")
+utils_module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(utils_module)
+load_run_scoped_reader = utils_module.load_run_scoped_reader
 
 import neo4j
 
@@ -108,7 +120,7 @@ async def read_chunk_and_perform_entity_extraction(
     *,
     run_id: str | None = None,
     source_uri: str | None = None,
-    use_run_scoped_reader: bool = True,
+    use_run_scoped_reader: bool = False,
 ) -> PipelineResult:
     """This is where we define and run the KG builder pipeline, instantiating a few
     components:
@@ -125,17 +137,17 @@ async def read_chunk_and_perform_entity_extraction(
     """
     pipe = Pipeline()
     # define the components
-    reader = (
-        RunScopedNeo4jChunkReader(
+    if use_run_scoped_reader:
+        run_scoped_cls = load_run_scoped_reader()
+        reader = run_scoped_cls(
             neo4j_driver,
             run_id=run_id,
             source_uri=source_uri,
             neo4j_database=None,
             fail_on_empty=True,
         )
-        if use_run_scoped_reader and run_id
-        else Neo4jChunkReader(neo4j_driver)
-    )
+    else:
+        reader = Neo4jChunkReader(neo4j_driver)
     pipe.add_component(reader, "reader")
     pipe.add_component(SchemaBuilder(), "schema")
     pipe.add_component(
