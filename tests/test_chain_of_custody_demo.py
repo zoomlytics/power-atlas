@@ -78,6 +78,8 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
 
             def run(self, query, **kwargs):
                 calls.setdefault("queries", []).append((query, kwargs))
+                # Sort by marker length so specific markers (e.g., "missing_page_count")
+                # take precedence over substrings like "page_count".
                 for marker, payload in sorted(
                     query_payloads.items(), key=lambda item: len(item[0]), reverse=True
                 ):

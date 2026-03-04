@@ -66,11 +66,12 @@ class ProvenanceNeo4jWriter(Neo4jWriter):
             if node.label != chunk_label:
                 continue
             props = dict(node.properties or {})
-            doc_props = document_props.get(chunk_to_document.get(node.id, ""))
+            doc_id = chunk_to_document.get(node.id)
+            doc_props = document_props.get(doc_id) if doc_id else None
             if run_id:
                 props.setdefault("run_id", run_id)
-            if self.dataset_id and doc_props:
-                props.setdefault("dataset_id", doc_props.get("dataset_id", self.dataset_id))
+            if self.dataset_id:
+                props.setdefault("dataset_id", doc_props.get("dataset_id") if doc_props else self.dataset_id)
             if doc_props:
                 source_uri = doc_props.get("source_uri")
                 if source_uri:
