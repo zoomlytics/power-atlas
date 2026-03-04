@@ -82,15 +82,31 @@ def _load_provenance_writer():
 
     fake_pydantic.validate_call = _validate_call
 
+    # Mark parent modules as packages by setting __path__
+    fake_graphrag = types.ModuleType("neo4j_graphrag")
+    fake_graphrag.__path__ = []
+
+    fake_graphrag_experimental = types.ModuleType("neo4j_graphrag.experimental")
+    fake_graphrag_experimental.__path__ = []
+
+    fake_components = types.ModuleType("neo4j_graphrag.experimental.components")
+    fake_components.__path__ = []
+
+    fake_pipeline = types.ModuleType("neo4j_graphrag.experimental.pipeline")
+    fake_pipeline.__path__ = []
+
+    fake_pipeline_types = types.ModuleType("neo4j_graphrag.experimental.pipeline.types")
+    fake_pipeline_types.__path__ = []
+
     injected = {
         "neo4j": fake_neo4j,
-        "neo4j_graphrag": types.ModuleType("neo4j_graphrag"),
-        "neo4j_graphrag.experimental": types.ModuleType("neo4j_graphrag.experimental"),
-        "neo4j_graphrag.experimental.components": types.ModuleType("neo4j_graphrag.experimental.components"),
+        "neo4j_graphrag": fake_graphrag,
+        "neo4j_graphrag.experimental": fake_graphrag_experimental,
+        "neo4j_graphrag.experimental.components": fake_components,
         "neo4j_graphrag.experimental.components.kg_writer": fake_kg_writer,
         "neo4j_graphrag.experimental.components.types": fake_types,
-        "neo4j_graphrag.experimental.pipeline": types.ModuleType("neo4j_graphrag.experimental.pipeline"),
-        "neo4j_graphrag.experimental.pipeline.types": types.ModuleType("neo4j_graphrag.experimental.pipeline.types"),
+        "neo4j_graphrag.experimental.pipeline": fake_pipeline,
+        "neo4j_graphrag.experimental.pipeline.types": fake_pipeline_types,
         "neo4j_graphrag.experimental.pipeline.types.context": fake_context,
         "pydantic": fake_pydantic,
     }
