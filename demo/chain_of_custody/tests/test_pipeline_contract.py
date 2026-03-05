@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import warnings
 
 import pytest
 import yaml
@@ -119,3 +120,18 @@ def test_refresh_pipeline_contract_falls_back_on_invalid_types(tmp_path, monkeyp
     assert pipeline.EMBEDDER_MODEL_NAME == pipeline._DEFAULT_EMBEDDER_MODEL_NAME
     assert pipeline.CHUNK_FALLBACK_STRIDE == max(pipeline._DEFAULT_CHUNK_SIZE - pipeline._DEFAULT_CHUNK_OVERLAP, 1)
     assert pipeline.DATASET_ID == pipeline._DEFAULT_DATASET_ID
+
+
+def test_coerce_identifier_strips_and_accepts_valid():
+    assert pipeline._coerce_identifier("  Foo_1 ", "default", "field") == "Foo_1"
+
+
+def test_coerce_identifier_warns_and_falls_back(monkeypatch):
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        result = pipeline._coerce_identifier("invalid space", "default", "field")
+    assert result == "default"
+    assert caught
+    warning = caught[0]
+    assert issubclass(warning.category, RuntimeWarning)
+    assert warning.filename.endswith(("contracts/pipeline.py", "test_pipeline_contract.py"))
