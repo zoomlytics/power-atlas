@@ -32,22 +32,24 @@ DATASET_ID = _DEFAULT_DATASET_ID
 
 
 def refresh_pipeline_contract() -> None:
+    """Force a reload of the pipeline contract from disk, even if already loaded."""
     global PIPELINE_CONFIG_DATA, CHUNK_EMBEDDING_INDEX_NAME, CHUNK_EMBEDDING_LABEL, CHUNK_EMBEDDING_PROPERTY
     global CHUNK_EMBEDDING_DIMENSIONS, EMBEDDER_MODEL_NAME, CHUNK_FALLBACK_STRIDE, DATASET_ID
     global _PIPELINE_CONTRACT_LOADED
-
-    """Force a reload of the pipeline contract from disk, even if already loaded."""
     with _PIPELINE_CONTRACT_LOCK:
         _load_pipeline_contract()
+        _PIPELINE_CONTRACT_LOADED = True
 
 
 def ensure_pipeline_contract_loaded() -> None:
+    """Load the pipeline contract once in a thread-safe way."""
     with _PIPELINE_CONTRACT_LOCK:
         if not _PIPELINE_CONTRACT_LOADED:
             _load_pipeline_contract()
 
 
 def _load_pipeline_contract() -> None:
+    """Internal helper that reads the pipeline contract from disk and updates globals."""
     global PIPELINE_CONFIG_DATA, CHUNK_EMBEDDING_INDEX_NAME, CHUNK_EMBEDDING_LABEL, CHUNK_EMBEDDING_PROPERTY
     global CHUNK_EMBEDDING_DIMENSIONS, EMBEDDER_MODEL_NAME, CHUNK_FALLBACK_STRIDE, DATASET_ID, _PIPELINE_CONTRACT_LOADED
 
