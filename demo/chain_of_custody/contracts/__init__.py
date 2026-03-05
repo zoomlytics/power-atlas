@@ -29,6 +29,8 @@ __all__ = [
     "ARTIFACTS_DIR",
     "build_batch_manifest",
     "build_stage_manifest",
+    "claim_extraction_lexical_config",
+    "claim_extraction_schema",
     "COMMON_PREDICATE_LABELS",
     "CONFIG_DIR",
     "CSV_FIRST_DATA_ROW",
