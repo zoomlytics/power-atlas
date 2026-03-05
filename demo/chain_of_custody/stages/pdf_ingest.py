@@ -92,7 +92,11 @@ def run_pdf_ingest(
     effective_chunk_label = chunk_label or CHUNK_EMBEDDING_LABEL
     effective_embedding_property = embedding_property or CHUNK_EMBEDDING_PROPERTY
     if embedding_dimensions is not None:
-        if not isinstance(embedding_dimensions, int) or embedding_dimensions <= 0:
+        if (
+            not isinstance(embedding_dimensions, int)
+            or isinstance(embedding_dimensions, bool)
+            or embedding_dimensions <= 0
+        ):
             raise ValueError(
                 f"embedding_dimensions must be a positive integer (int type), got {embedding_dimensions!r}"
             )
@@ -101,7 +105,7 @@ def run_pdf_ingest(
         effective_embedding_dimensions = CHUNK_EMBEDDING_DIMENSIONS
     effective_embedder_model = embedder_model or EMBEDDER_MODEL_NAME
     if chunk_stride is not None:
-        if not isinstance(chunk_stride, int) or chunk_stride <= 0:
+        if not isinstance(chunk_stride, int) or isinstance(chunk_stride, bool) or chunk_stride <= 0:
             raise ValueError(f"chunk_stride must be a positive integer (int type), got {chunk_stride!r}")
         effective_chunk_stride = chunk_stride
     else:

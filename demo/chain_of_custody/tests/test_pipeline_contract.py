@@ -11,7 +11,7 @@ from demo.chain_of_custody.contracts import pipeline
 @pytest.fixture(autouse=True)
 def isolate_pipeline_contract(monkeypatch):
     original_path = pipeline.PDF_PIPELINE_CONFIG_PATH
-    original_loaded = pipeline._PIPELINE_CONTRACT_LOADED.is_set()
+    was_loaded = pipeline._PIPELINE_CONTRACT_LOADED.is_set()
     original_state = {
         "PIPELINE_CONFIG_DATA": deepcopy(pipeline.PIPELINE_CONFIG_DATA),
         "CHUNK_EMBEDDING_INDEX_NAME": pipeline.CHUNK_EMBEDDING_INDEX_NAME,
@@ -32,7 +32,7 @@ def isolate_pipeline_contract(monkeypatch):
     pipeline.EMBEDDER_MODEL_NAME = original_state["EMBEDDER_MODEL_NAME"]
     pipeline.CHUNK_FALLBACK_STRIDE = original_state["CHUNK_FALLBACK_STRIDE"]
     pipeline.DATASET_ID = original_state["DATASET_ID"]
-    if original_loaded:
+    if was_loaded:
         pipeline._PIPELINE_CONTRACT_LOADED.set()
     else:
         pipeline._PIPELINE_CONTRACT_LOADED.clear()
