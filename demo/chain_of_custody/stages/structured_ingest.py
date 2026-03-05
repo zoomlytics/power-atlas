@@ -286,32 +286,11 @@ def run_structured_ingest(config: Any, run_id: str, *, fixtures_dir: Path | None
     dataset_id = DATASET_ID
     ingested_at = _timestamp()
 
-    fact_ids = {row["fact_id"] for row in facts_rows}
-    relationship_ids = {row["rel_id"] for row in relationship_rows}
+    # Detailed validation of claim source_row_id values is performed during linting
+    # by lint_and_clean_structured_csvs(), which raises on any issues. At this stage
+    # we only emit a (typically empty) warnings file to preserve the interface for
+    # downstream tooling.
     validation_warnings: list[dict[str, Any]] = []
-    for row_index, claim in enumerate(claims_rows, start=CSV_FIRST_DATA_ROW):
-        claim_type = (claim.get("claim_type") or "").strip()
-        source_row_id = (claim.get("source_row_id") or "").strip()
-        if claim_type == "fact" and source_row_id not in fact_ids:
-            validation_warnings.append(
-                {
-                    "file": "claims.csv",
-                    "row": row_index,
-                    "claim_id": claim.get("claim_id"),
-                    "code": "BROKEN_FACT_SOURCE_ROW",
-                    "message": f"Fact with fact_id not found for source_row_id {source_row_id!r}",
-                }
-            )
-        if claim_type == "relationship" and source_row_id not in relationship_ids:
-            validation_warnings.append(
-                {
-                    "file": "claims.csv",
-                    "row": row_index,
-                    "claim_id": claim.get("claim_id"),
-                    "code": "BROKEN_REL_SOURCE_ROW",
-                    "message": f"Relationship with rel_id not found for source_row_id {source_row_id!r}",
-                }
-            )
 
     run_root = config.output_dir / "runs" / run_id
     structured_ingest_dir = run_root / "structured_ingest"
