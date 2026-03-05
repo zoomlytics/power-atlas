@@ -198,7 +198,10 @@ def prepare_extracted_rows(
             "chunk_ids": chunk_ids,
             "confidence": _coerce_confidence(node.properties.get("confidence")),
         }
-        page_numbers = [meta.get("page_number") or meta.get("page") for meta in metadata_by_chunk]
+        page_numbers = [
+            meta.get("page_number") if meta.get("page_number") is not None else meta.get("page")
+            for meta in metadata_by_chunk
+        ]
         page_numbers = [p for p in page_numbers if p is not None]
         if page_numbers:
             unique_pages = sorted(set(page_numbers))
