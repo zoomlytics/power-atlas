@@ -70,6 +70,12 @@ def _normalize_pipeline_result(value: Any) -> Any:
         return {"type": type(value).__name__, "summary": summary}
 
 
+def _require_positive_int(value: int, param_name: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        raise ValueError(f"{param_name} must be a positive integer (int type), got {value!r}")
+    return value
+
+
 def run_pdf_ingest(
     config: Any,
     run_id: str | None = None,
@@ -91,25 +97,15 @@ def run_pdf_ingest(
     effective_index_name = index_name or CHUNK_EMBEDDING_INDEX_NAME
     effective_chunk_label = chunk_label or CHUNK_EMBEDDING_LABEL
     effective_embedding_property = embedding_property or CHUNK_EMBEDDING_PROPERTY
-    if embedding_dimensions is not None:
-        if (
-            not isinstance(embedding_dimensions, int)
-            or isinstance(embedding_dimensions, bool)
-            or embedding_dimensions <= 0
-        ):
-            raise ValueError(
-                f"embedding_dimensions must be a positive integer (int type), got {embedding_dimensions!r}"
-            )
-        effective_embedding_dimensions = embedding_dimensions
-    else:
-        effective_embedding_dimensions = CHUNK_EMBEDDING_DIMENSIONS
+    effective_embedding_dimensions = (
+        _require_positive_int(embedding_dimensions, "embedding_dimensions")
+        if embedding_dimensions is not None
+        else CHUNK_EMBEDDING_DIMENSIONS
+    )
     effective_embedder_model = embedder_model or EMBEDDER_MODEL_NAME
-    if chunk_stride is not None:
-        if not isinstance(chunk_stride, int) or isinstance(chunk_stride, bool) or chunk_stride <= 0:
-            raise ValueError(f"chunk_stride must be a positive integer (int type), got {chunk_stride!r}")
-        effective_chunk_stride = chunk_stride
-    else:
-        effective_chunk_stride = CHUNK_FALLBACK_STRIDE
+    effective_chunk_stride = (
+        _require_positive_int(chunk_stride, "chunk_stride") if chunk_stride is not None else CHUNK_FALLBACK_STRIDE
+    )
     stage_run_id = run_id or make_run_id("unstructured_ingest")
     run_root = config.output_dir / "runs" / stage_run_id
     pdf_ingest_dir = run_root / "pdf_ingest"
