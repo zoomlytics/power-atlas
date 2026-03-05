@@ -659,10 +659,6 @@ def _sha256_file(path: Path, *, chunk_size: int = 1024 * 1024) -> str:
     return hasher.hexdigest()
 
 
-_coerce_confidence = coerce_confidence
-_fallback_identifier = fallback_identifier
-
-
 async def _async_read_chunks_and_extract(
     driver: "neo4j.Driver",
     *,
@@ -701,10 +697,7 @@ async def _async_read_chunks_and_extract(
 
 
 _prepare_extracted_rows = prepare_extracted_rows
-
-
 _write_extracted_rows = write_extracted_rows
-
 
 def _run_structured_ingest(config: DemoConfig, run_id: str) -> dict[str, Any]:
     lint_output = _lint_and_clean_structured_csvs(run_id=run_id, output_dir=config.output_dir)
