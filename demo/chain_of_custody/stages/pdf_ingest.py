@@ -152,7 +152,7 @@ def run_pdf_ingest(
         }
 
     if not os.getenv("OPENAI_API_KEY"):
-        raise SystemExit("Set OPENAI_API_KEY when using --live ingest-pdf")
+        raise ValueError("Set OPENAI_API_KEY when using --live ingest-pdf")
 
     import neo4j
     from neo4j_graphrag.experimental.pipeline.config.runner import PipelineRunner
