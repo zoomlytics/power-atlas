@@ -28,11 +28,12 @@ from demo.chain_of_custody.contracts import (  # noqa: E402
     make_run_id,
 )
 from demo.chain_of_custody.contracts.manifest import write_manifest
-from demo.chain_of_custody.stages.claim_extraction import run_claim_and_mention_extraction
-from demo.chain_of_custody.stages.pdf_ingest import run_pdf_ingest
-from demo.chain_of_custody.stages.retrieval_and_qa import run_retrieval_and_qa
-from demo.chain_of_custody.stages.structured_ingest import (
+from demo.chain_of_custody import stages
+from demo.chain_of_custody.stages import (
     lint_and_clean_structured_csvs,
+    run_claim_and_mention_extraction,
+    run_pdf_ingest,
+    run_retrieval_and_qa,
     run_structured_ingest,
 )
 

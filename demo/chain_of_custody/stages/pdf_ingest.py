@@ -163,7 +163,7 @@ def run_pdf_ingest(
         "NEO4J_USERNAME": config.neo4j_username,
         "NEO4J_PASSWORD": config.neo4j_password,
         "NEO4J_DATABASE": config.neo4j_database,
-        "OPENAI_MODEL": config.openai_model,
+        "OPENAI_MODEL": effective_embedder_model,
     }
     previous_env = {key: (key in os.environ, os.environ.get(key)) for key in env_updates}
     os.environ.update(env_updates)
