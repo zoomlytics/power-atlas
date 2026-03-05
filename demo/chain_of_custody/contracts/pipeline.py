@@ -101,11 +101,32 @@ def _load_pipeline_contract() -> None:
         )
         chunk_embedding_contract = {}
 
-    CHUNK_EMBEDDING_INDEX_NAME = chunk_embedding_contract.get("index_name", _DEFAULT_CHUNK_EMBEDDING_INDEX_NAME)
-    CHUNK_EMBEDDING_LABEL = chunk_embedding_contract.get("label", _DEFAULT_CHUNK_EMBEDDING_LABEL)
-    CHUNK_EMBEDDING_PROPERTY = chunk_embedding_contract.get("embedding_property", _DEFAULT_CHUNK_EMBEDDING_PROPERTY)
-    CHUNK_EMBEDDING_DIMENSIONS = chunk_embedding_contract.get("dimensions", _DEFAULT_CHUNK_EMBEDDING_DIMENSIONS)
+    index_name = chunk_embedding_contract.get("index_name")
+    if isinstance(index_name, str) and index_name:
+        CHUNK_EMBEDDING_INDEX_NAME = index_name
+    else:
+        CHUNK_EMBEDDING_INDEX_NAME = _DEFAULT_CHUNK_EMBEDDING_INDEX_NAME
 
+    label = chunk_embedding_contract.get("label")
+    if isinstance(label, str) and label:
+        CHUNK_EMBEDDING_LABEL = label
+    else:
+        CHUNK_EMBEDDING_LABEL = _DEFAULT_CHUNK_EMBEDDING_LABEL
+
+    embedding_property = chunk_embedding_contract.get("embedding_property")
+    if isinstance(embedding_property, str) and embedding_property:
+        CHUNK_EMBEDDING_PROPERTY = embedding_property
+    else:
+        CHUNK_EMBEDDING_PROPERTY = _DEFAULT_CHUNK_EMBEDDING_PROPERTY
+
+    dimensions_value = chunk_embedding_contract.get("dimensions")
+    if dimensions_value is not None:
+        try:
+            CHUNK_EMBEDDING_DIMENSIONS = int(dimensions_value)
+        except (TypeError, ValueError):
+            CHUNK_EMBEDDING_DIMENSIONS = _DEFAULT_CHUNK_EMBEDDING_DIMENSIONS
+    else:
+        CHUNK_EMBEDDING_DIMENSIONS = _DEFAULT_CHUNK_EMBEDDING_DIMENSIONS
     EMBEDDER_MODEL_NAME = _DEFAULT_EMBEDDER_MODEL_NAME
     embedder_config = PIPELINE_CONFIG_DATA.get("embedder_config", {})
     if isinstance(embedder_config, dict):
