@@ -12,10 +12,33 @@ import warnings
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Callable
+from typing import TYPE_CHECKING, Any, Callable
 from uuid import uuid4
 
 import yaml
+from neo4j_graphrag.experimental.components.entity_relation_extractor import (
+    LLMEntityRelationExtractor,
+)
+from neo4j_graphrag.experimental.components.schema import (
+    GraphSchema,
+    NodeType,
+    PropertyType,
+    RelationshipType,
+)
+from neo4j_graphrag.experimental.components.types import (
+    LexicalGraphConfig,
+    Neo4jGraph,
+    TextChunk,
+)
+from neo4j_graphrag.llm import OpenAILLM
+
+if TYPE_CHECKING:
+    import neo4j
+try:
+    from demo.chain_of_custody.run_scoped_chunk_reader import RunScopedNeo4jChunkReader
+except ModuleNotFoundError:
+    sys.path.append(str(Path(__file__).resolve().parents[2]))
+    from demo.chain_of_custody.run_scoped_chunk_reader import RunScopedNeo4jChunkReader
 
 FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
 ARTIFACTS_DIR = Path(__file__).resolve().parent / "artifacts"
@@ -126,6 +149,8 @@ if isinstance(_text_splitter_config, dict):
         except (TypeError, ValueError):
             _chunk_overlap = _DEFAULT_CHUNK_OVERLAP
 CHUNK_FALLBACK_STRIDE = max(_chunk_size - _chunk_overlap, 1)
+
+CLAIM_EXTRACTION_PROMPT_VERSION = "claims_v1"
 
 _DEFAULT_DATASET_ID = "chain_of_custody_dataset_v1"
 DATASET_ID = _DEFAULT_DATASET_ID
@@ -552,6 +577,62 @@ def _normalize_pipeline_result(value: Any) -> Any:
         }
 
 
+def _claim_extraction_lexical_config() -> LexicalGraphConfig:
+    return LexicalGraphConfig(
+        chunk_node_label=CHUNK_EMBEDDING_LABEL,
+        chunk_id_property="chunk_id",
+        chunk_index_property="chunk_index",
+        chunk_text_property="text",
+        chunk_embedding_property=CHUNK_EMBEDDING_PROPERTY,
+        node_to_chunk_relationship_type="MENTIONED_IN",
+    )
+
+
+def _claim_extraction_schema() -> GraphSchema:
+    return GraphSchema(
+        node_types=[
+            NodeType(
+                label="ExtractedClaim",
+                description="Claim extracted from unstructured chunk",
+                properties=[
+                    PropertyType(name="claim_text", type="STRING", required=True),
+                    PropertyType(name="subject", type="STRING"),
+                    PropertyType(name="predicate", type="STRING"),
+                    PropertyType(name="object", type="STRING"),
+                    PropertyType(name="confidence", type="FLOAT"),
+                ],
+                additional_properties=True,
+            ),
+            NodeType(
+                label="EntityMention",
+                description="Entity mention extracted from text chunk",
+                properties=[
+                    PropertyType(name="name", type="STRING", required=True),
+                    PropertyType(name="entity_type", type="STRING"),
+                    PropertyType(name="confidence", type="FLOAT"),
+                ],
+                additional_properties=True,
+            ),
+        ],
+        relationship_types=[
+            RelationshipType(label="MENTIONS"),
+            RelationshipType(label="SUPPORTED_BY"),
+            RelationshipType(label="MENTIONED_IN"),
+        ],
+    )
+
+
+def _chunk_id_from_node_id(
+    node_id: str, node_chunk_map: dict[str, list[str]], *, relationship_type: str
+) -> list[str]:
+    if node_id in node_chunk_map:
+        return node_chunk_map[node_id]
+    raise ValueError(
+        f"Unable to resolve chunk id(s) for node id {node_id!r}; no {relationship_type!r} "
+        "relationships connect it to known chunks."
+    )
+
+
 def _record_as_mapping(record: Any) -> dict[str, Any]:
     if record is None:
         return {}
@@ -575,6 +656,279 @@ def _sha256_file(path: Path, *, chunk_size: int = 1024 * 1024) -> str:
             exc.add_note(f"While hashing file {path}")
         raise
     return hasher.hexdigest()
+
+
+def _coerce_confidence(value: Any) -> float | None:
+    if value is None:
+        return None
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return None
+    if numeric < 0 or numeric > 1:
+        return None
+    return numeric
+
+
+def _fallback_identifier(chunk_ids: list[str]) -> str:
+    if not chunk_ids:
+        raise ValueError("Cannot build fallback identifier without chunk ids")
+    if len(chunk_ids) == 1:
+        return chunk_ids[0]
+    if len(chunk_ids) == 2:
+        return f"{chunk_ids[0]}_and_{chunk_ids[1]}"
+    return f"{chunk_ids[0]}_and_{len(chunk_ids) - 1}_more"
+
+
+async def _async_read_chunks_and_extract(
+    driver: "neo4j.Driver",
+    *,
+    run_id: str,
+    source_uri: str | None,
+    neo4j_database: str,
+    model_name: str,
+) -> tuple[Neo4jGraph, list[TextChunk], LexicalGraphConfig]:
+    lexical_config = _claim_extraction_lexical_config()
+    chunk_reader = RunScopedNeo4jChunkReader(
+        driver,
+        run_id=run_id,
+        source_uri=source_uri,
+        fetch_embeddings=False,
+        neo4j_database=neo4j_database,
+    )
+    text_chunks = await chunk_reader.run(lexical_graph_config=lexical_config)
+    llm = OpenAILLM(
+        model_name=model_name,
+        model_params={"temperature": 0},
+    )
+    extractor = LLMEntityRelationExtractor(
+        llm=llm,
+        create_lexical_graph=True,
+        use_structured_output=True,
+    )
+    try:
+        graph = await extractor.run(
+            chunks=text_chunks,
+            schema=_claim_extraction_schema(),
+            lexical_graph_config=lexical_config,
+        )
+    finally:
+        await llm.async_client.close()
+    return graph, text_chunks.chunks, lexical_config
+
+
+def _prepare_extracted_rows(
+    *,
+    graph: Neo4jGraph,
+    text_chunks: list[TextChunk],
+    run_id: str,
+    source_uri: str | None,
+    extractor_model: str,
+    extracted_at: str,
+    lexical_graph_config: LexicalGraphConfig,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    chunk_meta = {}
+    for chunk in text_chunks:
+        metadata = dict(chunk.metadata or {})
+        metadata.setdefault("run_id", run_id)
+        if getattr(chunk, "index", None) is not None:
+            metadata.setdefault("chunk_index", chunk.index)
+        chunk_meta[chunk.uid] = metadata
+    claim_rows: list[dict[str, Any]] = []
+    mention_rows: list[dict[str, Any]] = []
+    known_chunk_ids = set(chunk_meta)
+    node_chunk_map: dict[str, list[str]] = {}
+    node_chunk_rel_type = lexical_graph_config.node_to_chunk_relationship_type
+    for relationship in graph.relationships:
+        if relationship.type != node_chunk_rel_type:
+            continue
+        source_is_chunk = relationship.start_node_id in known_chunk_ids
+        target_is_chunk = relationship.end_node_id in known_chunk_ids
+        if not source_is_chunk and not target_is_chunk:
+            continue
+        if source_is_chunk and target_is_chunk:
+            continue
+        chunk_id = relationship.start_node_id if source_is_chunk else relationship.end_node_id
+        node_id = relationship.end_node_id if source_is_chunk else relationship.start_node_id
+        node_chunk_map.setdefault(node_id, []).append(chunk_id)
+
+    # Normalize chunk IDs per node for deterministic ordering and to avoid duplicates.
+    for node_id, chunk_ids in node_chunk_map.items():
+        # De-duplicate while preserving original association order.
+        seen: set[str] = set()
+        unique_chunk_ids: list[str] = []
+        for cid in chunk_ids:
+            if cid in seen:
+                continue
+            seen.add(cid)
+            unique_chunk_ids.append(cid)
+        # Sort by numeric chunk_index from chunk_meta when available, falling back
+        # to a stable deterministic order for chunks without chunk_index.
+        def _chunk_sort_key(cid: str) -> tuple[float, str]:
+            meta = chunk_meta.get(cid, {})
+            idx = meta.get("chunk_index")
+            # Chunks without an index are ordered after indexed ones, by id.
+            return (float(idx) if isinstance(idx, (int, float)) else float("inf"), cid)
+
+        unique_chunk_ids.sort(key=_chunk_sort_key)
+        node_chunk_map[node_id] = unique_chunk_ids
+    for node in graph.nodes:
+        if node.id not in node_chunk_map:
+            continue
+        node_chunk_ids = _chunk_id_from_node_id(node.id, node_chunk_map, relationship_type=node_chunk_rel_type)
+        metadata_by_chunk = []
+        for chunk_id in node_chunk_ids:
+            metadata = chunk_meta.get(chunk_id)
+            if metadata is None:
+                raise ValueError(f"Extracted node {node.id!r} is missing chunk metadata for run {run_id}")
+            metadata_by_chunk.append(metadata)
+        if not metadata_by_chunk:
+            raise ValueError(f"Extracted node {node.id!r} is missing chunk metadata for run {run_id}")
+        chunk_run_ids = {metadata.get("run_id") or run_id for metadata in metadata_by_chunk}
+        if len(chunk_run_ids) != 1 or run_id not in chunk_run_ids:
+            raise ValueError(
+                f"Chunk run_id mismatch for extracted node {node.id!r}: expected {run_id}, "
+                f"got {sorted(chunk_run_ids)}"
+            )
+        chunk_run_id = run_id
+        provenance_sources = {meta.get("source_uri") or source_uri for meta in metadata_by_chunk}
+        if len(provenance_sources) > 1:
+            raise ValueError(
+                f"Extracted node {node.id!r} spans multiple source_uris; "
+                f"expected a single source for run {run_id}, got {sorted(provenance_sources)}"
+            )
+        provenance_source = next(iter(provenance_sources)) if provenance_sources else source_uri
+        base_props = {
+            "run_id": chunk_run_id,
+            "source_uri": provenance_source,
+            "extractor_model": extractor_model,
+            "extracted_at": extracted_at,
+            "prompt_version": CLAIM_EXTRACTION_PROMPT_VERSION,
+            "chunk_ids": node_chunk_ids,
+        }
+        node_confidence = _coerce_confidence(node.properties.get("confidence"))
+        if node_confidence is not None:
+            base_props["confidence"] = node_confidence
+        # Maintain primary single-valued fields for backward compatibility, while also
+        # exposing the full lists for multi-chunk/page extractions.
+        chunk_indexes = [meta.get("chunk_index") for meta in metadata_by_chunk if meta.get("chunk_index") is not None]
+        if chunk_indexes:
+            unique_indexes = sorted(set(chunk_indexes))
+            if unique_indexes:
+                base_props["chunk_index"] = unique_indexes[0]
+                if len(unique_indexes) > 1:
+                    base_props["chunk_indexes"] = unique_indexes
+        page_numbers = [meta.get("page_number") for meta in metadata_by_chunk if meta.get("page_number") is not None]
+        if page_numbers:
+            unique_pages = sorted(set(page_numbers))
+            if unique_pages:
+                base_props["page"] = unique_pages[0]
+                if len(unique_pages) > 1:
+                    base_props["pages"] = unique_pages
+        fallback_identifier = _fallback_identifier(node_chunk_ids)
+        if node.label == "ExtractedClaim":
+            claim_text = (
+                str(
+                    node.properties.get("claim_text")
+                    or node.properties.get("text")
+                    or node.properties.get("name")
+                    or ""
+                ).strip()
+            )
+            properties = dict(base_props)
+            properties["claim_text"] = claim_text or f"claim_for_{fallback_identifier}"
+            for key in ("subject", "predicate", "object", "value", "claim_type"):
+                if key in node.properties:
+                    properties[key] = node.properties[key]
+            claim_rows.append(
+                {
+                    "claim_id": node.id,
+                    # Keep singular chunk_id for backward compatibility with consumers
+                    # that expect a single chunk reference, while chunk_ids carries the
+                    # complete list for multi-chunk extractions.
+                    "chunk_id": node_chunk_ids[0],
+                    "chunk_ids": node_chunk_ids,
+                    "run_id": chunk_run_id,
+                    "source_uri": provenance_source,
+                    "properties": properties,
+                }
+            )
+        elif node.label == "EntityMention":
+            mention_text = (
+                str(
+                    node.properties.get("name")
+                    or node.properties.get("mention")
+                    or node.properties.get("text")
+                    or ""
+                ).strip()
+            ) or f"mention_for_{fallback_identifier}"
+            properties = dict(base_props)
+            properties["name"] = mention_text
+            entity_type = node.properties.get("entity_type") or node.properties.get("type")
+            if entity_type:
+                properties["entity_type"] = entity_type
+            mention_rows.append(
+                {
+                    "mention_id": node.id,
+                    # Preserve backward compatibility with single-chunk consumers.
+                    "chunk_id": node_chunk_ids[0],
+                    "chunk_ids": node_chunk_ids,
+                    "run_id": chunk_run_id,
+                    "source_uri": provenance_source,
+                    "properties": properties,
+                }
+            )
+
+    return claim_rows, mention_rows
+
+
+def _write_extracted_rows(
+    driver: "neo4j.Driver",
+    *,
+    neo4j_database: str,
+    claim_rows: list[dict[str, Any]],
+    mention_rows: list[dict[str, Any]],
+) -> None:
+    chunk_label = CHUNK_EMBEDDING_LABEL
+    chunk_id_property = "chunk_id"
+    if claim_rows:
+        driver.execute_query(
+            f"""
+            UNWIND $rows AS row
+            MERGE (claim:ExtractedClaim {{claim_id: row.claim_id, run_id: row.run_id}})
+            SET claim += row.properties
+            WITH row, claim
+            UNWIND row.chunk_ids AS chunk_id
+            MATCH (chunk:`{chunk_label}` {{{chunk_id_property}: chunk_id, run_id: row.run_id}})
+            MERGE (claim)-[supported_by:SUPPORTED_BY]->(chunk)
+            SET supported_by.run_id = row.run_id,
+                supported_by.source_uri = row.source_uri,
+                supported_by.extracted_at = row.properties.extracted_at,
+                supported_by.prompt_version = row.properties.prompt_version,
+                supported_by.chunk_id = chunk_id
+            """,
+            parameters_={"rows": claim_rows},
+            database_=neo4j_database,
+        )
+    if mention_rows:
+        driver.execute_query(
+            f"""
+            UNWIND $rows AS row
+            MERGE (mention:EntityMention {{mention_id: row.mention_id, run_id: row.run_id}})
+            SET mention += row.properties
+            WITH row, mention
+            UNWIND row.chunk_ids AS chunk_id
+            MATCH (chunk:`{chunk_label}` {{{chunk_id_property}: chunk_id, run_id: row.run_id}})
+            MERGE (mention)-[mentioned:MENTIONED_IN]->(chunk)
+            SET mentioned.run_id = row.run_id,
+                mentioned.source_uri = row.source_uri,
+                mentioned.extracted_at = row.properties.extracted_at,
+                mentioned.prompt_version = row.properties.prompt_version,
+                mentioned.chunk_id = chunk_id
+            """,
+            parameters_={"rows": mention_rows},
+            database_=neo4j_database,
+        )
 
 
 def _run_structured_ingest(config: DemoConfig, run_id: str) -> dict[str, Any]:
@@ -1308,18 +1662,79 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
     }
 
 
-def _run_claim_and_mention_extraction(config: DemoConfig) -> dict[str, Any]:
+def _run_claim_and_mention_extraction(
+    config: DemoConfig,
+    run_id: str,
+    source_uri: str | None,
+) -> dict[str, Any]:
+    extracted_at = datetime.now(UTC).isoformat()
+    run_root = config.output_dir / "runs" / run_id
+    extraction_dir = run_root / "claim_extraction"
+    extraction_dir.mkdir(parents=True, exist_ok=True)
+    summary_path = extraction_dir / "claim_extraction_summary.json"
+
     if config.dry_run:
-        return {
+        summary = {
             "status": "dry_run",
-            "claim_extraction": "planned",
-            "mention_resolution": "deterministic by canonical entity_id",
+            "run_id": run_id,
+            "source_uri": source_uri,
+            "extractor_model": config.openai_model,
+            "prompt_version": CLAIM_EXTRACTION_PROMPT_VERSION,
+            "claims": 0,
+            "mentions": 0,
+            "chunk_ids": [],
+            "warnings": ["claim extraction skipped in dry_run mode"],
         }
-    return {
-        "status": "configured",
-        "claim_extraction": "LLMEntityRelationExtractor",
-        "mention_resolution": "SinglePropertyExactMatchResolver",
+        summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+        return summary
+
+    if not os.getenv("OPENAI_API_KEY"):
+        raise ValueError("OPENAI_API_KEY environment variable is required for live claim extraction.")
+
+    import neo4j
+
+    driver = neo4j.GraphDatabase.driver(config.neo4j_uri, auth=(config.neo4j_username, config.neo4j_password))
+    with driver:
+        graph, text_chunks, lexical_config = asyncio.run(
+            _async_read_chunks_and_extract(
+                driver,
+                run_id=run_id,
+                source_uri=source_uri,
+                neo4j_database=config.neo4j_database,
+                model_name=config.openai_model,
+            )
+        )
+        claim_rows, mention_rows = _prepare_extracted_rows(
+            graph=graph,
+            text_chunks=text_chunks,
+            run_id=run_id,
+            source_uri=source_uri,
+            extractor_model=config.openai_model,
+            extracted_at=extracted_at,
+            lexical_graph_config=lexical_config,
+        )
+        _write_extracted_rows(
+            driver,
+            neo4j_database=config.neo4j_database,
+            claim_rows=claim_rows,
+            mention_rows=mention_rows,
+        )
+
+    all_extracted_rows = claim_rows + mention_rows
+    unique_chunk_ids = {chunk_id for row in all_extracted_rows for chunk_id in row["chunk_ids"]}
+    summary = {
+        "status": "live",
+        "run_id": run_id,
+        "source_uri": source_uri,
+        "extractor_model": config.openai_model,
+        "prompt_version": CLAIM_EXTRACTION_PROMPT_VERSION,
+        "claims": len(claim_rows),
+        "mentions": len(mention_rows),
+        "chunk_ids": sorted(unique_chunk_ids),
+        "warnings": [],
     }
+    summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    return summary
 
 
 def _run_retrieval_and_qa(config: DemoConfig) -> dict[str, Any]:
@@ -1373,6 +1788,17 @@ def run_demo(config: DemoConfig) -> Path:
     unstructured_run_id = _make_run_id("unstructured_ingest")
     resolution_run_id = _make_run_id("resolution")
 
+    structured_stage = _run_structured_ingest(config, structured_run_id)
+    pdf_stage = _run_pdf_ingest(config, unstructured_run_id)
+    pdf_source_uri = (
+        pdf_stage.get("provenance", {}).get("source_uri")
+        if isinstance(pdf_stage, dict)
+        else None
+    )
+    if not pdf_source_uri and isinstance(pdf_stage, dict):
+        documents = pdf_stage.get("documents") if isinstance(pdf_stage.get("documents"), list) else []
+        pdf_source_uri = documents[0] if documents else None
+
     manifest = {
         "run_id": _make_run_id("chain_of_custody_batch"),
         "created_at": datetime.now(UTC).isoformat(),
@@ -1389,16 +1815,20 @@ def run_demo(config: DemoConfig) -> Path:
         },
         "stages": {
             "structured_ingest": {
-                **_run_structured_ingest(config, structured_run_id),
+                **structured_stage,
                 "run_id": structured_run_id,
             },
             "pdf_ingest": {
-                **_run_pdf_ingest(config, unstructured_run_id),
+                **pdf_stage,
                 "run_id": unstructured_run_id,
             },
             "claim_and_mention_extraction": {
-                **_run_claim_and_mention_extraction(config),
-                "run_id": resolution_run_id,
+                **_run_claim_and_mention_extraction(
+                    config,
+                    run_id=unstructured_run_id,
+                    source_uri=pdf_source_uri,
+                ),
+                "run_id": unstructured_run_id,
             },
             "retrieval_and_qa": {
                 **_run_retrieval_and_qa(config),
@@ -1421,12 +1851,32 @@ def run_independent_demo(config: DemoConfig, command: str) -> Path:
             lambda cfg, stage_run_id: _run_structured_ingest(cfg, stage_run_id),
         ),
         "ingest-pdf": ("pdf_ingest", "unstructured_ingest_run_id", _run_pdf_ingest),
+        "extract-claims": (
+            "claim_and_mention_extraction",
+            "unstructured_ingest_run_id",
+            lambda cfg, stage_run_id: _run_claim_and_mention_extraction(
+                cfg,
+                run_id=stage_run_id,
+                source_uri=str((FIXTURES_DIR / "unstructured" / "chain_of_custody.pdf").resolve().as_uri()),
+            ),
+        ),
     }
     if command not in stage_runners:
         raise ValueError(f"Unsupported independent command: {command}")
     stage_name, run_scope_key, stage_runner = stage_runners[command]
     run_scope = run_scope_key.removesuffix("_run_id")
-    stage_run_id = _make_run_id(run_scope)
+    if command == "extract-claims":
+        env_run_id = os.getenv("CHAIN_OF_CUSTODY_UNSTRUCTURED_RUN_ID")
+        if not env_run_id:
+            raise ValueError(
+                "CHAIN_OF_CUSTODY_UNSTRUCTURED_RUN_ID is not set. When running "
+                "'extract-claims' independently, set this to the run_id from a prior "
+                "'ingest' or 'ingest-pdf' command whose chunks you want to process "
+                "(for example, a value like 'unstructured_ingest-20260304T224739123456Z-1a2b3c4d')."
+            )
+        stage_run_id = env_run_id
+    else:
+        stage_run_id = _make_run_id(run_scope)
     stage_output = stage_runner(config, stage_run_id)
     manifest = {
         "run_id": stage_run_id,
@@ -1473,6 +1923,20 @@ def _add_common_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--neo4j-password", default=os.getenv("NEO4J_PASSWORD", "CHANGE_ME_BEFORE_USE"))
     parser.add_argument("--neo4j-database", default=DEFAULT_DB)
     parser.add_argument("--openai-model", default=os.getenv("OPENAI_MODEL", "gpt-4o-mini"))
+
+
+def _build_demo_config_from_args(args: argparse.Namespace) -> DemoConfig:
+    if not args.dry_run and args.neo4j_password in ("", "CHANGE_ME_BEFORE_USE"):
+        raise SystemExit("Set NEO4J_PASSWORD or pass --neo4j-password when using --live")
+    return DemoConfig(
+        dry_run=args.dry_run,
+        output_dir=args.output_dir,
+        neo4j_uri=args.neo4j_uri,
+        neo4j_username=args.neo4j_username,
+        neo4j_password=args.neo4j_password,
+        neo4j_database=args.neo4j_database,
+        openai_model=args.openai_model,
+    )
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -1547,22 +2011,13 @@ def main() -> None:
         lint_result = _lint_and_clean_structured_csvs(run_id=run_id, output_dir=config.output_dir)
         print(f"Structured lint report written to: {lint_result['lint_report_path']}")
         return
-    if args.command in {"ingest", "ingest-structured", "ingest-pdf"}:
-        if not args.dry_run and args.neo4j_password in ("", "CHANGE_ME_BEFORE_USE"):
-            raise SystemExit("Set NEO4J_PASSWORD or pass --neo4j-password when using --live")
-        config = DemoConfig(
-            dry_run=args.dry_run,
-            output_dir=args.output_dir,
-            neo4j_uri=args.neo4j_uri,
-            neo4j_username=args.neo4j_username,
-            neo4j_password=args.neo4j_password,
-            neo4j_database=args.neo4j_database,
-            openai_model=args.openai_model,
-        )
+    config_commands = {"ingest", "ingest-structured", "ingest-pdf", "extract-claims"}
+    if args.command in config_commands:
+        config = _build_demo_config_from_args(args)
         if args.command == "ingest":
             manifest_path = run_demo(config)
             print(f"Demo manifest written to: {manifest_path}")
-        elif args.command in {"ingest-structured", "ingest-pdf"}:
+        else:
             manifest_path = run_independent_demo(config, args.command)
             print(f"Independent run manifest written to: {manifest_path}")
         return

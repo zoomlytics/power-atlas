@@ -233,6 +233,14 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
                 manifest["stages"]["pdf_ingest"]["run_id"],
                 manifest["run_scopes"]["unstructured_ingest_run_id"],
             )
+            self.assertEqual(
+                manifest["stages"]["claim_and_mention_extraction"]["run_id"],
+                manifest["run_scopes"]["unstructured_ingest_run_id"],
+            )
+            self.assertEqual(
+                manifest["stages"]["claim_and_mention_extraction"]["prompt_version"],
+                module.CLAIM_EXTRACTION_PROMPT_VERSION,
+            )
             claims_fixture_path = DEMO_DIR / "fixtures" / "structured" / "claims.csv"
             with claims_fixture_path.open(newline="", encoding="utf-8") as f:
                 reader = csv.DictReader(f)
