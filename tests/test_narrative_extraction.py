@@ -16,7 +16,7 @@ from neo4j_graphrag.experimental.components.types import (
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from pipelines.ingest.narrative_extraction import (  # noqa: E402
+from demo.chain_of_custody.narrative_extraction import (  # noqa: E402
     PROMPT_VERSION,
     ExtractionConfig,
     build_lexical_config,
@@ -140,9 +140,11 @@ def test_run_narrative_extraction_live_path_uses_run_scoped_reader_and_writer(mo
         assert lexical_graph_config == lexical_config
 
     with mock.patch(
-        "pipelines.ingest.narrative_extraction._read_chunks_and_extract", side_effect=_fake_read_chunks_and_extract
+        "demo.chain_of_custody.narrative_extraction._read_chunks_and_extract",
+        side_effect=_fake_read_chunks_and_extract,
     ), mock.patch(
-        "pipelines.ingest.narrative_extraction._write_extracted_rows", side_effect=_fake_write_extracted_rows
+        "demo.chain_of_custody.narrative_extraction._write_extracted_rows",
+        side_effect=_fake_write_extracted_rows,
     ), mock.patch("neo4j.GraphDatabase.driver"):
         config = ExtractionConfig(
             run_id="run-live",
@@ -167,7 +169,7 @@ def test_run_narrative_extraction_live_path_uses_run_scoped_reader_and_writer(mo
 
 
 def test_write_extracted_rows_validates_cypher_identifiers():
-    from pipelines.ingest import narrative_extraction  # import inside to use updated helper
+    from demo.chain_of_custody import narrative_extraction  # import inside to use updated helper
 
     class _FakeDriver:
         def execute_query(self, *args, **kwargs):
@@ -186,7 +188,7 @@ def test_write_extracted_rows_validates_cypher_identifiers():
 
 
 def test_write_extracted_rows_validates_chunk_id_property():
-    from pipelines.ingest import narrative_extraction  # import inside to use updated helper
+    from demo.chain_of_custody import narrative_extraction  # import inside to use updated helper
 
     class _FakeDriver:
         def execute_query(self, *args, **kwargs):
@@ -205,7 +207,7 @@ def test_write_extracted_rows_validates_chunk_id_property():
 
 
 def test_write_extracted_rows_allows_valid_identifiers_and_executes():
-    from pipelines.ingest import narrative_extraction  # import inside to use updated helper
+    from demo.chain_of_custody import narrative_extraction  # import inside to use updated helper
 
     executed = {"count": 0}
 

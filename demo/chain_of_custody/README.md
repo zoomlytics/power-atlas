@@ -30,9 +30,20 @@ Self-contained demo workflow under `demo/chain_of_custody/` for evidence-driven 
    ```bash
    python demo/chain_of_custody/smoke_test.py
    ```
-   By default this writes artifacts to an isolated temporary directory that is deleted when the process exits; pass `--output-dir` to retain artifacts in a persistent directory.
+By default this writes artifacts to an isolated temporary directory that is deleted when the process exits; pass `--output-dir` to retain artifacts in a persistent directory.
 
 `--dry-run` keeps the workflow reproducible without requiring live OpenAI/Neo4j calls.
+
+### Narrative extraction (run-scoped, post-PDF ingest)
+
+- Script: `demo/chain_of_custody/narrative_extraction.py`
+- Purpose: reads previously ingested PDF chunks for a single `run_id` (optional `--source-uri` filter) and writes `ExtractedClaim`/`EntityMention` nodes plus `SUPPORTED_BY`/`MENTIONED_IN` edges with provenance.
+- Usage:
+  ```bash
+  python demo/chain_of_custody/narrative_extraction.py --run-id <unstructured_run_id> [--source-uri <uri>] [--dry-run]
+  ```
+- Defaults: writes artifacts under `demo/chain_of_custody/runs/<run_id>/narrative_extraction/` and updates `demo/chain_of_custody/runs/<run_id>/manifest.json`; set `--output-root` to override.
+- Live runs require `OPENAI_API_KEY`; `--dry-run` skips Neo4j + LLM calls but still emits manifest/summary artifacts.
 
 ## What the orchestrator stages model
 

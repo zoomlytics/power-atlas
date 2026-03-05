@@ -37,6 +37,7 @@ DEFAULT_CHUNK_INDEX_PROPERTY = "chunk_index"
 DEFAULT_CHUNK_EMBEDDING_PROPERTY = "embedding"
 DEFAULT_NODE_TO_CHUNK_RELATIONSHIP = "MENTIONED_IN"
 PROMPT_VERSION = "narrative_claims_v1"
+DEFAULT_OUTPUT_ROOT = Path(__file__).resolve().parent / "runs"
 
 
 @dataclass(frozen=True)
@@ -508,8 +509,8 @@ def _parse_args() -> ExtractionConfig:
     parser.add_argument(
         "--output-root",
         type=Path,
-        default=Path("pipelines") / "runs",
-        help="Directory where run artifacts are written (default: pipelines/runs)",
+        default=DEFAULT_OUTPUT_ROOT,
+        help="Directory where run artifacts are written (default: demo/chain_of_custody/runs)",
     )
     parser.add_argument("--neo4j-uri", default=os.getenv("NEO4J_URI", "neo4j://localhost:7687"))
     parser.add_argument("--neo4j-username", default=os.getenv("NEO4J_USERNAME", "neo4j"))
