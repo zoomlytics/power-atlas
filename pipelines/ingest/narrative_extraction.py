@@ -290,12 +290,12 @@ def _write_extracted_rows(
             WITH row, mention
             UNWIND row.chunk_ids AS chunk_id
             MATCH (chunk:`{chunk_label}` {{{chunk_id_property}: chunk_id, run_id: row.run_id}})
-            MERGE (mention)-[mentioned:MENTIONED_IN]->(chunk)
-            SET mentioned.run_id = row.run_id,
-                mentioned.source_uri = row.source_uri,
-                mentioned.extracted_at = row.properties.extracted_at,
-                mentioned.prompt_version = row.properties.prompt_version,
-                mentioned.chunk_id = chunk_id
+            MERGE (mention)-[mentioned_in:MENTIONED_IN]->(chunk)
+            SET mentioned_in.run_id = row.run_id,
+                mentioned_in.source_uri = row.source_uri,
+                mentioned_in.extracted_at = row.properties.extracted_at,
+                mentioned_in.prompt_version = row.properties.prompt_version,
+                mentioned_in.chunk_id = chunk_id
             """,
             parameters_={"rows": mention_rows},
             database_=neo4j_database,
