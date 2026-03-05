@@ -9,7 +9,7 @@ from demo.chain_of_custody.contracts import pipeline
 
 
 @pytest.fixture(autouse=True)
-def restore_pipeline_contract(monkeypatch):
+def isolate_pipeline_contract(monkeypatch):
     original_path = pipeline.PDF_PIPELINE_CONFIG_PATH
     original_loaded = pipeline._PIPELINE_CONTRACT_LOADED.is_set()
     original_state = {
