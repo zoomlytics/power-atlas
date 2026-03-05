@@ -4,7 +4,6 @@ import argparse
 import asyncio
 import json
 import os
-import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -255,14 +254,6 @@ def prepare_extracted_rows(
     return claim_rows, mention_rows, warnings
 
 
-def _validate_identifier(value: str, kind: str) -> str:
-    if not isinstance(value, str):
-        raise ValueError(f"Invalid {kind}: expected string, got {type(value).__name__}")
-    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", value):
-        raise ValueError(f"Unsafe {kind}: {value!r}")
-    return value
-
-
 def _write_extracted_rows(
     driver: neo4j.Driver,
     *,
@@ -271,8 +262,12 @@ def _write_extracted_rows(
     claim_rows: list[dict[str, Any]],
     mention_rows: list[dict[str, Any]],
 ) -> None:
-    chunk_label = _validate_identifier(lexical_graph_config.chunk_node_label, "chunk label")
-    chunk_id_property = _validate_identifier(lexical_graph_config.chunk_id_property, "chunk_id property")
+    chunk_label = RunScopedNeo4jChunkReader._validate_identifier(
+        lexical_graph_config.chunk_node_label, "chunk label"
+    )
+    chunk_id_property = RunScopedNeo4jChunkReader._validate_identifier(
+        lexical_graph_config.chunk_id_property, "chunk_id property"
+    )
     if claim_rows:
         driver.execute_query(
             f"""

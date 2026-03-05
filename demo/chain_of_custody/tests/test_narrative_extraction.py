@@ -18,6 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from demo.chain_of_custody.narrative_extraction import (  # noqa: E402
     PROMPT_VERSION,
+    DEFAULT_NEO4J_PASSWORD,
     ExtractionConfig,
     build_lexical_config,
     prepare_extracted_rows,
@@ -166,6 +167,23 @@ def test_run_narrative_extraction_live_path_uses_run_scoped_reader_and_writer(mo
     assert summary["status"] == "live"
     assert summary["claims"] == 1
     assert summary["mentions"] == 1
+
+
+def test_run_narrative_extraction_rejects_default_password_for_live(tmp_path: Path):
+    config = ExtractionConfig(
+        run_id="run-live",
+        source_uri=None,
+        neo4j_uri="neo4j://localhost:7687",
+        neo4j_username="neo4j",
+        neo4j_password=DEFAULT_NEO4J_PASSWORD,
+        neo4j_database="neo4j",
+        model_name="gpt-4o-mini",
+        output_root=tmp_path,
+        dry_run=False,
+    )
+
+    with pytest.raises(ValueError, match="NEO4J_PASSWORD must be set"):
+        run_narrative_extraction(config)
 
 
 def test_write_extracted_rows_validates_cypher_identifiers():
