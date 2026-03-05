@@ -57,7 +57,7 @@ def prepare_extracted_rows(
     Map extracted graph nodes to claim/mention rows with provenance.
 
     Args:
-        extracted_at: Optional timestamp; when None, the current UTC time is used.
+        extracted_at: Optional timestamp string; when None, the current UTC time is used (ISO-8601).
 
     Returns:
         claim_rows, mention_rows, warnings

@@ -1469,7 +1469,6 @@ def _run_claim_and_mention_extraction(
                 model_name=config.openai_model,
             )
         )
-        # prepare_extracted_rows returns (claim_rows, mention_rows, warnings).
         claim_rows, mention_rows, extraction_warnings = prepare_extracted_rows(
             graph=graph,
             text_chunks=text_chunks,
