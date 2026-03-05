@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 import threading
 import warnings
 from typing import Any
@@ -18,6 +19,7 @@ _DEFAULT_CHUNK_EMBEDDING_PROPERTY = "embedding"
 _DEFAULT_CHUNK_EMBEDDING_DIMENSIONS = 1536
 _DEFAULT_EMBEDDER_MODEL_NAME = "text-embedding-3-small"
 _DEFAULT_DATASET_ID = "chain_of_custody_dataset_v1"
+_IDENTIFIER_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 PIPELINE_CONFIG_DATA: dict[str, Any] = {}
 _PIPELINE_CONTRACT_LOADED = threading.Event()
@@ -101,23 +103,21 @@ def _load_pipeline_contract() -> None:
         )
         chunk_embedding_contract = {}
 
-    index_name = chunk_embedding_contract.get("index_name")
-    if isinstance(index_name, str) and index_name:
-        CHUNK_EMBEDDING_INDEX_NAME = index_name
-    else:
-        CHUNK_EMBEDDING_INDEX_NAME = _DEFAULT_CHUNK_EMBEDDING_INDEX_NAME
-
-    label = chunk_embedding_contract.get("label")
-    if isinstance(label, str) and label:
-        CHUNK_EMBEDDING_LABEL = label
-    else:
-        CHUNK_EMBEDDING_LABEL = _DEFAULT_CHUNK_EMBEDDING_LABEL
-
-    embedding_property = chunk_embedding_contract.get("embedding_property")
-    if isinstance(embedding_property, str) and embedding_property:
-        CHUNK_EMBEDDING_PROPERTY = embedding_property
-    else:
-        CHUNK_EMBEDDING_PROPERTY = _DEFAULT_CHUNK_EMBEDDING_PROPERTY
+    CHUNK_EMBEDDING_INDEX_NAME = _coerce_identifier(
+        chunk_embedding_contract.get("index_name"),
+        _DEFAULT_CHUNK_EMBEDDING_INDEX_NAME,
+        "chunk_embedding.index_name",
+    )
+    CHUNK_EMBEDDING_LABEL = _coerce_identifier(
+        chunk_embedding_contract.get("label"),
+        _DEFAULT_CHUNK_EMBEDDING_LABEL,
+        "chunk_embedding.label",
+    )
+    CHUNK_EMBEDDING_PROPERTY = _coerce_identifier(
+        chunk_embedding_contract.get("embedding_property"),
+        _DEFAULT_CHUNK_EMBEDDING_PROPERTY,
+        "chunk_embedding.embedding_property",
+    )
 
     dimensions_value = chunk_embedding_contract.get("dimensions")
     if dimensions_value is not None:
@@ -158,6 +158,19 @@ def _load_pipeline_contract() -> None:
     cfg_dataset_id = kg_writer_params.get("dataset_id") if isinstance(kg_writer_params, dict) else None
     if isinstance(cfg_dataset_id, str) and cfg_dataset_id:
         DATASET_ID = cfg_dataset_id
+
+
+def _coerce_identifier(value: Any, default: str, field_name: str) -> str:
+    if isinstance(value, str):
+        candidate = value.strip()
+        if candidate and _IDENTIFIER_PATTERN.fullmatch(candidate):
+            return candidate
+        warnings.warn(
+            f"Falling back to default for {field_name}; expected identifier-safe string, got {value!r}",
+            RuntimeWarning,
+            stacklevel=3,
+        )
+    return default
 
 
 # Load once at import time so the exported constants reflect the configured contract.

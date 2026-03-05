@@ -91,9 +91,19 @@ def run_pdf_ingest(
     effective_index_name = index_name or CHUNK_EMBEDDING_INDEX_NAME
     effective_chunk_label = chunk_label or CHUNK_EMBEDDING_LABEL
     effective_embedding_property = embedding_property or CHUNK_EMBEDDING_PROPERTY
-    effective_embedding_dimensions = embedding_dimensions or CHUNK_EMBEDDING_DIMENSIONS
+    if embedding_dimensions is not None:
+        if not isinstance(embedding_dimensions, int) or embedding_dimensions <= 0:
+            raise ValueError(f"embedding_dimensions must be a positive integer, got {embedding_dimensions!r}")
+        effective_embedding_dimensions = embedding_dimensions
+    else:
+        effective_embedding_dimensions = CHUNK_EMBEDDING_DIMENSIONS
     effective_embedder_model = embedder_model or EMBEDDER_MODEL_NAME
-    effective_chunk_stride = chunk_stride or CHUNK_FALLBACK_STRIDE
+    if chunk_stride is not None:
+        if not isinstance(chunk_stride, int) or chunk_stride <= 0:
+            raise ValueError(f"chunk_stride must be a positive integer, got {chunk_stride!r}")
+        effective_chunk_stride = chunk_stride
+    else:
+        effective_chunk_stride = CHUNK_FALLBACK_STRIDE
     stage_run_id = run_id or make_run_id("unstructured_ingest")
     run_root = config.output_dir / "runs" / stage_run_id
     pdf_ingest_dir = run_root / "pdf_ingest"
