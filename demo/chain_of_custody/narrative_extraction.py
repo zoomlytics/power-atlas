@@ -46,9 +46,6 @@ PROMPT_VERSION = "narrative_claims_v1"
 DEFAULT_OUTPUT_ROOT = Path(__file__).resolve().parent / "runs"
 DEFAULT_NEO4J_PASSWORD = "CHANGE_ME_BEFORE_USE"
 
-# Backward-compatible alias retained so existing tests can patch the private writer name.
-_write_extracted_rows = write_extracted_rows
-
 
 @dataclass(frozen=True)
 class ExtractionConfig:
@@ -267,7 +264,7 @@ def run_narrative_extraction(config: ExtractionConfig) -> dict[str, Any]:
             prompt_version=PROMPT_VERSION,
             lexical_graph_config=lexical_config,
         )
-        _write_extracted_rows(
+        write_extracted_rows(
             driver,
             neo4j_database=config.neo4j_database,
             lexical_graph_config=lexical_config,

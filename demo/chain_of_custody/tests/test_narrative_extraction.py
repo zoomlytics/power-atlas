@@ -144,9 +144,9 @@ def test_run_narrative_extraction_live_path_uses_run_scoped_reader_and_writer(tm
         "demo.chain_of_custody.narrative_extraction._read_chunks_and_extract",
         side_effect=_fake_read_chunks_and_extract,
     ), mock.patch(
-        "demo.chain_of_custody.narrative_extraction._write_extracted_rows",
-        side_effect=_fake_write_extracted_rows,
-    ), mock.patch("neo4j.GraphDatabase.driver"):
+            "demo.chain_of_custody.narrative_extraction.write_extracted_rows",
+            side_effect=_fake_write_extracted_rows,
+        ), mock.patch("neo4j.GraphDatabase.driver"):
         config = ExtractionConfig(
             run_id="run-live",
             source_uri="file:///doc.pdf",
@@ -196,7 +196,7 @@ def test_write_extracted_rows_validates_cypher_identifiers():
     bad_config = LexicalGraphConfig(chunk_node_label="Chunk:Bad", chunk_id_property="chunk_id")
 
     with pytest.raises(ValueError, match="Unsafe chunk label"):
-        narrative_extraction._write_extracted_rows(
+        narrative_extraction.write_extracted_rows(
             _FakeDriver(),
             neo4j_database="neo4j",
             lexical_graph_config=bad_config,
@@ -215,7 +215,7 @@ def test_write_extracted_rows_validates_chunk_id_property():
     bad_config = LexicalGraphConfig(chunk_node_label="Chunk", chunk_id_property="chunk-id")
 
     with pytest.raises(ValueError, match="Unsafe chunk_id property"):
-        narrative_extraction._write_extracted_rows(
+        narrative_extraction.write_extracted_rows(
             _FakeDriver(),
             neo4j_database="neo4j",
             lexical_graph_config=bad_config,
@@ -245,7 +245,7 @@ def test_write_extracted_rows_allows_valid_identifiers_and_executes():
         }
     ]
 
-    narrative_extraction._write_extracted_rows(
+    narrative_extraction.write_extracted_rows(
         _FakeDriver(),
         neo4j_database="neo4j",
         lexical_graph_config=good_config,
