@@ -1,11 +1,7 @@
-from demo.chain_of_custody.stages.claim_extraction import run_claim_and_mention_extraction
-from demo.chain_of_custody.stages.pdf_ingest import run_pdf_ingest
-from demo.chain_of_custody.stages.retrieval_and_qa import run_retrieval_and_qa
-from demo.chain_of_custody.stages.structured_ingest import (
-    lint_and_clean_structured_csvs,
-    load_csv_rows,
-    run_structured_ingest,
-)
+from __future__ import annotations
+
+from importlib import import_module
+from typing import Any
 
 __all__ = [
     "lint_and_clean_structured_csvs",
@@ -15,3 +11,21 @@ __all__ = [
     "run_retrieval_and_qa",
     "run_structured_ingest",
 ]
+
+
+def __getattr__(name: str) -> Any:  # pragma: no cover - thin import proxy
+    if name in {"lint_and_clean_structured_csvs", "load_csv_rows", "run_structured_ingest"}:
+        module = import_module("demo.chain_of_custody.stages.structured_ingest")
+    elif name == "run_pdf_ingest":
+        module = import_module("demo.chain_of_custody.stages.pdf_ingest")
+    elif name == "run_claim_and_mention_extraction":
+        module = import_module("demo.chain_of_custody.stages.claim_extraction")
+    elif name == "run_retrieval_and_qa":
+        module = import_module("demo.chain_of_custody.stages.retrieval_and_qa")
+    else:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    return getattr(module, name)
+
+
+def __dir__() -> list[str]:  # pragma: no cover - thin import proxy
+    return sorted(__all__)

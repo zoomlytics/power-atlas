@@ -264,7 +264,6 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
 
 _run_claim_and_mention_extraction = run_claim_and_mention_extraction
 _run_retrieval_and_qa = run_retrieval_and_qa
-_sha256_file = _sha256_file
 run_independent_demo = _run_independent_stage
 
 

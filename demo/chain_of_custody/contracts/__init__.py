@@ -1,7 +1,6 @@
-from demo.chain_of_custody.contracts.claim_schema import (
-    claim_extraction_lexical_config,
-    claim_extraction_schema,
-)
+from importlib import import_module
+from typing import Any
+
 from demo.chain_of_custody.contracts.manifest import build_batch_manifest, build_stage_manifest
 from demo.chain_of_custody.contracts.paths import ARTIFACTS_DIR, CONFIG_DIR, FIXTURES_DIR, PDF_PIPELINE_CONFIG_PATH
 from demo.chain_of_custody.contracts.pipeline import (
@@ -30,8 +29,6 @@ __all__ = [
     "ARTIFACTS_DIR",
     "build_batch_manifest",
     "build_stage_manifest",
-    "claim_extraction_lexical_config",
-    "claim_extraction_schema",
     "COMMON_PREDICATE_LABELS",
     "CONFIG_DIR",
     "CSV_FIRST_DATA_ROW",
@@ -55,3 +52,14 @@ __all__ = [
     "timestamp",
     "VALUE_TYPES",
 ]
+
+
+def __getattr__(name: str) -> Any:  # pragma: no cover - thin import proxy
+    if name in {"claim_extraction_lexical_config", "claim_extraction_schema"}:
+        module = import_module("demo.chain_of_custody.contracts.claim_schema")
+        return getattr(module, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__() -> list[str]:  # pragma: no cover - thin import proxy
+    return sorted(__all__)
