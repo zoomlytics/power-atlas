@@ -1,7 +1,7 @@
 from importlib import import_module
 from typing import Any
 
-from demo.chain_of_custody.contracts.manifest import build_batch_manifest, build_stage_manifest
+from demo.chain_of_custody.contracts.manifest import build_batch_manifest, build_stage_manifest, write_manifest
 from demo.chain_of_custody.contracts.paths import ARTIFACTS_DIR, CONFIG_DIR, FIXTURES_DIR, PDF_PIPELINE_CONFIG_PATH
 from demo.chain_of_custody.contracts.pipeline import (
     CHUNK_EMBEDDING_DIMENSIONS,
@@ -29,6 +29,7 @@ __all__ = [
     "ARTIFACTS_DIR",
     "build_batch_manifest",
     "build_stage_manifest",
+    "write_manifest",
     "claim_extraction_lexical_config",
     "claim_extraction_schema",
     "COMMON_PREDICATE_LABELS",
