@@ -262,10 +262,10 @@ def _write_extracted_rows(
     claim_rows: list[dict[str, Any]],
     mention_rows: list[dict[str, Any]],
 ) -> None:
-    chunk_label = RunScopedNeo4jChunkReader._validate_identifier(
+    chunk_label = RunScopedNeo4jChunkReader.validate_identifier(
         lexical_graph_config.chunk_node_label, "chunk label"
     )
-    chunk_id_property = RunScopedNeo4jChunkReader._validate_identifier(
+    chunk_id_property = RunScopedNeo4jChunkReader.validate_identifier(
         lexical_graph_config.chunk_id_property, "chunk_id property"
     )
     if claim_rows:

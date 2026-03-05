@@ -47,6 +47,11 @@ class RunScopedNeo4jChunkReader(Neo4jChunkReader):
             raise ValueError(f"Unsafe {kind}: {value!r}")
         return value
 
+    @staticmethod
+    def validate_identifier(value: str, kind: str) -> str:
+        """Public wrapper for Cypher identifier validation to allow reuse across demo utilities."""
+        return RunScopedNeo4jChunkReader._validate_identifier(value, kind)
+
     def _get_query(
         self,
         chunk_label: str,
