@@ -41,8 +41,6 @@ def refresh_pipeline_contract() -> None:
 
 
 def ensure_pipeline_contract_loaded() -> None:
-    if _PIPELINE_CONTRACT_LOADED:
-        return
     with _PIPELINE_CONTRACT_LOCK:
         if not _PIPELINE_CONTRACT_LOADED:
             _load_pipeline_contract()
