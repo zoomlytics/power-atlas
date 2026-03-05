@@ -134,4 +134,5 @@ def test_coerce_identifier_warns_and_falls_back(monkeypatch):
     assert caught
     warning = caught[0]
     assert issubclass(warning.category, RuntimeWarning)
+    assert warning.filename.endswith("test_pipeline_contract.py")
     assert "identifier-safe string" in str(warning.message)
