@@ -147,7 +147,7 @@ def run_pdf_ingest(
             "ingest_summary_path": str(ingest_summary_path),
             "pdf_fingerprint_sha256": pdf_fingerprint_sha256,
             "counts": summary_counts,
-            "embedding_model": EMBEDDER_MODEL_NAME,
+            "embedding_model": effective_embedder_model,
             "warnings": extraction_warnings,
         }
 
@@ -436,10 +436,10 @@ def run_pdf_ingest(
         "pipeline_config": str(PDF_PIPELINE_CONFIG_PATH),
         "pipeline_config_sha256": pipeline_config_sha256,
         "vector_index": {
-            "index_name": CHUNK_EMBEDDING_INDEX_NAME,
-            "label": CHUNK_EMBEDDING_LABEL,
-            "embedding_property": CHUNK_EMBEDDING_PROPERTY,
-            "dimensions": CHUNK_EMBEDDING_DIMENSIONS,
+            "index_name": effective_index_name,
+            "label": effective_chunk_label,
+            "embedding_property": effective_embedding_property,
+            "dimensions": effective_embedding_dimensions,
             "creation_strategy": index_creation_strategy or "unknown",
         },
         "pipeline_result": _normalize_pipeline_result(pipeline_result),
@@ -458,7 +458,7 @@ def run_pdf_ingest(
         "ingest_summary_path": str(ingest_summary_path),
         "pdf_fingerprint_sha256": pdf_fingerprint_sha256,
         "counts": summary_counts,
-        "embedding_model": EMBEDDER_MODEL_NAME,
+        "embedding_model": effective_embedder_model,
         "warnings": extraction_warnings,
         **({"vector_index_fallback_reason": index_fallback_reason} if index_fallback_reason else {}),
     }

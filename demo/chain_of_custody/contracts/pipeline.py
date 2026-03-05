@@ -130,5 +130,3 @@ __all__ = [
     "PIPELINE_CONFIG_DATA",
     "refresh_pipeline_contract",
 ]
-
-refresh_pipeline_contract()
