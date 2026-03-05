@@ -443,7 +443,7 @@ def run_narrative_extraction(config: ExtractionConfig) -> dict[str, Any]:
         )
         return summary
 
-    if not config.dry_run and config.neo4j_password in ("", DEFAULT_NEO4J_PASSWORD):
+    if config.neo4j_password in ("", DEFAULT_NEO4J_PASSWORD):
         raise ValueError(
             "NEO4J_PASSWORD must be set (not empty and not CHANGE_ME_BEFORE_USE) for live narrative extraction. "
             "Use --neo4j-password or the NEO4J_PASSWORD environment variable."
