@@ -84,9 +84,9 @@ class RunScopedNeo4jChunkReader(Neo4jChunkReader):
             lexical_graph_config.chunk_embedding_property,
         )
         params = {"run_id": self.run_id}
-        if self.source_uri:
+        if self.source_uri is not None:
             params["source_uri"] = self.source_uri
-        if self.corpus:
+        if self.corpus is not None:
             params["corpus"] = self.corpus
 
         result, _, _ = self.driver.execute_query(
