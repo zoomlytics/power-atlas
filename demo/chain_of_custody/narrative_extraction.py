@@ -38,6 +38,7 @@ DEFAULT_CHUNK_EMBEDDING_PROPERTY = "embedding"
 DEFAULT_NODE_TO_CHUNK_RELATIONSHIP = "MENTIONED_IN"
 PROMPT_VERSION = "narrative_claims_v1"
 DEFAULT_OUTPUT_ROOT = Path(__file__).resolve().parent / "runs"
+DEFAULT_NEO4J_PASSWORD = "CHANGE_ME_BEFORE_USE"
 
 
 @dataclass(frozen=True)
@@ -442,6 +443,12 @@ def run_narrative_extraction(config: ExtractionConfig) -> dict[str, Any]:
         )
         return summary
 
+    if not config.dry_run and config.neo4j_password in ("", DEFAULT_NEO4J_PASSWORD):
+        raise ValueError(
+            "NEO4J_PASSWORD must be set to a non-default value for live narrative extraction. "
+            "Use --neo4j-password or the NEO4J_PASSWORD environment variable."
+        )
+
     if not os.getenv("OPENAI_API_KEY"):
         raise ValueError("OPENAI_API_KEY environment variable is required for narrative extraction.")
 
@@ -514,7 +521,7 @@ def _parse_args() -> ExtractionConfig:
     )
     parser.add_argument("--neo4j-uri", default=os.getenv("NEO4J_URI", "neo4j://localhost:7687"))
     parser.add_argument("--neo4j-username", default=os.getenv("NEO4J_USERNAME", "neo4j"))
-    parser.add_argument("--neo4j-password", default=os.getenv("NEO4J_PASSWORD", "testtesttest"))
+    parser.add_argument("--neo4j-password", default=os.getenv("NEO4J_PASSWORD", DEFAULT_NEO4J_PASSWORD))
     parser.add_argument("--neo4j-database", default=os.getenv("NEO4J_DATABASE", "neo4j"))
     parser.add_argument("--model-name", default=os.getenv("OPENAI_MODEL", "gpt-4o-mini"))
     parser.add_argument(
