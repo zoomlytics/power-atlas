@@ -23,7 +23,7 @@ def isolate_pipeline_contract(monkeypatch):
         "DATASET_ID": pipeline.DATASET_ID,
     }
     yield
-    monkeypatch.setattr(pipeline, "PDF_PIPELINE_CONFIG_PATH", original_path, raising=False)
+    pipeline.PDF_PIPELINE_CONFIG_PATH = original_path
     pipeline.PIPELINE_CONFIG_DATA = deepcopy(original_state["PIPELINE_CONFIG_DATA"])
     pipeline.CHUNK_EMBEDDING_INDEX_NAME = original_state["CHUNK_EMBEDDING_INDEX_NAME"]
     pipeline.CHUNK_EMBEDDING_LABEL = original_state["CHUNK_EMBEDDING_LABEL"]
