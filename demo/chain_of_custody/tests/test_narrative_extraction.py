@@ -14,7 +14,7 @@ from neo4j_graphrag.experimental.components.types import (
     TextChunks,
 )
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from demo.chain_of_custody.narrative_extraction import (  # noqa: E402
     PROMPT_VERSION,
