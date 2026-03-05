@@ -30,9 +30,9 @@ Self-contained demo workflow under `demo/chain_of_custody/` for evidence-driven 
    ```bash
    python demo/chain_of_custody/smoke_test.py
    ```
-By default this writes artifacts to an isolated temporary directory that is deleted when the process exits; pass `--output-dir` to retain artifacts in a persistent directory.
+   By default this writes artifacts to an isolated temporary directory that is deleted when the process exits; pass `--output-dir` to retain artifacts in a persistent directory.
 
-`--dry-run` keeps the workflow reproducible without requiring live OpenAI/Neo4j calls.
+   `--dry-run` keeps the workflow reproducible without requiring live OpenAI/Neo4j calls.
 
 ### Narrative extraction (run-scoped, post-PDF ingest)
 
