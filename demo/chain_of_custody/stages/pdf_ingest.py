@@ -104,7 +104,9 @@ def run_pdf_ingest(
     )
     effective_embedder_model = embedder_model or EMBEDDER_MODEL_NAME
     effective_chunk_stride = (
-        _require_positive_int(chunk_stride, "chunk_stride") if chunk_stride is not None else CHUNK_FALLBACK_STRIDE
+        _require_positive_int(chunk_stride, "chunk_stride")
+        if chunk_stride is not None
+        else CHUNK_FALLBACK_STRIDE
     )
     stage_run_id = run_id or make_run_id("unstructured_ingest")
     run_root = config.output_dir / "runs" / stage_run_id
