@@ -20,7 +20,7 @@ _DEFAULT_EMBEDDER_MODEL_NAME = "text-embedding-3-small"
 _DEFAULT_DATASET_ID = "chain_of_custody_dataset_v1"
 
 PIPELINE_CONFIG_DATA: dict[str, Any] = {}
-_PIPELINE_CONTRACT_LOADED = False
+_PIPELINE_CONTRACT_LOADED = threading.Event()
 _PIPELINE_CONTRACT_LOCK = threading.Lock()
 CHUNK_EMBEDDING_INDEX_NAME = _DEFAULT_CHUNK_EMBEDDING_INDEX_NAME
 CHUNK_EMBEDDING_LABEL = _DEFAULT_CHUNK_EMBEDDING_LABEL
@@ -35,18 +35,17 @@ def refresh_pipeline_contract() -> None:
     """Force a reload of the pipeline contract from disk, even if already loaded."""
     global PIPELINE_CONFIG_DATA, CHUNK_EMBEDDING_INDEX_NAME, CHUNK_EMBEDDING_LABEL, CHUNK_EMBEDDING_PROPERTY
     global CHUNK_EMBEDDING_DIMENSIONS, EMBEDDER_MODEL_NAME, CHUNK_FALLBACK_STRIDE, DATASET_ID
-    global _PIPELINE_CONTRACT_LOADED
     with _PIPELINE_CONTRACT_LOCK:
         _load_pipeline_contract()
-        _PIPELINE_CONTRACT_LOADED = True
+        _PIPELINE_CONTRACT_LOADED.set()
 
 
 def ensure_pipeline_contract_loaded() -> None:
     """Load the pipeline contract once in a thread-safe way."""
     with _PIPELINE_CONTRACT_LOCK:
-        if not _PIPELINE_CONTRACT_LOADED:
+        if not _PIPELINE_CONTRACT_LOADED.is_set():
             _load_pipeline_contract()
-            _PIPELINE_CONTRACT_LOADED = True
+            _PIPELINE_CONTRACT_LOADED.set()
 
 
 def _load_pipeline_contract() -> None:
@@ -140,6 +139,7 @@ def _load_pipeline_contract() -> None:
         DATASET_ID = cfg_dataset_id
 
 
+# Load once at import time so the exported constants reflect the configured contract.
 ensure_pipeline_contract_loaded()
 
 
