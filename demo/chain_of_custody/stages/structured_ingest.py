@@ -282,7 +282,8 @@ def run_structured_ingest(config: Any, run_id: str, *, fixtures_dir: Path | None
     facts_rows = load_csv_rows(structured_clean_dir / "facts.csv")
     relationship_rows = load_csv_rows(structured_clean_dir / "relationships.csv")
     claims_rows = load_csv_rows(structured_clean_dir / "claims.csv")
-    source_uri = str(FIXTURES_DIR / "structured")
+    effective_fixtures_dir = fixtures_dir or FIXTURES_DIR
+    source_uri = str(effective_fixtures_dir / "structured")
     dataset_id = DATASET_ID
     ingested_at = _timestamp()
 
