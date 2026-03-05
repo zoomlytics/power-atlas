@@ -8,7 +8,7 @@ from typing import Any, Callable
 
 from demo.chain_of_custody.contracts import pipeline as pipeline_contracts
 
-pipeline_contracts.refresh_pipeline_contract()
+pipeline_contracts.ensure_pipeline_contract_loaded()
 
 from demo.chain_of_custody.contracts import (  # noqa: E402
     ARTIFACTS_DIR,

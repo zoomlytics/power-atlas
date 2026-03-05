@@ -1,10 +1,13 @@
-from demo.chain_of_custody.contracts.claim_schema import (
+from demo.chain_of_custody.contracts import pipeline as pipeline_contracts
+pipeline_contracts.ensure_pipeline_contract_loaded()
+
+from demo.chain_of_custody.contracts.claim_schema import (  # noqa: E402
     claim_extraction_lexical_config,
     claim_extraction_schema,
 )
-from demo.chain_of_custody.contracts.manifest import build_batch_manifest, build_stage_manifest
-from demo.chain_of_custody.contracts.paths import ARTIFACTS_DIR, CONFIG_DIR, FIXTURES_DIR, PDF_PIPELINE_CONFIG_PATH
-from demo.chain_of_custody.contracts.pipeline import (
+from demo.chain_of_custody.contracts.manifest import build_batch_manifest, build_stage_manifest  # noqa: E402
+from demo.chain_of_custody.contracts.paths import ARTIFACTS_DIR, CONFIG_DIR, FIXTURES_DIR, PDF_PIPELINE_CONFIG_PATH  # noqa: E402
+from demo.chain_of_custody.contracts.pipeline import (  # noqa: E402
     CHUNK_EMBEDDING_DIMENSIONS,
     CHUNK_EMBEDDING_INDEX_NAME,
     CHUNK_EMBEDDING_LABEL,
@@ -14,10 +17,11 @@ from demo.chain_of_custody.contracts.pipeline import (
     DEFAULT_DB,
     EMBEDDER_MODEL_NAME,
     PIPELINE_CONFIG_DATA,
+    ensure_pipeline_contract_loaded,
 )
-from demo.chain_of_custody.contracts.prompts import PROMPT_IDS
-from demo.chain_of_custody.contracts.runtime import DemoConfig, make_run_id, timestamp
-from demo.chain_of_custody.contracts.structured import (
+from demo.chain_of_custody.contracts.prompts import PROMPT_IDS  # noqa: E402
+from demo.chain_of_custody.contracts.runtime import DemoConfig, make_run_id, timestamp  # noqa: E402
+from demo.chain_of_custody.contracts.structured import (  # noqa: E402
     COMMON_PREDICATE_LABELS,
     CSV_FIRST_DATA_ROW,
     ID_PATTERNS,
@@ -43,6 +47,7 @@ __all__ = [
     "DEFAULT_DB",
     "DemoConfig",
     "EMBEDDER_MODEL_NAME",
+    "ensure_pipeline_contract_loaded",
     "FIXTURES_DIR",
     "ID_PATTERNS",
     "make_run_id",
