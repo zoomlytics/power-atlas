@@ -71,6 +71,7 @@ def _normalize_pipeline_result(value: Any) -> Any:
 
 
 def _require_positive_int(value: int, param_name: str) -> int:
+    """Validate positive integer overrides, explicitly rejecting bool since it subclasses int."""
     if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
         raise ValueError(f"{param_name} must be a positive integer (int type), got {value!r}")
     return value
