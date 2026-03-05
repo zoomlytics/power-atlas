@@ -50,6 +50,8 @@ def _load_pipeline_contract() -> None:
     global PIPELINE_CONFIG_DATA, CHUNK_EMBEDDING_INDEX_NAME, CHUNK_EMBEDDING_LABEL, CHUNK_EMBEDDING_PROPERTY
     global CHUNK_EMBEDDING_DIMENSIONS, EMBEDDER_MODEL_NAME, CHUNK_FALLBACK_STRIDE, DATASET_ID, _PIPELINE_CONTRACT_LOADED
 
+    if _PIPELINE_CONTRACT_LOADED:
+        return
     PIPELINE_CONFIG_DATA = {}
     if PDF_PIPELINE_CONFIG_PATH.is_file():
         cfg_data: Any = {}
@@ -135,6 +137,9 @@ def _load_pipeline_contract() -> None:
     if isinstance(cfg_dataset_id, str) and cfg_dataset_id:
         DATASET_ID = cfg_dataset_id
     _PIPELINE_CONTRACT_LOADED = True
+
+
+ensure_pipeline_contract_loaded()
 
 
 __all__ = [

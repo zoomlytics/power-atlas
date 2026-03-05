@@ -1,6 +1,3 @@
-from demo.chain_of_custody.contracts import pipeline as pipeline_contracts
-pipeline_contracts.ensure_pipeline_contract_loaded()
-
 from demo.chain_of_custody.contracts.claim_schema import (  # noqa: E402
     claim_extraction_lexical_config,
     claim_extraction_schema,
