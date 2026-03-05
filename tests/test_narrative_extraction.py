@@ -173,7 +173,7 @@ def test_write_extracted_rows_validates_cypher_identifiers():
         def execute_query(self, *args, **kwargs):
             raise AssertionError("execute_query should not be called when identifiers are invalid")
 
-    bad_config = LexicalGraphConfig(chunk_node_label="Chunk:Bad", chunk_id_property="chunk-id")
+    bad_config = LexicalGraphConfig(chunk_node_label="Chunk:Bad", chunk_id_property="chunk_id")
 
     with pytest.raises(ValueError, match="Unsafe chunk label"):
         narrative_extraction._write_extracted_rows(
@@ -183,3 +183,54 @@ def test_write_extracted_rows_validates_cypher_identifiers():
             claim_rows=[],
             mention_rows=[],
         )
+
+
+def test_write_extracted_rows_validates_chunk_id_property():
+    from pipelines.ingest import narrative_extraction  # import inside to use updated helper
+
+    class _FakeDriver:
+        def execute_query(self, *args, **kwargs):
+            raise AssertionError("execute_query should not be called when identifiers are invalid")
+
+    bad_config = LexicalGraphConfig(chunk_node_label="Chunk", chunk_id_property="chunk-id")
+
+    with pytest.raises(ValueError, match="Unsafe chunk_id property"):
+        narrative_extraction._write_extracted_rows(
+            _FakeDriver(),
+            neo4j_database="neo4j",
+            lexical_graph_config=bad_config,
+            claim_rows=[],
+            mention_rows=[],
+        )
+
+
+def test_write_extracted_rows_allows_valid_identifiers_and_executes():
+    from pipelines.ingest import narrative_extraction  # import inside to use updated helper
+
+    executed = {"count": 0}
+
+    class _FakeDriver:
+        def execute_query(self, *args, **kwargs):
+            executed["count"] += 1
+            return None
+
+    good_config = LexicalGraphConfig(chunk_node_label="Chunk", chunk_id_property="chunk_id")
+    claim_rows = [
+        {
+            "claim_id": "claim-1",
+            "chunk_ids": ["chunk-1"],
+            "run_id": "run-valid",
+            "source_uri": None,
+            "properties": {"extracted_at": "t", "prompt_version": "p"},
+        }
+    ]
+
+    narrative_extraction._write_extracted_rows(
+        _FakeDriver(),
+        neo4j_database="neo4j",
+        lexical_graph_config=good_config,
+        claim_rows=claim_rows,
+        mention_rows=[],
+    )
+
+    assert executed["count"] == 1
