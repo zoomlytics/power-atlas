@@ -46,12 +46,13 @@ def ensure_pipeline_contract_loaded() -> None:
     with _PIPELINE_CONTRACT_LOCK:
         if not _PIPELINE_CONTRACT_LOADED:
             _load_pipeline_contract()
+            _PIPELINE_CONTRACT_LOADED = True
 
 
 def _load_pipeline_contract() -> None:
     """Internal helper that reads the pipeline contract from disk and updates globals."""
     global PIPELINE_CONFIG_DATA, CHUNK_EMBEDDING_INDEX_NAME, CHUNK_EMBEDDING_LABEL, CHUNK_EMBEDDING_PROPERTY
-    global CHUNK_EMBEDDING_DIMENSIONS, EMBEDDER_MODEL_NAME, CHUNK_FALLBACK_STRIDE, DATASET_ID, _PIPELINE_CONTRACT_LOADED
+    global CHUNK_EMBEDDING_DIMENSIONS, EMBEDDER_MODEL_NAME, CHUNK_FALLBACK_STRIDE, DATASET_ID
 
     PIPELINE_CONFIG_DATA = {}
     if PDF_PIPELINE_CONFIG_PATH.is_file():
@@ -137,7 +138,6 @@ def _load_pipeline_contract() -> None:
     cfg_dataset_id = kg_writer_params.get("dataset_id") if isinstance(kg_writer_params, dict) else None
     if isinstance(cfg_dataset_id, str) and cfg_dataset_id:
         DATASET_ID = cfg_dataset_id
-    _PIPELINE_CONTRACT_LOADED = True
 
 
 ensure_pipeline_contract_loaded()
