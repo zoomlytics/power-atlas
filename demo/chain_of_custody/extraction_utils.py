@@ -53,6 +53,15 @@ def prepare_extracted_rows(
     prompt_version: str,
     lexical_graph_config: LexicalGraphConfig,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str]]:
+    """
+    Map extracted graph nodes to claim/mention rows with provenance.
+
+    Args:
+        extracted_at: Optional timestamp; when None, the current UTC time is used.
+
+    Returns:
+        claim_rows, mention_rows, warnings
+    """
     effective_extracted_at = extracted_at or datetime.now(UTC).isoformat()
 
     chunk_meta: dict[str, dict[str, Any]] = {}

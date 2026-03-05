@@ -46,7 +46,7 @@ PROMPT_VERSION = "narrative_claims_v1"
 DEFAULT_OUTPUT_ROOT = Path(__file__).resolve().parent / "runs"
 DEFAULT_NEO4J_PASSWORD = "CHANGE_ME_BEFORE_USE"
 
-# Backward-compatible aliases for shared helpers
+# Backward-compatible alias retained so existing tests can patch the private writer name.
 _write_extracted_rows = write_extracted_rows
 
 
