@@ -696,9 +696,6 @@ async def _async_read_chunks_and_extract(
     return graph, text_chunks.chunks, lexical_config
 
 
-_prepare_extracted_rows = prepare_extracted_rows
-_write_extracted_rows = write_extracted_rows
-
 def _run_structured_ingest(config: DemoConfig, run_id: str) -> dict[str, Any]:
     lint_output = _lint_and_clean_structured_csvs(run_id=run_id, output_dir=config.output_dir)
     structured_clean_dir = Path(lint_output["structured_clean_dir"])
@@ -1472,7 +1469,7 @@ def _run_claim_and_mention_extraction(
                 model_name=config.openai_model,
             )
         )
-        claim_rows, mention_rows, extraction_warnings = _prepare_extracted_rows(
+        claim_rows, mention_rows, extraction_warnings = prepare_extracted_rows(
             graph=graph,
             text_chunks=text_chunks,
             run_id=run_id,
@@ -1482,7 +1479,7 @@ def _run_claim_and_mention_extraction(
             lexical_graph_config=lexical_config,
             prompt_version=CLAIM_EXTRACTION_PROMPT_VERSION,
         )
-        _write_extracted_rows(
+        write_extracted_rows(
             driver,
             neo4j_database=config.neo4j_database,
             lexical_graph_config=lexical_config,

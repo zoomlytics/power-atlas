@@ -53,7 +53,7 @@ def prepare_extracted_rows(
     prompt_version: str,
     lexical_graph_config: LexicalGraphConfig,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str]]:
-    extracted_at = extracted_at or datetime.now(UTC).isoformat()
+    effective_extracted_at = extracted_at or datetime.now(UTC).isoformat()
 
     chunk_meta: dict[str, dict[str, Any]] = {}
     for chunk in text_chunks:
@@ -118,7 +118,7 @@ def prepare_extracted_rows(
             "run_id": run_id,
             "source_uri": provenance_source,
             "extractor_model": extractor_model,
-            "extracted_at": extracted_at,
+            "extracted_at": effective_extracted_at,
             "prompt_version": prompt_version,
             "chunk_ids": node_chunk_ids,
         }
