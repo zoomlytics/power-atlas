@@ -165,7 +165,7 @@ def _coerce_identifier(value: Any, default: str, field_name: str) -> str:
         candidate = value.strip()
         if candidate and _IDENTIFIER_PATTERN.fullmatch(candidate):
             return candidate
-        # stacklevel=3 points warnings at the public refresh/ensure callers, not inside this helper
+        # stacklevel=3 surfaces warnings at the caller of refresh/ensure -> _load_pipeline_contract -> _coerce_identifier
         warnings.warn(
             f"Falling back to default for {field_name}; expected identifier-safe string, got {value!r}",
             RuntimeWarning,

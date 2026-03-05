@@ -22,20 +22,22 @@ def isolate_pipeline_contract(monkeypatch):
         "CHUNK_FALLBACK_STRIDE": pipeline.CHUNK_FALLBACK_STRIDE,
         "DATASET_ID": pipeline.DATASET_ID,
     }
-    yield
-    pipeline.PDF_PIPELINE_CONFIG_PATH = original_path
-    pipeline.PIPELINE_CONFIG_DATA = deepcopy(original_state["PIPELINE_CONFIG_DATA"])
-    pipeline.CHUNK_EMBEDDING_INDEX_NAME = original_state["CHUNK_EMBEDDING_INDEX_NAME"]
-    pipeline.CHUNK_EMBEDDING_LABEL = original_state["CHUNK_EMBEDDING_LABEL"]
-    pipeline.CHUNK_EMBEDDING_PROPERTY = original_state["CHUNK_EMBEDDING_PROPERTY"]
-    pipeline.CHUNK_EMBEDDING_DIMENSIONS = original_state["CHUNK_EMBEDDING_DIMENSIONS"]
-    pipeline.EMBEDDER_MODEL_NAME = original_state["EMBEDDER_MODEL_NAME"]
-    pipeline.CHUNK_FALLBACK_STRIDE = original_state["CHUNK_FALLBACK_STRIDE"]
-    pipeline.DATASET_ID = original_state["DATASET_ID"]
-    if contract_was_loaded:
-        pipeline._PIPELINE_CONTRACT_LOADED.set()
-    else:
-        pipeline._PIPELINE_CONTRACT_LOADED.clear()
+    try:
+        yield
+    finally:
+        pipeline.PDF_PIPELINE_CONFIG_PATH = original_path
+        pipeline.PIPELINE_CONFIG_DATA = deepcopy(original_state["PIPELINE_CONFIG_DATA"])
+        pipeline.CHUNK_EMBEDDING_INDEX_NAME = original_state["CHUNK_EMBEDDING_INDEX_NAME"]
+        pipeline.CHUNK_EMBEDDING_LABEL = original_state["CHUNK_EMBEDDING_LABEL"]
+        pipeline.CHUNK_EMBEDDING_PROPERTY = original_state["CHUNK_EMBEDDING_PROPERTY"]
+        pipeline.CHUNK_EMBEDDING_DIMENSIONS = original_state["CHUNK_EMBEDDING_DIMENSIONS"]
+        pipeline.EMBEDDER_MODEL_NAME = original_state["EMBEDDER_MODEL_NAME"]
+        pipeline.CHUNK_FALLBACK_STRIDE = original_state["CHUNK_FALLBACK_STRIDE"]
+        pipeline.DATASET_ID = original_state["DATASET_ID"]
+        if contract_was_loaded:
+            pipeline._PIPELINE_CONTRACT_LOADED.set()
+        else:
+            pipeline._PIPELINE_CONTRACT_LOADED.clear()
 
 
 def _reset_contract_state() -> None:
