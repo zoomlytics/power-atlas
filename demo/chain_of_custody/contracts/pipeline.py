@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import threading
 import warnings
 from typing import Any
 
@@ -19,7 +20,8 @@ _DEFAULT_EMBEDDER_MODEL_NAME = "text-embedding-3-small"
 _DEFAULT_DATASET_ID = "chain_of_custody_dataset_v1"
 
 PIPELINE_CONFIG_DATA: dict[str, Any] = {}
-_PIPELINE_CONTRACT_REFRESHED = False
+_PIPELINE_CONTRACT_LOADED = False
+_PIPELINE_CONTRACT_LOCK = threading.Lock()
 CHUNK_EMBEDDING_INDEX_NAME = _DEFAULT_CHUNK_EMBEDDING_INDEX_NAME
 CHUNK_EMBEDDING_LABEL = _DEFAULT_CHUNK_EMBEDDING_LABEL
 CHUNK_EMBEDDING_PROPERTY = _DEFAULT_CHUNK_EMBEDDING_PROPERTY
@@ -32,7 +34,23 @@ DATASET_ID = _DEFAULT_DATASET_ID
 def refresh_pipeline_contract() -> None:
     global PIPELINE_CONFIG_DATA, CHUNK_EMBEDDING_INDEX_NAME, CHUNK_EMBEDDING_LABEL, CHUNK_EMBEDDING_PROPERTY
     global CHUNK_EMBEDDING_DIMENSIONS, EMBEDDER_MODEL_NAME, CHUNK_FALLBACK_STRIDE, DATASET_ID
-    global _PIPELINE_CONTRACT_REFRESHED
+    global _PIPELINE_CONTRACT_LOADED
+
+    with _PIPELINE_CONTRACT_LOCK:
+        _load_pipeline_contract()
+
+
+def ensure_pipeline_contract_loaded() -> None:
+    if _PIPELINE_CONTRACT_LOADED:
+        return
+    with _PIPELINE_CONTRACT_LOCK:
+        if not _PIPELINE_CONTRACT_LOADED:
+            _load_pipeline_contract()
+
+
+def _load_pipeline_contract() -> None:
+    global PIPELINE_CONFIG_DATA, CHUNK_EMBEDDING_INDEX_NAME, CHUNK_EMBEDDING_LABEL, CHUNK_EMBEDDING_PROPERTY
+    global CHUNK_EMBEDDING_DIMENSIONS, EMBEDDER_MODEL_NAME, CHUNK_FALLBACK_STRIDE, DATASET_ID, _PIPELINE_CONTRACT_LOADED
 
     PIPELINE_CONFIG_DATA = {}
     if PDF_PIPELINE_CONFIG_PATH.is_file():
@@ -118,12 +136,7 @@ def refresh_pipeline_contract() -> None:
     cfg_dataset_id = kg_writer_params.get("dataset_id") if isinstance(kg_writer_params, dict) else None
     if isinstance(cfg_dataset_id, str) and cfg_dataset_id:
         DATASET_ID = cfg_dataset_id
-    _PIPELINE_CONTRACT_REFRESHED = True
-
-
-def ensure_pipeline_contract_loaded() -> None:
-    if not _PIPELINE_CONTRACT_REFRESHED:
-        refresh_pipeline_contract()
+    _PIPELINE_CONTRACT_LOADED = True
 
 
 __all__ = [
