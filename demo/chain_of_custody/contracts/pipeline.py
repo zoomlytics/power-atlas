@@ -163,20 +163,13 @@ def _load_pipeline_contract() -> None:
 def _coerce_identifier(value: Any, default: str, field_name: str) -> str:
     if isinstance(value, str):
         candidate = value.strip()
-        if candidate:
-            if _IDENTIFIER_PATTERN.fullmatch(candidate):
-                return candidate
-            warnings.warn(
-                f"Falling back to default for {field_name}; expected identifier-safe string, got {value!r}",
-                RuntimeWarning,
-                stacklevel=3,
-            )
-        else:
-            warnings.warn(
-                f"Falling back to default for {field_name}; expected identifier-safe string, got {value!r}",
-                RuntimeWarning,
-                stacklevel=3,
-            )
+        if candidate and _IDENTIFIER_PATTERN.fullmatch(candidate):
+            return candidate
+        warnings.warn(
+            f"Falling back to default for {field_name}; expected identifier-safe string, got {value!r}",
+            RuntimeWarning,
+            stacklevel=3,
+        )
     return default
 
 
