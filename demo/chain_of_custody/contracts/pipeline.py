@@ -140,6 +140,8 @@ def _load_pipeline_contract() -> None:
 
 
 # Load once at import time so the exported constants reflect the configured contract.
+# Module import is serialized by Python's import lock, so this one-time load is safe
+# even when multiple threads import the package concurrently.
 ensure_pipeline_contract_loaded()
 
 
