@@ -6,11 +6,7 @@ import os
 from datetime import UTC, datetime
 from typing import Any
 
-from demo.chain_of_custody.contracts import (
-    PROMPT_IDS,
-    claim_extraction_lexical_config,
-    claim_extraction_schema,
-)
+from demo.chain_of_custody.contracts import PROMPT_IDS
 
 
 async def _async_read_chunks_and_extract(
@@ -23,6 +19,10 @@ async def _async_read_chunks_and_extract(
 ) -> tuple[Any, list[Any], Any]:
     from neo4j_graphrag.experimental.components.entity_relation_extractor import LLMEntityRelationExtractor
     from neo4j_graphrag.llm import OpenAILLM
+    from demo.chain_of_custody.contracts import (
+        claim_extraction_lexical_config,
+        claim_extraction_schema,
+    )
     from demo.chain_of_custody.io import RunScopedNeo4jChunkReader
 
     lexical_config = claim_extraction_lexical_config()

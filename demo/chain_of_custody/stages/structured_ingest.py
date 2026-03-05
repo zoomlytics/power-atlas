@@ -112,7 +112,7 @@ def lint_and_clean_structured_csvs(run_id: str, output_dir: Path, fixtures_dir: 
                             "EXTRA_COLUMNS",
                             f"Unexpected extra columns detected: {extra_columns}",
                         )
-                    rows.append((row_number, {header: raw_row.get(header, "") for header in expected_headers}))
+                    rows.append((row_number, {header: (raw_row.get(header) or "") for header in expected_headers}))
         except (OSError, csv.Error, UnicodeDecodeError) as exc:
             _add_issue(
                 file_name,
