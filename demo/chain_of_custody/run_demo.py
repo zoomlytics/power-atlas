@@ -36,21 +36,11 @@ if TYPE_CHECKING:
     import neo4j
 try:
     from demo.chain_of_custody.run_scoped_chunk_reader import RunScopedNeo4jChunkReader
-    from demo.chain_of_custody.extraction_utils import (
-        coerce_confidence,
-        fallback_identifier,
-        prepare_extracted_rows,
-        write_extracted_rows,
-    )
+    from demo.chain_of_custody.extraction_utils import prepare_extracted_rows, write_extracted_rows
 except ModuleNotFoundError:
     sys.path.append(str(Path(__file__).resolve().parents[2]))
     from demo.chain_of_custody.run_scoped_chunk_reader import RunScopedNeo4jChunkReader
-    from demo.chain_of_custody.extraction_utils import (
-        coerce_confidence,
-        fallback_identifier,
-        prepare_extracted_rows,
-        write_extracted_rows,
-    )
+    from demo.chain_of_custody.extraction_utils import prepare_extracted_rows, write_extracted_rows
 
 FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
 ARTIFACTS_DIR = Path(__file__).resolve().parent / "artifacts"
@@ -1489,17 +1479,17 @@ def _run_claim_and_mention_extraction(
 
     all_extracted_rows = claim_rows + mention_rows
     unique_chunk_ids = {chunk_id for row in all_extracted_rows for chunk_id in row["chunk_ids"]}
-        summary = {
-            "status": "live",
-            "run_id": run_id,
-            "source_uri": source_uri,
-            "extractor_model": config.openai_model,
-            "prompt_version": CLAIM_EXTRACTION_PROMPT_VERSION,
-            "claims": len(claim_rows),
-            "mentions": len(mention_rows),
-            "chunk_ids": sorted(unique_chunk_ids),
-            "warnings": warnings,
-        }
+    summary = {
+        "status": "live",
+        "run_id": run_id,
+        "source_uri": source_uri,
+        "extractor_model": config.openai_model,
+        "prompt_version": CLAIM_EXTRACTION_PROMPT_VERSION,
+        "claims": len(claim_rows),
+        "mentions": len(mention_rows),
+        "chunk_ids": sorted(unique_chunk_ids),
+        "warnings": warnings,
+    }
     summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
     return summary
 

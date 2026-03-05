@@ -87,6 +87,18 @@ def prepare_extracted_rows(
         node_id = relationship.end_node_id if source_is_chunk else relationship.start_node_id
         node_chunk_map.setdefault(node_id, []).append(chunk_id)
 
+    # Normalize node_chunk_map: deduplicate and sort chunk IDs by chunk index for determinism.
+    chunk_index_property = lexical_graph_config.chunk_index_property
+    for node_id, chunk_ids in node_chunk_map.items():
+        unique_chunk_ids = list(dict.fromkeys(chunk_ids))
+
+        def _chunk_sort_key(chunk_id: str) -> tuple[bool, Any, str]:
+            meta = chunk_meta.get(chunk_id, {})
+            idx = meta.get(chunk_index_property)
+            return (idx is None, idx, chunk_id)
+
+        node_chunk_map[node_id] = sorted(unique_chunk_ids, key=_chunk_sort_key)
+
     claim_rows: list[dict[str, Any]] = []
     mention_rows: list[dict[str, Any]] = []
     warnings: list[str] = []
