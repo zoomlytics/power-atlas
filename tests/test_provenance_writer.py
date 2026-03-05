@@ -5,7 +5,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 
-PROVENANCE_WRITER_PATH = Path(__file__).resolve().parents[1] / "demo" / "chain_of_custody" / "provenance_writer.py"
+PROVENANCE_WRITER_PATH = Path(__file__).resolve().parents[1] / "demo" / "chain_of_custody" / "io" / "provenance_writer.py"
 
 
 @contextmanager

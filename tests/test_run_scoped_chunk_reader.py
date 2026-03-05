@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from neo4j_graphrag.experimental.components.types import LexicalGraphConfig
 
-MODULE_PATH = Path(__file__).resolve().parents[1] / "demo" / "chain_of_custody" / "run_scoped_chunk_reader.py"
+MODULE_PATH = Path(__file__).resolve().parents[1] / "demo" / "chain_of_custody" / "io" / "run_scoped_chunk_reader.py"
 
 
 def _load_reader():

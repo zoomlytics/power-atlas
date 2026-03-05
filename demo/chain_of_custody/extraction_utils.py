@@ -5,7 +5,7 @@ from typing import Any
 
 import neo4j
 
-from demo.chain_of_custody.run_scoped_chunk_reader import RunScopedNeo4jChunkReader
+from demo.chain_of_custody.io import RunScopedNeo4jChunkReader
 from neo4j_graphrag.experimental.components.types import LexicalGraphConfig, Neo4jGraph, TextChunk
 
 

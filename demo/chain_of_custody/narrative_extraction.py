@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from demo.chain_of_custody.extraction_utils import prepare_extracted_rows, write_extracted_rows
-from demo.chain_of_custody.run_scoped_chunk_reader import RunScopedNeo4jChunkReader
+from demo.chain_of_custody.io import RunScopedNeo4jChunkReader
 from neo4j_graphrag.experimental.components.entity_relation_extractor import (
     LLMEntityRelationExtractor,
 )
