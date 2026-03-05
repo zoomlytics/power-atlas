@@ -333,7 +333,7 @@ async def _read_chunks_and_extract(
     )
     extractor = LLMEntityRelationExtractor(
         llm=llm,
-        create_lexical_graph=True,
+        create_lexical_graph=False,
         use_structured_output=True,
     )
     try:
