@@ -14,8 +14,10 @@ from pathlib import Path
 
 import yaml
 
+from demo.chain_of_custody.contracts import PROMPT_IDS
 
-DEMO_DIR = Path(__file__).resolve().parents[1] / "demo" / "chain_of_custody"
+
+DEMO_DIR = Path(__file__).resolve().parents[1]
 RUN_DEMO_PATH = DEMO_DIR / "run_demo.py"
 SMOKE_TEST_PATH = DEMO_DIR / "smoke_test.py"
 
@@ -239,7 +241,7 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
             )
             self.assertEqual(
                 manifest["stages"]["claim_and_mention_extraction"]["prompt_version"],
-                module.CLAIM_EXTRACTION_PROMPT_VERSION,
+                PROMPT_IDS["claim_extraction"],
             )
             claims_fixture_path = DEMO_DIR / "fixtures" / "structured" / "claims.csv"
             with claims_fixture_path.open(newline="", encoding="utf-8") as f:

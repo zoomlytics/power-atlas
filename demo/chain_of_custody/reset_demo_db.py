@@ -5,7 +5,7 @@ import os
 
 import neo4j
 
-CHUNK_EMBEDDING_INDEX_NAME = "chain_custody_chunk_embedding_index"
+from demo.chain_of_custody.contracts import CHUNK_EMBEDDING_INDEX_NAME
 
 
 def parse_args() -> argparse.Namespace:
