@@ -110,7 +110,7 @@ def test_run_narrative_extraction_dry_run_writes_artifacts(tmp_path: Path):
     assert stored_manifest["run_scopes"]["unstructured_ingest_run_id"] == config.run_id
 
 
-def test_run_narrative_extraction_live_path_uses_run_scoped_reader_and_writer(monkeypatch, tmp_path: Path):
+def test_run_narrative_extraction_live_path_uses_run_scoped_reader_and_writer(tmp_path: Path):
     lexical_config = build_lexical_config()
     fake_graph = _build_fake_graph("chunk-1")
     fake_chunks = TextChunks(
