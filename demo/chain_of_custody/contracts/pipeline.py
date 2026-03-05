@@ -165,11 +165,11 @@ def _coerce_identifier(value: Any, default: str, field_name: str) -> str:
         candidate = value.strip()
         if candidate and _IDENTIFIER_PATTERN.fullmatch(candidate):
             return candidate
-        # stacklevel=1 surfaces warnings at the _coerce_identifier call sites while avoiding warn() internals
+        # stacklevel=2 surfaces warnings at the _coerce_identifier call sites while avoiding warn() internals
         warnings.warn(
             f"Falling back to default for {field_name}; expected identifier-safe string, got {value!r}",
             RuntimeWarning,
-            stacklevel=1,
+            stacklevel=2,
         )
     return default
 
