@@ -164,3 +164,22 @@ def test_run_narrative_extraction_live_path_uses_run_scoped_reader_and_writer(mo
     assert summary["status"] == "live"
     assert summary["claims"] == 1
     assert summary["mentions"] == 1
+
+
+def test_write_extracted_rows_validates_cypher_identifiers():
+    from pipelines.ingest import narrative_extraction  # import inside to use updated helper
+
+    class _FakeDriver:
+        def execute_query(self, *args, **kwargs):
+            raise AssertionError("execute_query should not be called when identifiers are invalid")
+
+    bad_config = LexicalGraphConfig(chunk_node_label="Chunk:Bad", chunk_id_property="chunk-id")
+
+    with pytest.raises(ValueError, match="Unsafe chunk label"):
+        narrative_extraction._write_extracted_rows(
+            _FakeDriver(),
+            neo4j_database="neo4j",
+            lexical_graph_config=bad_config,
+            claim_rows=[],
+            mention_rows=[],
+        )
