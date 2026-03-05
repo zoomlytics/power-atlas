@@ -31,6 +31,9 @@ set -a && source .env && set +a
 python pipelines/ingest/<script>.py
 python pipelines/query/<script>.py
 python pipelines/experiment/<script>.py
+
+# extract narrative claims + mentions from a prior ingest run (run_id required)
+python pipelines/ingest/narrative_extraction.py --run-id <unstructured_run_id> [--source-uri <uri>]
 ```
 
 > **Note:** Example scripts for each workflow stage are coming soon. Check `ingest/`, `query/`, and `experiment/` subdirectories as the migration progresses.
