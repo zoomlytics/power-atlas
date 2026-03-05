@@ -1469,7 +1469,7 @@ def _run_claim_and_mention_extraction(
                 model_name=config.openai_model,
             )
         )
-        claim_rows, mention_rows, extraction_warnings = prepare_extracted_rows(
+        claim_rows, mention_rows, warnings = prepare_extracted_rows(
             graph=graph,
             text_chunks=text_chunks,
             run_id=run_id,
@@ -1489,17 +1489,17 @@ def _run_claim_and_mention_extraction(
 
     all_extracted_rows = claim_rows + mention_rows
     unique_chunk_ids = {chunk_id for row in all_extracted_rows for chunk_id in row["chunk_ids"]}
-    summary = {
-        "status": "live",
-        "run_id": run_id,
-        "source_uri": source_uri,
-        "extractor_model": config.openai_model,
-        "prompt_version": CLAIM_EXTRACTION_PROMPT_VERSION,
-        "claims": len(claim_rows),
-        "mentions": len(mention_rows),
-        "chunk_ids": sorted(unique_chunk_ids),
-        "warnings": extraction_warnings,
-    }
+        summary = {
+            "status": "live",
+            "run_id": run_id,
+            "source_uri": source_uri,
+            "extractor_model": config.openai_model,
+            "prompt_version": CLAIM_EXTRACTION_PROMPT_VERSION,
+            "claims": len(claim_rows),
+            "mentions": len(mention_rows),
+            "chunk_ids": sorted(unique_chunk_ids),
+            "warnings": warnings,
+        }
     summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
     return summary
 
