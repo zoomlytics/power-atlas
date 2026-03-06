@@ -18,10 +18,15 @@ def run_retrieval_and_qa(
     qa_model = getattr(config, "openai_model", None)
     qa_prompt_version = PROMPT_IDS["qa"]
 
-    example_source_uri = (FIXTURES_DIR / "unstructured" / "chain_of_custody.pdf").resolve().as_uri()
-    example_citation_token = (
-        "[CITATION|chunk_id=example_chunk|run_id=example_run_id|"
-        f"source_uri={example_source_uri}|chunk_index=0|page=1|start_char=0|end_char=999]"
+    # Use provided run_id/source_uri in citation examples so provenance fields align with stage metadata;
+    # fall back to placeholder values only when those parameters are absent.
+    _fallback_source_uri = (FIXTURES_DIR / "unstructured" / "chain_of_custody.pdf").resolve().as_uri()
+    citation_run_id = run_id if run_id is not None else "example_run_id"
+    citation_source_uri = source_uri if source_uri is not None else _fallback_source_uri
+
+    citation_token_example = (
+        f"[CITATION|chunk_id=example_chunk|run_id={citation_run_id}|"
+        f"source_uri={citation_source_uri}|chunk_index=0|page=1|start_char=0|end_char=999]"
     )
     retrieval_query_contract = """
     RETURN c.text AS chunk_text,
@@ -36,49 +41,42 @@ def run_retrieval_and_qa(
     """
     citation_object_example = {
         "chunk_id": "example_chunk",
-        "run_id": "example_run_id",
-        "source_uri": example_source_uri,
+        "run_id": citation_run_id,
+        "source_uri": citation_source_uri,
         "chunk_index": 0,
         "page": 1,
         "start_char": 0,
         "end_char": 999,
     }
-    if getattr(config, "dry_run", False):
-        return {
-            "status": "dry_run",
-            "run_id": run_id,
-            "source_uri": source_uri,
-            "top_k": top_k,
-            "retriever_index_name": resolved_index_name,
-            "question": question,
-            "retrievers": ["VectorCypherRetriever", "graph expansion"],
-            "qa": "GraphRAG strict citations",
-            "qa_model": qa_model,
-            "qa_prompt_version": qa_prompt_version,
-            "all_answers_cited": False,
-            "citation_token_example": example_citation_token,
-            "citation_object_example": citation_object_example,
-            # citation_example is retained for backward compatibility with existing manifest consumers
-            "citation_example": citation_object_example,
-            "retrieval_query_contract": retrieval_query_contract.strip(),
-        }
-    return {
-        "status": "configured",
+
+    # Build shared base dict; only status/retrievers/qa differ between dry-run and configured.
+    base: dict[str, object] = {
         "run_id": run_id,
         "source_uri": source_uri,
         "top_k": top_k,
         "retriever_index_name": resolved_index_name,
         "question": question,
-        "retrievers": ["VectorCypherRetriever", "Text2CypherRetriever"],
-        "qa": "GraphRAG prompt template with strict citation suffix",
         "qa_model": qa_model,
         "qa_prompt_version": qa_prompt_version,
         "all_answers_cited": False,
-        "citation_token_example": example_citation_token,
+        "citation_token_example": citation_token_example,
         "citation_object_example": citation_object_example,
         # citation_example is retained for backward compatibility with existing manifest consumers
         "citation_example": citation_object_example,
         "retrieval_query_contract": retrieval_query_contract.strip(),
+    }
+    if getattr(config, "dry_run", False):
+        return {
+            **base,
+            "status": "dry_run",
+            "retrievers": ["VectorCypherRetriever", "graph expansion"],
+            "qa": "GraphRAG strict citations",
+        }
+    return {
+        **base,
+        "status": "configured",
+        "retrievers": ["VectorCypherRetriever", "Text2CypherRetriever"],
+        "qa": "GraphRAG prompt template with strict citation suffix",
     }
 
 
