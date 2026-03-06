@@ -81,7 +81,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     common_parser = argparse.ArgumentParser(add_help=False, allow_abbrev=False)
     _add_common_args(common_parser)
     parser = argparse.ArgumentParser(
-        description="Chain of Custody demo orchestrator",
+        description="Demo workflow orchestrator",
         parents=[common_parser],
         allow_abbrev=False,
     )
@@ -242,10 +242,10 @@ def _run_independent_stage(config: DemoConfig, command: str) -> Path:
     stage_name, run_scope_key, stage_runner = stage_runners[command]
     run_scope = run_scope_key.removesuffix("_run_id")
     if command in ("extract-claims", "resolve-entities", "ask"):
-        env_run_id = os.getenv("CHAIN_OF_CUSTODY_UNSTRUCTURED_RUN_ID")
+        env_run_id = os.getenv("DEMO_UNSTRUCTURED_RUN_ID")
         if not env_run_id:
             raise ValueError(
-                "CHAIN_OF_CUSTODY_UNSTRUCTURED_RUN_ID is not set. When running "
+                "DEMO_UNSTRUCTURED_RUN_ID is not set. When running "
                 f"'{command}' independently, set this to the run_id from a prior "
                 "'ingest' or 'ingest-pdf' command whose unstructured data you want to process "
                 "(for example, a value like 'unstructured_ingest-20260304T224739123456Z-1a2b3c4d')."

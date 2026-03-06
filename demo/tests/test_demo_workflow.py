@@ -35,7 +35,7 @@ def _load_module(path: Path, module_name: str):
     return module
 
 
-class ChainOfCustodyDemoTests(unittest.TestCase):
+class DemoWorkflowTests(unittest.TestCase):
     @contextmanager
     def _with_injected_modules(self, injected_modules: dict[str, types.ModuleType]):
         originals = {name: sys.modules.get(name) for name in injected_modules}
@@ -148,7 +148,7 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
                 os.environ.pop("OPENAI_API_KEY", None)
 
     def test_parse_args_supports_expected_subcommands(self):
-        module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_parse_args_test")
+        module = _load_module(RUN_DEMO_PATH, "demo_run_parse_args_test")
         expected = {
             "lint-structured",
             "ingest-structured",
@@ -171,7 +171,7 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
             module.parse_args(["--dry-run", "ingest", "--l"])
 
     def test_reset_command_skips_password_validation(self):
-        module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_main_reset_test")
+        module = _load_module(RUN_DEMO_PATH, "demo_run_main_reset_test")
         args = type(
             "Args",
             (),
@@ -197,7 +197,7 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
             module.parse_args = original_parse_args
 
     def test_run_demo_dry_run_writes_manifest_with_expected_stages(self):
-        module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_test")
+        module = _load_module(RUN_DEMO_PATH, "demo_run_test")
         with tempfile.TemporaryDirectory() as tmpdir:
             manifest_path = module.run_demo(
                 module.DemoConfig(
@@ -264,7 +264,7 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
     def test_fixture_manifest_tracks_dataset_and_provenance(self):
         fixture_manifest = DEMO_DIR / "fixtures" / "manifest.json"
         data = json.loads(fixture_manifest.read_text(encoding="utf-8"))
-        self.assertEqual(data["dataset"], "chain_of_custody_dataset_v1")
+        self.assertEqual(data["dataset"], "demo_dataset_v1")
         required_files = set(data["dataset_contract"]["required_files"])
         provenance_paths = {item["path"] for item in data["provenance"]}
         self.assertTrue(required_files.issubset(provenance_paths))
@@ -328,7 +328,7 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
                 self.fail(f"Unexpected claim_type: {claim['claim_type']}")
 
     def test_structured_ingest_dry_run_emits_clean_run_artifacts(self):
-        module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_structured_clean_test")
+        module = _load_module(RUN_DEMO_PATH, "demo_run_structured_clean_test")
         with tempfile.TemporaryDirectory() as tmpdir:
             config = module.DemoConfig(
                 dry_run=True,
@@ -356,7 +356,7 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
             self.assertTrue(Path(stage["validation_warnings_path"]).exists())
 
     def test_structured_ingest_non_dry_run_writes_claim_first_graph_and_artifacts(self):
-        module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_structured_live_test")
+        module = _load_module(RUN_DEMO_PATH, "demo_run_structured_live_test")
         with tempfile.TemporaryDirectory() as tmpdir:
             config = module.DemoConfig(
                 dry_run=False,
@@ -427,7 +427,7 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
             self.assertIn("trim(row.claim_type) = 'fact'", claim_query)
 
     def test_structured_lint_deduplicates_duplicate_rows(self):
-        module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_structured_dedup_test")
+        module = _load_module(RUN_DEMO_PATH, "demo_run_structured_dedup_test")
         with tempfile.TemporaryDirectory() as tmpdir:
             copied_fixtures = Path(tmpdir) / "fixtures"
             shutil.copytree(DEMO_DIR / "fixtures", copied_fixtures)
@@ -460,7 +460,7 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
             self.assertEqual(result["files"]["entities.csv"]["deduplicated_rows"], 1)
 
     def test_structured_lint_ignores_blank_whitespace_rows(self):
-        module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_structured_blank_rows_test")
+        module = _load_module(RUN_DEMO_PATH, "demo_run_structured_blank_rows_test")
         with tempfile.TemporaryDirectory() as tmpdir:
             copied_fixtures = Path(tmpdir) / "fixtures"
             shutil.copytree(DEMO_DIR / "fixtures", copied_fixtures)
@@ -484,7 +484,7 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
             self.assertGreaterEqual(result["files"]["entities.csv"]["dropped_blank_rows"], 1)
 
     def test_structured_lint_handles_entities_header_with_extra_column(self):
-        module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_structured_header_mismatch_test")
+        module = _load_module(RUN_DEMO_PATH, "demo_run_structured_header_mismatch_test")
         with tempfile.TemporaryDirectory() as tmpdir:
             copied_fixtures = Path(tmpdir) / "fixtures"
             shutil.copytree(DEMO_DIR / "fixtures", copied_fixtures)
@@ -525,7 +525,7 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
             )
 
     def test_structured_lint_reports_read_error_and_emits_lint_report(self):
-        module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_structured_missing_file_test")
+        module = _load_module(RUN_DEMO_PATH, "demo_run_structured_missing_file_test")
         with tempfile.TemporaryDirectory() as tmpdir:
             copied_fixtures = Path(tmpdir) / "fixtures"
             shutil.copytree(DEMO_DIR / "fixtures", copied_fixtures)
@@ -550,7 +550,7 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
             self.assertFalse(any(issue["code"] == "UNKNOWN_FACT_SOURCE_ROW" for issue in lint_report["issues"]))
 
     def test_structured_lint_uses_original_row_numbers_after_blank_rows(self):
-        module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_structured_row_numbers_test")
+        module = _load_module(RUN_DEMO_PATH, "demo_run_structured_row_numbers_test")
         with tempfile.TemporaryDirectory() as tmpdir:
             copied_fixtures = Path(tmpdir) / "fixtures"
             shutil.copytree(DEMO_DIR / "fixtures", copied_fixtures)
@@ -587,7 +587,7 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
             self.assertEqual(unknown_subject_issues[0]["row"], expected_row_number)
 
     def test_run_pdf_ingest_non_dry_run_executes_config_pipeline_and_provenance_flow(self):
-        module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_non_dry_test")
+        module = _load_module(RUN_DEMO_PATH, "demo_run_non_dry_test")
         config = module.DemoConfig(
             dry_run=False,
             output_dir=DEMO_DIR / "artifacts",
@@ -628,7 +628,7 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
         self.assertEqual(result["counts"], summary["counts"])
         self.assertEqual(result["pdf_fingerprint_sha256"], expected_fingerprint)
         self.assertEqual(summary["pdf_fingerprint_sha256"], expected_fingerprint)
-        self.assertEqual(summary["dataset_id"], "chain_of_custody_dataset_v1")
+        self.assertEqual(summary["dataset_id"], "demo_dataset_v1")
         self.assertEqual(
             summary["pipeline_config_sha256"],
             module._sha256_file(DEMO_DIR / "config" / "pdf_simple_kg_pipeline.yaml"),
@@ -640,8 +640,8 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
         self.assertEqual(summary["embedding_model"], module.EMBEDDER_MODEL_NAME)
         self.assertEqual(result["vector_index"]["creation_strategy"], "neo4j_graphrag.indexes.create_vector_index")
         self.assertEqual(result["pipeline_result"], {"ok": True})
-        self.assertEqual(result["provenance"]["dataset_id"], "chain_of_custody_dataset_v1")
-        self.assertEqual(calls["index_name"], "chain_custody_chunk_embedding_index")
+        self.assertEqual(result["provenance"]["dataset_id"], "demo_dataset_v1")
+        self.assertEqual(calls["index_name"], "demo_chunk_embedding_index")
         self.assertEqual(calls["index_kwargs"]["label"], "Chunk")
         self.assertEqual(calls["index_kwargs"]["embedding_property"], "embedding")
         self.assertEqual(calls["index_kwargs"]["dimensions"], 1536)
@@ -660,7 +660,7 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
             calls["run_params"]["document_metadata"],
             {
                 "run_id": "unstructured_ingest-test",
-                "dataset_id": "chain_of_custody_dataset_v1",
+                "dataset_id": "demo_dataset_v1",
                 "source_uri": expected_pdf_uri,
             },
         )
@@ -704,7 +704,7 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
         )
 
     def test_pdf_ingest_query_payload_prefers_specific_markers(self):
-        module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_marker_test")
+        module = _load_module(RUN_DEMO_PATH, "demo_run_marker_test")
         config = module.DemoConfig(
             dry_run=False,
             output_dir=DEMO_DIR / "artifacts",
@@ -735,7 +735,7 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
         self.assertGreaterEqual(calls["matched_markers"].count("missing_page_count"), 1)
 
     def test_run_pdf_ingest_dry_run_writes_summary_and_fingerprint(self):
-        module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_pdf_dry_summary_test")
+        module = _load_module(RUN_DEMO_PATH, "demo_run_pdf_dry_summary_test")
         with tempfile.TemporaryDirectory() as tmpdir:
             config = module.DemoConfig(
                 dry_run=True,
@@ -755,7 +755,7 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
             summary = json.loads(summary_path.read_text(encoding="utf-8"))
             self.assertEqual(summary["pdf_fingerprint_sha256"], expected_fingerprint)
             self.assertEqual(summary["counts"], {"documents": 0, "pages": 0, "chunks": 0})
-            self.assertEqual(summary["dataset_id"], "chain_of_custody_dataset_v1")
+            self.assertEqual(summary["dataset_id"], "demo_dataset_v1")
             self.assertEqual(summary["embedding_model"], module.EMBEDDER_MODEL_NAME)
             self.assertEqual(summary["embedding_dimensions"], module.CHUNK_EMBEDDING_DIMENSIONS)
             self.assertEqual(
@@ -772,7 +772,7 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
             self.assertEqual(result["vector_index"]["creation_strategy"], "dry_run")
 
     def test_run_pdf_ingest_non_dry_run_normalizes_non_json_pipeline_result(self):
-        module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_result_fallback_test")
+        module = _load_module(RUN_DEMO_PATH, "demo_run_result_fallback_test")
         config = module.DemoConfig(
             dry_run=False,
             output_dir=DEMO_DIR / "artifacts",
@@ -801,7 +801,7 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
         self.assertIn("object object", result["pipeline_result"]["summary"])
 
     def test_run_pdf_ingest_non_dry_run_falls_back_to_cypher_index_creation(self):
-        module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_non_dry_fallback_test")
+        module = _load_module(RUN_DEMO_PATH, "demo_run_non_dry_fallback_test")
         config = module.DemoConfig(
             dry_run=False,
             output_dir=DEMO_DIR / "artifacts",
@@ -833,11 +833,11 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
         self.assertEqual(result["vector_index"]["creation_strategy"], "cypher_fallback")
         self.assertEqual(result["vector_index_fallback_reason"], "RuntimeError: index helper unavailable")
         self.assertTrue(
-            any("CREATE VECTOR INDEX `chain_custody_chunk_embedding_index` IF NOT EXISTS" in query for query, _ in calls["queries"])
+            any("CREATE VECTOR INDEX `demo_chunk_embedding_index` IF NOT EXISTS" in query for query, _ in calls["queries"])
         )
 
     def test_run_pdf_ingest_non_dry_run_rejects_unsafe_cypher_fallback_identifiers(self):
-        module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_non_dry_unsafe_identifier_test")
+        module = _load_module(RUN_DEMO_PATH, "demo_run_non_dry_unsafe_identifier_test")
         config = module.DemoConfig(
             dry_run=False,
             output_dir=DEMO_DIR / "artifacts",
@@ -877,7 +877,7 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
                 setattr(module, attr_name, original_value)
 
     def test_run_pdf_ingest_non_dry_run_raises_when_no_run_scoped_documents_or_chunks(self):
-        module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_non_dry_missing_nodes_test")
+        module = _load_module(RUN_DEMO_PATH, "demo_run_non_dry_missing_nodes_test")
         config = module.DemoConfig(
             dry_run=False,
             output_dir=DEMO_DIR / "artifacts",
@@ -904,7 +904,7 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
                 module._run_pdf_ingest(config, run_id="unstructured_ingest-test")
 
     def test_run_pdf_ingest_non_dry_run_requires_openai_api_key(self):
-        module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_non_dry_requires_openai_key_test")
+        module = _load_module(RUN_DEMO_PATH, "demo_run_non_dry_requires_openai_key_test")
         config = module.DemoConfig(
             dry_run=False,
             output_dir=DEMO_DIR / "artifacts",
@@ -928,7 +928,7 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
                 os.environ.pop("OPENAI_API_KEY", None)
 
     def test_independent_ingest_commands_write_stage_manifests(self):
-        module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_independent_test")
+        module = _load_module(RUN_DEMO_PATH, "demo_run_independent_test")
         with tempfile.TemporaryDirectory() as tmpdir:
             config = module.DemoConfig(
                 dry_run=True,
@@ -966,7 +966,7 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
         sys.path.insert(0, str(DEMO_DIR))
         try:
             with tempfile.TemporaryDirectory() as tmpdir:
-                smoke_module = _load_module(SMOKE_TEST_PATH, "chain_of_custody_smoke_test_module")
+                smoke_module = _load_module(SMOKE_TEST_PATH, "demo_smoke_test_module")
                 output_dir = Path(tmpdir)
                 expected_manifest = output_dir / "manifest.json"
                 original_parse_args = smoke_module._parse_args
@@ -991,7 +991,7 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
             "vendor-resources/examples/build_graph/from_config_files/simple_kg_pipeline_from_config_file.py",
             readme_text,
         )
-        self.assertIn("chain_custody_chunk_embedding_index", readme_text)
+        self.assertIn("demo_chunk_embedding_index", readme_text)
         self.assertIn("vendor examples use `NEO4J_USER`", readme_text)
         self.assertIn("config_url.json", readme_text)
         self.assertIn("simple_kg_pipeline_config_url.json", readme_text)
@@ -1024,8 +1024,8 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
             yaml.safe_load = lambda *_args, **_kwargs: (_ for _ in ()).throw(yaml.YAMLError("bad yaml"))
             with warnings.catch_warnings(record=True) as caught:
                 warnings.simplefilter("always")
-                module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_yaml_warn_test")
-            self.assertEqual(module.CHUNK_EMBEDDING_INDEX_NAME, "chain_custody_chunk_embedding_index")
+                module = _load_module(RUN_DEMO_PATH, "demo_run_yaml_warn_test")
+            self.assertEqual(module.CHUNK_EMBEDDING_INDEX_NAME, "demo_chunk_embedding_index")
             self.assertEqual(module.CHUNK_EMBEDDING_LABEL, "Chunk")
             self.assertEqual(module.CHUNK_EMBEDDING_PROPERTY, "embedding")
             self.assertEqual(module.CHUNK_EMBEDDING_DIMENSIONS, 1536)
@@ -1042,8 +1042,8 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
             yaml.safe_load = lambda *_args, **_kwargs: []
             with warnings.catch_warnings(record=True) as caught:
                 warnings.simplefilter("always")
-                module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_yaml_top_level_type_warn_test")
-            self.assertEqual(module.CHUNK_EMBEDDING_INDEX_NAME, "chain_custody_chunk_embedding_index")
+                module = _load_module(RUN_DEMO_PATH, "demo_run_yaml_top_level_type_warn_test")
+            self.assertEqual(module.CHUNK_EMBEDDING_INDEX_NAME, "demo_chunk_embedding_index")
             self.assertEqual(module.CHUNK_EMBEDDING_LABEL, "Chunk")
             self.assertEqual(module.CHUNK_EMBEDDING_PROPERTY, "embedding")
             self.assertEqual(module.CHUNK_EMBEDDING_DIMENSIONS, 1536)
@@ -1060,8 +1060,8 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
             yaml.safe_load = lambda *_args, **_kwargs: {"demo_contract": {"chunk_embedding": []}}
             with warnings.catch_warnings(record=True) as caught:
                 warnings.simplefilter("always")
-                module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_chunk_contract_type_warn_test")
-            self.assertEqual(module.CHUNK_EMBEDDING_INDEX_NAME, "chain_custody_chunk_embedding_index")
+                module = _load_module(RUN_DEMO_PATH, "demo_run_chunk_contract_type_warn_test")
+            self.assertEqual(module.CHUNK_EMBEDDING_INDEX_NAME, "demo_chunk_embedding_index")
             self.assertEqual(module.CHUNK_EMBEDDING_LABEL, "Chunk")
             self.assertEqual(module.CHUNK_EMBEDDING_PROPERTY, "embedding")
             self.assertEqual(module.CHUNK_EMBEDDING_DIMENSIONS, 1536)

@@ -398,15 +398,15 @@ class TestRunEntityResolutionOrchestratorIntegration(unittest.TestCase):
                 neo4j_database="neo4j",
                 openai_model="test-model",
             )
-            env_backup = os.environ.get("CHAIN_OF_CUSTODY_UNSTRUCTURED_RUN_ID")
+            env_backup = os.environ.get("DEMO_UNSTRUCTURED_RUN_ID")
             try:
-                os.environ["CHAIN_OF_CUSTODY_UNSTRUCTURED_RUN_ID"] = "test-unstructured-run-001"
+                os.environ["DEMO_UNSTRUCTURED_RUN_ID"] = "test-unstructured-run-001"
                 manifest_path = module.run_independent_demo(config, "resolve-entities")
             finally:
                 if env_backup is None:
-                    os.environ.pop("CHAIN_OF_CUSTODY_UNSTRUCTURED_RUN_ID", None)
+                    os.environ.pop("DEMO_UNSTRUCTURED_RUN_ID", None)
                 else:
-                    os.environ["CHAIN_OF_CUSTODY_UNSTRUCTURED_RUN_ID"] = env_backup
+                    os.environ["DEMO_UNSTRUCTURED_RUN_ID"] = env_backup
 
             self.assertTrue(manifest_path.exists())
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -438,15 +438,15 @@ class TestRunEntityResolutionOrchestratorIntegration(unittest.TestCase):
                 neo4j_database="neo4j",
                 openai_model="test-model",
             )
-            env_backup = os.environ.get("CHAIN_OF_CUSTODY_UNSTRUCTURED_RUN_ID")
+            env_backup = os.environ.get("DEMO_UNSTRUCTURED_RUN_ID")
             try:
-                os.environ.pop("CHAIN_OF_CUSTODY_UNSTRUCTURED_RUN_ID", None)
+                os.environ.pop("DEMO_UNSTRUCTURED_RUN_ID", None)
                 with self.assertRaises(ValueError) as ctx:
                     module.run_independent_demo(config, "resolve-entities")
-                self.assertIn("CHAIN_OF_CUSTODY_UNSTRUCTURED_RUN_ID", str(ctx.exception))
+                self.assertIn("DEMO_UNSTRUCTURED_RUN_ID", str(ctx.exception))
             finally:
                 if env_backup is not None:
-                    os.environ["CHAIN_OF_CUSTODY_UNSTRUCTURED_RUN_ID"] = env_backup
+                    os.environ["DEMO_UNSTRUCTURED_RUN_ID"] = env_backup
 
 
 class TestBatchManifestEntityResolution(unittest.TestCase):

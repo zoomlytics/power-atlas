@@ -11,7 +11,7 @@ from run_demo import DemoConfig, run_demo
 
 
 def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Run chain_of_custody smoke test")
+    parser = argparse.ArgumentParser(description="Run demo smoke test")
     parser.add_argument(
         "--output-dir",
         type=Path,
@@ -116,7 +116,7 @@ def main() -> None:
     args = _parse_args()
     with ExitStack() as stack:
         output_dir = args.output_dir or Path(
-            stack.enter_context(tempfile.TemporaryDirectory(prefix="chain_of_custody_smoke_"))
+            stack.enter_context(tempfile.TemporaryDirectory(prefix="demo_smoke_"))
         )
         manifest_path = _run_and_validate(output_dir)
         print(f"Smoke test passed: {manifest_path}")

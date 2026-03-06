@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-# Centralized filesystem locations for the Chain of Custody demo.
+# Centralized filesystem locations for the demo.
 BASE_DIR = Path(__file__).resolve().parent.parent
 FIXTURES_DIR = BASE_DIR / "fixtures"
 ARTIFACTS_DIR = BASE_DIR / "artifacts"
