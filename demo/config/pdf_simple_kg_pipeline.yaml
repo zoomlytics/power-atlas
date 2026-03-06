@@ -30,7 +30,7 @@ embedder_config:
 from_pdf: true
 demo_contract:
   chunk_embedding:
-    index_name: chain_custody_chunk_embedding_index
+    index_name: demo_chunk_embedding_index
     label: Chunk
     embedding_property: embedding
     dimensions: 1536
@@ -50,4 +50,4 @@ kg_writer:
     neo4j_database:
       resolver_: ENV
       var_: NEO4J_DATABASE
-    dataset_id: chain_of_custody_dataset_v1
+    dataset_id: demo_dataset_v1

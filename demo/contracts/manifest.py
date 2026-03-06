@@ -29,7 +29,7 @@ def build_batch_manifest(
     if entity_resolution_stage is not None:
         stages["entity_resolution"] = {**entity_resolution_stage, "run_id": unstructured_run_id}
     return {
-        "run_id": make_run_id("chain_of_custody_batch"),
+        "run_id": make_run_id("demo_batch"),
         "created_at": datetime.now(UTC).isoformat(),
         "run_scopes": {
             "batch_mode": "sequential_independent_runs",

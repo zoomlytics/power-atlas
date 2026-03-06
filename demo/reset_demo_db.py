@@ -9,7 +9,7 @@ from demo.contracts import CHUNK_EMBEDDING_INDEX_NAME
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Reset Chain of Custody demo nodes and indexes.")
+    parser = argparse.ArgumentParser(description="Reset demo nodes and indexes.")
     parser.add_argument("--confirm", action="store_true", help="required safety flag")
     parser.add_argument("--neo4j-uri", default=os.getenv("NEO4J_URI", "neo4j://localhost:7687"))
     parser.add_argument("--neo4j-username", default=os.getenv("NEO4J_USERNAME", "neo4j"))
@@ -46,7 +46,7 @@ def main() -> None:
                 raise ValueError(f"Unsafe index name: {index_name}")
             session.run(f"DROP INDEX `{index_name}` IF EXISTS").consume()
 
-    print("Chain of Custody demo graph reset complete.")
+    print("Demo graph reset complete.")
 
 
 if __name__ == "__main__":

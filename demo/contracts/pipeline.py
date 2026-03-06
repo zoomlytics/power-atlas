@@ -13,12 +13,12 @@ from demo.contracts.paths import PDF_PIPELINE_CONFIG_PATH
 DEFAULT_DB = os.getenv("NEO4J_DATABASE", "neo4j")
 _DEFAULT_CHUNK_SIZE = 1000
 _DEFAULT_CHUNK_OVERLAP = 0
-_DEFAULT_CHUNK_EMBEDDING_INDEX_NAME = "chain_custody_chunk_embedding_index"
+_DEFAULT_CHUNK_EMBEDDING_INDEX_NAME = "demo_chunk_embedding_index"
 _DEFAULT_CHUNK_EMBEDDING_LABEL = "Chunk"
 _DEFAULT_CHUNK_EMBEDDING_PROPERTY = "embedding"
 _DEFAULT_CHUNK_EMBEDDING_DIMENSIONS = 1536
 _DEFAULT_EMBEDDER_MODEL_NAME = "text-embedding-3-small"
-_DEFAULT_DATASET_ID = "chain_of_custody_dataset_v1"
+_DEFAULT_DATASET_ID = "demo_dataset_v1"
 _IDENTIFIER_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 PIPELINE_CONFIG_DATA: dict[str, Any] = {}
