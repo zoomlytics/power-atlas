@@ -128,7 +128,7 @@ class TestResolveMention(unittest.TestCase):
         self.assertEqual(result["canonical_entity_id"], "Q42")
         self.assertEqual(result["resolution_confidence"], 1.0)
 
-    def test_qid_exact_no_match_falls_through_to_label(self):
+    def test_qid_pattern_match_no_canonical_falls_through_to_unresolved(self):
         mention = {"mention_id": "m2", "name": "Q999"}
         result = _resolve_mention(mention, self.by_qid, self.by_label, self.by_alias)
         self.assertFalse(result["resolved"])
@@ -465,7 +465,7 @@ class TestBatchManifestEntityResolution(unittest.TestCase):
                 entity_resolution_stage={"status": "dry_run", "resolved": 0},
             )
             self.assertIn("entity_resolution", manifest["stages"])
-            self.assertEqual(manifest["stages"]["entity_resolution"]["run_id"], "resolution-3")
+            self.assertEqual(manifest["stages"]["entity_resolution"]["run_id"], "unstructured-2")
             self.assertEqual(manifest["stages"]["entity_resolution"]["status"], "dry_run")
 
     def test_entity_resolution_stage_absent_by_default(self):

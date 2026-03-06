@@ -27,7 +27,7 @@ def build_batch_manifest(
         "retrieval_and_qa": {**retrieval_stage, "run_id": resolution_run_id},
     }
     if entity_resolution_stage is not None:
-        stages["entity_resolution"] = {**entity_resolution_stage, "run_id": resolution_run_id}
+        stages["entity_resolution"] = {**entity_resolution_stage, "run_id": unstructured_run_id}
     return {
         "run_id": make_run_id("chain_of_custody_batch"),
         "created_at": datetime.now(UTC).isoformat(),
