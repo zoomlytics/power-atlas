@@ -224,6 +224,7 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
                     "structured_ingest",
                     "pdf_ingest",
                     "claim_and_mention_extraction",
+                    "entity_resolution",
                     "retrieval_and_qa",
                 },
             )
@@ -237,6 +238,10 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
             )
             self.assertEqual(
                 manifest["stages"]["claim_and_mention_extraction"]["run_id"],
+                manifest["run_scopes"]["unstructured_ingest_run_id"],
+            )
+            self.assertEqual(
+                manifest["stages"]["entity_resolution"]["run_id"],
                 manifest["run_scopes"]["unstructured_ingest_run_id"],
             )
             self.assertEqual(

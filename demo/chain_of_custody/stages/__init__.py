@@ -7,6 +7,7 @@ __all__ = [
     "lint_and_clean_structured_csvs",
     "load_csv_rows",
     "run_claim_and_mention_extraction",
+    "run_entity_resolution",
     "run_pdf_ingest",
     "run_retrieval_and_qa",
     "run_structured_ingest",
@@ -20,6 +21,8 @@ def __getattr__(name: str) -> Any:  # pragma: no cover - thin import proxy
         module = import_module("demo.chain_of_custody.stages.pdf_ingest")
     elif name == "run_claim_and_mention_extraction":
         module = import_module("demo.chain_of_custody.stages.claim_extraction")
+    elif name == "run_entity_resolution":
+        module = import_module("demo.chain_of_custody.stages.entity_resolution")
     elif name == "run_retrieval_and_qa":
         module = import_module("demo.chain_of_custody.stages.retrieval_and_qa")
     else:
