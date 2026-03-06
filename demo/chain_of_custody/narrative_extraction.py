@@ -7,19 +7,22 @@ import os
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, Iterable
 
+from demo.chain_of_custody.contracts import (
+    build_stage_manifest,
+    claim_extraction_lexical_config,
+    claim_extraction_schema,
+    write_manifest,
+    PROMPT_IDS,
+)
 from demo.chain_of_custody.extraction_utils import prepare_extracted_rows, write_extracted_rows
 from demo.chain_of_custody.io import RunScopedNeo4jChunkReader
 from neo4j_graphrag.experimental.components.entity_relation_extractor import (
     LLMEntityRelationExtractor,
 )
-from neo4j_graphrag.experimental.components.schema import (
-    GraphSchema,
-    NodeType,
-    PropertyType,
-    RelationshipType,
-)
+from neo4j_graphrag.experimental.components.schema import GraphSchema
 from neo4j_graphrag.experimental.components.types import (
     LexicalGraphConfig,
     Neo4jGraph,
@@ -30,13 +33,7 @@ from neo4j_graphrag.llm import OpenAILLM
 
 import neo4j
 
-DEFAULT_CHUNK_LABEL = "Chunk"
-DEFAULT_CHUNK_ID_PROPERTY = "chunk_id"
-DEFAULT_CHUNK_TEXT_PROPERTY = "text"
-DEFAULT_CHUNK_INDEX_PROPERTY = "chunk_index"
-DEFAULT_CHUNK_EMBEDDING_PROPERTY = "embedding"
-DEFAULT_NODE_TO_CHUNK_RELATIONSHIP = "MENTIONED_IN"
-PROMPT_VERSION = "narrative_claims_v1"
+PROMPT_VERSION = PROMPT_IDS["narrative_extraction"]
 DEFAULT_OUTPUT_ROOT = Path(__file__).resolve().parent / "runs"
 DEFAULT_NEO4J_PASSWORD = "CHANGE_ME_BEFORE_USE"
 
@@ -55,48 +52,11 @@ class ExtractionConfig:
 
 
 def build_lexical_config() -> LexicalGraphConfig:
-    return LexicalGraphConfig(
-        chunk_node_label=DEFAULT_CHUNK_LABEL,
-        chunk_id_property=DEFAULT_CHUNK_ID_PROPERTY,
-        chunk_index_property=DEFAULT_CHUNK_INDEX_PROPERTY,
-        chunk_text_property=DEFAULT_CHUNK_TEXT_PROPERTY,
-        chunk_embedding_property=DEFAULT_CHUNK_EMBEDDING_PROPERTY,
-        node_to_chunk_relationship_type=DEFAULT_NODE_TO_CHUNK_RELATIONSHIP,
-    )
+    return claim_extraction_lexical_config()
 
 
 def _extraction_schema() -> GraphSchema:
-    return GraphSchema(
-        node_types=[
-            NodeType(
-                label="ExtractedClaim",
-                properties=[
-                    PropertyType(name="claim_text", type="STRING", required=True),
-                    PropertyType(name="subject", type="STRING"),
-                    PropertyType(name="predicate", type="STRING"),
-                    PropertyType(name="object", type="STRING"),
-                    PropertyType(name="value", type="STRING"),
-                    PropertyType(name="claim_type", type="STRING"),
-                    PropertyType(name="confidence", type="FLOAT"),
-                ],
-                additional_properties=True,
-            ),
-            NodeType(
-                label="EntityMention",
-                properties=[
-                    PropertyType(name="name", type="STRING", required=True),
-                    PropertyType(name="entity_type", type="STRING"),
-                    PropertyType(name="confidence", type="FLOAT"),
-                ],
-                additional_properties=True,
-            ),
-        ],
-        relationship_types=[
-            RelationshipType(label="SUPPORTED_BY"),
-            RelationshipType(label="MENTIONED_IN"),
-            RelationshipType(label="MENTIONS"),
-        ],
-    )
+    return claim_extraction_schema()
 
 
 async def _read_chunks_and_extract(
@@ -147,22 +107,22 @@ def _normalize_warnings(warnings: Iterable[str] | None) -> list[str]:
     return [str(w) for w in warnings if w is not None]
 
 
-def _update_manifest(manifest_path: Path, run_id: str, stage_payload: dict[str, Any]) -> None:
-    manifest: dict[str, Any]
-    if manifest_path.exists():
-        try:
-            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            manifest = {}
-    else:
-        manifest = {}
-
-    manifest.setdefault("run_id", run_id)
-    manifest.setdefault("run_scopes", {})["unstructured_ingest_run_id"] = run_id
-    manifest.setdefault("stages", {})
-    manifest["stages"]["narrative_extraction"] = stage_payload
-    manifest.setdefault("created_at", datetime.now(UTC).isoformat())
-    _write_json(manifest_path, manifest)
+def _update_manifest(
+    manifest_path: Path, run_id: str, stage_payload: dict[str, Any], *, config: ExtractionConfig
+) -> None:
+    manifest_config = SimpleNamespace(
+        dry_run=config.dry_run,
+        neo4j_database=config.neo4j_database,
+        openai_model=config.model_name,
+    )
+    manifest = build_stage_manifest(
+        config=manifest_config,
+        stage_name="narrative_extraction",
+        stage_run_id=run_id,
+        run_scope_key="unstructured_ingest_run_id",
+        stage_output=stage_payload,
+    )
+    write_manifest(manifest_path, manifest)
 
 
 def _build_summary(
@@ -226,6 +186,7 @@ def run_narrative_extraction(config: ExtractionConfig) -> dict[str, Any]:
                 "summary_path": str(summary_path),
                 "output_dir": str(extraction_dir),
             },
+            config=config,
         )
         return summary
 
@@ -286,6 +247,7 @@ def run_narrative_extraction(config: ExtractionConfig) -> dict[str, Any]:
             "summary_path": str(summary_path),
             "output_dir": str(extraction_dir),
         },
+        config=config,
     )
     return summary
 

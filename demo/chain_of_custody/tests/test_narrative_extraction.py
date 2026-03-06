@@ -106,8 +106,11 @@ def test_run_narrative_extraction_dry_run_writes_artifacts(tmp_path: Path):
 
     assert summary["status"] == "dry_run"
     assert stored_summary["prompt_version"] == PROMPT_VERSION
+    assert stored_manifest["run_id"] == config.run_id
+    assert stored_manifest["config"]["openai_model"] == config.model_name
     assert stored_manifest["stages"]["narrative_extraction"]["run_id"] == config.run_id
     assert stored_manifest["run_scopes"]["unstructured_ingest_run_id"] == config.run_id
+    assert stored_manifest["run_scopes"]["batch_mode"] == "single_independent_run"
 
 
 def test_run_narrative_extraction_live_path_uses_run_scoped_reader_and_writer(tmp_path: Path):
