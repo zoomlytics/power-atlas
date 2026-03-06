@@ -18,7 +18,16 @@ def build_batch_manifest(
     pdf_stage: dict[str, Any],
     claim_stage: dict[str, Any],
     retrieval_stage: dict[str, Any],
+    entity_resolution_stage: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    stages: dict[str, Any] = {
+        "structured_ingest": {**structured_stage, "run_id": structured_run_id},
+        "pdf_ingest": {**pdf_stage, "run_id": unstructured_run_id},
+        "claim_and_mention_extraction": {**claim_stage, "run_id": unstructured_run_id},
+        "retrieval_and_qa": {**retrieval_stage, "run_id": resolution_run_id},
+    }
+    if entity_resolution_stage is not None:
+        stages["entity_resolution"] = {**entity_resolution_stage, "run_id": resolution_run_id}
     return {
         "run_id": make_run_id("chain_of_custody_batch"),
         "created_at": datetime.now(UTC).isoformat(),
@@ -33,12 +42,7 @@ def build_batch_manifest(
             "neo4j_database": getattr(config, "neo4j_database", None),
             "openai_model": getattr(config, "openai_model", None),
         },
-        "stages": {
-            "structured_ingest": {**structured_stage, "run_id": structured_run_id},
-            "pdf_ingest": {**pdf_stage, "run_id": unstructured_run_id},
-            "claim_and_mention_extraction": {**claim_stage, "run_id": unstructured_run_id},
-            "retrieval_and_qa": {**retrieval_stage, "run_id": resolution_run_id},
-        },
+        "stages": stages,
     }
 
 

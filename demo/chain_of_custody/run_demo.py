@@ -31,6 +31,7 @@ from demo.chain_of_custody.contracts.manifest import write_manifest
 from demo.chain_of_custody.stages import (
     lint_and_clean_structured_csvs,
     run_claim_and_mention_extraction,
+    run_entity_resolution,
     run_pdf_ingest,
     run_retrieval_and_qa,
     run_structured_ingest,
@@ -155,6 +156,11 @@ def _run_orchestrated_demo(config: DemoConfig) -> Path:
         run_id=unstructured_run_id,
         source_uri=pdf_source_uri,
     )
+    entity_resolution_stage = run_entity_resolution(
+        config,
+        run_id=unstructured_run_id,
+        source_uri=pdf_source_uri,
+    )
     retrieval_stage = run_retrieval_and_qa(config)
     manifest = build_batch_manifest(
         config=config,
@@ -164,6 +170,7 @@ def _run_orchestrated_demo(config: DemoConfig) -> Path:
         structured_stage=structured_stage,
         pdf_stage=pdf_stage,
         claim_stage=claim_stage,
+        entity_resolution_stage=entity_resolution_stage,
         retrieval_stage=retrieval_stage,
     )
 
@@ -203,17 +210,26 @@ def _run_independent_stage(config: DemoConfig, command: str) -> Path:
                 source_uri=str((FIXTURES_DIR / "unstructured" / "chain_of_custody.pdf").resolve().as_uri()),
             ),
         ),
+        "resolve-entities": (
+            "entity_resolution",
+            "unstructured_ingest_run_id",
+            lambda cfg, stage_run_id: run_entity_resolution(
+                cfg,
+                run_id=stage_run_id,
+                source_uri=str((FIXTURES_DIR / "unstructured" / "chain_of_custody.pdf").resolve().as_uri()),
+            ),
+        ),
     }
     if command not in stage_runners:
         raise ValueError(f"Unsupported independent command: {command}")
     stage_name, run_scope_key, stage_runner = stage_runners[command]
     run_scope = run_scope_key.removesuffix("_run_id")
-    if command == "extract-claims":
+    if command in ("extract-claims", "resolve-entities"):
         env_run_id = os.getenv("CHAIN_OF_CUSTODY_UNSTRUCTURED_RUN_ID")
         if not env_run_id:
             raise ValueError(
                 "CHAIN_OF_CUSTODY_UNSTRUCTURED_RUN_ID is not set. When running "
-                "'extract-claims' independently, set this to the run_id from a prior "
+                f"'{command}' independently, set this to the run_id from a prior "
                 "'ingest' or 'ingest-pdf' command whose chunks you want to process "
                 "(for example, a value like 'unstructured_ingest-20260304T224739123456Z-1a2b3c4d')."
             )
@@ -263,6 +279,7 @@ def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, 
 
 
 _run_claim_and_mention_extraction = run_claim_and_mention_extraction
+_run_entity_resolution = run_entity_resolution
 _run_retrieval_and_qa = run_retrieval_and_qa
 run_independent_demo = _run_independent_stage
 
@@ -283,7 +300,7 @@ def main() -> None:
         lint_result = lint_and_clean_structured_csvs(run_id=run_id, output_dir=config.output_dir)
         print(f"Structured lint report written to: {lint_result['lint_report_path']}")
         return
-    config_commands = {"ingest", "ingest-structured", "ingest-pdf", "extract-claims"}
+    config_commands = {"ingest", "ingest-structured", "ingest-pdf", "extract-claims", "resolve-entities"}
     if args.command in config_commands:
         config = _build_demo_config_from_args(args)
         if args.command == "ingest":

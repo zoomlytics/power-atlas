@@ -224,6 +224,7 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
                     "structured_ingest",
                     "pdf_ingest",
                     "claim_and_mention_extraction",
+                    "entity_resolution",
                     "retrieval_and_qa",
                 },
             )
