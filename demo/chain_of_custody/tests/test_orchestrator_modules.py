@@ -180,7 +180,6 @@ def test_pdf_ingest_dry_run_uses_contract(tmp_path: Path):
 
 
 def test_claim_extraction_dry_run_uses_prompt_registry(tmp_path: Path):
-    pytest.importorskip("neo4j_graphrag")
     from demo.chain_of_custody.stages import run_claim_and_mention_extraction
 
     config = _dry_run_config(tmp_path)
