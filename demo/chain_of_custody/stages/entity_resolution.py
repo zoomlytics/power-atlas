@@ -62,7 +62,7 @@ def _build_lookup_tables(
     for row in canonical_nodes:
         eid = (row.get("entity_id") or "").strip()
         name = (row.get("name") or "").strip()
-        if eid:
+        if eid and eid not in by_qid:
             by_qid[eid] = row
         norm_name = _normalize(name)
         if norm_name and norm_name not in by_label:
