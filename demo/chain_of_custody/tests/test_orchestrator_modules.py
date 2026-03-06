@@ -220,6 +220,17 @@ def test_retrieval_and_qa_dry_run_includes_metadata_fields(tmp_path: Path):
     required_keys = {"chunk_id", "run_id", "source_uri", "chunk_index", "page", "start_char", "end_char"}
     assert required_keys.issubset(result["citation_object_example"].keys())
 
+    # Validate citation token format: bracketed, pipe-delimited, key=value pairs for all required fields
+    citation_token = result["citation_token_example"]
+    assert isinstance(citation_token, str)
+    assert citation_token.startswith("[") and citation_token.endswith("]")
+    inner = citation_token[1:-1]
+    parts = inner.split("|")
+    citation_obj = result["citation_object_example"]
+    for key in required_keys:
+        assert any(p.startswith(f"{key}=") for p in parts), f"Expected '{key}=...' in citation token parts"
+        assert str(citation_obj[key]) in inner, f"Expected value of '{key}' in citation token"
+
 
 def test_retrieval_and_qa_run_id_appears_in_batch_manifest(tmp_path: Path):
     from demo.chain_of_custody.stages import run_retrieval_and_qa

@@ -232,6 +232,8 @@ def _run_independent_stage(config: DemoConfig, command: str) -> Path:
                 cfg,
                 run_id=stage_run_id,
                 question=getattr(cfg, "question", None),
+                source_uri=str((FIXTURES_DIR / "unstructured" / "chain_of_custody.pdf").resolve().as_uri()),
+                index_name=CHUNK_EMBEDDING_INDEX_NAME,
             ),
         ),
     }
