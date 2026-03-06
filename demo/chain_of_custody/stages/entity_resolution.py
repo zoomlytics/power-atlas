@@ -97,6 +97,17 @@ def _resolve_mention(
                 "candidate_ids": [canonical["entity_id"]],
                 "resolved": True,
             }
+        # Name looks like a QID but no canonical QID match exists:
+        # treat as unresolved instead of falling through to label/alias strategies.
+        return {
+            "mention_id": mention["mention_id"],
+            "normalized_text": normalized,
+            "mention_name": name,
+            "resolution_method": "unresolved",
+            "resolution_confidence": 0.0,
+            "candidate_ids": [],
+            "resolved": False,
+        }
 
     # Strategy 2: exact label match
     canonical = by_label.get(normalized)

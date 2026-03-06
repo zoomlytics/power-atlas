@@ -241,6 +241,10 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
                 manifest["run_scopes"]["unstructured_ingest_run_id"],
             )
             self.assertEqual(
+                manifest["stages"]["entity_resolution"]["run_id"],
+                manifest["run_scopes"]["unstructured_ingest_run_id"],
+            )
+            self.assertEqual(
                 manifest["stages"]["claim_and_mention_extraction"]["prompt_version"],
                 PROMPT_IDS["claim_extraction"],
             )
