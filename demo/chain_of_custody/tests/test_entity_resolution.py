@@ -111,7 +111,15 @@ class TestBuildLookupTables(unittest.TestCase):
         _, by_label, _ = _build_lookup_tables(nodes)
         self.assertEqual(by_label["duplicate"]["entity_id"], "Q10")
 
-
+    def test_first_match_wins_for_qid_duplicates(self):
+        nodes = [
+            {"entity_id": "Q10", "run_id": "run-a", "name": "Duplicate QID A", "aliases": None},
+            {"entity_id": "Q10", "run_id": "run-b", "name": "Duplicate QID B", "aliases": None},
+        ]
+        by_qid, _, _ = _build_lookup_tables(nodes)
+        # Expect the first occurrence of the duplicated entity_id to win.
+        self.assertEqual(by_qid["Q10"]["run_id"], "run-a")
+        self.assertEqual(by_qid["Q10"]["name"], "Duplicate QID A")
 class TestResolveMention(unittest.TestCase):
     def setUp(self):
         canonical_nodes = [
