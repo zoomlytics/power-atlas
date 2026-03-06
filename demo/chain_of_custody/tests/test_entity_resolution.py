@@ -73,9 +73,9 @@ class TestSplitAliases(unittest.TestCase):
 class TestBuildLookupTables(unittest.TestCase):
     def setUp(self):
         self.canonical_nodes = [
-            {"entity_id": "Q1", "name": "Alice", "aliases": "Ali|Alicia"},
-            {"entity_id": "Q2", "name": "Bob Corp", "aliases": "BC,Bobby Corp"},
-            {"entity_id": "Q3", "name": "Charlie", "aliases": None},
+            {"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": "Ali|Alicia"},
+            {"entity_id": "Q2", "run_id": "run-s1", "name": "Bob Corp", "aliases": "BC,Bobby Corp"},
+            {"entity_id": "Q3", "run_id": "run-s1", "name": "Charlie", "aliases": None},
         ]
 
     def test_by_qid_keys(self):
@@ -105,8 +105,8 @@ class TestBuildLookupTables(unittest.TestCase):
 
     def test_first_match_wins_for_label_duplicates(self):
         nodes = [
-            {"entity_id": "Q10", "name": "Duplicate", "aliases": None},
-            {"entity_id": "Q11", "name": "Duplicate", "aliases": None},
+            {"entity_id": "Q10", "run_id": "run-s1", "name": "Duplicate", "aliases": None},
+            {"entity_id": "Q11", "run_id": "run-s1", "name": "Duplicate", "aliases": None},
         ]
         _, by_label, _ = _build_lookup_tables(nodes)
         self.assertEqual(by_label["duplicate"]["entity_id"], "Q10")
@@ -115,8 +115,8 @@ class TestBuildLookupTables(unittest.TestCase):
 class TestResolveMention(unittest.TestCase):
     def setUp(self):
         canonical_nodes = [
-            {"entity_id": "Q42", "name": "Douglas Adams", "aliases": "D. Adams|Adams"},
-            {"entity_id": "Q1", "name": "Alice", "aliases": None},
+            {"entity_id": "Q42", "run_id": "run-s1", "name": "Douglas Adams", "aliases": "D. Adams|Adams"},
+            {"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": None},
         ]
         self.by_qid, self.by_label, self.by_alias = _build_lookup_tables(canonical_nodes)
 
@@ -126,6 +126,7 @@ class TestResolveMention(unittest.TestCase):
         self.assertTrue(result["resolved"])
         self.assertEqual(result["resolution_method"], "qid_exact")
         self.assertEqual(result["canonical_entity_id"], "Q42")
+        self.assertEqual(result["canonical_run_id"], "run-s1")
         self.assertEqual(result["resolution_confidence"], 1.0)
 
     def test_qid_pattern_match_no_canonical_falls_through_to_unresolved(self):
@@ -140,6 +141,7 @@ class TestResolveMention(unittest.TestCase):
         self.assertTrue(result["resolved"])
         self.assertEqual(result["resolution_method"], "label_exact")
         self.assertEqual(result["canonical_entity_id"], "Q42")
+        self.assertEqual(result["canonical_run_id"], "run-s1")
         self.assertEqual(result["resolution_confidence"], 0.9)
 
     def test_alias_exact_match(self):
@@ -148,6 +150,7 @@ class TestResolveMention(unittest.TestCase):
         self.assertTrue(result["resolved"])
         self.assertEqual(result["resolution_method"], "alias_exact")
         self.assertEqual(result["canonical_entity_id"], "Q42")
+        self.assertEqual(result["canonical_run_id"], "run-s1")
         self.assertEqual(result["resolution_confidence"], 0.8)
 
     def test_unresolved(self):
@@ -227,7 +230,7 @@ class TestRunEntityResolutionLive(unittest.TestCase):
             for m in mentions
         ]
         canonical_records = [
-            _Record(entity_id=c["entity_id"], name=c["name"], aliases=c.get("aliases"))
+            _Record(entity_id=c["entity_id"], run_id=c.get("run_id", ""), name=c["name"], aliases=c.get("aliases"))
             for c in canonical_nodes
         ]
 
@@ -249,7 +252,7 @@ class TestRunEntityResolutionLive(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             config = _live_config(Path(tmpdir))
             mentions = [{"mention_id": "m1", "name": "Q42", "entity_type": "person"}]
-            canonicals = [{"entity_id": "Q42", "name": "Douglas Adams", "aliases": None}]
+            canonicals = [{"entity_id": "Q42", "run_id": "run-s1", "name": "Douglas Adams", "aliases": None}]
             driver = self._make_driver(mentions, canonicals)
 
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
@@ -265,7 +268,7 @@ class TestRunEntityResolutionLive(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             config = _live_config(Path(tmpdir))
             mentions = [{"mention_id": "m2", "name": "Douglas Adams", "entity_type": "person"}]
-            canonicals = [{"entity_id": "Q42", "name": "Douglas Adams", "aliases": None}]
+            canonicals = [{"entity_id": "Q42", "run_id": "run-s1", "name": "Douglas Adams", "aliases": None}]
             driver = self._make_driver(mentions, canonicals)
 
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
@@ -278,7 +281,7 @@ class TestRunEntityResolutionLive(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             config = _live_config(Path(tmpdir))
             mentions = [{"mention_id": "m3", "name": "D. Adams", "entity_type": "person"}]
-            canonicals = [{"entity_id": "Q42", "name": "Douglas Adams", "aliases": "D. Adams|Adams"}]
+            canonicals = [{"entity_id": "Q42", "run_id": "run-s1", "name": "Douglas Adams", "aliases": "D. Adams|Adams"}]
             driver = self._make_driver(mentions, canonicals)
 
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
@@ -291,7 +294,7 @@ class TestRunEntityResolutionLive(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             config = _live_config(Path(tmpdir))
             mentions = [{"mention_id": "m4", "name": "Nobody Known", "entity_type": None}]
-            canonicals = [{"entity_id": "Q42", "name": "Douglas Adams", "aliases": None}]
+            canonicals = [{"entity_id": "Q42", "run_id": "run-s1", "name": "Douglas Adams", "aliases": None}]
             driver = self._make_driver(mentions, canonicals)
 
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
@@ -327,7 +330,7 @@ class TestRunEntityResolutionLive(unittest.TestCase):
                 {"mention_id": "m6", "name": "Q1", "entity_type": None},
                 {"mention_id": "m7", "name": "Unknown", "entity_type": None},
             ]
-            canonicals = [{"entity_id": "Q1", "name": "Alice", "aliases": None}]
+            canonicals = [{"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": None}]
             driver = self._make_driver(mentions, canonicals)
 
             with patch("neo4j.GraphDatabase.driver", return_value=driver):

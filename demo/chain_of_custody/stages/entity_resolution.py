@@ -91,6 +91,7 @@ def _resolve_mention(
             return {
                 "mention_id": mention["mention_id"],
                 "canonical_entity_id": canonical["entity_id"],
+                "canonical_run_id": canonical["run_id"],
                 "resolution_method": "qid_exact",
                 "resolution_confidence": 1.0,
                 "candidate_ids": [canonical["entity_id"]],
@@ -103,6 +104,7 @@ def _resolve_mention(
         return {
             "mention_id": mention["mention_id"],
             "canonical_entity_id": canonical["entity_id"],
+            "canonical_run_id": canonical["run_id"],
             "resolution_method": "label_exact",
             "resolution_confidence": 0.9,
             "candidate_ids": [canonical["entity_id"]],
@@ -115,6 +117,7 @@ def _resolve_mention(
         return {
             "mention_id": mention["mention_id"],
             "canonical_entity_id": canonical["entity_id"],
+            "canonical_run_id": canonical["run_id"],
             "resolution_method": "alias_exact",
             "resolution_confidence": 0.8,
             "candidate_ids": [canonical["entity_id"]],
@@ -149,7 +152,7 @@ def _write_resolution_results(
             """
             UNWIND $rows AS row
             MATCH (mention:EntityMention {mention_id: row.mention_id, run_id: $run_id})
-            MATCH (canonical:CanonicalEntity {entity_id: row.canonical_entity_id})
+            MATCH (canonical:CanonicalEntity {entity_id: row.canonical_entity_id, run_id: row.canonical_run_id})
             MERGE (mention)-[r:RESOLVES_TO]->(canonical)
             SET r.run_id = $run_id,
                 r.source_uri = $source_uri,
@@ -273,6 +276,7 @@ def run_entity_resolution(
             """
             MATCH (canonical:CanonicalEntity)
             RETURN canonical.entity_id AS entity_id,
+                   canonical.run_id AS run_id,
                    canonical.name AS name,
                    canonical.aliases AS aliases
             ORDER BY canonical.entity_id
@@ -284,6 +288,7 @@ def run_entity_resolution(
         canonical_nodes = [
             {
                 "entity_id": record["entity_id"] or "",
+                "run_id": record["run_id"] or "",
                 "name": record["name"] or "",
                 "aliases": record["aliases"],
             }
