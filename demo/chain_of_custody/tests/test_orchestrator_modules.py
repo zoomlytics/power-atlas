@@ -50,7 +50,7 @@ def test_batch_manifest_includes_stage_runs(tmp_path: Path):
     assert manifest["stages"]["structured_ingest"]["run_id"] == "structured-1"
     assert manifest["stages"]["pdf_ingest"]["run_id"] == "unstructured-2"
     assert manifest["stages"]["claim_and_mention_extraction"]["run_id"] == "unstructured-2"
-    assert manifest["stages"]["retrieval_and_qa"]["run_id"] == "resolution-3"
+    assert manifest["stages"]["retrieval_and_qa"]["run_id"] == "unstructured-2"
 
 
 def test_stage_manifest_carries_config(tmp_path: Path):
@@ -180,10 +180,108 @@ def test_pdf_ingest_dry_run_uses_contract(tmp_path: Path):
 
 
 def test_claim_extraction_dry_run_uses_prompt_registry(tmp_path: Path):
-    pytest.importorskip("neo4j_graphrag")
     from demo.chain_of_custody.stages import run_claim_and_mention_extraction
 
     config = _dry_run_config(tmp_path)
     summary = run_claim_and_mention_extraction(config, run_id="claim-run", source_uri=None)
     assert summary["prompt_version"] == PROMPT_IDS["claim_extraction"]
     assert summary["status"] == "dry_run"
+
+
+def test_claim_extraction_dry_run_includes_count_fields(tmp_path: Path):
+    from demo.chain_of_custody.stages import run_claim_and_mention_extraction
+
+    config = _dry_run_config(tmp_path)
+    summary = run_claim_and_mention_extraction(config, run_id="claim-run", source_uri=None)
+    assert "chunks_processed" in summary
+    assert "extracted_claim_count" in summary
+    assert "entity_mention_count" in summary
+    assert summary["chunks_processed"] == 0
+    assert summary["extracted_claim_count"] == 0
+    assert summary["entity_mention_count"] == 0
+
+
+def test_retrieval_and_qa_dry_run_includes_metadata_fields(tmp_path: Path):
+    from demo.chain_of_custody.stages import run_retrieval_and_qa
+
+    config = _dry_run_config(tmp_path)
+    result = run_retrieval_and_qa(config, run_id="qa-run-1", source_uri="file:///example/doc.pdf", top_k=5)
+    assert result["run_id"] == "qa-run-1"
+    assert result["top_k"] == 5
+    assert "retriever_index_name" in result
+    assert result["qa_model"] == "test-model"
+    assert result["qa_prompt_version"] == PROMPT_IDS["qa"]
+    assert "all_answers_cited" in result
+    assert isinstance(result["all_answers_cited"], bool)
+    assert "citation_object_example" in result
+    assert "citation_example" in result
+    required_keys = {"chunk_id", "run_id", "source_uri", "chunk_index", "page", "start_char", "end_char"}
+    assert required_keys.issubset(result["citation_object_example"].keys())
+
+    # Provenance fields in citation examples must align with stage-level metadata
+    assert result["citation_object_example"]["run_id"] == "qa-run-1"
+    assert result["citation_object_example"]["source_uri"] == "file:///example/doc.pdf"
+
+    # Validate citation token format: [CITATION|key=value|...], exact key/value matches for all required fields
+    citation_token = result["citation_token_example"]
+    assert isinstance(citation_token, str)
+    assert citation_token.startswith("[CITATION|") and citation_token.endswith("]")
+    inner = citation_token[1:-1]
+    parts = inner.split("|")
+    assert parts[0] == "CITATION"
+    kv_pairs: dict[str, str] = {}
+    for part in parts[1:]:
+        key, sep, value = part.partition("=")
+        assert sep == "=", f"Malformed citation token segment (expected key=value): {part!r}"
+        kv_pairs[key] = value
+    citation_obj = result["citation_object_example"]
+    for key in required_keys:
+        assert key in kv_pairs, f"Expected '{key}' field in citation token"
+        assert kv_pairs[key] == str(citation_obj[key]), f"Expected '{key}' value {citation_obj[key]!r}, got {kv_pairs[key]!r}"
+
+
+def test_retrieval_and_qa_run_id_appears_in_batch_manifest(tmp_path: Path):
+    from demo.chain_of_custody.stages import run_retrieval_and_qa
+
+    config = _dry_run_config(tmp_path)
+    # Batch pipeline uses unstructured_run_id so citation examples map to stored Chunk nodes
+    retrieval_stage = run_retrieval_and_qa(config, run_id="unstructured-2", source_uri=None)
+    manifest = build_batch_manifest(
+        config=config,
+        structured_run_id="structured-1",
+        unstructured_run_id="unstructured-2",
+        resolution_run_id="resolution-3",
+        structured_stage={"status": "dry_run"},
+        pdf_stage={"status": "dry_run"},
+        claim_stage={"status": "dry_run"},
+        retrieval_stage=retrieval_stage,
+    )
+    qa_stage = manifest["stages"]["retrieval_and_qa"]
+    assert qa_stage["run_id"] == "unstructured-2"
+    assert qa_stage["qa_prompt_version"] == PROMPT_IDS["qa"]
+    assert "citation_object_example" in qa_stage
+
+
+def test_claim_extraction_dry_run_includes_chunks_with_extractions(tmp_path: Path):
+    from demo.chain_of_custody.stages import run_claim_and_mention_extraction
+
+    config = _dry_run_config(tmp_path)
+    summary = run_claim_and_mention_extraction(config, run_id="claim-run", source_uri=None)
+    assert "chunks_with_extractions" in summary
+    assert summary["chunks_with_extractions"] == 0
+
+
+def test_retrieval_and_qa_question_recorded_in_manifest(tmp_path: Path):
+    from demo.chain_of_custody.stages import run_retrieval_and_qa
+
+    config = _dry_run_config(tmp_path)
+    result = run_retrieval_and_qa(config, run_id="qa-run-2", source_uri=None, question="What happened?")
+    assert result["question"] == "What happened?"
+
+
+def test_retrieval_and_qa_question_none_when_not_provided(tmp_path: Path):
+    from demo.chain_of_custody.stages import run_retrieval_and_qa
+
+    config = _dry_run_config(tmp_path)
+    result = run_retrieval_and_qa(config, run_id="qa-run-3", source_uri=None)
+    assert result["question"] is None

@@ -15,6 +15,7 @@ class DemoConfig:
     neo4j_password: str
     neo4j_database: str
     openai_model: str
+    question: str | None = None
 
 
 def timestamp() -> str:

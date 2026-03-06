@@ -69,6 +69,10 @@ def run_claim_and_mention_extraction(config: Any, *, run_id: str, source_uri: st
             "source_uri": source_uri,
             "extractor_model": config.openai_model,
             "prompt_version": prompt_version,
+            "chunks_processed": 0,
+            "chunks_with_extractions": 0,
+            "extracted_claim_count": 0,
+            "entity_mention_count": 0,
             "claims": 0,
             "mentions": 0,
             "chunk_ids": [],
@@ -120,6 +124,12 @@ def run_claim_and_mention_extraction(config: Any, *, run_id: str, source_uri: st
         "source_uri": source_uri,
         "extractor_model": config.openai_model,
         "prompt_version": prompt_version,
+        # Total number of chunks read and processed as input
+        "chunks_processed": len(text_chunks),
+        # Number of chunks that produced at least one extraction
+        "chunks_with_extractions": len(unique_chunk_ids),
+        "extracted_claim_count": len(claim_rows),
+        "entity_mention_count": len(mention_rows),
         "claims": len(claim_rows),
         "mentions": len(mention_rows),
         "chunk_ids": sorted(unique_chunk_ids),
