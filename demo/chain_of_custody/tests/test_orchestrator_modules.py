@@ -240,3 +240,29 @@ def test_retrieval_and_qa_run_id_appears_in_batch_manifest(tmp_path: Path):
     assert qa_stage["run_id"] == "resolution-3"
     assert qa_stage["qa_prompt_version"] == PROMPT_IDS["qa"]
     assert "citation_object_example" in qa_stage
+
+
+def test_claim_extraction_dry_run_includes_chunks_with_extractions(tmp_path: Path):
+    pytest.importorskip("neo4j_graphrag")
+    from demo.chain_of_custody.stages import run_claim_and_mention_extraction
+
+    config = _dry_run_config(tmp_path)
+    summary = run_claim_and_mention_extraction(config, run_id="claim-run", source_uri=None)
+    assert "chunks_with_extractions" in summary
+    assert summary["chunks_with_extractions"] == 0
+
+
+def test_retrieval_and_qa_question_recorded_in_manifest(tmp_path: Path):
+    from demo.chain_of_custody.stages import run_retrieval_and_qa
+
+    config = _dry_run_config(tmp_path)
+    result = run_retrieval_and_qa(config, run_id="qa-run-2", source_uri=None, question="What happened?")
+    assert result["question"] == "What happened?"
+
+
+def test_retrieval_and_qa_question_none_when_not_provided(tmp_path: Path):
+    from demo.chain_of_custody.stages import run_retrieval_and_qa
+
+    config = _dry_run_config(tmp_path)
+    result = run_retrieval_and_qa(config, run_id="qa-run-3", source_uri=None)
+    assert result["question"] is None

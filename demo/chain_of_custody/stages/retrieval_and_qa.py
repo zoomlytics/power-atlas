@@ -12,6 +12,7 @@ def run_retrieval_and_qa(
     source_uri: str | None = None,
     top_k: int = _DEFAULT_TOP_K,
     index_name: str | None = None,
+    question: str | None = None,
 ) -> dict[str, object]:
     resolved_index_name = index_name if index_name is not None else CHUNK_EMBEDDING_INDEX_NAME
     qa_model = getattr(config, "openai_model", None)
@@ -49,6 +50,7 @@ def run_retrieval_and_qa(
             "source_uri": source_uri,
             "top_k": top_k,
             "retriever_index_name": resolved_index_name,
+            "question": question,
             "retrievers": ["VectorCypherRetriever", "graph expansion"],
             "qa": "GraphRAG strict citations",
             "qa_model": qa_model,
@@ -66,6 +68,7 @@ def run_retrieval_and_qa(
         "source_uri": source_uri,
         "top_k": top_k,
         "retriever_index_name": resolved_index_name,
+        "question": question,
         "retrievers": ["VectorCypherRetriever", "Text2CypherRetriever"],
         "qa": "GraphRAG prompt template with strict citation suffix",
         "qa_model": qa_model,

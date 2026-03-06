@@ -72,6 +72,7 @@ def _build_demo_config_from_args(args: argparse.Namespace) -> DemoConfig:
         neo4j_password=args.neo4j_password,
         neo4j_database=args.neo4j_database,
         openai_model=args.openai_model,
+        question=getattr(args, "question", None),
     )
 
 
@@ -161,7 +162,12 @@ def _run_orchestrated_demo(config: DemoConfig) -> Path:
         run_id=unstructured_run_id,
         source_uri=pdf_source_uri,
     )
-    retrieval_stage = run_retrieval_and_qa(config, run_id=resolution_run_id)
+    retrieval_stage = run_retrieval_and_qa(
+        config,
+        run_id=resolution_run_id,
+        source_uri=pdf_source_uri,
+        index_name=CHUNK_EMBEDDING_INDEX_NAME,
+    )
     manifest = build_batch_manifest(
         config=config,
         structured_run_id=structured_run_id,
@@ -222,7 +228,11 @@ def _run_independent_stage(config: DemoConfig, command: str) -> Path:
         "ask": (
             "retrieval_and_qa",
             "resolution_run_id",
-            lambda cfg, stage_run_id: run_retrieval_and_qa(cfg, run_id=stage_run_id),
+            lambda cfg, stage_run_id: run_retrieval_and_qa(
+                cfg,
+                run_id=stage_run_id,
+                question=getattr(cfg, "question", None),
+            ),
         ),
     }
     if command not in stage_runners:
