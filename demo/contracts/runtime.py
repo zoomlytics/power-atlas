@@ -7,7 +7,7 @@ from uuid import uuid4
 
 
 @dataclass(frozen=True)
-class DemoConfig:
+class Config:
     dry_run: bool
     output_dir: Path
     neo4j_uri: str
@@ -26,4 +26,4 @@ def make_run_id(scope: str) -> str:
     return f"{scope}-{timestamp()}-{uuid4().hex[:8]}"
 
 
-__all__ = ["DemoConfig", "make_run_id", "timestamp"]
+__all__ = ["Config", "make_run_id", "timestamp"]

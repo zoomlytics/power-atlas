@@ -7,7 +7,7 @@ import tempfile
 from contextlib import ExitStack
 from pathlib import Path
 
-from run_demo import DemoConfig, run_demo
+from run_demo import Config, run_demo
 
 
 def _parse_args() -> argparse.Namespace:
@@ -94,8 +94,8 @@ def _validate_manifest(manifest_path: Path) -> None:
         raise SystemExit(f"citation_example missing required citation fields: {missing_example}")
 
 
-def _build_config(output_dir: Path) -> DemoConfig:
-    return DemoConfig(
+def _build_config(output_dir: Path) -> Config:
+    return Config(
         dry_run=True,
         output_dir=output_dir,
         neo4j_uri=os.getenv("NEO4J_URI", "neo4j://localhost:7687"),
@@ -116,7 +116,7 @@ def main() -> None:
     args = _parse_args()
     with ExitStack() as stack:
         output_dir = args.output_dir or Path(
-            stack.enter_context(tempfile.TemporaryDirectory(prefix="demo_smoke_"))
+            stack.enter_context(tempfile.TemporaryDirectory(prefix="smoke_"))
         )
         manifest_path = _run_and_validate(output_dir)
         print(f"Smoke test passed: {manifest_path}")

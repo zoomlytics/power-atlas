@@ -28,7 +28,7 @@ embedder_config:
       var_: OPENAI_API_KEY
     model: text-embedding-3-small
 from_pdf: true
-demo_contract:
+contract:
   chunk_embedding:
     index_name: demo_chunk_embedding_index
     label: Chunk

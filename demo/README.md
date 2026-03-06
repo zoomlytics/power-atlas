@@ -94,7 +94,7 @@ This demo intentionally mirrors upstream patterns in `vendor-resources`; use the
 ## Config-driven vs custom workflow checklist
 
 - [x] **Config-driven**: PDF ingest pipeline shape (`SimpleKGPipeline` via `PipelineRunner`) is declared in `demo/config/pdf_simple_kg_pipeline.yaml`, aligned to vendor `from_config_files` examples.
-- [x] **Config-driven**: Demo retrieval/citation index contract uses `demo_chunk_embedding_index` on label `Chunk` property `embedding` with dimensions `1536` (deterministic naming keeps reset + retrieval scripts aligned), pinned via `OpenAIEmbeddings` model `text-embedding-3-small` in the demo config plus `demo_contract.chunk_embedding.dimensions`.
+- [x] **Config-driven**: Demo retrieval/citation index contract uses `demo_chunk_embedding_index` on label `Chunk` property `embedding` with dimensions `1536` (deterministic naming keeps reset + retrieval scripts aligned), pinned via `OpenAIEmbeddings` model `text-embedding-3-small` in the demo config plus `contract.chunk_embedding.dimensions`.
 - [x] **Config-driven**: `run_demo.py ingest-pdf --live` executes `PipelineRunner.from_config_file(...)` against `demo/config/pdf_simple_kg_pipeline.yaml` with template-aligned `file_path` input only.
 - [x] **Custom**: Structured ingest live path emits run-scoped provenance metadata (`run_id`, source URI, timestamps, confidence, source-row evidence links) without mutating source assertions (tracked from [zoomlytics/power-atlas#151](https://github.com/zoomlytics/power-atlas/issues/151)).
 - [ ] **Planned retrieval/GraphRAG issue alignment**: Retrieval and answer synthesis should consume explicit run-scoped provenance links and avoid implicit structured↔unstructured coupling.

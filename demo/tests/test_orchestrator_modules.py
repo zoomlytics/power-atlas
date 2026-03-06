@@ -14,13 +14,13 @@ from demo.contracts.pipeline import (
     CHUNK_EMBEDDING_PROPERTY,
 )
 from demo.contracts.prompts import PROMPT_IDS
-from demo.contracts.runtime import DemoConfig, make_run_id
+from demo.contracts.runtime import Config, make_run_id
 from demo.contracts.structured import STRUCTURED_FILE_HEADERS
 from demo.stages import lint_and_clean_structured_csvs, run_pdf_ingest
 
 
-def _dry_run_config(tmp_path: Path) -> DemoConfig:
-    return DemoConfig(
+def _dry_run_config(tmp_path: Path) -> Config:
+    return Config(
         dry_run=True,
         output_dir=tmp_path,
         neo4j_uri="bolt://example.invalid",

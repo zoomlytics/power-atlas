@@ -35,7 +35,7 @@ def _load_module(path: Path, module_name: str):
     return module
 
 
-class DemoWorkflowTests(unittest.TestCase):
+class WorkflowTests(unittest.TestCase):
     @contextmanager
     def _with_injected_modules(self, injected_modules: dict[str, types.ModuleType]):
         originals = {name: sys.modules.get(name) for name in injected_modules}
@@ -148,7 +148,7 @@ class DemoWorkflowTests(unittest.TestCase):
                 os.environ.pop("OPENAI_API_KEY", None)
 
     def test_parse_args_supports_expected_subcommands(self):
-        module = _load_module(RUN_DEMO_PATH, "demo_run_parse_args_test")
+        module = _load_module(RUN_DEMO_PATH, "run_parse_args_test")
         expected = {
             "lint-structured",
             "ingest-structured",
@@ -171,7 +171,7 @@ class DemoWorkflowTests(unittest.TestCase):
             module.parse_args(["--dry-run", "ingest", "--l"])
 
     def test_reset_command_skips_password_validation(self):
-        module = _load_module(RUN_DEMO_PATH, "demo_run_main_reset_test")
+        module = _load_module(RUN_DEMO_PATH, "run_main_reset_test")
         args = type(
             "Args",
             (),
@@ -197,10 +197,10 @@ class DemoWorkflowTests(unittest.TestCase):
             module.parse_args = original_parse_args
 
     def test_run_demo_dry_run_writes_manifest_with_expected_stages(self):
-        module = _load_module(RUN_DEMO_PATH, "demo_run_test")
+        module = _load_module(RUN_DEMO_PATH, "run_test")
         with tempfile.TemporaryDirectory() as tmpdir:
             manifest_path = module.run_demo(
-                module.DemoConfig(
+                module.Config(
                     dry_run=True,
                     output_dir=Path(tmpdir),
                     neo4j_uri="neo4j://localhost:7687",
@@ -328,9 +328,9 @@ class DemoWorkflowTests(unittest.TestCase):
                 self.fail(f"Unexpected claim_type: {claim['claim_type']}")
 
     def test_structured_ingest_dry_run_emits_clean_run_artifacts(self):
-        module = _load_module(RUN_DEMO_PATH, "demo_run_structured_clean_test")
+        module = _load_module(RUN_DEMO_PATH, "run_structured_clean_test")
         with tempfile.TemporaryDirectory() as tmpdir:
-            config = module.DemoConfig(
+            config = module.Config(
                 dry_run=True,
                 output_dir=Path(tmpdir),
                 neo4j_uri="neo4j://localhost:7687",
@@ -356,9 +356,9 @@ class DemoWorkflowTests(unittest.TestCase):
             self.assertTrue(Path(stage["validation_warnings_path"]).exists())
 
     def test_structured_ingest_non_dry_run_writes_claim_first_graph_and_artifacts(self):
-        module = _load_module(RUN_DEMO_PATH, "demo_run_structured_live_test")
+        module = _load_module(RUN_DEMO_PATH, "run_structured_live_test")
         with tempfile.TemporaryDirectory() as tmpdir:
-            config = module.DemoConfig(
+            config = module.Config(
                 dry_run=False,
                 output_dir=Path(tmpdir),
                 neo4j_uri="neo4j://localhost:7687",
@@ -427,7 +427,7 @@ class DemoWorkflowTests(unittest.TestCase):
             self.assertIn("trim(row.claim_type) = 'fact'", claim_query)
 
     def test_structured_lint_deduplicates_duplicate_rows(self):
-        module = _load_module(RUN_DEMO_PATH, "demo_run_structured_dedup_test")
+        module = _load_module(RUN_DEMO_PATH, "run_structured_dedup_test")
         with tempfile.TemporaryDirectory() as tmpdir:
             copied_fixtures = Path(tmpdir) / "fixtures"
             shutil.copytree(DEMO_DIR / "fixtures", copied_fixtures)
@@ -460,7 +460,7 @@ class DemoWorkflowTests(unittest.TestCase):
             self.assertEqual(result["files"]["entities.csv"]["deduplicated_rows"], 1)
 
     def test_structured_lint_ignores_blank_whitespace_rows(self):
-        module = _load_module(RUN_DEMO_PATH, "demo_run_structured_blank_rows_test")
+        module = _load_module(RUN_DEMO_PATH, "run_structured_blank_rows_test")
         with tempfile.TemporaryDirectory() as tmpdir:
             copied_fixtures = Path(tmpdir) / "fixtures"
             shutil.copytree(DEMO_DIR / "fixtures", copied_fixtures)
@@ -484,7 +484,7 @@ class DemoWorkflowTests(unittest.TestCase):
             self.assertGreaterEqual(result["files"]["entities.csv"]["dropped_blank_rows"], 1)
 
     def test_structured_lint_handles_entities_header_with_extra_column(self):
-        module = _load_module(RUN_DEMO_PATH, "demo_run_structured_header_mismatch_test")
+        module = _load_module(RUN_DEMO_PATH, "run_structured_header_mismatch_test")
         with tempfile.TemporaryDirectory() as tmpdir:
             copied_fixtures = Path(tmpdir) / "fixtures"
             shutil.copytree(DEMO_DIR / "fixtures", copied_fixtures)
@@ -525,7 +525,7 @@ class DemoWorkflowTests(unittest.TestCase):
             )
 
     def test_structured_lint_reports_read_error_and_emits_lint_report(self):
-        module = _load_module(RUN_DEMO_PATH, "demo_run_structured_missing_file_test")
+        module = _load_module(RUN_DEMO_PATH, "run_structured_missing_file_test")
         with tempfile.TemporaryDirectory() as tmpdir:
             copied_fixtures = Path(tmpdir) / "fixtures"
             shutil.copytree(DEMO_DIR / "fixtures", copied_fixtures)
@@ -550,7 +550,7 @@ class DemoWorkflowTests(unittest.TestCase):
             self.assertFalse(any(issue["code"] == "UNKNOWN_FACT_SOURCE_ROW" for issue in lint_report["issues"]))
 
     def test_structured_lint_uses_original_row_numbers_after_blank_rows(self):
-        module = _load_module(RUN_DEMO_PATH, "demo_run_structured_row_numbers_test")
+        module = _load_module(RUN_DEMO_PATH, "run_structured_row_numbers_test")
         with tempfile.TemporaryDirectory() as tmpdir:
             copied_fixtures = Path(tmpdir) / "fixtures"
             shutil.copytree(DEMO_DIR / "fixtures", copied_fixtures)
@@ -587,8 +587,8 @@ class DemoWorkflowTests(unittest.TestCase):
             self.assertEqual(unknown_subject_issues[0]["row"], expected_row_number)
 
     def test_run_pdf_ingest_non_dry_run_executes_config_pipeline_and_provenance_flow(self):
-        module = _load_module(RUN_DEMO_PATH, "demo_run_non_dry_test")
-        config = module.DemoConfig(
+        module = _load_module(RUN_DEMO_PATH, "run_non_dry_test")
+        config = module.Config(
             dry_run=False,
             output_dir=DEMO_DIR / "artifacts",
             neo4j_uri="neo4j://localhost:7687",
@@ -704,8 +704,8 @@ class DemoWorkflowTests(unittest.TestCase):
         )
 
     def test_pdf_ingest_query_payload_prefers_specific_markers(self):
-        module = _load_module(RUN_DEMO_PATH, "demo_run_marker_test")
-        config = module.DemoConfig(
+        module = _load_module(RUN_DEMO_PATH, "run_marker_test")
+        config = module.Config(
             dry_run=False,
             output_dir=DEMO_DIR / "artifacts",
             neo4j_uri="neo4j://localhost:7687",
@@ -735,9 +735,9 @@ class DemoWorkflowTests(unittest.TestCase):
         self.assertGreaterEqual(calls["matched_markers"].count("missing_page_count"), 1)
 
     def test_run_pdf_ingest_dry_run_writes_summary_and_fingerprint(self):
-        module = _load_module(RUN_DEMO_PATH, "demo_run_pdf_dry_summary_test")
+        module = _load_module(RUN_DEMO_PATH, "run_pdf_dry_summary_test")
         with tempfile.TemporaryDirectory() as tmpdir:
-            config = module.DemoConfig(
+            config = module.Config(
                 dry_run=True,
                 output_dir=Path(tmpdir),
                 neo4j_uri="neo4j://localhost:7687",
@@ -772,8 +772,8 @@ class DemoWorkflowTests(unittest.TestCase):
             self.assertEqual(result["vector_index"]["creation_strategy"], "dry_run")
 
     def test_run_pdf_ingest_non_dry_run_normalizes_non_json_pipeline_result(self):
-        module = _load_module(RUN_DEMO_PATH, "demo_run_result_fallback_test")
-        config = module.DemoConfig(
+        module = _load_module(RUN_DEMO_PATH, "run_result_fallback_test")
+        config = module.Config(
             dry_run=False,
             output_dir=DEMO_DIR / "artifacts",
             neo4j_uri="neo4j://localhost:7687",
@@ -801,8 +801,8 @@ class DemoWorkflowTests(unittest.TestCase):
         self.assertIn("object object", result["pipeline_result"]["summary"])
 
     def test_run_pdf_ingest_non_dry_run_falls_back_to_cypher_index_creation(self):
-        module = _load_module(RUN_DEMO_PATH, "demo_run_non_dry_fallback_test")
-        config = module.DemoConfig(
+        module = _load_module(RUN_DEMO_PATH, "run_non_dry_fallback_test")
+        config = module.Config(
             dry_run=False,
             output_dir=DEMO_DIR / "artifacts",
             neo4j_uri="neo4j://localhost:7687",
@@ -837,8 +837,8 @@ class DemoWorkflowTests(unittest.TestCase):
         )
 
     def test_run_pdf_ingest_non_dry_run_rejects_unsafe_cypher_fallback_identifiers(self):
-        module = _load_module(RUN_DEMO_PATH, "demo_run_non_dry_unsafe_identifier_test")
-        config = module.DemoConfig(
+        module = _load_module(RUN_DEMO_PATH, "run_non_dry_unsafe_identifier_test")
+        config = module.Config(
             dry_run=False,
             output_dir=DEMO_DIR / "artifacts",
             neo4j_uri="neo4j://localhost:7687",
@@ -877,8 +877,8 @@ class DemoWorkflowTests(unittest.TestCase):
                 setattr(module, attr_name, original_value)
 
     def test_run_pdf_ingest_non_dry_run_raises_when_no_run_scoped_documents_or_chunks(self):
-        module = _load_module(RUN_DEMO_PATH, "demo_run_non_dry_missing_nodes_test")
-        config = module.DemoConfig(
+        module = _load_module(RUN_DEMO_PATH, "run_non_dry_missing_nodes_test")
+        config = module.Config(
             dry_run=False,
             output_dir=DEMO_DIR / "artifacts",
             neo4j_uri="neo4j://localhost:7687",
@@ -904,8 +904,8 @@ class DemoWorkflowTests(unittest.TestCase):
                 module._run_pdf_ingest(config, run_id="unstructured_ingest-test")
 
     def test_run_pdf_ingest_non_dry_run_requires_openai_api_key(self):
-        module = _load_module(RUN_DEMO_PATH, "demo_run_non_dry_requires_openai_key_test")
-        config = module.DemoConfig(
+        module = _load_module(RUN_DEMO_PATH, "run_non_dry_requires_openai_key_test")
+        config = module.Config(
             dry_run=False,
             output_dir=DEMO_DIR / "artifacts",
             neo4j_uri="neo4j://localhost:7687",
@@ -928,9 +928,9 @@ class DemoWorkflowTests(unittest.TestCase):
                 os.environ.pop("OPENAI_API_KEY", None)
 
     def test_independent_ingest_commands_write_stage_manifests(self):
-        module = _load_module(RUN_DEMO_PATH, "demo_run_independent_test")
+        module = _load_module(RUN_DEMO_PATH, "run_independent_test")
         with tempfile.TemporaryDirectory() as tmpdir:
-            config = module.DemoConfig(
+            config = module.Config(
                 dry_run=True,
                 output_dir=Path(tmpdir),
                 neo4j_uri="neo4j://localhost:7687",
@@ -966,7 +966,7 @@ class DemoWorkflowTests(unittest.TestCase):
         sys.path.insert(0, str(DEMO_DIR))
         try:
             with tempfile.TemporaryDirectory() as tmpdir:
-                smoke_module = _load_module(SMOKE_TEST_PATH, "demo_smoke_test_module")
+                smoke_module = _load_module(SMOKE_TEST_PATH, "smoke_test_module")
                 output_dir = Path(tmpdir)
                 expected_manifest = output_dir / "manifest.json"
                 original_parse_args = smoke_module._parse_args
@@ -1007,7 +1007,7 @@ class DemoWorkflowTests(unittest.TestCase):
         self.assertIn("embedder_config", config)
         self.assertIn("neo4j_config", config)
         self.assertIn("from_pdf", config)
-        self.assertIn("demo_contract", config)
+        self.assertIn("contract", config)
         neo4j_database_value = config.get("neo4j_database") or config.get("kg_writer", {}).get("params_", {}).get("neo4j_database")
         self.assertIsNotNone(neo4j_database_value)
         if isinstance(neo4j_database_value, dict):
@@ -1016,7 +1016,7 @@ class DemoWorkflowTests(unittest.TestCase):
             self.assertEqual(neo4j_database_value, "neo4j")
         self.assertEqual(config["llm_config"]["params_"]["model_name"]["var_"], "OPENAI_MODEL")
         self.assertEqual(config["embedder_config"]["params_"]["model"], "text-embedding-3-small")
-        self.assertEqual(config["demo_contract"]["chunk_embedding"]["dimensions"], 1536)
+        self.assertEqual(config["contract"]["chunk_embedding"]["dimensions"], 1536)
 
     def test_run_demo_warns_and_falls_back_when_pipeline_yaml_cannot_be_parsed(self):
         original_safe_load = yaml.safe_load
@@ -1024,7 +1024,7 @@ class DemoWorkflowTests(unittest.TestCase):
             yaml.safe_load = lambda *_args, **_kwargs: (_ for _ in ()).throw(yaml.YAMLError("bad yaml"))
             with warnings.catch_warnings(record=True) as caught:
                 warnings.simplefilter("always")
-                module = _load_module(RUN_DEMO_PATH, "demo_run_yaml_warn_test")
+                module = _load_module(RUN_DEMO_PATH, "run_yaml_warn_test")
             self.assertEqual(module.CHUNK_EMBEDDING_INDEX_NAME, "demo_chunk_embedding_index")
             self.assertEqual(module.CHUNK_EMBEDDING_LABEL, "Chunk")
             self.assertEqual(module.CHUNK_EMBEDDING_PROPERTY, "embedding")
@@ -1042,7 +1042,7 @@ class DemoWorkflowTests(unittest.TestCase):
             yaml.safe_load = lambda *_args, **_kwargs: []
             with warnings.catch_warnings(record=True) as caught:
                 warnings.simplefilter("always")
-                module = _load_module(RUN_DEMO_PATH, "demo_run_yaml_top_level_type_warn_test")
+                module = _load_module(RUN_DEMO_PATH, "run_yaml_top_level_type_warn_test")
             self.assertEqual(module.CHUNK_EMBEDDING_INDEX_NAME, "demo_chunk_embedding_index")
             self.assertEqual(module.CHUNK_EMBEDDING_LABEL, "Chunk")
             self.assertEqual(module.CHUNK_EMBEDDING_PROPERTY, "embedding")
@@ -1057,16 +1057,16 @@ class DemoWorkflowTests(unittest.TestCase):
     def test_run_demo_warns_and_falls_back_when_chunk_embedding_is_not_mapping(self):
         original_safe_load = yaml.safe_load
         try:
-            yaml.safe_load = lambda *_args, **_kwargs: {"demo_contract": {"chunk_embedding": []}}
+            yaml.safe_load = lambda *_args, **_kwargs: {"contract": {"chunk_embedding": []}}
             with warnings.catch_warnings(record=True) as caught:
                 warnings.simplefilter("always")
-                module = _load_module(RUN_DEMO_PATH, "demo_run_chunk_contract_type_warn_test")
+                module = _load_module(RUN_DEMO_PATH, "run_chunk_contract_type_warn_test")
             self.assertEqual(module.CHUNK_EMBEDDING_INDEX_NAME, "demo_chunk_embedding_index")
             self.assertEqual(module.CHUNK_EMBEDDING_LABEL, "Chunk")
             self.assertEqual(module.CHUNK_EMBEDDING_PROPERTY, "embedding")
             self.assertEqual(module.CHUNK_EMBEDDING_DIMENSIONS, 1536)
             self.assertTrue(
-                any("demo_contract.chunk_embedding" in str(w.message) for w in caught),
+                any("contract.chunk_embedding" in str(w.message) for w in caught),
                 "Expected warning when chunk embedding contract is not a mapping",
             )
         finally:
