@@ -164,7 +164,7 @@ def _run_orchestrated_demo(config: DemoConfig) -> Path:
     )
     retrieval_stage = run_retrieval_and_qa(
         config,
-        run_id=resolution_run_id,
+        run_id=unstructured_run_id,
         source_uri=pdf_source_uri,
         index_name=CHUNK_EMBEDDING_INDEX_NAME,
     )
@@ -227,7 +227,7 @@ def _run_independent_stage(config: DemoConfig, command: str) -> Path:
         ),
         "ask": (
             "retrieval_and_qa",
-            "resolution_run_id",
+            "unstructured_ingest_run_id",
             lambda cfg, stage_run_id: run_retrieval_and_qa(
                 cfg,
                 run_id=stage_run_id,
@@ -241,7 +241,7 @@ def _run_independent_stage(config: DemoConfig, command: str) -> Path:
         raise ValueError(f"Unsupported independent command: {command}")
     stage_name, run_scope_key, stage_runner = stage_runners[command]
     run_scope = run_scope_key.removesuffix("_run_id")
-    if command in ("extract-claims", "resolve-entities"):
+    if command in ("extract-claims", "resolve-entities", "ask"):
         env_run_id = os.getenv("CHAIN_OF_CUSTODY_UNSTRUCTURED_RUN_ID")
         if not env_run_id:
             raise ValueError(

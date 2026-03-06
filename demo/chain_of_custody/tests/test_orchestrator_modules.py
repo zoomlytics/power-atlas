@@ -50,7 +50,7 @@ def test_batch_manifest_includes_stage_runs(tmp_path: Path):
     assert manifest["stages"]["structured_ingest"]["run_id"] == "structured-1"
     assert manifest["stages"]["pdf_ingest"]["run_id"] == "unstructured-2"
     assert manifest["stages"]["claim_and_mention_extraction"]["run_id"] == "unstructured-2"
-    assert manifest["stages"]["retrieval_and_qa"]["run_id"] == "resolution-3"
+    assert manifest["stages"]["retrieval_and_qa"]["run_id"] == "unstructured-2"
 
 
 def test_stage_manifest_carries_config(tmp_path: Path):
@@ -190,7 +190,6 @@ def test_claim_extraction_dry_run_uses_prompt_registry(tmp_path: Path):
 
 
 def test_claim_extraction_dry_run_includes_count_fields(tmp_path: Path):
-    pytest.importorskip("neo4j_graphrag")
     from demo.chain_of_custody.stages import run_claim_and_mention_extraction
 
     config = _dry_run_config(tmp_path)
@@ -240,7 +239,8 @@ def test_retrieval_and_qa_run_id_appears_in_batch_manifest(tmp_path: Path):
     from demo.chain_of_custody.stages import run_retrieval_and_qa
 
     config = _dry_run_config(tmp_path)
-    retrieval_stage = run_retrieval_and_qa(config, run_id="resolution-3", source_uri=None)
+    # Batch pipeline uses unstructured_run_id so citation examples map to stored Chunk nodes
+    retrieval_stage = run_retrieval_and_qa(config, run_id="unstructured-2", source_uri=None)
     manifest = build_batch_manifest(
         config=config,
         structured_run_id="structured-1",
@@ -252,13 +252,12 @@ def test_retrieval_and_qa_run_id_appears_in_batch_manifest(tmp_path: Path):
         retrieval_stage=retrieval_stage,
     )
     qa_stage = manifest["stages"]["retrieval_and_qa"]
-    assert qa_stage["run_id"] == "resolution-3"
+    assert qa_stage["run_id"] == "unstructured-2"
     assert qa_stage["qa_prompt_version"] == PROMPT_IDS["qa"]
     assert "citation_object_example" in qa_stage
 
 
 def test_claim_extraction_dry_run_includes_chunks_with_extractions(tmp_path: Path):
-    pytest.importorskip("neo4j_graphrag")
     from demo.chain_of_custody.stages import run_claim_and_mention_extraction
 
     config = _dry_run_config(tmp_path)

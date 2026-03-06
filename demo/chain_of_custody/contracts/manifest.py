@@ -24,7 +24,7 @@ def build_batch_manifest(
         "structured_ingest": {**structured_stage, "run_id": structured_run_id},
         "pdf_ingest": {**pdf_stage, "run_id": unstructured_run_id},
         "claim_and_mention_extraction": {**claim_stage, "run_id": unstructured_run_id},
-        "retrieval_and_qa": {**retrieval_stage, "run_id": resolution_run_id},
+        "retrieval_and_qa": {**retrieval_stage, "run_id": unstructured_run_id},
     }
     if entity_resolution_stage is not None:
         stages["entity_resolution"] = {**entity_resolution_stage, "run_id": unstructured_run_id}
