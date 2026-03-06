@@ -230,7 +230,7 @@ def _run_independent_stage(config: DemoConfig, command: str) -> Path:
             raise ValueError(
                 "CHAIN_OF_CUSTODY_UNSTRUCTURED_RUN_ID is not set. When running "
                 f"'{command}' independently, set this to the run_id from a prior "
-                "'ingest' or 'ingest-pdf' command whose chunks you want to process "
+                "'ingest' or 'ingest-pdf' command whose unstructured data you want to process "
                 "(for example, a value like 'unstructured_ingest-20260304T224739123456Z-1a2b3c4d')."
             )
         stage_run_id = env_run_id

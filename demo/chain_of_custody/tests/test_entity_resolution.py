@@ -120,6 +120,8 @@ class TestBuildLookupTables(unittest.TestCase):
         # Expect the first occurrence of the duplicated entity_id to win.
         self.assertEqual(by_qid["Q10"]["run_id"], "run-a")
         self.assertEqual(by_qid["Q10"]["name"], "Duplicate QID A")
+
+
 class TestResolveMention(unittest.TestCase):
     def setUp(self):
         canonical_nodes = [
