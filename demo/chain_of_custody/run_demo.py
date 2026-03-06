@@ -161,7 +161,7 @@ def _run_orchestrated_demo(config: DemoConfig) -> Path:
         run_id=unstructured_run_id,
         source_uri=pdf_source_uri,
     )
-    retrieval_stage = run_retrieval_and_qa(config)
+    retrieval_stage = run_retrieval_and_qa(config, run_id=resolution_run_id)
     manifest = build_batch_manifest(
         config=config,
         structured_run_id=structured_run_id,
@@ -218,6 +218,11 @@ def _run_independent_stage(config: DemoConfig, command: str) -> Path:
                 run_id=stage_run_id,
                 source_uri=str((FIXTURES_DIR / "unstructured" / "chain_of_custody.pdf").resolve().as_uri()),
             ),
+        ),
+        "ask": (
+            "retrieval_and_qa",
+            "resolution_run_id",
+            lambda cfg, stage_run_id: run_retrieval_and_qa(cfg, run_id=stage_run_id),
         ),
     }
     if command not in stage_runners:
@@ -300,7 +305,7 @@ def main() -> None:
         lint_result = lint_and_clean_structured_csvs(run_id=run_id, output_dir=config.output_dir)
         print(f"Structured lint report written to: {lint_result['lint_report_path']}")
         return
-    config_commands = {"ingest", "ingest-structured", "ingest-pdf", "extract-claims", "resolve-entities"}
+    config_commands = {"ingest", "ingest-structured", "ingest-pdf", "extract-claims", "resolve-entities", "ask"}
     if args.command in config_commands:
         config = _build_demo_config_from_args(args)
         if args.command == "ingest":
@@ -312,10 +317,6 @@ def main() -> None:
         return
     if args.command == "reset":
         print("Stub: use demo/chain_of_custody/reset_demo_db.py --confirm to reset demo data.")
-        return
-    if args.command == "ask":
-        question = args.question or "<question>"
-        print(f"Stub: '{args.command}' planned for question: {question}")
         return
     print(f"Stub: '{args.command}' command scaffold is ready.")
 

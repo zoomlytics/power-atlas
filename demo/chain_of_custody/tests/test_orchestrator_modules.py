@@ -187,3 +187,56 @@ def test_claim_extraction_dry_run_uses_prompt_registry(tmp_path: Path):
     summary = run_claim_and_mention_extraction(config, run_id="claim-run", source_uri=None)
     assert summary["prompt_version"] == PROMPT_IDS["claim_extraction"]
     assert summary["status"] == "dry_run"
+
+
+def test_claim_extraction_dry_run_includes_count_fields(tmp_path: Path):
+    pytest.importorskip("neo4j_graphrag")
+    from demo.chain_of_custody.stages import run_claim_and_mention_extraction
+
+    config = _dry_run_config(tmp_path)
+    summary = run_claim_and_mention_extraction(config, run_id="claim-run", source_uri=None)
+    assert "chunks_processed" in summary
+    assert "extracted_claim_count" in summary
+    assert "entity_mention_count" in summary
+    assert summary["chunks_processed"] == 0
+    assert summary["extracted_claim_count"] == 0
+    assert summary["entity_mention_count"] == 0
+
+
+def test_retrieval_and_qa_dry_run_includes_metadata_fields(tmp_path: Path):
+    from demo.chain_of_custody.stages import run_retrieval_and_qa
+
+    config = _dry_run_config(tmp_path)
+    result = run_retrieval_and_qa(config, run_id="qa-run-1", source_uri=None, top_k=5)
+    assert result["run_id"] == "qa-run-1"
+    assert result["top_k"] == 5
+    assert "retriever_index_name" in result
+    assert result["qa_model"] == "test-model"
+    assert result["qa_prompt_version"] == PROMPT_IDS["qa"]
+    assert "all_answers_cited" in result
+    assert isinstance(result["all_answers_cited"], bool)
+    assert "citation_object_example" in result
+    assert "citation_example" in result
+    required_keys = {"chunk_id", "run_id", "source_uri", "chunk_index", "page", "start_char", "end_char"}
+    assert required_keys.issubset(result["citation_object_example"].keys())
+
+
+def test_retrieval_and_qa_run_id_appears_in_batch_manifest(tmp_path: Path):
+    from demo.chain_of_custody.stages import run_retrieval_and_qa
+
+    config = _dry_run_config(tmp_path)
+    retrieval_stage = run_retrieval_and_qa(config, run_id="resolution-3", source_uri=None)
+    manifest = build_batch_manifest(
+        config=config,
+        structured_run_id="structured-1",
+        unstructured_run_id="unstructured-2",
+        resolution_run_id="resolution-3",
+        structured_stage={"status": "dry_run"},
+        pdf_stage={"status": "dry_run"},
+        claim_stage={"status": "dry_run"},
+        retrieval_stage=retrieval_stage,
+    )
+    qa_stage = manifest["stages"]["retrieval_and_qa"]
+    assert qa_stage["run_id"] == "resolution-3"
+    assert qa_stage["qa_prompt_version"] == PROMPT_IDS["qa"]
+    assert "citation_object_example" in qa_stage

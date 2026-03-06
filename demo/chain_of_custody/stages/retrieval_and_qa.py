@@ -1,9 +1,22 @@
 from __future__ import annotations
 
-from demo.chain_of_custody.contracts import FIXTURES_DIR
+from demo.chain_of_custody.contracts import CHUNK_EMBEDDING_INDEX_NAME, FIXTURES_DIR, PROMPT_IDS
+
+_DEFAULT_TOP_K = 10
 
 
-def run_retrieval_and_qa(config: object) -> dict[str, object]:
+def run_retrieval_and_qa(
+    config: object,
+    *,
+    run_id: str | None = None,
+    source_uri: str | None = None,
+    top_k: int = _DEFAULT_TOP_K,
+    index_name: str | None = None,
+) -> dict[str, object]:
+    resolved_index_name = index_name if index_name is not None else CHUNK_EMBEDDING_INDEX_NAME
+    qa_model = getattr(config, "openai_model", None)
+    qa_prompt_version = PROMPT_IDS["qa"]
+
     example_source_uri = (FIXTURES_DIR / "unstructured" / "chain_of_custody.pdf").resolve().as_uri()
     example_citation_token = (
         "[CITATION|chunk_id=example_chunk|run_id=example_run_id|"
@@ -20,7 +33,7 @@ def run_retrieval_and_qa(config: object) -> dict[str, object]:
            c.end_char AS end_char,
            score AS similarityScore
     """
-    citation_example = {
+    citation_object_example = {
         "chunk_id": "example_chunk",
         "run_id": "example_run_id",
         "source_uri": example_source_uri,
@@ -32,18 +45,36 @@ def run_retrieval_and_qa(config: object) -> dict[str, object]:
     if getattr(config, "dry_run", False):
         return {
             "status": "dry_run",
+            "run_id": run_id,
+            "source_uri": source_uri,
+            "top_k": top_k,
+            "retriever_index_name": resolved_index_name,
             "retrievers": ["VectorCypherRetriever", "graph expansion"],
             "qa": "GraphRAG strict citations",
+            "qa_model": qa_model,
+            "qa_prompt_version": qa_prompt_version,
+            "all_answers_cited": False,
             "citation_token_example": example_citation_token,
-            "citation_example": citation_example,
+            "citation_object_example": citation_object_example,
+            # citation_example is retained for backward compatibility with existing manifest consumers
+            "citation_example": citation_object_example,
             "retrieval_query_contract": retrieval_query_contract.strip(),
         }
     return {
         "status": "configured",
+        "run_id": run_id,
+        "source_uri": source_uri,
+        "top_k": top_k,
+        "retriever_index_name": resolved_index_name,
         "retrievers": ["VectorCypherRetriever", "Text2CypherRetriever"],
         "qa": "GraphRAG prompt template with strict citation suffix",
+        "qa_model": qa_model,
+        "qa_prompt_version": qa_prompt_version,
+        "all_answers_cited": False,
         "citation_token_example": example_citation_token,
-        "citation_example": citation_example,
+        "citation_object_example": citation_object_example,
+        # citation_example is retained for backward compatibility with existing manifest consumers
+        "citation_example": citation_object_example,
         "retrieval_query_contract": retrieval_query_contract.strip(),
     }
 
