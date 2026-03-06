@@ -222,16 +222,22 @@ def test_retrieval_and_qa_dry_run_includes_metadata_fields(tmp_path: Path):
     assert result["citation_object_example"]["run_id"] == "qa-run-1"
     assert result["citation_object_example"]["source_uri"] == "file:///example/doc.pdf"
 
-    # Validate citation token format: bracketed, pipe-delimited, key=value pairs for all required fields
+    # Validate citation token format: [CITATION|key=value|...], exact key/value matches for all required fields
     citation_token = result["citation_token_example"]
     assert isinstance(citation_token, str)
-    assert citation_token.startswith("[") and citation_token.endswith("]")
+    assert citation_token.startswith("[CITATION|") and citation_token.endswith("]")
     inner = citation_token[1:-1]
     parts = inner.split("|")
+    assert parts[0] == "CITATION"
+    kv_pairs: dict[str, str] = {}
+    for part in parts[1:]:
+        key, sep, value = part.partition("=")
+        assert sep == "=", f"Malformed citation token segment (expected key=value): {part!r}"
+        kv_pairs[key] = value
     citation_obj = result["citation_object_example"]
     for key in required_keys:
-        assert any(p.startswith(f"{key}=") for p in parts), f"Expected '{key}=...' in citation token parts"
-        assert str(citation_obj[key]) in inner, f"Expected value of '{key}' in citation token"
+        assert key in kv_pairs, f"Expected '{key}' field in citation token"
+        assert kv_pairs[key] == str(citation_obj[key]), f"Expected '{key}' value {citation_obj[key]!r}, got {kv_pairs[key]!r}"
 
 
 def test_retrieval_and_qa_run_id_appears_in_batch_manifest(tmp_path: Path):

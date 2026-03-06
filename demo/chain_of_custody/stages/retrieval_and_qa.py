@@ -50,9 +50,11 @@ def run_retrieval_and_qa(
     }
 
     # Build shared base dict; only status/retrievers/qa differ between dry-run and configured.
+    # Use citation_run_id/citation_source_uri (which include fallbacks) so stage metadata is
+    # always consistent with the provenance fields in citation_object_example.
     base: dict[str, object] = {
-        "run_id": run_id,
-        "source_uri": source_uri,
+        "run_id": citation_run_id,
+        "source_uri": citation_source_uri,
         "top_k": top_k,
         "retriever_index_name": resolved_index_name,
         "question": question,
