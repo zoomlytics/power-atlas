@@ -33,7 +33,7 @@ from neo4j_graphrag.llm import OpenAILLM
 
 import neo4j
 
-PROMPT_VERSION = PROMPT_IDS.get("narrative_extraction", "narrative_claims_v1")
+PROMPT_VERSION = PROMPT_IDS["narrative_extraction"]
 DEFAULT_OUTPUT_ROOT = Path(__file__).resolve().parent / "runs"
 DEFAULT_NEO4J_PASSWORD = "CHANGE_ME_BEFORE_USE"
 
