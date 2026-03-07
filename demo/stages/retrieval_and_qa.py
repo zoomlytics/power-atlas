@@ -10,7 +10,7 @@ from neo4j_graphrag.generation import GraphRAG
 from neo4j_graphrag.llm import OpenAILLM
 from neo4j_graphrag.message_history import InMemoryMessageHistory, MessageHistory
 from neo4j_graphrag.retrievers import VectorCypherRetriever
-from neo4j_graphrag.types import RetrieverResultItem
+from neo4j_graphrag.types import LLMMessage, RetrieverResultItem
 
 from demo.contracts import CHUNK_EMBEDDING_INDEX_NAME, EMBEDDER_MODEL_NAME, FIXTURES_DIR, PROMPT_IDS
 from demo.contracts.prompts import POWER_ATLAS_RAG_TEMPLATE
@@ -544,8 +544,8 @@ def run_interactive_qa(
                 if history is not None:
                     history.add_messages(
                         [
-                            {"role": "user", "content": question},
-                            {"role": "assistant", "content": answer},
+                            LLMMessage(role="user", content=question),
+                            LLMMessage(role="assistant", content=answer),
                         ]
                     )
         except KeyboardInterrupt:
