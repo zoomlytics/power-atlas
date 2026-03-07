@@ -420,7 +420,7 @@ def run_retrieval_and_qa(
     # Check answer citation completeness and record a warning when not fully cited.
     all_cited = _check_all_answers_cited(answer_text) if answer_text else False
     if answer_text and not all_cited:
-        citation_warning = "Not all answer sentences include a citation token."
+        citation_warning = "Not all non-empty answer lines end with a citation token."
         _logger.warning(citation_warning)
         warnings_list.append(citation_warning)
 
