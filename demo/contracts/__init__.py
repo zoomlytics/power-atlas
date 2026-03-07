@@ -15,7 +15,7 @@ from demo.contracts.pipeline import (
     PIPELINE_CONFIG_DATA,
     ensure_pipeline_contract_loaded,
 )
-from demo.contracts.prompts import PROMPT_IDS
+from demo.contracts.prompts import POWER_ATLAS_RAG_TEMPLATE, PROMPT_IDS
 from demo.contracts.runtime import Config, make_run_id, timestamp
 from demo.contracts.structured import (
     COMMON_PREDICATE_LABELS,
@@ -50,6 +50,7 @@ __all__ = [
     "make_run_id",
     "PDF_PIPELINE_CONFIG_PATH",
     "PIPELINE_CONFIG_DATA",
+    "POWER_ATLAS_RAG_TEMPLATE",
     "PROMPT_IDS",
     "STRUCTURED_FILE_HEADERS",
     "timestamp",

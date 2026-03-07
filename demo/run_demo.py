@@ -32,6 +32,7 @@ from demo.stages import (
     lint_and_clean_structured_csvs,
     run_claim_and_mention_extraction,
     run_entity_resolution,
+    run_interactive_qa,
     run_pdf_ingest,
     run_retrieval_and_qa,
     run_structured_ingest,
@@ -99,6 +100,12 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         subparsers.add_parser(command, parents=[common_parser], allow_abbrev=False)
         if command == "ask":
             subparsers.choices[command].add_argument("--question", default=None)
+            subparsers.choices[command].add_argument(
+                "--interactive",
+                action="store_true",
+                default=False,
+                help="Start an interactive REPL-style Q&A session with message history",
+            )
     parser.set_defaults(command="ingest")
 
     options_with_values = {
@@ -323,6 +330,25 @@ def main() -> None:
         if args.command == "ingest":
             manifest_path = run_demo(config)
             print(f"Demo manifest written to: {manifest_path}")
+        elif args.command == "ask" and getattr(args, "interactive", False):
+            # Interactive mode: start a REPL session; no manifest is written.
+            if config.dry_run:
+                raise SystemExit(
+                    "Interactive 'ask' is not supported in dry-run mode. "
+                    "Re-run the command with --live to enable live Neo4j/OpenAI calls."
+                )
+            env_run_id = os.getenv("UNSTRUCTURED_RUN_ID")
+            if not env_run_id:
+                raise SystemExit(
+                    "UNSTRUCTURED_RUN_ID is not set. When running 'ask' interactively, "
+                    "set this to the run_id from a prior 'ingest' or 'ingest-pdf' command."
+                )
+            run_interactive_qa(
+                config,
+                run_id=env_run_id,
+                source_uri=str((FIXTURES_DIR / "unstructured" / "chain_of_custody.pdf").resolve().as_uri()),
+                index_name=CHUNK_EMBEDDING_INDEX_NAME,
+            )
         else:
             manifest_path = _run_independent_stage(config, args.command)
             print(f"Independent run manifest written to: {manifest_path}")
