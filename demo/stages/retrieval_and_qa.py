@@ -477,8 +477,11 @@ def run_interactive_qa(
     The Neo4j driver, retriever, LLM, and GraphRAG objects are constructed once for
     the session to avoid per-turn connection churn and latency.
 
-    Aligned with vendor pattern from:
-    vendor-resources/examples/question_answering/graphrag_with_message_history.py
+    Aligned with vendor patterns from:
+    - vendor-resources/examples/question_answering/graphrag_with_message_history.py
+      (list[dict]-based history)
+    - vendor-resources/examples/question_answering/graphrag_with_neo4j_message_history.py
+      (MessageHistory-based; this REPL uses InMemoryMessageHistory)
     """
     # Validate and resolve session-level config once before opening any connections.
     if not os.getenv("OPENAI_API_KEY"):
