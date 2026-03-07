@@ -1057,15 +1057,6 @@ def test_retrieval_and_qa_live_path_records_answer_and_all_answers_cited(tmp_pat
         def search(self, **kwargs):
             return _make_fake_retriever_result([])
 
-    class _StubGraphRAG:
-        def __init__(self, *, retriever, llm, prompt_template=None):
-            self._retriever = retriever
-
-        def search(self, *, query_text="", retriever_config=None, return_context=None, message_history=None, **kw):
-            cfg = retriever_config or {}
-            r = self._retriever.search(query_text=query_text, top_k=cfg.get("top_k"), query_params=cfg.get("query_params"))
-            return _make_fake_rag_result(r.items, answer=cited_answer)
-
     live_config = Config(
         dry_run=False,
         output_dir=tmp_path,
@@ -1078,7 +1069,7 @@ def test_retrieval_and_qa_live_path_records_answer_and_all_answers_cited(tmp_pat
 
     with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
-    ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _StubGraphRAG), mock.patch(
+    ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class(answer=cited_answer)), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAILLM"
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
         result = run_retrieval_and_qa(
@@ -1108,15 +1099,6 @@ def test_retrieval_and_qa_live_path_records_warning_when_uncited(tmp_path: Path)
         def search(self, **kwargs):
             return _make_fake_retriever_result([])
 
-    class _StubGraphRAG:
-        def __init__(self, *, retriever, llm, prompt_template=None):
-            self._retriever = retriever
-
-        def search(self, *, query_text="", retriever_config=None, return_context=None, message_history=None, **kw):
-            cfg = retriever_config or {}
-            r = self._retriever.search(query_text=query_text, top_k=cfg.get("top_k"), query_params=cfg.get("query_params"))
-            return _make_fake_rag_result(r.items, answer=uncited_answer)
-
     live_config = Config(
         dry_run=False,
         output_dir=tmp_path,
@@ -1129,7 +1111,7 @@ def test_retrieval_and_qa_live_path_records_warning_when_uncited(tmp_path: Path)
 
     with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
-    ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _StubGraphRAG), mock.patch(
+    ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class(answer=uncited_answer)), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAILLM"
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
         result = run_retrieval_and_qa(
@@ -1141,7 +1123,6 @@ def test_retrieval_and_qa_live_path_records_warning_when_uncited(tmp_path: Path)
 
     assert result["all_answers_cited"] is False
     assert any("citation" in w.lower() for w in result["warnings"])
-
 
 def test_retrieval_and_qa_live_path_passes_message_history_to_graphrag(tmp_path: Path):
     """When message_history is provided, it must be forwarded to GraphRAG.search() and

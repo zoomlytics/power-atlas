@@ -66,9 +66,10 @@ _CITATION_OPTIONAL_FIELDS = ("page", "start_char", "end_char")
 _CITATION_TOKEN_PREFIX = "[CITATION|"
 
 # Regex matching one or more [CITATION|…] tokens at the very end of a stripped line.
-# Each token starts with [CITATION|, contains no unencoded ']', and is terminated by ']'.
-# One or more consecutive tokens are allowed (e.g. multi-source claims).
-_TRAILING_CITATION_RE = re.compile(r"(\[CITATION\|[^\]]*\])+\s*$")
+# Built from _CITATION_TOKEN_PREFIX so the two stay in sync.
+# Each token starts with _CITATION_TOKEN_PREFIX, contains no unencoded ']', and is
+# terminated by ']'. One or more consecutive tokens are allowed (e.g. multi-source claims).
+_TRAILING_CITATION_RE = re.compile(rf"({re.escape(_CITATION_TOKEN_PREFIX)}[^\]]*\])+\s*$")
 
 
 def _check_all_answers_cited(answer: str) -> bool:
@@ -293,6 +294,7 @@ def run_retrieval_and_qa(
         "question": question,
         "qa_model": effective_qa_model,
         "qa_prompt_version": qa_prompt_version,
+        "answer": "",
         "all_answers_cited": False,
         "expand_graph": expand_graph,
         "retrieval_scope": retrieval_scope,
