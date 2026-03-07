@@ -541,6 +541,13 @@ def run_interactive_qa(
                 print(f"\nAnswer:\n{answer}\n")
                 if answer and not _check_all_answers_cited(answer):
                     _logger.warning("Not all non-empty answer lines end with a citation token.")
+                if history is not None:
+                    history.add_messages(
+                        [
+                            {"role": "user", "content": question},
+                            {"role": "assistant", "content": answer},
+                        ]
+                    )
         except KeyboardInterrupt:
             print()
 
