@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import json
 import os
-from datetime import UTC, datetime
 from typing import Any
 
 from demo.contracts import PROMPT_IDS
@@ -55,7 +54,6 @@ async def _async_read_chunks_and_extract(
 
 
 def run_claim_and_mention_extraction(config: Any, *, run_id: str, source_uri: str | None) -> dict[str, Any]:
-    extracted_at = datetime.now(UTC).isoformat()
     run_root = config.output_dir / "runs" / run_id
     extraction_dir = run_root / "claim_extraction"
     extraction_dir.mkdir(parents=True, exist_ok=True)
@@ -103,10 +101,7 @@ def run_claim_and_mention_extraction(config: Any, *, run_id: str, source_uri: st
             text_chunks=text_chunks,
             run_id=run_id,
             source_uri=source_uri,
-            extractor_model=config.openai_model,
-            extracted_at=extracted_at,
             lexical_graph_config=lexical_config,
-            prompt_version=prompt_version,
         )
         write_extracted_rows(
             driver,

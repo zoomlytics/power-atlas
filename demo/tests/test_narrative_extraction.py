@@ -60,9 +60,6 @@ def test_prepare_extracted_rows_builds_provenance_and_edges():
         text_chunks=text_chunks,
         run_id="run-1",
         source_uri="uri://example",
-        extractor_model="gpt-4o-mini",
-        extracted_at="2026-03-05T00:00:00Z",
-        prompt_version="prompt-v1",
         lexical_graph_config=lexical_config,
     )
 
@@ -75,8 +72,12 @@ def test_prepare_extracted_rows_builds_provenance_and_edges():
     assert claim["chunk_ids"] == [chunk_id]
     assert mention["chunk_ids"] == [chunk_id]
     assert claim["properties"]["run_id"] == "run-1"
-    assert mention["properties"]["prompt_version"] == "prompt-v1"
     assert claim["properties"]["page"] == 3
+    # Process/stage metadata (prompt_version, extractor_model, extracted_at) must NOT
+    # be written to graph node properties — they belong in manifests/artifacts only.
+    assert "prompt_version" not in mention["properties"]
+    assert "extractor_model" not in claim["properties"]
+    assert "extracted_at" not in claim["properties"]
     assert "claims" not in mention["properties"]
 
 
@@ -244,7 +245,7 @@ def test_write_extracted_rows_allows_valid_identifiers_and_executes():
             "chunk_ids": ["chunk-1"],
             "run_id": "run-valid",
             "source_uri": None,
-            "properties": {"extracted_at": "t", "prompt_version": "p"},
+            "properties": {"run_id": "run-valid", "claim_text": "A claim"},
         }
     ]
 
