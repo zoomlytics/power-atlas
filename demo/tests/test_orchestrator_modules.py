@@ -474,21 +474,30 @@ def _make_fake_rag_result(items, answer: str = ""):
     return _FakeRagResult(items, answer)
 
 
-def _make_stub_graphrag_class(answer: str = ""):
+def _make_stub_graphrag_class(answer: str = "", capture: dict | None = None):
     """Return a GraphRAG stub class that bypasses Pydantic validation.
 
     The stub's ``search()`` method calls the fake retriever's ``search()``
     with ``query_params`` extracted from ``retriever_config`` so that tests
     can still inspect ``captured_search`` / ``captured_params`` populated by
     the fake retriever.
+
+    When *capture* is provided it is populated with the constructor arguments
+    (``llm``, ``prompt_template``) and each search call's ``message_history``
+    so tests can assert on those values without duplicating stub logic.
     """
 
     class _FakeGraphRAG:
         def __init__(self, *, retriever, llm, prompt_template=None):
             self._retriever = retriever
+            if capture is not None:
+                capture["llm"] = llm
+                capture["prompt_template"] = prompt_template
 
         def search(self, *, query_text="", retriever_config=None, return_context=None, message_history=None, **kwargs):
             cfg = retriever_config or {}
+            if capture is not None:
+                capture["message_history"] = message_history
             result = self._retriever.search(
                 query_text=query_text,
                 top_k=cfg.get("top_k"),
@@ -1139,19 +1148,6 @@ def test_retrieval_and_qa_live_path_passes_message_history_to_graphrag(tmp_path:
         def search(self, **kwargs):
             return _make_fake_retriever_result([])
 
-    class _StubGraphRAG:
-        def __init__(self, *, retriever, llm, prompt_template=None):
-            self._retriever = retriever
-
-        def search(self, *, query_text="", retriever_config=None, return_context=None, message_history=None, **kw):
-            captured_rag_search_args["message_history"] = message_history
-            r = self._retriever.search(
-                query_text=query_text,
-                top_k=(retriever_config or {}).get("top_k"),
-                query_params=(retriever_config or {}).get("query_params"),
-            )
-            return _make_fake_rag_result(r.items)
-
     live_config = Config(
         dry_run=False,
         output_dir=tmp_path,
@@ -1166,7 +1162,7 @@ def test_retrieval_and_qa_live_path_passes_message_history_to_graphrag(tmp_path:
 
     with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
-    ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _StubGraphRAG), mock.patch(
+    ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class(capture=captured_rag_search_args)), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAILLM"
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
         result = run_retrieval_and_qa(
@@ -1201,19 +1197,6 @@ def test_retrieval_and_qa_live_path_uses_openai_llm_with_model_from_config(tmp_p
             captured_llm_args["model_name"] = model_name
             captured_llm_args["model_params"] = model_params
 
-    class _StubGraphRAG:
-        def __init__(self, *, retriever, llm, prompt_template=None):
-            captured_llm_args["llm"] = llm
-            self._retriever = retriever
-
-        def search(self, *, query_text="", retriever_config=None, return_context=None, message_history=None, **kw):
-            r = self._retriever.search(
-                query_text=query_text,
-                top_k=(retriever_config or {}).get("top_k"),
-                query_params=(retriever_config or {}).get("query_params"),
-            )
-            return _make_fake_rag_result(r.items)
-
     live_config = Config(
         dry_run=False,
         output_dir=tmp_path,
@@ -1226,7 +1209,7 @@ def test_retrieval_and_qa_live_path_uses_openai_llm_with_model_from_config(tmp_p
 
     with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
-    ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _StubGraphRAG), mock.patch(
+    ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class()), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAILLM", _FakeLLM
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
         run_retrieval_and_qa(
@@ -1254,19 +1237,6 @@ def test_retrieval_and_qa_live_path_uses_power_atlas_prompt_template(tmp_path: P
         def search(self, **kwargs):
             return _make_fake_retriever_result([])
 
-    class _StubGraphRAG:
-        def __init__(self, *, retriever, llm, prompt_template=None):
-            captured_prompt["template"] = prompt_template
-            self._retriever = retriever
-
-        def search(self, *, query_text="", retriever_config=None, return_context=None, message_history=None, **kw):
-            r = self._retriever.search(
-                query_text=query_text,
-                top_k=(retriever_config or {}).get("top_k"),
-                query_params=(retriever_config or {}).get("query_params"),
-            )
-            return _make_fake_rag_result(r.items)
-
     live_config = Config(
         dry_run=False,
         output_dir=tmp_path,
@@ -1279,7 +1249,7 @@ def test_retrieval_and_qa_live_path_uses_power_atlas_prompt_template(tmp_path: P
 
     with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
-    ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _StubGraphRAG), mock.patch(
+    ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class(capture=captured_prompt)), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAILLM"
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
         run_retrieval_and_qa(
@@ -1289,7 +1259,7 @@ def test_retrieval_and_qa_live_path_uses_power_atlas_prompt_template(tmp_path: P
             question="Test question",
         )
 
-    assert captured_prompt["template"] is POWER_ATLAS_RAG_TEMPLATE
+    assert captured_prompt["prompt_template"] is POWER_ATLAS_RAG_TEMPLATE
 
 
 def test_ask_interactive_rejects_dry_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):

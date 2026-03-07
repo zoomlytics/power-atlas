@@ -472,39 +472,77 @@ def run_interactive_qa(
     has conversational context, but each turn's answer must still be grounded in
     retrieved evidence from the current question's retrieval results.
 
+    The Neo4j driver, retriever, LLM, and GraphRAG objects are constructed once for
+    the session to avoid per-turn connection churn and latency.
+
     Aligned with vendor pattern from:
     vendor-resources/examples/question_answering/graphrag_with_message_history.py
     """
+    # Validate and resolve session-level config once before opening any connections.
+    if not os.getenv("OPENAI_API_KEY"):
+        raise ValueError("OPENAI_API_KEY environment variable is required for live retrieval.")
+
+    neo4j_uri = getattr(config, "neo4j_uri", None)
+    neo4j_username = getattr(config, "neo4j_username", None)
+    neo4j_password = getattr(config, "neo4j_password", None)
+    neo4j_database = getattr(config, "neo4j_database", None)
+
+    missing_cfg = [k for k, v in (("neo4j_uri", neo4j_uri), ("neo4j_username", neo4j_username), ("neo4j_password", neo4j_password)) if not v]
+    if missing_cfg:
+        raise ValueError(f"Live retrieval requires config attributes: {', '.join(missing_cfg)}")
+
+    resolved_index_name = index_name if index_name is not None else CHUNK_EMBEDDING_INDEX_NAME
+    effective_qa_model = getattr(config, "openai_model", None) or "gpt-4o-mini"
+    retrieval_query = _RETRIEVAL_QUERY_WITH_EXPANSION if expand_graph else _RETRIEVAL_QUERY_BASE
+    query_params: dict[str, object] = {"run_id": run_id, "source_uri": source_uri}
+
     history: MessageHistory = InMemoryMessageHistory()
     print("Power Atlas interactive Q&A (type 'exit'/'quit' or Ctrl-D to stop)\n")
-    try:
-        while True:
-            try:
-                question = input("Question: ").strip()
-            except EOFError:
-                print()
-                break
-            if not question:
-                continue
-            if question.lower() in ("exit", "quit"):
-                break
-            result = run_retrieval_and_qa(
-                config,
-                run_id=run_id,
-                source_uri=source_uri,
-                top_k=top_k,
-                index_name=index_name,
-                question=question,
-                expand_graph=expand_graph,
-                message_history=history,
-                interactive=True,
-            )
-            answer = result.get("answer", "")
-            print(f"\nAnswer:\n{answer}\n")
-            if not result.get("all_answers_cited"):
-                _logger.warning("Not all answer sentences include citation tokens.")
-    except KeyboardInterrupt:
-        print()
+
+    # Build driver, retriever, LLM, and GraphRAG once and reuse across all REPL turns
+    # to avoid per-turn connection overhead and Neo4j driver churn.
+    with neo4j.GraphDatabase.driver(neo4j_uri, auth=(neo4j_username, neo4j_password)) as driver:
+        embedder = OpenAIEmbeddings(model=EMBEDDER_MODEL_NAME)
+        retriever = VectorCypherRetriever(
+            driver=driver,
+            index_name=resolved_index_name,
+            embedder=embedder,
+            retrieval_query=retrieval_query,
+            result_formatter=_chunk_citation_formatter,
+            neo4j_database=neo4j_database,
+        )
+        llm = OpenAILLM(
+            model_name=effective_qa_model,
+            model_params={"temperature": 0},
+        )
+        rag = GraphRAG(
+            retriever=retriever,
+            llm=llm,
+            prompt_template=POWER_ATLAS_RAG_TEMPLATE,
+        )
+        try:
+            while True:
+                try:
+                    question = input("Question: ").strip()
+                except EOFError:
+                    print()
+                    break
+                if not question:
+                    continue
+                if question.lower() in ("exit", "quit"):
+                    break
+                rag_result = rag.search(
+                    query_text=question,
+                    retriever_config={"top_k": top_k, "query_params": query_params},
+                    return_context=True,
+                    message_history=history,
+                )
+                answer = rag_result.answer if rag_result else ""
+                print(f"\nAnswer:\n{answer}\n")
+                if answer and not _check_all_answers_cited(answer):
+                    _logger.warning("Not all non-empty answer lines end with a citation token.")
+        except KeyboardInterrupt:
+            print()
 
 
 __all__ = [
