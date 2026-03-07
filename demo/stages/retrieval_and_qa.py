@@ -7,7 +7,7 @@ from neo4j_graphrag.embeddings.openai import OpenAIEmbeddings
 from neo4j_graphrag.retrievers import VectorCypherRetriever
 from neo4j_graphrag.types import RetrieverResultItem
 
-from demo.contracts import CHUNK_EMBEDDING_INDEX_NAME, FIXTURES_DIR, PROMPT_IDS
+from demo.contracts import CHUNK_EMBEDDING_INDEX_NAME, EMBEDDER_MODEL_NAME, FIXTURES_DIR, PROMPT_IDS
 
 _DEFAULT_TOP_K = 10
 _logger = logging.getLogger(__name__)
@@ -20,7 +20,7 @@ _RETRIEVAL_QUERY_BASE = """
 WITH node AS c, score
 WHERE c.run_id = $run_id
   AND ($source_uri IS NULL OR c.source_uri = $source_uri)
-RETURN c.text AS chunk_text,
+RETURN coalesce(c.text, c.body, c.content) AS chunk_text,
        c.chunk_id AS chunk_id,
        c.run_id AS run_id,
        c.source_uri AS source_uri,
@@ -42,7 +42,7 @@ OPTIONAL MATCH (c)<-[:FROM_CHUNK]-(claim:ExtractedClaim)
 OPTIONAL MATCH (c)<-[:FROM_CHUNK]-(mention:EntityMention)
   WHERE mention.run_id = $run_id
 OPTIONAL MATCH (mention)-[:RESOLVED_TO]->(canonical)
-RETURN c.text AS chunk_text,
+RETURN coalesce(c.text, c.body, c.content) AS chunk_text,
        c.chunk_id AS chunk_id,
        c.run_id AS run_id,
        c.source_uri AS source_uri,
@@ -167,7 +167,9 @@ def run_retrieval_and_qa(
         start_char=0,
         end_char=999,
     )
-    retrieval_query_contract = _RETRIEVAL_QUERY_BASE
+    retrieval_query_contract = (
+        _RETRIEVAL_QUERY_WITH_EXPANSION if expand_graph else _RETRIEVAL_QUERY_BASE
+    )
     citation_object_example: dict[str, object] = {
         "chunk_id": "example_chunk",
         "run_id": citation_run_id,
@@ -215,12 +217,18 @@ def run_retrieval_and_qa(
         }
 
     # Live retrieval: build a run-scoped VectorCypherRetriever with citation formatter.
+    # run_id is mandatory for live retrieval — it is the primary run-scope boundary.
+    if run_id is None:
+        raise ValueError(
+            "run_id is required for live retrieval. Set UNSTRUCTURED_RUN_ID or pass run_id explicitly."
+        )
+
     retrieval_query = _RETRIEVAL_QUERY_WITH_EXPANSION if expand_graph else _RETRIEVAL_QUERY_BASE
 
     # Query params for run-scoped filtering. source_uri=None is valid: the null-conditional
     # in the WHERE clause skips source_uri filtering when the parameter is None.
     query_params: dict[str, object] = {
-        "run_id": citation_run_id,
+        "run_id": run_id,
         "source_uri": source_uri,
     }
 
@@ -229,15 +237,27 @@ def run_retrieval_and_qa(
     neo4j_password = getattr(config, "neo4j_password", None)
     neo4j_database = getattr(config, "neo4j_database", None)
 
-    missing = [k for k, v in (("neo4j_uri", neo4j_uri), ("neo4j_username", neo4j_username), ("neo4j_password", neo4j_password)) if not v]
-    if missing:
-        raise ValueError(f"Live retrieval requires config attributes: {', '.join(missing)}")
+    missing_cfg = [k for k, v in (("neo4j_uri", neo4j_uri), ("neo4j_username", neo4j_username), ("neo4j_password", neo4j_password)) if not v]
+    if missing_cfg:
+        raise ValueError(f"Live retrieval requires config attributes: {', '.join(missing_cfg)}")
 
     warnings_list: list[str] = []
     hits: list[dict[str, object]] = []
 
+    if question is None:
+        _logger.warning("No question provided; skipping vector retrieval.")
+        return {
+            **base,
+            "status": "live",
+            "retrievers": ["VectorCypherRetriever"],
+            "qa": "GraphRAG strict citations",
+            "hits": 0,
+            "retrieval_results": [],
+            "warnings": [],
+        }
+
     with neo4j.GraphDatabase.driver(neo4j_uri, auth=(neo4j_username, neo4j_password)) as driver:
-        embedder = OpenAIEmbeddings()
+        embedder = OpenAIEmbeddings(model=EMBEDDER_MODEL_NAME)
         retriever = VectorCypherRetriever(
             driver=driver,
             index_name=resolved_index_name,
@@ -247,29 +267,26 @@ def run_retrieval_and_qa(
             neo4j_database=neo4j_database,
         )
 
-        if question is not None:
-            result = retriever.search(
-                query_text=question,
-                top_k=top_k,
-                query_params=query_params,
-            )
-            for item in result.items:
-                meta = item.metadata or {}
-                citation_obj = meta.get("citation_object") or {}
-                # Surface warnings for chunks missing optional citation-relevant fields.
-                missing_fields = [f for f in _CITATION_OPTIONAL_FIELDS if citation_obj.get(f) is None]
-                if missing_fields:
-                    _logger.warning(
-                        "Chunk %r missing citation fields: %s",
-                        citation_obj.get("chunk_id"),
-                        ", ".join(missing_fields),
-                    )
-                    warnings_list.append(
-                        f"Chunk {citation_obj.get('chunk_id')!r} missing citation fields: {', '.join(missing_fields)}"
-                    )
-                hits.append({"content": item.content, "metadata": meta})
-        else:
-            _logger.warning("No question provided; skipping vector retrieval.")
+        result = retriever.search(
+            query_text=question,
+            top_k=top_k,
+            query_params=query_params,
+        )
+        for item in result.items:
+            meta = item.metadata or {}
+            citation_obj = meta.get("citation_object") or {}
+            # Surface warnings for chunks missing optional citation-relevant fields.
+            missing_fields = [f for f in _CITATION_OPTIONAL_FIELDS if citation_obj.get(f) is None]
+            if missing_fields:
+                _logger.warning(
+                    "Chunk %r missing citation fields: %s",
+                    citation_obj.get("chunk_id"),
+                    ", ".join(missing_fields),
+                )
+                warnings_list.append(
+                    f"Chunk {citation_obj.get('chunk_id')!r} missing citation fields: {', '.join(missing_fields)}"
+                )
+            hits.append({"content": item.content, "metadata": meta})
 
     # Use first hit's citation data as example when hits are available so the manifest
     # reflects actual retrieved provenance rather than placeholder values.

@@ -447,12 +447,19 @@ def _make_fake_retriever_result_item(content, metadata):
 
 def test_retrieval_and_qa_live_path_uses_vector_cypher_retriever(tmp_path: Path):
     """Live path must instantiate VectorCypherRetriever with the correct index and call search
-    with run_id in query_params for run-scoped retrieval."""
+    with run_id in query_params for run-scoped retrieval. OpenAIEmbeddings must use the
+    contract's embedder model name."""
     from demo.stages import run_retrieval_and_qa
     from demo.stages.retrieval_and_qa import _chunk_citation_formatter
+    from demo.contracts.pipeline import EMBEDDER_MODEL_NAME
 
     captured_init: dict = {}
     captured_search: dict = {}
+    captured_embedder_args: list = []
+
+    class _FakeEmbedder:
+        def __init__(self, *args, **kwargs):
+            captured_embedder_args.append((args, kwargs))
 
     class _FakeRetriever:
         def __init__(self, **kwargs):
@@ -473,7 +480,7 @@ def test_retrieval_and_qa_live_path_uses_vector_cypher_retriever(tmp_path: Path)
     )
 
     with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
-        "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
+        "demo.stages.retrieval_and_qa.OpenAIEmbeddings", _FakeEmbedder
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
         result = run_retrieval_and_qa(
             live_config,
@@ -493,6 +500,9 @@ def test_retrieval_and_qa_live_path_uses_vector_cypher_retriever(tmp_path: Path)
     assert result["hits"] == 0
     assert result["retrieval_results"] == []
     assert result["warnings"] == []
+    # Embedder must use the contract's model name to match the index dimensions
+    assert len(captured_embedder_args) == 1
+    assert captured_embedder_args[0][1].get("model") == EMBEDDER_MODEL_NAME
 
 
 def test_retrieval_and_qa_live_path_formats_citation_tokens(tmp_path: Path):
@@ -569,15 +579,9 @@ def test_retrieval_and_qa_live_path_formats_citation_tokens(tmp_path: Path):
 
 
 def test_retrieval_and_qa_live_path_no_question_returns_empty_hits(tmp_path: Path):
-    """Live path without a question must skip retrieval and return empty hits."""
+    """Live path without a question must return empty hits immediately without opening
+    a Neo4j driver or instantiating an embedder."""
     from demo.stages import run_retrieval_and_qa
-
-    class _FakeRetriever:
-        def __init__(self, **kwargs):
-            pass
-
-        def search(self, **kwargs):
-            raise AssertionError("search should not be called when question is None")
 
     live_config = Config(
         dry_run=False,
@@ -589,14 +593,30 @@ def test_retrieval_and_qa_live_path_no_question_returns_empty_hits(tmp_path: Pat
         openai_model="gpt-4o-mini",
     )
 
-    with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
-        "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
-    ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
-        result = run_retrieval_and_qa(live_config, run_id="live-run-3", source_uri=None, question=None)
+    # No driver or embedder patches needed — the function must return before touching them.
+    result = run_retrieval_and_qa(live_config, run_id="live-run-3", source_uri=None, question=None)
 
     assert result["status"] == "live"
     assert result["hits"] == 0
     assert result["retrieval_results"] == []
+
+
+def test_retrieval_and_qa_live_path_requires_run_id(tmp_path: Path):
+    """Live path must raise ValueError when run_id is omitted to prevent silent cross-run retrieval."""
+    from demo.stages import run_retrieval_and_qa
+
+    live_config = Config(
+        dry_run=False,
+        output_dir=tmp_path,
+        neo4j_uri="bolt://example.invalid",
+        neo4j_username="neo4j",
+        neo4j_password="not-used",
+        neo4j_database="neo4j",
+        openai_model="gpt-4o-mini",
+    )
+
+    with pytest.raises(ValueError, match="run_id is required"):
+        run_retrieval_and_qa(live_config, run_id=None, source_uri=None, question="Test?")
 
 
 def test_retrieval_and_qa_live_path_warns_on_missing_citation_fields(tmp_path: Path):
