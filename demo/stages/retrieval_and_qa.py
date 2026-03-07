@@ -57,6 +57,18 @@ RETURN coalesce(c.text, c.body, c.content) AS chunk_text,
 _CITATION_OPTIONAL_FIELDS = ("page", "start_char", "end_char")
 
 
+def _encode_citation_value(value: object) -> str:
+    """Percent-encode characters that would break citation token delimiter parsing.
+
+    The token format uses ``|`` as a field separator and ``]`` as a token terminator.
+    Encoding only those two characters (plus ``%`` to prevent double-encoding) keeps
+    values like ``file:///path.pdf`` human-readable while ensuring round-trippability
+    even when a source_uri contains ``|`` or ``]``.
+    """
+    s = "" if value is None else str(value)
+    return s.replace("%", "%25").replace("|", "%7C").replace("]", "%5D")
+
+
 def _build_citation_token(
     *,
     chunk_id: str | None,
@@ -68,9 +80,15 @@ def _build_citation_token(
     end_char: int | None,
 ) -> str:
     return (
-        f"[CITATION|chunk_id={chunk_id}|run_id={run_id}|"
-        f"source_uri={source_uri}|chunk_index={chunk_index}|"
-        f"page={page}|start_char={start_char}|end_char={end_char}]"
+        f"[CITATION"
+        f"|chunk_id={_encode_citation_value(chunk_id)}"
+        f"|run_id={_encode_citation_value(run_id)}"
+        f"|source_uri={_encode_citation_value(source_uri)}"
+        f"|chunk_index={_encode_citation_value(chunk_index)}"
+        f"|page={_encode_citation_value(page)}"
+        f"|start_char={_encode_citation_value(start_char)}"
+        f"|end_char={_encode_citation_value(end_char)}"
+        f"]"
     )
 
 
@@ -178,8 +196,10 @@ def run_retrieval_and_qa(
     }
 
     # Retrieval scope metadata: always recorded so manifests document the scope used.
+    # Use the raw run_id (possibly None for dry-run) so the recorded scope reflects the
+    # actual input rather than the citation-example fallback value.
     retrieval_scope: dict[str, object] = {
-        "run_id": citation_run_id,
+        "run_id": run_id,
         "source_uri": source_uri,
         "scope_widened": False,
     }
@@ -245,18 +265,18 @@ def run_retrieval_and_qa(
     hits: list[dict[str, object]] = []
 
     if question is None:
-        _logger.warning("No question provided; skipping vector retrieval.")
-        live_retrievers = (
-            ["VectorCypherRetriever", "graph expansion"] if expand_graph else ["VectorCypherRetriever"]
-        )
+        warning_msg = "No question provided; skipping vector retrieval."
+        _logger.warning(warning_msg)
+        # Retrieval (and optional graph expansion) did not run; report no retrievers.
         return {
             **base,
             "status": "live",
-            "retrievers": live_retrievers,
+            "retrievers": [],
             "qa": "GraphRAG strict citations",
             "hits": 0,
             "retrieval_results": [],
-            "warnings": [],
+            "warnings": [warning_msg],
+            "retrieval_skipped": True,
         }
 
     with neo4j.GraphDatabase.driver(neo4j_uri, auth=(neo4j_username, neo4j_password)) as driver:

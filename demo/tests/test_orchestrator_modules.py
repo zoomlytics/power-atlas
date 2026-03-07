@@ -409,12 +409,19 @@ def test_retrieval_and_qa_dry_run_includes_retriever_type_and_scope(tmp_path: Pa
 
 
 def test_retrieval_and_qa_dry_run_retrieval_scope_source_uri_none_when_not_provided(tmp_path: Path):
-    """retrieval_scope.source_uri must be None when source_uri is not provided."""
+    """retrieval_scope.source_uri must be None when source_uri is not provided.
+    retrieval_scope.run_id must reflect the raw run_id argument (None when omitted)."""
     from demo.stages import run_retrieval_and_qa
 
     config = _dry_run_config(tmp_path)
     result = run_retrieval_and_qa(config, run_id="qa-run-5", source_uri=None)
     assert result["retrieval_scope"]["source_uri"] is None
+    # scope must record the actual run_id, not the citation-example placeholder
+    assert result["retrieval_scope"]["run_id"] == "qa-run-5"
+
+    # When run_id is omitted (dry-run only), retrieval_scope.run_id must be None
+    result_no_run_id = run_retrieval_and_qa(config, run_id=None, source_uri=None)
+    assert result_no_run_id["retrieval_scope"]["run_id"] is None
 
 
 def test_retrieval_and_qa_dry_run_expand_graph_flag_recorded(tmp_path: Path):
@@ -586,7 +593,8 @@ def test_retrieval_and_qa_live_path_formats_citation_tokens(tmp_path: Path):
 
 def test_retrieval_and_qa_live_path_no_question_returns_empty_hits(tmp_path: Path):
     """Live path without a question must return empty hits immediately without opening
-    a Neo4j driver or instantiating an embedder."""
+    a Neo4j driver or instantiating an embedder.  retrievers must be empty (nothing ran),
+    retrieval_skipped must be True, and the skip warning must appear in warnings."""
     from demo.stages import run_retrieval_and_qa
 
     live_config = Config(
@@ -605,6 +613,12 @@ def test_retrieval_and_qa_live_path_no_question_returns_empty_hits(tmp_path: Pat
     assert result["status"] == "live"
     assert result["hits"] == 0
     assert result["retrieval_results"] == []
+    # No retrieval ran, so retrievers must be empty
+    assert result["retrievers"] == []
+    # retrieval_skipped flag must signal that the retrieval step was bypassed
+    assert result["retrieval_skipped"] is True
+    # The skip warning must be surfaced in the warnings list
+    assert any("No question" in w for w in result["warnings"])
 
 
 def test_retrieval_and_qa_live_path_requires_run_id(tmp_path: Path):
@@ -790,3 +804,34 @@ def test_build_citation_token_format():
     assert token == (
         "[CITATION|chunk_id=c1|run_id=r1|source_uri=file:///doc.pdf|chunk_index=2|page=3|start_char=10|end_char=200]"
     )
+
+
+def test_build_citation_token_encodes_delimiter_chars():
+    """_build_citation_token must percent-encode '|', ']', and '%' in field values so
+    that downstream parsing (splitting on '|' and ']') is always safe."""
+    from demo.stages.retrieval_and_qa import _build_citation_token
+
+    # source_uri with a pipe character (e.g. some non-file URI or unusual path)
+    token = _build_citation_token(
+        chunk_id="c|1",
+        run_id="r]1",
+        source_uri="file:///path%7Cwith|pipe.pdf",
+        chunk_index=0,
+        page=None,
+        start_char=None,
+        end_char=None,
+    )
+    # The token must not contain a raw '|' inside any value (only between keys),
+    # and must not contain a raw ']' except at the very end.
+    inner = token[len("[CITATION|"):-1]
+    parts = inner.split("|")
+    # We should have exactly 7 key=value parts
+    assert len(parts) == 7, f"Unexpected parts: {parts}"
+    # chunk_id '|' encoded to %7C
+    assert parts[0] == "chunk_id=c%7C1"
+    # run_id ']' encoded to %5D
+    assert parts[1] == "run_id=r%5D1"
+    # source_uri '%' encoded to %25, then '|' encoded to %7C
+    assert parts[2] == "source_uri=file:///path%257Cwith%7Cpipe.pdf"
+    # token must still end with ']'
+    assert token.endswith("]")
