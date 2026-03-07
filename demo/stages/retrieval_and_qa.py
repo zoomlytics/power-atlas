@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 
 import neo4j
 from neo4j_graphrag.embeddings.openai import OpenAIEmbeddings
@@ -64,16 +65,24 @@ _CITATION_OPTIONAL_FIELDS = ("page", "start_char", "end_char")
 # Citation token prefix used to verify citation completeness in generated answers.
 _CITATION_TOKEN_PREFIX = "[CITATION|"
 
+# Regex matching one or more [CITATION|…] tokens at the very end of a stripped line.
+# Each token starts with [CITATION|, contains no unencoded ']', and is terminated by ']'.
+# One or more consecutive tokens are allowed (e.g. multi-source claims).
+_TRAILING_CITATION_RE = re.compile(r"(\[CITATION\|[^\]]*\])+\s*$")
+
 
 def _check_all_answers_cited(answer: str) -> bool:
     """Return True if every non-empty line in the answer ends with a citation token.
 
     The Power Atlas prompt instructs the LLM to place a ``[CITATION|...]`` token at the
     end of each sentence or bullet.  This function enforces that contract at the
-    line level: every non-empty line must end with ``]`` and must contain at least one
-    ``[CITATION|`` token.  Requiring the token to appear near the end of the line (not
-    just anywhere) avoids false positives when a line has multiple sentences but only
-    the first one is cited.
+    line level: every non-empty line must end with at least one complete
+    ``[CITATION|…]`` token matched by ``_TRAILING_CITATION_RE``.
+
+    Using a regex anchored at end-of-line (rather than just checking ``endswith("]")``)
+    ensures that a ``]`` from unrelated bracketed text (e.g. Markdown links or other
+    annotation tokens) does not produce false positives.  One or more consecutive tokens
+    are allowed to support multi-source claims.
 
     This is a heuristic; it errs toward False (under-cited) rather than producing
     false positives.
@@ -85,9 +94,8 @@ def _check_all_answers_cited(answer: str) -> bool:
         if not line:
             continue
         has_any_line = True
-        # The line must both contain a citation token AND end with ']'
-        # (the citation token terminator), ensuring the token closes the line.
-        if _CITATION_TOKEN_PREFIX not in line or not line.endswith("]"):
+        # Require at least one complete [CITATION|…] token anchored at end-of-line.
+        if not _TRAILING_CITATION_RE.search(line):
             return False
     return has_any_line
 

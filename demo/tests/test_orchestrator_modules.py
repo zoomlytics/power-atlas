@@ -1000,6 +1000,33 @@ def test_check_all_answers_cited_requires_token_at_end_of_line():
     )
     assert _check_all_answers_cited(answer) is False
 
+
+def test_check_all_answers_cited_rejects_non_citation_trailing_bracket():
+    """_check_all_answers_cited must return False when a line ends with ']' but the
+    bracket is not part of a [CITATION|...] token (e.g. a Markdown link or annotation)."""
+    from demo.stages.retrieval_and_qa import _check_all_answers_cited
+
+    # Line ends with ] from a Markdown link, not a citation token
+    answer = "See the [documentation](https://example.com/docs)"
+    assert _check_all_answers_cited(answer) is False
+
+    # Line ends with ] from some other annotation
+    answer = "Evidence was collected. [Note: see appendix]"
+    assert _check_all_answers_cited(answer) is False
+
+
+def test_check_all_answers_cited_accepts_multiple_trailing_tokens():
+    """_check_all_answers_cited must return True when a line ends with multiple consecutive
+    [CITATION|...] tokens (multi-source claim)."""
+    from demo.stages.retrieval_and_qa import _check_all_answers_cited
+
+    answer = (
+        "Evidence was collected on-site. "
+        "[CITATION|chunk_id=c1|run_id=r1|source_uri=file:///x.pdf|chunk_index=0|page=1|start_char=0|end_char=50]"
+        "[CITATION|chunk_id=c2|run_id=r1|source_uri=file:///x.pdf|chunk_index=1|page=2|start_char=51|end_char=100]"
+    )
+    assert _check_all_answers_cited(answer) is True
+
 def test_retrieval_and_qa_dry_run_includes_interactive_mode_flag(tmp_path: Path):
     """Dry-run result must record interactive_mode and message_history_enabled flags."""
     from demo.stages import run_retrieval_and_qa
