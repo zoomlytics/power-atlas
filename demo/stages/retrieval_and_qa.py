@@ -224,8 +224,10 @@ def run_retrieval_and_qa(
     index_name:
         Vector index name; defaults to the contract value.
     question:
-        The question to answer (single-question mode).  When *None*, retrieval
-        is skipped and an empty result is returned.
+        The question to answer (single-question mode).  In live mode, when
+        *None*, retrieval is skipped and an empty result is returned; in
+        dry-run mode, a normal dry-run payload is returned without executing
+        retrieval.
     expand_graph:
         When True, adds ExtractedClaim / EntityMention / canonical-entity context
         via graph expansion on top of the base vector retrieval.
