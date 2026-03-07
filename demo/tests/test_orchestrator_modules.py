@@ -456,6 +456,49 @@ def _make_fake_retriever_result_item(content, metadata):
     return RetrieverResultItem(content=content, metadata=metadata)
 
 
+def _make_fake_rag_result(items, answer: str = ""):
+    """Build a minimal fake RagResultModel-like object that GraphRAG.search() returns.
+
+    The `retriever_result` must expose `.items` so the live path can iterate results.
+    """
+
+    class _FakeRetrieverResult:
+        def __init__(self, items):
+            self.items = items
+
+    class _FakeRagResult:
+        def __init__(self, items, answer):
+            self.answer = answer
+            self.retriever_result = _FakeRetrieverResult(items)
+
+    return _FakeRagResult(items, answer)
+
+
+def _make_stub_graphrag_class(fake_retriever_instance, answer: str = ""):
+    """Return a GraphRAG stub class that bypasses Pydantic validation.
+
+    The stub's ``search()`` method calls the fake retriever's ``search()``
+    with ``query_params`` extracted from ``retriever_config`` so that tests
+    can still inspect ``captured_search`` / ``captured_params`` populated by
+    the fake retriever.
+    """
+
+    class _FakeGraphRAG:
+        def __init__(self, *, retriever, llm, prompt_template=None):
+            self._retriever = retriever
+            self._captured_retriever = retriever
+
+        def search(self, *, query_text="", retriever_config=None, return_context=None, message_history=None, **kwargs):
+            cfg = retriever_config or {}
+            result = self._retriever.search(
+                query_text=query_text,
+                top_k=cfg.get("top_k"),
+                query_params=cfg.get("query_params"),
+            )
+            return _make_fake_rag_result(result.items, answer=answer)
+
+    return _FakeGraphRAG
+
 def test_retrieval_and_qa_live_path_uses_vector_cypher_retriever(tmp_path: Path):
     """Live path must instantiate VectorCypherRetriever with the correct index and call search
     with run_id in query_params for run-scoped retrieval. OpenAIEmbeddings must use the
@@ -490,8 +533,25 @@ def test_retrieval_and_qa_live_path_uses_vector_cypher_retriever(tmp_path: Path)
         openai_model="gpt-4o-mini",
     )
 
+    # GraphRAG is patched to bypass Pydantic retriever validation while still
+    # delegating search() to the fake retriever so captured_search is populated.
+    class _StubGraphRAG:
+        def __init__(self, *, retriever, llm, prompt_template=None):
+            self._retriever = retriever
+
+        def search(self, *, query_text="", retriever_config=None, return_context=None, message_history=None, **kw):
+            cfg = retriever_config or {}
+            r = self._retriever.search(
+                query_text=query_text,
+                top_k=cfg.get("top_k"),
+                query_params=cfg.get("query_params"),
+            )
+            return _make_fake_rag_result(r.items)
+
     with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAIEmbeddings", _FakeEmbedder
+    ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _StubGraphRAG), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAILLM"
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
         result = run_retrieval_and_qa(
             live_config,
@@ -570,6 +630,8 @@ def test_retrieval_and_qa_live_path_formats_citation_tokens(tmp_path: Path):
 
     with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
+    ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class(None)), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAILLM"
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
         result = run_retrieval_and_qa(
             live_config,
@@ -715,6 +777,8 @@ def test_retrieval_and_qa_live_path_warns_on_missing_citation_fields(tmp_path: P
 
     with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
+    ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class(None)), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAILLM"
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
         result = run_retrieval_and_qa(
             live_config,
@@ -757,6 +821,8 @@ def test_retrieval_and_qa_live_path_run_scoped_by_default(tmp_path: Path):
 
     with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
+    ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class(None)), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAILLM"
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
         run_retrieval_and_qa(
             live_config,
@@ -797,6 +863,8 @@ def test_retrieval_and_qa_live_path_uses_expanded_query_when_expand_graph(tmp_pa
 
     with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
+    ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class(None)), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAILLM"
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
         result = run_retrieval_and_qa(
             live_config,
@@ -859,3 +927,356 @@ def test_build_citation_token_encodes_delimiter_chars():
     assert parts[2] == "source_uri=file:///path%257Cwith%7Cpipe.pdf"
     # token must still end with ']'
     assert token.endswith("]")
+
+
+# ---------------------------------------------------------------------------
+# New tests: GraphRAG Q&A prompt template, answer generation, citation check,
+# message history, interactive mode, and manifest fields from issue #156.
+# ---------------------------------------------------------------------------
+
+
+def test_power_atlas_rag_template_enforces_citation_instructions():
+    """The Power Atlas RagTemplate must include citation-enforcement instructions."""
+    from demo.contracts.prompts import POWER_ATLAS_RAG_TEMPLATE
+
+    tmpl = POWER_ATLAS_RAG_TEMPLATE.template
+    assert "[CITATION|" in tmpl, "Template must reference citation token format"
+    assert "context" in tmpl.lower(), "Template must reference context"
+    assert "insuffic" in tmpl.lower() or "insufficient" in tmpl.lower(), (
+        "Template must mention insufficient context handling"
+    )
+    assert "conflict" in tmpl.lower(), "Template must mention conflicting evidence handling"
+
+
+def test_power_atlas_rag_template_uses_vendor_rag_template_class():
+    """Power Atlas template must extend the vendor RagTemplate for GraphRAG wiring."""
+    from neo4j_graphrag.generation import RagTemplate
+    from demo.contracts.prompts import POWER_ATLAS_RAG_TEMPLATE
+
+    assert isinstance(POWER_ATLAS_RAG_TEMPLATE, RagTemplate)
+
+
+def test_power_atlas_rag_template_prompt_id_updated():
+    """qa prompt ID must reflect the updated prompt version (qa_v2)."""
+    from demo.contracts.prompts import PROMPT_IDS
+
+    assert PROMPT_IDS["qa"] == "qa_v2", (
+        "PROMPT_IDS['qa'] must be updated to 'qa_v2' to reflect the new citation-enforcing template"
+    )
+
+
+def test_check_all_answers_cited_fully_cited():
+    """_check_all_answers_cited must return True when every sentence has a citation token."""
+    from demo.stages.retrieval_and_qa import _check_all_answers_cited
+
+    answer = (
+        "The chain of custody was established in 2021. [CITATION|chunk_id=c1|run_id=r1|source_uri=file:///x.pdf|"
+        "chunk_index=0|page=1|start_char=0|end_char=100]\n"
+        "Evidence was collected from the scene. [CITATION|chunk_id=c2|run_id=r1|source_uri=file:///x.pdf|"
+        "chunk_index=1|page=2|start_char=100|end_char=200]"
+    )
+    assert _check_all_answers_cited(answer) is True
+
+
+def test_check_all_answers_cited_uncited_sentence():
+    """_check_all_answers_cited must return False when any sentence lacks a citation."""
+    from demo.stages.retrieval_and_qa import _check_all_answers_cited
+
+    answer = (
+        "The chain of custody was established in 2021. [CITATION|chunk_id=c1|run_id=r1|source_uri=file:///x.pdf|"
+        "chunk_index=0|page=1|start_char=0|end_char=100]\n"
+        "This claim has no citation."
+    )
+    assert _check_all_answers_cited(answer) is False
+
+
+def test_check_all_answers_cited_empty_answer():
+    """_check_all_answers_cited must return False for an empty answer string."""
+    from demo.stages.retrieval_and_qa import _check_all_answers_cited
+
+    assert _check_all_answers_cited("") is False
+    assert _check_all_answers_cited("   ") is False
+
+
+def test_retrieval_and_qa_dry_run_includes_interactive_mode_flag(tmp_path: Path):
+    """Dry-run result must record interactive_mode and message_history_enabled flags."""
+    from demo.stages import run_retrieval_and_qa
+
+    config = _dry_run_config(tmp_path)
+    result = run_retrieval_and_qa(config, run_id="qa-run-im", source_uri=None, interactive=True)
+    assert result["interactive_mode"] is True
+    assert result["message_history_enabled"] is False
+
+    result_no_interactive = run_retrieval_and_qa(config, run_id="qa-run-ni", source_uri=None)
+    assert result_no_interactive["interactive_mode"] is False
+
+
+def test_retrieval_and_qa_live_path_records_answer_and_all_answers_cited(tmp_path: Path):
+    """Live path must return an 'answer' key and set all_answers_cited=True when
+    the generated answer contains citation tokens in every sentence."""
+    from demo.stages import run_retrieval_and_qa
+
+    cited_answer = (
+        "Evidence was found. [CITATION|chunk_id=c1|run_id=live-run-cited|"
+        "source_uri=file:///x.pdf|chunk_index=0|page=1|start_char=0|end_char=50]"
+    )
+
+    class _FakeRetriever:
+        def __init__(self, **kwargs):
+            pass
+
+        def search(self, **kwargs):
+            return _make_fake_retriever_result([])
+
+    class _StubGraphRAG:
+        def __init__(self, *, retriever, llm, prompt_template=None):
+            self._retriever = retriever
+
+        def search(self, *, query_text="", retriever_config=None, return_context=None, message_history=None, **kw):
+            cfg = retriever_config or {}
+            r = self._retriever.search(query_text=query_text, top_k=cfg.get("top_k"), query_params=cfg.get("query_params"))
+            return _make_fake_rag_result(r.items, answer=cited_answer)
+
+    live_config = Config(
+        dry_run=False,
+        output_dir=tmp_path,
+        neo4j_uri="bolt://example.invalid",
+        neo4j_username="neo4j",
+        neo4j_password="not-used",
+        neo4j_database="neo4j",
+        openai_model="gpt-4o-mini",
+    )
+
+    with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
+    ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _StubGraphRAG), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAILLM"
+    ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+        result = run_retrieval_and_qa(
+            live_config,
+            run_id="live-run-cited",
+            source_uri=None,
+            question="What happened?",
+        )
+
+    assert result["answer"] == cited_answer
+    assert result["all_answers_cited"] is True
+    # No citation-completeness warning when all sentences are cited
+    assert not any("citation" in w.lower() for w in result["warnings"])
+
+
+def test_retrieval_and_qa_live_path_records_warning_when_uncited(tmp_path: Path):
+    """Live path must set all_answers_cited=False and add a warning when the answer
+    contains sentences without citation tokens."""
+    from demo.stages import run_retrieval_and_qa
+
+    uncited_answer = "This claim has no citation and is not grounded."
+
+    class _FakeRetriever:
+        def __init__(self, **kwargs):
+            pass
+
+        def search(self, **kwargs):
+            return _make_fake_retriever_result([])
+
+    class _StubGraphRAG:
+        def __init__(self, *, retriever, llm, prompt_template=None):
+            self._retriever = retriever
+
+        def search(self, *, query_text="", retriever_config=None, return_context=None, message_history=None, **kw):
+            cfg = retriever_config or {}
+            r = self._retriever.search(query_text=query_text, top_k=cfg.get("top_k"), query_params=cfg.get("query_params"))
+            return _make_fake_rag_result(r.items, answer=uncited_answer)
+
+    live_config = Config(
+        dry_run=False,
+        output_dir=tmp_path,
+        neo4j_uri="bolt://example.invalid",
+        neo4j_username="neo4j",
+        neo4j_password="not-used",
+        neo4j_database="neo4j",
+        openai_model="gpt-4o-mini",
+    )
+
+    with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
+    ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _StubGraphRAG), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAILLM"
+    ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+        result = run_retrieval_and_qa(
+            live_config,
+            run_id="live-run-uncited",
+            source_uri=None,
+            question="What happened?",
+        )
+
+    assert result["all_answers_cited"] is False
+    assert any("citation" in w.lower() for w in result["warnings"])
+
+
+def test_retrieval_and_qa_live_path_passes_message_history_to_graphrag(tmp_path: Path):
+    """When message_history is provided, it must be forwarded to GraphRAG.search() and
+    message_history_enabled must be True in the result."""
+    from demo.stages import run_retrieval_and_qa
+    from neo4j_graphrag.message_history import InMemoryMessageHistory
+
+    captured_rag_search_args: dict = {}
+
+    class _FakeRetriever:
+        def __init__(self, **kwargs):
+            pass
+
+        def search(self, **kwargs):
+            return _make_fake_retriever_result([])
+
+    class _StubGraphRAG:
+        def __init__(self, *, retriever, llm, prompt_template=None):
+            self._retriever = retriever
+
+        def search(self, *, query_text="", retriever_config=None, return_context=None, message_history=None, **kw):
+            captured_rag_search_args["message_history"] = message_history
+            r = self._retriever.search(
+                query_text=query_text,
+                top_k=(retriever_config or {}).get("top_k"),
+                query_params=(retriever_config or {}).get("query_params"),
+            )
+            return _make_fake_rag_result(r.items)
+
+    live_config = Config(
+        dry_run=False,
+        output_dir=tmp_path,
+        neo4j_uri="bolt://example.invalid",
+        neo4j_username="neo4j",
+        neo4j_password="not-used",
+        neo4j_database="neo4j",
+        openai_model="gpt-4o-mini",
+    )
+
+    history = InMemoryMessageHistory()
+
+    with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
+    ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _StubGraphRAG), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAILLM"
+    ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+        result = run_retrieval_and_qa(
+            live_config,
+            run_id="live-run-hist",
+            source_uri=None,
+            question="Follow-up question?",
+            message_history=history,
+            interactive=True,
+        )
+
+    assert result["message_history_enabled"] is True
+    assert result["interactive_mode"] is True
+    assert captured_rag_search_args["message_history"] is history
+
+
+def test_retrieval_and_qa_live_path_uses_openai_llm_with_model_from_config(tmp_path: Path):
+    """Live path must create OpenAILLM with the model from config and temperature=0."""
+    from demo.stages import run_retrieval_and_qa
+
+    captured_llm_args: dict = {}
+
+    class _FakeRetriever:
+        def __init__(self, **kwargs):
+            pass
+
+        def search(self, **kwargs):
+            return _make_fake_retriever_result([])
+
+    class _FakeLLM:
+        def __init__(self, model_name, model_params=None):
+            captured_llm_args["model_name"] = model_name
+            captured_llm_args["model_params"] = model_params
+
+    class _StubGraphRAG:
+        def __init__(self, *, retriever, llm, prompt_template=None):
+            captured_llm_args["llm"] = llm
+            self._retriever = retriever
+
+        def search(self, *, query_text="", retriever_config=None, return_context=None, message_history=None, **kw):
+            r = self._retriever.search(
+                query_text=query_text,
+                top_k=(retriever_config or {}).get("top_k"),
+                query_params=(retriever_config or {}).get("query_params"),
+            )
+            return _make_fake_rag_result(r.items)
+
+    live_config = Config(
+        dry_run=False,
+        output_dir=tmp_path,
+        neo4j_uri="bolt://example.invalid",
+        neo4j_username="neo4j",
+        neo4j_password="not-used",
+        neo4j_database="neo4j",
+        openai_model="gpt-4o",
+    )
+
+    with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
+    ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _StubGraphRAG), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAILLM", _FakeLLM
+    ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+        run_retrieval_and_qa(
+            live_config,
+            run_id="live-run-llm",
+            source_uri=None,
+            question="Test question",
+        )
+
+    assert captured_llm_args["model_name"] == "gpt-4o"
+    assert captured_llm_args["model_params"] == {"temperature": 0}
+
+
+def test_retrieval_and_qa_live_path_uses_power_atlas_prompt_template(tmp_path: Path):
+    """Live path must pass the Power Atlas citation-enforcing prompt template to GraphRAG."""
+    from demo.stages import run_retrieval_and_qa
+    from demo.contracts.prompts import POWER_ATLAS_RAG_TEMPLATE
+
+    captured_prompt: dict = {}
+
+    class _FakeRetriever:
+        def __init__(self, **kwargs):
+            pass
+
+        def search(self, **kwargs):
+            return _make_fake_retriever_result([])
+
+    class _StubGraphRAG:
+        def __init__(self, *, retriever, llm, prompt_template=None):
+            captured_prompt["template"] = prompt_template
+            self._retriever = retriever
+
+        def search(self, *, query_text="", retriever_config=None, return_context=None, message_history=None, **kw):
+            r = self._retriever.search(
+                query_text=query_text,
+                top_k=(retriever_config or {}).get("top_k"),
+                query_params=(retriever_config or {}).get("query_params"),
+            )
+            return _make_fake_rag_result(r.items)
+
+    live_config = Config(
+        dry_run=False,
+        output_dir=tmp_path,
+        neo4j_uri="bolt://example.invalid",
+        neo4j_username="neo4j",
+        neo4j_password="not-used",
+        neo4j_database="neo4j",
+        openai_model="gpt-4o-mini",
+    )
+
+    with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
+    ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _StubGraphRAG), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAILLM"
+    ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+        run_retrieval_and_qa(
+            live_config,
+            run_id="live-run-prompt",
+            source_uri=None,
+            question="Test question",
+        )
+
+    assert captured_prompt["template"] is POWER_ATLAS_RAG_TEMPLATE
