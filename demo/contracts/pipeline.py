@@ -79,24 +79,24 @@ def _load_pipeline_contract() -> None:
             cfg_data = {}
         PIPELINE_CONFIG_DATA = cfg_data if cfg_is_mapping else {}
 
-    demo_contract = PIPELINE_CONFIG_DATA.get("demo_contract") if isinstance(PIPELINE_CONFIG_DATA, dict) else {}
-    if demo_contract is None:
-        demo_contract = {}
-    elif not isinstance(demo_contract, dict):  # pragma: no cover - defensive logging
+    pipeline_contract = PIPELINE_CONFIG_DATA.get("contract") if isinstance(PIPELINE_CONFIG_DATA, dict) else {}
+    if pipeline_contract is None:
+        pipeline_contract = {}
+    elif not isinstance(pipeline_contract, dict):  # pragma: no cover - defensive logging
         warnings.warn(
-            f"Falling back to default chunk embedding contract; expected mapping for demo_contract in {PDF_PIPELINE_CONFIG_PATH}, "
-            f"got {type(demo_contract).__name__}",
+            f"Falling back to default chunk embedding contract; expected mapping for contract in {PDF_PIPELINE_CONFIG_PATH}, "
+            f"got {type(pipeline_contract).__name__}",
             RuntimeWarning,
             stacklevel=2,
         )
-        demo_contract = {}
+        pipeline_contract = {}
 
-    chunk_embedding_contract = demo_contract.get("chunk_embedding")
+    chunk_embedding_contract = pipeline_contract.get("chunk_embedding")
     if chunk_embedding_contract is None:
         chunk_embedding_contract = {}
     elif not isinstance(chunk_embedding_contract, dict):  # pragma: no cover - defensive logging
         warnings.warn(
-            f"Falling back to default chunk embedding contract; expected mapping for demo_contract.chunk_embedding in "
+            f"Falling back to default chunk embedding contract; expected mapping for contract.chunk_embedding in "
             f"{PDF_PIPELINE_CONFIG_PATH}, got {type(chunk_embedding_contract).__name__}",
             RuntimeWarning,
             stacklevel=2,

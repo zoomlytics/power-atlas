@@ -16,7 +16,7 @@ from demo.contracts.pipeline import (
     ensure_pipeline_contract_loaded,
 )
 from demo.contracts.prompts import PROMPT_IDS
-from demo.contracts.runtime import DemoConfig, make_run_id, timestamp
+from demo.contracts.runtime import Config, make_run_id, timestamp
 from demo.contracts.structured import (
     COMMON_PREDICATE_LABELS,
     CSV_FIRST_DATA_ROW,
@@ -42,7 +42,7 @@ __all__ = [
     "CHUNK_FALLBACK_STRIDE",
     "DATASET_ID",
     "DEFAULT_DB",
-    "DemoConfig",
+    "Config",
     "EMBEDDER_MODEL_NAME",
     "ensure_pipeline_contract_loaded",
     "FIXTURES_DIR",

@@ -20,27 +20,27 @@
   },
   "provenance": [
     {
-      "id": "pdf_demo_source",
+      "id": "pdf_source",
       "kind": "pdf",
       "path": "demo/fixtures/unstructured/chain_of_custody.pdf"
     },
     {
-      "id": "csv_demo_claims",
+      "id": "csv_claims",
       "kind": "csv",
       "path": "demo/fixtures/structured/claims.csv"
     },
     {
-      "id": "csv_demo_entities",
+      "id": "csv_entities",
       "kind": "csv",
       "path": "demo/fixtures/structured/entities.csv"
     },
     {
-      "id": "csv_demo_facts",
+      "id": "csv_facts",
       "kind": "csv",
       "path": "demo/fixtures/structured/facts.csv"
     },
     {
-      "id": "csv_demo_relationships",
+      "id": "csv_relationships",
       "kind": "csv",
       "path": "demo/fixtures/structured/relationships.csv"
     }

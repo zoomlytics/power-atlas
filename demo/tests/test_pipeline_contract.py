@@ -58,7 +58,7 @@ def test_refresh_pipeline_contract_applies_overrides(tmp_path, monkeypatch):
     config_path.write_text(
         yaml.safe_dump(
             {
-                "demo_contract": {
+                "contract": {
                     "chunk_embedding": {
                         "index_name": "custom_index",
                         "label": "CustomLabel",
@@ -85,7 +85,7 @@ def test_refresh_pipeline_contract_applies_overrides(tmp_path, monkeypatch):
     assert pipeline.EMBEDDER_MODEL_NAME == "text-embedding-3-large"
     assert pipeline.CHUNK_FALLBACK_STRIDE == 180
     assert pipeline.DATASET_ID == "custom_dataset"
-    assert pipeline.PIPELINE_CONFIG_DATA["demo_contract"]["chunk_embedding"]["dimensions"] == "2048"
+    assert pipeline.PIPELINE_CONFIG_DATA["contract"]["chunk_embedding"]["dimensions"] == "2048"
 
 
 def test_refresh_pipeline_contract_falls_back_on_invalid_types(tmp_path, monkeypatch):
@@ -93,7 +93,7 @@ def test_refresh_pipeline_contract_falls_back_on_invalid_types(tmp_path, monkeyp
     config_path.write_text(
         yaml.safe_dump(
             {
-                "demo_contract": {
+                "contract": {
                     "chunk_embedding": {
                         "index_name": None,
                         "label": 123,

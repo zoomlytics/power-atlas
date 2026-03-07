@@ -221,7 +221,7 @@ def run_entity_resolution(
     """Resolve :EntityMention nodes (scoped to *run_id*) to canonical entities.
 
     Args:
-        config:     :class:`~demo.contracts.runtime.DemoConfig`.
+        config:     :class:`~demo.contracts.runtime.Config`.
         run_id:     The run_id whose EntityMention nodes are to be resolved.
                     Must match the run_id used during PDF ingest / claim extraction.
         source_uri: Provenance URI for the source document.

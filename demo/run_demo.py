@@ -19,7 +19,7 @@ from demo.contracts import (  # noqa: E402
     CHUNK_FALLBACK_STRIDE,
     DATASET_ID,
     DEFAULT_DB,
-    DemoConfig,
+    Config,
     EMBEDDER_MODEL_NAME,
     FIXTURES_DIR,
     PROMPT_IDS,
@@ -61,10 +61,10 @@ def _add_common_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--openai-model", default=os.getenv("OPENAI_MODEL", "gpt-4o-mini"))
 
 
-def _build_demo_config_from_args(args: argparse.Namespace) -> DemoConfig:
+def _build_config_from_args(args: argparse.Namespace) -> Config:
     if not args.dry_run and args.neo4j_password in ("", "CHANGE_ME_BEFORE_USE"):
         raise SystemExit("Set NEO4J_PASSWORD or pass --neo4j-password when using --live")
-    return DemoConfig(
+    return Config(
         dry_run=args.dry_run,
         output_dir=args.output_dir,
         neo4j_uri=args.neo4j_uri,
@@ -129,7 +129,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(raw_argv)
 
 
-def _run_orchestrated_demo(config: DemoConfig) -> Path:
+def _run_orchestrated(config: Config) -> Path:
     config.output_dir.mkdir(parents=True, exist_ok=True)
     structured_run_id = make_run_id("structured_ingest")
     unstructured_run_id = make_run_id("unstructured_ingest")
@@ -184,9 +184,9 @@ def _run_orchestrated_demo(config: DemoConfig) -> Path:
     return write_manifest(manifest_path, manifest)
 
 
-def _run_independent_stage(config: DemoConfig, command: str) -> Path:
+def _run_independent_stage(config: Config, command: str) -> Path:
     config.output_dir.mkdir(parents=True, exist_ok=True)
-    stage_runners: dict[str, tuple[str, str, Callable[[DemoConfig, str], dict[str, Any]]]] = {
+    stage_runners: dict[str, tuple[str, str, Callable[[Config, str], dict[str, Any]]]] = {
         "ingest-structured": (
             "structured_ingest",
             "structured_ingest_run_id",
@@ -242,10 +242,10 @@ def _run_independent_stage(config: DemoConfig, command: str) -> Path:
     stage_name, run_scope_key, stage_runner = stage_runners[command]
     run_scope = run_scope_key.removesuffix("_run_id")
     if command in ("extract-claims", "resolve-entities", "ask"):
-        env_run_id = os.getenv("DEMO_UNSTRUCTURED_RUN_ID")
+        env_run_id = os.getenv("UNSTRUCTURED_RUN_ID")
         if not env_run_id:
             raise ValueError(
-                "DEMO_UNSTRUCTURED_RUN_ID is not set. When running "
+                "UNSTRUCTURED_RUN_ID is not set. When running "
                 f"'{command}' independently, set this to the run_id from a prior "
                 "'ingest' or 'ingest-pdf' command whose unstructured data you want to process "
                 "(for example, a value like 'unstructured_ingest-20260304T224739123456Z-1a2b3c4d')."
@@ -265,8 +265,8 @@ def _run_independent_stage(config: DemoConfig, command: str) -> Path:
     return write_manifest(manifest_path, manifest)
 
 
-def run_demo(config: DemoConfig) -> Path:
-    return _run_orchestrated_demo(config)
+def run_demo(config: Config) -> Path:
+    return _run_orchestrated(config)
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -277,11 +277,11 @@ def _lint_and_clean_structured_csvs(run_id: str, output_dir: Path) -> dict[str, 
     return lint_and_clean_structured_csvs(run_id=run_id, output_dir=output_dir, fixtures_dir=FIXTURES_DIR)
 
 
-def _run_structured_ingest(config: DemoConfig, run_id: str) -> dict[str, Any]:
+def _run_structured_ingest(config: Config, run_id: str) -> dict[str, Any]:
     return run_structured_ingest(config, run_id, fixtures_dir=FIXTURES_DIR)
 
 
-def _run_pdf_ingest(config: DemoConfig, run_id: str | None = None) -> dict[str, Any]:
+def _run_pdf_ingest(config: Config, run_id: str | None = None) -> dict[str, Any]:
     return run_pdf_ingest(
         config,
         run_id,
@@ -304,7 +304,7 @@ run_independent_demo = _run_independent_stage
 def main() -> None:
     args = parse_args()
     if args.command == "lint-structured":
-        config = DemoConfig(
+        config = Config(
             dry_run=True,
             output_dir=args.output_dir,
             neo4j_uri=args.neo4j_uri,
@@ -319,7 +319,7 @@ def main() -> None:
         return
     config_commands = {"ingest", "ingest-structured", "ingest-pdf", "extract-claims", "resolve-entities", "ask"}
     if args.command in config_commands:
-        config = _build_demo_config_from_args(args)
+        config = _build_config_from_args(args)
         if args.command == "ingest":
             manifest_path = run_demo(config)
             print(f"Demo manifest written to: {manifest_path}")

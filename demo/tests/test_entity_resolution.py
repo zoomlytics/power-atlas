@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
 
-from demo.contracts.runtime import DemoConfig
+from demo.contracts.runtime import Config
 from demo.stages.entity_resolution import (
     _build_lookup_tables,
     _normalize,
@@ -18,8 +18,8 @@ from demo.stages.entity_resolution import (
 )
 
 
-def _dry_run_config(tmp_path: Path) -> DemoConfig:
-    return DemoConfig(
+def _dry_run_config(tmp_path: Path) -> Config:
+    return Config(
         dry_run=True,
         output_dir=tmp_path,
         neo4j_uri="bolt://example.invalid",
@@ -30,8 +30,8 @@ def _dry_run_config(tmp_path: Path) -> DemoConfig:
     )
 
 
-def _live_config(tmp_path: Path) -> DemoConfig:
-    return DemoConfig(
+def _live_config(tmp_path: Path) -> Config:
+    return Config(
         dry_run=False,
         output_dir=tmp_path,
         neo4j_uri="bolt://example.invalid",
@@ -389,7 +389,7 @@ class TestRunEntityResolutionOrchestratorIntegration(unittest.TestCase):
             sys.modules.pop("_run_demo_test", None)
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            config = module.DemoConfig(
+            config = module.Config(
                 dry_run=True,
                 output_dir=Path(tmpdir),
                 neo4j_uri="bolt://example.invalid",
@@ -398,15 +398,15 @@ class TestRunEntityResolutionOrchestratorIntegration(unittest.TestCase):
                 neo4j_database="neo4j",
                 openai_model="test-model",
             )
-            env_backup = os.environ.get("DEMO_UNSTRUCTURED_RUN_ID")
+            env_backup = os.environ.get("UNSTRUCTURED_RUN_ID")
             try:
-                os.environ["DEMO_UNSTRUCTURED_RUN_ID"] = "test-unstructured-run-001"
+                os.environ["UNSTRUCTURED_RUN_ID"] = "test-unstructured-run-001"
                 manifest_path = module.run_independent_demo(config, "resolve-entities")
             finally:
                 if env_backup is None:
-                    os.environ.pop("DEMO_UNSTRUCTURED_RUN_ID", None)
+                    os.environ.pop("UNSTRUCTURED_RUN_ID", None)
                 else:
-                    os.environ["DEMO_UNSTRUCTURED_RUN_ID"] = env_backup
+                    os.environ["UNSTRUCTURED_RUN_ID"] = env_backup
 
             self.assertTrue(manifest_path.exists())
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -429,7 +429,7 @@ class TestRunEntityResolutionOrchestratorIntegration(unittest.TestCase):
             sys.modules.pop("_run_demo_test2", None)
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            config = module.DemoConfig(
+            config = module.Config(
                 dry_run=True,
                 output_dir=Path(tmpdir),
                 neo4j_uri="bolt://example.invalid",
@@ -438,15 +438,15 @@ class TestRunEntityResolutionOrchestratorIntegration(unittest.TestCase):
                 neo4j_database="neo4j",
                 openai_model="test-model",
             )
-            env_backup = os.environ.get("DEMO_UNSTRUCTURED_RUN_ID")
+            env_backup = os.environ.get("UNSTRUCTURED_RUN_ID")
             try:
-                os.environ.pop("DEMO_UNSTRUCTURED_RUN_ID", None)
+                os.environ.pop("UNSTRUCTURED_RUN_ID", None)
                 with self.assertRaises(ValueError) as ctx:
                     module.run_independent_demo(config, "resolve-entities")
-                self.assertIn("DEMO_UNSTRUCTURED_RUN_ID", str(ctx.exception))
+                self.assertIn("UNSTRUCTURED_RUN_ID", str(ctx.exception))
             finally:
                 if env_backup is not None:
-                    os.environ["DEMO_UNSTRUCTURED_RUN_ID"] = env_backup
+                    os.environ["UNSTRUCTURED_RUN_ID"] = env_backup
 
 
 class TestBatchManifestEntityResolution(unittest.TestCase):
@@ -454,10 +454,10 @@ class TestBatchManifestEntityResolution(unittest.TestCase):
 
     def test_entity_resolution_stage_included_when_provided(self):
         from demo.contracts.manifest import build_batch_manifest
-        from demo.contracts.runtime import DemoConfig
+        from demo.contracts.runtime import Config
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            config = DemoConfig(
+            config = Config(
                 dry_run=True,
                 output_dir=Path(tmpdir),
                 neo4j_uri="bolt://example.invalid",
@@ -483,10 +483,10 @@ class TestBatchManifestEntityResolution(unittest.TestCase):
 
     def test_entity_resolution_stage_absent_by_default(self):
         from demo.contracts.manifest import build_batch_manifest
-        from demo.contracts.runtime import DemoConfig
+        from demo.contracts.runtime import Config
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            config = DemoConfig(
+            config = Config(
                 dry_run=True,
                 output_dir=Path(tmpdir),
                 neo4j_uri="bolt://example.invalid",
