@@ -392,3 +392,470 @@ def test_retrieval_and_qa_question_none_when_not_provided(tmp_path: Path):
     config = _dry_run_config(tmp_path)
     result = run_retrieval_and_qa(config, run_id="qa-run-3", source_uri=None)
     assert result["question"] is None
+
+
+def test_retrieval_and_qa_dry_run_includes_retriever_type_and_scope(tmp_path: Path):
+    """Retriever type and retrieval scope metadata must always appear in stage output."""
+    from demo.stages import run_retrieval_and_qa
+
+    config = _dry_run_config(tmp_path)
+    result = run_retrieval_and_qa(config, run_id="qa-run-4", source_uri="file:///doc.pdf")
+    assert result["retriever_type"] == "VectorCypherRetriever"
+    assert "retrieval_scope" in result
+    scope = result["retrieval_scope"]
+    assert scope["run_id"] == "qa-run-4"
+    assert scope["source_uri"] == "file:///doc.pdf"
+    assert scope["scope_widened"] is False
+
+
+def test_retrieval_and_qa_dry_run_retrieval_scope_source_uri_none_when_not_provided(tmp_path: Path):
+    """retrieval_scope.source_uri must be None when source_uri is not provided.
+    retrieval_scope.run_id must reflect the raw run_id argument (None when omitted)."""
+    from demo.stages import run_retrieval_and_qa
+
+    config = _dry_run_config(tmp_path)
+    result = run_retrieval_and_qa(config, run_id="qa-run-5", source_uri=None)
+    assert result["retrieval_scope"]["source_uri"] is None
+    # scope must record the actual run_id, not the citation-example placeholder
+    assert result["retrieval_scope"]["run_id"] == "qa-run-5"
+
+    # When run_id is omitted (dry-run only), retrieval_scope.run_id must be None
+    result_no_run_id = run_retrieval_and_qa(config, run_id=None, source_uri=None)
+    assert result_no_run_id["retrieval_scope"]["run_id"] is None
+
+
+def test_retrieval_and_qa_dry_run_expand_graph_flag_recorded(tmp_path: Path):
+    """expand_graph flag must be preserved in the returned stage output, and the
+    retrievers list must reflect whether graph expansion was requested."""
+    from demo.stages import run_retrieval_and_qa
+
+    config = _dry_run_config(tmp_path)
+    result_no_expand = run_retrieval_and_qa(config, run_id="qa-run-6", source_uri=None, expand_graph=False)
+    result_expand = run_retrieval_and_qa(config, run_id="qa-run-7", source_uri=None, expand_graph=True)
+    assert result_no_expand["expand_graph"] is False
+    assert result_expand["expand_graph"] is True
+    # retrievers list must only include "graph expansion" when expand_graph=True
+    assert "graph expansion" not in result_no_expand["retrievers"]
+    assert "graph expansion" in result_expand["retrievers"]
+
+
+def _make_fake_retriever_result(items):
+    """Build a minimal fake RawSearchResult-like object with an .items attribute."""
+
+    class _FakeResult:
+        def __init__(self, items):
+            self.items = items
+
+    return _FakeResult(items)
+
+
+def _make_fake_retriever_result_item(content, metadata):
+    """Build a RetrieverResultItem-compatible object."""
+    from neo4j_graphrag.types import RetrieverResultItem
+
+    return RetrieverResultItem(content=content, metadata=metadata)
+
+
+def test_retrieval_and_qa_live_path_uses_vector_cypher_retriever(tmp_path: Path):
+    """Live path must instantiate VectorCypherRetriever with the correct index and call search
+    with run_id in query_params for run-scoped retrieval. OpenAIEmbeddings must use the
+    contract's embedder model name."""
+    from demo.stages import run_retrieval_and_qa
+    from demo.stages.retrieval_and_qa import _chunk_citation_formatter
+    from demo.contracts.pipeline import EMBEDDER_MODEL_NAME
+
+    captured_init: dict = {}
+    captured_search: dict = {}
+    captured_embedder_args: list = []
+
+    class _FakeEmbedder:
+        def __init__(self, *args, **kwargs):
+            captured_embedder_args.append((args, kwargs))
+
+    class _FakeRetriever:
+        def __init__(self, **kwargs):
+            captured_init.update(kwargs)
+
+        def search(self, **kwargs):
+            captured_search.update(kwargs)
+            return _make_fake_retriever_result([])
+
+    live_config = Config(
+        dry_run=False,
+        output_dir=tmp_path,
+        neo4j_uri="bolt://example.invalid",
+        neo4j_username="neo4j",
+        neo4j_password="not-used",
+        neo4j_database="neo4j",
+        openai_model="gpt-4o-mini",
+    )
+
+    with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAIEmbeddings", _FakeEmbedder
+    ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+        result = run_retrieval_and_qa(
+            live_config,
+            run_id="live-run-1",
+            source_uri="file:///doc.pdf",
+            top_k=3,
+            question="What happened?",
+        )
+
+    assert captured_init["index_name"] == CHUNK_EMBEDDING_INDEX_NAME
+    assert captured_init["result_formatter"] is _chunk_citation_formatter
+    assert captured_search["query_text"] == "What happened?"
+    assert captured_search["top_k"] == 3
+    assert captured_search["query_params"]["run_id"] == "live-run-1"
+    assert captured_search["query_params"]["source_uri"] == "file:///doc.pdf"
+    assert result["status"] == "live"
+    assert result["hits"] == 0
+    assert result["retrieval_results"] == []
+    assert result["warnings"] == []
+    # "graph expansion" must NOT appear in retrievers when expand_graph=False
+    assert "graph expansion" not in result["retrievers"]
+    # Embedder must use the contract's model name to match the index dimensions
+    assert len(captured_embedder_args) == 1
+    assert captured_embedder_args[0][1].get("model") == EMBEDDER_MODEL_NAME
+
+
+def test_retrieval_and_qa_live_path_formats_citation_tokens(tmp_path: Path):
+    """Live path must produce citation tokens from retrieved Chunk records and update
+    citation_token_example / citation_object_example with actual first-hit provenance."""
+    from demo.stages import run_retrieval_and_qa
+
+    fake_meta = {
+        "chunk_id": "chunk-abc",
+        "run_id": "live-run-2",
+        "source_uri": "file:///doc.pdf",
+        "chunk_index": 3,
+        "page": 2,
+        "start_char": 100,
+        "end_char": 500,
+        "score": 0.95,
+        "citation_token": (
+            "[CITATION|chunk_id=chunk-abc|run_id=live-run-2|"
+            "source_uri=file:///doc.pdf|chunk_index=3|page=2|start_char=100|end_char=500]"
+        ),
+        "citation_object": {
+            "chunk_id": "chunk-abc",
+            "run_id": "live-run-2",
+            "source_uri": "file:///doc.pdf",
+            "chunk_index": 3,
+            "page": 2,
+            "start_char": 100,
+            "end_char": 500,
+        },
+    }
+    fake_item = _make_fake_retriever_result_item(
+        content="Chunk text.\n" + fake_meta["citation_token"],
+        metadata=fake_meta,
+    )
+
+    class _FakeRetriever:
+        def __init__(self, **kwargs):
+            pass
+
+        def search(self, **kwargs):
+            return _make_fake_retriever_result([fake_item])
+
+    live_config = Config(
+        dry_run=False,
+        output_dir=tmp_path,
+        neo4j_uri="bolt://example.invalid",
+        neo4j_username="neo4j",
+        neo4j_password="not-used",
+        neo4j_database="neo4j",
+        openai_model="gpt-4o-mini",
+    )
+
+    with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
+    ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+        result = run_retrieval_and_qa(
+            live_config,
+            run_id="live-run-2",
+            source_uri="file:///doc.pdf",
+            top_k=5,
+            question="What is chain of custody?",
+        )
+
+    assert result["status"] == "live"
+    assert result["hits"] == 1
+    assert len(result["retrieval_results"]) == 1
+    assert result["warnings"] == []
+
+    # citation_token_example and citation_object_example must reflect actual hit provenance
+    assert result["citation_token_example"] == fake_meta["citation_token"]
+    assert result["citation_object_example"]["chunk_id"] == "chunk-abc"
+    assert result["citation_object_example"]["run_id"] == "live-run-2"
+    assert result["citation_object_example"]["page"] == 2
+
+
+def test_retrieval_and_qa_live_path_no_question_returns_empty_hits(tmp_path: Path):
+    """Live path without a question must return empty hits immediately without opening
+    a Neo4j driver or instantiating an embedder.  retrievers must be empty (nothing ran),
+    retrieval_skipped must be True, and the skip warning must appear in warnings.
+    Importantly, the skip path must work even with invalid/empty Neo4j credentials."""
+    from demo.stages import run_retrieval_and_qa
+
+    # Use empty Neo4j credentials to prove the skip path doesn't touch them.
+    live_config = Config(
+        dry_run=False,
+        output_dir=tmp_path,
+        neo4j_uri="",
+        neo4j_username="",
+        neo4j_password="",
+        neo4j_database="",
+        openai_model="gpt-4o-mini",
+    )
+
+    # No driver or embedder patches needed — the function must return before touching them.
+    result = run_retrieval_and_qa(live_config, run_id="live-run-3", source_uri=None, question=None)
+
+    assert result["status"] == "live"
+    assert result["hits"] == 0
+    assert result["retrieval_results"] == []
+    # No retrieval ran, so retrievers must be empty
+    assert result["retrievers"] == []
+    # retrieval_skipped flag must signal that the retrieval step was bypassed
+    assert result["retrieval_skipped"] is True
+    # The skip warning must be surfaced in the warnings list
+    assert any("No question" in w for w in result["warnings"])
+
+
+def test_retrieval_and_qa_live_path_requires_run_id(tmp_path: Path):
+    """Live path must raise ValueError when run_id is omitted to prevent silent cross-run retrieval."""
+    from demo.stages import run_retrieval_and_qa
+
+    live_config = Config(
+        dry_run=False,
+        output_dir=tmp_path,
+        neo4j_uri="bolt://example.invalid",
+        neo4j_username="neo4j",
+        neo4j_password="not-used",
+        neo4j_database="neo4j",
+        openai_model="gpt-4o-mini",
+    )
+
+    with pytest.raises(ValueError, match="run_id is required"):
+        run_retrieval_and_qa(live_config, run_id=None, source_uri=None, question="Test?")
+
+
+def test_retrieval_and_qa_live_path_requires_openai_api_key(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """Live path must raise ValueError when OPENAI_API_KEY is missing (after the question=None skip path)."""
+    import os
+
+    from demo.stages import run_retrieval_and_qa
+
+    monkeypatch.delitem(os.environ, "OPENAI_API_KEY", raising=False)
+
+    live_config = Config(
+        dry_run=False,
+        output_dir=tmp_path,
+        neo4j_uri="bolt://example.invalid",
+        neo4j_username="neo4j",
+        neo4j_password="not-used",
+        neo4j_database="neo4j",
+        openai_model="gpt-4o-mini",
+    )
+
+    with pytest.raises(ValueError, match="OPENAI_API_KEY"):
+        run_retrieval_and_qa(live_config, run_id="live-run-key", source_uri=None, question="Test?")
+
+
+def test_retrieval_and_qa_live_path_warns_on_missing_citation_fields(tmp_path: Path):
+    """Live path must record warnings for chunks missing optional citation fields (page, start_char, end_char)."""
+    from demo.stages import run_retrieval_and_qa
+
+    # Simulate a chunk with no page/start_char/end_char
+    fake_meta_missing = {
+        "chunk_id": "chunk-no-page",
+        "run_id": "live-run-4",
+        "source_uri": "file:///doc.pdf",
+        "chunk_index": 0,
+        "page": None,
+        "start_char": None,
+        "end_char": None,
+        "score": 0.8,
+        "citation_token": (
+            "[CITATION|chunk_id=chunk-no-page|run_id=live-run-4|"
+            "source_uri=file:///doc.pdf|chunk_index=0|page=None|start_char=None|end_char=None]"
+        ),
+        "citation_object": {
+            "chunk_id": "chunk-no-page",
+            "run_id": "live-run-4",
+            "source_uri": "file:///doc.pdf",
+            "chunk_index": 0,
+            "page": None,
+            "start_char": None,
+            "end_char": None,
+        },
+    }
+    fake_item = _make_fake_retriever_result_item(
+        content="Chunk text.\n" + fake_meta_missing["citation_token"],
+        metadata=fake_meta_missing,
+    )
+
+    class _FakeRetriever:
+        def __init__(self, **kwargs):
+            pass
+
+        def search(self, **kwargs):
+            return _make_fake_retriever_result([fake_item])
+
+    live_config = Config(
+        dry_run=False,
+        output_dir=tmp_path,
+        neo4j_uri="bolt://example.invalid",
+        neo4j_username="neo4j",
+        neo4j_password="not-used",
+        neo4j_database="neo4j",
+        openai_model="gpt-4o-mini",
+    )
+
+    with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
+    ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+        result = run_retrieval_and_qa(
+            live_config,
+            run_id="live-run-4",
+            source_uri="file:///doc.pdf",
+            top_k=5,
+            question="What happened?",
+        )
+
+    assert result["status"] == "live"
+    assert result["hits"] == 1
+    # Warnings must be non-empty and mention the chunk_id
+    assert len(result["warnings"]) > 0
+    assert any("chunk-no-page" in w for w in result["warnings"])
+
+
+def test_retrieval_and_qa_live_path_run_scoped_by_default(tmp_path: Path):
+    """Retrieval scope must be run_id-scoped by default; source_uri=None means no source filtering."""
+    from demo.stages import run_retrieval_and_qa
+
+    captured_params: dict = {}
+
+    class _FakeRetriever:
+        def __init__(self, **kwargs):
+            pass
+
+        def search(self, **kwargs):
+            captured_params.update(kwargs.get("query_params", {}))
+            return _make_fake_retriever_result([])
+
+    live_config = Config(
+        dry_run=False,
+        output_dir=tmp_path,
+        neo4j_uri="bolt://example.invalid",
+        neo4j_username="neo4j",
+        neo4j_password="not-used",
+        neo4j_database="neo4j",
+        openai_model="gpt-4o-mini",
+    )
+
+    with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
+    ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+        run_retrieval_and_qa(
+            live_config,
+            run_id="scoped-run",
+            source_uri=None,
+            question="Test question",
+        )
+
+    # run_id must always be in query params (run-scoped by default)
+    assert captured_params["run_id"] == "scoped-run"
+    # source_uri=None means cross-source retrieval within the run (no narrowing)
+    assert captured_params["source_uri"] is None
+
+
+def test_retrieval_and_qa_live_path_uses_expanded_query_when_expand_graph(tmp_path: Path):
+    """When expand_graph=True, the retriever must be initialised with the expansion query."""
+    from demo.stages import run_retrieval_and_qa
+    from demo.stages.retrieval_and_qa import _RETRIEVAL_QUERY_WITH_EXPANSION
+
+    captured_init: dict = {}
+
+    class _FakeRetriever:
+        def __init__(self, **kwargs):
+            captured_init.update(kwargs)
+
+        def search(self, **kwargs):
+            return _make_fake_retriever_result([])
+
+    live_config = Config(
+        dry_run=False,
+        output_dir=tmp_path,
+        neo4j_uri="bolt://example.invalid",
+        neo4j_username="neo4j",
+        neo4j_password="not-used",
+        neo4j_database="neo4j",
+        openai_model="gpt-4o-mini",
+    )
+
+    with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
+    ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+        result = run_retrieval_and_qa(
+            live_config,
+            run_id="expand-run",
+            source_uri=None,
+            question="Test",
+            expand_graph=True,
+        )
+
+    assert captured_init["retrieval_query"] == _RETRIEVAL_QUERY_WITH_EXPANSION
+    assert result["expand_graph"] is True
+    # retrievers list must include "graph expansion" when expand_graph=True
+    assert "graph expansion" in result["retrievers"]
+
+
+def test_build_citation_token_format():
+    """_build_citation_token must produce a stable [CITATION|key=value|...] token."""
+    from demo.stages.retrieval_and_qa import _build_citation_token
+
+    token = _build_citation_token(
+        chunk_id="c1",
+        run_id="r1",
+        source_uri="file:///doc.pdf",
+        chunk_index=2,
+        page=3,
+        start_char=10,
+        end_char=200,
+    )
+    assert token == (
+        "[CITATION|chunk_id=c1|run_id=r1|source_uri=file:///doc.pdf|chunk_index=2|page=3|start_char=10|end_char=200]"
+    )
+
+
+def test_build_citation_token_encodes_delimiter_chars():
+    """_build_citation_token must percent-encode '|', ']', and '%' in field values so
+    that downstream parsing (splitting on '|' and ']') is always safe."""
+    from demo.stages.retrieval_and_qa import _build_citation_token
+
+    # source_uri with a pipe character (e.g. some non-file URI or unusual path)
+    token = _build_citation_token(
+        chunk_id="c|1",
+        run_id="r]1",
+        source_uri="file:///path%7Cwith|pipe.pdf",
+        chunk_index=0,
+        page=None,
+        start_char=None,
+        end_char=None,
+    )
+    # The token must not contain a raw '|' inside any value (only between keys),
+    # and must not contain a raw ']' except at the very end.
+    inner = token[len("[CITATION|"):-1]
+    parts = inner.split("|")
+    # We should have exactly 7 key=value parts
+    assert len(parts) == 7, f"Unexpected parts: {parts}"
+    # chunk_id '|' encoded to %7C
+    assert parts[0] == "chunk_id=c%7C1"
+    # run_id ']' encoded to %5D
+    assert parts[1] == "run_id=r%5D1"
+    # source_uri '%' encoded to %25, then '|' encoded to %7C
+    assert parts[2] == "source_uri=file:///path%257Cwith%7Cpipe.pdf"
+    # token must still end with ']'
+    assert token.endswith("]")
