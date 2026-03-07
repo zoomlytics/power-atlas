@@ -2,9 +2,18 @@ from __future__ import annotations
 
 import csv
 import json
+import os
 from pathlib import Path
+from unittest import mock
 
 import pytest
+from neo4j_graphrag.experimental.components.types import (
+    Neo4jGraph,
+    Neo4jNode,
+    Neo4jRelationship,
+    TextChunk,
+    TextChunks,
+)
 
 from demo.contracts.manifest import build_batch_manifest, build_stage_manifest
 from demo.contracts.pipeline import (
@@ -269,6 +278,104 @@ def test_claim_extraction_dry_run_includes_chunks_with_extractions(tmp_path: Pat
     summary = run_claim_and_mention_extraction(config, run_id="claim-run", source_uri=None)
     assert "chunks_with_extractions" in summary
     assert summary["chunks_with_extractions"] == 0
+
+
+def test_claim_extraction_live_path_uses_create_lexical_graph_false(tmp_path: Path):
+    """Verify that _async_read_chunks_and_extract instantiates LLMEntityRelationExtractor
+    with create_lexical_graph=False, enforcing the strict two-pipeline provenance contract:
+    Pipeline 1 owns lexical graph creation; Pipeline 2 must only emit derived outputs
+    (ExtractedClaim, EntityMention) linked to existing chunks via run_id/chunk_id."""
+    from demo.stages import run_claim_and_mention_extraction
+
+    chunk_id = "chunk-live-1"
+    fake_graph = Neo4jGraph(
+        nodes=[
+            Neo4jNode(
+                id="claim-live-1",
+                label="ExtractedClaim",
+                properties={"claim_text": "A live claim", "subject": "s", "predicate": "p", "object": "o"},
+            ),
+            Neo4jNode(
+                id="mention-live-1",
+                label="EntityMention",
+                properties={"name": "Live Entity", "entity_type": "ORG"},
+            ),
+        ],
+        relationships=[
+            Neo4jRelationship(start_node_id=chunk_id, end_node_id="claim-live-1", type="MENTIONED_IN"),
+            Neo4jRelationship(start_node_id=chunk_id, end_node_id="mention-live-1", type="MENTIONED_IN"),
+        ],
+    )
+    fake_chunks = TextChunks(
+        chunks=[TextChunk(uid=chunk_id, text="live chunk text", index=0, metadata={"run_id": "live-run"})]
+    )
+
+    # Track how LLMEntityRelationExtractor was instantiated to assert create_lexical_graph=False.
+    extractor_init_kwargs: dict = {}
+
+    class _FakeExtractor:
+        def __init__(self, **kwargs):
+            extractor_init_kwargs.update(kwargs)
+
+        async def run(self, **kwargs):
+            return fake_graph
+
+    class _FakeLLM:
+        def __init__(self, *args, **kwargs):
+            self.async_client = mock.MagicMock()
+            self.async_client.close = mock.AsyncMock()
+
+    class _FakeChunkReader:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def run(self, **kwargs):
+            return fake_chunks
+
+    captured_write_rows: dict = {"claim_rows": [], "mention_rows": []}
+
+    def _fake_write_extracted_rows(driver, *, neo4j_database, lexical_graph_config, claim_rows, mention_rows):
+        captured_write_rows["claim_rows"] = claim_rows
+        captured_write_rows["mention_rows"] = mention_rows
+
+    config = Config(
+        dry_run=False,
+        output_dir=tmp_path,
+        neo4j_uri="bolt://example.invalid",
+        neo4j_username="neo4j",
+        neo4j_password="not-used",
+        neo4j_database="neo4j",
+        openai_model="gpt-4o-mini",
+    )
+
+    with mock.patch(
+        "neo4j_graphrag.experimental.components.entity_relation_extractor.LLMEntityRelationExtractor",
+        _FakeExtractor,
+    ), mock.patch(
+        "neo4j_graphrag.llm.OpenAILLM",
+        _FakeLLM,
+    ), mock.patch(
+        "demo.io.RunScopedNeo4jChunkReader",
+        _FakeChunkReader,
+    ), mock.patch(
+        "demo.extraction_utils.write_extracted_rows",
+        side_effect=_fake_write_extracted_rows,
+    ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+        summary = run_claim_and_mention_extraction(config, run_id="live-run", source_uri="file:///doc.pdf")
+
+    # Core assertion: the extractor must be built with create_lexical_graph=False
+    assert extractor_init_kwargs.get("create_lexical_graph") is False
+
+    assert summary["status"] == "live"
+    assert summary["run_id"] == "live-run"
+    assert summary["claims"] == 1
+    assert summary["mentions"] == 1
+
+    # Verify chunk-linked provenance: every extracted row must reference the source chunk_id
+    assert captured_write_rows["claim_rows"][0]["chunk_ids"] == [chunk_id]
+    assert captured_write_rows["mention_rows"][0]["chunk_ids"] == [chunk_id]
+    assert captured_write_rows["claim_rows"][0]["run_id"] == "live-run"
+    assert captured_write_rows["mention_rows"][0]["run_id"] == "live-run"
 
 
 def test_retrieval_and_qa_question_recorded_in_manifest(tmp_path: Path):
