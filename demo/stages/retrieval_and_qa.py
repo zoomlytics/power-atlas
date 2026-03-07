@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 
 import neo4j
 from neo4j_graphrag.embeddings.openai import OpenAIEmbeddings
@@ -278,6 +279,9 @@ def run_retrieval_and_qa(
             "warnings": [warning_msg],
             "retrieval_skipped": True,
         }
+
+    if not os.getenv("OPENAI_API_KEY"):
+        raise ValueError("OPENAI_API_KEY environment variable is required for live retrieval.")
 
     with neo4j.GraphDatabase.driver(neo4j_uri, auth=(neo4j_username, neo4j_password)) as driver:
         embedder = OpenAIEmbeddings(model=EMBEDDER_MODEL_NAME)

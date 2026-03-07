@@ -639,6 +639,28 @@ def test_retrieval_and_qa_live_path_requires_run_id(tmp_path: Path):
         run_retrieval_and_qa(live_config, run_id=None, source_uri=None, question="Test?")
 
 
+def test_retrieval_and_qa_live_path_requires_openai_api_key(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """Live path must raise ValueError when OPENAI_API_KEY is missing (after the question=None skip path)."""
+    import os
+
+    from demo.stages import run_retrieval_and_qa
+
+    monkeypatch.delitem(os.environ, "OPENAI_API_KEY", raising=False)
+
+    live_config = Config(
+        dry_run=False,
+        output_dir=tmp_path,
+        neo4j_uri="bolt://example.invalid",
+        neo4j_username="neo4j",
+        neo4j_password="not-used",
+        neo4j_database="neo4j",
+        openai_model="gpt-4o-mini",
+    )
+
+    with pytest.raises(ValueError, match="OPENAI_API_KEY"):
+        run_retrieval_and_qa(live_config, run_id="live-run-key", source_uri=None, question="Test?")
+
+
 def test_retrieval_and_qa_live_path_warns_on_missing_citation_fields(tmp_path: Path):
     """Live path must record warnings for chunks missing optional citation fields (page, start_char, end_char)."""
     from demo.stages import run_retrieval_and_qa
