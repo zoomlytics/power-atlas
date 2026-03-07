@@ -13,6 +13,10 @@ PROMPT_IDS = {
 # Each sentence or materially distinct claim must include at least one [CITATION|...] token
 # copied verbatim from the provided context.
 #
+# The {examples} placeholder is inherited from the vendor RagTemplate base class
+# (neo4j_graphrag.generation.RagTemplate).  It is left empty by default but may be
+# used to inject few-shot citation examples when calling GraphRAG.search(examples=...).
+#
 # Vendor alignment: neo4j_graphrag.generation.RagTemplate / PromptTemplate extension pattern.
 # Reference: vendor-resources/examples/customize/answer/custom_prompt.py
 POWER_ATLAS_RAG_TEMPLATE = RagTemplate(

@@ -474,7 +474,7 @@ def _make_fake_rag_result(items, answer: str = ""):
     return _FakeRagResult(items, answer)
 
 
-def _make_stub_graphrag_class(fake_retriever_instance, answer: str = ""):
+def _make_stub_graphrag_class(answer: str = ""):
     """Return a GraphRAG stub class that bypasses Pydantic validation.
 
     The stub's ``search()`` method calls the fake retriever's ``search()``
@@ -486,7 +486,6 @@ def _make_stub_graphrag_class(fake_retriever_instance, answer: str = ""):
     class _FakeGraphRAG:
         def __init__(self, *, retriever, llm, prompt_template=None):
             self._retriever = retriever
-            self._captured_retriever = retriever
 
         def search(self, *, query_text="", retriever_config=None, return_context=None, message_history=None, **kwargs):
             cfg = retriever_config or {}
@@ -630,7 +629,7 @@ def test_retrieval_and_qa_live_path_formats_citation_tokens(tmp_path: Path):
 
     with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
-    ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class(None)), mock.patch(
+    ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class()), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAILLM"
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
         result = run_retrieval_and_qa(
@@ -777,7 +776,7 @@ def test_retrieval_and_qa_live_path_warns_on_missing_citation_fields(tmp_path: P
 
     with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
-    ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class(None)), mock.patch(
+    ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class()), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAILLM"
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
         result = run_retrieval_and_qa(
@@ -821,7 +820,7 @@ def test_retrieval_and_qa_live_path_run_scoped_by_default(tmp_path: Path):
 
     with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
-    ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class(None)), mock.patch(
+    ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class()), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAILLM"
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
         run_retrieval_and_qa(
@@ -863,7 +862,7 @@ def test_retrieval_and_qa_live_path_uses_expanded_query_when_expand_graph(tmp_pa
 
     with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
-    ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class(None)), mock.patch(
+    ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class()), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAILLM"
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
         result = run_retrieval_and_qa(

@@ -2,21 +2,17 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import TYPE_CHECKING
 
 import neo4j
 from neo4j_graphrag.embeddings.openai import OpenAIEmbeddings
 from neo4j_graphrag.generation import GraphRAG
 from neo4j_graphrag.llm import OpenAILLM
-from neo4j_graphrag.message_history import InMemoryMessageHistory
+from neo4j_graphrag.message_history import InMemoryMessageHistory, MessageHistory
 from neo4j_graphrag.retrievers import VectorCypherRetriever
 from neo4j_graphrag.types import RetrieverResultItem
 
 from demo.contracts import CHUNK_EMBEDDING_INDEX_NAME, EMBEDDER_MODEL_NAME, FIXTURES_DIR, PROMPT_IDS
 from demo.contracts.prompts import POWER_ATLAS_RAG_TEMPLATE
-
-if TYPE_CHECKING:
-    from neo4j_graphrag.message_history import MessageHistory
 
 _DEFAULT_TOP_K = 10
 _logger = logging.getLogger(__name__)
@@ -197,7 +193,7 @@ def run_retrieval_and_qa(
     index_name: str | None = None,
     question: str | None = None,
     expand_graph: bool = False,
-    message_history: "MessageHistory | list[dict[str, str]] | None" = None,
+    message_history: MessageHistory | list[dict[str, str]] | None = None,
     interactive: bool = False,
 ) -> dict[str, object]:
     """Run retrieval and GraphRAG Q&A for a single question or interactive session.
@@ -463,7 +459,7 @@ def run_interactive_qa(
     vendor-resources/examples/question_answering/graphrag_with_message_history.py
     """
     history: MessageHistory = InMemoryMessageHistory()
-    print("Power Atlas interactive Q&A (type 'exit' or 'quit' to stop, Ctrl-D to quit)\n")
+    print("Power Atlas interactive Q&A (type 'exit'/'quit' or Ctrl-D to stop)\n")
     try:
         while True:
             try:
