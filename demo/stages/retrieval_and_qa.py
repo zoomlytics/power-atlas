@@ -33,15 +33,12 @@ RETURN coalesce(c.text, c.body, c.content) AS chunk_text,
 
 # Graph-expanded retrieval: adds related ExtractedClaim, EntityMention, and canonical entity
 # context via optional graph traversal from the retrieved Chunk node.
+# Pattern comprehensions are used for each expansion target to avoid row multiplication
+# (cartesian products) that would result from chained OPTIONAL MATCH clauses.
 _RETRIEVAL_QUERY_WITH_EXPANSION = """
 WITH node AS c, score
 WHERE c.run_id = $run_id
   AND ($source_uri IS NULL OR c.source_uri = $source_uri)
-OPTIONAL MATCH (c)<-[:FROM_CHUNK]-(claim:ExtractedClaim)
-  WHERE claim.run_id = $run_id
-OPTIONAL MATCH (c)<-[:FROM_CHUNK]-(mention:EntityMention)
-  WHERE mention.run_id = $run_id
-OPTIONAL MATCH (mention)-[:RESOLVED_TO]->(canonical)
 RETURN coalesce(c.text, c.body, c.content) AS chunk_text,
        c.chunk_id AS chunk_id,
        c.run_id AS run_id,
@@ -51,9 +48,9 @@ RETURN coalesce(c.text, c.body, c.content) AS chunk_text,
        c.start_char AS start_char,
        c.end_char AS end_char,
        score AS similarityScore,
-       collect(DISTINCT claim.claim_text) AS claims,
-       collect(DISTINCT mention.name) AS mentions,
-       collect(DISTINCT coalesce(canonical.name, canonical.label)) AS canonical_entities
+       [(c)<-[:SUPPORTED_BY]-(claim:ExtractedClaim) WHERE claim.run_id = $run_id | claim.claim_text] AS claims,
+       [(c)<-[:MENTIONED_IN]-(mention:EntityMention) WHERE mention.run_id = $run_id | mention.name] AS mentions,
+       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:RESOLVES_TO]->(canonical) WHERE mention.run_id = $run_id | coalesce(canonical.name, canonical.label)] AS canonical_entities
 """
 
 # Optional citation-relevant fields that should be surfaced as warnings when absent.
@@ -209,10 +206,13 @@ def run_retrieval_and_qa(
         "retrieval_query_contract": retrieval_query_contract.strip(),
     }
     if getattr(config, "dry_run", False):
+        dry_run_retrievers = (
+            ["VectorCypherRetriever", "graph expansion"] if expand_graph else ["VectorCypherRetriever"]
+        )
         return {
             **base,
             "status": "dry_run",
-            "retrievers": ["VectorCypherRetriever", "graph expansion"],
+            "retrievers": dry_run_retrievers,
             "qa": "GraphRAG strict citations",
         }
 
@@ -246,10 +246,13 @@ def run_retrieval_and_qa(
 
     if question is None:
         _logger.warning("No question provided; skipping vector retrieval.")
+        live_retrievers = (
+            ["VectorCypherRetriever", "graph expansion"] if expand_graph else ["VectorCypherRetriever"]
+        )
         return {
             **base,
             "status": "live",
-            "retrievers": ["VectorCypherRetriever"],
+            "retrievers": live_retrievers,
             "qa": "GraphRAG strict citations",
             "hits": 0,
             "retrieval_results": [],
@@ -299,10 +302,13 @@ def run_retrieval_and_qa(
         if first_meta.get("citation_object"):
             actual_citation_object = first_meta["citation_object"]
 
+    live_retrievers = (
+        ["VectorCypherRetriever", "graph expansion"] if expand_graph else ["VectorCypherRetriever"]
+    )
     return {
         **base,
         "status": "live",
-        "retrievers": ["VectorCypherRetriever"],
+        "retrievers": live_retrievers,
         "qa": "GraphRAG strict citations",
         "hits": len(hits),
         "retrieval_results": hits,
@@ -314,9 +320,5 @@ def run_retrieval_and_qa(
 
 
 __all__ = [
-    "_build_citation_token",
-    "_chunk_citation_formatter",
-    "_RETRIEVAL_QUERY_BASE",
-    "_RETRIEVAL_QUERY_WITH_EXPANSION",
     "run_retrieval_and_qa",
 ]

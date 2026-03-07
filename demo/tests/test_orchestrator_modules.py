@@ -418,7 +418,8 @@ def test_retrieval_and_qa_dry_run_retrieval_scope_source_uri_none_when_not_provi
 
 
 def test_retrieval_and_qa_dry_run_expand_graph_flag_recorded(tmp_path: Path):
-    """expand_graph flag must be preserved in the returned stage output."""
+    """expand_graph flag must be preserved in the returned stage output, and the
+    retrievers list must reflect whether graph expansion was requested."""
     from demo.stages import run_retrieval_and_qa
 
     config = _dry_run_config(tmp_path)
@@ -426,6 +427,9 @@ def test_retrieval_and_qa_dry_run_expand_graph_flag_recorded(tmp_path: Path):
     result_expand = run_retrieval_and_qa(config, run_id="qa-run-7", source_uri=None, expand_graph=True)
     assert result_no_expand["expand_graph"] is False
     assert result_expand["expand_graph"] is True
+    # retrievers list must only include "graph expansion" when expand_graph=True
+    assert "graph expansion" not in result_no_expand["retrievers"]
+    assert "graph expansion" in result_expand["retrievers"]
 
 
 def _make_fake_retriever_result(items):
@@ -500,6 +504,8 @@ def test_retrieval_and_qa_live_path_uses_vector_cypher_retriever(tmp_path: Path)
     assert result["hits"] == 0
     assert result["retrieval_results"] == []
     assert result["warnings"] == []
+    # "graph expansion" must NOT appear in retrievers when expand_graph=False
+    assert "graph expansion" not in result["retrievers"]
     # Embedder must use the contract's model name to match the index dimensions
     assert len(captured_embedder_args) == 1
     assert captured_embedder_args[0][1].get("model") == EMBEDDER_MODEL_NAME
@@ -764,6 +770,8 @@ def test_retrieval_and_qa_live_path_uses_expanded_query_when_expand_graph(tmp_pa
 
     assert captured_init["retrieval_query"] == _RETRIEVAL_QUERY_WITH_EXPANSION
     assert result["expand_graph"] is True
+    # retrievers list must include "graph expansion" when expand_graph=True
+    assert "graph expansion" in result["retrievers"]
 
 
 def test_build_citation_token_format():
