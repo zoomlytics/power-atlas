@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import json
 import os
-from datetime import UTC, datetime
 from typing import Any
 
 from demo.contracts import PROMPT_IDS
@@ -55,7 +54,6 @@ async def _async_read_chunks_and_extract(
 
 
 def run_claim_and_mention_extraction(config: Any, *, run_id: str, source_uri: str | None) -> dict[str, Any]:
-    extracted_at = datetime.now(UTC).isoformat()
     run_root = config.output_dir / "runs" / run_id
     extraction_dir = run_root / "claim_extraction"
     extraction_dir.mkdir(parents=True, exist_ok=True)
