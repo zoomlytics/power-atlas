@@ -502,7 +502,7 @@ def run_interactive_qa(
             answer = result.get("answer", "")
             print(f"\nAnswer:\n{answer}\n")
             if not result.get("all_answers_cited"):
-                print("[WARNING] Not all answer sentences include citation tokens.\n")
+                _logger.warning("Not all answer sentences include citation tokens.")
     except KeyboardInterrupt:
         print()
 
