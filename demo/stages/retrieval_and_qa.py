@@ -66,12 +66,14 @@ _CITATION_TOKEN_PREFIX = "[CITATION|"
 
 
 def _check_all_answers_cited(answer: str) -> bool:
-    """Return True if every non-empty line in the answer contains a citation token.
+    """Return True if every non-empty line in the answer ends with a citation token.
 
-    Uses newline-based splitting since the Power Atlas prompt instructs the LLM to
-    include a citation token at the end of each sentence or bullet.  For single-line
-    multi-sentence answers the function checks that at least one ``[CITATION|`` token
-    appears anywhere on that line (best-effort; errs toward False).
+    The Power Atlas prompt instructs the LLM to place a ``[CITATION|...]`` token at the
+    end of each sentence or bullet.  This function enforces that contract at the
+    line level: every non-empty line must end with ``]`` and must contain at least one
+    ``[CITATION|`` token.  Requiring the token to appear near the end of the line (not
+    just anywhere) avoids false positives when a line has multiple sentences but only
+    the first one is cited.
 
     This is a heuristic; it errs toward False (under-cited) rather than producing
     false positives.
@@ -83,7 +85,9 @@ def _check_all_answers_cited(answer: str) -> bool:
         if not line:
             continue
         has_any_line = True
-        if _CITATION_TOKEN_PREFIX not in line:
+        # The line must both contain a citation token AND end with ']'
+        # (the citation token terminator), ensuring the token closes the line.
+        if _CITATION_TOKEN_PREFIX not in line or not line.endswith("]"):
             return False
     return has_any_line
 
@@ -227,6 +231,9 @@ def run_retrieval_and_qa(
     """
     resolved_index_name = index_name if index_name is not None else CHUNK_EMBEDDING_INDEX_NAME
     qa_model = getattr(config, "openai_model", None)
+    # effective_qa_model is the model that will actually be used for generation; it
+    # includes the fallback default so the manifest always reflects the true model.
+    effective_qa_model = qa_model or "gpt-4o-mini"
     qa_prompt_version = PROMPT_IDS["qa"]
 
     # Use provided run_id/source_uri in citation examples so provenance fields align with stage metadata;
@@ -276,7 +283,7 @@ def run_retrieval_and_qa(
         "retriever_type": "VectorCypherRetriever",
         "retriever_index_name": resolved_index_name,
         "question": question,
-        "qa_model": qa_model,
+        "qa_model": effective_qa_model,
         "qa_prompt_version": qa_prompt_version,
         "all_answers_cited": False,
         "expand_graph": expand_graph,
@@ -362,7 +369,7 @@ def run_retrieval_and_qa(
         # Aligned with vendor pattern from vendor-resources/examples/customize/answer/custom_prompt.py
         # and vendor-resources/examples/question_answering/graphrag_with_neo4j_message_history.py.
         llm = OpenAILLM(
-            model_name=qa_model or "gpt-4o-mini",
+            model_name=effective_qa_model,
             model_params={"temperature": 0},
         )
         rag = GraphRAG(

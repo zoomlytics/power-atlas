@@ -532,20 +532,10 @@ def test_retrieval_and_qa_live_path_uses_vector_cypher_retriever(tmp_path: Path)
         openai_model="gpt-4o-mini",
     )
 
-    # GraphRAG is patched to bypass Pydantic retriever validation while still
-    # delegating search() to the fake retriever so captured_search is populated.
-    class _StubGraphRAG:
-        def __init__(self, *, retriever, llm, prompt_template=None):
-            self._retriever = retriever
-
-        def search(self, *, query_text="", retriever_config=None, return_context=None, message_history=None, **kw):
-            cfg = retriever_config or {}
-            r = self._retriever.search(
-                query_text=query_text,
-                top_k=cfg.get("top_k"),
-                query_params=cfg.get("query_params"),
-            )
-            return _make_fake_rag_result(r.items)
+    # GraphRAG is patched via the shared helper to bypass Pydantic retriever
+    # validation while still delegating search() to the fake retriever so
+    # captured_search is populated.
+    _StubGraphRAG = _make_stub_graphrag_class()
 
     with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAIEmbeddings", _FakeEmbedder
@@ -997,6 +987,19 @@ def test_check_all_answers_cited_empty_answer():
     assert _check_all_answers_cited("   ") is False
 
 
+def test_check_all_answers_cited_requires_token_at_end_of_line():
+    """_check_all_answers_cited must return False when a citation token appears on a line
+    but does not close it (i.e. additional text follows the token), catching the false-positive
+    case where a line has multiple sentences but only the first is cited."""
+    from demo.stages.retrieval_and_qa import _check_all_answers_cited
+
+    # Citation token is present but is not at the end of the line
+    answer = (
+        "[CITATION|chunk_id=c1|run_id=r1|source_uri=file:///x.pdf|"
+        "chunk_index=0|page=1|start_char=0|end_char=50] And this second sentence is uncited."
+    )
+    assert _check_all_answers_cited(answer) is False
+
 def test_retrieval_and_qa_dry_run_includes_interactive_mode_flag(tmp_path: Path):
     """Dry-run result must record interactive_mode and message_history_enabled flags."""
     from demo.stages import run_retrieval_and_qa
@@ -1279,3 +1282,57 @@ def test_retrieval_and_qa_live_path_uses_power_atlas_prompt_template(tmp_path: P
         )
 
     assert captured_prompt["template"] is POWER_ATLAS_RAG_TEMPLATE
+
+
+def test_ask_interactive_rejects_dry_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """CLI 'ask --interactive' must raise SystemExit when config.dry_run=True so the user
+    is not silently presented with empty answers instead of an error."""
+    import sys
+    from demo.run_demo import main
+
+    monkeypatch.setenv("UNSTRUCTURED_RUN_ID", "test-run-id")
+    monkeypatch.setattr(sys, "argv", ["demo", "--dry-run", "ask", "--interactive"])
+    with pytest.raises(SystemExit) as exc_info:
+        main()
+    # Must exit with a message referencing --live (not a clean 0 exit)
+    assert "live" in str(exc_info.value).lower() or exc_info.value.code not in (0, None)
+
+
+def test_retrieval_and_qa_live_path_qa_model_never_none(tmp_path: Path):
+    """The manifest's qa_model must never be None: when config.openai_model is not set,
+    the fallback default must be recorded in the result."""
+    from demo.stages import run_retrieval_and_qa
+
+    class _FakeRetriever:
+        def __init__(self, **kwargs):
+            pass
+
+        def search(self, **kwargs):
+            return _make_fake_retriever_result([])
+
+    # Config with openai_model explicitly None (simulating unset)
+    no_model_config = Config(
+        dry_run=False,
+        output_dir=tmp_path,
+        neo4j_uri="bolt://example.invalid",
+        neo4j_username="neo4j",
+        neo4j_password="not-used",
+        neo4j_database="neo4j",
+        openai_model="",  # empty string -> falsy, triggers fallback
+    )
+
+    with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
+    ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class()), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAILLM"
+    ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+        result = run_retrieval_and_qa(
+            no_model_config,
+            run_id="live-run-no-model",
+            source_uri=None,
+            question="Test?",
+        )
+
+    assert result["qa_model"] is not None
+    assert result["qa_model"] != ""
+    assert result["qa_model"] == "gpt-4o-mini"

@@ -332,6 +332,11 @@ def main() -> None:
             print(f"Demo manifest written to: {manifest_path}")
         elif args.command == "ask" and getattr(args, "interactive", False):
             # Interactive mode: start a REPL session; no manifest is written.
+            if config.dry_run:
+                raise SystemExit(
+                    "Interactive 'ask' is not supported in dry-run mode. "
+                    "Re-run the command with --live to enable live Neo4j/OpenAI calls."
+                )
             env_run_id = os.getenv("UNSTRUCTURED_RUN_ID")
             if not env_run_id:
                 raise SystemExit(
