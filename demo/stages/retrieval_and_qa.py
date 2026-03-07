@@ -2,13 +2,18 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 
 import neo4j
 from neo4j_graphrag.embeddings.openai import OpenAIEmbeddings
+from neo4j_graphrag.generation import GraphRAG
+from neo4j_graphrag.llm import OpenAILLM
+from neo4j_graphrag.message_history import InMemoryMessageHistory, MessageHistory
 from neo4j_graphrag.retrievers import VectorCypherRetriever
-from neo4j_graphrag.types import RetrieverResultItem
+from neo4j_graphrag.types import LLMMessage, RetrieverResultItem
 
 from demo.contracts import CHUNK_EMBEDDING_INDEX_NAME, EMBEDDER_MODEL_NAME, FIXTURES_DIR, PROMPT_IDS
+from demo.contracts.prompts import POWER_ATLAS_RAG_TEMPLATE
 
 _DEFAULT_TOP_K = 10
 _logger = logging.getLogger(__name__)
@@ -56,6 +61,44 @@ RETURN coalesce(c.text, c.body, c.content) AS chunk_text,
 
 # Optional citation-relevant fields that should be surfaced as warnings when absent.
 _CITATION_OPTIONAL_FIELDS = ("page", "start_char", "end_char")
+
+# Citation token prefix used to verify citation completeness in generated answers.
+_CITATION_TOKEN_PREFIX = "[CITATION|"
+
+# Regex matching one or more [CITATION|…] tokens at the very end of a stripped line.
+# Built from _CITATION_TOKEN_PREFIX so the two stay in sync.
+# Each token starts with _CITATION_TOKEN_PREFIX, contains no unencoded ']', and is
+# terminated by ']'. One or more consecutive tokens are allowed (e.g. multi-source claims).
+_TRAILING_CITATION_RE = re.compile(rf"({re.escape(_CITATION_TOKEN_PREFIX)}[^\]]*\])+\s*$")
+
+
+def _check_all_answers_cited(answer: str) -> bool:
+    """Return True if every non-empty line in the answer ends with a citation token.
+
+    The Power Atlas prompt instructs the LLM to place a ``[CITATION|...]`` token at the
+    end of each sentence or bullet.  This function enforces that contract at the
+    line level: every non-empty line must end with at least one complete
+    ``[CITATION|…]`` token matched by ``_TRAILING_CITATION_RE``.
+
+    Using a regex anchored at end-of-line (rather than just checking ``endswith("]")``)
+    ensures that a ``]`` from unrelated bracketed text (e.g. Markdown links or other
+    annotation tokens) does not produce false positives.  One or more consecutive tokens
+    are allowed to support multi-source claims.
+
+    This is a heuristic; it errs toward False (under-cited) rather than producing
+    false positives.
+    """
+    lines = answer.strip().splitlines()
+    has_any_line = False
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        has_any_line = True
+        # Require at least one complete [CITATION|…] token anchored at end-of-line.
+        if not _TRAILING_CITATION_RE.search(line):
+            return False
+    return has_any_line
 
 
 def _encode_citation_value(value: object) -> str:
@@ -163,9 +206,45 @@ def run_retrieval_and_qa(
     index_name: str | None = None,
     question: str | None = None,
     expand_graph: bool = False,
+    message_history: MessageHistory | list[dict[str, str]] | None = None,
+    interactive: bool = False,
 ) -> dict[str, object]:
+    """Run retrieval and GraphRAG Q&A for a single question or interactive session.
+
+    Parameters
+    ----------
+    config:
+        Runtime config with Neo4j/OpenAI settings.
+    run_id:
+        Mandatory for live mode; scopes retrieval to a specific ingest run.
+    source_uri:
+        Optional source-level filter within the run scope.
+    top_k:
+        Maximum number of retrieved chunks to pass to the LLM as context.
+    index_name:
+        Vector index name; defaults to the contract value.
+    question:
+        The question to answer (single-question mode).  In live mode, when
+        *None*, retrieval is skipped and an empty result is returned; in
+        dry-run mode, a normal dry-run payload is returned without executing
+        retrieval.
+    expand_graph:
+        When True, adds ExtractedClaim / EntityMention / canonical-entity context
+        via graph expansion on top of the base vector retrieval.
+    message_history:
+        Vendor ``MessageHistory`` object (or a plain list of dicts) for
+        conversational/interactive mode.  When provided, prior turns supply
+        conversational context while each turn's answer must still be fully
+        citation-grounded via retrieved evidence.
+    interactive:
+        Records whether the call originated from an interactive REPL session.
+        Does not change retrieval or generation behaviour on its own.
+    """
     resolved_index_name = index_name if index_name is not None else CHUNK_EMBEDDING_INDEX_NAME
     qa_model = getattr(config, "openai_model", None)
+    # effective_qa_model is the model that will actually be used for generation; it
+    # includes the fallback default so the manifest always reflects the true model.
+    effective_qa_model = qa_model or "gpt-4o-mini"
     qa_prompt_version = PROMPT_IDS["qa"]
 
     # Use provided run_id/source_uri in citation examples so provenance fields align with stage metadata;
@@ -215,8 +294,9 @@ def run_retrieval_and_qa(
         "retriever_type": "VectorCypherRetriever",
         "retriever_index_name": resolved_index_name,
         "question": question,
-        "qa_model": qa_model,
+        "qa_model": effective_qa_model,
         "qa_prompt_version": qa_prompt_version,
+        "answer": "",
         "all_answers_cited": False,
         "expand_graph": expand_graph,
         "retrieval_scope": retrieval_scope,
@@ -225,6 +305,8 @@ def run_retrieval_and_qa(
         # citation_example is retained for backward compatibility with existing manifest consumers
         "citation_example": citation_object_example,
         "retrieval_query_contract": retrieval_query_contract.strip(),
+        "interactive_mode": interactive,
+        "message_history_enabled": message_history is not None,
     }
     if getattr(config, "dry_run", False):
         dry_run_retrievers = (
@@ -294,26 +376,55 @@ def run_retrieval_and_qa(
             neo4j_database=neo4j_database,
         )
 
-        result = retriever.search(
-            query_text=question,
-            top_k=top_k,
-            query_params=query_params,
+        # Build GraphRAG with the Power Atlas citation-enforcing prompt template and
+        # low-temperature LLM for deterministic, grounded output.
+        # Aligned with vendor pattern from vendor-resources/examples/customize/answer/custom_prompt.py
+        # and vendor-resources/examples/question_answering/graphrag_with_neo4j_message_history.py.
+        llm = OpenAILLM(
+            model_name=effective_qa_model,
+            model_params={"temperature": 0},
         )
-        for item in result.items:
-            meta = item.metadata or {}
-            citation_obj = meta.get("citation_object") or {}
-            # Surface warnings for chunks missing optional citation-relevant fields.
-            missing_fields = [f for f in _CITATION_OPTIONAL_FIELDS if citation_obj.get(f) is None]
-            if missing_fields:
-                _logger.warning(
-                    "Chunk %r missing citation fields: %s",
-                    citation_obj.get("chunk_id"),
-                    ", ".join(missing_fields),
-                )
-                warnings_list.append(
-                    f"Chunk {citation_obj.get('chunk_id')!r} missing citation fields: {', '.join(missing_fields)}"
-                )
-            hits.append({"content": item.content, "metadata": meta})
+        rag = GraphRAG(
+            retriever=retriever,
+            llm=llm,
+            prompt_template=POWER_ATLAS_RAG_TEMPLATE,
+        )
+
+        # Run the GraphRAG search with optional message history for interactive mode.
+        # retriever_config passes query_params for run-scoped Cypher filtering.
+        rag_result = rag.search(
+            query_text=question,
+            retriever_config={"top_k": top_k, "query_params": query_params},
+            return_context=True,
+            message_history=message_history,  # type: ignore[arg-type]
+        )
+
+        answer_text: str = rag_result.answer if rag_result else ""
+
+        # Collect retrieval hits from the rag result context for manifest recording.
+        if rag_result and rag_result.retriever_result:
+            for item in rag_result.retriever_result.items:
+                meta = item.metadata or {}
+                citation_obj = meta.get("citation_object") or {}
+                # Surface warnings for chunks missing optional citation-relevant fields.
+                missing_fields = [f for f in _CITATION_OPTIONAL_FIELDS if citation_obj.get(f) is None]
+                if missing_fields:
+                    _logger.warning(
+                        "Chunk %r missing citation fields: %s",
+                        citation_obj.get("chunk_id"),
+                        ", ".join(missing_fields),
+                    )
+                    warnings_list.append(
+                        f"Chunk {citation_obj.get('chunk_id')!r} missing citation fields: {', '.join(missing_fields)}"
+                    )
+                hits.append({"content": item.content, "metadata": meta})
+
+    # Check answer citation completeness and record a warning when not fully cited.
+    all_cited = _check_all_answers_cited(answer_text) if answer_text else False
+    if answer_text and not all_cited:
+        citation_warning = "Not all non-empty answer lines end with a citation token."
+        _logger.warning(citation_warning)
+        warnings_list.append(citation_warning)
 
     # Use first hit's citation data as example when hits are available so the manifest
     # reflects actual retrieved provenance rather than placeholder values.
@@ -340,9 +451,113 @@ def run_retrieval_and_qa(
         "citation_token_example": actual_citation_token,
         "citation_object_example": actual_citation_object,
         "citation_example": actual_citation_object,
+        "answer": answer_text,
+        "all_answers_cited": all_cited,
     }
+
+
+def run_interactive_qa(
+    config: object,
+    *,
+    run_id: str,
+    source_uri: str | None = None,
+    top_k: int = _DEFAULT_TOP_K,
+    index_name: str | None = None,
+    expand_graph: bool = False,
+) -> None:
+    """Run a REPL-style interactive Q&A session.
+
+    Reads questions from stdin and prints citation-grounded answers until the user
+    types ``exit``, ``quit``, or sends EOF (Ctrl-D).
+
+    Message history is maintained across turns via an in-memory store so the LLM
+    has conversational context, but each turn's answer must still be grounded in
+    retrieved evidence from the current question's retrieval results.
+
+    The Neo4j driver, retriever, LLM, and GraphRAG objects are constructed once for
+    the session to avoid per-turn connection churn and latency.
+
+    Aligned with vendor patterns from:
+    - vendor-resources/examples/question_answering/graphrag_with_message_history.py
+      (list[dict]-based history)
+    - vendor-resources/examples/question_answering/graphrag_with_neo4j_message_history.py
+      (MessageHistory-based; this REPL uses InMemoryMessageHistory)
+    """
+    # Validate and resolve session-level config once before opening any connections.
+    if not os.getenv("OPENAI_API_KEY"):
+        raise ValueError("OPENAI_API_KEY environment variable is required for live retrieval.")
+
+    neo4j_uri = getattr(config, "neo4j_uri", None)
+    neo4j_username = getattr(config, "neo4j_username", None)
+    neo4j_password = getattr(config, "neo4j_password", None)
+    neo4j_database = getattr(config, "neo4j_database", None)
+
+    missing_cfg = [k for k, v in (("neo4j_uri", neo4j_uri), ("neo4j_username", neo4j_username), ("neo4j_password", neo4j_password)) if not v]
+    if missing_cfg:
+        raise ValueError(f"Live retrieval requires config attributes: {', '.join(missing_cfg)}")
+
+    resolved_index_name = index_name if index_name is not None else CHUNK_EMBEDDING_INDEX_NAME
+    effective_qa_model = getattr(config, "openai_model", None) or "gpt-4o-mini"
+    retrieval_query = _RETRIEVAL_QUERY_WITH_EXPANSION if expand_graph else _RETRIEVAL_QUERY_BASE
+    query_params: dict[str, object] = {"run_id": run_id, "source_uri": source_uri}
+
+    history: MessageHistory = InMemoryMessageHistory()
+    print("Power Atlas interactive Q&A (type 'exit'/'quit' or Ctrl-D to stop)\n")
+
+    # Build driver, retriever, LLM, and GraphRAG once and reuse across all REPL turns
+    # to avoid per-turn connection overhead and Neo4j driver churn.
+    with neo4j.GraphDatabase.driver(neo4j_uri, auth=(neo4j_username, neo4j_password)) as driver:
+        embedder = OpenAIEmbeddings(model=EMBEDDER_MODEL_NAME)
+        retriever = VectorCypherRetriever(
+            driver=driver,
+            index_name=resolved_index_name,
+            embedder=embedder,
+            retrieval_query=retrieval_query,
+            result_formatter=_chunk_citation_formatter,
+            neo4j_database=neo4j_database,
+        )
+        llm = OpenAILLM(
+            model_name=effective_qa_model,
+            model_params={"temperature": 0},
+        )
+        rag = GraphRAG(
+            retriever=retriever,
+            llm=llm,
+            prompt_template=POWER_ATLAS_RAG_TEMPLATE,
+        )
+        try:
+            while True:
+                try:
+                    question = input("Question: ").strip()
+                except EOFError:
+                    print()
+                    break
+                if not question:
+                    continue
+                if question.lower() in ("exit", "quit"):
+                    break
+                rag_result = rag.search(
+                    query_text=question,
+                    retriever_config={"top_k": top_k, "query_params": query_params},
+                    return_context=True,
+                    message_history=history,
+                )
+                answer = rag_result.answer if rag_result else ""
+                print(f"\nAnswer:\n{answer}\n")
+                if answer and not _check_all_answers_cited(answer):
+                    _logger.warning("Not all non-empty answer lines end with a citation token.")
+                history.add_messages(
+                    [
+                        LLMMessage(role="user", content=question),
+                        LLMMessage(role="assistant", content=answer),
+                    ]
+                )
+        except KeyboardInterrupt:
+            print()
 
 
 __all__ = [
     "run_retrieval_and_qa",
+    "run_interactive_qa",
 ]
+
