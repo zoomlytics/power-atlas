@@ -253,15 +253,6 @@ def run_retrieval_and_qa(
         "source_uri": source_uri,
     }
 
-    neo4j_uri = getattr(config, "neo4j_uri", None)
-    neo4j_username = getattr(config, "neo4j_username", None)
-    neo4j_password = getattr(config, "neo4j_password", None)
-    neo4j_database = getattr(config, "neo4j_database", None)
-
-    missing_cfg = [k for k, v in (("neo4j_uri", neo4j_uri), ("neo4j_username", neo4j_username), ("neo4j_password", neo4j_password)) if not v]
-    if missing_cfg:
-        raise ValueError(f"Live retrieval requires config attributes: {', '.join(missing_cfg)}")
-
     warnings_list: list[str] = []
     hits: list[dict[str, object]] = []
 
@@ -282,6 +273,15 @@ def run_retrieval_and_qa(
 
     if not os.getenv("OPENAI_API_KEY"):
         raise ValueError("OPENAI_API_KEY environment variable is required for live retrieval.")
+
+    neo4j_uri = getattr(config, "neo4j_uri", None)
+    neo4j_username = getattr(config, "neo4j_username", None)
+    neo4j_password = getattr(config, "neo4j_password", None)
+    neo4j_database = getattr(config, "neo4j_database", None)
+
+    missing_cfg = [k for k, v in (("neo4j_uri", neo4j_uri), ("neo4j_username", neo4j_username), ("neo4j_password", neo4j_password)) if not v]
+    if missing_cfg:
+        raise ValueError(f"Live retrieval requires config attributes: {', '.join(missing_cfg)}")
 
     with neo4j.GraphDatabase.driver(neo4j_uri, auth=(neo4j_username, neo4j_password)) as driver:
         embedder = OpenAIEmbeddings(model=EMBEDDER_MODEL_NAME)

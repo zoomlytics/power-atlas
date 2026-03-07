@@ -594,16 +594,18 @@ def test_retrieval_and_qa_live_path_formats_citation_tokens(tmp_path: Path):
 def test_retrieval_and_qa_live_path_no_question_returns_empty_hits(tmp_path: Path):
     """Live path without a question must return empty hits immediately without opening
     a Neo4j driver or instantiating an embedder.  retrievers must be empty (nothing ran),
-    retrieval_skipped must be True, and the skip warning must appear in warnings."""
+    retrieval_skipped must be True, and the skip warning must appear in warnings.
+    Importantly, the skip path must work even with invalid/empty Neo4j credentials."""
     from demo.stages import run_retrieval_and_qa
 
+    # Use empty Neo4j credentials to prove the skip path doesn't touch them.
     live_config = Config(
         dry_run=False,
         output_dir=tmp_path,
-        neo4j_uri="bolt://example.invalid",
-        neo4j_username="neo4j",
-        neo4j_password="not-used",
-        neo4j_database="neo4j",
+        neo4j_uri="",
+        neo4j_username="",
+        neo4j_password="",
+        neo4j_database="",
         openai_model="gpt-4o-mini",
     )
 
