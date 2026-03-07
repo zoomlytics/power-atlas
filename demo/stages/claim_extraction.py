@@ -103,10 +103,7 @@ def run_claim_and_mention_extraction(config: Any, *, run_id: str, source_uri: st
             text_chunks=text_chunks,
             run_id=run_id,
             source_uri=source_uri,
-            extractor_model=config.openai_model,
-            extracted_at=extracted_at,
             lexical_graph_config=lexical_config,
-            prompt_version=prompt_version,
         )
         write_extracted_rows(
             driver,

@@ -214,9 +214,6 @@ def run_narrative_extraction(config: ExtractionConfig) -> dict[str, Any]:
             text_chunks=text_chunks,
             run_id=config.run_id,
             source_uri=config.source_uri,
-            extractor_model=config.model_name,
-            extracted_at=extracted_at,
-            prompt_version=PROMPT_VERSION,
             lexical_graph_config=lexical_config,
         )
         write_extracted_rows(

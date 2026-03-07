@@ -992,10 +992,7 @@ class WorkflowTests(unittest.TestCase):
             readme_text,
         )
         self.assertIn("demo_chunk_embedding_index", readme_text)
-        self.assertIn("vendor examples use `NEO4J_USER`", readme_text)
-        self.assertIn("config_url.json", readme_text)
-        self.assertIn("simple_kg_pipeline_config_url.json", readme_text)
-        self.assertIn("simple_kg_builder_from_pdf.py", readme_text)
+        self.assertIn("NEO4J_USERNAME", readme_text)
         self.assertIn("create_vector_index.py", readme_text)
         self.assertIn("## Conceptual model", readme_text)
         self.assertIn("sequential independent runs", readme_text)

@@ -152,7 +152,6 @@ def _write_resolution_results(
     *,
     run_id: str,
     source_uri: str | None,
-    resolved_at: str,
     resolved_rows: list[dict[str, Any]],
     unresolved_rows: list[dict[str, Any]],
     neo4j_database: str,
@@ -167,18 +166,14 @@ def _write_resolution_results(
             MERGE (mention)-[r:RESOLVES_TO]->(canonical)
             SET r.run_id = $run_id,
                 r.source_uri = $source_uri,
-                r.resolved_at = $resolved_at,
                 r.resolution_method = row.resolution_method,
                 r.resolution_confidence = row.resolution_confidence,
-                r.candidate_ids = row.candidate_ids,
-                r.resolver_version = $resolver_version
+                r.candidate_ids = row.candidate_ids
             """,
             parameters_={
                 "rows": resolved_rows,
                 "run_id": run_id,
                 "source_uri": source_uri,
-                "resolved_at": resolved_at,
-                "resolver_version": _RESOLVER_VERSION,
             },
             database_=neo4j_database,
         )
@@ -188,25 +183,20 @@ def _write_resolution_results(
             """
             UNWIND $rows AS row
             MERGE (unresolved:UnresolvedEntity {normalized_text: row.normalized_text})
-            ON CREATE SET unresolved.created_at = $resolved_at,
-                          unresolved.source_uri = $source_uri
+            ON CREATE SET unresolved.source_uri = $source_uri
             WITH row, unresolved
             MATCH (mention:EntityMention {mention_id: row.mention_id, run_id: $run_id})
             MERGE (mention)-[r:RESOLVES_TO]->(unresolved)
             SET r.run_id = $run_id,
                 r.source_uri = $source_uri,
-                r.resolved_at = $resolved_at,
                 r.resolution_method = 'unresolved',
                 r.resolution_confidence = 0.0,
-                r.candidate_ids = [],
-                r.resolver_version = $resolver_version
+                r.candidate_ids = []
             """,
             parameters_={
                 "rows": unresolved_rows,
                 "run_id": run_id,
                 "source_uri": source_uri,
-                "resolved_at": resolved_at,
-                "resolver_version": _RESOLVER_VERSION,
             },
             database_=neo4j_database,
         )
@@ -328,7 +318,6 @@ def run_entity_resolution(
             driver,
             run_id=run_id,
             source_uri=source_uri,
-            resolved_at=resolved_at,
             resolved_rows=resolved_rows,
             unresolved_rows=unresolved_rows,
             neo4j_database=config.neo4j_database,

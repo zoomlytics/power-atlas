@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from typing import Any
 
 import neo4j
@@ -48,21 +47,19 @@ def prepare_extracted_rows(
     text_chunks: list[TextChunk],
     run_id: str,
     source_uri: str | None,
-    extractor_model: str,
-    extracted_at: str | None,
-    prompt_version: str,
     lexical_graph_config: LexicalGraphConfig,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str]]:
     """
-    Map extracted graph nodes to claim/mention rows with provenance.
+    Map extracted graph nodes to claim/mention rows with graph-level provenance.
 
-    Args:
-        extracted_at: Optional ISO-8601 timestamp string; when None, the current UTC time is used (ISO-8601).
+    Only fields needed for run scoping, source traceability, evidence linkage, and
+    retrieval/citation support are written to the graph.  Process/stage metadata
+    (extractor model, extraction timestamps, prompt versions) belongs in the
+    manifest/artifact outputs of the calling stage, not on graph node properties.
 
     Returns:
         claim_rows, mention_rows, warnings
     """
-    effective_extracted_at = extracted_at or datetime.now(UTC).isoformat()
 
     chunk_meta: dict[str, dict[str, Any]] = {}
     for chunk in text_chunks:
@@ -138,9 +135,6 @@ def prepare_extracted_rows(
         base_props = {
             "run_id": run_id,
             "source_uri": provenance_source,
-            "extractor_model": extractor_model,
-            "extracted_at": effective_extracted_at,
-            "prompt_version": prompt_version,
             "chunk_ids": node_chunk_ids,
         }
         node_confidence = coerce_confidence(node.properties.get("confidence"))
@@ -247,8 +241,6 @@ def write_extracted_rows(
             MERGE (claim)-[supported_by:SUPPORTED_BY]->(chunk)
             SET supported_by.run_id = row.run_id,
                 supported_by.source_uri = row.source_uri,
-                supported_by.extracted_at = row.properties.extracted_at,
-                supported_by.prompt_version = row.properties.prompt_version,
                 supported_by.chunk_id = chunk_id
             """,
             parameters_={"rows": claim_rows},
@@ -266,8 +258,6 @@ def write_extracted_rows(
             MERGE (mention)-[mentioned_in:MENTIONED_IN]->(chunk)
             SET mentioned_in.run_id = row.run_id,
                 mentioned_in.source_uri = row.source_uri,
-                mentioned_in.extracted_at = row.properties.extracted_at,
-                mentioned_in.prompt_version = row.properties.prompt_version,
                 mentioned_in.chunk_id = chunk_id
             """,
             parameters_={"rows": mention_rows},
