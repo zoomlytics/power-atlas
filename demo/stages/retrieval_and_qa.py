@@ -77,7 +77,7 @@ _TRAILING_CITATION_RE = re.compile(rf"({re.escape(_CITATION_TOKEN_PREFIX)}[^\]]*
 # by 'CITATION|'. The latter allows sentence splits before non-citation bracketed text
 # (e.g. "[Note]", "[1]") so that uncited sentences cannot slip through by being
 # followed by such a bracket. '[CITATION|…]' tokens are never split-points: the
-# negative lookahead '(?!CITATION|)' blocks the split, keeping the citation token
+# negative lookahead '(?!CITATION\|)' blocks the split, keeping the citation token
 # attached to the sentence it supports.
 # Known limitation: title abbreviations before proper nouns (e.g. "Dr. Smith",
 # "Mr. Jones") will be incorrectly split; this is an acceptable trade-off given the

@@ -97,7 +97,7 @@ answer into checkable segments and requires each segment to end with at least on
 3. Non-bullet paragraph lines are further split into sentence-like segments at `[.!?]`
    boundaries followed by an uppercase letter or a non-citation opening bracket.
    - `[CITATION|…]` tokens are **not** split-points — the negative lookahead
-     `(?!CITATION|)` keeps the token attached to its sentence.
+     `(?!CITATION\|)` keeps the token attached to its sentence.
    - Non-citation brackets such as `[Note]` or `[1]` **do** act as split-points, so
      `"Claim A. [Note] Claim B. [CITATION|…]"` correctly splits into `"Claim A."` (no
      citation → rejected) and `"[Note] Claim B. [CITATION|…]"`.

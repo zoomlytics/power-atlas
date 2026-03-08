@@ -1078,6 +1078,8 @@ def test_split_into_segments_newline_splitting():
     answer = "First sentence. [CITATION|chunk_id=c1|run_id=r1|source_uri=s|chunk_index=0|page=1|start_char=0|end_char=10]\nSecond sentence. [CITATION|chunk_id=c2|run_id=r1|source_uri=s|chunk_index=1|page=1|start_char=11|end_char=20]"
     segments = _split_into_segments(answer)
     assert len(segments) == 2
+    assert segments[0] == "First sentence. [CITATION|chunk_id=c1|run_id=r1|source_uri=s|chunk_index=0|page=1|start_char=0|end_char=10]"
+    assert segments[1] == "Second sentence. [CITATION|chunk_id=c2|run_id=r1|source_uri=s|chunk_index=1|page=1|start_char=11|end_char=20]"
 
 
 def test_split_into_segments_sentence_boundary_split():
@@ -1138,7 +1140,7 @@ def test_split_into_segments_no_split_inside_citation_tokens():
     from demo.stages.retrieval_and_qa import _split_into_segments
 
     # Citation token appears between two sentences; the negative lookahead
-    # (?!CITATION|) in _SENTENCE_SPLIT_RE blocks the split at ". [CITATION|",
+    # (?!CITATION\|) in _SENTENCE_SPLIT_RE blocks the split at ". [CITATION|",
     # keeping the whole line as a single segment.
     answer = (
         "Claim A. "
@@ -1148,7 +1150,7 @@ def test_split_into_segments_no_split_inside_citation_tokens():
     )
     segments = _split_into_segments(answer)
     # The period in "Claim A." is followed by " [CITATION..." — the negative lookahead
-    # (?!CITATION|) prevents a split here.  After the citation token ends with ']',
+    # (?!CITATION\|) prevents a split here.  After the citation token ends with ']',
     # the lookbehind (?<=[.!?]) fails because ']' is not in [.!?].
     # Therefore no sentence split fires and all text forms a single segment.
     assert len(segments) == 1
