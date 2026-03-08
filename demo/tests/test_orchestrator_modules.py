@@ -1710,3 +1710,86 @@ def test_batch_manifest_qa_signals_defaults_when_retrieval_stage_missing_signals
     assert qa_signals["evidence_level"] == "no_answer"
     assert qa_signals["warning_count"] == 0
     assert qa_signals["warnings"] == []
+
+
+def test_retrieval_and_qa_live_path_citation_quality_degraded_when_chunk_fields_missing(tmp_path: Path):
+    """evidence_level must be 'degraded' (not 'full') when the answer is fully cited but a
+    chunk is missing optional citation fields (page/start_char/end_char).  The warning_count
+    and citation_warnings must reflect the chunk-level warnings so all three fields stay
+    internally consistent."""
+    from demo.stages import run_retrieval_and_qa
+
+    # A fully cited answer (every line ends with a citation token)
+    cited_answer = (
+        "Evidence was found. [CITATION|chunk_id=chunk-no-page|run_id=live-cq-chunk|"
+        "source_uri=file:///x.pdf|chunk_index=0|page=|start_char=|end_char=]"
+    )
+
+    # A chunk missing all optional citation fields
+    fake_meta = {
+        "chunk_id": "chunk-no-page",
+        "run_id": "live-cq-chunk",
+        "source_uri": "file:///x.pdf",
+        "chunk_index": 0,
+        "page": None,
+        "start_char": None,
+        "end_char": None,
+        "score": 0.9,
+        "citation_token": (
+            "[CITATION|chunk_id=chunk-no-page|run_id=live-cq-chunk|"
+            "source_uri=file:///x.pdf|chunk_index=0|page=|start_char=|end_char=]"
+        ),
+        "citation_object": {
+            "chunk_id": "chunk-no-page",
+            "run_id": "live-cq-chunk",
+            "source_uri": "file:///x.pdf",
+            "chunk_index": 0,
+            "page": None,
+            "start_char": None,
+            "end_char": None,
+        },
+    }
+    fake_item = _make_fake_retriever_result_item(
+        content="Chunk text.\n" + fake_meta["citation_token"],
+        metadata=fake_meta,
+    )
+
+    class _FakeRetriever:
+        def __init__(self, **kwargs):
+            pass
+
+        def search(self, **kwargs):
+            return _make_fake_retriever_result([fake_item])
+
+    live_config = Config(
+        dry_run=False,
+        output_dir=tmp_path,
+        neo4j_uri="bolt://example.invalid",
+        neo4j_username="neo4j",
+        neo4j_password="not-used",
+        neo4j_database="neo4j",
+        openai_model="gpt-4o-mini",
+    )
+
+    with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
+    ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class(answer=cited_answer)), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAILLM"
+    ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+        result = run_retrieval_and_qa(
+            live_config,
+            run_id="live-cq-chunk",
+            source_uri=None,
+            question="What happened?",
+        )
+
+    cq = result["citation_quality"]
+    # all_cited is True (every answer line has a token) but evidence_level must be
+    # 'degraded' because of the chunk-level citation-field warnings.
+    assert cq["all_cited"] is True
+    assert cq["evidence_level"] == "degraded", (
+        "evidence_level must be 'degraded' when chunk citation fields are missing, "
+        "even if every answer line ends with a citation token"
+    )
+    assert cq["warning_count"] >= 1
+    assert any("chunk-no-page" in w for w in cq["citation_warnings"])

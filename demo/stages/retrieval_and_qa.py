@@ -440,9 +440,14 @@ def run_retrieval_and_qa(
     # Build the structured per-answer citation quality signal bundle.
     # evidence_level encodes the overall quality of the retrieved evidence:
     #   "no_answer"  – no answer was generated (empty answer text)
-    #   "full"       – every non-empty answer line ends with a citation token
-    #   "degraded"   – one or more lines are missing citation tokens
-    evidence_level = "no_answer" if not answer_text else ("full" if all_cited else "degraded")
+    #   "full"       – every non-empty answer line ends with a citation token AND
+    #                  no citation-quality warnings exist (e.g. no missing chunk fields)
+    #   "degraded"   – answer lines are missing citation tokens, OR any citation-quality
+    #                  warning exists (e.g. chunk missing page/start_char/end_char)
+    evidence_level = (
+        "no_answer" if not answer_text
+        else ("degraded" if (not all_cited or citation_warnings_list) else "full")
+    )
     live_citation_quality: dict[str, object] = {
         "all_cited": all_cited,
         "evidence_level": evidence_level,
