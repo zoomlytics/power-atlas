@@ -82,6 +82,33 @@ Q&A answers are expected to:
 
 The citation contract (token format, required fields, and validation expectations) is defined in [zoomlytics/power-atlas#159](https://github.com/zoomlytics/power-atlas/issues/159). The README does not redefine the citation format; treat #159 as the source of truth.
 
+## Citation validation policy
+
+Post-generation validation enforces that every sentence and bullet in an answer is cited.
+The `_check_all_answers_cited` function in `demo/stages/retrieval_and_qa.py` splits the
+answer into checkable segments and requires each segment to end with at least one
+`[CITATION|…]` token.
+
+**Segmentation rules** (implemented in `_split_into_segments`):
+
+1. The answer is split on newlines first.
+2. Bullet lines (starting with `-`, `*`, `•`, or a digit followed by `.`) are treated as
+   atomic units — one citation at the end of the entire bullet is sufficient.
+3. Non-bullet paragraph lines are further split into individual sentences at `[.!?]`
+   boundaries followed by an uppercase letter.  Each sentence must independently end
+   with at least one citation token.
+
+**Why sentence-level (not just line-level)?**  A multi-sentence paragraph like
+`"Claim A. Claim B. [CITATION|...]"` would pass a line-level check (the line ends with a
+citation) but fail a sentence-level check because `"Claim A."` has no citation.  The
+sentence split catches this case.
+
+**Outcome when uncited segments are detected:**
+
+- `all_answers_cited` is set to `False` in the result dict.
+- A warning is appended to `citation_quality.citation_warnings`.
+- `citation_quality.evidence_level` is set to `"degraded"` instead of `"full"`.
+
 ## Workflow (golden path)
 
 1. **Reset graph safely**

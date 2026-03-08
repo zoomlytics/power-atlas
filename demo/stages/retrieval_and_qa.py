@@ -65,40 +65,104 @@ _CITATION_OPTIONAL_FIELDS = ("page", "start_char", "end_char")
 # Citation token prefix used to verify citation completeness in generated answers.
 _CITATION_TOKEN_PREFIX = "[CITATION|"
 
-# Regex matching one or more [CITATION|…] tokens at the very end of a stripped line.
+# Regex matching one or more [CITATION|…] tokens at the very end of a stripped segment.
 # Built from _CITATION_TOKEN_PREFIX so the two stay in sync.
 # Each token starts with _CITATION_TOKEN_PREFIX, contains no unencoded ']', and is
 # terminated by ']'. One or more consecutive tokens are allowed (e.g. multi-source claims).
 _TRAILING_CITATION_RE = re.compile(rf"({re.escape(_CITATION_TOKEN_PREFIX)}[^\]]*\])+\s*$")
 
+# Regex to split a paragraph line into individual sentences at natural boundaries.
+# Splits at [.!?] followed by whitespace and an uppercase letter, which is the
+# typical sentence-start pattern in LLM-generated answers.  The uppercase lookahead
+# avoids splitting on common abbreviations ("e.g. something", "U.S. government") and
+# does not split directly before citation tokens (which start with '[', not uppercase).
+# Known limitation: title abbreviations before proper nouns (e.g. "Dr. Smith",
+# "Mr. Jones") will be incorrectly split; this is an acceptable trade-off given the
+# controlled, low-temperature LLM output environment where such patterns are rare.
+_SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+(?=[A-Z])")
+
+# Bullet line prefix: a line starting with -, *, •, or a number followed by a period.
+# Grouping both alternatives inside the outer group ensures the '^' start anchor
+# applies to both, making the pattern unambiguous regardless of match mode.
+_BULLET_PREFIX_RE = re.compile(r"^([-*•]|\d+\.)")
+
+
+def _split_into_segments(answer: str) -> list[str]:
+    """Split answer text into citation-checkable segments (sentences and bullets).
+
+    Performs a two-level split:
+
+    1. **Newline split**: each line is treated separately.
+    2. **Sentence split within paragraphs**: non-bullet lines are further split at
+       sentence boundaries (``[.!?]`` followed by whitespace and an uppercase letter)
+       so that multi-sentence paragraphs are validated sentence-by-sentence rather
+       than only checking whether the paragraph line ends with a citation.
+
+    Bullet lines (starting with ``-``, ``*``, ``•``, or a digit followed by ``.``)
+    are treated as atomic units: the whole bullet, including any sentence structure
+    within it, is checked as a single citation segment.
+
+    Citation tokens (``[CITATION|…]``) start with ``[``, not uppercase, so the
+    ``(?=[A-Z])`` lookahead in ``_SENTENCE_SPLIT_RE`` prevents false splits inside
+    or directly around tokens.  Specifically, text like ``"A. [CITATION|…] B."``
+    does NOT split between the citation token and ``B`` because the character
+    immediately before the whitespace+uppercase is ``]`` (end of citation token),
+    not ``[.!?]``; only the bare period after ``A`` could trigger the lookbehind,
+    but it is not immediately before an uppercase letter — it is followed by the
+    citation token which starts with ``[``.
+
+    **Known limitation**: title abbreviations before proper nouns (e.g. ``"Dr. Smith"``,
+    ``"Mr. Jones"``) will be split at the period.  This is an accepted heuristic
+    trade-off in a controlled, low-temperature LLM output environment.
+
+    Returns a list of non-empty stripped segments.
+    """
+    segments = []
+    for line in answer.strip().splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        if _BULLET_PREFIX_RE.match(line):
+            # Bullet lines are treated as a single citation unit.
+            segments.append(line)
+        else:
+            # Split paragraph lines on sentence boundaries.
+            parts = _SENTENCE_SPLIT_RE.split(line)
+            segments.extend(p.strip() for p in parts if p.strip())
+    return segments
+
 
 def _check_all_answers_cited(answer: str) -> bool:
-    """Return True if every non-empty line in the answer ends with a citation token.
+    """Return True if every answer sentence or bullet ends with a citation token.
 
     The Power Atlas prompt instructs the LLM to place a ``[CITATION|...]`` token at the
     end of each sentence or bullet.  This function enforces that contract at the
-    line level: every non-empty line must end with at least one complete
-    ``[CITATION|…]`` token matched by ``_TRAILING_CITATION_RE``.
+    **sentence and bullet level** using ``_split_into_segments``:
 
-    Using a regex anchored at end-of-line (rather than just checking ``endswith("]")``)
-    ensures that a ``]`` from unrelated bracketed text (e.g. Markdown links or other
-    annotation tokens) does not produce false positives.  One or more consecutive tokens
-    are allowed to support multi-source claims.
+    - The answer is split on newlines first.
+    - Bullet lines (starting with ``-``, ``*``, ``•``, or a digit followed by ``.``)
+      are treated as atomic units; one citation at the end of the bullet is sufficient.
+    - Non-bullet paragraph lines are further split into individual sentences at
+      ``[.!?]`` boundaries followed by an uppercase letter.  Each sentence must
+      independently end with at least one citation token, catching uncited sentences
+      embedded mid-line (e.g. ``"A. B. [CITATION]"`` → ``"A."`` fails because it
+      does not itself end with a citation token).
+
+    Using a regex anchored at end-of-segment (rather than just checking
+    ``endswith("]")``) ensures that a ``]`` from unrelated bracketed text (e.g.
+    Markdown links or other annotation tokens) does not produce false positives.
+    One or more consecutive tokens are allowed to support multi-source claims.
 
     This is a heuristic; it errs toward False (under-cited) rather than producing
     false positives.
     """
-    lines = answer.strip().splitlines()
-    has_any_line = False
-    for line in lines:
-        line = line.strip()
-        if not line:
-            continue
-        has_any_line = True
-        # Require at least one complete [CITATION|…] token anchored at end-of-line.
-        if not _TRAILING_CITATION_RE.search(line):
+    segments = _split_into_segments(answer)
+    if not segments:
+        return False
+    for segment in segments:
+        if not _TRAILING_CITATION_RE.search(segment):
             return False
-    return has_any_line
+    return True
 
 
 def _encode_citation_value(value: object) -> str:
@@ -432,7 +496,7 @@ def run_retrieval_and_qa(
     # Check answer citation completeness and record a warning when not fully cited.
     all_cited = _check_all_answers_cited(answer_text) if answer_text else False
     if answer_text and not all_cited:
-        citation_warning = "Not all non-empty answer lines end with a citation token."
+        citation_warning = "Not all answer sentences or bullets end with a citation token."
         _logger.warning(citation_warning)
         warnings_list.append(citation_warning)
         citation_warnings_list.append(citation_warning)
@@ -440,10 +504,10 @@ def run_retrieval_and_qa(
     # Build the structured per-answer citation quality signal bundle.
     # evidence_level encodes the overall quality of the retrieved evidence:
     #   "no_answer"  – no answer was generated (empty answer text)
-    #   "full"       – every non-empty answer line ends with a citation token AND
+    #   "full"       – every answer sentence and bullet ends with a citation token AND
     #                  no citation-quality warnings exist (e.g. no missing chunk fields)
-    #   "degraded"   – answer lines are missing citation tokens, OR any citation-quality
-    #                  warning exists (e.g. chunk missing page/start_char/end_char)
+    #   "degraded"   – any answer sentence or bullet is missing a citation token, OR any
+    #                  citation-quality warning exists (e.g. chunk missing page/start_char/end_char)
     evidence_level = (
         "no_answer" if not answer_text
         else ("degraded" if (not all_cited or citation_warnings_list) else "full")
