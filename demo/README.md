@@ -94,10 +94,10 @@ answer into checkable segments and requires each segment to end with at least on
 1. The answer is split on newlines first.
 2. Bullet lines (starting with `-`, `*`, `•`, or a digit followed by `.`) are treated as
    atomic units — one citation at the end of the entire bullet is sufficient.
-3. Non-bullet paragraph lines are further split into individual sentences at `[.!?]`
-   boundaries followed by an uppercase letter.  Each sentence must independently end
-   with at least one citation token.
-
+3. Non-bullet paragraph lines are further split into sentence-like segments at `[.!?]`
+   boundaries followed by an uppercase letter.
+   Each resulting segment (which may contain multiple sentences if a citation token
+   appears between them) must independently end with at least one citation token.
 **Why sentence-level (not just line-level)?**  A multi-sentence paragraph like
 `"Claim A. Claim B. [CITATION|...]"` would pass a line-level check (the line ends with a
 citation) but fail a sentence-level check because `"Claim A."` has no citation.  The
