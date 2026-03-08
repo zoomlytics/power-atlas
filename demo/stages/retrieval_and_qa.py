@@ -549,9 +549,9 @@ def run_retrieval_and_qa(
         _logger.warning(citation_warning)
         warnings_list.append(citation_warning)
         citation_warnings_list.append(citation_warning)
-        # Replace the uncited answer with a structured fallback so that all consumers
-        # (UI, manifests, downstream stages) receive an explicit, safe refusal rather
-        # than silently propagating an under-cited response.
+        # Wrap the under-cited answer in a structured, clearly labeled fallback so that
+        # all consumers (UI, manifests, downstream stages) see an explicit citation
+        # warning instead of silently treating an under-cited response as fully reliable.
         fallback_preview = (
             answer_text[:200] + "..." if len(answer_text) > 200 else answer_text
         )
