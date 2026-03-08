@@ -546,6 +546,9 @@ def run_interactive_qa(
                 print(f"\nAnswer:\n{answer}\n")
                 if answer and not _check_all_answers_cited(answer):
                     _logger.warning("Not all non-empty answer lines end with a citation token.")
+                    print(
+                        "⚠ WARNING: Not all answer lines are cited — evidence quality may be degraded."
+                    )
                 history.add_messages(
                     [
                         LLMMessage(role="user", content=question),
