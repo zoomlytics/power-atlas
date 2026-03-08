@@ -1426,3 +1426,287 @@ def test_run_interactive_qa_no_warning_when_fully_cited(
 
     captured = capsys.readouterr()
     assert "WARNING" not in captured.out and "degraded" not in captured.out.lower()
+
+
+# ---------------------------------------------------------------------------
+# citation_quality per-answer QA signals
+# ---------------------------------------------------------------------------
+
+
+def test_retrieval_and_qa_dry_run_includes_citation_quality(tmp_path: Path):
+    """Dry-run result must include a citation_quality dict with the required keys and
+    default 'no_answer' evidence_level since no answer is generated during dry-run."""
+    from demo.stages import run_retrieval_and_qa
+
+    config = _dry_run_config(tmp_path)
+    result = run_retrieval_and_qa(config, run_id="qa-dry", source_uri=None)
+
+    assert "citation_quality" in result
+    cq = result["citation_quality"]
+    assert isinstance(cq, dict)
+    required_cq_keys = {"all_cited", "evidence_level", "warning_count", "citation_warnings"}
+    assert required_cq_keys.issubset(cq.keys())
+    assert cq["evidence_level"] == "no_answer"
+    assert cq["all_cited"] is False
+    assert cq["warning_count"] == 0
+    assert cq["citation_warnings"] == []
+
+
+def test_retrieval_and_qa_live_path_citation_quality_full_when_all_cited(tmp_path: Path):
+    """Live path must set citation_quality.evidence_level='full' and all_cited=True
+    when the generated answer contains citation tokens on every line."""
+    from demo.stages import run_retrieval_and_qa
+
+    cited_answer = (
+        "Evidence was found. [CITATION|chunk_id=c1|run_id=live-cq|"
+        "source_uri=file:///x.pdf|chunk_index=0|page=1|start_char=0|end_char=50]"
+    )
+
+    class _FakeRetriever:
+        def __init__(self, **kwargs):
+            pass
+
+        def search(self, **kwargs):
+            return _make_fake_retriever_result([])
+
+    live_config = Config(
+        dry_run=False,
+        output_dir=tmp_path,
+        neo4j_uri="bolt://example.invalid",
+        neo4j_username="neo4j",
+        neo4j_password="not-used",
+        neo4j_database="neo4j",
+        openai_model="gpt-4o-mini",
+    )
+
+    with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
+    ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class(answer=cited_answer)), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAILLM"
+    ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+        result = run_retrieval_and_qa(
+            live_config,
+            run_id="live-cq",
+            source_uri=None,
+            question="What happened?",
+        )
+
+    cq = result["citation_quality"]
+    assert cq["all_cited"] is True
+    assert cq["evidence_level"] == "full"
+    assert cq["warning_count"] == 0
+    assert cq["citation_warnings"] == []
+
+
+def test_retrieval_and_qa_live_path_citation_quality_degraded_when_uncited(tmp_path: Path):
+    """Live path must set citation_quality.evidence_level='degraded' and all_cited=False
+    when the generated answer contains lines without citation tokens."""
+    from demo.stages import run_retrieval_and_qa
+
+    uncited_answer = "This claim has no citation and is not grounded."
+
+    class _FakeRetriever:
+        def __init__(self, **kwargs):
+            pass
+
+        def search(self, **kwargs):
+            return _make_fake_retriever_result([])
+
+    live_config = Config(
+        dry_run=False,
+        output_dir=tmp_path,
+        neo4j_uri="bolt://example.invalid",
+        neo4j_username="neo4j",
+        neo4j_password="not-used",
+        neo4j_database="neo4j",
+        openai_model="gpt-4o-mini",
+    )
+
+    with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
+    ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class(answer=uncited_answer)), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAILLM"
+    ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+        result = run_retrieval_and_qa(
+            live_config,
+            run_id="live-cq-uncited",
+            source_uri=None,
+            question="What happened?",
+        )
+
+    cq = result["citation_quality"]
+    assert cq["all_cited"] is False
+    assert cq["evidence_level"] == "degraded"
+    assert cq["warning_count"] >= 1
+    assert any("citation" in w.lower() for w in cq["citation_warnings"])
+
+
+def test_retrieval_and_qa_live_path_citation_quality_no_answer_when_empty(tmp_path: Path):
+    """Live path must set citation_quality.evidence_level='no_answer' when the LLM
+    returns an empty answer string."""
+    from demo.stages import run_retrieval_and_qa
+
+    class _FakeRetriever:
+        def __init__(self, **kwargs):
+            pass
+
+        def search(self, **kwargs):
+            return _make_fake_retriever_result([])
+
+    live_config = Config(
+        dry_run=False,
+        output_dir=tmp_path,
+        neo4j_uri="bolt://example.invalid",
+        neo4j_username="neo4j",
+        neo4j_password="not-used",
+        neo4j_database="neo4j",
+        openai_model="gpt-4o-mini",
+    )
+
+    with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
+    ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class(answer="")), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAILLM"
+    ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+        result = run_retrieval_and_qa(
+            live_config,
+            run_id="live-cq-empty",
+            source_uri=None,
+            question="What happened?",
+        )
+
+    cq = result["citation_quality"]
+    assert cq["all_cited"] is False
+    assert cq["evidence_level"] == "no_answer"
+
+
+# ---------------------------------------------------------------------------
+# batch-level qa_signals in build_batch_manifest
+# ---------------------------------------------------------------------------
+
+
+def test_batch_manifest_includes_qa_signals(tmp_path: Path):
+    """build_batch_manifest must include a top-level qa_signals dict that summarises
+    citation quality without requiring consumers to inspect stage-level details."""
+    config = _dry_run_config(tmp_path)
+    retrieval_stage = {
+        "status": "dry_run",
+        "all_answers_cited": False,
+        "warnings": [],
+        "citation_quality": {
+            "all_cited": False,
+            "evidence_level": "no_answer",
+            "warning_count": 0,
+            "citation_warnings": [],
+        },
+    }
+    manifest = build_batch_manifest(
+        config=config,
+        structured_run_id="structured-1",
+        unstructured_run_id="unstructured-2",
+        resolution_run_id="resolution-3",
+        structured_stage={"status": "dry_run"},
+        pdf_stage={"status": "dry_run"},
+        claim_stage={"status": "dry_run"},
+        retrieval_stage=retrieval_stage,
+    )
+
+    assert "qa_signals" in manifest
+    qa_signals = manifest["qa_signals"]
+    required_keys = {"all_answers_cited", "evidence_level", "warning_count", "warnings"}
+    assert required_keys.issubset(qa_signals.keys())
+    assert qa_signals["evidence_level"] == "no_answer"
+    assert qa_signals["all_answers_cited"] is False
+    assert qa_signals["warning_count"] == 0
+    assert qa_signals["warnings"] == []
+
+
+def test_batch_manifest_qa_signals_reflects_retrieval_stage_quality(tmp_path: Path):
+    """qa_signals in the batch manifest must mirror the citation quality from the
+    retrieval stage so batch-level consumers get accurate signal values."""
+    config = _dry_run_config(tmp_path)
+    # Simulate a retrieval stage result where the answer was fully cited
+    retrieval_stage = {
+        "status": "live",
+        "all_answers_cited": True,
+        "warnings": [],
+        "citation_quality": {
+            "all_cited": True,
+            "evidence_level": "full",
+            "warning_count": 0,
+            "citation_warnings": [],
+        },
+    }
+    manifest = build_batch_manifest(
+        config=config,
+        structured_run_id="s1",
+        unstructured_run_id="u1",
+        resolution_run_id="r1",
+        structured_stage={"status": "dry_run"},
+        pdf_stage={"status": "dry_run"},
+        claim_stage={"status": "dry_run"},
+        retrieval_stage=retrieval_stage,
+    )
+
+    qa_signals = manifest["qa_signals"]
+    assert qa_signals["all_answers_cited"] is True
+    assert qa_signals["evidence_level"] == "full"
+    assert qa_signals["warning_count"] == 0
+
+
+def test_batch_manifest_qa_signals_degraded_when_uncited(tmp_path: Path):
+    """qa_signals.evidence_level must be 'degraded' when the retrieval stage recorded
+    an uncited answer, so the batch manifest accurately reflects QA quality."""
+    config = _dry_run_config(tmp_path)
+    warning_text = "Not all non-empty answer lines end with a citation token."
+    retrieval_stage = {
+        "status": "live",
+        "all_answers_cited": False,
+        "warnings": [warning_text],
+        "citation_quality": {
+            "all_cited": False,
+            "evidence_level": "degraded",
+            "warning_count": 1,
+            "citation_warnings": [warning_text],
+        },
+    }
+    manifest = build_batch_manifest(
+        config=config,
+        structured_run_id="s1",
+        unstructured_run_id="u1",
+        resolution_run_id="r1",
+        structured_stage={"status": "dry_run"},
+        pdf_stage={"status": "dry_run"},
+        claim_stage={"status": "dry_run"},
+        retrieval_stage=retrieval_stage,
+    )
+
+    qa_signals = manifest["qa_signals"]
+    assert qa_signals["all_answers_cited"] is False
+    assert qa_signals["evidence_level"] == "degraded"
+    assert qa_signals["warning_count"] == 1
+    assert warning_text in qa_signals["warnings"]
+
+
+def test_batch_manifest_qa_signals_defaults_when_retrieval_stage_missing_signals(tmp_path: Path):
+    """qa_signals must use safe defaults (no_answer, warning_count=0) when the
+    retrieval stage result does not contain citation_quality or warnings."""
+    config = _dry_run_config(tmp_path)
+    # Retrieval stage without citation_quality (simulates legacy stage output)
+    retrieval_stage = {"status": "dry_run"}
+    manifest = build_batch_manifest(
+        config=config,
+        structured_run_id="s1",
+        unstructured_run_id="u1",
+        resolution_run_id="r1",
+        structured_stage={"status": "dry_run"},
+        pdf_stage={"status": "dry_run"},
+        claim_stage={"status": "dry_run"},
+        retrieval_stage=retrieval_stage,
+    )
+
+    qa_signals = manifest["qa_signals"]
+    assert qa_signals["all_answers_cited"] is False
+    assert qa_signals["evidence_level"] == "no_answer"
+    assert qa_signals["warning_count"] == 0
+    assert qa_signals["warnings"] == []

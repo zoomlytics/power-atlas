@@ -287,6 +287,14 @@ def run_retrieval_and_qa(
     # Build shared base dict; only status/retrievers/qa and live-specific fields differ.
     # Use citation_run_id/citation_source_uri (which include fallbacks) so stage metadata is
     # always consistent with the provenance fields in citation_object_example.
+    # citation_quality provides a structured per-answer QA signal bundle that manifests and
+    # downstream consumers can query without inspecting individual warning strings.
+    _default_citation_quality: dict[str, object] = {
+        "all_cited": False,
+        "evidence_level": "no_answer",
+        "warning_count": 0,
+        "citation_warnings": [],
+    }
     base: dict[str, object] = {
         "run_id": citation_run_id,
         "source_uri": citation_source_uri,
@@ -298,6 +306,7 @@ def run_retrieval_and_qa(
         "qa_prompt_version": qa_prompt_version,
         "answer": "",
         "all_answers_cited": False,
+        "citation_quality": _default_citation_quality,
         "expand_graph": expand_graph,
         "retrieval_scope": retrieval_scope,
         "citation_token_example": citation_token_example,
@@ -336,6 +345,7 @@ def run_retrieval_and_qa(
     }
 
     warnings_list: list[str] = []
+    citation_warnings_list: list[str] = []
     hits: list[dict[str, object]] = []
 
     if question is None:
@@ -414,9 +424,9 @@ def run_retrieval_and_qa(
                         citation_obj.get("chunk_id"),
                         ", ".join(missing_fields),
                     )
-                    warnings_list.append(
-                        f"Chunk {citation_obj.get('chunk_id')!r} missing citation fields: {', '.join(missing_fields)}"
-                    )
+                    chunk_warning = f"Chunk {citation_obj.get('chunk_id')!r} missing citation fields: {', '.join(missing_fields)}"
+                    warnings_list.append(chunk_warning)
+                    citation_warnings_list.append(chunk_warning)
                 hits.append({"content": item.content, "metadata": meta})
 
     # Check answer citation completeness and record a warning when not fully cited.
@@ -425,6 +435,20 @@ def run_retrieval_and_qa(
         citation_warning = "Not all non-empty answer lines end with a citation token."
         _logger.warning(citation_warning)
         warnings_list.append(citation_warning)
+        citation_warnings_list.append(citation_warning)
+
+    # Build the structured per-answer citation quality signal bundle.
+    # evidence_level encodes the overall quality of the retrieved evidence:
+    #   "no_answer"  – no answer was generated (empty answer text)
+    #   "full"       – every non-empty answer line ends with a citation token
+    #   "degraded"   – one or more lines are missing citation tokens
+    evidence_level = "no_answer" if not answer_text else ("full" if all_cited else "degraded")
+    live_citation_quality: dict[str, object] = {
+        "all_cited": all_cited,
+        "evidence_level": evidence_level,
+        "warning_count": len(citation_warnings_list),
+        "citation_warnings": citation_warnings_list,
+    }
 
     # Use first hit's citation data as example when hits are available so the manifest
     # reflects actual retrieved provenance rather than placeholder values.
@@ -453,6 +477,7 @@ def run_retrieval_and_qa(
         "citation_example": actual_citation_object,
         "answer": answer_text,
         "all_answers_cited": all_cited,
+        "citation_quality": live_citation_quality,
     }
 
 
