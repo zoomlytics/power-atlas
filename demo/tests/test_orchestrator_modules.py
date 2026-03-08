@@ -1036,6 +1036,148 @@ def test_check_all_answers_cited_accepts_multiple_trailing_tokens():
     )
     assert _check_all_answers_cited(answer) is True
 
+
+def test_check_all_answers_cited_rejects_multi_sentence_line_only_last_cited():
+    """_check_all_answers_cited must return False when a single line contains multiple
+    sentences but only the last sentence ends with a citation token.
+
+    This is the key sentence-level check: 'A. B. [CITATION]' must be rejected because
+    sentence 'A.' does not itself end with a citation token.
+    """
+    from demo.stages.retrieval_and_qa import _check_all_answers_cited
+
+    # Two sentences on one line; only the second ends with a citation.
+    answer = (
+        "The audit was completed in 2022. The findings were inconclusive. "
+        "[CITATION|chunk_id=c1|run_id=r1|source_uri=file:///x.pdf|chunk_index=0|page=1|start_char=0|end_char=80]"
+    )
+    assert _check_all_answers_cited(answer) is False
+
+
+def test_check_all_answers_cited_accepts_multi_sentence_line_each_cited():
+    """_check_all_answers_cited must return True when a single line contains multiple
+    sentences and each sentence ends with its own citation token.
+    """
+    from demo.stages.retrieval_and_qa import _check_all_answers_cited
+
+    # Two sentences on one line; each ends with its own citation token.
+    answer = (
+        "The audit was completed in 2022. "
+        "[CITATION|chunk_id=c1|run_id=r1|source_uri=file:///x.pdf|chunk_index=0|page=1|start_char=0|end_char=40] "
+        "The findings were inconclusive. "
+        "[CITATION|chunk_id=c2|run_id=r1|source_uri=file:///x.pdf|chunk_index=1|page=1|start_char=41|end_char=80]"
+    )
+    assert _check_all_answers_cited(answer) is True
+
+
+def test_split_into_segments_newline_splitting():
+    """_split_into_segments must split on newlines and return one segment per non-empty line
+    when lines are simple single-sentence paragraphs."""
+    from demo.stages.retrieval_and_qa import _split_into_segments
+
+    answer = "First sentence. [CITATION|chunk_id=c1|run_id=r1|source_uri=s|chunk_index=0|page=1|start_char=0|end_char=10]\nSecond sentence. [CITATION|chunk_id=c2|run_id=r1|source_uri=s|chunk_index=1|page=1|start_char=11|end_char=20]"
+    segments = _split_into_segments(answer)
+    assert len(segments) == 2
+    assert segments[0] == "First sentence. [CITATION|chunk_id=c1|run_id=r1|source_uri=s|chunk_index=0|page=1|start_char=0|end_char=10]"
+    assert segments[1] == "Second sentence. [CITATION|chunk_id=c2|run_id=r1|source_uri=s|chunk_index=1|page=1|start_char=11|end_char=20]"
+
+
+def test_split_into_segments_sentence_boundary_split():
+    """_split_into_segments must split a multi-sentence paragraph line into separate
+    segments at sentence boundaries (period-space-uppercase)."""
+    from demo.stages.retrieval_and_qa import _split_into_segments
+
+    # Two sentences on one line, no citation tokens; should produce two segments.
+    answer = "Claim A was observed. Claim B was also observed."
+    segments = _split_into_segments(answer)
+    assert len(segments) == 2
+    assert segments[0] == "Claim A was observed."
+    assert segments[1] == "Claim B was also observed."
+
+
+def test_split_into_segments_bullet_lines_not_split():
+    """_split_into_segments must treat bullet lines as atomic units, not splitting them
+    at internal sentence boundaries."""
+    from demo.stages.retrieval_and_qa import _split_into_segments
+
+    answer = "- Bullet one with two claims. Second claim in bullet. [CITATION|chunk_id=c1|run_id=r1|source_uri=s|chunk_index=0|page=1|start_char=0|end_char=50]"
+    segments = _split_into_segments(answer)
+    assert len(segments) == 1
+
+
+def test_split_into_segments_decimal_not_classified_as_bullet():
+    """_split_into_segments must NOT treat a decimal number like '1.23 is...' as a bullet.
+    The updated _BULLET_PREFIX_RE requires whitespace immediately after the digit-period,
+    so '1.23' (digit-period-digit, no space) is correctly classified as a paragraph line."""
+    from demo.stages.retrieval_and_qa import _split_into_segments
+
+    # "1.23 is a ratio." — starts with a decimal, should be a paragraph, not a bullet.
+    # Sentence splitting should apply; "1.23 is a ratio. Evidence shows..." splits.
+    answer = "1.23 is a ratio. Evidence shows a correlation."
+    segments = _split_into_segments(answer)
+    # Not a bullet, so sentence splitting applies at ". E" (uppercase E).
+    assert len(segments) == 2
+    assert segments[0] == "1.23 is a ratio."
+    assert segments[1] == "Evidence shows a correlation."
+
+
+def test_split_into_segments_quoted_sentence_split():
+    """_split_into_segments must split at a sentence boundary even when the next
+    sentence begins with an opening quotation mark before the uppercase letter."""
+    from demo.stages.retrieval_and_qa import _split_into_segments
+
+    # "Claim A. "Claim B..." — period-space-quote-uppercase triggers the split.
+    answer = 'Claim A. "Claim B was also observed.'
+    segments = _split_into_segments(answer)
+    assert len(segments) == 2
+    assert segments[0] == "Claim A."
+    assert segments[1] == '"Claim B was also observed.'
+
+
+def test_split_into_segments_no_split_inside_citation_tokens():
+    """_split_into_segments must not split inside or immediately after citation tokens
+    even when they appear between sentences."""
+    from demo.stages.retrieval_and_qa import _split_into_segments
+
+    # Citation token appears between two sentences; the negative lookahead
+    # (?!CITATION\|) in _SENTENCE_SPLIT_RE blocks the split at ". [CITATION|",
+    # keeping the whole line as a single segment.
+    answer = (
+        "Claim A. "
+        "[CITATION|chunk_id=c1|run_id=r1|source_uri=file:///x.pdf|chunk_index=0|page=1|start_char=0|end_char=20] "
+        "Claim B. "
+        "[CITATION|chunk_id=c2|run_id=r1|source_uri=file:///x.pdf|chunk_index=1|page=1|start_char=21|end_char=40]"
+    )
+    segments = _split_into_segments(answer)
+    # The period in "Claim A." is followed by " [CITATION..." — the negative lookahead
+    # (?!CITATION\|) prevents a split here.  After the citation token ends with ']',
+    # the lookbehind (?<=[.!?]) fails because ']' is not in [.!?].
+    # Therefore no sentence split fires and all text forms a single segment.
+    assert len(segments) == 1
+
+
+def test_split_into_segments_non_citation_bracket_triggers_split():
+    """_split_into_segments must split at a sentence boundary even when the next
+    'sentence' begins with a non-citation bracket (e.g. [Note], [1]).
+    This prevents an uncited sentence from being hidden behind such a bracket."""
+    from demo.stages.retrieval_and_qa import _split_into_segments
+
+    # "Claim A." is followed by "[Note]" (a non-citation bracket), then "Claim B."
+    # with a citation.  Only Claim B is cited; the split must expose Claim A as
+    # uncited.
+    answer = (
+        "Claim A. "
+        "[Note] "
+        "Claim B. "
+        "[CITATION|chunk_id=c1|run_id=r1|source_uri=file:///x.pdf|chunk_index=0|page=1|start_char=0|end_char=50]"
+    )
+    segments = _split_into_segments(answer)
+    # ". [Note]" triggers a split because "\[(?!CITATION\|)" matches "[Note".
+    assert len(segments) == 2
+    assert segments[0] == "Claim A."
+    assert segments[1].startswith("[Note]")
+
+
 def test_retrieval_and_qa_dry_run_includes_interactive_mode_flag(tmp_path: Path):
     """Dry-run result must record interactive_mode and message_history_enabled flags."""
     from demo.stages import run_retrieval_and_qa
