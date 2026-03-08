@@ -73,15 +73,16 @@ _TRAILING_CITATION_RE = re.compile(rf"({re.escape(_CITATION_TOKEN_PREFIX)}[^\]]*
 
 # Regex to split a paragraph line into individual sentences at natural boundaries.
 # Splits at [.!?] followed by whitespace and (optionally) opening punctuation (quotes
-# or parens), then an uppercase letter, which is the typical sentence-start pattern
-# in LLM-generated answers. The uppercase lookahead avoids splitting on common
-# abbreviations ("e.g. something", "U.S. government") and does not split directly
-# before citation tokens (which start with '[', intentionally excluded from the
-# optional-punctuation class to avoid severing "sentence. [CITATION|…]" pairs).
+# or parens), then either an uppercase letter or a '[' that is NOT immediately followed
+# by 'CITATION|'. The latter allows sentence splits before non-citation bracketed text
+# (e.g. "[Note]", "[1]") so that uncited sentences cannot slip through by being
+# followed by such a bracket. '[CITATION|…]' tokens are never split-points: the
+# negative lookahead '(?!CITATION|)' blocks the split, keeping the citation token
+# attached to the sentence it supports.
 # Known limitation: title abbreviations before proper nouns (e.g. "Dr. Smith",
 # "Mr. Jones") will be incorrectly split; this is an acceptable trade-off given the
 # controlled, low-temperature LLM output environment where such patterns are rare.
-_SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+(?=[\"'\u201c\u2018\u2019\u201d(]*[A-Z])")
+_SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+(?=[\"'\u201c\u2018\u2019\u201d(]*(?:[A-Z]|\[(?!CITATION\|)))")
 
 # Bullet line prefix: a line starting with -, *, •, or a number followed by a period,
 # where the bullet marker is followed by at least one whitespace character.
@@ -106,12 +107,18 @@ def _split_into_segments(answer: str) -> list[str]:
     whitespace) are treated as atomic units: the whole bullet, including any sentence
     structure within it, is checked as a single citation segment.
 
-    Citation tokens (``[CITATION|…]``) start with ``[``, which is intentionally excluded
-    from the optional-punctuation class in ``_SENTENCE_SPLIT_RE``.  This prevents
-    ``"sentence. [CITATION|…]"`` from being split into ``"sentence."`` and
-    ``"[CITATION|…]"`` — the citation stays attached to the sentence that it supports.
-    The lookbehind ``(?<=[.!?])`` also prevents spurious splits between citation
-    tokens and the text that follows them (``]`` is not in ``[.!?]``).
+    Citation tokens (``[CITATION|…]``) are intentionally kept attached to the sentence
+    they support.  The negative lookahead ``(?!CITATION\\|)`` in ``_SENTENCE_SPLIT_RE``
+    prevents a split directly before ``[CITATION|``, so ``"sentence. [CITATION|…]"``
+    is never severed.  The lookbehind ``(?<=[.!?])`` also prevents splits between a
+    citation token's closing ``]`` and the text that follows it.
+
+    However, non-citation brackets (e.g. ``[Note]``, ``[1]``) DO trigger a split when
+    they appear after sentence-ending punctuation, because ``\\[(?!CITATION\\|)`` in the
+    lookahead matches any ``[`` not followed by ``CITATION|``.  This ensures that a
+    line like ``"Claim A. [Note] Claim B. [CITATION|…]"`` is split into
+    ``"Claim A."`` (no trailing citation → rejected) and
+    ``"[Note] Claim B. [CITATION|…]"`` (has trailing citation → accepted).
 
     **Known limitation**: title abbreviations before proper nouns (e.g. ``"Dr. Smith"``,
     ``"Mr. Jones"``) will be split at the period.  This is an accepted heuristic

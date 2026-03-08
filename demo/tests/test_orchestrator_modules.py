@@ -1137,8 +1137,9 @@ def test_split_into_segments_no_split_inside_citation_tokens():
     even when they appear between sentences."""
     from demo.stages.retrieval_and_qa import _split_into_segments
 
-    # Citation token appears between two sentences; the token separator must not cause
-    # a spurious third segment.
+    # Citation token appears between two sentences; the negative lookahead
+    # (?!CITATION|) in _SENTENCE_SPLIT_RE blocks the split at ". [CITATION|",
+    # keeping the whole line as a single segment.
     answer = (
         "Claim A. "
         "[CITATION|chunk_id=c1|run_id=r1|source_uri=file:///x.pdf|chunk_index=0|page=1|start_char=0|end_char=20] "
@@ -1146,13 +1147,33 @@ def test_split_into_segments_no_split_inside_citation_tokens():
         "[CITATION|chunk_id=c2|run_id=r1|source_uri=file:///x.pdf|chunk_index=1|page=1|start_char=21|end_char=40]"
     )
     segments = _split_into_segments(answer)
-    # The period in "Claim A." is followed by " [CITATION..." — the space is present,
-    # but the lookahead (?=[…]*[A-Z]) intentionally excludes '[' from the
-    # optional-punctuation class. So the lookahead fails at '[' and no split fires.
-    # After the citation token ends with ']', the next word "Claim B" starts with an
-    # uppercase letter, but the lookbehind (?<=[.!?]) fails because ']' is not in [.!?].
+    # The period in "Claim A." is followed by " [CITATION..." — the negative lookahead
+    # (?!CITATION|) prevents a split here.  After the citation token ends with ']',
+    # the lookbehind (?<=[.!?]) fails because ']' is not in [.!?].
     # Therefore no sentence split fires and all text forms a single segment.
     assert len(segments) == 1
+
+
+def test_split_into_segments_non_citation_bracket_triggers_split():
+    """_split_into_segments must split at a sentence boundary even when the next
+    'sentence' begins with a non-citation bracket (e.g. [Note], [1]).
+    This prevents an uncited sentence from being hidden behind such a bracket."""
+    from demo.stages.retrieval_and_qa import _split_into_segments
+
+    # "Claim A." is followed by "[Note]" (a non-citation bracket), then "Claim B."
+    # with a citation.  Only Claim B is cited; the split must expose Claim A as
+    # uncited.
+    answer = (
+        "Claim A. "
+        "[Note] "
+        "Claim B. "
+        "[CITATION|chunk_id=c1|run_id=r1|source_uri=file:///x.pdf|chunk_index=0|page=1|start_char=0|end_char=50]"
+    )
+    segments = _split_into_segments(answer)
+    # ". [Note]" triggers a split because "\[(?!CITATION\|)" matches "[Note".
+    assert len(segments) == 2
+    assert segments[0] == "Claim A."
+    assert segments[1].startswith("[Note]")
 
 
 def test_retrieval_and_qa_dry_run_includes_interactive_mode_flag(tmp_path: Path):
