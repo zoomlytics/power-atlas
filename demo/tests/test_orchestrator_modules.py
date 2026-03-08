@@ -1876,6 +1876,124 @@ def test_retrieval_and_qa_live_no_question_includes_raw_answer(tmp_path: Path):
     assert result["raw_answer"] == ""
 
 
+def test_retrieval_and_qa_dry_run_includes_citation_fallback_applied(tmp_path: Path):
+    """Dry-run result must include citation_fallback_applied (False) so the result
+    schema is stable across all return paths."""
+    from demo.stages import run_retrieval_and_qa
+
+    config = _dry_run_config(tmp_path)
+    result = run_retrieval_and_qa(config, run_id="qa-dry-flag", source_uri=None)
+
+    assert "citation_fallback_applied" in result
+    assert result["citation_fallback_applied"] is False
+
+
+def test_retrieval_and_qa_live_no_question_includes_citation_fallback_applied(tmp_path: Path):
+    """Live early-return when question=None must include citation_fallback_applied (False)."""
+    from demo.stages import run_retrieval_and_qa
+
+    live_config = Config(
+        dry_run=False,
+        output_dir=tmp_path,
+        neo4j_uri="bolt://example.invalid",
+        neo4j_username="neo4j",
+        neo4j_password="not-used",
+        neo4j_database="neo4j",
+        openai_model="gpt-4o-mini",
+    )
+
+    with mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+        result = run_retrieval_and_qa(live_config, run_id="live-no-q-flag", source_uri=None, question=None)
+
+    assert "citation_fallback_applied" in result
+    assert result["citation_fallback_applied"] is False
+
+
+def test_retrieval_and_qa_live_path_sets_citation_fallback_applied_true_when_uncited(tmp_path: Path):
+    """When the LLM returns an uncited answer, citation_fallback_applied must be True so
+    consumers can detect fallback application via explicit metadata rather than string-prefix
+    matching."""
+    from demo.stages import run_retrieval_and_qa
+
+    uncited_answer = "This answer has no citation tokens at all."
+
+    class _FakeRetriever:
+        def __init__(self, **kwargs):
+            pass
+
+        def search(self, **kwargs):
+            return _make_fake_retriever_result([])
+
+    live_config = Config(
+        dry_run=False,
+        output_dir=tmp_path,
+        neo4j_uri="bolt://example.invalid",
+        neo4j_username="neo4j",
+        neo4j_password="not-used",
+        neo4j_database="neo4j",
+        openai_model="gpt-4o-mini",
+    )
+
+    with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
+    ), mock.patch(
+        "demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class(answer=uncited_answer)
+    ), mock.patch("demo.stages.retrieval_and_qa.OpenAILLM"), mock.patch(
+        "neo4j.GraphDatabase.driver"
+    ), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+        result = run_retrieval_and_qa(
+            live_config,
+            run_id="live-uncited-flag",
+            source_uri=None,
+            question="Any question?",
+        )
+
+    assert result["citation_fallback_applied"] is True
+    assert result["raw_answer"] == uncited_answer
+    assert result["all_answers_cited"] is False
+
+
+def test_retrieval_and_qa_live_path_citation_fallback_applied_false_when_cited(tmp_path: Path):
+    """When the LLM returns a fully-cited answer, citation_fallback_applied must be False."""
+    from demo.stages import run_retrieval_and_qa
+
+    cited_answer = "Power is important.[CITATION|chunk_id=abc|run_id=r|source_uri=s|chunk_index=0|page=1|start_char=0|end_char=10]"
+
+    class _FakeRetriever:
+        def __init__(self, **kwargs):
+            pass
+
+        def search(self, **kwargs):
+            return _make_fake_retriever_result([])
+
+    live_config = Config(
+        dry_run=False,
+        output_dir=tmp_path,
+        neo4j_uri="bolt://example.invalid",
+        neo4j_username="neo4j",
+        neo4j_password="not-used",
+        neo4j_database="neo4j",
+        openai_model="gpt-4o-mini",
+    )
+
+    with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
+    ), mock.patch(
+        "demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class(answer=cited_answer)
+    ), mock.patch("demo.stages.retrieval_and_qa.OpenAILLM"), mock.patch(
+        "neo4j.GraphDatabase.driver"
+    ), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+        result = run_retrieval_and_qa(
+            live_config,
+            run_id="live-cited-flag",
+            source_uri=None,
+            question="Any question?",
+        )
+
+    assert result["citation_fallback_applied"] is False
+    assert result["all_answers_cited"] is True
+
+
 def test_run_interactive_qa_stores_refusal_prefix_in_history(
     tmp_path: Path,
 ):

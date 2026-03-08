@@ -411,6 +411,7 @@ def run_retrieval_and_qa(
         "qa_prompt_version": qa_prompt_version,
         "answer": "",
         "raw_answer": "",
+        "citation_fallback_applied": False,
         "all_answers_cited": False,
         "citation_quality": _default_citation_quality,
         "expand_graph": expand_graph,
@@ -606,6 +607,7 @@ def run_retrieval_and_qa(
         "citation_example": actual_citation_object,
         "answer": answer_text,
         "raw_answer": raw_answer or "",
+        "citation_fallback_applied": uncited,
         "all_answers_cited": all_cited,
         "citation_quality": live_citation_quality,
     }
