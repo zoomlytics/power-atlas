@@ -28,6 +28,23 @@ def build_batch_manifest(
     }
     if entity_resolution_stage is not None:
         stages["entity_resolution"] = {**entity_resolution_stage, "run_id": unstructured_run_id}
+
+    # Surface per-answer citation completeness and warning status at the batch level so
+    # consumers can assess QA quality without inspecting stage-level details.
+    _cq = retrieval_stage.get("citation_quality")
+    retrieval_citation_quality: dict[str, Any] = _cq if isinstance(_cq, dict) else {}
+
+    # Derive warnings from citation_quality so the warning list and count stay consistent.
+    _citation_warnings = retrieval_citation_quality.get("citation_warnings", [])
+    citation_warnings = _citation_warnings if isinstance(_citation_warnings, list) else []
+
+    qa_signals: dict[str, Any] = {
+        "all_answers_cited": retrieval_stage.get("all_answers_cited", False),
+        "evidence_level": retrieval_citation_quality.get("evidence_level", "no_answer"),
+        "warning_count": len(citation_warnings),
+        "warnings": citation_warnings,
+    }
+
     return {
         "run_id": make_run_id("batch"),
         "created_at": datetime.now(UTC).isoformat(),
@@ -42,6 +59,7 @@ def build_batch_manifest(
             "neo4j_database": getattr(config, "neo4j_database", None),
             "openai_model": getattr(config, "openai_model", None),
         },
+        "qa_signals": qa_signals,
         "stages": stages,
     }
 
