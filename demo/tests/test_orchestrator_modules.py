@@ -1370,8 +1370,8 @@ def test_retrieval_and_qa_live_path_no_fallback_when_fully_cited(tmp_path: Path)
 def test_run_interactive_qa_shows_fallback_message_when_uncited(
     tmp_path: Path, capsys: pytest.CaptureFixture
 ):
-    """run_interactive_qa must print the structured fallback message (not the raw uncited
-    answer) when the LLM returns a response without proper citation tokens."""
+    """run_interactive_qa must print the structured fallback message (including the original
+    uncited answer text) when the LLM returns a response without proper citation tokens."""
     from demo.stages.retrieval_and_qa import run_interactive_qa, _CITATION_FALLBACK_PREFIX
 
     uncited_answer = "This claim has no citation and is not grounded."
