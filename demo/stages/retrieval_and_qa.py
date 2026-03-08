@@ -521,7 +521,14 @@ def run_retrieval_and_qa(
         # (UI, manifests, downstream stages) receive an explicit, safe refusal rather
         # than silently propagating an under-cited response.
         answer_text = f"{_CITATION_FALLBACK_PREFIX}: {raw_answer}"
-        _logger.warning("Answer replaced with citation fallback: %s", answer_text)
+        fallback_preview = (
+            answer_text[:200] + "..." if len(answer_text) > 200 else answer_text
+        )
+        _logger.warning(
+            "Answer replaced with citation fallback (length=%d, preview=%r)",
+            len(answer_text),
+            fallback_preview,
+        )
 
     # Build the structured per-answer citation quality signal bundle.
     # evidence_level encodes the overall quality of the retrieved evidence:
