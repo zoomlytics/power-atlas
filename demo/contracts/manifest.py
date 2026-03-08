@@ -33,11 +33,16 @@ def build_batch_manifest(
     # consumers can assess QA quality without inspecting stage-level details.
     _cq = retrieval_stage.get("citation_quality")
     retrieval_citation_quality: dict[str, Any] = _cq if isinstance(_cq, dict) else {}
+
+    # Derive warnings from citation_quality so the warning list and count stay consistent.
+    _citation_warnings = retrieval_citation_quality.get("citation_warnings", [])
+    citation_warnings = _citation_warnings if isinstance(_citation_warnings, list) else []
+
     qa_signals: dict[str, Any] = {
         "all_answers_cited": retrieval_stage.get("all_answers_cited", False),
         "evidence_level": retrieval_citation_quality.get("evidence_level", "no_answer"),
-        "warning_count": retrieval_citation_quality.get("warning_count", 0),
-        "warnings": retrieval_stage.get("warnings", []),
+        "warning_count": len(citation_warnings),
+        "warnings": citation_warnings,
     }
 
     return {
