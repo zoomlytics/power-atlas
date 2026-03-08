@@ -98,6 +98,31 @@ _BULLET_PREFIX_RE = re.compile(r"^([-*•]\s+|\d+\.\s+)")
 _CITATION_FALLBACK_PREFIX = "Insufficient citations detected"
 
 
+def _build_citation_fallback(answer: str) -> tuple[str, str, bool]:
+    """Compute citation-fallback display and history answers for a single LLM response.
+
+    Both ``run_retrieval_and_qa`` and ``run_interactive_qa`` share this helper so
+    that fallback-format changes (prefix text, separator, etc.) are applied in one place.
+
+    Args:
+        answer: Raw LLM answer text (may or may not contain citation tokens).
+
+    Returns:
+        A three-tuple ``(display_answer, history_answer, is_uncited)`` where:
+        - *display_answer*: Message to show the user.  When uncited, this is the
+          fallback prefix followed by the original answer text so the content is
+          visible but clearly labeled; otherwise it equals *answer* unchanged.
+        - *history_answer*: Sanitized message for conversation history.  When
+          uncited, only the bare refusal prefix is stored so subsequent turns are
+          not conditioned on under-cited content; otherwise it equals *answer*.
+        - *is_uncited*: ``True`` when the answer lacks required citation tokens.
+    """
+    is_uncited = bool(answer and not _check_all_answers_cited(answer))
+    display_answer = f"{_CITATION_FALLBACK_PREFIX}: {answer}" if is_uncited else answer
+    history_answer = _CITATION_FALLBACK_PREFIX if is_uncited else answer
+    return display_answer, history_answer, is_uncited
+
+
 def _split_into_segments(answer: str) -> list[str]:
     """Split answer text into citation-checkable segments (sentences and bullets).
 
@@ -514,7 +539,11 @@ def run_retrieval_and_qa(
     # raw_answer preserves the original LLM output for transparency/debugging regardless
     # of whether a fallback replacement is applied.
     raw_answer = answer_text
-    all_cited = _check_all_answers_cited(answer_text) if answer_text else False
+    answer_text, _, uncited = _build_citation_fallback(answer_text)
+    # all_cited is False both when the answer is empty (nothing to cite) and when
+    # the helper finds uncited sentences; True only when the answer is non-empty
+    # and every segment carries a trailing citation token.
+    all_cited = bool(raw_answer) and not uncited
     if answer_text and not all_cited:
         citation_warning = "Not all answer sentences or bullets end with a citation token."
         _logger.warning(citation_warning)
@@ -523,7 +552,6 @@ def run_retrieval_and_qa(
         # Replace the uncited answer with a structured fallback so that all consumers
         # (UI, manifests, downstream stages) receive an explicit, safe refusal rather
         # than silently propagating an under-cited response.
-        answer_text = f"{_CITATION_FALLBACK_PREFIX}: {raw_answer}"
         fallback_preview = (
             answer_text[:200] + "..." if len(answer_text) > 200 else answer_text
         )
@@ -670,8 +698,7 @@ def run_interactive_qa(
                     message_history=history,
                 )
                 answer = rag_result.answer if rag_result else ""
-                uncited = bool(answer and not _check_all_answers_cited(answer))
-                display_answer = f"{_CITATION_FALLBACK_PREFIX}: {answer}" if uncited else answer
+                display_answer, history_answer, uncited = _build_citation_fallback(answer)
                 print(f"\nAnswer:\n{display_answer}\n")
                 if uncited:
                     _logger.warning("Not all answer sentences or bullets end with a citation token.")
@@ -681,7 +708,6 @@ def run_interactive_qa(
                 # Store only the refusal prefix (not the full uncited output) in history
                 # so that subsequent turns are not conditioned on under-cited content.
                 # The full fallback text is still printed to the user above.
-                history_answer = _CITATION_FALLBACK_PREFIX if uncited else answer
                 history.add_messages(
                     [
                         LLMMessage(role="user", content=question),

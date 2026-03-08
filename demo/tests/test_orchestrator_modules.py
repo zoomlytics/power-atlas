@@ -1876,7 +1876,7 @@ def test_retrieval_and_qa_live_no_question_includes_raw_answer(tmp_path: Path):
     assert result["raw_answer"] == ""
 
 
-def test_run_interactive_qa_stores_fallback_in_history(
+def test_run_interactive_qa_stores_refusal_prefix_in_history(
     tmp_path: Path,
 ):
     """run_interactive_qa must store only the sanitized refusal prefix (not the full
