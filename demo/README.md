@@ -114,8 +114,9 @@ sentence split catches this case.
 - `citation_quality.evidence_level` is set to `"degraded"` instead of `"full"`.
 - **The `answer` field is replaced with a structured fallback message** prefixed with
   `"Insufficient citations detected: "` followed by the original LLM output.  This
-  ensures that all consumers (UI, manifests, downstream stages) receive an explicit,
-  safe refusal rather than silently propagating an under-cited response.
+  keeps the answer visible but clearly labeled as under-cited, so consumers (UI,
+  manifests, downstream stages) can treat it as degraded/unsafe instead of silently
+  assuming it is fully grounded.
 - The original (uncited) LLM output is preserved in the `raw_answer` field for
   transparency, debugging, and audit logging.
 - An additional warning log records that the fallback was applied, including a
