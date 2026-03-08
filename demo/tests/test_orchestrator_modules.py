@@ -1314,3 +1314,117 @@ def test_retrieval_and_qa_live_path_qa_model_never_none(tmp_path: Path):
     assert result["qa_model"] is not None
     assert result["qa_model"] != ""
     assert result["qa_model"] == "gpt-4o-mini"
+
+
+def test_run_interactive_qa_prints_citation_warning_when_uncited(
+    tmp_path: Path, capsys: pytest.CaptureFixture
+):
+    """run_interactive_qa must print a visible citation warning to stdout when the
+    answer contains lines without citation tokens (degraded evidence quality)."""
+    from demo.stages.retrieval_and_qa import run_interactive_qa
+
+    uncited_answer = "This claim has no citation and is not grounded."
+
+    class _FakeRetriever:
+        def __init__(self, **kwargs):
+            pass
+
+        def search(self, **kwargs):
+            return _make_fake_retriever_result([])
+
+    # Stub GraphRAG to return an uncited answer on the first question, then simulate EOF
+    call_count = {"n": 0}
+
+    class _FakeGraphRAG:
+        def __init__(self, *, retriever, llm, prompt_template=None):
+            pass
+
+        def search(self, *, query_text="", retriever_config=None, return_context=None, message_history=None, **kwargs):
+            call_count["n"] += 1
+            return _make_fake_rag_result([], answer=uncited_answer)
+
+    live_config = Config(
+        dry_run=False,
+        output_dir=tmp_path,
+        neo4j_uri="bolt://example.invalid",
+        neo4j_username="neo4j",
+        neo4j_password="not-used",
+        neo4j_database="neo4j",
+        openai_model="gpt-4o-mini",
+    )
+
+    # Simulate one question then EOF so the REPL exits cleanly.
+    inputs = iter(["What happened?"])
+
+    def _fake_input(_prompt=""):
+        try:
+            return next(inputs)
+        except StopIteration:
+            raise EOFError
+
+    with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
+    ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _FakeGraphRAG), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAILLM"
+    ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(
+        os.environ, {"OPENAI_API_KEY": "test-key"}
+    ), mock.patch("builtins.input", _fake_input):
+        run_interactive_qa(live_config, run_id="interactive-run-uncited")
+
+    captured = capsys.readouterr()
+    assert "WARNING" in captured.out
+    assert "cited" in captured.out.lower() or "citation" in captured.out.lower()
+    assert "degraded" in captured.out.lower()
+
+
+def test_run_interactive_qa_no_warning_when_fully_cited(
+    tmp_path: Path, capsys: pytest.CaptureFixture
+):
+    """run_interactive_qa must NOT print a citation warning when every answer line is cited."""
+    from demo.stages.retrieval_and_qa import run_interactive_qa
+
+    cited_answer = "All claims are supported. [CITATION|chunk_id=c1|run_id=r1|source_uri=file:///doc.pdf|chunk_index=0|page=1|start_char=0|end_char=10]"
+
+    class _FakeRetriever:
+        def __init__(self, **kwargs):
+            pass
+
+        def search(self, **kwargs):
+            return _make_fake_retriever_result([])
+
+    class _FakeGraphRAG:
+        def __init__(self, *, retriever, llm, prompt_template=None):
+            pass
+
+        def search(self, *, query_text="", retriever_config=None, return_context=None, message_history=None, **kwargs):
+            return _make_fake_rag_result([], answer=cited_answer)
+
+    live_config = Config(
+        dry_run=False,
+        output_dir=tmp_path,
+        neo4j_uri="bolt://example.invalid",
+        neo4j_username="neo4j",
+        neo4j_password="not-used",
+        neo4j_database="neo4j",
+        openai_model="gpt-4o-mini",
+    )
+
+    inputs = iter(["What happened?"])
+
+    def _fake_input(_prompt=""):
+        try:
+            return next(inputs)
+        except StopIteration:
+            raise EOFError
+
+    with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
+    ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _FakeGraphRAG), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAILLM"
+    ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(
+        os.environ, {"OPENAI_API_KEY": "test-key"}
+    ), mock.patch("builtins.input", _fake_input):
+        run_interactive_qa(live_config, run_id="interactive-run-cited")
+
+    captured = capsys.readouterr()
+    assert "WARNING" not in captured.out and "degraded" not in captured.out.lower()
