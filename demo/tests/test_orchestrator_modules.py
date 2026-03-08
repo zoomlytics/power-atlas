@@ -1103,6 +1103,35 @@ def test_split_into_segments_bullet_lines_not_split():
     assert len(segments) == 1
 
 
+def test_split_into_segments_decimal_not_classified_as_bullet():
+    """_split_into_segments must NOT treat a decimal number like '1.23 is...' as a bullet.
+    The updated _BULLET_PREFIX_RE requires whitespace immediately after the digit-period,
+    so '1.23' (digit-period-digit, no space) is correctly classified as a paragraph line."""
+    from demo.stages.retrieval_and_qa import _split_into_segments
+
+    # "1.23 is a ratio." — starts with a decimal, should be a paragraph, not a bullet.
+    # Sentence splitting should apply; "1.23 is a ratio. Evidence shows..." splits.
+    answer = "1.23 is a ratio. Evidence shows a correlation."
+    segments = _split_into_segments(answer)
+    # Not a bullet, so sentence splitting applies at ". E" (uppercase E).
+    assert len(segments) == 2
+    assert segments[0] == "1.23 is a ratio."
+    assert segments[1] == "Evidence shows a correlation."
+
+
+def test_split_into_segments_quoted_sentence_split():
+    """_split_into_segments must split at a sentence boundary even when the next
+    sentence begins with an opening quotation mark before the uppercase letter."""
+    from demo.stages.retrieval_and_qa import _split_into_segments
+
+    # "Claim A. "Claim B..." — period-space-quote-uppercase triggers the split.
+    answer = 'Claim A. "Claim B was also observed.'
+    segments = _split_into_segments(answer)
+    assert len(segments) == 2
+    assert segments[0] == "Claim A."
+    assert segments[1] == '"Claim B was also observed.'
+
+
 def test_split_into_segments_no_split_inside_citation_tokens():
     """_split_into_segments must not split inside or immediately after citation tokens
     even when they appear between sentences."""
@@ -1118,7 +1147,8 @@ def test_split_into_segments_no_split_inside_citation_tokens():
     )
     segments = _split_into_segments(answer)
     # The period in "Claim A." is followed by " [CITATION..." — the space is present,
-    # but the lookahead (?=[A-Z]) fails because the next char is '[', not uppercase.
+    # but the lookahead (?=[…]*[A-Z]) intentionally excludes '[' from the
+    # optional-punctuation class. So the lookahead fails at '[' and no split fires.
     # After the citation token ends with ']', the next word "Claim B" starts with an
     # uppercase letter, but the lookbehind (?<=[.!?]) fails because ']' is not in [.!?].
     # Therefore no sentence split fires and all text forms a single segment.

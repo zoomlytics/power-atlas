@@ -72,19 +72,22 @@ _CITATION_TOKEN_PREFIX = "[CITATION|"
 _TRAILING_CITATION_RE = re.compile(rf"({re.escape(_CITATION_TOKEN_PREFIX)}[^\]]*\])+\s*$")
 
 # Regex to split a paragraph line into individual sentences at natural boundaries.
-# Splits at [.!?] followed by whitespace and an uppercase letter, which is the
-# typical sentence-start pattern in LLM-generated answers.  The uppercase lookahead
-# avoids splitting on common abbreviations ("e.g. something", "U.S. government") and
-# does not split directly before citation tokens (which start with '[', not uppercase).
+# Splits at [.!?] followed by whitespace and (optionally) opening punctuation (quotes
+# or parens), then an uppercase letter, which is the typical sentence-start pattern
+# in LLM-generated answers. The uppercase lookahead avoids splitting on common
+# abbreviations ("e.g. something", "U.S. government") and does not split directly
+# before citation tokens (which start with '[', intentionally excluded from the
+# optional-punctuation class to avoid severing "sentence. [CITATION|…]" pairs).
 # Known limitation: title abbreviations before proper nouns (e.g. "Dr. Smith",
 # "Mr. Jones") will be incorrectly split; this is an acceptable trade-off given the
 # controlled, low-temperature LLM output environment where such patterns are rare.
-_SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+(?=[A-Z])")
+_SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+(?=[\"'\u201c\u2018\u2019\u201d(]*[A-Z])")
 
-# Bullet line prefix: a line starting with -, *, •, or a number followed by a period.
+# Bullet line prefix: a line starting with -, *, •, or a number followed by a period,
+# where the bullet marker is followed by at least one whitespace character.
 # Grouping both alternatives inside the outer group ensures the '^' start anchor
 # applies to both, making the pattern unambiguous regardless of match mode.
-_BULLET_PREFIX_RE = re.compile(r"^([-*•]|\d+\.)")
+_BULLET_PREFIX_RE = re.compile(r"^([-*•]\s+|\d+\.\s+)")
 
 
 def _split_into_segments(answer: str) -> list[str]:
@@ -94,22 +97,21 @@ def _split_into_segments(answer: str) -> list[str]:
 
     1. **Newline split**: each line is treated separately.
     2. **Sentence split within paragraphs**: non-bullet lines are further split at
-       sentence boundaries (``[.!?]`` followed by whitespace and an uppercase letter)
-       so that multi-sentence paragraphs are validated sentence-by-sentence rather
-       than only checking whether the paragraph line ends with a citation.
+       sentence boundaries (``[.!?]`` followed by whitespace and optional opening
+       punctuation, then an uppercase letter) so that multi-sentence paragraphs are
+       validated sentence-by-sentence rather than only checking whether the paragraph
+       line ends with a citation.
 
-    Bullet lines (starting with ``-``, ``*``, ``•``, or a digit followed by ``.``)
-    are treated as atomic units: the whole bullet, including any sentence structure
-    within it, is checked as a single citation segment.
+    Bullet lines (starting with ``-``, ``*``, ``•``, or a digit followed by ``.`` and
+    whitespace) are treated as atomic units: the whole bullet, including any sentence
+    structure within it, is checked as a single citation segment.
 
-    Citation tokens (``[CITATION|…]``) start with ``[``, not uppercase, so the
-    ``(?=[A-Z])`` lookahead in ``_SENTENCE_SPLIT_RE`` prevents false splits inside
-    or directly around tokens.  Specifically, text like ``"A. [CITATION|…] B."``
-    does NOT split between the citation token and ``B`` because the character
-    immediately before the whitespace+uppercase is ``]`` (end of citation token),
-    not ``[.!?]``; only the bare period after ``A`` could trigger the lookbehind,
-    but it is not immediately before an uppercase letter — it is followed by the
-    citation token which starts with ``[``.
+    Citation tokens (``[CITATION|…]``) start with ``[``, which is intentionally excluded
+    from the optional-punctuation class in ``_SENTENCE_SPLIT_RE``.  This prevents
+    ``"sentence. [CITATION|…]"`` from being split into ``"sentence."`` and
+    ``"[CITATION|…]"`` — the citation stays attached to the sentence that it supports.
+    The lookbehind ``(?<=[.!?])`` also prevents spurious splits between citation
+    tokens and the text that follows them (``]`` is not in ``[.!?]``).
 
     **Known limitation**: title abbreviations before proper nouns (e.g. ``"Dr. Smith"``,
     ``"Mr. Jones"``) will be split at the period.  This is an accepted heuristic
@@ -639,9 +641,9 @@ def run_interactive_qa(
                 answer = rag_result.answer if rag_result else ""
                 print(f"\nAnswer:\n{answer}\n")
                 if answer and not _check_all_answers_cited(answer):
-                    _logger.warning("Not all non-empty answer lines end with a citation token.")
+                    _logger.warning("Not all answer sentences or bullets end with a citation token.")
                     print(
-                        "⚠ WARNING: Not all answer lines are cited — evidence quality may be degraded."
+                        "⚠ WARNING: Not all answer sentences or bullets are cited — evidence quality may be degraded."
                     )
                 history.add_messages(
                     [
