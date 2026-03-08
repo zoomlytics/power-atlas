@@ -90,6 +90,11 @@ _SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+(?=[\"'\u201c\u2018\u2019\u201d(]
 # applies to both, making the pattern unambiguous regardless of match mode.
 _BULLET_PREFIX_RE = re.compile(r"^([-*•]\s+|\d+\.\s+)")
 
+# Prefix used when replacing an uncited answer with a structured fallback message.
+# Consumers (UI, manifests, downstream stages) can detect a fallback answer by checking
+# whether the answer starts with this prefix.
+_CITATION_FALLBACK_PREFIX = "Insufficient citations detected"
+
 
 def _split_into_segments(answer: str) -> list[str]:
     """Split answer text into citation-checkable segments (sentences and bullets).
@@ -502,13 +507,21 @@ def run_retrieval_and_qa(
                     citation_warnings_list.append(chunk_warning)
                 hits.append({"content": item.content, "metadata": meta})
 
-    # Check answer citation completeness and record a warning when not fully cited.
+    # Check answer citation completeness; apply controlled fallback when not fully cited.
+    # raw_answer preserves the original LLM output for transparency/debugging regardless
+    # of whether a fallback replacement is applied.
+    raw_answer = answer_text
     all_cited = _check_all_answers_cited(answer_text) if answer_text else False
     if answer_text and not all_cited:
         citation_warning = "Not all answer sentences or bullets end with a citation token."
         _logger.warning(citation_warning)
         warnings_list.append(citation_warning)
         citation_warnings_list.append(citation_warning)
+        # Replace the uncited answer with a structured fallback so that all consumers
+        # (UI, manifests, downstream stages) receive an explicit, safe refusal rather
+        # than silently propagating an under-cited response.
+        answer_text = f"{_CITATION_FALLBACK_PREFIX}: {raw_answer}"
+        _logger.warning("Answer replaced with citation fallback: %s", answer_text)
 
     # Build the structured per-answer citation quality signal bundle.
     # evidence_level encodes the overall quality of the retrieved evidence:
@@ -554,6 +567,7 @@ def run_retrieval_and_qa(
         "citation_object_example": actual_citation_object,
         "citation_example": actual_citation_object,
         "answer": answer_text,
+        "raw_answer": raw_answer,
         "all_answers_cited": all_cited,
         "citation_quality": live_citation_quality,
     }
@@ -646,8 +660,10 @@ def run_interactive_qa(
                     message_history=history,
                 )
                 answer = rag_result.answer if rag_result else ""
-                print(f"\nAnswer:\n{answer}\n")
-                if answer and not _check_all_answers_cited(answer):
+                uncited = bool(answer and not _check_all_answers_cited(answer))
+                display_answer = f"{_CITATION_FALLBACK_PREFIX}: {answer}" if uncited else answer
+                print(f"\nAnswer:\n{display_answer}\n")
+                if uncited:
                     _logger.warning("Not all answer sentences or bullets end with a citation token.")
                     print(
                         "⚠ WARNING: Not all answer sentences or bullets are cited — evidence quality may be degraded."
@@ -665,5 +681,6 @@ def run_interactive_qa(
 __all__ = [
     "run_retrieval_and_qa",
     "run_interactive_qa",
+    "_CITATION_FALLBACK_PREFIX",
 ]
 

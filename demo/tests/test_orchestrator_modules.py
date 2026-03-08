@@ -1275,6 +1275,255 @@ def test_retrieval_and_qa_live_path_records_warning_when_uncited(tmp_path: Path)
     assert result["all_answers_cited"] is False
     assert any("citation" in w.lower() for w in result["warnings"])
 
+
+def test_retrieval_and_qa_live_path_applies_fallback_when_uncited(tmp_path: Path):
+    """Live path must replace the answer with a structured fallback message when the
+    answer contains uncited sentences, and preserve the original in raw_answer."""
+    from demo.stages import run_retrieval_and_qa
+    from demo.stages.retrieval_and_qa import _CITATION_FALLBACK_PREFIX
+
+    uncited_answer = "This claim has no citation and is not grounded."
+
+    class _FakeRetriever:
+        def __init__(self, **kwargs):
+            pass
+
+        def search(self, **kwargs):
+            return _make_fake_retriever_result([])
+
+    live_config = Config(
+        dry_run=False,
+        output_dir=tmp_path,
+        neo4j_uri="bolt://example.invalid",
+        neo4j_username="neo4j",
+        neo4j_password="not-used",
+        neo4j_database="neo4j",
+        openai_model="gpt-4o-mini",
+    )
+
+    with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
+    ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class(answer=uncited_answer)), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAILLM"
+    ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+        result = run_retrieval_and_qa(
+            live_config,
+            run_id="live-run-fallback",
+            source_uri=None,
+            question="What happened?",
+        )
+
+    # answer must be replaced with the structured fallback prefix
+    assert result["answer"].startswith(_CITATION_FALLBACK_PREFIX + ":")
+    # raw_answer must contain the original LLM output
+    assert result["raw_answer"] == uncited_answer
+    # answer and raw_answer must differ (fallback was applied)
+    assert result["answer"] != result["raw_answer"]
+
+
+def test_retrieval_and_qa_live_path_no_fallback_when_fully_cited(tmp_path: Path):
+    """Live path must NOT apply a fallback when all answer sentences are cited: answer
+    must equal the original LLM output and raw_answer must also match."""
+    from demo.stages import run_retrieval_and_qa
+    from demo.stages.retrieval_and_qa import _CITATION_FALLBACK_PREFIX
+
+    cited_answer = (
+        "All claims are supported. [CITATION|chunk_id=c1|run_id=live-ok|"
+        "source_uri=file:///doc.pdf|chunk_index=0|page=1|start_char=0|end_char=10]"
+    )
+
+    class _FakeRetriever:
+        def __init__(self, **kwargs):
+            pass
+
+        def search(self, **kwargs):
+            return _make_fake_retriever_result([])
+
+    live_config = Config(
+        dry_run=False,
+        output_dir=tmp_path,
+        neo4j_uri="bolt://example.invalid",
+        neo4j_username="neo4j",
+        neo4j_password="not-used",
+        neo4j_database="neo4j",
+        openai_model="gpt-4o-mini",
+    )
+
+    with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
+    ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class(answer=cited_answer)), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAILLM"
+    ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+        result = run_retrieval_and_qa(
+            live_config,
+            run_id="live-ok",
+            source_uri=None,
+            question="What happened?",
+        )
+
+    # No fallback for fully cited answers
+    assert not result["answer"].startswith(_CITATION_FALLBACK_PREFIX)
+    assert result["answer"] == cited_answer
+    assert result["raw_answer"] == cited_answer
+
+
+def test_run_interactive_qa_shows_fallback_message_when_uncited(
+    tmp_path: Path, capsys: pytest.CaptureFixture
+):
+    """run_interactive_qa must print the structured fallback message (not the raw uncited
+    answer) when the LLM returns a response without proper citation tokens."""
+    from demo.stages.retrieval_and_qa import run_interactive_qa, _CITATION_FALLBACK_PREFIX
+
+    uncited_answer = "This claim has no citation and is not grounded."
+
+    class _FakeRetriever:
+        def __init__(self, **kwargs):
+            pass
+
+        def search(self, **kwargs):
+            return _make_fake_retriever_result([])
+
+    class _FakeGraphRAG:
+        def __init__(self, *, retriever, llm, prompt_template=None):
+            pass
+
+        def search(self, *, query_text="", retriever_config=None, return_context=None, message_history=None, **kwargs):
+            return _make_fake_rag_result([], answer=uncited_answer)
+
+    live_config = Config(
+        dry_run=False,
+        output_dir=tmp_path,
+        neo4j_uri="bolt://example.invalid",
+        neo4j_username="neo4j",
+        neo4j_password="not-used",
+        neo4j_database="neo4j",
+        openai_model="gpt-4o-mini",
+    )
+
+    inputs = iter(["What happened?"])
+
+    def _fake_input(_prompt=""):
+        try:
+            return next(inputs)
+        except StopIteration:
+            raise EOFError
+
+    with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
+    ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _FakeGraphRAG), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAILLM"
+    ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(
+        os.environ, {"OPENAI_API_KEY": "test-key"}
+    ), mock.patch("builtins.input", _fake_input):
+        run_interactive_qa(live_config, run_id="interactive-run-fallback")
+
+    captured = capsys.readouterr()
+    # The fallback prefix must appear in the printed answer
+    assert _CITATION_FALLBACK_PREFIX in captured.out
+    # The raw uncited answer text should still be visible (embedded in the fallback message)
+    assert uncited_answer in captured.out
+
+
+def test_run_interactive_qa_does_not_show_fallback_when_fully_cited(
+    tmp_path: Path, capsys: pytest.CaptureFixture
+):
+    """run_interactive_qa must print the answer as-is (no fallback prefix) when every
+    answer sentence ends with a citation token."""
+    from demo.stages.retrieval_and_qa import run_interactive_qa, _CITATION_FALLBACK_PREFIX
+
+    cited_answer = (
+        "All claims are supported. [CITATION|chunk_id=c1|run_id=r1|"
+        "source_uri=file:///doc.pdf|chunk_index=0|page=1|start_char=0|end_char=10]"
+    )
+
+    class _FakeRetriever:
+        def __init__(self, **kwargs):
+            pass
+
+        def search(self, **kwargs):
+            return _make_fake_retriever_result([])
+
+    class _FakeGraphRAG:
+        def __init__(self, *, retriever, llm, prompt_template=None):
+            pass
+
+        def search(self, *, query_text="", retriever_config=None, return_context=None, message_history=None, **kwargs):
+            return _make_fake_rag_result([], answer=cited_answer)
+
+    live_config = Config(
+        dry_run=False,
+        output_dir=tmp_path,
+        neo4j_uri="bolt://example.invalid",
+        neo4j_username="neo4j",
+        neo4j_password="not-used",
+        neo4j_database="neo4j",
+        openai_model="gpt-4o-mini",
+    )
+
+    inputs = iter(["What happened?"])
+
+    def _fake_input(_prompt=""):
+        try:
+            return next(inputs)
+        except StopIteration:
+            raise EOFError
+
+    with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
+    ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _FakeGraphRAG), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAILLM"
+    ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(
+        os.environ, {"OPENAI_API_KEY": "test-key"}
+    ), mock.patch("builtins.input", _fake_input):
+        run_interactive_qa(live_config, run_id="interactive-run-no-fallback")
+
+    captured = capsys.readouterr()
+    # No fallback prefix for fully cited answers
+    assert _CITATION_FALLBACK_PREFIX not in captured.out
+
+
+def test_retrieval_and_qa_live_path_fallback_answer_contains_original_text(tmp_path: Path):
+    """The fallback answer must embed the original (uncited) LLM output so the
+    specific uncited content is visible in logs and artifacts."""
+    from demo.stages import run_retrieval_and_qa
+    from demo.stages.retrieval_and_qa import _CITATION_FALLBACK_PREFIX
+
+    uncited_answer = "The suspect was identified at the scene without any citation."
+
+    class _FakeRetriever:
+        def __init__(self, **kwargs):
+            pass
+
+        def search(self, **kwargs):
+            return _make_fake_retriever_result([])
+
+    live_config = Config(
+        dry_run=False,
+        output_dir=tmp_path,
+        neo4j_uri="bolt://example.invalid",
+        neo4j_username="neo4j",
+        neo4j_password="not-used",
+        neo4j_database="neo4j",
+        openai_model="gpt-4o-mini",
+    )
+
+    with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
+    ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class(answer=uncited_answer)), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAILLM"
+    ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+        result = run_retrieval_and_qa(
+            live_config,
+            run_id="live-run-embed",
+            source_uri=None,
+            question="Who was identified?",
+        )
+
+    # The fallback answer must embed the original text so it can be surfaced in artifacts
+    assert uncited_answer in result["answer"]
+    assert result["answer"] == f"{_CITATION_FALLBACK_PREFIX}: {uncited_answer}"
+
+
 def test_retrieval_and_qa_live_path_passes_message_history_to_graphrag(tmp_path: Path):
     """When message_history is provided, it must be forwarded to GraphRAG.search() and
     message_history_enabled must be True in the result."""
