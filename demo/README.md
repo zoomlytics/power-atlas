@@ -118,7 +118,7 @@ sentence split catches this case.
   safe refusal rather than silently propagating an under-cited response.
 - The original (uncited) LLM output is preserved in the `raw_answer` field for
   transparency, debugging, and audit logging.
-- A second `logger.warning` call records that the fallback was applied, including the
+- An additional warning log records that the fallback was applied, including the
   full fallback message, so the event is captured in log streams and CI artifacts.
 - In the interactive REPL (`run_interactive_qa`), the fallback message is printed in
   place of the raw answer so users see a clear failure signal rather than ungrounded
