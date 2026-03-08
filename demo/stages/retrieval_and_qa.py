@@ -567,7 +567,7 @@ def run_retrieval_and_qa(
         "citation_object_example": actual_citation_object,
         "citation_example": actual_citation_object,
         "answer": answer_text,
-        "raw_answer": raw_answer,
+        "raw_answer": raw_answer or "",
         "all_answers_cited": all_cited,
         "citation_quality": live_citation_quality,
     }
