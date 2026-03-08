@@ -383,6 +383,7 @@ def run_retrieval_and_qa(
         "qa_model": effective_qa_model,
         "qa_prompt_version": qa_prompt_version,
         "answer": "",
+        "raw_answer": "",
         "all_answers_cited": False,
         "citation_quality": _default_citation_quality,
         "expand_graph": expand_graph,
@@ -678,7 +679,7 @@ def run_interactive_qa(
                 history.add_messages(
                     [
                         LLMMessage(role="user", content=question),
-                        LLMMessage(role="assistant", content=answer),
+                        LLMMessage(role="assistant", content=display_answer),
                     ]
                 )
         except KeyboardInterrupt:

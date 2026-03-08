@@ -1843,6 +1843,108 @@ def test_retrieval_and_qa_dry_run_includes_citation_quality(tmp_path: Path):
     assert cq["citation_warnings"] == []
 
 
+def test_retrieval_and_qa_dry_run_includes_raw_answer(tmp_path: Path):
+    """Dry-run result must include a raw_answer key (defaulting to '') so the
+    result schema is stable across all return paths."""
+    from demo.stages import run_retrieval_and_qa
+
+    config = _dry_run_config(tmp_path)
+    result = run_retrieval_and_qa(config, run_id="qa-dry-raw", source_uri=None)
+
+    assert "raw_answer" in result
+    assert result["raw_answer"] == ""
+
+
+def test_retrieval_and_qa_live_no_question_includes_raw_answer(tmp_path: Path):
+    """Live early-return when question=None must include raw_answer in result."""
+    from demo.stages import run_retrieval_and_qa
+
+    live_config = Config(
+        dry_run=False,
+        output_dir=tmp_path,
+        neo4j_uri="bolt://example.invalid",
+        neo4j_username="neo4j",
+        neo4j_password="not-used",
+        neo4j_database="neo4j",
+        openai_model="gpt-4o-mini",
+    )
+
+    with mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+        result = run_retrieval_and_qa(live_config, run_id="live-no-q", source_uri=None, question=None)
+
+    assert "raw_answer" in result
+    assert result["raw_answer"] == ""
+
+
+def test_run_interactive_qa_stores_fallback_in_history(
+    tmp_path: Path,
+):
+    """run_interactive_qa must store the fallback message (not the raw uncited text) in
+    conversation history so subsequent turns are not conditioned on uncited content."""
+    from demo.stages.retrieval_and_qa import run_interactive_qa, _CITATION_FALLBACK_PREFIX
+    from neo4j_graphrag.message_history import InMemoryMessageHistory
+
+    uncited_answer = "This claim has no citation and is not grounded."
+    captured_history_messages: list = []
+
+    class _FakeRetriever:
+        def __init__(self, **kwargs):
+            pass
+
+        def search(self, **kwargs):
+            return _make_fake_retriever_result([])
+
+    class _FakeGraphRAG:
+        def __init__(self, *, retriever, llm, prompt_template=None):
+            pass
+
+        def search(self, *, query_text="", retriever_config=None, return_context=None, message_history=None, **kwargs):
+            # Capture the history state after this turn completes via add_messages side-effect
+            return _make_fake_rag_result([], answer=uncited_answer)
+
+    live_config = Config(
+        dry_run=False,
+        output_dir=tmp_path,
+        neo4j_uri="bolt://example.invalid",
+        neo4j_username="neo4j",
+        neo4j_password="not-used",
+        neo4j_database="neo4j",
+        openai_model="gpt-4o-mini",
+    )
+
+    inputs = iter(["What happened?"])
+
+    def _fake_input(_prompt=""):
+        try:
+            return next(inputs)
+        except StopIteration:
+            raise EOFError
+
+    _original_add_messages = InMemoryMessageHistory.add_messages
+
+    def _capturing_add_messages(self, messages):
+        captured_history_messages.extend(messages)
+        return _original_add_messages(self, messages)
+
+    with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
+    ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _FakeGraphRAG), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAILLM"
+    ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(
+        os.environ, {"OPENAI_API_KEY": "test-key"}
+    ), mock.patch("builtins.input", _fake_input), mock.patch.object(
+        InMemoryMessageHistory, "add_messages", _capturing_add_messages
+    ):
+        run_interactive_qa(live_config, run_id="interactive-history-fallback")
+
+    # The assistant message in history must be the fallback, not the raw uncited answer
+    # LLMMessage is a TypedDict (dict subtype), so access via dict keys.
+    assistant_msgs = [m for m in captured_history_messages if m.get("role") == "assistant"]
+    assert len(assistant_msgs) == 1
+    assert assistant_msgs[0]["content"].startswith(_CITATION_FALLBACK_PREFIX + ":")
+    assert assistant_msgs[0]["content"] != uncited_answer
+
+
 def test_retrieval_and_qa_live_path_citation_quality_full_when_all_cited(tmp_path: Path):
     """Live path must set citation_quality.evidence_level='full' and all_cited=True
     when the generated answer contains citation tokens on every line."""
