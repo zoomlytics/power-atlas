@@ -122,9 +122,9 @@ sentence split catches this case.
 - An additional warning log records that the fallback was applied, including a
   200-character preview of the fallback message, so the event is captured in log
   streams and CI artifacts.
-- In the interactive REPL (`run_interactive_qa`), the fallback message is printed in
-  place of the raw answer so users see a clear failure signal rather than ungrounded
-  content.
+- In the interactive REPL (`run_interactive_qa`), the fallback-prefixed answer is
+  printed in place of the raw, unlabeled answer so users see a clear failure signal
+  while still being able to view the original under-cited content.
 
 ## Workflow (golden path)
 
