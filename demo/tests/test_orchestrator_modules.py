@@ -1333,14 +1333,12 @@ def test_run_interactive_qa_prints_citation_warning_when_uncited(
             return _make_fake_retriever_result([])
 
     # Stub GraphRAG to return an uncited answer on the first question, then simulate EOF
-    call_count = {"n": 0}
 
     class _FakeGraphRAG:
         def __init__(self, *, retriever, llm, prompt_template=None):
             pass
 
         def search(self, *, query_text="", retriever_config=None, return_context=None, message_history=None, **kwargs):
-            call_count["n"] += 1
             return _make_fake_rag_result([], answer=uncited_answer)
 
     live_config = Config(
