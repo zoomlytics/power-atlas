@@ -91,8 +91,10 @@ _SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+(?=[\"'\u201c\u2018\u2019\u201d(]
 _BULLET_PREFIX_RE = re.compile(r"^([-*•]\s+|\d+\.\s+)")
 
 # Prefix used when replacing an uncited answer with a structured fallback message.
-# Consumers (UI, manifests, downstream stages) can detect a fallback answer by checking
-# whether the answer starts with this prefix.
+# This is intended for user-visible messaging only; consumers (UI, manifests,
+# downstream stages) should detect fallback answers via explicit metadata
+# (for example, a `citation_fallback_applied` flag or citation-quality fields),
+# not by matching this prefix against the answer text.
 _CITATION_FALLBACK_PREFIX = "Insufficient citations detected"
 
 
