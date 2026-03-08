@@ -676,10 +676,14 @@ def run_interactive_qa(
                     print(
                         "⚠ WARNING: Not all answer sentences or bullets are cited — evidence quality may be degraded."
                     )
+                # Store only the refusal prefix (not the full uncited output) in history
+                # so that subsequent turns are not conditioned on under-cited content.
+                # The full fallback text is still printed to the user above.
+                history_answer = _CITATION_FALLBACK_PREFIX if uncited else answer
                 history.add_messages(
                     [
                         LLMMessage(role="user", content=question),
-                        LLMMessage(role="assistant", content=display_answer),
+                        LLMMessage(role="assistant", content=history_answer),
                     ]
                 )
         except KeyboardInterrupt:

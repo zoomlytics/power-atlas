@@ -1879,8 +1879,9 @@ def test_retrieval_and_qa_live_no_question_includes_raw_answer(tmp_path: Path):
 def test_run_interactive_qa_stores_fallback_in_history(
     tmp_path: Path,
 ):
-    """run_interactive_qa must store the fallback message (not the raw uncited text) in
-    conversation history so subsequent turns are not conditioned on uncited content."""
+    """run_interactive_qa must store only the sanitized refusal prefix (not the full
+    fallback text embedding the uncited output) in conversation history so subsequent
+    turns are not conditioned on under-cited content."""
     from demo.stages.retrieval_and_qa import run_interactive_qa, _CITATION_FALLBACK_PREFIX
     from neo4j_graphrag.message_history import InMemoryMessageHistory
 
@@ -1937,12 +1938,13 @@ def test_run_interactive_qa_stores_fallback_in_history(
     ):
         run_interactive_qa(live_config, run_id="interactive-history-fallback")
 
-    # The assistant message in history must be the fallback, not the raw uncited answer
+    # The assistant message in history must be only the sanitized refusal prefix —
+    # NOT the full fallback (which embeds the uncited output) and NOT the raw uncited answer.
     # LLMMessage is a TypedDict (dict subtype), so access via dict keys.
     assistant_msgs = [m for m in captured_history_messages if m.get("role") == "assistant"]
     assert len(assistant_msgs) == 1
-    assert assistant_msgs[0]["content"].startswith(_CITATION_FALLBACK_PREFIX + ":")
-    assert assistant_msgs[0]["content"] != uncited_answer
+    assert assistant_msgs[0]["content"] == _CITATION_FALLBACK_PREFIX
+    assert uncited_answer not in assistant_msgs[0]["content"]
 
 
 def test_retrieval_and_qa_live_path_citation_quality_full_when_all_cited(tmp_path: Path):
