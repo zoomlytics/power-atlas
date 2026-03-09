@@ -118,12 +118,8 @@ def write_manifest(manifest_path: Path, manifest: dict[str, Any]) -> Path:
     try:
         fd, tmp_name = tempfile.mkstemp(dir=manifest_path.parent, suffix=".tmp")
         tmp_path = Path(tmp_name)
-        try:
-            with os.fdopen(fd, "w", encoding="utf-8") as fh:
-                fh.write(content)
-        except Exception:
-            os.close(fd)
-            raise
+        os.close(fd)
+        tmp_path.write_text(content, encoding="utf-8")
         tmp_path.replace(manifest_path)
         tmp_path = None  # rename succeeded; nothing to clean up
     finally:
@@ -220,15 +216,12 @@ def write_manifest_md(manifest_path: Path, manifest: dict[str, Any]) -> Path:
     md_path = manifest_path.with_suffix(".md")
     content = _manifest_md_summary(manifest)
     md_path.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp_name = tempfile.mkstemp(dir=md_path.parent, suffix=".tmp")
-    tmp_path = Path(tmp_name)
+    tmp_path = None
     try:
-        try:
-            with os.fdopen(fd, "w", encoding="utf-8") as fh:
-                fh.write(content)
-        except Exception:
-            os.close(fd)
-            raise
+        fd, tmp_name = tempfile.mkstemp(dir=md_path.parent, suffix=".tmp")
+        tmp_path = Path(tmp_name)
+        os.close(fd)
+        tmp_path.write_text(content, encoding="utf-8")
         tmp_path.replace(md_path)
         tmp_path = None
     finally:
