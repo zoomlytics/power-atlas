@@ -181,7 +181,7 @@ def _manifest_md_summary(manifest: dict[str, Any]) -> str:
             # Surface key numeric counts when present
             counts = stage_data.get("counts")
             if isinstance(counts, dict):
-                count_parts = ", ".join(f"{k}={v}" for k, v in counts.items())
+                count_parts = ", ".join(f"{k}={v}" for k, v in sorted(counts.items()))
                 lines.append(f"- **counts:** {count_parts}")
             else:
                 for count_key in ("claims", "entities", "relationships", "facts", "chunks"):
@@ -235,5 +235,4 @@ __all__ = [
     "build_stage_manifest",
     "write_manifest",
     "write_manifest_md",
-    "_manifest_md_summary",
 ]

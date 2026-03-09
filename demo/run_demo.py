@@ -38,7 +38,16 @@ from demo.stages import (
     run_retrieval_and_qa,
     run_structured_ingest,
 )
-from demo.stages.pdf_ingest import _sha256_file  # noqa: F401 - re-exported so run_demo module exposes it for callers and tests
+from demo.stages.pdf_ingest import _sha256_file
+
+
+def sha256_file(path: Path, *, chunk_size: int = 1024 * 1024) -> str:
+    """Return the SHA-256 hex digest of *path*.
+
+    Public wrapper around the internal ``_sha256_file`` helper so callers and
+    tests can reference a stable, non-private symbol on this module.
+    """
+    return _sha256_file(path, chunk_size=chunk_size)
 
 
 def _now_iso() -> str:
