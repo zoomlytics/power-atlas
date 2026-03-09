@@ -1153,8 +1153,14 @@ class ResetDemoDbTests(unittest.TestCase):
         )
 
         fake_indexes = types.ModuleType("neo4j_graphrag.indexes")
-        fake_indexes.drop_index_if_exists = lambda driver, name, neo4j_database=None: drop_calls.append(name)
 
+        def _fake_drop_index_if_exists(driver, name, database_: str | None = None):
+            # `database_` matches the real helper's keyword argument name.
+            # Assert on the argument to help tests catch API/usage mismatches.
+            assert database_ is None or isinstance(database_, str)
+            drop_calls.append(name)
+
+        fake_indexes.drop_index_if_exists = _fake_drop_index_if_exists
         return fake_neo4j, fake_indexes
 
     @contextmanager
