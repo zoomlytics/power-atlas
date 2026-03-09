@@ -175,10 +175,13 @@ def _validate_batch_manifest(manifest_path: Path) -> None:
         )
     structured_run_id = run_scopes.get("structured_ingest_run_id")
     unstructured_run_id = run_scopes.get("unstructured_ingest_run_id")
-    if not structured_run_id or not unstructured_run_id:
+    if not structured_run_id:
         raise SystemExit(
-            "Batch manifest missing structured_ingest_run_id or unstructured_ingest_run_id "
-            f"in run_scopes: {manifest_path}"
+            f"Batch manifest missing structured_ingest_run_id in run_scopes: {manifest_path}"
+        )
+    if not unstructured_run_id:
+        raise SystemExit(
+            f"Batch manifest missing unstructured_ingest_run_id in run_scopes: {manifest_path}"
         )
     if structured_run_id == unstructured_run_id:
         raise SystemExit(
