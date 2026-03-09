@@ -150,9 +150,15 @@ sentence split catches this case.
 
 1. **Reset graph safely**
    ```bash
-   export NEO4J_PASSWORD='your-neo4j-password'  # or pass --neo4j-password to the script
+   export NEO4J_PASSWORD='your-neo4j-password'
+   # Using the standalone script (recommended):
    python demo/reset_demo_db.py --confirm
+
+   # Or via the CLI orchestrator (also requires --live to pass credentials):
+   python demo/run_demo.py --live reset --confirm
    ```
+   Both paths write a JSON reset report to `demo/artifacts/` (override with
+   `--output-dir`).  Without `--confirm` the command prints instructions only.
 2. **Run independent ingestion runs (recommended)**
    ```bash
    python demo/run_demo.py --dry-run ingest-structured
@@ -208,7 +214,51 @@ Manifest run-boundary notes:
 - `fixtures/unstructured/chain_of_custody.pdf`: canonical source PDF fixture used in this demo
 - `fixtures/manifest.json`: dataset contract, provenance, and license note
 
-Reset script deletes generic labels and drops the demo index `demo_chunk_embedding_index`; run it only against a dedicated demo database/graph to avoid wiping non-demo data.
+## Reset behavior
+
+`demo/reset_demo_db.py` (and `run_demo.py reset --confirm`) performs a **demo-scoped full graph wipe** of the configured database.
+
+### What is deleted
+
+All nodes with the following labels and **all their relationships** (`DETACH DELETE`):
+
+| Label | Written by |
+| --- | --- |
+| `Document` | `ingest-pdf` (lexical layer) |
+| `Chunk` | `ingest-pdf` (lexical layer) |
+| `Claim` | `ingest-structured` (structured layer) |
+| `CanonicalEntity` | `resolve-entities` (resolution layer) |
+| `EntityMention` | `extract-claims` (extraction layer) |
+
+### What is dropped
+
+| Index name | Type | Created by |
+| --- | --- | --- |
+| `demo_chunk_embedding_index` | Vector (`Chunk.embedding`, 1536 dims) | `ingest-pdf` / `run_demo.py` setup |
+
+### What is preserved
+
+- Any nodes or relationships with labels **not** in the list above.
+- Any indexes or constraints **not** named above.
+- Any other Neo4j databases on the same server.
+
+### Idempotency
+
+Reset is safe to run repeatedly.  If the graph is already empty or the indexes are already absent the script completes without error and records warnings in the reset report.
+
+### Reset report
+
+Each run writes a JSON report to the output directory (default `demo/artifacts/`) named `reset_report_<timestamp>.json`.  The report records:
+
+- `target_database`: the database that was reset
+- `reset_mode`: always `"demo_full_graph_wipe"` for this script
+- `deleted_nodes` / `deleted_relationships`: counts of removed graph content
+- `indexes_dropped`: names of indexes that existed and were dropped
+- `indexes_not_found`: names of indexes that were absent (idempotent no-op)
+- `warnings`: human-readable notes for any no-op or non-fatal condition
+- `idempotent`: `true` when nothing was changed (graph already clean)
+
+Keep `DEMO_NODE_LABELS` and `DEMO_OWNED_INDEXES` in `demo/reset_demo_db.py` in sync with `demo/config/pdf_simple_kg_pipeline.yaml` and `demo/contracts/pipeline.py` whenever new demo-owned labels or indexes are introduced.
 
 ## Vendor alignment map
 
@@ -233,7 +283,7 @@ This demo intentionally mirrors upstream patterns in `vendor-resources`. The tab
 - [x] **Custom**: Structured ingest live path emits run-scoped provenance metadata (`run_id`, source URI, timestamps, confidence, source-row evidence links) without mutating source assertions (tracked from [zoomlytics/power-atlas#151](https://github.com/zoomlytics/power-atlas/issues/151)).
 - [x] **Custom**: `extract-claims` uses `RunScopedNeo4jChunkReader` to constrain extraction input to the active `run_id`, matching the two-pipeline pattern in the vendor anchor.
 - [ ] **Planned retrieval/GraphRAG issue alignment**: Retrieval and answer synthesis should consume explicit run-scoped provenance links and avoid implicit structured↔unstructured coupling.
-- [ ] **Planned reset semantics alignment**: Reset behavior must remain run-scoped/non-destructive by default (targeted cleanup over blanket deletion when run IDs are available).
+- [x] **Planned reset semantics alignment**: Reset behavior is demo-scoped and explicit: targets only demo-owned labels/indexes, writes a JSON reset report artifact, and is idempotent. See the [Reset behavior](#reset-behavior) section and `demo/reset_demo_db.py`.
 - [x] **Custom by design**: Structured CSV ingest, deterministic canonical key resolution, and provenance-specific graph expansion remain demo-owned logic.
 
 ## CLI scaffold and configuration
