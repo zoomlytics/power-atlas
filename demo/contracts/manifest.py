@@ -113,7 +113,7 @@ def write_manifest(manifest_path: Path, manifest: dict[str, Any]) -> Path:
     a partially written manifest if the process is interrupted mid-write.
     """
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
-    content = json.dumps(manifest, indent=2)
+    content = json.dumps(manifest, indent=2, sort_keys=True)
     tmp_path = None
     try:
         fd, tmp_name = tempfile.mkstemp(dir=manifest_path.parent, suffix=".tmp")
