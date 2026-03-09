@@ -22,7 +22,7 @@ from demo.contracts import (
 from demo.contracts.runtime import make_run_id
 
 
-def _sha256_file(path: Path, *, chunk_size: int = 1024 * 1024) -> str:
+def sha256_file(path: Path, *, chunk_size: int = 1024 * 1024) -> str:
     hasher = hashlib.sha256()
     try:
         with path.open("rb") as handle:
@@ -116,9 +116,9 @@ def run_pdf_ingest(
     pdf_ingest_dir = run_root / "pdf_ingest"
     pdf_ingest_dir.mkdir(parents=True, exist_ok=True)
     ingest_summary_path = pdf_ingest_dir / "ingest_summary.json"
-    pdf_fingerprint_sha256 = _sha256_file(pdf_path)
+    pdf_fingerprint_sha256 = sha256_file(pdf_path)
     if PDF_PIPELINE_CONFIG_PATH.is_file():
-        pipeline_config_sha256 = _sha256_file(PDF_PIPELINE_CONFIG_PATH)
+        pipeline_config_sha256 = sha256_file(PDF_PIPELINE_CONFIG_PATH)
     elif config.dry_run:
         pipeline_config_sha256 = None
     else:
@@ -481,4 +481,4 @@ def run_pdf_ingest(
     }
 
 
-__all__ = ["run_pdf_ingest", "_sha256_file"]
+__all__ = ["run_pdf_ingest", "sha256_file"]

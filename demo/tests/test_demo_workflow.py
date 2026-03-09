@@ -613,7 +613,7 @@ class WorkflowTests(unittest.TestCase):
                 {"index_name": index_name, "index_kwargs": {"database_": database_, **kwargs}}
             ),
         )
-        expected_fingerprint = module._sha256_file(
+        expected_fingerprint = module.sha256_file(
             DEMO_DIR / "fixtures" / "unstructured" / "chain_of_custody.pdf"
         )
         initial_openai_state = ("OPENAI_API_KEY" in os.environ, os.environ.get("OPENAI_API_KEY"))
@@ -631,11 +631,11 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(summary["dataset_id"], "demo_dataset_v1")
         self.assertEqual(
             summary["pipeline_config_sha256"],
-            module._sha256_file(DEMO_DIR / "config" / "pdf_simple_kg_pipeline.yaml"),
+            module.sha256_file(DEMO_DIR / "config" / "pdf_simple_kg_pipeline.yaml"),
         )
         self.assertEqual(
             result["pipeline_config_sha256"],
-            module._sha256_file(DEMO_DIR / "config" / "pdf_simple_kg_pipeline.yaml"),
+            module.sha256_file(DEMO_DIR / "config" / "pdf_simple_kg_pipeline.yaml"),
         )
         self.assertEqual(summary["embedding_model"], module.EMBEDDER_MODEL_NAME)
         self.assertEqual(result["vector_index"]["creation_strategy"], "neo4j_graphrag.indexes.create_vector_index")
@@ -747,7 +747,7 @@ class WorkflowTests(unittest.TestCase):
                 openai_model="gpt-4o-mini",
             )
             result = module._run_pdf_ingest(config, run_id="unstructured_ingest-test")
-            expected_fingerprint = module._sha256_file(
+            expected_fingerprint = module.sha256_file(
                 DEMO_DIR / "fixtures" / "unstructured" / "chain_of_custody.pdf"
             )
             summary_path = Path(result["ingest_summary_path"])
@@ -760,13 +760,13 @@ class WorkflowTests(unittest.TestCase):
             self.assertEqual(summary["embedding_dimensions"], module.CHUNK_EMBEDDING_DIMENSIONS)
             self.assertEqual(
                 summary["pipeline_config_sha256"],
-                module._sha256_file(DEMO_DIR / "config" / "pdf_simple_kg_pipeline.yaml"),
+                module.sha256_file(DEMO_DIR / "config" / "pdf_simple_kg_pipeline.yaml"),
             )
             self.assertEqual(summary["vector_index"]["creation_strategy"], "dry_run")
             self.assertEqual(result["pdf_fingerprint_sha256"], expected_fingerprint)
             self.assertEqual(
                 result["pipeline_config_sha256"],
-                module._sha256_file(DEMO_DIR / "config" / "pdf_simple_kg_pipeline.yaml"),
+                module.sha256_file(DEMO_DIR / "config" / "pdf_simple_kg_pipeline.yaml"),
             )
             self.assertEqual(Path(result["pdf_ingest_dir"]), summary_path.parent)
             self.assertEqual(result["vector_index"]["creation_strategy"], "dry_run")
@@ -918,7 +918,7 @@ class WorkflowTests(unittest.TestCase):
         original_openai_api_key = os.environ.get("OPENAI_API_KEY")
         try:
             os.environ.pop("OPENAI_API_KEY", None)
-            with self.assertRaises(SystemExit) as raised:
+            with self.assertRaises(ValueError) as raised:
                 module._run_pdf_ingest(config, run_id="unstructured_ingest-test")
             self.assertEqual(str(raised.exception), "Set OPENAI_API_KEY when using --live ingest-pdf")
         finally:

@@ -1,7 +1,7 @@
 from importlib import import_module
 from typing import Any
 
-from demo.contracts.manifest import build_batch_manifest, build_stage_manifest, write_manifest
+from demo.contracts.manifest import build_batch_manifest, build_stage_manifest, write_manifest, write_manifest_md
 from demo.contracts.paths import ARTIFACTS_DIR, CONFIG_DIR, FIXTURES_DIR, PDF_PIPELINE_CONFIG_PATH
 from demo.contracts.pipeline import (
     CHUNK_EMBEDDING_DIMENSIONS,
@@ -30,6 +30,7 @@ __all__ = [
     "build_batch_manifest",
     "build_stage_manifest",
     "write_manifest",
+    "write_manifest_md",
     "claim_extraction_lexical_config",
     "claim_extraction_schema",
     "COMMON_PREDICATE_LABELS",

@@ -3,12 +3,13 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Callable
 
 from demo.contracts import pipeline as pipeline_contracts
 
-pipeline_contracts.ensure_pipeline_contract_loaded()
+pipeline_contracts.refresh_pipeline_contract()
 
 from demo.contracts import (  # noqa: E402
     ARTIFACTS_DIR,
@@ -27,7 +28,7 @@ from demo.contracts import (  # noqa: E402
     build_stage_manifest,
     make_run_id,
 )
-from demo.contracts.manifest import write_manifest
+from demo.contracts.manifest import write_manifest, write_manifest_md
 from demo.stages import (
     lint_and_clean_structured_csvs,
     run_claim_and_mention_extraction,
@@ -37,6 +38,11 @@ from demo.stages import (
     run_retrieval_and_qa,
     run_structured_ingest,
 )
+from demo.stages.pdf_ingest import sha256_file  # noqa: F401 - re-exported for callers and tests
+
+
+def _now_iso() -> str:
+    return datetime.now(UTC).isoformat()
 
 
 def _add_common_args(parser: argparse.ArgumentParser) -> None:
@@ -145,6 +151,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def _run_orchestrated(config: Config) -> Path:
     config.output_dir.mkdir(parents=True, exist_ok=True)
+    started_at = _now_iso()
     structured_run_id = make_run_id("structured_ingest")
     unstructured_run_id = make_run_id("unstructured_ingest")
     resolution_run_id = make_run_id("resolution")
@@ -182,6 +189,7 @@ def _run_orchestrated(config: Config) -> Path:
         source_uri=pdf_source_uri,
         index_name=CHUNK_EMBEDDING_INDEX_NAME,
     )
+    finished_at = _now_iso()
     manifest = build_batch_manifest(
         config=config,
         structured_run_id=structured_run_id,
@@ -192,10 +200,14 @@ def _run_orchestrated(config: Config) -> Path:
         claim_stage=claim_stage,
         entity_resolution_stage=entity_resolution_stage,
         retrieval_stage=retrieval_stage,
+        started_at=started_at,
+        finished_at=finished_at,
     )
 
     manifest_path = config.output_dir / "manifest.json"
-    return write_manifest(manifest_path, manifest)
+    write_manifest(manifest_path, manifest)
+    write_manifest_md(manifest_path, manifest)
+    return manifest_path
 
 
 def _run_independent_stage(config: Config, command: str) -> Path:
@@ -267,16 +279,26 @@ def _run_independent_stage(config: Config, command: str) -> Path:
         stage_run_id = env_run_id
     else:
         stage_run_id = make_run_id(run_scope)
+    started_at = _now_iso()
     stage_output = stage_runner(config, stage_run_id)
+    finished_at = _now_iso()
     manifest = build_stage_manifest(
         config=config,
         stage_name=stage_name,
         stage_run_id=stage_run_id,
         run_scope_key=run_scope_key,
         stage_output=stage_output,
+        started_at=started_at,
+        finished_at=finished_at,
     )
-    manifest_path = config.output_dir / f"{stage_name}_{stage_run_id}_manifest.json"
-    return write_manifest(manifest_path, manifest)
+    # Write the manifest into a stage-scoped directory: runs/<run_id>/<stage_name>/manifest.json
+    # Using a stage-name subdirectory prevents manifests from different stages that share the
+    # same run_id (e.g. extract-claims, resolve-entities, ask all use UNSTRUCTURED_RUN_ID) from
+    # overwriting each other.  write_manifest() calls mkdir internally so no explicit mkdir needed.
+    manifest_path = config.output_dir / "runs" / stage_run_id / stage_name / "manifest.json"
+    write_manifest(manifest_path, manifest)
+    write_manifest_md(manifest_path, manifest)
+    return manifest_path
 
 
 def run_demo(config: Config) -> Path:
@@ -334,31 +356,36 @@ def main() -> None:
     config_commands = {"ingest", "ingest-structured", "ingest-pdf", "extract-claims", "resolve-entities", "ask"}
     if args.command in config_commands:
         config = _build_config_from_args(args)
-        if args.command == "ingest":
-            manifest_path = run_demo(config)
-            print(f"Demo manifest written to: {manifest_path}")
-        elif args.command == "ask" and getattr(args, "interactive", False):
-            # Interactive mode: start a REPL session; no manifest is written.
-            if config.dry_run:
-                raise SystemExit(
-                    "Interactive 'ask' is not supported in dry-run mode. "
-                    "Re-run the command with --live to enable live Neo4j/OpenAI calls."
+        try:
+            if args.command == "ingest":
+                manifest_path = run_demo(config)
+                print(f"Demo manifest written to: {manifest_path}")
+            elif args.command == "ask" and getattr(args, "interactive", False):
+                # Interactive mode: start a REPL session; no manifest is written.
+                if config.dry_run:
+                    raise SystemExit(
+                        "Interactive 'ask' is not supported in dry-run mode. "
+                        "Re-run the command with --live to enable live Neo4j/OpenAI calls."
+                    )
+                env_run_id = os.getenv("UNSTRUCTURED_RUN_ID")
+                if not env_run_id:
+                    raise SystemExit(
+                        "UNSTRUCTURED_RUN_ID is not set. When running 'ask' interactively, "
+                        "set this to the run_id from a prior 'ingest' or 'ingest-pdf' command."
+                    )
+                run_interactive_qa(
+                    config,
+                    run_id=env_run_id,
+                    source_uri=str((FIXTURES_DIR / "unstructured" / "chain_of_custody.pdf").resolve().as_uri()),
+                    index_name=CHUNK_EMBEDDING_INDEX_NAME,
                 )
-            env_run_id = os.getenv("UNSTRUCTURED_RUN_ID")
-            if not env_run_id:
-                raise SystemExit(
-                    "UNSTRUCTURED_RUN_ID is not set. When running 'ask' interactively, "
-                    "set this to the run_id from a prior 'ingest' or 'ingest-pdf' command."
-                )
-            run_interactive_qa(
-                config,
-                run_id=env_run_id,
-                source_uri=str((FIXTURES_DIR / "unstructured" / "chain_of_custody.pdf").resolve().as_uri()),
-                index_name=CHUNK_EMBEDDING_INDEX_NAME,
-            )
-        else:
-            manifest_path = _run_independent_stage(config, args.command)
-            print(f"Independent run manifest written to: {manifest_path}")
+            else:
+                manifest_path = _run_independent_stage(config, args.command)
+                print(f"Independent run manifest written to: {manifest_path}")
+        except SystemExit:
+            raise
+        except ValueError as exc:
+            raise SystemExit(str(exc)) from exc
         return
     if args.command == "reset":
         if not getattr(args, "confirm", False):
