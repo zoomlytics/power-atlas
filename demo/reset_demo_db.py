@@ -149,8 +149,8 @@ def run_reset(
     for index_name in DEMO_OWNED_INDEXES:
         if _index_exists(driver, index_name, database):
             # Use vendor helper: issues DROP INDEX $name IF EXISTS safely.
-            # drop_index_if_exists accepts neo4j_database (not database_).
-            drop_index_if_exists(driver, index_name, neo4j_database=database)
+            # drop_index_if_exists uses the database_ keyword argument.
+            drop_index_if_exists(driver, index_name, database_=database)
             indexes_dropped.append(index_name)
             logger.info("Dropped demo index: %s", index_name)
         else:
