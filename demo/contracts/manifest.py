@@ -232,6 +232,24 @@ def write_manifest_md(manifest_path: Path, manifest: dict[str, Any]) -> Path:
         fd, tmp_name = tempfile.mkstemp(dir=md_path.parent, suffix=".tmp")
         tmp_path = Path(tmp_name)
         os.close(fd)
+        # Ensure the temporary file has appropriate permissions before atomic replace.
+        target_mode: int | None
+        if md_path.exists():
+            try:
+                target_mode = md_path.stat().st_mode & 0o777
+            except OSError:
+                target_mode = None
+        else:
+            # Derive a default mode that respects the current umask.
+            current_umask = os.umask(0)
+            os.umask(current_umask)
+            target_mode = 0o666 & ~current_umask
+        if target_mode is not None:
+            try:
+                os.chmod(tmp_path, target_mode)
+            except OSError:
+                # If chmod fails, proceed; permissions will be restrictive (0o600).
+                pass
         tmp_path.write_text(content, encoding="utf-8")
         tmp_path.replace(md_path)
         tmp_path = None
