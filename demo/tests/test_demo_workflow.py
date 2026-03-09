@@ -1379,6 +1379,28 @@ class WorkflowTests(unittest.TestCase):
                 smoke._validate_batch_manifest(path)
             self.assertIn("qa_signals", str(ctx.exception))
 
+    def test_validate_batch_manifest_rejects_missing_run_scope_key(self):
+        smoke = self._load_smoke_module("smoke_batch_missing_scope_key")
+        manifest = self._make_batch_manifest()
+        del manifest["run_scopes"]["structured_ingest_run_id"]
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "manifest.json"
+            path.write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaises(SystemExit) as ctx:
+                smoke._validate_batch_manifest(path)
+            self.assertIn("structured_ingest_run_id", str(ctx.exception))
+
+    def test_validate_batch_manifest_rejects_missing_citation_token_example(self):
+        smoke = self._load_smoke_module("smoke_missing_citation_token")
+        manifest = self._make_batch_manifest()
+        del manifest["stages"]["retrieval_and_qa"]["citation_token_example"]
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "manifest.json"
+            path.write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaises(SystemExit) as ctx:
+                smoke._validate_batch_manifest(path)
+            self.assertIn("citation_token_example", str(ctx.exception))
+
     # ── smoke test: independent scenario runners ───────────────────────────────
 
     def test_run_structured_scenario_writes_valid_manifest(self):
