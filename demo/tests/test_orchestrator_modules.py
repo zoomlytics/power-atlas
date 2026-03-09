@@ -449,6 +449,20 @@ def _make_fake_retriever_result(items):
     return _FakeResult(items)
 
 
+def _make_fake_neo4j_record(**kwargs) -> dict:
+    """Build a minimal dict-based fake neo4j.Record for use with _chunk_citation_formatter.
+
+    neo4j.Record supports dict-style .get() so a plain subclass with a forwarding
+    ``get`` is sufficient; no actual Neo4j connection is needed.
+    """
+
+    class _FakeRecord(dict):
+        def get(self, key, default=None):
+            return super().get(key, default)
+
+    return _FakeRecord(**kwargs)
+
+
 def _make_fake_retriever_result_item(content, metadata):
     """Build a RetrieverResultItem-compatible object."""
     from neo4j_graphrag.types import RetrieverResultItem
@@ -2406,3 +2420,165 @@ def test_retrieval_and_qa_live_path_citation_quality_degraded_when_chunk_fields_
     )
     assert cq["warning_count"] >= 1
     assert any("chunk-no-page" in w for w in cq["citation_warnings"])
+
+
+# ---------------------------------------------------------------------------
+# Empty chunk text warnings
+# ---------------------------------------------------------------------------
+
+
+def test_chunk_citation_formatter_sets_empty_chunk_text_flag_when_blank(tmp_path: Path):
+    """_chunk_citation_formatter must set empty_chunk_text=True in metadata when the
+    retrieved chunk has empty or whitespace-only text."""
+    from demo.stages.retrieval_and_qa import _chunk_citation_formatter
+
+    # Whitespace-only text should trigger the flag.
+    for blank_text in ("", "   ", "\t\n"):
+        record = _make_fake_neo4j_record(
+            chunk_id="chunk-empty",
+            run_id="r1",
+            source_uri="file:///doc.pdf",
+            chunk_index=0,
+            page=1,
+            start_char=0,
+            end_char=100,
+            chunk_text=blank_text,
+            similarityScore=0.9,
+        )
+        item = _chunk_citation_formatter(record)
+        assert item.metadata is not None
+        assert item.metadata.get("empty_chunk_text") is True, (
+            f"Expected empty_chunk_text=True for chunk_text={blank_text!r}"
+        )
+
+
+def test_chunk_citation_formatter_empty_chunk_text_false_when_has_content(tmp_path: Path):
+    """_chunk_citation_formatter must set empty_chunk_text=False when the chunk has
+    non-whitespace text."""
+    from demo.stages.retrieval_and_qa import _chunk_citation_formatter
+
+    record = _make_fake_neo4j_record(
+        chunk_id="chunk-full",
+        run_id="r1",
+        source_uri="file:///doc.pdf",
+        chunk_index=0,
+        page=1,
+        start_char=0,
+        end_char=100,
+        chunk_text="This is meaningful content.",
+        similarityScore=0.95,
+    )
+    item = _chunk_citation_formatter(record)
+    assert item.metadata is not None
+    assert item.metadata.get("empty_chunk_text") is False
+
+
+def test_retrieval_and_qa_live_path_warns_on_empty_chunk_text(tmp_path: Path):
+    """Live path must emit a warning into warnings and citation_warnings when a
+    retrieved chunk has empty or whitespace-only text, and evidence_level must be
+    'degraded' even when the answer is otherwise fully cited."""
+    from demo.stages import run_retrieval_and_qa
+
+    cited_answer = (
+        "Evidence was found. [CITATION|chunk_id=chunk-empty|run_id=live-empty-text|"
+        "source_uri=file:///x.pdf|chunk_index=0|page=1|start_char=0|end_char=50]"
+    )
+
+    # A chunk with empty text but otherwise complete citation metadata.
+    citation_token = (
+        "[CITATION|chunk_id=chunk-empty|run_id=live-empty-text|"
+        "source_uri=file:///x.pdf|chunk_index=0|page=1|start_char=0|end_char=50]"
+    )
+    fake_meta = {
+        "chunk_id": "chunk-empty",
+        "run_id": "live-empty-text",
+        "source_uri": "file:///x.pdf",
+        "chunk_index": 0,
+        "page": 1,
+        "start_char": 0,
+        "end_char": 50,
+        "score": 0.88,
+        "citation_token": citation_token,
+        "citation_object": {
+            "chunk_id": "chunk-empty",
+            "run_id": "live-empty-text",
+            "source_uri": "file:///x.pdf",
+            "chunk_index": 0,
+            "page": 1,
+            "start_char": 0,
+            "end_char": 50,
+        },
+        "empty_chunk_text": True,
+    }
+    fake_item = _make_fake_retriever_result_item(
+        content="\n" + citation_token,
+        metadata=fake_meta,
+    )
+
+    class _FakeRetriever:
+        def __init__(self, **kwargs):
+            pass
+
+        def search(self, **kwargs):
+            return _make_fake_retriever_result([fake_item])
+
+    live_config = Config(
+        dry_run=False,
+        output_dir=tmp_path,
+        neo4j_uri="bolt://example.invalid",
+        neo4j_username="neo4j",
+        neo4j_password="not-used",
+        neo4j_database="neo4j",
+        openai_model="gpt-4o-mini",
+    )
+
+    with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
+    ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class(answer=cited_answer)), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAILLM"
+    ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+        result = run_retrieval_and_qa(
+            live_config,
+            run_id="live-empty-text",
+            source_uri=None,
+            question="What happened?",
+        )
+
+    # Empty chunk text warning must appear in warnings and citation_warnings.
+    assert any("chunk-empty" in w and "empty" in w.lower() for w in result["warnings"]), (
+        "Expected an empty-chunk-text warning in result['warnings']"
+    )
+    cq = result["citation_quality"]
+    assert any("chunk-empty" in w and "empty" in w.lower() for w in cq["citation_warnings"]), (
+        "Expected an empty-chunk-text warning in citation_quality['citation_warnings']"
+    )
+    # evidence_level must be 'degraded' due to the empty chunk text warning.
+    assert cq["evidence_level"] == "degraded", (
+        "evidence_level must be 'degraded' when a chunk has empty text"
+    )
+    assert cq["warning_count"] >= 1
+
+
+def test_chunk_citation_formatter_emits_log_warning_for_empty_text(tmp_path: Path):
+    """_chunk_citation_formatter must emit a logger.warning when chunk text is empty
+    or whitespace-only, signalling the issue at retrieval time."""
+    from demo.stages.retrieval_and_qa import _chunk_citation_formatter
+
+    record = _make_fake_neo4j_record(
+        chunk_id="chunk-log-empty",
+        run_id="r1",
+        source_uri="file:///doc.pdf",
+        chunk_index=0,
+        page=1,
+        start_char=0,
+        end_char=100,
+        chunk_text="",
+        similarityScore=0.8,
+    )
+
+    with mock.patch("demo.stages.retrieval_and_qa._logger") as mock_logger:
+        _chunk_citation_formatter(record)
+        mock_logger.warning.assert_called_once()
+        warning_call_args = mock_logger.warning.call_args
+        # The warning message must mention the chunk_id and something about empty text.
+        assert "chunk-log-empty" in str(warning_call_args)

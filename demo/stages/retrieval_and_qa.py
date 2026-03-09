@@ -260,6 +260,16 @@ def _chunk_citation_formatter(record: neo4j.Record) -> RetrieverResultItem:
     chunk_text = record.get("chunk_text") or ""
     score = record.get("similarityScore")
 
+    # Warn immediately when the retrieved chunk has no usable text content.
+    # Empty or whitespace-only chunk text means the LLM will receive no evidence
+    # for this chunk, which can silently degrade answer quality.
+    empty_chunk_text = not chunk_text.strip()
+    if empty_chunk_text:
+        _logger.warning(
+            "Chunk %r has empty or whitespace-only text; it will contribute no evidence to the answer.",
+            chunk_id,
+        )
+
     citation_token = _build_citation_token(
         chunk_id=chunk_id,
         run_id=run_id,
@@ -292,6 +302,7 @@ def _chunk_citation_formatter(record: neo4j.Record) -> RetrieverResultItem:
         "score": score,
         "citation_token": citation_token,
         "citation_object": citation_object,
+        "empty_chunk_text": empty_chunk_text,
     }
     # Include graph expansion fields when the expanded retrieval query was used.
     for field in ("claims", "mentions", "canonical_entities"):
@@ -534,6 +545,13 @@ def run_retrieval_and_qa(
                     chunk_warning = f"Chunk {citation_obj.get('chunk_id')!r} missing citation fields: {', '.join(missing_fields)}"
                     warnings_list.append(chunk_warning)
                     citation_warnings_list.append(chunk_warning)
+                # Surface warnings for chunks with empty or whitespace-only text.
+                # These chunks contribute no evidence to the answer and degrade retrieval quality.
+                if meta.get("empty_chunk_text"):
+                    chunk_id_val = citation_obj.get("chunk_id")
+                    empty_text_warning = f"Chunk {chunk_id_val!r} has empty or whitespace-only text."
+                    warnings_list.append(empty_text_warning)
+                    citation_warnings_list.append(empty_text_warning)
                 hits.append({"content": item.content, "metadata": meta})
 
     # Check answer citation completeness; apply controlled fallback when not fully cited.
