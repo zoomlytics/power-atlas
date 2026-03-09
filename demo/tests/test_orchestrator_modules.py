@@ -966,7 +966,7 @@ def test_power_atlas_rag_template_prohibits_history_as_evidence():
     from demo.contracts.prompts import POWER_ATLAS_RAG_TEMPLATE
 
     tmpl = POWER_ATLAS_RAG_TEMPLATE.template
-    sys = POWER_ATLAS_RAG_TEMPLATE.system_instructions
+    sys_instructions = POWER_ATLAS_RAG_TEMPLATE.system_instructions
 
     # The template body must contain the exact phrase added for this constraint.
     assert "Message history (prior conversation turns) provides conversational context ONLY" in tmpl, (
@@ -977,10 +977,10 @@ def test_power_atlas_rag_template_prohibits_history_as_evidence():
     )
 
     # The system instructions must also carry the exact phrases added for this constraint.
-    assert "Message history provides conversational context only, never evidence" in sys, (
+    assert "Message history provides conversational context only, never evidence" in sys_instructions, (
         "System instructions must state that message history is context-only, never evidence"
     )
-    assert "Do not source any answer evidence from prior assistant turns" in sys, (
+    assert "Do not source any answer evidence from prior assistant turns" in sys_instructions, (
         "System instructions must explicitly prohibit sourcing evidence from prior assistant turns"
     )
 

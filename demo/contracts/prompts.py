@@ -43,7 +43,7 @@ POWER_ATLAS_RAG_TEMPLATE = RagTemplate(
         - Prefer low-temperature, stable, deterministic phrasing.
         - Message history (prior conversation turns) provides conversational context ONLY.
           Do NOT cite or treat any prior assistant turn as evidence. All answer evidence
-          must come exclusively from the retrieved context snippets provided above.
+          must come exclusively from the retrieved context snippets in the Context section.
 
         Context:
         {context}
