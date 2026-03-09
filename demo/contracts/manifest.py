@@ -118,18 +118,19 @@ def write_manifest(manifest_path: Path, manifest: dict[str, Any]) -> Path:
     try:
         fd, tmp_name = tempfile.mkstemp(dir=manifest_path.parent, suffix=".tmp")
         tmp_path = Path(tmp_name)
-        # Adjust permissions of the temporary file so the final manifest
-        # does not unexpectedly inherit mkstemp's restrictive default (0o600).
-        if manifest_path.exists():
-            # Preserve permissions from the existing manifest, if any.
-            target_mode = manifest_path.stat().st_mode & 0o777
-        else:
-            # Derive default file mode from the current umask.
-            current_umask = os.umask(0)
-            os.umask(current_umask)
-            target_mode = 0o666 & ~current_umask
-        os.fchmod(fd, target_mode)
-        os.close(fd)
+        # Adjust permissions and always close fd, even if fchmod raises.
+        try:
+            # Preserve permissions from the existing manifest, if any;
+            # otherwise derive a mode that respects the current umask.
+            if manifest_path.exists():
+                target_mode = manifest_path.stat().st_mode & 0o777
+            else:
+                current_umask = os.umask(0)
+                os.umask(current_umask)
+                target_mode = 0o666 & ~current_umask
+            os.fchmod(fd, target_mode)
+        finally:
+            os.close(fd)
         tmp_path.write_text(content, encoding="utf-8")
         tmp_path.replace(manifest_path)
         tmp_path = None  # rename succeeded; nothing to clean up
@@ -171,7 +172,7 @@ def _manifest_md_summary(manifest: dict[str, Any]) -> str:
     if run_scopes:
         lines.append("## Run Scopes")
         lines.append("")
-        for key, value in run_scopes.items():
+        for key, value in sorted(run_scopes.items()):
             lines.append(f"- **{key}:** `{value}`")
         lines.append("")
 
@@ -179,7 +180,7 @@ def _manifest_md_summary(manifest: dict[str, Any]) -> str:
     if stages:
         lines.append("## Stages")
         lines.append("")
-        for stage_name, stage_data in stages.items():
+        for stage_name, stage_data in sorted(stages.items()):
             if not isinstance(stage_data, dict):
                 continue
             lines.append(f"### {stage_name}")
