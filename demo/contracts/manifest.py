@@ -118,6 +118,17 @@ def write_manifest(manifest_path: Path, manifest: dict[str, Any]) -> Path:
     try:
         fd, tmp_name = tempfile.mkstemp(dir=manifest_path.parent, suffix=".tmp")
         tmp_path = Path(tmp_name)
+        # Adjust permissions of the temporary file so the final manifest
+        # does not unexpectedly inherit mkstemp's restrictive default (0o600).
+        if manifest_path.exists():
+            # Preserve permissions from the existing manifest, if any.
+            target_mode = manifest_path.stat().st_mode & 0o777
+        else:
+            # Derive default file mode from the current umask.
+            current_umask = os.umask(0)
+            os.umask(current_umask)
+            target_mode = 0o666 & ~current_umask
+        os.fchmod(fd, target_mode)
         os.close(fd)
         tmp_path.write_text(content, encoding="utf-8")
         tmp_path.replace(manifest_path)
