@@ -238,7 +238,8 @@ All nodes with the following labels and **all their relationships** (`DETACH DEL
 
 ### What is preserved
 
-- Any nodes or relationships with labels **not** in the list above.
+- Any nodes with labels **not** in the list above.
+- Any relationships whose endpoints are not among the deleted demo nodes, regardless of relationship type. Relationships attached to deleted demo nodes are removed via `DETACH DELETE`.
 - Any indexes or constraints **not** named above.
 - Any other Neo4j databases on the same server.
 

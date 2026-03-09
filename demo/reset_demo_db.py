@@ -17,7 +17,10 @@ Demo-owned indexes (dropped by name):
     demo/config/pdf_simple_kg_pipeline.yaml and demo.contracts.pipeline)
 
 Preserved (not touched by this script):
-  - Any nodes/relationships with labels not in the list above
+  - Any nodes with labels not in the list above
+  - Relationships whose endpoints are not among the deleted demo nodes (regardless
+    of relationship type); relationships attached to deleted nodes are removed via
+    DETACH DELETE as a consequence of node deletion
   - Any indexes not in the list above
   - Any other Neo4j databases on the same server
 
@@ -30,7 +33,7 @@ import argparse
 import json
 import logging
 import os
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -110,7 +113,7 @@ def run_reset(
         - ``report_path``: Path to the written JSON file (only present when
           *output_dir* is provided).
     """
-    now = datetime.now(UTC)
+    now = datetime.now(timezone.utc)
     created_at = now.isoformat()
     # Derive a filesystem-safe timestamp for the report filename, consistent with
     # other demo artifacts (e.g., run IDs/manifests).
