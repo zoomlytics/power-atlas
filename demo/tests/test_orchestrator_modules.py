@@ -449,7 +449,7 @@ def _make_fake_retriever_result(items):
     return _FakeResult(items)
 
 
-def _make_fake_neo4j_record(**kwargs) -> dict:
+def _make_fake_neo4j_record(**kwargs) -> "dict[str, object]":
     """Build a minimal dict-based fake neo4j.Record for use with _chunk_citation_formatter.
 
     neo4j.Record supports dict-style .get() so a plain subclass with a forwarding
@@ -2579,6 +2579,14 @@ def test_chunk_citation_formatter_emits_log_warning_for_empty_text(tmp_path: Pat
     with mock.patch("demo.stages.retrieval_and_qa._logger") as mock_logger:
         _chunk_citation_formatter(record)
         mock_logger.warning.assert_called_once()
-        warning_call_args = mock_logger.warning.call_args
-        # The warning message must mention the chunk_id and something about empty text.
-        assert "chunk-log-empty" in str(warning_call_args)
+        args, _kwargs = mock_logger.warning.call_args
+        # The format string must describe empty/whitespace chunk text.
+        assert args, "Expected logger.warning to be called with at least a message format string"
+        warning_msg = str(args[0])
+        lower_msg = warning_msg.lower()
+        assert ("empty" in lower_msg) or ("whitespace" in lower_msg), (
+            f"Expected warning message to mention empty/whitespace text, got: {warning_msg!r}"
+        )
+        # The chunk_id must be passed as a separate format argument, not embedded in the format string.
+        assert len(args) >= 2, "Expected chunk_id to be passed as a separate argument to logger.warning"
+        assert args[1] == "chunk-log-empty"
