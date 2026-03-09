@@ -350,8 +350,10 @@ def run_retrieval_and_qa(
     message_history:
         Vendor ``MessageHistory`` object (or a plain list of dicts) for
         conversational/interactive mode.  When provided, prior turns supply
-        conversational context while each turn's answer must still be fully
-        citation-grounded via retrieved evidence.
+        conversational context ONLY — they are never a source of answer
+        evidence.  Each turn's answer must still be fully citation-grounded
+        via retrieved chunks from the current question's retrieval results.
+        No evidence may be sourced from assistant history turns.
     interactive:
         Records whether the call originated from an interactive REPL session.
         Does not change retrieval or generation behaviour on its own.
@@ -519,6 +521,9 @@ def run_retrieval_and_qa(
         )
 
         # Run the GraphRAG search with optional message history for interactive mode.
+        # message_history provides conversational context ONLY — it is never a
+        # source of answer evidence.  All evidence must come from the retrieved
+        # chunks returned by the VectorCypherRetriever for this turn.
         # retriever_config passes query_params for run-scoped Cypher filtering.
         rag_result = rag.search(
             query_text=question,
@@ -646,8 +651,10 @@ def run_interactive_qa(
     types ``exit``, ``quit``, or sends EOF (Ctrl-D).
 
     Message history is maintained across turns via an in-memory store so the LLM
-    has conversational context, but each turn's answer must still be grounded in
-    retrieved evidence from the current question's retrieval results.
+    has conversational context, but message history provides conversational context
+    ONLY — it is never a source of answer evidence.  Each turn's answer must still
+    be fully citation-grounded via retrieved chunks from the current question's
+    retrieval results.  No evidence may be sourced from assistant history turns.
 
     The Neo4j driver, retriever, LLM, and GraphRAG objects are constructed once for
     the session to avoid per-turn connection churn and latency.
@@ -715,6 +722,8 @@ def run_interactive_qa(
                     query_text=question,
                     retriever_config={"top_k": top_k, "query_params": query_params},
                     return_context=True,
+                    # history provides conversational context only — never answer evidence.
+                    # All evidence for this turn comes exclusively from the retriever above.
                     message_history=history,
                 )
                 answer = rag_result.answer if rag_result else ""

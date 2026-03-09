@@ -72,6 +72,26 @@ Retrieval is **run-scoped by default**:
 
 This is a correctness and reproducibility behavior, not a maximal provenance system. The run scope ensures that answer evidence is always linked to a known, replayable ingest boundary.
 
+## Message history
+
+When `run_retrieval_and_qa` or `run_interactive_qa` is called with a `message_history`
+object, prior conversation turns are passed to the LLM for **conversational context only**.
+Message history is **never** a source of answer evidence.
+
+- Each turn's answer must be fully citation-grounded via retrieved chunks returned by the
+  `VectorCypherRetriever` for **that turn's question**.
+- No evidence may be sourced from prior assistant turns stored in message history.
+- The prompt template (`POWER_ATLAS_RAG_TEMPLATE`) explicitly instructs the LLM that
+  message history provides context only, and that all evidence must come exclusively from
+  the retrieved context snippets provided in the prompt.
+- To prevent subsequent turns from being conditioned on under-cited content, uncited
+  answers are stored in history using only the bare `"Insufficient citations detected"`
+  refusal prefix rather than the full uncited response (see `_build_citation_fallback`).
+
+This separation is intentional: retrieval-grounded evidence and conversational memory
+serve different roles, and blending them would allow uncited or fabricated assertions
+from prior turns to influence downstream answers.
+
 ## Citation expectations
 
 Q&A answers are expected to:

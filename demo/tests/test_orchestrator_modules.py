@@ -960,6 +960,31 @@ def test_power_atlas_rag_template_enforces_citation_instructions():
     assert "conflict" in tmpl.lower(), "Template must mention conflicting evidence handling"
 
 
+def test_power_atlas_rag_template_prohibits_history_as_evidence():
+    """The Power Atlas RagTemplate must explicitly state that message history provides
+    conversational context only and must never be used as answer evidence."""
+    from demo.contracts.prompts import POWER_ATLAS_RAG_TEMPLATE
+
+    tmpl = POWER_ATLAS_RAG_TEMPLATE.template
+    sys = POWER_ATLAS_RAG_TEMPLATE.system_instructions
+
+    # The template body must contain the exact phrase added for this constraint.
+    assert "Message history (prior conversation turns) provides conversational context ONLY" in tmpl, (
+        "Template body must contain the explicit message-history-context-only rule"
+    )
+    assert "Do NOT cite or treat any prior assistant turn as evidence" in tmpl, (
+        "Template body must explicitly prohibit treating prior assistant turns as evidence"
+    )
+
+    # The system instructions must also carry the exact phrases added for this constraint.
+    assert "Message history provides conversational context only, never evidence" in sys, (
+        "System instructions must state that message history is context-only, never evidence"
+    )
+    assert "Do not source any answer evidence from prior assistant turns" in sys, (
+        "System instructions must explicitly prohibit sourcing evidence from prior assistant turns"
+    )
+
+
 def test_power_atlas_rag_template_uses_vendor_rag_template_class():
     """Power Atlas template must extend the vendor RagTemplate for GraphRAG wiring."""
     from neo4j_graphrag.generation import RagTemplate
