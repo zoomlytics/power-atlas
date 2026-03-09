@@ -129,9 +129,10 @@ def write_manifest(manifest_path: Path, manifest: dict[str, Any]) -> Path:
             except OSError:
                 target_mode = None
         else:
-            current_umask = os.umask(0)
-            os.umask(current_umask)
-            target_mode = 0o666 & ~current_umask
+            # Avoid probing the process-wide umask (which is not thread-safe to
+            # read via os.umask) and instead use a conservative default mode for
+            # new manifest files.
+            target_mode = 0o644
         if target_mode is not None:
             try:
                 os.chmod(tmp_path, target_mode)
