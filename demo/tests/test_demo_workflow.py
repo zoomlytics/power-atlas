@@ -1239,6 +1239,19 @@ class WorkflowTests(unittest.TestCase):
                 smoke._validate_independent_manifest(path, "structured_ingest", "structured_ingest_run_id")
             self.assertIn("structured_ingest", str(ctx.exception))
 
+    def test_validate_independent_manifest_rejects_stage_run_id_mismatch(self):
+        smoke = self._load_smoke_module("smoke_stage_run_id_mismatch")
+        run_id = "structured_ingest-20260101T000000000000Z-aabbccdd"
+        manifest = self._make_independent_manifest("structured_ingest", "structured_ingest_run_id", run_id)
+        # The stage-level run_id disagrees with run_scopes value.
+        manifest["stages"]["structured_ingest"]["run_id"] = "structured_ingest-20260101T000000000000Z-deadbeef"
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "manifest.json"
+            path.write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaises(SystemExit) as ctx:
+                smoke._validate_independent_manifest(path, "structured_ingest", "structured_ingest_run_id")
+            self.assertIn("run_id", str(ctx.exception))
+
     # ── smoke test: _validate_batch_manifest ──────────────────────────────────
 
     def _make_batch_manifest(
