@@ -191,7 +191,7 @@ def parse_args() -> argparse.Namespace:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "Deletes all nodes with demo-owned labels (Document, Chunk, Claim,\n"
-            "CanonicalEntity, EntityMention) and drops the demo_chunk_embedding_index.\n"
+            f"CanonicalEntity, EntityMention) and drops the {CHUNK_EMBEDDING_INDEX_NAME} index.\n"
             "Run only against a dedicated demo database to avoid data loss."
         ),
     )
