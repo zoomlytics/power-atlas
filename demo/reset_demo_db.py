@@ -110,9 +110,11 @@ def run_reset(
         - ``report_path``: Path to the written JSON file (only present when
           *output_dir* is provided).
     """
-    created_at = datetime.now(UTC).isoformat()
-    # Derive a filesystem-safe timestamp from created_at for the report filename.
-    _ts_for_filename = created_at.replace(":", "").replace("-", "").replace(".", "")
+    now = datetime.now(UTC)
+    created_at = now.isoformat()
+    # Derive a filesystem-safe timestamp for the report filename, consistent with
+    # other demo artifacts (e.g., run IDs/manifests).
+    _ts_for_filename = now.strftime("%Y%m%dT%H%M%S%fZ")
     warnings_list: list[str] = []
     indexes_dropped: list[str] = []
     indexes_not_found: list[str] = []
