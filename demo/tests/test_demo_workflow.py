@@ -1123,10 +1123,6 @@ class ResetDemoDbTests(unittest.TestCase):
 
         _index_exists_value = index_exists
 
-        class _FakeExecuteQueryResult:
-            def __init__(self, cnt: int) -> None:
-                self.records = [{"cnt": cnt}]
-
         class _FakeDriver:
             def __enter__(self) -> "_FakeDriver":
                 return self
@@ -1139,13 +1135,12 @@ class ResetDemoDbTests(unittest.TestCase):
                 execute_query_calls.append(("__session__", _sess))
                 return _sess
 
-            def execute_query(self, query: str, params: dict, database_: str = "neo4j") -> _FakeExecuteQueryResult:
-                # `database_` with trailing underscore matches neo4j.Driver.execute_query's
-                # real keyword argument name, which uses the trailing underscore to avoid
-                # shadowing the built-in `database` name.
-                execute_query_calls.append((query, params, database_))
+            def execute_query(self, query: str, parameters_: dict | None = None, database_: str = "neo4j"):
+                # Returns the standard (records, summary, keys) 3-tuple matching the
+                # real neo4j.Driver.execute_query API used throughout this repo.
+                execute_query_calls.append((query, parameters_, database_))
                 cnt = 1 if _index_exists_value else 0
-                return _FakeExecuteQueryResult(cnt)
+                return ([{"cnt": cnt}], None, None)
 
         fake_neo4j = types.ModuleType("neo4j")
         fake_neo4j.GraphDatabase = types.SimpleNamespace(

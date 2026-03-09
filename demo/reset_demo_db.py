@@ -64,12 +64,12 @@ DEMO_OWNED_INDEXES: tuple[str, ...] = (CHUNK_EMBEDDING_INDEX_NAME,)
 
 def _index_exists(driver: neo4j.Driver, index_name: str, database: str) -> bool:
     """Return True if an index named *index_name* exists in *database*."""
-    result = driver.execute_query(
+    records, _, _ = driver.execute_query(
         "SHOW INDEXES YIELD name WHERE name = $name RETURN count(*) AS cnt",
-        {"name": index_name},
+        parameters_={"name": index_name},
         database_=database,
     )
-    record = result.records[0] if result.records else None
+    record = records[0] if records else None
     return bool(record and record["cnt"] > 0)
 
 
