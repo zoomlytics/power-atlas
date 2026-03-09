@@ -291,8 +291,11 @@ def _run_independent_stage(config: Config, command: str) -> Path:
         started_at=started_at,
         finished_at=finished_at,
     )
-    # Write the manifest into a run-scoped directory: runs/<run_id>/manifest.json
-    run_dir = config.output_dir / "runs" / stage_run_id
+    # Write the manifest into a stage-scoped directory: runs/<run_id>/<stage_name>/manifest.json
+    # Using a stage-name subdirectory prevents manifests from different stages that share the
+    # same run_id (e.g. extract-claims, resolve-entities, ask all use UNSTRUCTURED_RUN_ID) from
+    # overwriting each other.
+    run_dir = config.output_dir / "runs" / stage_run_id / stage_name
     run_dir.mkdir(parents=True, exist_ok=True)
     manifest_path = run_dir / "manifest.json"
     write_manifest(manifest_path, manifest)
@@ -378,7 +381,10 @@ def main() -> None:
                 index_name=CHUNK_EMBEDDING_INDEX_NAME,
             )
         else:
-            manifest_path = _run_independent_stage(config, args.command)
+            try:
+                manifest_path = _run_independent_stage(config, args.command)
+            except ValueError as exc:
+                raise SystemExit(str(exc)) from exc
             print(f"Independent run manifest written to: {manifest_path}")
         return
     if args.command == "reset":

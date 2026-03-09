@@ -918,7 +918,7 @@ class WorkflowTests(unittest.TestCase):
         original_openai_api_key = os.environ.get("OPENAI_API_KEY")
         try:
             os.environ.pop("OPENAI_API_KEY", None)
-            with self.assertRaises(SystemExit) as raised:
+            with self.assertRaises(ValueError) as raised:
                 module._run_pdf_ingest(config, run_id="unstructured_ingest-test")
             self.assertEqual(str(raised.exception), "Set OPENAI_API_KEY when using --live ingest-pdf")
         finally:
