@@ -106,6 +106,13 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                 default=False,
                 help="Start an interactive REPL-style Q&A session with message history",
             )
+        if command == "reset":
+            subparsers.choices[command].add_argument(
+                "--confirm",
+                action="store_true",
+                default=False,
+                help="Required safety flag; without it the command prints instructions only",
+            )
     parser.set_defaults(command="ingest")
 
     options_with_values = {
@@ -354,7 +361,48 @@ def main() -> None:
             print(f"Independent run manifest written to: {manifest_path}")
         return
     if args.command == "reset":
-        print("Stub: use demo/reset_demo_db.py --confirm to reset demo data.")
+        if not getattr(args, "confirm", False):
+            print(
+                "To reset the demo graph, run:\n"
+                "  python demo/reset_demo_db.py --confirm\n"
+                "Or pass --confirm to this command:\n"
+                "  python demo/run_demo.py --live reset --confirm\n"
+                "See demo/reset_demo_db.py for full usage."
+            )
+            return
+        if getattr(args, "dry_run", True):
+            raise SystemExit(
+                "reset --confirm requires --live; re-run with:\n"
+                "  python demo/run_demo.py --live reset --confirm"
+            )
+        if not args.neo4j_password or args.neo4j_password == "CHANGE_ME_BEFORE_USE":
+            raise SystemExit(
+                "Set NEO4J_PASSWORD or pass --neo4j-password when running reset --confirm"
+            )
+        import neo4j as _neo4j
+        from demo.reset_demo_db import run_reset
+
+        driver = _neo4j.GraphDatabase.driver(
+            args.neo4j_uri, auth=(args.neo4j_username, args.neo4j_password)
+        )
+        with driver:
+            report = run_reset(
+                driver=driver,
+                database=args.neo4j_database,
+                output_dir=args.output_dir,
+            )
+        print(
+            f"Demo graph reset complete: "
+            f"database={report['target_database']} "
+            f"nodes_deleted={report['deleted_nodes']} "
+            f"relationships_deleted={report['deleted_relationships']} "
+            f"indexes_dropped={report['indexes_dropped']}"
+        )
+        if report.get("warnings"):
+            for w in report["warnings"]:
+                print(f"  warning: {w}")
+        if report.get("report_path"):
+            print(f"Reset report written to: {report['report_path']}")
         return
     print(f"Stub: '{args.command}' command scaffold is ready.")
 

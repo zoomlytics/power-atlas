@@ -1070,5 +1070,381 @@ class WorkflowTests(unittest.TestCase):
             yaml.safe_load = original_safe_load
 
 
+class ResetDemoDbTests(unittest.TestCase):
+    """Tests for demo/reset_demo_db.py run_reset() and related helpers."""
+
+    def _make_fake_modules(
+        self,
+        *,
+        nodes_deleted: int = 3,
+        relationships_deleted: int = 2,
+        index_exists: bool = True,
+        drop_calls: list | None = None,
+        execute_query_calls: list | None = None,
+    ) -> tuple[types.ModuleType, types.ModuleType]:
+        """Return (fake_neo4j, fake_neo4j_graphrag_indexes) for reset tests."""
+        if drop_calls is None:
+            drop_calls = []
+        if execute_query_calls is None:
+            execute_query_calls = []
+
+        class _FakeCounters:
+            def __init__(self, nodes: int, rels: int) -> None:
+                self.nodes_deleted = nodes
+                self.relationships_deleted = rels
+
+        class _FakeConsumeResult:
+            def __init__(self, nodes: int, rels: int) -> None:
+                self.counters = _FakeCounters(nodes, rels)
+
+        class _FakeResult:
+            def __init__(self, nodes: int, rels: int) -> None:
+                self._nodes = nodes
+                self._rels = rels
+
+            def consume(self) -> _FakeConsumeResult:
+                return _FakeConsumeResult(self._nodes, self._rels)
+
+        class _FakeSession:
+            def __init__(self, nodes: int, rels: int) -> None:
+                self._nodes = nodes
+                self._rels = rels
+                self.most_recent_query: str = ""
+
+            def __enter__(self) -> "_FakeSession":
+                return self
+
+            def __exit__(self, *_) -> bool:
+                return False
+
+            def run(self, query: str, **_kwargs) -> _FakeResult:
+                self.most_recent_query = query
+                return _FakeResult(self._nodes, self._rels)
+
+        _index_exists_value = index_exists
+
+        class _FakeDriver:
+            def __enter__(self) -> "_FakeDriver":
+                return self
+
+            def __exit__(self, *_) -> bool:
+                return False
+
+            def session(self, **kwargs) -> _FakeSession:
+                _sess = _FakeSession(nodes_deleted, relationships_deleted)
+                execute_query_calls.append(("__session__", _sess))
+                return _sess
+
+            def execute_query(self, query: str, parameters_: dict | None = None, database_: str = "neo4j"):
+                # Returns the standard (records, summary, keys) 3-tuple matching the
+                # real neo4j.Driver.execute_query API used throughout this repo.
+                execute_query_calls.append((query, parameters_, database_))
+                cnt = 1 if _index_exists_value else 0
+                return ([{"cnt": cnt}], None, None)
+
+        fake_neo4j = types.ModuleType("neo4j")
+        fake_neo4j.GraphDatabase = types.SimpleNamespace(
+            driver=lambda *_a, **_kw: _FakeDriver()
+        )
+
+        fake_indexes = types.ModuleType("neo4j_graphrag.indexes")
+
+        def _fake_drop_index_if_exists(driver, name, database_: str | None = None):
+            # `database_` matches the real helper's keyword argument name.
+            # Assert on the argument to help tests catch API/usage mismatches.
+            assert database_ is None or isinstance(database_, str)
+            drop_calls.append(name)
+
+        fake_indexes.drop_index_if_exists = _fake_drop_index_if_exists
+        return fake_neo4j, fake_indexes
+
+    @contextmanager
+    def _inject_reset_modules(self, fake_neo4j, fake_indexes):
+        names = ["neo4j", "neo4j_graphrag.indexes"]
+        originals = {n: sys.modules.get(n) for n in names}
+        try:
+            sys.modules["neo4j"] = fake_neo4j
+            sys.modules["neo4j_graphrag.indexes"] = fake_indexes
+            yield
+        finally:
+            for n, orig in originals.items():
+                if orig is None:
+                    sys.modules.pop(n, None)
+                else:
+                    sys.modules[n] = orig
+
+    def _load_reset_module(self, name: str = "reset_db_test"):
+        reset_path = DEMO_DIR / "reset_demo_db.py"
+        return _load_module(reset_path, name)
+
+    # ── run_reset report structure ────────────────────────────────────────────
+
+    def test_run_reset_returns_report_with_expected_keys(self):
+        drop_calls: list = []
+        fake_neo4j, fake_indexes = self._make_fake_modules(
+            nodes_deleted=5, relationships_deleted=3, index_exists=True, drop_calls=drop_calls
+        )
+        with self._inject_reset_modules(fake_neo4j, fake_indexes):
+            module = self._load_reset_module("reset_keys_test")
+            report = module.run_reset(
+                driver=fake_neo4j.GraphDatabase.driver("neo4j://localhost:7687"),
+                database="neo4j",
+                output_dir=None,
+            )
+
+        required_keys = {
+            "created_at",
+            "target_database",
+            "reset_mode",
+            "demo_labels_deleted",
+            "deleted_nodes",
+            "deleted_relationships",
+            "indexes_dropped",
+            "indexes_not_found",
+            "warnings",
+            "idempotent",
+        }
+        self.assertTrue(required_keys.issubset(report.keys()), f"Missing keys: {required_keys - report.keys()}")
+
+    def test_run_reset_returns_correct_counts_when_nodes_and_index_exist(self):
+        drop_calls: list = []
+        fake_neo4j, fake_indexes = self._make_fake_modules(
+            nodes_deleted=7, relationships_deleted=4, index_exists=True, drop_calls=drop_calls
+        )
+        with self._inject_reset_modules(fake_neo4j, fake_indexes):
+            module = self._load_reset_module("reset_counts_test")
+            report = module.run_reset(
+                driver=fake_neo4j.GraphDatabase.driver("neo4j://localhost:7687"),
+                database="testdb",
+                output_dir=None,
+            )
+
+        self.assertEqual(report["deleted_nodes"], 7)
+        self.assertEqual(report["deleted_relationships"], 4)
+        self.assertEqual(report["target_database"], "testdb")
+        self.assertEqual(report["reset_mode"], "demo_full_graph_wipe")
+        self.assertFalse(report["idempotent"])
+        self.assertEqual(len(drop_calls), 1, "Expected exactly one index drop call")
+
+    def test_run_reset_indexes_dropped_when_index_exists(self):
+        drop_calls: list = []
+        fake_neo4j, fake_indexes = self._make_fake_modules(
+            nodes_deleted=2, relationships_deleted=1, index_exists=True, drop_calls=drop_calls
+        )
+        with self._inject_reset_modules(fake_neo4j, fake_indexes):
+            module = self._load_reset_module("reset_index_dropped_test")
+            report = module.run_reset(
+                driver=fake_neo4j.GraphDatabase.driver("neo4j://localhost:7687"),
+                database="neo4j",
+                output_dir=None,
+            )
+
+        self.assertIn("demo_chunk_embedding_index", report["indexes_dropped"])
+        self.assertEqual(report["indexes_not_found"], [])
+        self.assertEqual(drop_calls, ["demo_chunk_embedding_index"])
+
+    # ── idempotent no-op paths ────────────────────────────────────────────────
+
+    def test_run_reset_idempotent_when_graph_empty_and_index_absent(self):
+        drop_calls: list = []
+        fake_neo4j, fake_indexes = self._make_fake_modules(
+            nodes_deleted=0, relationships_deleted=0, index_exists=False, drop_calls=drop_calls
+        )
+        with self._inject_reset_modules(fake_neo4j, fake_indexes):
+            module = self._load_reset_module("reset_idempotent_test")
+            report = module.run_reset(
+                driver=fake_neo4j.GraphDatabase.driver("neo4j://localhost:7687"),
+                database="neo4j",
+                output_dir=None,
+            )
+
+        self.assertTrue(report["idempotent"])
+        self.assertEqual(report["deleted_nodes"], 0)
+        self.assertEqual(report["deleted_relationships"], 0)
+        self.assertEqual(report["indexes_dropped"], [])
+        self.assertIn("demo_chunk_embedding_index", report["indexes_not_found"])
+        # Expect one warning for no demo nodes found and one for the absent index.
+        self.assertTrue(
+            any("No demo-owned nodes found" in w for w in report["warnings"]),
+            "Expected a warning about no demo-owned nodes being found",
+        )
+        self.assertTrue(
+            any("demo_chunk_embedding_index" in w and "not found" in w for w in report["warnings"]),
+            "Expected a warning about the index not being found",
+        )
+        self.assertEqual(drop_calls, [], "No drop call expected when index is absent")
+
+    def test_run_reset_idempotent_flag_false_when_nodes_deleted(self):
+        fake_neo4j, fake_indexes = self._make_fake_modules(
+            nodes_deleted=1, relationships_deleted=0, index_exists=False
+        )
+        with self._inject_reset_modules(fake_neo4j, fake_indexes):
+            module = self._load_reset_module("reset_idempotent_nodes_test")
+            report = module.run_reset(
+                driver=fake_neo4j.GraphDatabase.driver("neo4j://localhost:7687"),
+                database="neo4j",
+                output_dir=None,
+            )
+
+        self.assertFalse(report["idempotent"])
+
+    def test_run_reset_idempotent_flag_false_when_index_dropped(self):
+        fake_neo4j, fake_indexes = self._make_fake_modules(
+            nodes_deleted=0, relationships_deleted=0, index_exists=True
+        )
+        with self._inject_reset_modules(fake_neo4j, fake_indexes):
+            module = self._load_reset_module("reset_idempotent_index_test")
+            report = module.run_reset(
+                driver=fake_neo4j.GraphDatabase.driver("neo4j://localhost:7687"),
+                database="neo4j",
+                output_dir=None,
+            )
+
+        self.assertFalse(report["idempotent"])
+        self.assertIn("demo_chunk_embedding_index", report["indexes_dropped"])
+
+    # ── report file output ────────────────────────────────────────────────────
+
+    def test_run_reset_writes_report_json_to_output_dir(self):
+        drop_calls: list = []
+        fake_neo4j, fake_indexes = self._make_fake_modules(
+            nodes_deleted=2, relationships_deleted=1, index_exists=True, drop_calls=drop_calls
+        )
+        with self._inject_reset_modules(fake_neo4j, fake_indexes):
+            module = self._load_reset_module("reset_report_write_test")
+            with tempfile.TemporaryDirectory() as tmpdir:
+                report = module.run_reset(
+                    driver=fake_neo4j.GraphDatabase.driver("neo4j://localhost:7687"),
+                    database="neo4j",
+                    output_dir=Path(tmpdir),
+                )
+                report_path = Path(report["report_path"])
+                self.assertTrue(report_path.exists(), "Report file should be written")
+                data = json.loads(report_path.read_text(encoding="utf-8"))
+                self.assertEqual(data["deleted_nodes"], 2)
+                self.assertEqual(data["target_database"], "neo4j")
+                self.assertIn("demo_chunk_embedding_index", data["indexes_dropped"])
+
+    def test_run_reset_no_report_file_when_output_dir_is_none(self):
+        fake_neo4j, fake_indexes = self._make_fake_modules()
+        with self._inject_reset_modules(fake_neo4j, fake_indexes):
+            module = self._load_reset_module("reset_no_report_test")
+            report = module.run_reset(
+                driver=fake_neo4j.GraphDatabase.driver("neo4j://localhost:7687"),
+                database="neo4j",
+                output_dir=None,
+            )
+
+        self.assertNotIn("report_path", report)
+
+    # ── demo_labels_deleted contract ──────────────────────────────────────────
+
+    def test_run_reset_demo_labels_deleted_matches_constants(self):
+        fake_neo4j, fake_indexes = self._make_fake_modules()
+        with self._inject_reset_modules(fake_neo4j, fake_indexes):
+            module = self._load_reset_module("reset_labels_test")
+            report = module.run_reset(
+                driver=fake_neo4j.GraphDatabase.driver("neo4j://localhost:7687"),
+                database="neo4j",
+                output_dir=None,
+            )
+
+        expected_labels = {"Document", "Chunk", "Claim", "CanonicalEntity", "EntityMention"}
+        self.assertEqual(set(report["demo_labels_deleted"]), expected_labels)
+
+    def test_run_reset_delete_query_contains_all_demo_labels(self):
+        """Cypher DELETE query must include every label in DEMO_NODE_LABELS."""
+        eq_calls: list = []
+        fake_neo4j, fake_indexes = self._make_fake_modules(execute_query_calls=eq_calls)
+        with self._inject_reset_modules(fake_neo4j, fake_indexes):
+            module = self._load_reset_module("reset_query_labels_test")
+            module.run_reset(
+                driver=fake_neo4j.GraphDatabase.driver("neo4j://localhost:7687"),
+                database="neo4j",
+                output_dir=None,
+            )
+
+        # Find the session object stored by the fake driver's session() call.
+        sessions = [entry[1] for entry in eq_calls if entry[0] == "__session__"]
+        self.assertTrue(sessions, "Expected at least one session to be created")
+        delete_query = sessions[0].most_recent_query
+        for label in ("Document", "Chunk", "Claim", "CanonicalEntity", "EntityMention"):
+            self.assertIn(
+                f"n:{label}", delete_query,
+                f"Expected label '{label}' in the generated DELETE query",
+            )
+
+    # ── run_demo.py reset command ──────────────────────────────────────────────
+
+    def test_reset_command_without_confirm_prints_instructions(self):
+        module = _load_module(RUN_DEMO_PATH, "run_reset_no_confirm_test")
+        args = type(
+            "Args",
+            (),
+            {
+                "command": "reset",
+                "confirm": False,
+                "dry_run": False,
+                "output_dir": DEMO_DIR / "artifacts",
+                "neo4j_uri": "neo4j://localhost:7687",
+                "neo4j_username": "neo4j",
+                "neo4j_password": "CHANGE_ME_BEFORE_USE",
+                "neo4j_database": "neo4j",
+                "openai_model": "gpt-4o-mini",
+                "question": None,
+            },
+        )()
+        original_parse_args = module.parse_args
+        try:
+            module.parse_args = lambda: args
+            with io.StringIO() as buffer, redirect_stdout(buffer):
+                module.main()
+                output = buffer.getvalue()
+            self.assertIn("reset_demo_db.py --confirm", output)
+            self.assertIn("--confirm", output)
+        finally:
+            module.parse_args = original_parse_args
+
+    def test_reset_subcommand_accepts_confirm_flag(self):
+        module = _load_module(RUN_DEMO_PATH, "run_reset_confirm_arg_test")
+        args = module.parse_args(["reset", "--confirm"])
+        self.assertEqual(args.command, "reset")
+        self.assertTrue(args.confirm)
+
+    def test_reset_subcommand_confirm_defaults_to_false(self):
+        module = _load_module(RUN_DEMO_PATH, "run_reset_confirm_default_test")
+        args = module.parse_args(["reset"])
+        self.assertEqual(args.command, "reset")
+        self.assertFalse(args.confirm)
+
+    def test_reset_confirm_with_dry_run_raises_system_exit(self):
+        """reset --confirm must refuse when --dry-run is in effect (the default)."""
+        module = _load_module(RUN_DEMO_PATH, "run_reset_dry_run_guard_test")
+        args = type(
+            "Args",
+            (),
+            {
+                "command": "reset",
+                "confirm": True,
+                "dry_run": True,
+                "output_dir": DEMO_DIR / "artifacts",
+                "neo4j_uri": "neo4j://localhost:7687",
+                "neo4j_username": "neo4j",
+                "neo4j_password": "testpassword",
+                "neo4j_database": "neo4j",
+                "openai_model": "gpt-4o-mini",
+                "question": None,
+            },
+        )()
+        original_parse_args = module.parse_args
+        try:
+            module.parse_args = lambda: args
+            with self.assertRaises(SystemExit) as ctx:
+                module.main()
+            self.assertIn("--live", str(ctx.exception))
+        finally:
+            module.parse_args = original_parse_args
+
+
 if __name__ == "__main__":
     unittest.main()
