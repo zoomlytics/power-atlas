@@ -14,8 +14,10 @@ from pathlib import Path
 
 import yaml
 
+from demo.contracts import PROMPT_IDS
 
-DEMO_DIR = Path(__file__).resolve().parents[1] / "demo" / "chain_of_custody"
+
+DEMO_DIR = Path(__file__).resolve().parents[1]
 RUN_DEMO_PATH = DEMO_DIR / "run_demo.py"
 SMOKE_TEST_PATH = DEMO_DIR / "smoke_test.py"
 
@@ -33,7 +35,7 @@ def _load_module(path: Path, module_name: str):
     return module
 
 
-class ChainOfCustodyDemoTests(unittest.TestCase):
+class WorkflowTests(unittest.TestCase):
     @contextmanager
     def _with_injected_modules(self, injected_modules: dict[str, types.ModuleType]):
         originals = {name: sys.modules.get(name) for name in injected_modules}
@@ -146,7 +148,7 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
                 os.environ.pop("OPENAI_API_KEY", None)
 
     def test_parse_args_supports_expected_subcommands(self):
-        module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_parse_args_test")
+        module = _load_module(RUN_DEMO_PATH, "run_parse_args_test")
         expected = {
             "lint-structured",
             "ingest-structured",
@@ -169,7 +171,7 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
             module.parse_args(["--dry-run", "ingest", "--l"])
 
     def test_reset_command_skips_password_validation(self):
-        module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_main_reset_test")
+        module = _load_module(RUN_DEMO_PATH, "run_main_reset_test")
         args = type(
             "Args",
             (),
@@ -195,10 +197,10 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
             module.parse_args = original_parse_args
 
     def test_run_demo_dry_run_writes_manifest_with_expected_stages(self):
-        module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_test")
+        module = _load_module(RUN_DEMO_PATH, "run_test")
         with tempfile.TemporaryDirectory() as tmpdir:
             manifest_path = module.run_demo(
-                module.DemoConfig(
+                module.Config(
                     dry_run=True,
                     output_dir=Path(tmpdir),
                     neo4j_uri="neo4j://localhost:7687",
@@ -222,6 +224,7 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
                     "structured_ingest",
                     "pdf_ingest",
                     "claim_and_mention_extraction",
+                    "entity_resolution",
                     "retrieval_and_qa",
                 },
             )
@@ -238,8 +241,12 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
                 manifest["run_scopes"]["unstructured_ingest_run_id"],
             )
             self.assertEqual(
+                manifest["stages"]["entity_resolution"]["run_id"],
+                manifest["run_scopes"]["unstructured_ingest_run_id"],
+            )
+            self.assertEqual(
                 manifest["stages"]["claim_and_mention_extraction"]["prompt_version"],
-                module.CLAIM_EXTRACTION_PROMPT_VERSION,
+                PROMPT_IDS["claim_extraction"],
             )
             claims_fixture_path = DEMO_DIR / "fixtures" / "structured" / "claims.csv"
             with claims_fixture_path.open(newline="", encoding="utf-8") as f:
@@ -257,7 +264,7 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
     def test_fixture_manifest_tracks_dataset_and_provenance(self):
         fixture_manifest = DEMO_DIR / "fixtures" / "manifest.json"
         data = json.loads(fixture_manifest.read_text(encoding="utf-8"))
-        self.assertEqual(data["dataset"], "chain_of_custody_dataset_v1")
+        self.assertEqual(data["dataset"], "demo_dataset_v1")
         required_files = set(data["dataset_contract"]["required_files"])
         provenance_paths = {item["path"] for item in data["provenance"]}
         self.assertTrue(required_files.issubset(provenance_paths))
@@ -321,9 +328,9 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
                 self.fail(f"Unexpected claim_type: {claim['claim_type']}")
 
     def test_structured_ingest_dry_run_emits_clean_run_artifacts(self):
-        module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_structured_clean_test")
+        module = _load_module(RUN_DEMO_PATH, "run_structured_clean_test")
         with tempfile.TemporaryDirectory() as tmpdir:
-            config = module.DemoConfig(
+            config = module.Config(
                 dry_run=True,
                 output_dir=Path(tmpdir),
                 neo4j_uri="neo4j://localhost:7687",
@@ -349,9 +356,9 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
             self.assertTrue(Path(stage["validation_warnings_path"]).exists())
 
     def test_structured_ingest_non_dry_run_writes_claim_first_graph_and_artifacts(self):
-        module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_structured_live_test")
+        module = _load_module(RUN_DEMO_PATH, "run_structured_live_test")
         with tempfile.TemporaryDirectory() as tmpdir:
-            config = module.DemoConfig(
+            config = module.Config(
                 dry_run=False,
                 output_dir=Path(tmpdir),
                 neo4j_uri="neo4j://localhost:7687",
@@ -420,7 +427,7 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
             self.assertIn("trim(row.claim_type) = 'fact'", claim_query)
 
     def test_structured_lint_deduplicates_duplicate_rows(self):
-        module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_structured_dedup_test")
+        module = _load_module(RUN_DEMO_PATH, "run_structured_dedup_test")
         with tempfile.TemporaryDirectory() as tmpdir:
             copied_fixtures = Path(tmpdir) / "fixtures"
             shutil.copytree(DEMO_DIR / "fixtures", copied_fixtures)
@@ -453,7 +460,7 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
             self.assertEqual(result["files"]["entities.csv"]["deduplicated_rows"], 1)
 
     def test_structured_lint_ignores_blank_whitespace_rows(self):
-        module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_structured_blank_rows_test")
+        module = _load_module(RUN_DEMO_PATH, "run_structured_blank_rows_test")
         with tempfile.TemporaryDirectory() as tmpdir:
             copied_fixtures = Path(tmpdir) / "fixtures"
             shutil.copytree(DEMO_DIR / "fixtures", copied_fixtures)
@@ -477,7 +484,7 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
             self.assertGreaterEqual(result["files"]["entities.csv"]["dropped_blank_rows"], 1)
 
     def test_structured_lint_handles_entities_header_with_extra_column(self):
-        module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_structured_header_mismatch_test")
+        module = _load_module(RUN_DEMO_PATH, "run_structured_header_mismatch_test")
         with tempfile.TemporaryDirectory() as tmpdir:
             copied_fixtures = Path(tmpdir) / "fixtures"
             shutil.copytree(DEMO_DIR / "fixtures", copied_fixtures)
@@ -518,7 +525,7 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
             )
 
     def test_structured_lint_reports_read_error_and_emits_lint_report(self):
-        module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_structured_missing_file_test")
+        module = _load_module(RUN_DEMO_PATH, "run_structured_missing_file_test")
         with tempfile.TemporaryDirectory() as tmpdir:
             copied_fixtures = Path(tmpdir) / "fixtures"
             shutil.copytree(DEMO_DIR / "fixtures", copied_fixtures)
@@ -543,7 +550,7 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
             self.assertFalse(any(issue["code"] == "UNKNOWN_FACT_SOURCE_ROW" for issue in lint_report["issues"]))
 
     def test_structured_lint_uses_original_row_numbers_after_blank_rows(self):
-        module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_structured_row_numbers_test")
+        module = _load_module(RUN_DEMO_PATH, "run_structured_row_numbers_test")
         with tempfile.TemporaryDirectory() as tmpdir:
             copied_fixtures = Path(tmpdir) / "fixtures"
             shutil.copytree(DEMO_DIR / "fixtures", copied_fixtures)
@@ -580,8 +587,8 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
             self.assertEqual(unknown_subject_issues[0]["row"], expected_row_number)
 
     def test_run_pdf_ingest_non_dry_run_executes_config_pipeline_and_provenance_flow(self):
-        module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_non_dry_test")
-        config = module.DemoConfig(
+        module = _load_module(RUN_DEMO_PATH, "run_non_dry_test")
+        config = module.Config(
             dry_run=False,
             output_dir=DEMO_DIR / "artifacts",
             neo4j_uri="neo4j://localhost:7687",
@@ -606,7 +613,7 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
                 {"index_name": index_name, "index_kwargs": {"database_": database_, **kwargs}}
             ),
         )
-        expected_fingerprint = module._sha256_file(
+        expected_fingerprint = module.sha256_file(
             DEMO_DIR / "fixtures" / "unstructured" / "chain_of_custody.pdf"
         )
         initial_openai_state = ("OPENAI_API_KEY" in os.environ, os.environ.get("OPENAI_API_KEY"))
@@ -621,20 +628,20 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
         self.assertEqual(result["counts"], summary["counts"])
         self.assertEqual(result["pdf_fingerprint_sha256"], expected_fingerprint)
         self.assertEqual(summary["pdf_fingerprint_sha256"], expected_fingerprint)
-        self.assertEqual(summary["dataset_id"], "chain_of_custody_dataset_v1")
+        self.assertEqual(summary["dataset_id"], "demo_dataset_v1")
         self.assertEqual(
             summary["pipeline_config_sha256"],
-            module._sha256_file(DEMO_DIR / "config" / "pdf_simple_kg_pipeline.yaml"),
+            module.sha256_file(DEMO_DIR / "config" / "pdf_simple_kg_pipeline.yaml"),
         )
         self.assertEqual(
             result["pipeline_config_sha256"],
-            module._sha256_file(DEMO_DIR / "config" / "pdf_simple_kg_pipeline.yaml"),
+            module.sha256_file(DEMO_DIR / "config" / "pdf_simple_kg_pipeline.yaml"),
         )
         self.assertEqual(summary["embedding_model"], module.EMBEDDER_MODEL_NAME)
         self.assertEqual(result["vector_index"]["creation_strategy"], "neo4j_graphrag.indexes.create_vector_index")
         self.assertEqual(result["pipeline_result"], {"ok": True})
-        self.assertEqual(result["provenance"]["dataset_id"], "chain_of_custody_dataset_v1")
-        self.assertEqual(calls["index_name"], "chain_custody_chunk_embedding_index")
+        self.assertEqual(result["provenance"]["dataset_id"], "demo_dataset_v1")
+        self.assertEqual(calls["index_name"], "demo_chunk_embedding_index")
         self.assertEqual(calls["index_kwargs"]["label"], "Chunk")
         self.assertEqual(calls["index_kwargs"]["embedding_property"], "embedding")
         self.assertEqual(calls["index_kwargs"]["dimensions"], 1536)
@@ -653,7 +660,7 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
             calls["run_params"]["document_metadata"],
             {
                 "run_id": "unstructured_ingest-test",
-                "dataset_id": "chain_of_custody_dataset_v1",
+                "dataset_id": "demo_dataset_v1",
                 "source_uri": expected_pdf_uri,
             },
         )
@@ -697,8 +704,8 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
         )
 
     def test_pdf_ingest_query_payload_prefers_specific_markers(self):
-        module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_marker_test")
-        config = module.DemoConfig(
+        module = _load_module(RUN_DEMO_PATH, "run_marker_test")
+        config = module.Config(
             dry_run=False,
             output_dir=DEMO_DIR / "artifacts",
             neo4j_uri="neo4j://localhost:7687",
@@ -728,9 +735,9 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
         self.assertGreaterEqual(calls["matched_markers"].count("missing_page_count"), 1)
 
     def test_run_pdf_ingest_dry_run_writes_summary_and_fingerprint(self):
-        module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_pdf_dry_summary_test")
+        module = _load_module(RUN_DEMO_PATH, "run_pdf_dry_summary_test")
         with tempfile.TemporaryDirectory() as tmpdir:
-            config = module.DemoConfig(
+            config = module.Config(
                 dry_run=True,
                 output_dir=Path(tmpdir),
                 neo4j_uri="neo4j://localhost:7687",
@@ -740,7 +747,7 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
                 openai_model="gpt-4o-mini",
             )
             result = module._run_pdf_ingest(config, run_id="unstructured_ingest-test")
-            expected_fingerprint = module._sha256_file(
+            expected_fingerprint = module.sha256_file(
                 DEMO_DIR / "fixtures" / "unstructured" / "chain_of_custody.pdf"
             )
             summary_path = Path(result["ingest_summary_path"])
@@ -748,25 +755,25 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
             summary = json.loads(summary_path.read_text(encoding="utf-8"))
             self.assertEqual(summary["pdf_fingerprint_sha256"], expected_fingerprint)
             self.assertEqual(summary["counts"], {"documents": 0, "pages": 0, "chunks": 0})
-            self.assertEqual(summary["dataset_id"], "chain_of_custody_dataset_v1")
+            self.assertEqual(summary["dataset_id"], "demo_dataset_v1")
             self.assertEqual(summary["embedding_model"], module.EMBEDDER_MODEL_NAME)
             self.assertEqual(summary["embedding_dimensions"], module.CHUNK_EMBEDDING_DIMENSIONS)
             self.assertEqual(
                 summary["pipeline_config_sha256"],
-                module._sha256_file(DEMO_DIR / "config" / "pdf_simple_kg_pipeline.yaml"),
+                module.sha256_file(DEMO_DIR / "config" / "pdf_simple_kg_pipeline.yaml"),
             )
             self.assertEqual(summary["vector_index"]["creation_strategy"], "dry_run")
             self.assertEqual(result["pdf_fingerprint_sha256"], expected_fingerprint)
             self.assertEqual(
                 result["pipeline_config_sha256"],
-                module._sha256_file(DEMO_DIR / "config" / "pdf_simple_kg_pipeline.yaml"),
+                module.sha256_file(DEMO_DIR / "config" / "pdf_simple_kg_pipeline.yaml"),
             )
             self.assertEqual(Path(result["pdf_ingest_dir"]), summary_path.parent)
             self.assertEqual(result["vector_index"]["creation_strategy"], "dry_run")
 
     def test_run_pdf_ingest_non_dry_run_normalizes_non_json_pipeline_result(self):
-        module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_result_fallback_test")
-        config = module.DemoConfig(
+        module = _load_module(RUN_DEMO_PATH, "run_result_fallback_test")
+        config = module.Config(
             dry_run=False,
             output_dir=DEMO_DIR / "artifacts",
             neo4j_uri="neo4j://localhost:7687",
@@ -794,8 +801,8 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
         self.assertIn("object object", result["pipeline_result"]["summary"])
 
     def test_run_pdf_ingest_non_dry_run_falls_back_to_cypher_index_creation(self):
-        module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_non_dry_fallback_test")
-        config = module.DemoConfig(
+        module = _load_module(RUN_DEMO_PATH, "run_non_dry_fallback_test")
+        config = module.Config(
             dry_run=False,
             output_dir=DEMO_DIR / "artifacts",
             neo4j_uri="neo4j://localhost:7687",
@@ -826,12 +833,12 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
         self.assertEqual(result["vector_index"]["creation_strategy"], "cypher_fallback")
         self.assertEqual(result["vector_index_fallback_reason"], "RuntimeError: index helper unavailable")
         self.assertTrue(
-            any("CREATE VECTOR INDEX `chain_custody_chunk_embedding_index` IF NOT EXISTS" in query for query, _ in calls["queries"])
+            any("CREATE VECTOR INDEX `demo_chunk_embedding_index` IF NOT EXISTS" in query for query, _ in calls["queries"])
         )
 
     def test_run_pdf_ingest_non_dry_run_rejects_unsafe_cypher_fallback_identifiers(self):
-        module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_non_dry_unsafe_identifier_test")
-        config = module.DemoConfig(
+        module = _load_module(RUN_DEMO_PATH, "run_non_dry_unsafe_identifier_test")
+        config = module.Config(
             dry_run=False,
             output_dir=DEMO_DIR / "artifacts",
             neo4j_uri="neo4j://localhost:7687",
@@ -870,8 +877,8 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
                 setattr(module, attr_name, original_value)
 
     def test_run_pdf_ingest_non_dry_run_raises_when_no_run_scoped_documents_or_chunks(self):
-        module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_non_dry_missing_nodes_test")
-        config = module.DemoConfig(
+        module = _load_module(RUN_DEMO_PATH, "run_non_dry_missing_nodes_test")
+        config = module.Config(
             dry_run=False,
             output_dir=DEMO_DIR / "artifacts",
             neo4j_uri="neo4j://localhost:7687",
@@ -897,8 +904,8 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
                 module._run_pdf_ingest(config, run_id="unstructured_ingest-test")
 
     def test_run_pdf_ingest_non_dry_run_requires_openai_api_key(self):
-        module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_non_dry_requires_openai_key_test")
-        config = module.DemoConfig(
+        module = _load_module(RUN_DEMO_PATH, "run_non_dry_requires_openai_key_test")
+        config = module.Config(
             dry_run=False,
             output_dir=DEMO_DIR / "artifacts",
             neo4j_uri="neo4j://localhost:7687",
@@ -911,7 +918,7 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
         original_openai_api_key = os.environ.get("OPENAI_API_KEY")
         try:
             os.environ.pop("OPENAI_API_KEY", None)
-            with self.assertRaises(SystemExit) as raised:
+            with self.assertRaises(ValueError) as raised:
                 module._run_pdf_ingest(config, run_id="unstructured_ingest-test")
             self.assertEqual(str(raised.exception), "Set OPENAI_API_KEY when using --live ingest-pdf")
         finally:
@@ -921,9 +928,9 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
                 os.environ.pop("OPENAI_API_KEY", None)
 
     def test_independent_ingest_commands_write_stage_manifests(self):
-        module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_independent_test")
+        module = _load_module(RUN_DEMO_PATH, "run_independent_test")
         with tempfile.TemporaryDirectory() as tmpdir:
-            config = module.DemoConfig(
+            config = module.Config(
                 dry_run=True,
                 output_dir=Path(tmpdir),
                 neo4j_uri="neo4j://localhost:7687",
@@ -959,7 +966,7 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
         sys.path.insert(0, str(DEMO_DIR))
         try:
             with tempfile.TemporaryDirectory() as tmpdir:
-                smoke_module = _load_module(SMOKE_TEST_PATH, "chain_of_custody_smoke_test_module")
+                smoke_module = _load_module(SMOKE_TEST_PATH, "smoke_test_module")
                 output_dir = Path(tmpdir)
                 expected_manifest = output_dir / "manifest.json"
                 original_parse_args = smoke_module._parse_args
@@ -977,18 +984,15 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
         config_text = (DEMO_DIR / "config" / "pdf_simple_kg_pipeline.yaml").read_text(encoding="utf-8")
         config = yaml.safe_load(config_text)
         self.assertIn(
-            "demo/chain_of_custody/config/pdf_simple_kg_pipeline.yaml",
+            "demo/config/pdf_simple_kg_pipeline.yaml",
             readme_text,
         )
         self.assertIn(
             "vendor-resources/examples/build_graph/from_config_files/simple_kg_pipeline_from_config_file.py",
             readme_text,
         )
-        self.assertIn("chain_custody_chunk_embedding_index", readme_text)
-        self.assertIn("vendor examples use `NEO4J_USER`", readme_text)
-        self.assertIn("config_url.json", readme_text)
-        self.assertIn("simple_kg_pipeline_config_url.json", readme_text)
-        self.assertIn("simple_kg_builder_from_pdf.py", readme_text)
+        self.assertIn("demo_chunk_embedding_index", readme_text)
+        self.assertIn("NEO4J_USERNAME", readme_text)
         self.assertIn("create_vector_index.py", readme_text)
         self.assertIn("## Conceptual model", readme_text)
         self.assertIn("sequential independent runs", readme_text)
@@ -1000,7 +1004,7 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
         self.assertIn("embedder_config", config)
         self.assertIn("neo4j_config", config)
         self.assertIn("from_pdf", config)
-        self.assertIn("demo_contract", config)
+        self.assertIn("contract", config)
         neo4j_database_value = config.get("neo4j_database") or config.get("kg_writer", {}).get("params_", {}).get("neo4j_database")
         self.assertIsNotNone(neo4j_database_value)
         if isinstance(neo4j_database_value, dict):
@@ -1009,7 +1013,7 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
             self.assertEqual(neo4j_database_value, "neo4j")
         self.assertEqual(config["llm_config"]["params_"]["model_name"]["var_"], "OPENAI_MODEL")
         self.assertEqual(config["embedder_config"]["params_"]["model"], "text-embedding-3-small")
-        self.assertEqual(config["demo_contract"]["chunk_embedding"]["dimensions"], 1536)
+        self.assertEqual(config["contract"]["chunk_embedding"]["dimensions"], 1536)
 
     def test_run_demo_warns_and_falls_back_when_pipeline_yaml_cannot_be_parsed(self):
         original_safe_load = yaml.safe_load
@@ -1017,8 +1021,8 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
             yaml.safe_load = lambda *_args, **_kwargs: (_ for _ in ()).throw(yaml.YAMLError("bad yaml"))
             with warnings.catch_warnings(record=True) as caught:
                 warnings.simplefilter("always")
-                module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_yaml_warn_test")
-            self.assertEqual(module.CHUNK_EMBEDDING_INDEX_NAME, "chain_custody_chunk_embedding_index")
+                module = _load_module(RUN_DEMO_PATH, "run_yaml_warn_test")
+            self.assertEqual(module.CHUNK_EMBEDDING_INDEX_NAME, "demo_chunk_embedding_index")
             self.assertEqual(module.CHUNK_EMBEDDING_LABEL, "Chunk")
             self.assertEqual(module.CHUNK_EMBEDDING_PROPERTY, "embedding")
             self.assertEqual(module.CHUNK_EMBEDDING_DIMENSIONS, 1536)
@@ -1035,8 +1039,8 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
             yaml.safe_load = lambda *_args, **_kwargs: []
             with warnings.catch_warnings(record=True) as caught:
                 warnings.simplefilter("always")
-                module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_yaml_top_level_type_warn_test")
-            self.assertEqual(module.CHUNK_EMBEDDING_INDEX_NAME, "chain_custody_chunk_embedding_index")
+                module = _load_module(RUN_DEMO_PATH, "run_yaml_top_level_type_warn_test")
+            self.assertEqual(module.CHUNK_EMBEDDING_INDEX_NAME, "demo_chunk_embedding_index")
             self.assertEqual(module.CHUNK_EMBEDDING_LABEL, "Chunk")
             self.assertEqual(module.CHUNK_EMBEDDING_PROPERTY, "embedding")
             self.assertEqual(module.CHUNK_EMBEDDING_DIMENSIONS, 1536)
@@ -1050,20 +1054,396 @@ class ChainOfCustodyDemoTests(unittest.TestCase):
     def test_run_demo_warns_and_falls_back_when_chunk_embedding_is_not_mapping(self):
         original_safe_load = yaml.safe_load
         try:
-            yaml.safe_load = lambda *_args, **_kwargs: {"demo_contract": {"chunk_embedding": []}}
+            yaml.safe_load = lambda *_args, **_kwargs: {"contract": {"chunk_embedding": []}}
             with warnings.catch_warnings(record=True) as caught:
                 warnings.simplefilter("always")
-                module = _load_module(RUN_DEMO_PATH, "chain_of_custody_run_demo_chunk_contract_type_warn_test")
-            self.assertEqual(module.CHUNK_EMBEDDING_INDEX_NAME, "chain_custody_chunk_embedding_index")
+                module = _load_module(RUN_DEMO_PATH, "run_chunk_contract_type_warn_test")
+            self.assertEqual(module.CHUNK_EMBEDDING_INDEX_NAME, "demo_chunk_embedding_index")
             self.assertEqual(module.CHUNK_EMBEDDING_LABEL, "Chunk")
             self.assertEqual(module.CHUNK_EMBEDDING_PROPERTY, "embedding")
             self.assertEqual(module.CHUNK_EMBEDDING_DIMENSIONS, 1536)
             self.assertTrue(
-                any("demo_contract.chunk_embedding" in str(w.message) for w in caught),
+                any("contract.chunk_embedding" in str(w.message) for w in caught),
                 "Expected warning when chunk embedding contract is not a mapping",
             )
         finally:
             yaml.safe_load = original_safe_load
+
+
+class ResetDemoDbTests(unittest.TestCase):
+    """Tests for demo/reset_demo_db.py run_reset() and related helpers."""
+
+    def _make_fake_modules(
+        self,
+        *,
+        nodes_deleted: int = 3,
+        relationships_deleted: int = 2,
+        index_exists: bool = True,
+        drop_calls: list | None = None,
+        execute_query_calls: list | None = None,
+    ) -> tuple[types.ModuleType, types.ModuleType]:
+        """Return (fake_neo4j, fake_neo4j_graphrag_indexes) for reset tests."""
+        if drop_calls is None:
+            drop_calls = []
+        if execute_query_calls is None:
+            execute_query_calls = []
+
+        class _FakeCounters:
+            def __init__(self, nodes: int, rels: int) -> None:
+                self.nodes_deleted = nodes
+                self.relationships_deleted = rels
+
+        class _FakeConsumeResult:
+            def __init__(self, nodes: int, rels: int) -> None:
+                self.counters = _FakeCounters(nodes, rels)
+
+        class _FakeResult:
+            def __init__(self, nodes: int, rels: int) -> None:
+                self._nodes = nodes
+                self._rels = rels
+
+            def consume(self) -> _FakeConsumeResult:
+                return _FakeConsumeResult(self._nodes, self._rels)
+
+        class _FakeSession:
+            def __init__(self, nodes: int, rels: int) -> None:
+                self._nodes = nodes
+                self._rels = rels
+                self.most_recent_query: str = ""
+
+            def __enter__(self) -> "_FakeSession":
+                return self
+
+            def __exit__(self, *_) -> bool:
+                return False
+
+            def run(self, query: str, **_kwargs) -> _FakeResult:
+                self.most_recent_query = query
+                return _FakeResult(self._nodes, self._rels)
+
+        _index_exists_value = index_exists
+
+        class _FakeDriver:
+            def __enter__(self) -> "_FakeDriver":
+                return self
+
+            def __exit__(self, *_) -> bool:
+                return False
+
+            def session(self, **kwargs) -> _FakeSession:
+                _sess = _FakeSession(nodes_deleted, relationships_deleted)
+                execute_query_calls.append(("__session__", _sess))
+                return _sess
+
+            def execute_query(self, query: str, parameters_: dict | None = None, database_: str = "neo4j"):
+                # Returns the standard (records, summary, keys) 3-tuple matching the
+                # real neo4j.Driver.execute_query API used throughout this repo.
+                execute_query_calls.append((query, parameters_, database_))
+                cnt = 1 if _index_exists_value else 0
+                return ([{"cnt": cnt}], None, None)
+
+        fake_neo4j = types.ModuleType("neo4j")
+        fake_neo4j.GraphDatabase = types.SimpleNamespace(
+            driver=lambda *_a, **_kw: _FakeDriver()
+        )
+
+        fake_indexes = types.ModuleType("neo4j_graphrag.indexes")
+
+        def _fake_drop_index_if_exists(driver, name, database_: str | None = None):
+            # `database_` matches the real helper's keyword argument name.
+            # Assert on the argument to help tests catch API/usage mismatches.
+            assert database_ is None or isinstance(database_, str)
+            drop_calls.append(name)
+
+        fake_indexes.drop_index_if_exists = _fake_drop_index_if_exists
+        return fake_neo4j, fake_indexes
+
+    @contextmanager
+    def _inject_reset_modules(self, fake_neo4j, fake_indexes):
+        names = ["neo4j", "neo4j_graphrag.indexes"]
+        originals = {n: sys.modules.get(n) for n in names}
+        try:
+            sys.modules["neo4j"] = fake_neo4j
+            sys.modules["neo4j_graphrag.indexes"] = fake_indexes
+            yield
+        finally:
+            for n, orig in originals.items():
+                if orig is None:
+                    sys.modules.pop(n, None)
+                else:
+                    sys.modules[n] = orig
+
+    def _load_reset_module(self, name: str = "reset_db_test"):
+        reset_path = DEMO_DIR / "reset_demo_db.py"
+        return _load_module(reset_path, name)
+
+    # ── run_reset report structure ────────────────────────────────────────────
+
+    def test_run_reset_returns_report_with_expected_keys(self):
+        drop_calls: list = []
+        fake_neo4j, fake_indexes = self._make_fake_modules(
+            nodes_deleted=5, relationships_deleted=3, index_exists=True, drop_calls=drop_calls
+        )
+        with self._inject_reset_modules(fake_neo4j, fake_indexes):
+            module = self._load_reset_module("reset_keys_test")
+            report = module.run_reset(
+                driver=fake_neo4j.GraphDatabase.driver("neo4j://localhost:7687"),
+                database="neo4j",
+                output_dir=None,
+            )
+
+        required_keys = {
+            "created_at",
+            "target_database",
+            "reset_mode",
+            "demo_labels_deleted",
+            "deleted_nodes",
+            "deleted_relationships",
+            "indexes_dropped",
+            "indexes_not_found",
+            "warnings",
+            "idempotent",
+        }
+        self.assertTrue(required_keys.issubset(report.keys()), f"Missing keys: {required_keys - report.keys()}")
+
+    def test_run_reset_returns_correct_counts_when_nodes_and_index_exist(self):
+        drop_calls: list = []
+        fake_neo4j, fake_indexes = self._make_fake_modules(
+            nodes_deleted=7, relationships_deleted=4, index_exists=True, drop_calls=drop_calls
+        )
+        with self._inject_reset_modules(fake_neo4j, fake_indexes):
+            module = self._load_reset_module("reset_counts_test")
+            report = module.run_reset(
+                driver=fake_neo4j.GraphDatabase.driver("neo4j://localhost:7687"),
+                database="testdb",
+                output_dir=None,
+            )
+
+        self.assertEqual(report["deleted_nodes"], 7)
+        self.assertEqual(report["deleted_relationships"], 4)
+        self.assertEqual(report["target_database"], "testdb")
+        self.assertEqual(report["reset_mode"], "demo_full_graph_wipe")
+        self.assertFalse(report["idempotent"])
+        self.assertEqual(len(drop_calls), 1, "Expected exactly one index drop call")
+
+    def test_run_reset_indexes_dropped_when_index_exists(self):
+        drop_calls: list = []
+        fake_neo4j, fake_indexes = self._make_fake_modules(
+            nodes_deleted=2, relationships_deleted=1, index_exists=True, drop_calls=drop_calls
+        )
+        with self._inject_reset_modules(fake_neo4j, fake_indexes):
+            module = self._load_reset_module("reset_index_dropped_test")
+            report = module.run_reset(
+                driver=fake_neo4j.GraphDatabase.driver("neo4j://localhost:7687"),
+                database="neo4j",
+                output_dir=None,
+            )
+
+        self.assertIn("demo_chunk_embedding_index", report["indexes_dropped"])
+        self.assertEqual(report["indexes_not_found"], [])
+        self.assertEqual(drop_calls, ["demo_chunk_embedding_index"])
+
+    # ── idempotent no-op paths ────────────────────────────────────────────────
+
+    def test_run_reset_idempotent_when_graph_empty_and_index_absent(self):
+        drop_calls: list = []
+        fake_neo4j, fake_indexes = self._make_fake_modules(
+            nodes_deleted=0, relationships_deleted=0, index_exists=False, drop_calls=drop_calls
+        )
+        with self._inject_reset_modules(fake_neo4j, fake_indexes):
+            module = self._load_reset_module("reset_idempotent_test")
+            report = module.run_reset(
+                driver=fake_neo4j.GraphDatabase.driver("neo4j://localhost:7687"),
+                database="neo4j",
+                output_dir=None,
+            )
+
+        self.assertTrue(report["idempotent"])
+        self.assertEqual(report["deleted_nodes"], 0)
+        self.assertEqual(report["deleted_relationships"], 0)
+        self.assertEqual(report["indexes_dropped"], [])
+        self.assertIn("demo_chunk_embedding_index", report["indexes_not_found"])
+        # Expect one warning for no demo nodes found and one for the absent index.
+        self.assertTrue(
+            any("No demo-owned nodes found" in w for w in report["warnings"]),
+            "Expected a warning about no demo-owned nodes being found",
+        )
+        self.assertTrue(
+            any("demo_chunk_embedding_index" in w and "not found" in w for w in report["warnings"]),
+            "Expected a warning about the index not being found",
+        )
+        self.assertEqual(drop_calls, [], "No drop call expected when index is absent")
+
+    def test_run_reset_idempotent_flag_false_when_nodes_deleted(self):
+        fake_neo4j, fake_indexes = self._make_fake_modules(
+            nodes_deleted=1, relationships_deleted=0, index_exists=False
+        )
+        with self._inject_reset_modules(fake_neo4j, fake_indexes):
+            module = self._load_reset_module("reset_idempotent_nodes_test")
+            report = module.run_reset(
+                driver=fake_neo4j.GraphDatabase.driver("neo4j://localhost:7687"),
+                database="neo4j",
+                output_dir=None,
+            )
+
+        self.assertFalse(report["idempotent"])
+
+    def test_run_reset_idempotent_flag_false_when_index_dropped(self):
+        fake_neo4j, fake_indexes = self._make_fake_modules(
+            nodes_deleted=0, relationships_deleted=0, index_exists=True
+        )
+        with self._inject_reset_modules(fake_neo4j, fake_indexes):
+            module = self._load_reset_module("reset_idempotent_index_test")
+            report = module.run_reset(
+                driver=fake_neo4j.GraphDatabase.driver("neo4j://localhost:7687"),
+                database="neo4j",
+                output_dir=None,
+            )
+
+        self.assertFalse(report["idempotent"])
+        self.assertIn("demo_chunk_embedding_index", report["indexes_dropped"])
+
+    # ── report file output ────────────────────────────────────────────────────
+
+    def test_run_reset_writes_report_json_to_output_dir(self):
+        drop_calls: list = []
+        fake_neo4j, fake_indexes = self._make_fake_modules(
+            nodes_deleted=2, relationships_deleted=1, index_exists=True, drop_calls=drop_calls
+        )
+        with self._inject_reset_modules(fake_neo4j, fake_indexes):
+            module = self._load_reset_module("reset_report_write_test")
+            with tempfile.TemporaryDirectory() as tmpdir:
+                report = module.run_reset(
+                    driver=fake_neo4j.GraphDatabase.driver("neo4j://localhost:7687"),
+                    database="neo4j",
+                    output_dir=Path(tmpdir),
+                )
+                report_path = Path(report["report_path"])
+                self.assertTrue(report_path.exists(), "Report file should be written")
+                data = json.loads(report_path.read_text(encoding="utf-8"))
+                self.assertEqual(data["deleted_nodes"], 2)
+                self.assertEqual(data["target_database"], "neo4j")
+                self.assertIn("demo_chunk_embedding_index", data["indexes_dropped"])
+
+    def test_run_reset_no_report_file_when_output_dir_is_none(self):
+        fake_neo4j, fake_indexes = self._make_fake_modules()
+        with self._inject_reset_modules(fake_neo4j, fake_indexes):
+            module = self._load_reset_module("reset_no_report_test")
+            report = module.run_reset(
+                driver=fake_neo4j.GraphDatabase.driver("neo4j://localhost:7687"),
+                database="neo4j",
+                output_dir=None,
+            )
+
+        self.assertNotIn("report_path", report)
+
+    # ── demo_labels_deleted contract ──────────────────────────────────────────
+
+    def test_run_reset_demo_labels_deleted_matches_constants(self):
+        fake_neo4j, fake_indexes = self._make_fake_modules()
+        with self._inject_reset_modules(fake_neo4j, fake_indexes):
+            module = self._load_reset_module("reset_labels_test")
+            report = module.run_reset(
+                driver=fake_neo4j.GraphDatabase.driver("neo4j://localhost:7687"),
+                database="neo4j",
+                output_dir=None,
+            )
+
+        expected_labels = {"Document", "Chunk", "Claim", "CanonicalEntity", "EntityMention"}
+        self.assertEqual(set(report["demo_labels_deleted"]), expected_labels)
+
+    def test_run_reset_delete_query_contains_all_demo_labels(self):
+        """Cypher DELETE query must include every label in DEMO_NODE_LABELS."""
+        eq_calls: list = []
+        fake_neo4j, fake_indexes = self._make_fake_modules(execute_query_calls=eq_calls)
+        with self._inject_reset_modules(fake_neo4j, fake_indexes):
+            module = self._load_reset_module("reset_query_labels_test")
+            module.run_reset(
+                driver=fake_neo4j.GraphDatabase.driver("neo4j://localhost:7687"),
+                database="neo4j",
+                output_dir=None,
+            )
+
+        # Find the session object stored by the fake driver's session() call.
+        sessions = [entry[1] for entry in eq_calls if entry[0] == "__session__"]
+        self.assertTrue(sessions, "Expected at least one session to be created")
+        delete_query = sessions[0].most_recent_query
+        for label in ("Document", "Chunk", "Claim", "CanonicalEntity", "EntityMention"):
+            self.assertIn(
+                f"n:{label}", delete_query,
+                f"Expected label '{label}' in the generated DELETE query",
+            )
+
+    # ── run_demo.py reset command ──────────────────────────────────────────────
+
+    def test_reset_command_without_confirm_prints_instructions(self):
+        module = _load_module(RUN_DEMO_PATH, "run_reset_no_confirm_test")
+        args = type(
+            "Args",
+            (),
+            {
+                "command": "reset",
+                "confirm": False,
+                "dry_run": False,
+                "output_dir": DEMO_DIR / "artifacts",
+                "neo4j_uri": "neo4j://localhost:7687",
+                "neo4j_username": "neo4j",
+                "neo4j_password": "CHANGE_ME_BEFORE_USE",
+                "neo4j_database": "neo4j",
+                "openai_model": "gpt-4o-mini",
+                "question": None,
+            },
+        )()
+        original_parse_args = module.parse_args
+        try:
+            module.parse_args = lambda: args
+            with io.StringIO() as buffer, redirect_stdout(buffer):
+                module.main()
+                output = buffer.getvalue()
+            self.assertIn("reset_demo_db.py --confirm", output)
+            self.assertIn("--confirm", output)
+        finally:
+            module.parse_args = original_parse_args
+
+    def test_reset_subcommand_accepts_confirm_flag(self):
+        module = _load_module(RUN_DEMO_PATH, "run_reset_confirm_arg_test")
+        args = module.parse_args(["reset", "--confirm"])
+        self.assertEqual(args.command, "reset")
+        self.assertTrue(args.confirm)
+
+    def test_reset_subcommand_confirm_defaults_to_false(self):
+        module = _load_module(RUN_DEMO_PATH, "run_reset_confirm_default_test")
+        args = module.parse_args(["reset"])
+        self.assertEqual(args.command, "reset")
+        self.assertFalse(args.confirm)
+
+    def test_reset_confirm_with_dry_run_raises_system_exit(self):
+        """reset --confirm must refuse when --dry-run is in effect (the default)."""
+        module = _load_module(RUN_DEMO_PATH, "run_reset_dry_run_guard_test")
+        args = type(
+            "Args",
+            (),
+            {
+                "command": "reset",
+                "confirm": True,
+                "dry_run": True,
+                "output_dir": DEMO_DIR / "artifacts",
+                "neo4j_uri": "neo4j://localhost:7687",
+                "neo4j_username": "neo4j",
+                "neo4j_password": "testpassword",
+                "neo4j_database": "neo4j",
+                "openai_model": "gpt-4o-mini",
+                "question": None,
+            },
+        )()
+        original_parse_args = module.parse_args
+        try:
+            module.parse_args = lambda: args
+            with self.assertRaises(SystemExit) as ctx:
+                module.main()
+            self.assertIn("--live", str(ctx.exception))
+        finally:
+            module.parse_args = original_parse_args
 
 
 if __name__ == "__main__":

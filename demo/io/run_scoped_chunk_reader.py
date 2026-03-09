@@ -1,20 +1,17 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
 import re
+from typing import TYPE_CHECKING
+
 from neo4j_graphrag.experimental.components.neo4j_reader import Neo4jChunkReader
-from neo4j_graphrag.experimental.components.types import (
-    LexicalGraphConfig,
-    TextChunk,
-    TextChunks,
-)
+from neo4j_graphrag.experimental.components.types import LexicalGraphConfig, TextChunk, TextChunks
 from pydantic import validate_call
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     import neo4j
-
-logger = logging.getLogger(__name__)
 
 
 class RunScopedNeo4jChunkReader(Neo4jChunkReader):
@@ -46,6 +43,11 @@ class RunScopedNeo4jChunkReader(Neo4jChunkReader):
         if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", value):
             raise ValueError(f"Unsafe {kind}: {value!r}")
         return value
+
+    @staticmethod
+    def validate_identifier(value: str, kind: str) -> str:
+        """Public wrapper for Cypher identifier validation to allow reuse across demo utilities."""
+        return RunScopedNeo4jChunkReader._validate_identifier(value, kind)
 
     def _get_query(
         self,
@@ -102,9 +104,7 @@ class RunScopedNeo4jChunkReader(Neo4jChunkReader):
                 "text": chunk.pop(lexical_graph_config.chunk_text_property, ""),
                 "index": chunk.pop(lexical_graph_config.chunk_index_property, -1),
             }
-            if (
-                uid := chunk.pop(lexical_graph_config.chunk_id_property, None)
-            ) is not None:
+            if (uid := chunk.pop(lexical_graph_config.chunk_id_property, None)) is not None:
                 input_data["uid"] = uid
             input_data["metadata"] = chunk
             chunks.append(TextChunk(**input_data))
@@ -120,3 +120,6 @@ class RunScopedNeo4jChunkReader(Neo4jChunkReader):
             raise ValueError(f"{message}: {details}")
 
         return TextChunks(chunks=chunks)
+
+
+__all__ = ["RunScopedNeo4jChunkReader"]

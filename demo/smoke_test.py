@@ -7,11 +7,11 @@ import tempfile
 from contextlib import ExitStack
 from pathlib import Path
 
-from run_demo import DemoConfig, run_demo
+from run_demo import Config, run_demo
 
 
 def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Run chain_of_custody smoke test")
+    parser = argparse.ArgumentParser(description="Run demo smoke test")
     parser.add_argument(
         "--output-dir",
         type=Path,
@@ -92,10 +92,35 @@ def _validate_manifest(manifest_path: Path) -> None:
     if required_keys.difference(citation_example):
         missing_example = sorted(required_keys.difference(citation_example))
         raise SystemExit(f"citation_example missing required citation fields: {missing_example}")
+    citation_quality = retrieval_stage.get("citation_quality")
+    if not isinstance(citation_quality, dict):
+        raise SystemExit("Missing citation_quality in retrieval_and_qa stage")
+    required_cq_keys = {"all_cited", "evidence_level", "warning_count", "citation_warnings"}
+    missing_cq_keys = required_cq_keys.difference(citation_quality)
+    if missing_cq_keys:
+        raise SystemExit(f"citation_quality missing required keys: {sorted(missing_cq_keys)}")
+    valid_evidence_levels = {"full", "degraded", "no_answer"}
+    if citation_quality.get("evidence_level") not in valid_evidence_levels:
+        raise SystemExit(
+            f"citation_quality.evidence_level must be one of {sorted(valid_evidence_levels)} "
+            f"(got {citation_quality.get('evidence_level')!r})"
+        )
+    qa_signals = manifest.get("qa_signals")
+    if not isinstance(qa_signals, dict):
+        raise SystemExit("Missing qa_signals in batch manifest")
+    required_qa_signal_keys = {"all_answers_cited", "evidence_level", "warning_count", "warnings"}
+    missing_qa_signal_keys = required_qa_signal_keys.difference(qa_signals)
+    if missing_qa_signal_keys:
+        raise SystemExit(f"qa_signals missing required keys: {sorted(missing_qa_signal_keys)}")
+    if qa_signals.get("evidence_level") not in valid_evidence_levels:
+        raise SystemExit(
+            f"qa_signals.evidence_level must be one of {sorted(valid_evidence_levels)} "
+            f"(got {qa_signals.get('evidence_level')!r})"
+        )
 
 
-def _build_config(output_dir: Path) -> DemoConfig:
-    return DemoConfig(
+def _build_config(output_dir: Path) -> Config:
+    return Config(
         dry_run=True,
         output_dir=output_dir,
         neo4j_uri=os.getenv("NEO4J_URI", "neo4j://localhost:7687"),
@@ -116,7 +141,7 @@ def main() -> None:
     args = _parse_args()
     with ExitStack() as stack:
         output_dir = args.output_dir or Path(
-            stack.enter_context(tempfile.TemporaryDirectory(prefix="chain_of_custody_smoke_"))
+            stack.enter_context(tempfile.TemporaryDirectory(prefix="smoke_"))
         )
         manifest_path = _run_and_validate(output_dir)
         print(f"Smoke test passed: {manifest_path}")

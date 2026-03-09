@@ -1,6 +1,6 @@
-# Chain of Custody Fixtures (dataset v1)
+# Demo Fixtures (dataset v1)
 
-This directory is the stable dataset root used by `demo/chain_of_custody/run_demo.py` with default settings (no custom fixture flags).
+This directory is the stable dataset root used by `demo/run_demo.py` with default settings (no custom fixture flags).
 
 ## Data provenance
 

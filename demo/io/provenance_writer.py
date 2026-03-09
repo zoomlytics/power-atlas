@@ -3,14 +3,8 @@ from __future__ import annotations
 from typing import Any
 
 import neo4j
-from neo4j_graphrag.experimental.components.kg_writer import (
-    KGWriterModel,
-    Neo4jWriter,
-)
-from neo4j_graphrag.experimental.components.types import (
-    LexicalGraphConfig,
-    Neo4jGraph,
-)
+from neo4j_graphrag.experimental.components.kg_writer import KGWriterModel, Neo4jWriter
+from neo4j_graphrag.experimental.components.types import LexicalGraphConfig, Neo4jGraph
 from neo4j_graphrag.experimental.pipeline.types.context import RunContext
 from pydantic import validate_call
 
@@ -18,21 +12,11 @@ from pydantic import validate_call
 class ProvenanceNeo4jWriter(Neo4jWriter):
     """Neo4j writer that applies run_id/dataset_id/source_uri to Document and Chunk nodes before ingest."""
 
-    def __init__(
-        self,
-        driver: neo4j.Driver,
-        neo4j_database: str | None = None,
-        dataset_id: str | None = None,
-    ) -> None:
+    def __init__(self, driver: neo4j.Driver, neo4j_database: str | None = None, dataset_id: str | None = None) -> None:
         super().__init__(driver=driver, neo4j_database=neo4j_database)
         self.dataset_id = dataset_id
 
-    def _apply_provenance(
-        self,
-        graph: Neo4jGraph,
-        lexical_graph_config: LexicalGraphConfig,
-        run_id: str | None,
-    ) -> None:
+    def _apply_provenance(self, graph: Neo4jGraph, lexical_graph_config: LexicalGraphConfig, run_id: str | None) -> None:
         """Propagate run/dataset/source metadata to Document and Chunk nodes before writing."""
         document_label = lexical_graph_config.document_node_label
         chunk_label = lexical_graph_config.chunk_node_label
@@ -56,7 +40,6 @@ class ProvenanceNeo4jWriter(Neo4jWriter):
                 props.setdefault("dataset_id", metadata_dataset_id)
             elif self.dataset_id:
                 props.setdefault("dataset_id", self.dataset_id)
-            # Prefer explicit source_uri if present; otherwise fall back to the path.
             source_uri = props.get("source_uri") or metadata_source_uri or props.get("path")
             if source_uri:
                 props.setdefault("source_uri", source_uri)
@@ -67,9 +50,7 @@ class ProvenanceNeo4jWriter(Neo4jWriter):
             return
 
         chunk_to_document: dict[str, str] = {
-            rel.start_node_id: rel.end_node_id
-            for rel in graph.relationships
-            if rel.type == chunk_to_document_rel
+            rel.start_node_id: rel.end_node_id for rel in graph.relationships if rel.type == chunk_to_document_rel
         }
 
         for node in graph.nodes:
@@ -103,11 +84,8 @@ class ProvenanceNeo4jWriter(Neo4jWriter):
         graph: Neo4jGraph,
         lexical_graph_config: LexicalGraphConfig = LexicalGraphConfig(),
     ) -> KGWriterModel:
-        # Do not propagate the orchestration RunContext.run_id into provenance by default.
-        # Only apply run_id when it is provided via document metadata or explicit caller input.
-        self._apply_provenance(
-            graph=graph,
-            lexical_graph_config=lexical_graph_config,
-            run_id=None,
-        )
+        self._apply_provenance(graph=graph, lexical_graph_config=lexical_graph_config, run_id=None)
         return await super().run(graph=graph, lexical_graph_config=lexical_graph_config)
+
+
+__all__ = ["ProvenanceNeo4jWriter"]
