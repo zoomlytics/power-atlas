@@ -41,6 +41,9 @@ POWER_ATLAS_RAG_TEMPLATE = RagTemplate(
           and cite all relevant sides. Do not collapse conflicting evidence into a single
           conclusion.
         - Prefer low-temperature, stable, deterministic phrasing.
+        - Message history (prior conversation turns) provides conversational context ONLY.
+          Do NOT cite or treat any prior assistant turn as evidence. All answer evidence
+          must come exclusively from the retrieved context snippets in the Context section.
 
         Context:
         {context}
@@ -55,7 +58,9 @@ POWER_ATLAS_RAG_TEMPLATE = RagTemplate(
         """),
     system_instructions=(
         "You are a strict evidence analyst. Answer only from provided context. "
-        "Every claim must be cited with a verbatim [CITATION|...] token from the context."
+        "Every claim must be cited with a verbatim [CITATION|...] token from the context. "
+        "Message history provides conversational context only, never evidence. "
+        "Do not source any answer evidence from prior assistant turns."
     ),
 )
 
