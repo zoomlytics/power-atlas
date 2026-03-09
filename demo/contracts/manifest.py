@@ -122,16 +122,21 @@ def write_manifest(manifest_path: Path, manifest: dict[str, Any]) -> Path:
         # Adjust permissions of the temporary file so the final manifest
         # does not unexpectedly inherit mkstemp's restrictive default (0o600).
         # os.chmod(path) is portable (unlike os.fchmod which is POSIX-only).
+        target_mode: int | None
         if manifest_path.exists():
-            target_mode = manifest_path.stat().st_mode & 0o777
+            try:
+                target_mode = manifest_path.stat().st_mode & 0o777
+            except OSError:
+                target_mode = None
         else:
             current_umask = os.umask(0)
             os.umask(current_umask)
             target_mode = 0o666 & ~current_umask
-        try:
-            os.chmod(tmp_path, target_mode)
-        except OSError:
-            pass  # Best-effort; proceed even if chmod is not supported.
+        if target_mode is not None:
+            try:
+                os.chmod(tmp_path, target_mode)
+            except OSError:
+                pass  # Best-effort; proceed even if chmod is not supported.
         tmp_path.write_text(content, encoding="utf-8")
         tmp_path.replace(manifest_path)
         tmp_path = None  # rename succeeded; nothing to clean up
