@@ -193,8 +193,8 @@ def parse_args() -> argparse.Namespace:
         description="Reset demo nodes and indexes.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
-            "Deletes all nodes with demo-owned labels (Document, Chunk, Claim,\n"
-            f"CanonicalEntity, EntityMention) and drops the {CHUNK_EMBEDDING_INDEX_NAME} index.\n"
+            f"Deletes all nodes with demo-owned labels ({', '.join(DEMO_NODE_LABELS)})\n"
+            f"and drops the following indexes: {', '.join(DEMO_OWNED_INDEXES)}.\n"
             "Run only against a dedicated demo database to avoid data loss."
         ),
     )
