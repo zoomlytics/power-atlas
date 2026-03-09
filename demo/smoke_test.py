@@ -101,14 +101,11 @@ def _validate_citation_token(token: str) -> dict:
     start_raw = parsed.get("start_char")
     end_raw = parsed.get("end_char")
     if start_raw is not None and start_raw != "" and end_raw is not None and end_raw != "":
-        try:
-            if int(end_raw) < int(start_raw):
-                raise SystemExit(
-                    f"Citation field 'end_char' must be >= 'start_char' "
-                    f"(got start_char={start_raw}, end_char={end_raw})"
-                )
-        except (TypeError, ValueError):
-            pass
+        if int(end_raw) < int(start_raw):
+            raise SystemExit(
+                f"Citation field 'end_char' must be >= 'start_char' "
+                f"(got start_char={start_raw}, end_char={end_raw})"
+            )
     return parsed
 
 

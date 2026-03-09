@@ -1434,7 +1434,7 @@ class WorkflowTests(unittest.TestCase):
                 # Batch manifest must exist at the root output_dir.
                 self.assertTrue((output_dir / "manifest.json").exists())
                 # At least three PASS lines (structured, unstructured, batch).
-                pass_lines = [l for l in output_lines if "[PASS]" in l]
+                pass_lines = [line for line in output_lines if "[PASS]" in line]
                 self.assertGreaterEqual(len(pass_lines), 3)
         finally:
             sys.path.pop(0)
