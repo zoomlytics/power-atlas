@@ -123,7 +123,7 @@ def write_manifest(manifest_path: Path, manifest: dict[str, Any]) -> Path:
         tmp_path.replace(manifest_path)
         tmp_path = None  # rename succeeded; nothing to clean up
     finally:
-        if tmp_path is not None and tmp_path.exists():
+        if tmp_path is not None:
             tmp_path.unlink(missing_ok=True)
     return manifest_path
 
@@ -225,7 +225,7 @@ def write_manifest_md(manifest_path: Path, manifest: dict[str, Any]) -> Path:
         tmp_path.replace(md_path)
         tmp_path = None
     finally:
-        if tmp_path is not None and tmp_path.exists():
+        if tmp_path is not None:
             tmp_path.unlink(missing_ok=True)
     return md_path
 
