@@ -118,25 +118,21 @@ def run_reset(
     indexes_not_found: list[str] = []
 
     # ── Delete demo-owned nodes and their relationships ──────────────────────
+    # Generate the WHERE clause from DEMO_NODE_LABELS so the Cypher and the
+    # reported contract cannot drift independently.  Each label is a compile-time
+    # constant (simple identifier string) so the OR-join is safe to construct.
+    _label_conditions = " OR ".join(f"n:{label}" for label in DEMO_NODE_LABELS)
+    _delete_query = f"MATCH (n) WHERE {_label_conditions} DETACH DELETE n"
     with driver.session(database=database) as session:
-        result = session.run(
-            """
-            MATCH (n)
-            WHERE n:Document
-               OR n:Chunk
-               OR n:Claim
-               OR n:CanonicalEntity
-               OR n:EntityMention
-            DETACH DELETE n
-            """
-        )
+        result = session.run(_delete_query)
         counters = result.consume().counters
         deleted_nodes: int = counters.nodes_deleted
         deleted_relationships: int = counters.relationships_deleted
 
     if deleted_nodes == 0:
+        _label_list = ", ".join(DEMO_NODE_LABELS)
         warnings_list.append(
-            "No demo-owned nodes found; graph was already empty (idempotent no-op)."
+            f"No demo-owned nodes found for labels ({_label_list}); nothing deleted (idempotent no-op)."
         )
     logger.info(
         "Demo node deletion: database=%s nodes_deleted=%d relationships_deleted=%d",
@@ -151,6 +147,7 @@ def run_reset(
     for index_name in DEMO_OWNED_INDEXES:
         if _index_exists(driver, index_name, database):
             # Use vendor helper: issues DROP INDEX $name IF EXISTS safely.
+            # drop_index_if_exists accepts neo4j_database (not database_).
             drop_index_if_exists(driver, index_name, neo4j_database=database)
             indexes_dropped.append(index_name)
             logger.info("Dropped demo index: %s", index_name)

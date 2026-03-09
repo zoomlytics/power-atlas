@@ -1109,6 +1109,7 @@ class ResetDemoDbTests(unittest.TestCase):
             def __init__(self, nodes: int, rels: int) -> None:
                 self._nodes = nodes
                 self._rels = rels
+                self.most_recent_query: str = ""
 
             def __enter__(self) -> "_FakeSession":
                 return self
@@ -1117,6 +1118,7 @@ class ResetDemoDbTests(unittest.TestCase):
                 return False
 
             def run(self, query: str, **_kwargs) -> _FakeResult:
+                self.most_recent_query = query
                 return _FakeResult(self._nodes, self._rels)
 
         _index_exists_value = index_exists
@@ -1133,7 +1135,9 @@ class ResetDemoDbTests(unittest.TestCase):
                 return False
 
             def session(self, **kwargs) -> _FakeSession:
-                return _FakeSession(nodes_deleted, relationships_deleted)
+                _sess = _FakeSession(nodes_deleted, relationships_deleted)
+                execute_query_calls.append(("__session__", _sess))
+                return _sess
 
             def execute_query(self, query: str, params: dict, database_: str = "neo4j") -> _FakeExecuteQueryResult:
                 # `database_` with trailing underscore matches neo4j.Driver.execute_query's
@@ -1258,10 +1262,10 @@ class ResetDemoDbTests(unittest.TestCase):
         self.assertEqual(report["deleted_relationships"], 0)
         self.assertEqual(report["indexes_dropped"], [])
         self.assertIn("demo_chunk_embedding_index", report["indexes_not_found"])
-        # Expect one warning for the empty graph and one for the absent index.
+        # Expect one warning for no demo nodes found and one for the absent index.
         self.assertTrue(
-            any("already empty" in w for w in report["warnings"]),
-            "Expected a warning about graph already being empty",
+            any("No demo-owned nodes found" in w for w in report["warnings"]),
+            "Expected a warning about no demo-owned nodes being found",
         )
         self.assertTrue(
             any("demo_chunk_embedding_index" in w and "not found" in w for w in report["warnings"]),
@@ -1347,6 +1351,28 @@ class ResetDemoDbTests(unittest.TestCase):
         expected_labels = {"Document", "Chunk", "Claim", "CanonicalEntity", "EntityMention"}
         self.assertEqual(set(report["demo_labels_deleted"]), expected_labels)
 
+    def test_run_reset_delete_query_contains_all_demo_labels(self):
+        """Cypher DELETE query must include every label in DEMO_NODE_LABELS."""
+        eq_calls: list = []
+        fake_neo4j, fake_indexes = self._make_fake_modules(execute_query_calls=eq_calls)
+        with self._inject_reset_modules(fake_neo4j, fake_indexes):
+            module = self._load_reset_module("reset_query_labels_test")
+            module.run_reset(
+                driver=fake_neo4j.GraphDatabase.driver("neo4j://localhost:7687"),
+                database="neo4j",
+                output_dir=None,
+            )
+
+        # Find the session object stored by the fake driver's session() call.
+        sessions = [entry[1] for entry in eq_calls if entry[0] == "__session__"]
+        self.assertTrue(sessions, "Expected at least one session to be created")
+        delete_query = sessions[0].most_recent_query
+        for label in ("Document", "Chunk", "Claim", "CanonicalEntity", "EntityMention"):
+            self.assertIn(
+                f"n:{label}", delete_query,
+                f"Expected label '{label}' in the generated DELETE query",
+            )
+
     # ── run_demo.py reset command ──────────────────────────────────────────────
 
     def test_reset_command_without_confirm_prints_instructions(self):
@@ -1389,6 +1415,34 @@ class ResetDemoDbTests(unittest.TestCase):
         args = module.parse_args(["reset"])
         self.assertEqual(args.command, "reset")
         self.assertFalse(args.confirm)
+
+    def test_reset_confirm_with_dry_run_raises_system_exit(self):
+        """reset --confirm must refuse when --dry-run is in effect (the default)."""
+        module = _load_module(RUN_DEMO_PATH, "run_reset_dry_run_guard_test")
+        args = type(
+            "Args",
+            (),
+            {
+                "command": "reset",
+                "confirm": True,
+                "dry_run": True,
+                "output_dir": DEMO_DIR / "artifacts",
+                "neo4j_uri": "neo4j://localhost:7687",
+                "neo4j_username": "neo4j",
+                "neo4j_password": "testpassword",
+                "neo4j_database": "neo4j",
+                "openai_model": "gpt-4o-mini",
+                "question": None,
+            },
+        )()
+        original_parse_args = module.parse_args
+        try:
+            module.parse_args = lambda: args
+            with self.assertRaises(SystemExit) as ctx:
+                module.main()
+            self.assertIn("--live", str(ctx.exception))
+        finally:
+            module.parse_args = original_parse_args
 
 
 if __name__ == "__main__":

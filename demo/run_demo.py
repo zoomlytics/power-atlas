@@ -370,6 +370,11 @@ def main() -> None:
                 "See demo/reset_demo_db.py for full usage."
             )
             return
+        if getattr(args, "dry_run", True):
+            raise SystemExit(
+                "reset --confirm requires --live; re-run with:\n"
+                "  python demo/run_demo.py --live reset --confirm"
+            )
         if not args.neo4j_password or args.neo4j_password == "CHANGE_ME_BEFORE_USE":
             raise SystemExit(
                 "Set NEO4J_PASSWORD or pass --neo4j-password when running reset --confirm"
