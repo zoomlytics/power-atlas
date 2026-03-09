@@ -90,6 +90,38 @@ _SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+(?=[\"'\u201c\u2018\u2019\u201d(]
 # applies to both, making the pattern unambiguous regardless of match mode.
 _BULLET_PREFIX_RE = re.compile(r"^([-*•]\s+|\d+\.\s+)")
 
+# Prefix used when replacing an uncited answer with a structured fallback message.
+# This is intended for user-visible messaging only; consumers (UI, manifests,
+# downstream stages) should detect fallback answers via explicit metadata
+# (for example, a `citation_fallback_applied` flag or citation-quality fields),
+# not by matching this prefix against the answer text.
+_CITATION_FALLBACK_PREFIX = "Insufficient citations detected"
+
+
+def _build_citation_fallback(answer: str) -> tuple[str, str, bool]:
+    """Compute citation-fallback display and history answers for a single LLM response.
+
+    Both ``run_retrieval_and_qa`` and ``run_interactive_qa`` share this helper so
+    that fallback-format changes (prefix text, separator, etc.) are applied in one place.
+
+    Args:
+        answer: Raw LLM answer text (may or may not contain citation tokens).
+
+    Returns:
+        A three-tuple ``(display_answer, history_answer, is_uncited)`` where:
+        - *display_answer*: Message to show the user.  When uncited, this is the
+          fallback prefix followed by the original answer text so the content is
+          visible but clearly labeled; otherwise it equals *answer* unchanged.
+        - *history_answer*: Sanitized message for conversation history.  When
+          uncited, only the bare refusal prefix is stored so subsequent turns are
+          not conditioned on under-cited content; otherwise it equals *answer*.
+        - *is_uncited*: ``True`` when the answer lacks required citation tokens.
+    """
+    is_uncited = bool(answer and not _check_all_answers_cited(answer))
+    display_answer = f"{_CITATION_FALLBACK_PREFIX}: {answer}" if is_uncited else answer
+    history_answer = _CITATION_FALLBACK_PREFIX if is_uncited else answer
+    return display_answer, history_answer, is_uncited
+
 
 def _split_into_segments(answer: str) -> list[str]:
     """Split answer text into citation-checkable segments (sentences and bullets).
@@ -378,6 +410,8 @@ def run_retrieval_and_qa(
         "qa_model": effective_qa_model,
         "qa_prompt_version": qa_prompt_version,
         "answer": "",
+        "raw_answer": "",
+        "citation_fallback_applied": False,
         "all_answers_cited": False,
         "citation_quality": _default_citation_quality,
         "expand_graph": expand_graph,
@@ -502,13 +536,31 @@ def run_retrieval_and_qa(
                     citation_warnings_list.append(chunk_warning)
                 hits.append({"content": item.content, "metadata": meta})
 
-    # Check answer citation completeness and record a warning when not fully cited.
-    all_cited = _check_all_answers_cited(answer_text) if answer_text else False
+    # Check answer citation completeness; apply controlled fallback when not fully cited.
+    # raw_answer preserves the original LLM output for transparency/debugging regardless
+    # of whether a fallback replacement is applied.
+    raw_answer = answer_text
+    answer_text, _, uncited = _build_citation_fallback(answer_text)
+    # all_cited is False both when the answer is empty (nothing to cite) and when
+    # the helper finds uncited sentences; True only when the answer is non-empty
+    # and every segment carries a trailing citation token.
+    all_cited = bool(raw_answer) and not uncited
     if answer_text and not all_cited:
         citation_warning = "Not all answer sentences or bullets end with a citation token."
         _logger.warning(citation_warning)
         warnings_list.append(citation_warning)
         citation_warnings_list.append(citation_warning)
+        # Wrap the under-cited answer in a structured, clearly labeled fallback so that
+        # all consumers (UI, manifests, downstream stages) see an explicit citation
+        # warning instead of silently treating an under-cited response as fully reliable.
+        fallback_preview = (
+            answer_text[:200] + "..." if len(answer_text) > 200 else answer_text
+        )
+        _logger.warning(
+            "Answer replaced with citation fallback (length=%d, preview=%r)",
+            len(answer_text),
+            fallback_preview,
+        )
 
     # Build the structured per-answer citation quality signal bundle.
     # evidence_level encodes the overall quality of the retrieved evidence:
@@ -554,6 +606,8 @@ def run_retrieval_and_qa(
         "citation_object_example": actual_citation_object,
         "citation_example": actual_citation_object,
         "answer": answer_text,
+        "raw_answer": raw_answer or "",
+        "citation_fallback_applied": uncited,
         "all_answers_cited": all_cited,
         "citation_quality": live_citation_quality,
     }
@@ -646,16 +700,20 @@ def run_interactive_qa(
                     message_history=history,
                 )
                 answer = rag_result.answer if rag_result else ""
-                print(f"\nAnswer:\n{answer}\n")
-                if answer and not _check_all_answers_cited(answer):
+                display_answer, history_answer, uncited = _build_citation_fallback(answer)
+                print(f"\nAnswer:\n{display_answer}\n")
+                if uncited:
                     _logger.warning("Not all answer sentences or bullets end with a citation token.")
                     print(
                         "⚠ WARNING: Not all answer sentences or bullets are cited — evidence quality may be degraded."
                     )
+                # Store only the refusal prefix (not the full uncited output) in history
+                # so that subsequent turns are not conditioned on under-cited content.
+                # The full fallback text is still printed to the user above.
                 history.add_messages(
                     [
                         LLMMessage(role="user", content=question),
-                        LLMMessage(role="assistant", content=answer),
+                        LLMMessage(role="assistant", content=history_answer),
                     ]
                 )
         except KeyboardInterrupt:
@@ -665,5 +723,6 @@ def run_interactive_qa(
 __all__ = [
     "run_retrieval_and_qa",
     "run_interactive_qa",
+    "_CITATION_FALLBACK_PREFIX",
 ]
 

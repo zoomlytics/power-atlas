@@ -112,6 +112,19 @@ sentence split catches this case.
 - `all_answers_cited` is set to `False` in the result dict.
 - A warning is appended to `citation_quality.citation_warnings`.
 - `citation_quality.evidence_level` is set to `"degraded"` instead of `"full"`.
+- **The `answer` field is replaced with a structured fallback message** prefixed with
+  `"Insufficient citations detected: "` followed by the original LLM output.  This
+  keeps the answer visible but clearly labeled as under-cited, so consumers (UI,
+  manifests, downstream stages) can treat it as degraded/unsafe instead of silently
+  assuming it is fully grounded.
+- The original (uncited) LLM output is preserved in the `raw_answer` field for
+  transparency, debugging, and audit logging.
+- An additional warning log records that the fallback was applied, including a
+  200-character preview of the fallback message, so the event is captured in log
+  streams and CI artifacts.
+- In the interactive REPL (`run_interactive_qa`), the fallback-prefixed answer is
+  printed in place of the raw, unlabeled answer so users see a clear failure signal
+  while still being able to view the original under-cited content.
 
 ## Workflow (golden path)
 
