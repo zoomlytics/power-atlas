@@ -1252,6 +1252,32 @@ class WorkflowTests(unittest.TestCase):
                 smoke._validate_independent_manifest(path, "structured_ingest", "structured_ingest_run_id")
             self.assertIn("run_id", str(ctx.exception))
 
+    def test_validate_core_manifest_fields_rejects_missing_top_level_field(self):
+        """Deleting a required top-level field must trigger a SystemExit."""
+        smoke = self._load_smoke_module("smoke_core_missing_top")
+        run_id = "structured_ingest-20260101T000000000000Z-aabbccdd"
+        manifest = self._make_independent_manifest("structured_ingest", "structured_ingest_run_id", run_id)
+        del manifest["started_at"]
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "manifest.json"
+            path.write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaises(SystemExit) as ctx:
+                smoke._validate_independent_manifest(path, "structured_ingest", "structured_ingest_run_id")
+            self.assertIn("started_at", str(ctx.exception))
+
+    def test_validate_core_manifest_fields_rejects_missing_config_field(self):
+        """Deleting a required config sub-field must trigger a SystemExit."""
+        smoke = self._load_smoke_module("smoke_core_missing_config")
+        run_id = "structured_ingest-20260101T000000000000Z-aabbccdd"
+        manifest = self._make_independent_manifest("structured_ingest", "structured_ingest_run_id", run_id)
+        del manifest["config"]["openai_model"]
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "manifest.json"
+            path.write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaises(SystemExit) as ctx:
+                smoke._validate_independent_manifest(path, "structured_ingest", "structured_ingest_run_id")
+            self.assertIn("openai_model", str(ctx.exception))
+
     # ── smoke test: _validate_batch_manifest ──────────────────────────────────
 
     def _make_batch_manifest(
