@@ -1069,6 +1069,448 @@ class WorkflowTests(unittest.TestCase):
         finally:
             yaml.safe_load = original_safe_load
 
+    # ── smoke test: _validate_citation_token ───────────────────────────────────
+
+    def _load_smoke_module(self, module_name: str = "smoke_test_unit"):
+        sys.path.insert(0, str(DEMO_DIR))
+        try:
+            return _load_module(SMOKE_TEST_PATH, module_name)
+        finally:
+            sys.path.pop(0)
+
+    def test_validate_citation_token_accepts_all_fields(self):
+        smoke = self._load_smoke_module("smoke_all_fields")
+        token = "[CITATION|chunk_id=c1|run_id=r1|source_uri=file:///doc.pdf|chunk_index=0|page=1|start_char=0|end_char=99]"
+        parsed = smoke._validate_citation_token(token)
+        self.assertEqual(parsed["chunk_id"], "c1")
+        self.assertEqual(parsed["run_id"], "r1")
+        self.assertEqual(parsed["chunk_index"], "0")
+        self.assertEqual(parsed["page"], "1")
+
+    def test_validate_citation_token_accepts_required_fields_only(self):
+        """page, start_char, end_char are optional; token without them must pass."""
+        smoke = self._load_smoke_module("smoke_required_only")
+        token = "[CITATION|chunk_id=c1|run_id=r1|source_uri=file:///doc.pdf|chunk_index=2]"
+        parsed = smoke._validate_citation_token(token)
+        self.assertNotIn("page", parsed)
+        self.assertNotIn("start_char", parsed)
+        self.assertNotIn("end_char", parsed)
+
+    def test_validate_citation_token_rejects_missing_required_field(self):
+        smoke = self._load_smoke_module("smoke_missing_required")
+        token = "[CITATION|run_id=r1|source_uri=file:///doc.pdf|chunk_index=0]"
+        with self.assertRaises(SystemExit) as ctx:
+            smoke._validate_citation_token(token)
+        self.assertIn("chunk_id", str(ctx.exception))
+
+    def test_validate_citation_token_rejects_malformed_segment(self):
+        smoke = self._load_smoke_module("smoke_malformed")
+        token = "[CITATION|chunk_id=c1|run_id|source_uri=file:///doc.pdf|chunk_index=0]"
+        with self.assertRaises(SystemExit) as ctx:
+            smoke._validate_citation_token(token)
+        self.assertIn("key=value", str(ctx.exception))
+
+    def test_validate_citation_token_rejects_non_integer_chunk_index(self):
+        smoke = self._load_smoke_module("smoke_bad_ci")
+        token = "[CITATION|chunk_id=c1|run_id=r1|source_uri=file:///doc.pdf|chunk_index=abc]"
+        with self.assertRaises(SystemExit) as ctx:
+            smoke._validate_citation_token(token)
+        self.assertIn("chunk_index", str(ctx.exception))
+
+    def test_validate_citation_token_rejects_negative_chunk_index(self):
+        smoke = self._load_smoke_module("smoke_neg_ci")
+        token = "[CITATION|chunk_id=c1|run_id=r1|source_uri=file:///doc.pdf|chunk_index=-1]"
+        with self.assertRaises(SystemExit) as ctx:
+            smoke._validate_citation_token(token)
+        self.assertIn("chunk_index", str(ctx.exception))
+
+    def test_validate_citation_token_rejects_invalid_optional_field_when_present(self):
+        smoke = self._load_smoke_module("smoke_bad_optional")
+        token = "[CITATION|chunk_id=c1|run_id=r1|source_uri=file:///doc.pdf|chunk_index=0|page=not_a_number]"
+        with self.assertRaises(SystemExit) as ctx:
+            smoke._validate_citation_token(token)
+        self.assertIn("page", str(ctx.exception))
+
+    def test_validate_citation_token_rejects_end_char_less_than_start_char(self):
+        smoke = self._load_smoke_module("smoke_end_lt_start")
+        token = "[CITATION|chunk_id=c1|run_id=r1|source_uri=file:///doc.pdf|chunk_index=0|start_char=50|end_char=10]"
+        with self.assertRaises(SystemExit) as ctx:
+            smoke._validate_citation_token(token)
+        self.assertIn("end_char", str(ctx.exception))
+
+    def test_validate_citation_token_rejects_not_string(self):
+        smoke = self._load_smoke_module("smoke_not_string")
+        with self.assertRaises(SystemExit):
+            smoke._validate_citation_token(None)
+
+    # ── smoke test: _validate_independent_manifest ─────────────────────────────
+
+    def _make_independent_manifest(
+        self,
+        stage_name: str,
+        run_scope_key: str,
+        run_id: str = "structured_ingest-20260101T000000000000Z-aabbccdd",
+    ) -> dict:
+        return {
+            "run_id": run_id,
+            "created_at": "2026-01-01T00:00:00+00:00",
+            "started_at": "2026-01-01T00:00:00+00:00",
+            "finished_at": "2026-01-01T00:00:01+00:00",
+            "run_scopes": {
+                "batch_mode": "single_independent_run",
+                run_scope_key: run_id,
+            },
+            "config": {
+                "dry_run": True,
+                "neo4j_database": "neo4j",
+                "openai_model": "gpt-4o-mini",
+            },
+            "stages": {
+                stage_name: {
+                    "run_id": run_id,
+                    "status": "ok",
+                },
+            },
+        }
+
+    def test_validate_independent_manifest_accepts_valid_structured_manifest(self):
+        smoke = self._load_smoke_module("smoke_valid_indep")
+        run_id = "structured_ingest-20260101T000000000000Z-aabbccdd"
+        manifest = self._make_independent_manifest("structured_ingest", "structured_ingest_run_id", run_id)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "manifest.json"
+            path.write_text(json.dumps(manifest), encoding="utf-8")
+            smoke._validate_independent_manifest(path, "structured_ingest", "structured_ingest_run_id")
+
+    def test_validate_independent_manifest_accepts_valid_pdf_manifest(self):
+        smoke = self._load_smoke_module("smoke_valid_pdf_indep")
+        run_id = "unstructured_ingest-20260101T000000000000Z-aabbccdd"
+        manifest = self._make_independent_manifest("pdf_ingest", "unstructured_ingest_run_id", run_id)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "manifest.json"
+            path.write_text(json.dumps(manifest), encoding="utf-8")
+            smoke._validate_independent_manifest(path, "pdf_ingest", "unstructured_ingest_run_id")
+
+    def test_validate_independent_manifest_rejects_wrong_batch_mode(self):
+        smoke = self._load_smoke_module("smoke_wrong_batch_mode")
+        run_id = "structured_ingest-20260101T000000000000Z-aabbccdd"
+        manifest = self._make_independent_manifest("structured_ingest", "structured_ingest_run_id", run_id)
+        manifest["run_scopes"]["batch_mode"] = "sequential_independent_runs"
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "manifest.json"
+            path.write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaises(SystemExit) as ctx:
+                smoke._validate_independent_manifest(path, "structured_ingest", "structured_ingest_run_id")
+            self.assertIn("single_independent_run", str(ctx.exception))
+
+    def test_validate_independent_manifest_rejects_missing_run_scope_key(self):
+        smoke = self._load_smoke_module("smoke_missing_scope_key")
+        run_id = "structured_ingest-20260101T000000000000Z-aabbccdd"
+        manifest = self._make_independent_manifest("structured_ingest", "structured_ingest_run_id", run_id)
+        del manifest["run_scopes"]["structured_ingest_run_id"]
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "manifest.json"
+            path.write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaises(SystemExit) as ctx:
+                smoke._validate_independent_manifest(path, "structured_ingest", "structured_ingest_run_id")
+            self.assertIn("structured_ingest_run_id", str(ctx.exception))
+
+    def test_validate_independent_manifest_rejects_mismatched_run_id(self):
+        smoke = self._load_smoke_module("smoke_mismatched_run_id")
+        run_id = "structured_ingest-20260101T000000000000Z-aabbccdd"
+        manifest = self._make_independent_manifest("structured_ingest", "structured_ingest_run_id", run_id)
+        manifest["run_id"] = "different_run_id"
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "manifest.json"
+            path.write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaises(SystemExit) as ctx:
+                smoke._validate_independent_manifest(path, "structured_ingest", "structured_ingest_run_id")
+            self.assertIn("run_id", str(ctx.exception))
+
+    def test_validate_independent_manifest_rejects_missing_stage(self):
+        smoke = self._load_smoke_module("smoke_missing_stage")
+        run_id = "structured_ingest-20260101T000000000000Z-aabbccdd"
+        manifest = self._make_independent_manifest("structured_ingest", "structured_ingest_run_id", run_id)
+        del manifest["stages"]["structured_ingest"]
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "manifest.json"
+            path.write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaises(SystemExit) as ctx:
+                smoke._validate_independent_manifest(path, "structured_ingest", "structured_ingest_run_id")
+            self.assertIn("structured_ingest", str(ctx.exception))
+
+    def test_validate_independent_manifest_rejects_stage_run_id_mismatch(self):
+        smoke = self._load_smoke_module("smoke_stage_run_id_mismatch")
+        run_id = "structured_ingest-20260101T000000000000Z-aabbccdd"
+        manifest = self._make_independent_manifest("structured_ingest", "structured_ingest_run_id", run_id)
+        # The stage-level run_id disagrees with run_scopes value.
+        manifest["stages"]["structured_ingest"]["run_id"] = "structured_ingest-20260101T000000000000Z-deadbeef"
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "manifest.json"
+            path.write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaises(SystemExit) as ctx:
+                smoke._validate_independent_manifest(path, "structured_ingest", "structured_ingest_run_id")
+            self.assertIn("run_id", str(ctx.exception))
+
+    def test_validate_core_manifest_fields_rejects_missing_top_level_field(self):
+        """Deleting a required top-level field must trigger a SystemExit."""
+        smoke = self._load_smoke_module("smoke_core_missing_top")
+        run_id = "structured_ingest-20260101T000000000000Z-aabbccdd"
+        manifest = self._make_independent_manifest("structured_ingest", "structured_ingest_run_id", run_id)
+        del manifest["started_at"]
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "manifest.json"
+            path.write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaises(SystemExit) as ctx:
+                smoke._validate_independent_manifest(path, "structured_ingest", "structured_ingest_run_id")
+            self.assertIn("started_at", str(ctx.exception))
+
+    def test_validate_core_manifest_fields_rejects_missing_config_field(self):
+        """Deleting a required config sub-field must trigger a SystemExit."""
+        smoke = self._load_smoke_module("smoke_core_missing_config")
+        run_id = "structured_ingest-20260101T000000000000Z-aabbccdd"
+        manifest = self._make_independent_manifest("structured_ingest", "structured_ingest_run_id", run_id)
+        del manifest["config"]["openai_model"]
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "manifest.json"
+            path.write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaises(SystemExit) as ctx:
+                smoke._validate_independent_manifest(path, "structured_ingest", "structured_ingest_run_id")
+            self.assertIn("openai_model", str(ctx.exception))
+
+    # ── smoke test: _validate_batch_manifest ──────────────────────────────────
+
+    def _make_batch_manifest(
+        self,
+        structured_run_id: str = "structured-20260101T000000000000Z-aaaabbbb",
+        unstructured_run_id: str = "unstructured-20260101T000000000000Z-ccccdddd",
+    ) -> dict:
+        token = (
+            f"[CITATION|chunk_id=c1|run_id={unstructured_run_id}"
+            f"|source_uri=file:///doc.pdf|chunk_index=0|page=1|start_char=0|end_char=99]"
+        )
+        return {
+            "run_id": "batch-20260101T000000000000Z-11223344",
+            "created_at": "2026-01-01T00:00:00+00:00",
+            "started_at": "2026-01-01T00:00:00+00:00",
+            "finished_at": "2026-01-01T00:00:05+00:00",
+            "run_scopes": {
+                "batch_mode": "sequential_independent_runs",
+                "structured_ingest_run_id": structured_run_id,
+                "unstructured_ingest_run_id": unstructured_run_id,
+                "resolution_run_id": "resolution-20260101T000000000000Z-eeeeffff",
+            },
+            "config": {
+                "dry_run": True,
+                "neo4j_database": "neo4j",
+                "openai_model": "gpt-4o-mini",
+            },
+            "qa_signals": {
+                "all_answers_cited": False,
+                "evidence_level": "no_answer",
+                "warning_count": 0,
+                "warnings": [],
+            },
+            "stages": {
+                "structured_ingest": {"run_id": structured_run_id, "status": "ok"},
+                "pdf_ingest": {"run_id": unstructured_run_id, "status": "ok"},
+                "claim_and_mention_extraction": {"run_id": unstructured_run_id, "status": "ok"},
+                "retrieval_and_qa": {
+                    "run_id": unstructured_run_id,
+                    "citation_token_example": token,
+                    "citation_example": {
+                        "chunk_id": "c1",
+                        "run_id": unstructured_run_id,
+                        "source_uri": "file:///doc.pdf",
+                        "chunk_index": 0,
+                        "page": 1,
+                        "start_char": 0,
+                        "end_char": 99,
+                    },
+                    "citation_quality": {
+                        "all_cited": False,
+                        "evidence_level": "no_answer",
+                        "warning_count": 0,
+                        "citation_warnings": [],
+                    },
+                },
+            },
+        }
+
+    def test_validate_batch_manifest_accepts_valid_manifest(self):
+        smoke = self._load_smoke_module("smoke_valid_batch")
+        manifest = self._make_batch_manifest()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "manifest.json"
+            path.write_text(json.dumps(manifest), encoding="utf-8")
+            smoke._validate_batch_manifest(path)  # must not raise
+
+    def test_validate_batch_manifest_accepts_citation_token_without_optional_fields(self):
+        """Citation token without page/start_char/end_char must be accepted."""
+        smoke = self._load_smoke_module("smoke_optional_absent")
+        manifest = self._make_batch_manifest()
+        # Replace token with one that omits optional fields.
+        token_no_offsets = "[CITATION|chunk_id=c1|run_id=r1|source_uri=file:///doc.pdf|chunk_index=0]"
+        manifest["stages"]["retrieval_and_qa"]["citation_token_example"] = token_no_offsets
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "manifest.json"
+            path.write_text(json.dumps(manifest), encoding="utf-8")
+            smoke._validate_batch_manifest(path)  # must not raise
+
+    def test_validate_batch_manifest_rejects_identical_run_ids(self):
+        """Structured and unstructured run_ids must be distinct."""
+        smoke = self._load_smoke_module("smoke_identical_run_ids")
+        shared_id = "shared-20260101T000000000000Z-aaaabbbb"
+        manifest = self._make_batch_manifest(
+            structured_run_id=shared_id,
+            unstructured_run_id=shared_id,
+        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "manifest.json"
+            path.write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaises(SystemExit) as ctx:
+                smoke._validate_batch_manifest(path)
+            self.assertIn("distinct", str(ctx.exception))
+
+    def test_validate_batch_manifest_rejects_wrong_batch_mode(self):
+        smoke = self._load_smoke_module("smoke_batch_wrong_mode")
+        manifest = self._make_batch_manifest()
+        manifest["run_scopes"]["batch_mode"] = "single_independent_run"
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "manifest.json"
+            path.write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaises(SystemExit) as ctx:
+                smoke._validate_batch_manifest(path)
+            self.assertIn("sequential_independent_runs", str(ctx.exception))
+
+    def test_validate_batch_manifest_rejects_missing_stage(self):
+        smoke = self._load_smoke_module("smoke_missing_batch_stage")
+        manifest = self._make_batch_manifest()
+        del manifest["stages"]["pdf_ingest"]
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "manifest.json"
+            path.write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaises(SystemExit) as ctx:
+                smoke._validate_batch_manifest(path)
+            self.assertIn("pdf_ingest", str(ctx.exception))
+
+    def test_validate_batch_manifest_rejects_missing_qa_signals(self):
+        smoke = self._load_smoke_module("smoke_missing_qa_signals")
+        manifest = self._make_batch_manifest()
+        del manifest["qa_signals"]
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "manifest.json"
+            path.write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaises(SystemExit) as ctx:
+                smoke._validate_batch_manifest(path)
+            self.assertIn("qa_signals", str(ctx.exception))
+
+    def test_validate_batch_manifest_rejects_missing_run_scope_key(self):
+        smoke = self._load_smoke_module("smoke_batch_missing_scope_key")
+        manifest = self._make_batch_manifest()
+        del manifest["run_scopes"]["structured_ingest_run_id"]
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "manifest.json"
+            path.write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaises(SystemExit) as ctx:
+                smoke._validate_batch_manifest(path)
+            self.assertIn("structured_ingest_run_id", str(ctx.exception))
+
+    def test_validate_batch_manifest_rejects_missing_unstructured_run_scope_key(self):
+        smoke = self._load_smoke_module("smoke_batch_missing_unstruct_scope_key")
+        manifest = self._make_batch_manifest()
+        del manifest["run_scopes"]["unstructured_ingest_run_id"]
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "manifest.json"
+            path.write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaises(SystemExit) as ctx:
+                smoke._validate_batch_manifest(path)
+            self.assertIn("unstructured_ingest_run_id", str(ctx.exception))
+
+    def test_validate_batch_manifest_rejects_missing_citation_token_example(self):
+        smoke = self._load_smoke_module("smoke_missing_citation_token")
+        manifest = self._make_batch_manifest()
+        del manifest["stages"]["retrieval_and_qa"]["citation_token_example"]
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "manifest.json"
+            path.write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaises(SystemExit) as ctx:
+                smoke._validate_batch_manifest(path)
+            self.assertIn("citation_token_example", str(ctx.exception))
+
+    # ── smoke test: independent scenario runners ───────────────────────────────
+
+    def test_run_structured_scenario_writes_valid_manifest(self):
+        sys.path.insert(0, str(DEMO_DIR))
+        try:
+            smoke = _load_module(SMOKE_TEST_PATH, "smoke_structured_scenario")
+            with tempfile.TemporaryDirectory() as tmpdir:
+                output_dir = Path(tmpdir)
+                manifest_path = smoke._run_structured_scenario(output_dir)
+                self.assertTrue(manifest_path.exists())
+                manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+                self.assertEqual(manifest["run_scopes"]["batch_mode"], "single_independent_run")
+                self.assertIn("structured_ingest", manifest["stages"])
+                # Manifest must be inside runs/<run_id>/structured_ingest/
+                self.assertIn("runs", manifest_path.parts)
+        finally:
+            sys.path.pop(0)
+
+    def test_run_unstructured_scenario_writes_valid_manifest(self):
+        sys.path.insert(0, str(DEMO_DIR))
+        try:
+            smoke = _load_module(SMOKE_TEST_PATH, "smoke_unstructured_scenario")
+            with tempfile.TemporaryDirectory() as tmpdir:
+                output_dir = Path(tmpdir)
+                manifest_path = smoke._run_unstructured_scenario(output_dir)
+                self.assertTrue(manifest_path.exists())
+                manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+                self.assertEqual(manifest["run_scopes"]["batch_mode"], "single_independent_run")
+                self.assertIn("pdf_ingest", manifest["stages"])
+                # Manifest must be inside runs/<run_id>/pdf_ingest/
+                self.assertIn("runs", manifest_path.parts)
+        finally:
+            sys.path.pop(0)
+
+    def test_structured_and_unstructured_scenarios_produce_distinct_run_ids(self):
+        """Independent structured and unstructured runs must not share a run_id."""
+        sys.path.insert(0, str(DEMO_DIR))
+        try:
+            smoke = _load_module(SMOKE_TEST_PATH, "smoke_distinct_run_ids")
+            with tempfile.TemporaryDirectory() as tmpdir:
+                output_dir = Path(tmpdir)
+                structured_path = smoke._run_structured_scenario(output_dir)
+                unstructured_path = smoke._run_unstructured_scenario(output_dir)
+                s_manifest = json.loads(structured_path.read_text(encoding="utf-8"))
+                u_manifest = json.loads(unstructured_path.read_text(encoding="utf-8"))
+                self.assertNotEqual(s_manifest["run_id"], u_manifest["run_id"])
+        finally:
+            sys.path.pop(0)
+
+    def test_smoke_main_runs_all_scenarios_and_writes_batch_manifest(self):
+        """main() must run structured, unstructured, and batch scenarios."""
+        sys.path.insert(0, str(DEMO_DIR))
+        try:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                smoke_module = _load_module(SMOKE_TEST_PATH, "smoke_main_all_scenarios")
+                output_dir = Path(tmpdir)
+                original_parse_args = smoke_module._parse_args
+                try:
+                    smoke_module._parse_args = lambda: type("Args", (), {"output_dir": output_dir})()
+                    buf = io.StringIO()
+                    with redirect_stdout(buf):
+                        smoke_module.main()
+                    output_lines = buf.getvalue().splitlines()
+                finally:
+                    smoke_module._parse_args = original_parse_args
+                # Batch manifest must exist at the root output_dir.
+                self.assertTrue((output_dir / "manifest.json").exists())
+                # At least three PASS lines (structured, unstructured, batch).
+                pass_lines = [line for line in output_lines if "[PASS]" in line]
+                self.assertGreaterEqual(len(pass_lines), 3)
+        finally:
+            sys.path.pop(0)
+
 
 class ResetDemoDbTests(unittest.TestCase):
     """Tests for demo/reset_demo_db.py run_reset() and related helpers."""
