@@ -3,12 +3,13 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Callable
 
 from demo.contracts import pipeline as pipeline_contracts
 
-pipeline_contracts.ensure_pipeline_contract_loaded()
+pipeline_contracts.refresh_pipeline_contract()
 
 from demo.contracts import (  # noqa: E402
     ARTIFACTS_DIR,
@@ -27,7 +28,7 @@ from demo.contracts import (  # noqa: E402
     build_stage_manifest,
     make_run_id,
 )
-from demo.contracts.manifest import write_manifest
+from demo.contracts.manifest import write_manifest, write_manifest_md
 from demo.stages import (
     lint_and_clean_structured_csvs,
     run_claim_and_mention_extraction,
@@ -37,6 +38,11 @@ from demo.stages import (
     run_retrieval_and_qa,
     run_structured_ingest,
 )
+from demo.stages.pdf_ingest import _sha256_file  # noqa: F401 - re-exported so run_demo module exposes it for callers and tests
+
+
+def _now_iso() -> str:
+    return datetime.now(UTC).isoformat()
 
 
 def _add_common_args(parser: argparse.ArgumentParser) -> None:
@@ -145,6 +151,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def _run_orchestrated(config: Config) -> Path:
     config.output_dir.mkdir(parents=True, exist_ok=True)
+    started_at = _now_iso()
     structured_run_id = make_run_id("structured_ingest")
     unstructured_run_id = make_run_id("unstructured_ingest")
     resolution_run_id = make_run_id("resolution")
@@ -182,6 +189,7 @@ def _run_orchestrated(config: Config) -> Path:
         source_uri=pdf_source_uri,
         index_name=CHUNK_EMBEDDING_INDEX_NAME,
     )
+    finished_at = _now_iso()
     manifest = build_batch_manifest(
         config=config,
         structured_run_id=structured_run_id,
@@ -192,10 +200,14 @@ def _run_orchestrated(config: Config) -> Path:
         claim_stage=claim_stage,
         entity_resolution_stage=entity_resolution_stage,
         retrieval_stage=retrieval_stage,
+        started_at=started_at,
+        finished_at=finished_at,
     )
 
     manifest_path = config.output_dir / "manifest.json"
-    return write_manifest(manifest_path, manifest)
+    write_manifest(manifest_path, manifest)
+    write_manifest_md(manifest_path, manifest)
+    return manifest_path
 
 
 def _run_independent_stage(config: Config, command: str) -> Path:
@@ -267,16 +279,25 @@ def _run_independent_stage(config: Config, command: str) -> Path:
         stage_run_id = env_run_id
     else:
         stage_run_id = make_run_id(run_scope)
+    started_at = _now_iso()
     stage_output = stage_runner(config, stage_run_id)
+    finished_at = _now_iso()
     manifest = build_stage_manifest(
         config=config,
         stage_name=stage_name,
         stage_run_id=stage_run_id,
         run_scope_key=run_scope_key,
         stage_output=stage_output,
+        started_at=started_at,
+        finished_at=finished_at,
     )
-    manifest_path = config.output_dir / f"{stage_name}_{stage_run_id}_manifest.json"
-    return write_manifest(manifest_path, manifest)
+    # Write the manifest into a run-scoped directory: runs/<run_id>/manifest.json
+    run_dir = config.output_dir / "runs" / stage_run_id
+    run_dir.mkdir(parents=True, exist_ok=True)
+    manifest_path = run_dir / "manifest.json"
+    write_manifest(manifest_path, manifest)
+    write_manifest_md(manifest_path, manifest)
+    return manifest_path
 
 
 def run_demo(config: Config) -> Path:
