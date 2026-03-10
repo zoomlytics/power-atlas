@@ -196,7 +196,7 @@ Manifest run-boundary notes:
   - `run_id`: run boundary for the overall batch orchestrator run
   - `run_scopes.structured_ingest_run_id`: structured producer run boundary
   - `run_scopes.unstructured_ingest_run_id`: unstructured/PDF producer run boundary (entity resolution is part of this scope — it reads and writes using the same run ID as pdf_ingest and extract-claims)
-- **Independent stage manifests** (named `{stage_name}_{stage_run_id}_manifest.json`, e.g. `structured_ingest_structured_ingest-..._manifest.json` and `pdf_ingest_unstructured_ingest-..._manifest.json`, produced by `ingest-structured` / `ingest-pdf`):
+- **Independent stage manifests** (written to `runs/<run_id>/<stage_name>/manifest.json`, e.g. `runs/structured_ingest-.../structured_ingest/manifest.json` and `runs/unstructured_ingest-.../pdf_ingest/manifest.json`, produced by `ingest-structured` / `ingest-pdf`):
   - `run_id`: run boundary for that single producer run
   - `run_scopes.batch_mode`: `single_independent_run`
   - `run_scopes.structured_ingest_run_id` or `run_scopes.unstructured_ingest_run_id` (only the relevant producer scope key is present)
