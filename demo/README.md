@@ -55,7 +55,7 @@ python demo/run_demo.py --dry-run ingest-structured
 python demo/run_demo.py --dry-run ingest-pdf
 ```
 
-Each stage produces its own `run_id` and writes a stage manifest to `runs/<run_id>/<stage_name>/manifest.json`.
+Producer stages (`ingest-structured`, `ingest-pdf`) each generate a new `run_id` and write a stage manifest to `runs/<run_id>/<stage_name>/manifest.json`.
 
 ### Step 3 — Run claim extraction (same run_id scope as ingest-pdf)
 
@@ -110,7 +110,7 @@ By default, artifacts are written to an isolated temporary directory deleted on 
 | Batch (`ingest`) | `<output-dir>/manifest.json` | `run_id`, `run_scopes.structured_ingest_run_id`, `run_scopes.unstructured_ingest_run_id` |
 | Independent stage (`ingest-structured`, `ingest-pdf`) | `runs/<run_id>/<stage_name>/manifest.json` | `run_id`, `run_scopes.batch_mode: single_independent_run`, one of `structured_ingest_run_id` / `unstructured_ingest_run_id` |
 
-In all modes each stage emits its own `run_id` so provenance is non-destructive and auditable across reruns. Entity resolution is part of the unstructured run scope and shares `run_scopes.unstructured_ingest_run_id`.
+Each stage records a `run_id` in its manifest. Producer stages generate a new run scope; derived stages (`extract-claims`, `resolve-entities`, `ask`) intentionally share the producer run scope (`unstructured_ingest_run_id`) rather than generating a new one. Entity resolution is part of the unstructured run scope and shares `run_scopes.unstructured_ingest_run_id`.
 
 ---
 
