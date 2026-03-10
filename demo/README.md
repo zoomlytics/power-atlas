@@ -2,217 +2,139 @@
 
 Self-contained demo workflow under `demo/` for evidence-driven influence research with structured and unstructured artifacts.
 
+---
+
+## Overview
+
+The demo exercises two independent ingestion pipelines — structured CSV ingest and unstructured PDF ingest — followed by claim extraction, entity resolution, and citation-grounded Q&A retrieval. All stages are orchestrated by `demo/run_demo.py` and produce run-scoped manifests for auditability.
+
+---
+
 ## Conceptual model
 
 - **Independent ingestion runs**: structured ingest and unstructured/PDF ingest are separate producer runs with separate `run_id` boundaries; neither implies the other must also run.
 - **Two-pipeline unstructured flow**: `extract-claims` runs within the same `run_id` scope established by `ingest-pdf` — it is not a separate run. It reads the previously ingested chunks, adds derived nodes/edges, and does not rewrite the lexical layer.
 - **Layered graph model**: source assertions are preserved as written (with provenance), while canonical/resolved views are derived in a separate layer and may be revised over time.
 - **Explicit convergence**: cross-source links are an optional resolution step; they must be explainable and non-destructive (do not overwrite source assertions).
-- **Batch mode is convenience only**: `ingest` is documented as sequential independent runs in one command, each retaining its own `run_id`.
+- **Batch mode is convenience only**: `ingest` runs all stages sequentially in one command. The batch manifest has its own `run_id`; internally, stages share two producer run scopes — a `structured_ingest_run_id` for the structured pipeline and an `unstructured_ingest_run_id` shared by PDF ingest, claim extraction, entity resolution, and retrieval.
 
-## Two-pipeline unstructured flow
+### Graph layers
 
-The unstructured "golden path" uses two run-scoped pipelines that share a `run_id`:
+| Layer | Nodes | Written by | Mutable? |
+| --- | --- | --- | --- |
+| Lexical | `Document`, `Chunk` | `ingest-pdf` | Stable for the run — never overwritten by downstream stages |
+| Extraction | `ExtractedClaim`, `EntityMention` | `extract-claims` | Non-destructive additions only |
+| Resolution | `UnresolvedEntity` (fallback) | `resolve-entities` | Non-destructive additions only; creates `RESOLVES_TO` edges to existing `CanonicalEntity` nodes |
+| Structured | `Claim`, `Fact`, `Relationship`, `Source`, `CanonicalEntity` | `ingest-structured` | Non-destructive additions only |
 
-### Pipeline 1 — `ingest-pdf`
+Every `Chunk` node includes ingest metadata fields such as `run_id`, `source_uri`, `dataset_id`, and positional provenance fields; `Document` nodes include the same ingest metadata (for example, `run_id`, `source_uri`, `dataset_id`). Operational metadata (timing, batch context, run summaries) belongs in manifest files, not in the graph.
 
-Writes the lexical graph for the run:
+---
 
-- loads and splits the PDF into chunks (`FixedSizeSplitter`)
-- embeds chunks and writes vector-index-ready chunk data (`OpenAIEmbeddings`)
-- writes `Document` and `Chunk` nodes with run-scoped provenance fields (`run_id`, `source_uri`, `chunk_id`, `page_number`)
-- establishes the stable lexical layer that all downstream stages read from
+## Recommended workflow
 
-The lexical layer is treated as **append-only for the run**: downstream stages must not destructively rewrite `Document` or `Chunk` nodes.
+Use `--dry-run` to run all stages without live OpenAI or Neo4j calls (useful for CI and local exploration). Remove `--dry-run` and add `--live` for a real run.
 
-Vendor anchor: `vendor-resources/examples/customize/build_graph/pipeline/text_to_lexical_graph_to_entity_graph_two_pipelines.py` — specifically the `build_lexical_graph` pipeline.
+### Step 1 — Reset the graph (optional but recommended before a clean run)
 
-### Pipeline 2 — `extract-claims`
+```bash
+export NEO4J_PASSWORD='your-neo4j-password'
+# Standalone reset script (recommended):
+python demo/reset_demo_db.py --confirm
 
-Reads the lexical layer for the same `run_id` and adds the derived graph:
+# Or via the CLI orchestrator:
+python demo/run_demo.py --live reset --confirm
+```
 
-- reads `Chunk` nodes scoped to `run_id` (and optionally `source_uri`) using `RunScopedNeo4jChunkReader` (see `demo/io/run_scoped_chunk_reader.py`)
-- runs `LLMEntityRelationExtractor` with `use_structured_output=True` over those chunks
-- writes `ExtractedClaim` and `EntityMention` nodes with `SUPPORTED_BY` / `MENTIONED_IN` edges that link back to the originating `Chunk`
-- does **not** modify or re-embed any `Document` or `Chunk` nodes from Pipeline 1
+Without `--confirm`, the standalone script (`reset_demo_db.py`) exits with an error; the CLI orchestrator (`run_demo.py reset`) prints instructions only. Both paths write a JSON reset report to `demo/artifacts/` (override with `--output-dir`) when `--confirm` is supplied.
 
-The run-scoped relationship is explicit: `extract-claims` reads chunks by `run_id`, so extraction always operates on the lexical layer produced by the corresponding `ingest-pdf` run; running `extract-claims` independently requires setting `UNSTRUCTURED_RUN_ID` to the `run_id` from that prior run.
+### Step 2 — Run ingestion stages independently (recommended)
 
-Vendor anchors: `vendor-resources/examples/customize/build_graph/pipeline/text_to_lexical_graph_to_entity_graph_two_pipelines.py` — specifically the `build_entity_graph` pipeline; and `vendor-resources/examples/customize/build_graph/components/chunk_reader/neo4j_chunk_reader.py` for the chunk reader pattern.
+```bash
+python demo/run_demo.py --dry-run ingest-structured
+python demo/run_demo.py --dry-run ingest-pdf
+```
 
-## Graph layers
+Producer stages (`ingest-structured`, `ingest-pdf`) each generate a new `run_id` and write a stage manifest to `runs/<run_id>/<stage_name>/manifest.json`.
 
-### Lexical layer (stable, run-scoped)
+### Step 3 — Run claim extraction (same run_id scope as ingest-pdf)
 
-Nodes: `Document`, `Chunk`
+```bash
+export UNSTRUCTURED_RUN_ID=<run_id from ingest-pdf output>
+python demo/run_demo.py --dry-run extract-claims
+```
 
-- written by `ingest-pdf` and treated as **stable for the run**
-- each node carries `run_id`, `source_uri`, and positional provenance fields
-- not destructively rewritten by extraction or any other derived stage
-- forms the source-bearing evidence base for retrieval and citation
+In live mode, `extract-claims` reads `Chunk` nodes scoped to the given `run_id`; in `--dry-run` mode it returns a stub summary without reading Neo4j. `UNSTRUCTURED_RUN_ID` is required in both modes when running this stage independently.
 
-### Derived layers (non-destructive)
+### Step 4 — Optional stages
 
-Written by downstream stages; must not modify the lexical layer:
+These stages also require `UNSTRUCTURED_RUN_ID` (same env var as Step 3); they run within the existing unstructured run scope rather than creating a new one.
 
-- **Claim extraction** (`extract-claims`): `ExtractedClaim`, `EntityMention`, linked to `Chunk` via `SUPPORTED_BY` / `MENTIONED_IN`
-- **Entity resolution** (`resolve-entities`): `CanonicalEntity` / `UnresolvedEntity` links, resolved from `EntityMention` nodes
-- **Retrieval / Q&A** (`ask`): runtime retrieval output and citation artifacts
+```bash
+# Entity resolution (deterministic; uses same run_id as unstructured ingest):
+python demo/run_demo.py --dry-run resolve-entities
 
-Operational and process metadata (timing, batch context, run summaries) belongs primarily in manifest files rather than in the graph. The graph preserves the source and evidence structure needed for retrieval and citation.
+# Retrieval and Q&A:
+python demo/run_demo.py --dry-run ask
+```
 
-## Default retrieval behavior
+### Convenience batch mode (alternative to steps 2–4)
 
-Retrieval is **run-scoped by default**:
+```bash
+python demo/run_demo.py --dry-run ingest
+```
 
-- the default retrieval scope is the `run_id` from the unstructured ingest run (`ingest-pdf`)
-- vector search is constrained to `Chunk` nodes matching the active `run_id` so results are always traceable to a specific ingest run
-- `source_uri` filtering is supported for narrowing within a run (e.g. to a single PDF)
-- retrieving across multiple runs or without a `run_id` filter must be **explicit and opt-in**
+Runs all stages sequentially with a single command. The batch manifest is written to `<output-dir>/manifest.json` with its own `run_id`; internally, structured stages share `structured_ingest_run_id` and unstructured stages (PDF ingest, claim extraction, entity resolution, retrieval) share `unstructured_ingest_run_id`.
 
-This is a correctness and reproducibility behavior, not a maximal provenance system. The run scope ensures that answer evidence is always linked to a known, replayable ingest boundary.
+### Step 5 — Run smoke test
 
-## Message history
+```bash
+python demo/smoke_test.py
+```
 
-When `run_retrieval_and_qa` or `run_interactive_qa` is called with a `message_history`
-object, prior conversation turns are passed to the LLM for **conversational context only**.
-Message history is **never** a source of answer evidence.
+By default, artifacts are written to an isolated temporary directory deleted on exit. Pass `--output-dir` to retain them. The smoke test runs structured, unstructured, and batch scenarios in sequence.
 
-- Each turn's answer must be fully citation-grounded via retrieved chunks returned by the
-  `VectorCypherRetriever` for **that turn's question**.
-- No evidence may be sourced from prior assistant turns stored in message history.
-- The prompt template (`POWER_ATLAS_RAG_TEMPLATE`) explicitly instructs the LLM that
-  message history provides context only, and that all evidence must come exclusively from
-  the retrieved context snippets provided in the prompt.
-- To prevent subsequent turns from being conditioned on under-cited content, uncited
-  answers are stored in history using only the bare `"Insufficient citations detected"`
-  refusal prefix rather than the full uncited response (see `_build_citation_fallback`).
+---
 
-This separation is intentional: retrieval-grounded evidence and conversational memory
-serve different roles, and blending them would allow uncited or fabricated assertions
-from prior turns to influence downstream answers.
+## Run scopes and manifests
 
-## Citation expectations
+### Run ID provenance
 
-Q&A answers are expected to:
+- The demo supplies its own stage run scope (`run_id`, plus `dataset_id`/`source_uri` when applicable) via `document_metadata` for PDF ingest, persisted on `Document`/`Chunk` nodes.
+- Vendor pipelines also emit an orchestration `run_id` (`PipelineResult.run_id` / `RunContext.run_id`) for callbacks; the demo does **not** inject that vendor-orchestration id into graph nodes.
+- Entity resolution uses the same `run_id` as the unstructured/PDF ingest stages — it is part of the unstructured run scope, not a separate run boundary. Conceptually, it is **run-scoped post-ingest normalization** over the previously ingested PDF-derived nodes: it adds resolved entities and links while preserving the original lexical layer and its provenance.
+- Retrieval is **run-scoped by default**: vector search is constrained to `Chunk` nodes matching the active `run_id`. Retrieving across multiple runs requires explicit opt-in. `source_uri` filtering is supported for narrowing within a run.
+
+### Manifest layout
+
+| Mode | Manifest path | Key fields |
+| --- | --- | --- |
+| Batch (`ingest`) | `<output-dir>/manifest.json` | `run_id`, `run_scopes.structured_ingest_run_id`, `run_scopes.unstructured_ingest_run_id` |
+| Independent stage (`ingest-structured`, `ingest-pdf`) | `runs/<run_id>/<stage_name>/manifest.json` | `run_id`, `run_scopes.batch_mode: single_independent_run`, one of `structured_ingest_run_id` / `unstructured_ingest_run_id` |
+
+Each stage records a `run_id` in its manifest. Producer stages generate a new run scope; derived stages (`extract-claims`, `resolve-entities`, `ask`) intentionally share the producer run scope (`unstructured_ingest_run_id`) rather than generating a new one. Entity resolution is part of the unstructured run scope and shares `run_scopes.unstructured_ingest_run_id`.
+
+---
+
+## Citation behavior
+
+Q&A answers must:
 
 - use **retrieved context only** — no hallucinated or uncited claims
 - emit **project citation tokens** for each piece of answer content (format: `[CITATION|chunk_id=...|run_id=...|source_uri=...|chunk_index=...|page=...|start_char=...|end_char=...]`)
-- keep answers **grounded in retrieved chunk evidence** so every assertion can be traced back to a `Chunk` node
+- trace every assertion back to a `Chunk` node in the lexical layer
 
-The citation contract (token format, required fields, and validation expectations) is defined in [zoomlytics/power-atlas#159](https://github.com/zoomlytics/power-atlas/issues/159). The README does not redefine the citation format; treat #159 as the source of truth.
+The citation contract (token format, required fields, validation expectations) is defined in [zoomlytics/power-atlas#159](https://github.com/zoomlytics/power-atlas/issues/159).
 
-## Citation validation policy
+**Post-generation validation** (`_check_all_answers_cited` in `demo/stages/retrieval_and_qa.py`) enforces that every sentence and bullet ends with at least one citation token. When uncited segments are detected:
 
-Post-generation validation enforces that every sentence and bullet in an answer is cited.
-The `_check_all_answers_cited` function in `demo/stages/retrieval_and_qa.py` splits the
-answer into checkable segments and requires each segment to end with at least one
-`[CITATION|…]` token.
+- `citation_quality.evidence_level` is set to `"degraded"`
+- the `answer` field is replaced with a fallback prefixed `"Insufficient citations detected: "` (original output preserved in `raw_answer`)
+- a warning is appended to `citation_quality.citation_warnings`
 
-**Segmentation rules** (implemented in `_split_into_segments`):
+**Message history** is passed to the LLM for conversational context only and is never a source of answer evidence. Uncited answers stored in history use only the bare refusal prefix, not the full response, to prevent under-cited content from conditioning subsequent turns.
 
-1. The answer is split on newlines first.
-2. Bullet lines (starting with `-`, `*`, `•`, or a digit followed by `.` and a space) are
-   treated as atomic units — one citation at the end of the entire bullet is sufficient.
-3. Non-bullet paragraph lines are further split into sentence-like segments at `[.!?]`
-   boundaries followed by an uppercase letter or a non-citation opening bracket.
-   - `[CITATION|…]` tokens are **not** split-points — the negative lookahead
-     `(?!CITATION\|)` keeps the token attached to its sentence.
-   - Non-citation brackets such as `[Note]` or `[1]` **do** act as split-points, so
-     `"Claim A. [Note] Claim B. [CITATION|…]"` correctly splits into `"Claim A."` (no
-     citation → rejected) and `"[Note] Claim B. [CITATION|…]"`.
-   - Each resulting segment must independently end with at least one citation token.
-**Why sentence-level (not just line-level)?**  A multi-sentence paragraph like
-`"Claim A. Claim B. [CITATION|...]"` would pass a line-level check (the line ends with a
-citation) but fail a sentence-level check because `"Claim A."` has no citation.  The
-sentence split catches this case.
-
-**Outcome when uncited segments are detected:**
-
-- `all_answers_cited` is set to `False` in the result dict.
-- A warning is appended to `citation_quality.citation_warnings`.
-- `citation_quality.evidence_level` is set to `"degraded"` instead of `"full"`.
-- **The `answer` field is replaced with a structured fallback message** prefixed with
-  `"Insufficient citations detected: "` followed by the original LLM output.  This
-  keeps the answer visible but clearly labeled as under-cited, so consumers (UI,
-  manifests, downstream stages) can treat it as degraded/unsafe instead of silently
-  assuming it is fully grounded.
-- The original (uncited) LLM output is preserved in the `raw_answer` field for
-  transparency, debugging, and audit logging.
-- An additional warning log records that the fallback was applied, including a
-  200-character preview of the fallback message, so the event is captured in log
-  streams and CI artifacts.
-- In the interactive REPL (`run_interactive_qa`), the fallback-prefixed answer is
-  printed in place of the raw, unlabeled answer so users see a clear failure signal
-  while still being able to view the original under-cited content.
-
-## Workflow (golden path)
-
-1. **Reset graph safely**
-   ```bash
-   export NEO4J_PASSWORD='your-neo4j-password'
-   # Using the standalone script (recommended):
-   python demo/reset_demo_db.py --confirm
-
-   # Or via the CLI orchestrator (also requires --live to pass credentials):
-   python demo/run_demo.py --live reset --confirm
-   ```
-   Both paths write a JSON reset report to `demo/artifacts/` (override with
-   `--output-dir`).  Without `--confirm` the command prints instructions only.
-2. **Run independent ingestion runs (recommended)**
-   ```bash
-   python demo/run_demo.py --dry-run ingest-structured
-   python demo/run_demo.py --dry-run ingest-pdf
-   ```
-3. **Run extraction over the ingested chunks (same run_id scope)**
-   ```bash
-   export UNSTRUCTURED_RUN_ID=<run_id from ingest-pdf output>
-   python demo/run_demo.py --dry-run extract-claims
-   ```
-4. **Optional: run convenience batch orchestrator** (runs all stages sequentially)
-   ```bash
-   python demo/run_demo.py --dry-run ingest
-   ```
-5. **Run smoke test**
-   ```bash
-   python demo/smoke_test.py
-   ```
-   By default this writes artifacts to an isolated temporary directory that is deleted when the process exits; pass `--output-dir` to retain artifacts in a persistent directory.
-
-   `--dry-run` keeps the workflow reproducible without requiring live OpenAI/Neo4j calls.
-
-## What the orchestrator stages model
-
-- PDF ingest (chunk/embed/store) using vendor-aligned component choices (`FixedSizeSplitter`, `OpenAIEmbeddings`, `OpenAILLM`)
-- Structured CSV ingest with claims-first modeling (`Claim`, `CanonicalEntity`, evidence-linked relationships)
-- Structured pre-ingest lint + deterministic dedup writes run-scoped artifacts under `runs/<run_id>/structured_clean/` plus `lint_report.json`
-- Claim extraction + entity mention stages driven by `LLMEntityRelationExtractor` with run-scoped chunk reading
-- Entity resolution stage (deterministic canonical key resolution; `CanonicalEntity` / `UnresolvedEntity` links)
-- Retrieval and GraphRAG Q&A stage with run-scoped, citation-supporting retrieval
-- Run artifacts written to `<output-dir>/manifest.json` with clean run boundaries (for the default orchestrator run this is typically `demo/artifacts/manifest.json`; override with `--output-dir`, and note that `smoke_test.py` uses an isolated temporary directory by default)
-
-Manifest run-boundary notes:
-- **Batch orchestrator manifest** (`manifest.json`, produced by `ingest`):
-  - `run_id`: run boundary for the overall batch orchestrator run
-  - `run_scopes.structured_ingest_run_id`: structured producer run boundary
-  - `run_scopes.unstructured_ingest_run_id`: unstructured/PDF producer run boundary (entity resolution is part of this scope — it reads and writes using the same run ID as pdf_ingest and extract-claims)
-- **Independent stage manifests** (written to `runs/<run_id>/<stage_name>/manifest.json`, e.g. `runs/structured_ingest-.../structured_ingest/manifest.json` and `runs/unstructured_ingest-.../pdf_ingest/manifest.json`, produced by `ingest-structured` / `ingest-pdf`):
-  - `run_id`: run boundary for that single producer run
-  - `run_scopes.batch_mode`: `single_independent_run`
-  - `run_scopes.structured_ingest_run_id` or `run_scopes.unstructured_ingest_run_id` (only the relevant producer scope key is present)
-- In all modes, each stage emits its own `run_id` so provenance remains non-destructive and auditable across reruns
-
-## Run ID provenance model
-
-- Vendor pipelines emit an orchestration `run_id` at execution time (`PipelineResult.run_id` / `RunContext.run_id`) for callbacks/notifications; the demo does **not** inject this orchestration id into graph nodes.
-- The demo supplies its own stage run scope (`run_id`, plus `dataset_id`/`source_uri` when present) via `document_metadata` for PDF ingest and persists those fields on `Document`/`Chunk` nodes; post-ingest normalization still runs to keep reset/retrieval scripts aligned on the same persisted provenance.
-- Entity resolution uses the same `run_id` as the unstructured/PDF ingest stages — it is part of the unstructured run scope, not a separate run boundary.
-
-## Fixtures and reproducibility
-
-- `fixtures/structured/*.csv`: claim/evidence graph seed rows
-- `fixtures/unstructured/chain_of_custody.pdf`: canonical source PDF fixture used in this demo (the name is intentionally stable — it is a well-known chain-of-custody document that serves as a consistent demo artifact)
-- `fixtures/manifest.json`: dataset contract, provenance, and license note
+---
 
 ## Reset behavior
 
@@ -235,64 +157,29 @@ All nodes with the following labels and **all their relationships** (`DETACH DEL
 | `EntityMention` | `extract-claims` (extraction layer) |
 | `UnresolvedEntity` | `resolve-entities` (resolution layer; fallback nodes for unresolved mentions) |
 
-### What is dropped
-
-| Index name | Type | Created by |
-| --- | --- | --- |
-| `demo_chunk_embedding_index` | Vector (`Chunk.embedding`, 1536 dims) | `ingest-pdf` / `run_demo.py` setup |
+The index `demo_chunk_embedding_index` (vector, `Chunk.embedding`, 1536 dims) is also dropped if present.
 
 ### What is preserved
 
-- Any nodes with labels **not** in the list above.
-- Any relationships whose endpoints are not among the deleted demo nodes, regardless of relationship type. Relationships attached to deleted demo nodes are removed via `DETACH DELETE`.
-- Any indexes or constraints **not** named above.
-- Any other Neo4j databases on the same server.
+- Nodes with labels not in the list above.
+- Indexes and constraints not named above.
+- Other Neo4j databases on the same server.
 
 ### Idempotency
 
-Reset is safe to run repeatedly.  If the graph is already empty or the indexes are already absent the script completes without error and records warnings in the reset report.
+Reset is safe to run repeatedly. If the graph is already empty or the index is absent the script completes without error and records warnings in the reset report. Each run writes a JSON report to `<output-dir>/reset_report_<timestamp>.json`.
 
-### Reset report
+---
 
-Each run writes a JSON report to the output directory (default `demo/artifacts/`) named `reset_report_<timestamp>.json`.  The report records:
+## Fixtures and reproducibility
 
-- `target_database`: the database that was reset
-- `reset_mode`: always `"demo_full_graph_wipe"` for this script
-- `deleted_nodes` / `deleted_relationships`: counts of removed graph content
-- `indexes_dropped`: names of indexes that existed and were dropped
-- `indexes_not_found`: names of indexes that were absent (idempotent no-op)
-- `warnings`: human-readable notes for any no-op or non-fatal condition
-- `idempotent`: `true` when nothing was changed (graph already clean)
+- `fixtures/structured/*.csv` — claim/evidence graph seed rows
+- `fixtures/unstructured/chain_of_custody.pdf` — canonical source PDF; the name is intentionally stable and serves as a consistent demo artifact
+- `fixtures/manifest.json` — dataset contract, provenance, and license note
 
-Keep `DEMO_NODE_LABELS` and `DEMO_OWNED_INDEXES` in `demo/reset_demo_db.py` in sync with `demo/config/pdf_simple_kg_pipeline.yaml` and `demo/contracts/pipeline.py` whenever new demo-owned labels or indexes are introduced.
+---
 
-## Vendor alignment map
-
-> **Before adding custom code, check the relevant vendor example first.**
-
-This demo intentionally mirrors upstream patterns in `vendor-resources`. The table below maps each demo stage to its primary vendor anchor(s) and notes where the demo diverges:
-
-| Demo stage | Vendor anchor(s) | Notes |
-| --- | --- | --- |
-| **Ingest / lexical graph** (`ingest-pdf`) | `vendor-resources/examples/customize/build_graph/pipeline/text_to_lexical_graph_to_entity_graph_two_pipelines.py`<br>`vendor-resources/examples/build_graph/from_config_files/simple_kg_pipeline_from_config_file.py`<br>`vendor-resources/examples/build_graph/from_config_files/simple_kg_pipeline_config.yaml`<br>`vendor-resources/examples/database_operations/create_vector_index.py` | Config-driven in live mode via `demo/config/pdf_simple_kg_pipeline.yaml`. Creates `demo_chunk_embedding_index` on `:Chunk(embedding)` (1536 dims). Enforces run-scoped provenance on `Document`/`Chunk`. Uses `NEO4J_USERNAME` (not `NEO4J_USER`). |
-| **Chunk reading** (`extract-claims`) | `vendor-resources/examples/customize/build_graph/components/chunk_reader/neo4j_chunk_reader.py` | Demo wraps `Neo4jChunkReader` in `RunScopedNeo4jChunkReader` (see `demo/io/run_scoped_chunk_reader.py`) to filter by `run_id` and optionally `source_uri`. |
-| **Extraction** (`extract-claims`) | `vendor-resources/examples/customize/build_graph/components/extractors/llm_entity_relation_extractor_with_structured_output.py`<br>`vendor-resources/examples/customize/build_graph/pipeline/text_to_lexical_graph_to_entity_graph_two_pipelines.py` | Uses `LLMEntityRelationExtractor(use_structured_output=True)` with a demo-owned claim schema. Dry-run mode uses deterministic stubs to keep smoke tests stable. |
-| **Retrieval** (`ask`) | `vendor-resources/examples/retrieve/vector_cypher_retriever.py`<br>`vendor-resources/examples/customize/retrievers/result_formatter_vector_cypher_retriever.py` | Aligns on `VectorCypherRetriever` with run-scoped pre-filtering (`run_id` required; `source_uri` optional). Retrieval query returns citation provenance fields (`chunk_id`, `run_id`, `source_uri`, `chunk_index`, `page`, `start_char`, `end_char`). |
-| **GraphRAG / Q&A** (`ask`) | `vendor-resources/examples/question_answering/graphrag.py`<br>`vendor-resources/examples/customize/answer/custom_prompt.py`<br>`vendor-resources/docs/source/user_guide_rag.rst` (sections: "GraphRAG Configuration", "Configuring the Prompt", "Retriever Configuration") | Keeps standard `GraphRAG(retriever, llm, prompt_template=...)` contract. Uses a citation-oriented prompt suffix so answers emit `[CITATION|...]` tokens grounded in retrieved chunks. |
-| **Structured ingest** (`ingest-structured`) | `vendor-resources/examples/customize/build_graph/pipeline/text_to_lexical_graph_to_entity_graph_two_pipelines.py` | Follows two-stage lexical/entity modeling but loads curated CSV fixtures to enforce the `Claim`/`CanonicalEntity` schema for deterministic evidence provenance. |
-
-## Config-driven vs custom workflow checklist
-
-- [x] **Config-driven**: PDF ingest pipeline shape (`SimpleKGPipeline` via `PipelineRunner`) is declared in `demo/config/pdf_simple_kg_pipeline.yaml`, aligned to vendor `from_config_files` examples.
-- [x] **Config-driven**: Demo retrieval/citation index contract uses `demo_chunk_embedding_index` on label `Chunk` property `embedding` with dimensions `1536` (deterministic naming keeps reset + retrieval scripts aligned), pinned via `OpenAIEmbeddings` model `text-embedding-3-small` in the demo config plus `contract.chunk_embedding.dimensions`.
-- [x] **Config-driven**: `run_demo.py ingest-pdf --live` executes `PipelineRunner.from_config_file(...)` against `demo/config/pdf_simple_kg_pipeline.yaml` with template-aligned `file_path` input only.
-- [x] **Custom**: Structured ingest live path emits run-scoped provenance metadata (`run_id`, source URI, timestamps, confidence, source-row evidence links) without mutating source assertions (tracked from [zoomlytics/power-atlas#151](https://github.com/zoomlytics/power-atlas/issues/151)).
-- [x] **Custom**: `extract-claims` uses `RunScopedNeo4jChunkReader` to constrain extraction input to the active `run_id`, matching the two-pipeline pattern in the vendor anchor.
-- [ ] **Planned retrieval/GraphRAG issue alignment**: Retrieval and answer synthesis should consume explicit run-scoped provenance links and avoid implicit structured↔unstructured coupling.
-- [x] **Planned reset semantics alignment**: Reset behavior is demo-scoped and explicit: targets only demo-owned labels/indexes, writes a JSON reset report artifact, and is idempotent. See the [Reset behavior](#reset-behavior) section and `demo/reset_demo_db.py`.
-- [x] **Custom by design**: Structured CSV ingest, deterministic canonical key resolution, and provenance-specific graph expansion remain demo-owned logic.
-
-## CLI scaffold and configuration
+## CLI reference
 
 The orchestrator CLI exposes the following subcommands:
 `lint-structured`, `ingest-structured`, `ingest-pdf`, `extract-claims`,
@@ -300,11 +187,76 @@ The orchestrator CLI exposes the following subcommands:
 
 - `lint-structured` performs pre-ingest validation (headers, IDs, value type enums, parseable dates, common PID label sanity) and deterministic dedup for entities/facts/relationships before any graph write stage.
 
-Environment/configuration values used by this demo:
+### Environment variables
 
-- `NEO4J_URI`, `NEO4J_USERNAME`, `NEO4J_PASSWORD`, `NEO4J_DATABASE` (database defaults to `neo4j`)
-- `OPENAI_MODEL` (required for config-driven runs; the demo CLI defaults to `gpt-4o-mini` if unset)
-- `UNSTRUCTURED_RUN_ID` (required when running `extract-claims`, `resolve-entities`, or `ask` independently; must match the `run_id` from a prior `ingest-pdf` run)
-- Demo vector index used by retrieval/reset flow: `demo_chunk_embedding_index` (label: `Chunk`, embedding property: `embedding`, dimensions: `1536`)
-- Deterministic index naming intentionally diverges from earlier claim-oriented naming so `reset_demo_db.py` can safely clean the exact demo-owned citation index.
-- Unstructured/PDF ingest remains independent from structured ingest: every run has its own `run_id`; live ingest uses run-scoped post-ingest normalization to propagate `run_id`/`source_uri` onto `Document` and `Chunk` nodes for citation/retrieval provenance.
+| Variable | Required | Notes |
+| --- | --- | --- |
+| `OPENAI_API_KEY` | Yes (live) | Required for live `ingest-pdf`, `extract-claims`, and `ask` |
+| `NEO4J_URI` | No | Defaults to `neo4j://localhost:7687` |
+| `NEO4J_USERNAME` | No | Defaults to `neo4j`. Note: `NEO4J_USERNAME`, not `NEO4J_USER` |
+| `NEO4J_PASSWORD` | Yes (live) | |
+| `NEO4J_DATABASE` | No | Defaults to `neo4j` |
+| `OPENAI_MODEL` | No | Defaults to `gpt-4o-mini` if unset |
+| `UNSTRUCTURED_RUN_ID` | Yes (for independent `extract-claims`, `resolve-entities`, `ask`) | Must match `run_id` from a prior `ingest-pdf` run |
+
+Demo vector index: `demo_chunk_embedding_index` (label: `Chunk`, property: `embedding`, dimensions: `1536`). Deterministic naming keeps `reset_demo_db.py` and retrieval scripts aligned.
+
+---
+
+## Maintainer notes
+
+> This section is for contributors implementing or extending the demo.
+
+### Two-pipeline unstructured flow
+
+Pipeline 1 (`ingest-pdf`) writes the **lexical layer**:
+- loads and splits the PDF into chunks (`FixedSizeSplitter`)
+- embeds chunks and writes vector-index-ready chunk data (`OpenAIEmbeddings`)
+- writes `Document` and `Chunk` nodes with run-scoped provenance; these are **append-only for the run**
+
+Vendor anchor: `vendor-resources/examples/customize/build_graph/pipeline/text_to_lexical_graph_to_entity_graph_two_pipelines.py` (`build_lexical_graph` pipeline).
+
+Pipeline 2 (`extract-claims`) reads the lexical layer for the same `run_id` and adds the **derived graph**:
+- reads `Chunk` nodes via `RunScopedNeo4jChunkReader` (see `demo/io/run_scoped_chunk_reader.py`)
+- runs `LLMEntityRelationExtractor(use_structured_output=True)` over those chunks
+- writes `ExtractedClaim` and `EntityMention` nodes linked to `Chunk` via `SUPPORTED_BY` / `MENTIONED_IN`
+- does **not** modify or re-embed any `Document` or `Chunk` nodes
+
+Vendor anchors: same two-pipelines file (`build_entity_graph` pipeline); `vendor-resources/examples/customize/build_graph/components/chunk_reader/neo4j_chunk_reader.py` for the chunk reader pattern.
+
+### Vendor alignment map
+
+> Before adding custom code, check the relevant vendor example first.
+
+| Demo stage | Vendor anchor(s) | Notes |
+| --- | --- | --- |
+| **Ingest / lexical graph** (`ingest-pdf`) | `vendor-resources/examples/customize/build_graph/pipeline/text_to_lexical_graph_to_entity_graph_two_pipelines.py`<br>`vendor-resources/examples/build_graph/from_config_files/simple_kg_pipeline_from_config_file.py`<br>`vendor-resources/examples/build_graph/from_config_files/simple_kg_pipeline_config.yaml`<br>`vendor-resources/examples/database_operations/create_vector_index.py` | Config-driven in live mode via `demo/config/pdf_simple_kg_pipeline.yaml`. Creates `demo_chunk_embedding_index` on `:Chunk(embedding)` (1536 dims). Uses `NEO4J_USERNAME` (not `NEO4J_USER`). |
+| **Chunk reading** (`extract-claims`) | `vendor-resources/examples/customize/build_graph/components/chunk_reader/neo4j_chunk_reader.py` | Demo wraps `Neo4jChunkReader` in `RunScopedNeo4jChunkReader` to filter by `run_id` and optionally `source_uri`. |
+| **Extraction** (`extract-claims`) | `vendor-resources/examples/customize/build_graph/components/extractors/llm_entity_relation_extractor_with_structured_output.py`<br>`vendor-resources/examples/customize/build_graph/pipeline/text_to_lexical_graph_to_entity_graph_two_pipelines.py` | Uses `LLMEntityRelationExtractor(use_structured_output=True)` with a demo-owned claim schema. Dry-run uses deterministic stubs. |
+| **Retrieval** (`ask`) | `vendor-resources/examples/retrieve/vector_cypher_retriever.py`<br>`vendor-resources/examples/customize/retrievers/result_formatter_vector_cypher_retriever.py` | `VectorCypherRetriever` with run-scoped pre-filtering. Returns citation provenance fields (`chunk_id`, `run_id`, `source_uri`, `chunk_index`, `page`, `start_char`, `end_char`). |
+| **GraphRAG / Q&A** (`ask`) | `vendor-resources/examples/question_answering/graphrag.py`<br>`vendor-resources/examples/customize/answer/custom_prompt.py`<br>`vendor-resources/docs/source/user_guide_rag.rst` | Standard `GraphRAG(retriever, llm, prompt_template=...)` contract with a citation-oriented prompt suffix. |
+| **Structured ingest** (`ingest-structured`) | `vendor-resources/examples/customize/build_graph/pipeline/text_to_lexical_graph_to_entity_graph_two_pipelines.py` | Follows two-stage lexical/entity modeling with curated CSV fixtures to enforce the `Claim`/`CanonicalEntity` schema. |
+
+### Config-driven vs custom checklist
+
+- [x] **Config-driven**: PDF ingest pipeline shape (`SimpleKGPipeline` via `PipelineRunner`) declared in `demo/config/pdf_simple_kg_pipeline.yaml`, aligned to vendor `from_config_files` examples.
+- [x] **Config-driven**: Retrieval/citation index contract uses `demo_chunk_embedding_index` on `Chunk.embedding` (1536 dims), pinned via `OpenAIEmbeddings` model `text-embedding-3-small` and `contract.chunk_embedding.dimensions`.
+- [x] **Config-driven**: `run_demo.py ingest-pdf --live` executes `PipelineRunner.from_config_file(...)` against `demo/config/pdf_simple_kg_pipeline.yaml`.
+- [x] **Custom**: Structured ingest live path emits run-scoped provenance metadata without mutating source assertions (tracked from [zoomlytics/power-atlas#151](https://github.com/zoomlytics/power-atlas/issues/151)).
+- [x] **Custom**: `extract-claims` uses `RunScopedNeo4jChunkReader` to constrain extraction input to the active `run_id`.
+- [ ] **Planned**: Retrieval and answer synthesis should consume explicit run-scoped provenance links and avoid implicit structured↔unstructured coupling.
+- [x] **Custom by design**: Structured CSV ingest, deterministic canonical key resolution, and provenance-specific graph expansion remain demo-owned logic.
+
+### Citation validation internals
+
+Post-generation validation (`_check_all_answers_cited` / `_split_into_segments` in `demo/stages/retrieval_and_qa.py`) applies sentence-level segmentation:
+
+1. Split answer on newlines.
+2. Bullet lines (`-`, `*`, `•`, or `N. `) are treated as atomic units — one citation at the end of the bullet is sufficient.
+3. Non-bullet lines are further split into sentence-like segments at `[.!?]` boundaries followed by an uppercase letter or a non-citation bracket. `[CITATION|…]` tokens are not split-points (negative lookahead `(?!CITATION\|)`); non-citation brackets such as `[Note]` or `[1]` are.
+
+Sentence-level splitting is needed because a multi-sentence paragraph ending with a single citation would pass a line-level check but fail sentence-level (the first sentence has no citation).
+
+### Reset maintenance note
+
+Keep `DEMO_NODE_LABELS` and `DEMO_OWNED_INDEXES` in `demo/reset_demo_db.py` in sync with `demo/config/pdf_simple_kg_pipeline.yaml` and `demo/contracts/pipeline.py` whenever new demo-owned labels or indexes are introduced.
