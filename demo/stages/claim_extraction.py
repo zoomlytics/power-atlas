@@ -38,11 +38,11 @@ async def _async_read_chunks_and_extract(
         model_params={"temperature": 0},
     )
     # create_lexical_graph=False: the lexical graph (Document/Chunk nodes) was already
-    # created by Pipeline 1 (pdf ingest). This pipeline must not recreate or mutate
-    # those nodes; it should only produce derived outputs (ExtractedClaim, EntityMention,
-    # evidence-link relationships) linked to existing chunk nodes via provenance fields
-    # (run_id, chunk_id). This mirrors the narrative extraction pipeline and enforces the
-    # strict two-pipeline provenance contract described in the demo README.
+    # created by the ingest stage.  This extraction stage must not recreate or mutate
+    # those nodes; it only adds derived outputs (ExtractedClaim, EntityMention,
+    # evidence-link relationships) linked to existing chunk nodes via run_id/chunk_id.
+    # This keeps extraction non-destructive and consistent with the layered, vendor-plus
+    # architecture: ingest writes the lexical graph; extraction extends it additively.
     extractor = LLMEntityRelationExtractor(
         llm=llm,
         create_lexical_graph=False,
