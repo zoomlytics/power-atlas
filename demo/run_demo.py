@@ -152,7 +152,6 @@ def _run_orchestrated(config: Config) -> Path:
     started_at = _now_iso()
     structured_run_id = make_run_id("structured_ingest")
     unstructured_run_id = make_run_id("unstructured_ingest")
-    resolution_run_id = make_run_id("resolution")
 
     structured_stage = run_structured_ingest(config, structured_run_id, fixtures_dir=FIXTURES_DIR)
     pdf_stage = run_pdf_ingest(
@@ -192,7 +191,6 @@ def _run_orchestrated(config: Config) -> Path:
         config=config,
         structured_run_id=structured_run_id,
         unstructured_run_id=unstructured_run_id,
-        resolution_run_id=resolution_run_id,
         structured_stage=structured_stage,
         pdf_stage=pdf_stage,
         claim_stage=claim_stage,
@@ -237,6 +235,10 @@ def _run_independent_stage(config: Config, command: str) -> Path:
             lambda cfg, stage_run_id: run_claim_and_mention_extraction(
                 cfg,
                 run_id=stage_run_id,
+                # Independent-stage default: use the canonical demo fixture URI.
+                # This is intentional — the demo fixture is the stable source for all
+                # independent runs.  In the orchestrated batch path, source_uri is
+                # derived from the prior pdf_ingest stage output instead.
                 source_uri=str((FIXTURES_DIR / "unstructured" / "chain_of_custody.pdf").resolve().as_uri()),
             ),
         ),
@@ -246,6 +248,8 @@ def _run_independent_stage(config: Config, command: str) -> Path:
             lambda cfg, stage_run_id: run_entity_resolution(
                 cfg,
                 run_id=stage_run_id,
+                # Independent-stage default: use the canonical demo fixture URI.
+                # See note above for extract-claims.
                 source_uri=str((FIXTURES_DIR / "unstructured" / "chain_of_custody.pdf").resolve().as_uri()),
             ),
         ),
@@ -256,6 +260,8 @@ def _run_independent_stage(config: Config, command: str) -> Path:
                 cfg,
                 run_id=stage_run_id,
                 question=getattr(cfg, "question", None),
+                # Independent-stage default: use the canonical demo fixture URI.
+                # See note above for extract-claims.
                 source_uri=str((FIXTURES_DIR / "unstructured" / "chain_of_custody.pdf").resolve().as_uri()),
                 index_name=CHUNK_EMBEDDING_INDEX_NAME,
             ),
@@ -374,6 +380,8 @@ def main() -> None:
                 run_interactive_qa(
                     config,
                     run_id=env_run_id,
+                    # Interactive Q&A default: use the canonical demo fixture URI.
+                    # See note in _run_independent_stage for extract-claims.
                     source_uri=str((FIXTURES_DIR / "unstructured" / "chain_of_custody.pdf").resolve().as_uri()),
                     index_name=CHUNK_EMBEDDING_INDEX_NAME,
                 )

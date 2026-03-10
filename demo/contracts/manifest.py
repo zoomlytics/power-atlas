@@ -15,7 +15,6 @@ def build_batch_manifest(
     config: Any,
     structured_run_id: str,
     unstructured_run_id: str,
-    resolution_run_id: str,
     structured_stage: dict[str, Any],
     pdf_stage: dict[str, Any],
     claim_stage: dict[str, Any],
@@ -58,7 +57,6 @@ def build_batch_manifest(
             "batch_mode": "sequential_independent_runs",
             "structured_ingest_run_id": structured_run_id,
             "unstructured_ingest_run_id": unstructured_run_id,
-            "resolution_run_id": resolution_run_id,
         },
         "config": {
             "dry_run": getattr(config, "dry_run", False),

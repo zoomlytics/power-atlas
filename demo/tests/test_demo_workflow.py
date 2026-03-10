@@ -217,7 +217,7 @@ class WorkflowTests(unittest.TestCase):
             self.assertEqual(manifest["run_scopes"]["batch_mode"], "sequential_independent_runs")
             self.assertIn("structured_ingest_run_id", manifest["run_scopes"])
             self.assertIn("unstructured_ingest_run_id", manifest["run_scopes"])
-            self.assertIn("resolution_run_id", manifest["run_scopes"])
+            self.assertNotIn("resolution_run_id", manifest["run_scopes"])
             self.assertEqual(
                 set(manifest["stages"].keys()),
                 {
@@ -1298,7 +1298,6 @@ class WorkflowTests(unittest.TestCase):
                 "batch_mode": "sequential_independent_runs",
                 "structured_ingest_run_id": structured_run_id,
                 "unstructured_ingest_run_id": unstructured_run_id,
-                "resolution_run_id": "resolution-20260101T000000000000Z-eeeeffff",
             },
             "config": {
                 "dry_run": True,
@@ -1791,7 +1790,12 @@ class ResetDemoDbTests(unittest.TestCase):
                 output_dir=None,
             )
 
-        expected_labels = {"Document", "Chunk", "Claim", "CanonicalEntity", "EntityMention"}
+        expected_labels = {
+            "Document", "Chunk",
+            "CanonicalEntity", "Claim", "Fact", "Relationship", "Source",
+            "ExtractedClaim", "EntityMention",
+            "UnresolvedEntity",
+        }
         self.assertEqual(set(report["demo_labels_deleted"]), expected_labels)
 
     def test_run_reset_delete_query_contains_all_demo_labels(self):
@@ -1810,7 +1814,12 @@ class ResetDemoDbTests(unittest.TestCase):
         sessions = [entry[1] for entry in eq_calls if entry[0] == "__session__"]
         self.assertTrue(sessions, "Expected at least one session to be created")
         delete_query = sessions[0].most_recent_query
-        for label in ("Document", "Chunk", "Claim", "CanonicalEntity", "EntityMention"):
+        for label in (
+            "Document", "Chunk",
+            "CanonicalEntity", "Claim", "Fact", "Relationship", "Source",
+            "ExtractedClaim", "EntityMention",
+            "UnresolvedEntity",
+        ):
             self.assertIn(
                 f"n:{label}", delete_query,
                 f"Expected label '{label}' in the generated DELETE query",
