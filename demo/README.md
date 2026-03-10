@@ -100,7 +100,7 @@ By default, artifacts are written to an isolated temporary directory deleted on 
 
 - The demo supplies its own stage run scope (`run_id`, plus `dataset_id`/`source_uri` when applicable) via `document_metadata` for PDF ingest, persisted on `Document`/`Chunk` nodes.
 - Vendor pipelines also emit an orchestration `run_id` (`PipelineResult.run_id` / `RunContext.run_id`) for callbacks; the demo does **not** inject that vendor-orchestration id into graph nodes.
-- Entity resolution uses the same `run_id` as the unstructured/PDF ingest stages — it is part of the unstructured run scope, not a separate run boundary.
+- Entity resolution uses the same `run_id` as the unstructured/PDF ingest stages — it is part of the unstructured run scope, not a separate run boundary. Conceptually, it is **run-scoped post-ingest normalization** over the previously ingested PDF-derived nodes: it adds resolved entities and links while preserving the original lexical layer and its provenance.
 - Retrieval is **run-scoped by default**: vector search is constrained to `Chunk` nodes matching the active `run_id`. Retrieving across multiple runs requires explicit opt-in. `source_uri` filtering is supported for narrowing within a run.
 
 ### Manifest layout
