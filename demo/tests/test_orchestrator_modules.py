@@ -282,8 +282,8 @@ def test_claim_extraction_dry_run_includes_chunks_with_extractions(tmp_path: Pat
 
 def test_claim_extraction_live_path_uses_create_lexical_graph_false(tmp_path: Path):
     """Verify that _async_read_chunks_and_extract instantiates LLMEntityRelationExtractor
-    with create_lexical_graph=False, enforcing the strict two-pipeline provenance contract:
-    Pipeline 1 owns lexical graph creation; Pipeline 2 must only emit derived outputs
+    with create_lexical_graph=False, keeping extraction non-destructive:
+    ingest owns lexical graph creation; extraction only adds derived outputs
     (ExtractedClaim, EntityMention) linked to existing chunks via run_id/chunk_id."""
     from demo.stages import run_claim_and_mention_extraction
 

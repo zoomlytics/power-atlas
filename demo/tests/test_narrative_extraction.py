@@ -98,7 +98,7 @@ def test_run_narrative_extraction_dry_run_writes_artifacts(tmp_path: Path):
     summary = run_narrative_extraction(config)
 
     summary_path = output_root / config.run_id / "narrative_extraction" / "summary.json"
-    manifest_path = output_root / config.run_id / "manifest.json"
+    manifest_path = output_root / config.run_id / "narrative_extraction" / "manifest.json"
     assert summary_path.exists()
     assert manifest_path.exists()
 
