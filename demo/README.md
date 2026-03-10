@@ -64,9 +64,11 @@ export UNSTRUCTURED_RUN_ID=<run_id from ingest-pdf output>
 python demo/run_demo.py --dry-run extract-claims
 ```
 
-`extract-claims` reads `Chunk` nodes scoped to the given `run_id`; the env var is required when running this stage independently.
+In live mode, `extract-claims` reads `Chunk` nodes scoped to the given `run_id`; in `--dry-run` mode it returns a stub summary without reading Neo4j. `UNSTRUCTURED_RUN_ID` is required in both modes when running this stage independently.
 
 ### Step 4 — Optional stages
+
+These stages also require `UNSTRUCTURED_RUN_ID` (same env var as Step 3); they run within the existing unstructured run scope rather than creating a new one.
 
 ```bash
 # Entity resolution (deterministic; uses same run_id as unstructured ingest):
