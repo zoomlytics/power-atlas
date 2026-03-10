@@ -18,18 +18,16 @@ from demo.contracts import (  # noqa: E402
     CHUNK_EMBEDDING_LABEL,
     CHUNK_EMBEDDING_PROPERTY,
     CHUNK_FALLBACK_STRIDE,
-    DATASET_ID,
     DEFAULT_DB,
     Config,
     EMBEDDER_MODEL_NAME,
     FIXTURES_DIR,
-    PROMPT_IDS,
     build_batch_manifest,
     build_stage_manifest,
     make_run_id,
 )
-from demo.contracts.manifest import write_manifest, write_manifest_md
-from demo.stages import (
+from demo.contracts.manifest import write_manifest, write_manifest_md  # noqa: E402
+from demo.stages import (  # noqa: E402
     lint_and_clean_structured_csvs,
     run_claim_and_mention_extraction,
     run_entity_resolution,
@@ -38,7 +36,7 @@ from demo.stages import (
     run_retrieval_and_qa,
     run_structured_ingest,
 )
-from demo.stages.pdf_ingest import sha256_file  # noqa: F401 - re-exported for callers and tests
+from demo.stages.pdf_ingest import sha256_file  # noqa: E402, F401 - re-exported for callers and tests
 
 
 def _now_iso() -> str:
