@@ -9,7 +9,7 @@ from demo.contracts import PROMPT_IDS
 
 
 async def _async_read_chunks_and_extract(
-    driver: "neo4j.Driver",
+    driver: "neo4j.Driver",  # type: ignore[name-defined]  # noqa: F821
     *,
     run_id: str,
     source_uri: str | None,
