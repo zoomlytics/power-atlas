@@ -38,7 +38,7 @@ async def _async_read_chunks_and_extract(
         model_params={"temperature": 0},
     )
     # create_lexical_graph=False: the lexical graph (Document/Chunk nodes) was already
-    # created by the ingest stage.  This extraction stage must not recreate or mutate
+    # created by the ingest stage. This extraction stage must not recreate or mutate
     # those nodes; it only adds derived outputs (ExtractedClaim, EntityMention,
     # evidence-link relationships) linked to existing chunk nodes via run_id/chunk_id.
     # This keeps extraction non-destructive and consistent with the layered, vendor-plus
