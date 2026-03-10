@@ -16,7 +16,7 @@ The demo exercises two independent ingestion pipelines — structured CSV ingest
 - **Two-pipeline unstructured flow**: `extract-claims` runs within the same `run_id` scope established by `ingest-pdf` — it is not a separate run. It reads the previously ingested chunks, adds derived nodes/edges, and does not rewrite the lexical layer.
 - **Layered graph model**: source assertions are preserved as written (with provenance), while canonical/resolved views are derived in a separate layer and may be revised over time.
 - **Explicit convergence**: cross-source links are an optional resolution step; they must be explainable and non-destructive (do not overwrite source assertions).
-- **Batch mode is convenience only**: `ingest` runs all stages sequentially in one command, but each stage retains its own `run_id`.
+- **Batch mode is convenience only**: `ingest` runs all stages sequentially in one command. The batch manifest has its own `run_id`; internally, stages share two producer run scopes — a `structured_ingest_run_id` for the structured pipeline and an `unstructured_ingest_run_id` shared by PDF ingest, claim extraction, entity resolution, and retrieval.
 
 ### Graph layers
 
@@ -24,10 +24,10 @@ The demo exercises two independent ingestion pipelines — structured CSV ingest
 | --- | --- | --- | --- |
 | Lexical | `Document`, `Chunk` | `ingest-pdf` | Stable for the run — never overwritten by downstream stages |
 | Extraction | `ExtractedClaim`, `EntityMention` | `extract-claims` | Non-destructive additions only |
-| Resolution | `CanonicalEntity`, `UnresolvedEntity` | `resolve-entities` | Non-destructive additions only |
+| Resolution | `UnresolvedEntity` (fallback) | `resolve-entities` | Non-destructive additions only; creates `RESOLVES_TO` edges to existing `CanonicalEntity` nodes |
 | Structured | `Claim`, `Fact`, `Relationship`, `Source`, `CanonicalEntity` | `ingest-structured` | Non-destructive additions only |
 
-Every lexical node carries `run_id`, `source_uri`, and positional provenance fields. Operational metadata (timing, batch context, run summaries) belongs in manifest files, not in the graph.
+Every `Chunk` node carries `run_id`, `source_uri`, and positional provenance fields; `Document` nodes carry `run_id` and `source_uri`. Operational metadata (timing, batch context, run summaries) belongs in manifest files, not in the graph.
 
 ---
 
@@ -46,7 +46,7 @@ python demo/reset_demo_db.py --confirm
 python demo/run_demo.py --live reset --confirm
 ```
 
-Without `--confirm` the command prints instructions only. Both paths write a JSON reset report to `demo/artifacts/` (override with `--output-dir`).
+Without `--confirm`, the standalone script (`reset_demo_db.py`) exits with an error; the CLI orchestrator (`run_demo.py reset`) prints instructions only. Both paths write a JSON reset report to `demo/artifacts/` (override with `--output-dir`) when `--confirm` is supplied.
 
 ### Step 2 — Run ingestion stages independently (recommended)
 
@@ -82,7 +82,7 @@ python demo/run_demo.py --dry-run ask
 python demo/run_demo.py --dry-run ingest
 ```
 
-Runs all stages sequentially with a single command. Each stage retains its own `run_id`; the batch manifest is written to `<output-dir>/manifest.json`.
+Runs all stages sequentially with a single command. The batch manifest is written to `<output-dir>/manifest.json` with its own `run_id`; internally, structured stages share `structured_ingest_run_id` and unstructured stages (PDF ingest, claim extraction, entity resolution, retrieval) share `unstructured_ingest_run_id`.
 
 ### Step 5 — Run smoke test
 
@@ -189,6 +189,7 @@ The orchestrator CLI exposes the following subcommands:
 
 | Variable | Required | Notes |
 | --- | --- | --- |
+| `OPENAI_API_KEY` | Yes (live) | Required for live `ingest-pdf`, `extract-claims`, and `ask` |
 | `NEO4J_URI` | Yes (live) | |
 | `NEO4J_USERNAME` | Yes (live) | Note: `NEO4J_USERNAME`, not `NEO4J_USER` |
 | `NEO4J_PASSWORD` | Yes (live) | |
