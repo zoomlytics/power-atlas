@@ -190,8 +190,8 @@ The orchestrator CLI exposes the following subcommands:
 | Variable | Required | Notes |
 | --- | --- | --- |
 | `OPENAI_API_KEY` | Yes (live) | Required for live `ingest-pdf`, `extract-claims`, and `ask` |
-| `NEO4J_URI` | Yes (live) | |
-| `NEO4J_USERNAME` | Yes (live) | Note: `NEO4J_USERNAME`, not `NEO4J_USER` |
+| `NEO4J_URI` | No | Defaults to `neo4j://localhost:7687` |
+| `NEO4J_USERNAME` | No | Defaults to `neo4j`. Note: `NEO4J_USERNAME`, not `NEO4J_USER` |
 | `NEO4J_PASSWORD` | Yes (live) | |
 | `NEO4J_DATABASE` | No | Defaults to `neo4j` |
 | `OPENAI_MODEL` | No | Defaults to `gpt-4o-mini` if unset |
