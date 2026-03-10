@@ -188,30 +188,30 @@ sentence split catches this case.
 - Structured pre-ingest lint + deterministic dedup writes run-scoped artifacts under `runs/<run_id>/structured_clean/` plus `lint_report.json`
 - Claim extraction + entity mention stages driven by `LLMEntityRelationExtractor` with run-scoped chunk reading
 - Entity resolution stage (deterministic canonical key resolution; `CanonicalEntity` / `UnresolvedEntity` links)
-- Retrieval and GraphRAG Q&A stage with strict citation expectations
+- Retrieval and GraphRAG Q&A stage with run-scoped, citation-supporting retrieval
 - Run artifacts written to `<output-dir>/manifest.json` with clean run boundaries (for the default orchestrator run this is typically `demo/artifacts/manifest.json`; override with `--output-dir`, and note that `smoke_test.py` uses an isolated temporary directory by default)
 
 Manifest run-boundary notes:
 - **Batch orchestrator manifest** (`manifest.json`, produced by `ingest`):
   - `run_id`: run boundary for the overall batch orchestrator run
   - `run_scopes.structured_ingest_run_id`: structured producer run boundary
-  - `run_scopes.unstructured_ingest_run_id`: unstructured/PDF producer run boundary
-  - `run_scopes.resolution_run_id`: optional convergence/resolution scope
+  - `run_scopes.unstructured_ingest_run_id`: unstructured/PDF producer run boundary (entity resolution is part of this scope — it reads and writes using the same run ID as pdf_ingest and extract-claims)
 - **Independent stage manifests** (named `{stage_name}_{stage_run_id}_manifest.json`, e.g. `structured_ingest_structured_ingest-..._manifest.json` and `pdf_ingest_unstructured_ingest-..._manifest.json`, produced by `ingest-structured` / `ingest-pdf`):
   - `run_id`: run boundary for that single producer run
   - `run_scopes.batch_mode`: `single_independent_run`
   - `run_scopes.structured_ingest_run_id` or `run_scopes.unstructured_ingest_run_id` (only the relevant producer scope key is present)
 - In all modes, each stage emits its own `run_id` so provenance remains non-destructive and auditable across reruns
 
-## Run ID provenance contract
+## Run ID provenance model
 
 - Vendor pipelines emit an orchestration `run_id` at execution time (`PipelineResult.run_id` / `RunContext.run_id`) for callbacks/notifications; the demo does **not** inject this orchestration id into graph nodes.
 - The demo supplies its own stage run scope (`run_id`, plus `dataset_id`/`source_uri` when present) via `document_metadata` for PDF ingest and persists those fields on `Document`/`Chunk` nodes; post-ingest normalization still runs to keep reset/retrieval scripts aligned on the same persisted provenance.
+- Entity resolution uses the same `run_id` as the unstructured/PDF ingest stages — it is part of the unstructured run scope, not a separate run boundary.
 
 ## Fixtures and reproducibility
 
 - `fixtures/structured/*.csv`: claim/evidence graph seed rows
-- `fixtures/unstructured/chain_of_custody.pdf`: canonical source PDF fixture used in this demo
+- `fixtures/unstructured/chain_of_custody.pdf`: canonical source PDF fixture used in this demo (the name is intentionally stable — it is a well-known chain-of-custody document that serves as a consistent demo artifact)
 - `fixtures/manifest.json`: dataset contract, provenance, and license note
 
 ## Reset behavior
@@ -226,9 +226,14 @@ All nodes with the following labels and **all their relationships** (`DETACH DEL
 | --- | --- |
 | `Document` | `ingest-pdf` (lexical layer) |
 | `Chunk` | `ingest-pdf` (lexical layer) |
-| `Claim` | `ingest-structured` (structured layer) |
-| `CanonicalEntity` | `resolve-entities` (resolution layer) |
+| `CanonicalEntity` | `ingest-structured` (structured layer) |
+| `Claim` | `ingest-structured` (structured layer; claims.csv) |
+| `Fact` | `ingest-structured` (structured layer; facts.csv) |
+| `Relationship` | `ingest-structured` (structured layer; relationships.csv) |
+| `Source` | `ingest-structured` (structured layer; dataset source nodes) |
+| `ExtractedClaim` | `extract-claims` (extraction layer) |
 | `EntityMention` | `extract-claims` (extraction layer) |
+| `UnresolvedEntity` | `resolve-entities` (resolution layer; fallback nodes for unresolved mentions) |
 
 ### What is dropped
 

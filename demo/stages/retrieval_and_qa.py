@@ -445,7 +445,7 @@ def run_retrieval_and_qa(
             **base,
             "status": "dry_run",
             "retrievers": dry_run_retrievers,
-            "qa": "GraphRAG strict citations",
+            "qa": "GraphRAG run-scoped citations",
         }
 
     # Live retrieval: build a run-scoped VectorCypherRetriever with citation formatter.
@@ -476,7 +476,7 @@ def run_retrieval_and_qa(
             **base,
             "status": "live",
             "retrievers": [],
-            "qa": "GraphRAG strict citations",
+            "qa": "GraphRAG run-scoped citations",
             "hits": 0,
             "retrieval_results": [],
             "warnings": [warning_msg],
@@ -621,7 +621,7 @@ def run_retrieval_and_qa(
         **base,
         "status": "live",
         "retrievers": live_retrievers,
-        "qa": "GraphRAG strict citations",
+        "qa": "GraphRAG run-scoped citations",
         "hits": len(hits),
         "retrieval_results": hits,
         "warnings": warnings_list,

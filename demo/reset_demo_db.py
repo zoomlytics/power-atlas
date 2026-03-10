@@ -6,10 +6,15 @@ idempotent: repeated runs succeed even when the graph is already empty or the
 indexes no longer exist.
 
 Demo-owned labels (nodes + all their relationships are removed):
-  - Document, Chunk  (lexical layer written by ingest-pdf)
-  - Claim            (structured layer written by ingest-structured)
-  - CanonicalEntity  (resolution layer written by resolve-entities)
-  - EntityMention    (extraction layer written by extract-claims)
+  - Document, Chunk         (lexical layer written by ingest-pdf)
+  - CanonicalEntity         (structured layer written by ingest-structured)
+  - Claim                   (structured layer written by ingest-structured; claims.csv)
+  - Fact                    (structured layer written by ingest-structured; facts.csv)
+  - Relationship            (structured layer written by ingest-structured; relationships.csv)
+  - Source                  (structured layer written by ingest-structured; dataset source nodes)
+  - ExtractedClaim          (extraction layer written by extract-claims)
+  - EntityMention           (extraction layer written by extract-claims)
+  - UnresolvedEntity        (resolution layer written by resolve-entities; fallback for unresolved mentions)
 
 Demo-owned indexes (dropped by name):
   - demo_chunk_embedding_index  (vector index on Chunk.embedding, created by
@@ -49,11 +54,20 @@ logger = logging.getLogger(__name__)
 #   - demo/config/pdf_simple_kg_pipeline.yaml
 #   - demo/stages/*.py (structured ingest, pdf ingest, claim extraction, etc.)
 DEMO_NODE_LABELS: tuple[str, ...] = (
+    # Lexical layer — pdf ingest
     "Document",
     "Chunk",
-    "Claim",
+    # Structured layer — structured ingest (CSV fixtures)
     "CanonicalEntity",
+    "Claim",
+    "Fact",
+    "Relationship",
+    "Source",
+    # Extraction layer — claim/mention extraction
+    "ExtractedClaim",
     "EntityMention",
+    # Resolution layer — entity resolution (fallback nodes for unresolved mentions)
+    "UnresolvedEntity",
 )
 
 # Demo-owned index names dropped on reset.  Keep in sync with:
