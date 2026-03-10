@@ -162,8 +162,10 @@ def run_narrative_extraction(config: ExtractionConfig) -> dict[str, Any]:
     summary_path = extraction_dir / "summary.json"
     # Write the manifest inside the stage subdirectory so independent invocations
     # sharing the same run_id do not overwrite each other's manifests.
-    # Aligns with the independent-stage manifest path pattern used by run_demo.py:
-    # <output_root>/<run_id>/<stage_name>/manifest.json
+    # In run_demo.py, the independent-stage manifest path is:
+    #   config.output_dir / "runs" / <run_id> / <stage_name> / manifest.json
+    # In this script, output_root is expected to correspond to output_dir / "runs",
+    # so the local pattern is: <output_root>/<run_id>/<stage_name>/manifest.json
     manifest_path = extraction_dir / "manifest.json"
     lexical_config = build_lexical_config()
 
