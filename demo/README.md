@@ -27,7 +27,7 @@ The demo exercises two independent ingestion pipelines — structured CSV ingest
 | Resolution | `UnresolvedEntity` (fallback) | `resolve-entities` | Non-destructive additions only; creates `RESOLVES_TO` edges to existing `CanonicalEntity` nodes |
 | Structured | `Claim`, `Fact`, `Relationship`, `Source`, `CanonicalEntity` | `ingest-structured` | Non-destructive additions only |
 
-Every `Chunk` node carries `run_id`, `source_uri`, and positional provenance fields; `Document` nodes carry `run_id` and `source_uri`. Operational metadata (timing, batch context, run summaries) belongs in manifest files, not in the graph.
+Every `Chunk` node includes ingest metadata fields such as `run_id`, `source_uri`, `dataset_id`, and positional provenance fields; `Document` nodes include the same ingest metadata (for example, `run_id`, `source_uri`, `dataset_id`). Operational metadata (timing, batch context, run summaries) belongs in manifest files, not in the graph.
 
 ---
 
