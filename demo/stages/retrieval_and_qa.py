@@ -508,7 +508,7 @@ def run_retrieval_and_qa(
         )
 
         # Build GraphRAG with the Power Atlas citation-enforcing prompt template and
-        # capability-aware LLM for deterministic, grounded output.
+        # capability-aware LLM for grounded, citation-enforced output.
         # Aligned with vendor pattern from vendor-resources/examples/customize/answer/custom_prompt.py
         # and vendor-resources/examples/question_answering/graphrag_with_neo4j_message_history.py.
         llm = build_openai_llm(effective_qa_model)
