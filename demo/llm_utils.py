@@ -26,10 +26,12 @@ from neo4j_graphrag.llm import OpenAILLM
 _TEMP_NEVER_PATTERNS = [
     # Reasoning series: o1, o3, o4-mini, etc.
     re.compile(r"^o\d", re.IGNORECASE),
-    # GPT-5 base and named variants (not versioned like gpt-5.1)
-    re.compile(r"^gpt-5(-mini|-nano|-pro)?$", re.IGNORECASE),
-    # GPT-5.x-pro variants (e.g. gpt-5.4-pro)
-    re.compile(r"^gpt-5\.\d.*-pro$", re.IGNORECASE),
+    # GPT-5 base and named variants (not versioned like gpt-5.1). Allow optional
+    # suffixed segments such as -preview or -YYYY-MM-DD while excluding gpt-5.x.
+    re.compile(r"^gpt-5(?!\.)(-mini|-nano|-pro)?(?:-[\w-]+)*$", re.IGNORECASE),
+    # GPT-5.x-pro variants (e.g. gpt-5.4-pro), including suffixed forms like
+    # gpt-5.4-pro-2025-01-01 or gpt-5.4-pro-preview.
+    re.compile(r"^gpt-5\.\d.*-pro(?:-[\w-]+)*$", re.IGNORECASE),
 ]
 
 # GPT-5 versioned models (e.g. gpt-5.1, gpt-5.2, gpt-5.4): temperature is
