@@ -40,7 +40,7 @@ Use `--dry-run` to run all stages without live OpenAI or Neo4j calls (useful for
 ```bash
 export NEO4J_PASSWORD='your-neo4j-password'
 # Standalone reset script (recommended):
-python demo/reset_demo_db.py --confirm
+python -m demo.reset_demo_db --confirm
 
 # Or via the CLI orchestrator:
 python demo/run_demo.py --live reset --confirm
