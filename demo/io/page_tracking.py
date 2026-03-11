@@ -287,7 +287,7 @@ class PageAwareFixedSizeSplitter(FixedSizeSplitter):
             }
             chunks.append(TextChunk(text=chunk_text, index=index, metadata=metadata))
             index += 1
-            approximate_start = start + step
+            approximate_start = max(approximate_start + step, start + 1)
 
         return TextChunks(chunks=chunks)
 
