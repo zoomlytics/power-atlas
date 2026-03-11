@@ -228,7 +228,8 @@ def run_pdf_ingest(
                     "SHOW INDEXES YIELD name WHERE name = $index_name RETURN count(*) AS contract_index_count",
                     index_name=effective_index_name,
                 ).single()
-            contract_index_count = (index_check_result or {}).get("contract_index_count")
+            index_check_mapping = _record_as_mapping(index_check_result)
+            contract_index_count = index_check_mapping.get("contract_index_count")
             if contract_index_count == 0:
                 raise ValueError(
                     f"Vector index contract violation: index '{effective_index_name}' not found "
