@@ -220,6 +220,23 @@ def run_pdf_ingest(
                         dimensions=effective_embedding_dimensions,
                     ).consume()
 
+            # Post-creation contract validation: verify the vector index was created with the
+            # contract name. This catches configuration drift where a fallback or override causes
+            # a differently-named index to be created, which would break retrieval.
+            with driver.session(database=config.neo4j_database) as session:
+                index_check_result = session.run(
+                    "SHOW INDEXES YIELD name WHERE name = $index_name RETURN count(*) AS contract_index_count",
+                    index_name=effective_index_name,
+                ).single()
+            index_check_mapping = _record_as_mapping(index_check_result)
+            contract_index_count = index_check_mapping.get("contract_index_count")
+            if contract_index_count == 0:
+                raise ValueError(
+                    f"Vector index contract violation: index '{effective_index_name}' not found "
+                    f"after creation attempt (strategy: {index_creation_strategy}). "
+                    f"Retrieval will fail unless the contract index is present."
+                )
+
             pipeline = PipelineRunner.from_config_file(PDF_PIPELINE_CONFIG_PATH)
             pipeline_result = asyncio.run(
                 pipeline.run(
