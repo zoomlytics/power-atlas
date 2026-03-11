@@ -30,6 +30,7 @@ from neo4j_graphrag.experimental.components.pdf_loader import (
 from neo4j_graphrag.experimental.components.text_splitters.fixed_size_splitter import (
     FixedSizeSplitter,
 )
+from neo4j_graphrag.experimental.components.types import TextChunk, TextChunks
 
 # ---------------------------------------------------------------------------
 # Local copies of the vendor's word-boundary helpers.
@@ -61,7 +62,7 @@ def _adjust_chunk_end(text: str, start: int, approximate_end: int) -> int:
         if end == start:
             end = approximate_end
     return end
-from neo4j_graphrag.experimental.components.types import TextChunk, TextChunks
+
 
 _logger = logging.getLogger(__name__)
 
