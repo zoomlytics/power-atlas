@@ -7,7 +7,7 @@ from unittest import mock
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from demo.llm_utils import _model_supports_temperature, build_openai_llm  # noqa: E402
 
