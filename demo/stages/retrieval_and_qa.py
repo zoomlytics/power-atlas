@@ -7,8 +7,9 @@ import re
 import neo4j
 from neo4j_graphrag.embeddings.openai import OpenAIEmbeddings
 from neo4j_graphrag.generation import GraphRAG
-from neo4j_graphrag.llm import OpenAILLM
 from neo4j_graphrag.message_history import InMemoryMessageHistory, MessageHistory
+
+from demo.llm_utils import build_openai_llm
 from neo4j_graphrag.retrievers import VectorCypherRetriever
 from neo4j_graphrag.types import LLMMessage, RetrieverResultItem
 
@@ -507,13 +508,10 @@ def run_retrieval_and_qa(
         )
 
         # Build GraphRAG with the Power Atlas citation-enforcing prompt template and
-        # low-temperature LLM for deterministic, grounded output.
+        # capability-aware LLM for grounded, citation-enforced output.
         # Aligned with vendor pattern from vendor-resources/examples/customize/answer/custom_prompt.py
         # and vendor-resources/examples/question_answering/graphrag_with_neo4j_message_history.py.
-        llm = OpenAILLM(
-            model_name=effective_qa_model,
-            model_params={"temperature": 0},
-        )
+        llm = build_openai_llm(effective_qa_model)
         rag = GraphRAG(
             retriever=retriever,
             llm=llm,
@@ -698,10 +696,7 @@ def run_interactive_qa(
             result_formatter=_chunk_citation_formatter,
             neo4j_database=neo4j_database,
         )
-        llm = OpenAILLM(
-            model_name=effective_qa_model,
-            model_params={"temperature": 0},
-        )
+        llm = build_openai_llm(effective_qa_model)
         rag = GraphRAG(
             retriever=retriever,
             llm=llm,

@@ -29,7 +29,8 @@ from neo4j_graphrag.experimental.components.types import (
     TextChunk,
     TextChunks,
 )
-from neo4j_graphrag.llm import OpenAILLM
+
+from demo.llm_utils import build_openai_llm
 
 import neo4j
 
@@ -73,10 +74,7 @@ async def _read_chunks_and_extract(
         neo4j_database=config.neo4j_database,
     )
     text_chunks: TextChunks = await chunk_reader.run(lexical_graph_config=lexical_graph_config)
-    llm = OpenAILLM(
-        model_name=config.model_name,
-        model_params={"temperature": 0},
-    )
+    llm = build_openai_llm(config.model_name)
     extractor = LLMEntityRelationExtractor(
         llm=llm,
         create_lexical_graph=False,
