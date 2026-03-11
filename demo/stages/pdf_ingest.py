@@ -180,7 +180,7 @@ def run_pdf_ingest(
         "NEO4J_USERNAME": config.neo4j_username,
         "NEO4J_PASSWORD": config.neo4j_password,
         "NEO4J_DATABASE": config.neo4j_database,
-        "OPENAI_MODEL": effective_embedder_model,
+        "OPENAI_MODEL": config.openai_model,
     }
     previous_env = {key: (key in os.environ, os.environ.get(key)) for key in env_updates}
     os.environ.update(env_updates)
@@ -274,7 +274,10 @@ def run_pdf_ingest(
                          toIntegerOrNull(c.chunk_index) AS chunk_index_int,
                          toIntegerOrNull(c.start_char) AS start_char_int,
                          toIntegerOrNull(c.end_char) AS end_char_int,
-                         coalesce(toString(c.uid), toString(coalesce(chunk_index_int, fallback_chunk_order))) AS missing_chunk_discriminator
+                         coalesce(
+                             toString(c.uid),
+                             toString(coalesce(toIntegerOrNull(c.chunk_index), fallback_chunk_order))
+                         ) AS missing_chunk_discriminator
                        SET c.run_id = coalesce(c.run_id, $run_id),
                            c.source_uri = coalesce(c.source_uri, d.source_uri, $source_uri),
                            c.dataset_id = coalesce(c.dataset_id, d.dataset_id, $dataset_id),
@@ -402,7 +405,9 @@ def run_pdf_ingest(
                     source_uri=pdf_source_uri,
                 ).single()["missing_page_count"]
                 if missing_page_count:
-                    raise ValueError("Chunk page contract violation: expected page/page_number on all chunks")
+                    extraction_warnings.append(
+                        f"{missing_page_count} chunk(s) missing page/page_number; proceeding with degraded citation metadata"
+                    )
                 missing_char_offset_count = session.run(
                     """
                     MATCH (d:Document)
