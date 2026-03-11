@@ -531,6 +531,7 @@ def run_structured_ingest(config: Any, run_id: str, *, fixtures_dir: Path | None
                 SET asserted_in.run_id = $run_id,
                     asserted_in.source_uri = $source_uri,
                     asserted_in.retrieved_at = coalesce(row.retrieved_at, $ingested_at)
+                WITH claim, row
                 OPTIONAL MATCH (fact:Fact {fact_id: trim(row.source_row_id), run_id: $run_id})
                 OPTIONAL MATCH (relationship:Relationship {rel_id: trim(row.source_row_id), run_id: $run_id})
                 FOREACH (_ IN CASE WHEN trim(row.claim_type) = 'fact' AND fact IS NOT NULL THEN [1] ELSE [] END |
