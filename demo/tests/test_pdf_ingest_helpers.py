@@ -160,3 +160,35 @@ def test_page_aware_splitter_empty_text_produces_no_chunks():
     splitter = PageAwareFixedSizeSplitter(chunk_size=100, chunk_overlap=0, approximate=False)
     result = _run(splitter.run(""))
     assert result.chunks == []
+
+
+# ---------------------------------------------------------------------------
+# PageAwareFixedSizeSplitter — construction-time validation
+# (The vendor FixedSizeSplitter.__init__ already guards against step<=0;
+# these tests verify that protection is in place so the while-loop
+# can never become infinite.)
+# ---------------------------------------------------------------------------
+
+
+def test_page_aware_splitter_raises_at_construction_for_zero_chunk_size():
+    """chunk_size=0 must raise ValueError at construction (vendor validates)."""
+    with pytest.raises(ValueError, match="chunk_size"):
+        PageAwareFixedSizeSplitter(chunk_size=0, chunk_overlap=0, approximate=False)
+
+
+def test_page_aware_splitter_raises_at_construction_for_negative_chunk_size():
+    """chunk_size<0 must raise ValueError at construction (vendor validates)."""
+    with pytest.raises(ValueError, match="chunk_size"):
+        PageAwareFixedSizeSplitter(chunk_size=-10, chunk_overlap=0, approximate=False)
+
+
+def test_page_aware_splitter_raises_at_construction_when_overlap_equals_chunk_size():
+    """chunk_overlap == chunk_size (step=0) must raise ValueError at construction."""
+    with pytest.raises(ValueError, match="chunk_overlap"):
+        PageAwareFixedSizeSplitter(chunk_size=50, chunk_overlap=50, approximate=False)
+
+
+def test_page_aware_splitter_raises_at_construction_when_overlap_exceeds_chunk_size():
+    """chunk_overlap > chunk_size (negative step) must raise ValueError at construction."""
+    with pytest.raises(ValueError, match="chunk_overlap"):
+        PageAwareFixedSizeSplitter(chunk_size=50, chunk_overlap=60, approximate=False)

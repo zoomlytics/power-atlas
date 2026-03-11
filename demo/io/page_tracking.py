@@ -12,12 +12,20 @@ asyncio event loop (no concurrent pipeline runs), module-level state is safe her
 
 from __future__ import annotations
 
+import io
 import logging
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
+import fsspec
 from fsspec import AbstractFileSystem  # type: ignore[import]
-from neo4j_graphrag.experimental.components.pdf_loader import PdfDocument, PdfLoader
+from fsspec.implementations.local import LocalFileSystem  # type: ignore[import]
+from neo4j_graphrag.experimental.components.pdf_loader import (
+    DocumentInfo,
+    PdfDocument,
+    PdfLoader,
+    is_default_fs,
+)
 from neo4j_graphrag.experimental.components.text_splitters.fixed_size_splitter import (
     FixedSizeSplitter,
     _adjust_chunk_end,
@@ -116,10 +124,10 @@ def _compute_page_offsets(filepath: str) -> list[int]:
 class PageTrackingPdfLoader(PdfLoader):
     """PdfLoader that records page-start offsets for use by PageAwareFixedSizeSplitter.
 
-    All PDF loading behaviour is delegated to the vendor ``PdfLoader``.  After
-    a successful load this class computes the character offset at which each
-    page begins in the concatenated text and stores it in the module-level
-    ``_coordinator`` so the downstream splitter can access it.
+    Overrides ``run()`` to extract text and compute page-start character offsets
+    in a **single** ``pypdf`` pass, avoiding the double I/O that would result
+    from calling ``super().run()`` and then re-parsing the file for offsets.
+    The ``PdfDocument`` returned is identical to the vendor implementation.
     """
 
     async def run(  # type: ignore[override]
@@ -129,40 +137,60 @@ class PageTrackingPdfLoader(PdfLoader):
         fs: Optional[Union[AbstractFileSystem, str]] = None,
     ) -> PdfDocument:
         _coordinator.clear()
-        result = await super().run(filepath, metadata=metadata, fs=fs)
-
-        # Only attempt local-filesystem offset computation.  When a non-local
-        # fsspec filesystem is provided, the local ``open()`` call inside
-        # ``_compute_page_offsets`` would not be able to access the file, so we
-        # skip it and log explicitly rather than falling back silently.
-        is_local_fs = True
+        if not isinstance(filepath, str):
+            filepath = str(filepath)
+        # Resolve the filesystem object the same way the vendor does.
         if isinstance(fs, str):
-            is_local_fs = fs == "file"
-        elif isinstance(fs, AbstractFileSystem):
-            protocol = getattr(fs, "protocol", None)
-            if isinstance(protocol, (list, tuple)):
-                is_local_fs = "file" in protocol
-            else:
-                is_local_fs = protocol == "file"
+            fs_obj: AbstractFileSystem = fsspec.filesystem(fs)
+        elif fs is None:
+            fs_obj = LocalFileSystem()
+        else:
+            fs_obj = fs
 
-        if is_local_fs:
-            offsets = _compute_page_offsets(str(filepath))
+        try:
+            import pypdf  # type: ignore[import]
+
+            offsets: list[int] = []
+            text_parts: list[str] = []
+            cumulative = 0
+            with fs_obj.open(filepath, "rb") as fp:
+                stream = fp if is_default_fs(fs_obj) else io.BytesIO(fp.read())
+                reader = pypdf.PdfReader(stream)
+                for page in reader.pages:
+                    page_text = page.extract_text() or ""
+                    offsets.append(cumulative)
+                    text_parts.append(page_text)
+                    # +1 accounts for the '\n' that joins pages (mirrors vendor logic).
+                    cumulative += len(page_text) + 1
+            full_text = "\n".join(text_parts)
             _coordinator.set(offsets)
             _logger.debug(
                 "PageTrackingPdfLoader: %d page(s) detected for %s",
                 len(offsets),
                 filepath,
             )
-        else:
+            return PdfDocument(
+                text=full_text,
+                document_info=DocumentInfo(
+                    path=filepath,
+                    metadata=self.get_document_metadata(full_text, metadata),
+                    document_type="pdf",
+                ),
+            )
+        except ImportError:
+            _logger.debug(
+                "PageTrackingPdfLoader: pypdf not available; falling back to vendor loader. "
+                "All chunks will be assigned to page 1."
+            )
+        except Exception as exc:
             _logger.warning(
-                "PageTrackingPdfLoader: skipping page offset computation for "
-                "non-local filesystem %r and filepath %r; all chunks will be "
-                "assigned to page 1.",
-                fs,
-                filepath,
+                "PageTrackingPdfLoader: single-pass load failed (%s); "
+                "falling back to vendor loader without page tracking.",
+                exc,
             )
 
-        return result
+        # Fallback: delegate to vendor loader; page offsets remain unset.
+        return await super().run(filepath, metadata=metadata, fs=fs_obj)
 
 
 # ---------------------------------------------------------------------------
