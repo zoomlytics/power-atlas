@@ -1,7 +1,7 @@
 """Page-aware PDF loading and text splitting for the Power Atlas demo pipeline.
 
-``PageTrackingPdfLoader`` wraps the vendor ``PdfLoader`` and records the byte-offset
-of each page boundary into a module-level coordinator so that the downstream
+``PageTrackingPdfLoader`` wraps the vendor ``PdfLoader`` and records the character
+offset of each page boundary into a module-level coordinator so that the downstream
 ``PageAwareFixedSizeSplitter`` can assign a ``page_number`` (and accurate
 ``start_char``/``end_char``) to every chunk it creates.
 
@@ -84,7 +84,13 @@ def _compute_page_offsets(filepath: str) -> list[int]:
     """
     try:
         import pypdf  # type: ignore[import]
-
+    except ImportError:
+        _logger.debug(
+            "PageTrackingPdfLoader: pypdf not available; page offsets will not be computed. "
+            "All chunks will be assigned to page 1."
+        )
+        return []
+    try:
         offsets: list[int] = []
         cumulative = 0
         with open(filepath, "rb") as fh:
@@ -124,13 +130,38 @@ class PageTrackingPdfLoader(PdfLoader):
     ) -> PdfDocument:
         _coordinator.clear()
         result = await super().run(filepath, metadata=metadata, fs=fs)
-        offsets = _compute_page_offsets(str(filepath))
-        _coordinator.set(offsets)
-        _logger.debug(
-            "PageTrackingPdfLoader: %d page(s) detected for %s",
-            len(offsets),
-            filepath,
-        )
+
+        # Only attempt local-filesystem offset computation.  When a non-local
+        # fsspec filesystem is provided, the local ``open()`` call inside
+        # ``_compute_page_offsets`` would not be able to access the file, so we
+        # skip it and log explicitly rather than falling back silently.
+        is_local_fs = True
+        if isinstance(fs, str):
+            is_local_fs = fs == "file"
+        elif isinstance(fs, AbstractFileSystem):
+            protocol = getattr(fs, "protocol", None)
+            if isinstance(protocol, (list, tuple)):
+                is_local_fs = "file" in protocol
+            else:
+                is_local_fs = protocol == "file"
+
+        if is_local_fs:
+            offsets = _compute_page_offsets(str(filepath))
+            _coordinator.set(offsets)
+            _logger.debug(
+                "PageTrackingPdfLoader: %d page(s) detected for %s",
+                len(offsets),
+                filepath,
+            )
+        else:
+            _logger.warning(
+                "PageTrackingPdfLoader: skipping page offset computation for "
+                "non-local filesystem %r and filepath %r; all chunks will be "
+                "assigned to page 1.",
+                fs,
+                filepath,
+            )
+
         return result
 
 
@@ -198,7 +229,4 @@ class PageAwareFixedSizeSplitter(FixedSizeSplitter):
 __all__ = [
     "PageAwareFixedSizeSplitter",
     "PageTrackingPdfLoader",
-    "_coordinator",
-    "_page_number_for_offset",
-    "_compute_page_offsets",
 ]

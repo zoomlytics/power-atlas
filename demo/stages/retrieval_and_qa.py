@@ -27,12 +27,12 @@ _RETRIEVAL_QUERY_BASE = """
 WITH node AS c, score
 WHERE c.run_id = $run_id
   AND ($source_uri IS NULL OR c.source_uri = $source_uri)
-RETURN c.text AS chunk_text,
+RETURN coalesce(c.text, c.body, c.content) AS chunk_text,
        c.chunk_id AS chunk_id,
        c.run_id AS run_id,
        c.source_uri AS source_uri,
        c.chunk_index AS chunk_index,
-       c.page_number AS page,
+       coalesce(c.page_number, c.page) AS page,
        c.start_char AS start_char,
        c.end_char AS end_char,
        score AS similarityScore
@@ -46,12 +46,12 @@ _RETRIEVAL_QUERY_WITH_EXPANSION = """
 WITH node AS c, score
 WHERE c.run_id = $run_id
   AND ($source_uri IS NULL OR c.source_uri = $source_uri)
-RETURN c.text AS chunk_text,
+RETURN coalesce(c.text, c.body, c.content) AS chunk_text,
        c.chunk_id AS chunk_id,
        c.run_id AS run_id,
        c.source_uri AS source_uri,
        c.chunk_index AS chunk_index,
-       c.page_number AS page,
+       coalesce(c.page_number, c.page) AS page,
        c.start_char AS start_char,
        c.end_char AS end_char,
        score AS similarityScore,

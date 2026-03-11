@@ -276,7 +276,7 @@ def run_pdf_ingest(
                          toIntegerOrNull(coalesce(c.page_number, c.page)) AS normalized_page,
                          toIntegerOrNull(coalesce(c.start_char, c.start_offset, c.start, c.offset)) AS existing_start_char,
                          toIntegerOrNull(coalesce(c.end_char, c.end_offset, c.end)) AS existing_end_char,
-                         size(c.text) AS chunk_length
+                         coalesce(size(c.text), size(c.body), size(c.content)) AS chunk_length
                     WITH d,
                          c,
                          normalized_chunk_order,
