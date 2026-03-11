@@ -79,11 +79,17 @@ def test_page_tracking_loader_clears_coordinator_at_start():
     assert _coordinator.get() == [0, 100, 200], "pre-condition: coordinator has stale offsets"
 
     loader = PageTrackingPdfLoader()
-    # Use a fake pypdf that immediately raises to stop execution early while
-    # still confirming the clear happens before the ImportError path.
-    # The coordinator.clear() call is the very first thing in run(), so we
-    # test by observing its state after a failed / import-error run.
-    with patch.dict("sys.modules", {"pypdf": None}):
+    # Force ImportError for 'pypdf' via builtins.__import__ so we reliably
+    # exercise the ImportError path (rather than relying on sys.modules=None,
+    # which may behave differently depending on import caching state).
+    _original_import = __import__
+
+    def _raise_for_pypdf(name, *args, **kwargs):
+        if name == "pypdf":
+            raise ImportError("pypdf not installed")
+        return _original_import(name, *args, **kwargs)
+
+    with patch("builtins.__import__", side_effect=_raise_for_pypdf):
         try:
             _run(loader.run("/nonexistent/path.pdf"))
         except Exception:
@@ -132,12 +138,19 @@ def test_page_tracking_loader_fallback_leaves_coordinator_empty_on_import_error(
     loader = PageTrackingPdfLoader()
 
     vendor_result = MagicMock()
+    _original_import = __import__
+
+    def _raise_for_pypdf(name, *args, **kwargs):
+        if name == "pypdf":
+            raise ImportError("pypdf not installed")
+        return _original_import(name, *args, **kwargs)
+
     with patch(
         "neo4j_graphrag.experimental.components.pdf_loader.PdfLoader.run",
         new_callable=AsyncMock,
         return_value=vendor_result,
     ):
-        with patch.dict("sys.modules", {"pypdf": None}):
+        with patch("builtins.__import__", side_effect=_raise_for_pypdf):
             result = _run(loader.run("/fake/doc.pdf"))
 
     # Coordinator must be empty — no offsets from a failed import.
