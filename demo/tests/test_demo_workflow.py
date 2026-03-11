@@ -876,6 +876,34 @@ class WorkflowTests(unittest.TestCase):
             for attr_name, original_value in original_identifiers.items():
                 setattr(module, attr_name, original_value)
 
+    def test_run_pdf_ingest_raises_when_contract_index_not_found_after_creation(self):
+        """Post-creation validation raises a clear contract violation when the index is absent."""
+        module = _load_module(RUN_DEMO_PATH, "run_non_dry_index_contract_test")
+        config = module.Config(
+            dry_run=False,
+            output_dir=DEMO_DIR / "artifacts",
+            neo4j_uri="neo4j://localhost:7687",
+            neo4j_username="neo4j",
+            neo4j_password="testtesttest",
+            neo4j_database="neo4j",
+            openai_model="gpt-4o-mini",
+        )
+        calls: dict[str, object] = {}
+
+        injected_modules = self._build_pdf_ingest_test_modules(
+            calls=calls,
+            query_payloads={
+                # Simulate SHOW INDEXES returning zero results for the contract index name.
+                "contract_index_count": {"contract_index_count": 0},
+            },
+        )
+        with self._with_injected_pdf_ingest_modules(injected_modules):
+            with self.assertRaisesRegex(
+                ValueError,
+                "Vector index contract violation",
+            ):
+                module._run_pdf_ingest(config, run_id="unstructured_ingest-test")
+
     def test_run_pdf_ingest_non_dry_run_raises_when_no_run_scoped_documents_or_chunks(self):
         module = _load_module(RUN_DEMO_PATH, "run_non_dry_missing_nodes_test")
         config = module.Config(
