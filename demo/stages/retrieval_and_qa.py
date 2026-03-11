@@ -27,12 +27,12 @@ _RETRIEVAL_QUERY_BASE = """
 WITH node AS c, score
 WHERE c.run_id = $run_id
   AND ($source_uri IS NULL OR c.source_uri = $source_uri)
-RETURN coalesce(c.text, c.body, c.content) AS chunk_text,
+RETURN c.text AS chunk_text,
        c.chunk_id AS chunk_id,
        c.run_id AS run_id,
        c.source_uri AS source_uri,
        c.chunk_index AS chunk_index,
-       coalesce(c.page_number, c.page) AS page,
+       c.page_number AS page,
        c.start_char AS start_char,
        c.end_char AS end_char,
        score AS similarityScore
@@ -46,12 +46,12 @@ _RETRIEVAL_QUERY_WITH_EXPANSION = """
 WITH node AS c, score
 WHERE c.run_id = $run_id
   AND ($source_uri IS NULL OR c.source_uri = $source_uri)
-RETURN coalesce(c.text, c.body, c.content) AS chunk_text,
+RETURN c.text AS chunk_text,
        c.chunk_id AS chunk_id,
        c.run_id AS run_id,
        c.source_uri AS source_uri,
        c.chunk_index AS chunk_index,
-       coalesce(c.page_number, c.page) AS page,
+       c.page_number AS page,
        c.start_char AS start_char,
        c.end_char AS end_char,
        score AS similarityScore,
@@ -537,17 +537,23 @@ def run_retrieval_and_qa(
             for item in rag_result.retriever_result.items:
                 meta = item.metadata or {}
                 citation_obj = meta.get("citation_object") or {}
-                # Surface warnings for chunks missing optional citation-relevant fields.
+                # Surface informational warnings for chunks missing optional citation
+                # fields (page, start_char, end_char).  These are logged for
+                # observability but are intentionally not added to citation_warnings_list
+                # because missing optional fields do not degrade citation enforcement.
+                # evidence_level is only degraded by critical issues (empty chunk text
+                # or uncited answer segments); see RFC #159 citation contract.
                 missing_fields = [f for f in _CITATION_OPTIONAL_FIELDS if citation_obj.get(f) is None]
                 if missing_fields:
                     _logger.warning(
-                        "Chunk %r missing citation fields: %s",
+                        "Chunk %r missing optional citation fields: %s",
                         citation_obj.get("chunk_id"),
                         ", ".join(missing_fields),
                     )
-                    chunk_warning = f"Chunk {citation_obj.get('chunk_id')!r} missing citation fields: {', '.join(missing_fields)}"
+                    chunk_warning = f"Chunk {citation_obj.get('chunk_id')!r} missing optional citation fields: {', '.join(missing_fields)}"
                     warnings_list.append(chunk_warning)
-                    citation_warnings_list.append(chunk_warning)
+                    # Intentionally NOT added to citation_warnings_list: optional
+                    # fields do not affect evidence_level per citation contract #159.
                 # Surface warnings for chunks with empty or whitespace-only text.
                 # These chunks contribute no evidence to the answer and degrade retrieval quality.
                 if meta.get("empty_chunk_text"):
@@ -587,9 +593,11 @@ def run_retrieval_and_qa(
     # evidence_level encodes the overall quality of the retrieved evidence:
     #   "no_answer"  – no answer was generated (empty answer text)
     #   "full"       – every answer sentence and bullet ends with a citation token AND
-    #                  no citation-quality warnings exist (e.g. no missing chunk fields)
-    #   "degraded"   – any answer sentence or bullet is missing a citation token, OR any
-    #                  citation-quality warning exists (e.g. chunk missing page/start_char/end_char)
+    #                  no critical citation-quality warnings exist (e.g. no empty chunks)
+    #   "degraded"   – any answer sentence or bullet is missing a citation token, OR a
+    #                  critical citation-quality warning exists (e.g. empty chunk text).
+    #                  Missing OPTIONAL citation fields (page, start_char, end_char) do
+    #                  NOT degrade evidence_level per citation contract #159.
     evidence_level = (
         "no_answer" if not answer_text
         else ("degraded" if (not all_cited or citation_warnings_list) else "full")

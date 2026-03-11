@@ -2360,11 +2360,12 @@ def test_batch_manifest_qa_signals_defaults_when_retrieval_stage_missing_signals
     assert qa_signals["warnings"] == []
 
 
-def test_retrieval_and_qa_live_path_citation_quality_degraded_when_chunk_fields_missing(tmp_path: Path):
-    """evidence_level must be 'degraded' (not 'full') when the answer is fully cited but a
-    chunk is missing optional citation fields (page/start_char/end_char).  The warning_count
-    and citation_warnings must reflect the chunk-level warnings so all three fields stay
-    internally consistent."""
+def test_retrieval_and_qa_live_path_citation_quality_full_when_only_optional_fields_missing(tmp_path: Path):
+    """evidence_level must be 'full' (not 'degraded') when the answer is fully cited and
+    only optional citation fields (page/start_char/end_char) are missing from chunks.
+    Per citation contract #159, page/start_char/end_char are optional; their absence
+    must not degrade evidence_level.  The missing-field notice must appear in
+    result['warnings'] but NOT in citation_quality['citation_warnings']."""
     from demo.stages import run_retrieval_and_qa
 
     # A fully cited answer (every line ends with a citation token)
@@ -2432,15 +2433,22 @@ def test_retrieval_and_qa_live_path_citation_quality_degraded_when_chunk_fields_
         )
 
     cq = result["citation_quality"]
-    # all_cited is True (every answer line has a token) but evidence_level must be
-    # 'degraded' because of the chunk-level citation-field warnings.
+    # all_cited is True and evidence_level must be 'full': optional fields (page,
+    # start_char, end_char) absent does NOT degrade evidence per citation contract #159.
     assert cq["all_cited"] is True
-    assert cq["evidence_level"] == "degraded", (
-        "evidence_level must be 'degraded' when chunk citation fields are missing, "
-        "even if every answer line ends with a citation token"
+    assert cq["evidence_level"] == "full", (
+        "evidence_level must be 'full' when all answers are cited; "
+        "missing optional citation fields (page/start_char/end_char) must not degrade quality"
     )
-    assert cq["warning_count"] >= 1
-    assert any("chunk-no-page" in w for w in cq["citation_warnings"])
+    assert cq["warning_count"] == 0
+    assert cq["citation_warnings"] == []
+    # The missing-field notice must still appear in the general warnings list with
+    # the expected format indicating it's an optional-field notice.
+    general_warnings = result.get("warnings", [])
+    assert any(
+        "chunk-no-page" in w and "optional citation fields" in w
+        for w in general_warnings
+    ), f"Expected optional-field warning for chunk-no-page in warnings, got: {general_warnings}"
 
 
 # ---------------------------------------------------------------------------
