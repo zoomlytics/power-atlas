@@ -173,4 +173,9 @@ class TestBuildOpenAILLM:
         with mock.patch("demo.llm_utils.OpenAILLM", self._make_fake_llm_class(captured)):
             build_openai_llm(model_name, reasoning_effort=reasoning_effort)
 
-        assert "temperature" not in (captured["model_params"] or {})
+        params = captured["model_params"] or {}
+        assert "temperature" not in params
+        if reasoning_effort is not None:
+            assert params.get("reasoning_effort") == reasoning_effort
+        else:
+            assert "reasoning_effort" not in params

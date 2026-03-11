@@ -19,7 +19,6 @@ duplicate the capability-detection logic.
 from __future__ import annotations
 
 import re
-from typing import Optional
 
 from neo4j_graphrag.llm import OpenAILLM
 
@@ -39,7 +38,7 @@ _TEMP_GPT5_VERSIONED_RE = re.compile(r"^gpt-5\.\d", re.IGNORECASE)
 
 
 def _model_supports_temperature(
-    model_name: str, reasoning_effort: Optional[str] = None
+    model_name: str, reasoning_effort: str | None = None
 ) -> bool:
     """Return True if the model accepts an explicit ``temperature`` parameter.
 
@@ -71,7 +70,7 @@ def _model_supports_temperature(
     return True
 
 
-def build_openai_llm(model_name: str, reasoning_effort: Optional[str] = None):
+def build_openai_llm(model_name: str, reasoning_effort: str | None = None):
     """Create an :class:`~neo4j_graphrag.llm.OpenAILLM` with capability-aware model params.
 
     Uses ``temperature=0`` for models that support it to encourage
