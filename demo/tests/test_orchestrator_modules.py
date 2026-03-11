@@ -561,7 +561,7 @@ def test_retrieval_and_qa_live_path_uses_vector_cypher_retriever(tmp_path: Path)
     with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAIEmbeddings", _FakeEmbedder
     ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _StubGraphRAG), mock.patch(
-        "demo.stages.retrieval_and_qa.OpenAILLM"
+        "demo.stages.retrieval_and_qa.build_openai_llm"
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
         result = run_retrieval_and_qa(
             live_config,
@@ -641,7 +641,7 @@ def test_retrieval_and_qa_live_path_formats_citation_tokens(tmp_path: Path):
     with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
     ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class()), mock.patch(
-        "demo.stages.retrieval_and_qa.OpenAILLM"
+        "demo.stages.retrieval_and_qa.build_openai_llm"
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
         result = run_retrieval_and_qa(
             live_config,
@@ -788,7 +788,7 @@ def test_retrieval_and_qa_live_path_warns_on_missing_citation_fields(tmp_path: P
     with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
     ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class()), mock.patch(
-        "demo.stages.retrieval_and_qa.OpenAILLM"
+        "demo.stages.retrieval_and_qa.build_openai_llm"
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
         result = run_retrieval_and_qa(
             live_config,
@@ -832,7 +832,7 @@ def test_retrieval_and_qa_live_path_run_scoped_by_default(tmp_path: Path):
     with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
     ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class()), mock.patch(
-        "demo.stages.retrieval_and_qa.OpenAILLM"
+        "demo.stages.retrieval_and_qa.build_openai_llm"
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
         run_retrieval_and_qa(
             live_config,
@@ -874,7 +874,7 @@ def test_retrieval_and_qa_live_path_uses_expanded_query_when_expand_graph(tmp_pa
     with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
     ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class()), mock.patch(
-        "demo.stages.retrieval_and_qa.OpenAILLM"
+        "demo.stages.retrieval_and_qa.build_openai_llm"
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
         result = run_retrieval_and_qa(
             live_config,
@@ -1258,7 +1258,7 @@ def test_retrieval_and_qa_live_path_records_answer_and_all_answers_cited(tmp_pat
     with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
     ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class(answer=cited_answer)), mock.patch(
-        "demo.stages.retrieval_and_qa.OpenAILLM"
+        "demo.stages.retrieval_and_qa.build_openai_llm"
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
         result = run_retrieval_and_qa(
             live_config,
@@ -1300,7 +1300,7 @@ def test_retrieval_and_qa_live_path_records_warning_when_uncited(tmp_path: Path)
     with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
     ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class(answer=uncited_answer)), mock.patch(
-        "demo.stages.retrieval_and_qa.OpenAILLM"
+        "demo.stages.retrieval_and_qa.build_openai_llm"
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
         result = run_retrieval_and_qa(
             live_config,
@@ -1341,7 +1341,7 @@ def test_retrieval_and_qa_live_path_applies_fallback_when_uncited(tmp_path: Path
     with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
     ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class(answer=uncited_answer)), mock.patch(
-        "demo.stages.retrieval_and_qa.OpenAILLM"
+        "demo.stages.retrieval_and_qa.build_openai_llm"
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
         result = run_retrieval_and_qa(
             live_config,
@@ -1389,7 +1389,7 @@ def test_retrieval_and_qa_live_path_no_fallback_when_fully_cited(tmp_path: Path)
     with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
     ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class(answer=cited_answer)), mock.patch(
-        "demo.stages.retrieval_and_qa.OpenAILLM"
+        "demo.stages.retrieval_and_qa.build_openai_llm"
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
         result = run_retrieval_and_qa(
             live_config,
@@ -1448,7 +1448,7 @@ def test_run_interactive_qa_shows_fallback_message_when_uncited(
     with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
     ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _FakeGraphRAG), mock.patch(
-        "demo.stages.retrieval_and_qa.OpenAILLM"
+        "demo.stages.retrieval_and_qa.build_openai_llm"
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(
         os.environ, {"OPENAI_API_KEY": "test-key"}
     ), mock.patch("builtins.input", _fake_input):
@@ -1508,7 +1508,7 @@ def test_run_interactive_qa_does_not_show_fallback_when_fully_cited(
     with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
     ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _FakeGraphRAG), mock.patch(
-        "demo.stages.retrieval_and_qa.OpenAILLM"
+        "demo.stages.retrieval_and_qa.build_openai_llm"
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(
         os.environ, {"OPENAI_API_KEY": "test-key"}
     ), mock.patch("builtins.input", _fake_input):
@@ -1547,7 +1547,7 @@ def test_retrieval_and_qa_live_path_fallback_answer_contains_original_text(tmp_p
     with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
     ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class(answer=uncited_answer)), mock.patch(
-        "demo.stages.retrieval_and_qa.OpenAILLM"
+        "demo.stages.retrieval_and_qa.build_openai_llm"
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
         result = run_retrieval_and_qa(
             live_config,
@@ -1591,7 +1591,7 @@ def test_retrieval_and_qa_live_path_passes_message_history_to_graphrag(tmp_path:
     with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
     ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class(capture=captured_rag_search_args)), mock.patch(
-        "demo.stages.retrieval_and_qa.OpenAILLM"
+        "demo.stages.retrieval_and_qa.build_openai_llm"
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
         result = run_retrieval_and_qa(
             live_config,
@@ -1680,7 +1680,7 @@ def test_retrieval_and_qa_live_path_uses_power_atlas_prompt_template(tmp_path: P
     with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
     ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class(capture=captured_prompt)), mock.patch(
-        "demo.stages.retrieval_and_qa.OpenAILLM"
+        "demo.stages.retrieval_and_qa.build_openai_llm"
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
         run_retrieval_and_qa(
             live_config,
@@ -1732,7 +1732,7 @@ def test_retrieval_and_qa_live_path_qa_model_never_none(tmp_path: Path):
     with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
     ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class()), mock.patch(
-        "demo.stages.retrieval_and_qa.OpenAILLM"
+        "demo.stages.retrieval_and_qa.build_openai_llm"
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
         result = run_retrieval_and_qa(
             no_model_config,
@@ -1793,7 +1793,7 @@ def test_run_interactive_qa_prints_citation_warning_when_uncited(
     with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
     ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _FakeGraphRAG), mock.patch(
-        "demo.stages.retrieval_and_qa.OpenAILLM"
+        "demo.stages.retrieval_and_qa.build_openai_llm"
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(
         os.environ, {"OPENAI_API_KEY": "test-key"}
     ), mock.patch("builtins.input", _fake_input):
@@ -1848,7 +1848,7 @@ def test_run_interactive_qa_no_warning_when_fully_cited(
     with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
     ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _FakeGraphRAG), mock.patch(
-        "demo.stages.retrieval_and_qa.OpenAILLM"
+        "demo.stages.retrieval_and_qa.build_openai_llm"
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(
         os.environ, {"OPENAI_API_KEY": "test-key"}
     ), mock.patch("builtins.input", _fake_input):
@@ -1977,7 +1977,7 @@ def test_retrieval_and_qa_live_path_sets_citation_fallback_applied_true_when_unc
         "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
     ), mock.patch(
         "demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class(answer=uncited_answer)
-    ), mock.patch("demo.stages.retrieval_and_qa.OpenAILLM"), mock.patch(
+    ), mock.patch("demo.stages.retrieval_and_qa.build_openai_llm"), mock.patch(
         "neo4j.GraphDatabase.driver"
     ), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
         result = run_retrieval_and_qa(
@@ -2019,7 +2019,7 @@ def test_retrieval_and_qa_live_path_citation_fallback_applied_false_when_cited(t
         "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
     ), mock.patch(
         "demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class(answer=cited_answer)
-    ), mock.patch("demo.stages.retrieval_and_qa.OpenAILLM"), mock.patch(
+    ), mock.patch("demo.stages.retrieval_and_qa.build_openai_llm"), mock.patch(
         "neo4j.GraphDatabase.driver"
     ), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
         result = run_retrieval_and_qa(
@@ -2087,7 +2087,7 @@ def test_run_interactive_qa_stores_refusal_prefix_in_history(
     with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
     ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _FakeGraphRAG), mock.patch(
-        "demo.stages.retrieval_and_qa.OpenAILLM"
+        "demo.stages.retrieval_and_qa.build_openai_llm"
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(
         os.environ, {"OPENAI_API_KEY": "test-key"}
     ), mock.patch("builtins.input", _fake_input), mock.patch.object(
@@ -2134,7 +2134,7 @@ def test_retrieval_and_qa_live_path_citation_quality_full_when_all_cited(tmp_pat
     with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
     ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class(answer=cited_answer)), mock.patch(
-        "demo.stages.retrieval_and_qa.OpenAILLM"
+        "demo.stages.retrieval_and_qa.build_openai_llm"
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
         result = run_retrieval_and_qa(
             live_config,
@@ -2177,7 +2177,7 @@ def test_retrieval_and_qa_live_path_citation_quality_degraded_when_uncited(tmp_p
     with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
     ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class(answer=uncited_answer)), mock.patch(
-        "demo.stages.retrieval_and_qa.OpenAILLM"
+        "demo.stages.retrieval_and_qa.build_openai_llm"
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
         result = run_retrieval_and_qa(
             live_config,
@@ -2218,7 +2218,7 @@ def test_retrieval_and_qa_live_path_citation_quality_no_answer_when_empty(tmp_pa
     with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
     ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class(answer="")), mock.patch(
-        "demo.stages.retrieval_and_qa.OpenAILLM"
+        "demo.stages.retrieval_and_qa.build_openai_llm"
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
         result = run_retrieval_and_qa(
             live_config,
@@ -2422,7 +2422,7 @@ def test_retrieval_and_qa_live_path_citation_quality_degraded_when_chunk_fields_
     with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
     ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class(answer=cited_answer)), mock.patch(
-        "demo.stages.retrieval_and_qa.OpenAILLM"
+        "demo.stages.retrieval_and_qa.build_openai_llm"
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
         result = run_retrieval_and_qa(
             live_config,
@@ -2556,7 +2556,7 @@ def test_retrieval_and_qa_live_path_warns_on_empty_chunk_text(tmp_path: Path):
     with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
     ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class(answer=cited_answer)), mock.patch(
-        "demo.stages.retrieval_and_qa.OpenAILLM"
+        "demo.stages.retrieval_and_qa.build_openai_llm"
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
         result = run_retrieval_and_qa(
             live_config,

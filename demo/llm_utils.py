@@ -45,4 +45,4 @@ def build_openai_llm(model_name: str):
     return OpenAILLM(model_name=model_name, model_params=model_params)
 
 
-__all__ = ["build_openai_llm", "_model_supports_temperature"]
+__all__ = ["build_openai_llm"]
