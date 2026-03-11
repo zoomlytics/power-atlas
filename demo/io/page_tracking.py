@@ -78,8 +78,10 @@ def _page_number_for_offset(char_offset: int, page_offsets: list[int]) -> int:
     if not page_offsets:
         return 1
     # bisect_right gives the insertion point after all existing entries <= char_offset,
-    # i.e. the number of page boundaries that have been crossed.
-    return bisect.bisect_right(page_offsets, char_offset)
+    # i.e. the number of page boundaries that have been crossed.  Clamp to at
+    # least 1 to honor the documented contract (result is always >= 1) even if
+    # char_offset is negative or precedes the first page boundary.
+    return max(1, bisect.bisect_right(page_offsets, char_offset))
 
 
 def _compute_page_offsets(filepath: str) -> list[int]:

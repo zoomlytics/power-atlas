@@ -545,7 +545,7 @@ def run_retrieval_and_qa(
                 # or uncited answer segments); see RFC #159 citation contract.
                 missing_fields = [f for f in _CITATION_OPTIONAL_FIELDS if citation_obj.get(f) is None]
                 if missing_fields:
-                    _logger.warning(
+                    _logger.info(
                         "Chunk %r missing optional citation fields: %s",
                         citation_obj.get("chunk_id"),
                         ", ".join(missing_fields),
