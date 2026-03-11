@@ -29,9 +29,38 @@ from neo4j_graphrag.experimental.components.pdf_loader import (
 )
 from neo4j_graphrag.experimental.components.text_splitters.fixed_size_splitter import (
     FixedSizeSplitter,
-    _adjust_chunk_end,
-    _adjust_chunk_start,
 )
+
+# ---------------------------------------------------------------------------
+# Local copies of the vendor's word-boundary helpers.
+# These mirror _adjust_chunk_start / _adjust_chunk_end from
+# neo4j_graphrag.experimental.components.text_splitters.fixed_size_splitter
+# and are inlined here so that PageAwareFixedSizeSplitter does not depend on
+# private (underscored) vendor symbols that could be removed in a future
+# neo4j-graphrag release.
+# ---------------------------------------------------------------------------
+
+
+def _adjust_chunk_start(text: str, approximate_start: int) -> int:
+    """Shift the starting index backward if it lands in the middle of a word."""
+    start = approximate_start
+    if start > 0 and not text[start].isspace() and not text[start - 1].isspace():
+        while start > 0 and not text[start - 1].isspace():
+            start -= 1
+        if start == 0 and not text[0].isspace():
+            start = approximate_start
+    return start
+
+
+def _adjust_chunk_end(text: str, start: int, approximate_end: int) -> int:
+    """Shift the ending index backward if it lands in the middle of a word."""
+    end = approximate_end
+    if end < len(text):
+        while end > start and not text[end].isspace() and not text[end - 1].isspace():
+            end -= 1
+        if end == start:
+            end = approximate_end
+    return end
 from neo4j_graphrag.experimental.components.types import TextChunk, TextChunks
 
 _logger = logging.getLogger(__name__)

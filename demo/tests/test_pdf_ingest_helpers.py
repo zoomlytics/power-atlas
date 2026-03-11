@@ -131,18 +131,14 @@ def test_page_tracking_loader_fallback_leaves_coordinator_empty_on_import_error(
     _coordinator.set([0, 100])  # stale offsets from a previous run
     loader = PageTrackingPdfLoader()
 
-    # Patch super().run() so we don't need a real PDF file.
     vendor_result = MagicMock()
-    with patch.object(
-        type(loader).__bases__[0], "run", new_callable=lambda: lambda *a, **kw: None
+    with patch(
+        "neo4j_graphrag.experimental.components.pdf_loader.PdfLoader.run",
+        new_callable=AsyncMock,
+        return_value=vendor_result,
     ):
-        with patch(
-            "neo4j_graphrag.experimental.components.pdf_loader.PdfLoader.run",
-            new_callable=AsyncMock,
-            return_value=vendor_result,
-        ):
-            with patch.dict("sys.modules", {"pypdf": None}):
-                result = _run(loader.run("/fake/doc.pdf"))
+        with patch.dict("sys.modules", {"pypdf": None}):
+            result = _run(loader.run("/fake/doc.pdf"))
 
     # Coordinator must be empty — no offsets from a failed import.
     assert _coordinator.get() == []
