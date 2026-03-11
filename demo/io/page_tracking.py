@@ -209,9 +209,10 @@ class PageAwareFixedSizeSplitter(FixedSizeSplitter):
     """FixedSizeSplitter that assigns ``page_number``, ``start_char``, and
     ``end_char`` to every chunk it creates.
 
-    The splitting algorithm is identical to the vendor ``FixedSizeSplitter``.
-    After splitting, this class locates the actual start position of each chunk
-    in the source text and uses the page offsets stored by
+    The splitting algorithm is identical to the vendor ``FixedSizeSplitter``,
+    but is implemented here so we have direct access to the exact ``start`` and
+    ``end`` character positions for each chunk as it is created.  Those character
+    offsets are combined with the page offsets stored by
     ``PageTrackingPdfLoader`` to assign a 1-based ``page_number``.  Accurate
     ``start_char`` and ``end_char`` values are also written into each chunk's
     ``metadata`` so the post-ingest enrichment query can store them on the

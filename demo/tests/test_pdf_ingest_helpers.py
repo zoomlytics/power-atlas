@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import asyncio
+import io
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from demo.stages import pdf_ingest
 from demo.io.page_tracking import (
     PageAwareFixedSizeSplitter,
+    PageTrackingPdfLoader,
     _coordinator,
     _page_number_for_offset,
 )
@@ -62,12 +65,119 @@ def test_page_number_for_offset_three_pages():
 
 
 # ---------------------------------------------------------------------------
-# PageAwareFixedSizeSplitter
+# PageTrackingPdfLoader
 # ---------------------------------------------------------------------------
 
 
 def _run(coro):
     return asyncio.run(coro)
+
+
+def test_page_tracking_loader_clears_coordinator_at_start():
+    """run() clears any stale page offsets at the beginning of each call."""
+    _coordinator.set([0, 100, 200])
+    assert _coordinator.get() == [0, 100, 200], "pre-condition: coordinator has stale offsets"
+
+    loader = PageTrackingPdfLoader()
+    # Use a fake pypdf that immediately raises to stop execution early while
+    # still confirming the clear happens before the ImportError path.
+    # The coordinator.clear() call is the very first thing in run(), so we
+    # test by observing its state after a failed / import-error run.
+    with patch.dict("sys.modules", {"pypdf": None}):
+        try:
+            _run(loader.run("/nonexistent/path.pdf"))
+        except Exception:
+            pass
+
+    # Coordinator must be empty regardless of whether the rest of run() succeeded.
+    assert _coordinator.get() == []
+
+
+def test_page_tracking_loader_sets_offsets_with_pypdf():
+    """run() populates the coordinator with page-start character offsets."""
+    page1_text = "Page one content."
+    page2_text = "Page two content."
+
+    # Build a mock pypdf reader with two pages.
+    mock_page1 = MagicMock()
+    mock_page1.extract_text.return_value = page1_text
+    mock_page2 = MagicMock()
+    mock_page2.extract_text.return_value = page2_text
+
+    mock_reader = MagicMock()
+    mock_reader.pages = [mock_page1, mock_page2]
+
+    mock_pypdf = MagicMock()
+    mock_pypdf.PdfReader.return_value = mock_reader
+
+    mock_fs = MagicMock()
+    mock_fs.open.return_value.__enter__ = lambda s: io.BytesIO(b"")
+    mock_fs.open.return_value.__exit__ = MagicMock(return_value=False)
+
+    _coordinator.clear()
+    loader = PageTrackingPdfLoader()
+
+    with patch.dict("sys.modules", {"pypdf": mock_pypdf}):
+        with patch("demo.io.page_tracking.is_default_fs", return_value=True):
+            _run(loader.run("/fake/doc.pdf", fs=mock_fs))
+
+    offsets = _coordinator.get()
+    # Page 1 starts at 0; page 2 starts at len(page1_text) + 1 (for the '\n' joiner).
+    assert offsets == [0, len(page1_text) + 1]
+
+
+def test_page_tracking_loader_fallback_leaves_coordinator_empty_on_import_error():
+    """When pypdf is not installed, the coordinator is left empty (all chunks → page 1)."""
+    _coordinator.set([0, 100])  # stale offsets from a previous run
+    loader = PageTrackingPdfLoader()
+
+    # Patch super().run() so we don't need a real PDF file.
+    vendor_result = MagicMock()
+    with patch.object(
+        type(loader).__bases__[0], "run", new_callable=lambda: lambda *a, **kw: None
+    ):
+        with patch(
+            "neo4j_graphrag.experimental.components.pdf_loader.PdfLoader.run",
+            new_callable=AsyncMock,
+            return_value=vendor_result,
+        ):
+            with patch.dict("sys.modules", {"pypdf": None}):
+                result = _run(loader.run("/fake/doc.pdf"))
+
+    # Coordinator must be empty — no offsets from a failed import.
+    assert _coordinator.get() == []
+    assert result is vendor_result
+
+
+def test_page_tracking_loader_fallback_leaves_coordinator_empty_on_exception():
+    """When the single-pass load raises an unexpected error, the coordinator stays empty."""
+    _coordinator.clear()
+    loader = PageTrackingPdfLoader()
+
+    mock_pypdf = MagicMock()
+    mock_pypdf.PdfReader.side_effect = RuntimeError("corrupt PDF")
+
+    mock_fs = MagicMock()
+    mock_fs.open.return_value.__enter__ = lambda s: io.BytesIO(b"")
+    mock_fs.open.return_value.__exit__ = MagicMock(return_value=False)
+
+    vendor_result = MagicMock()
+    with patch(
+        "neo4j_graphrag.experimental.components.pdf_loader.PdfLoader.run",
+        new_callable=AsyncMock,
+        return_value=vendor_result,
+    ):
+        with patch.dict("sys.modules", {"pypdf": mock_pypdf}):
+            with patch("demo.io.page_tracking.is_default_fs", return_value=True):
+                result = _run(loader.run("/fake/doc.pdf", fs=mock_fs))
+
+    assert _coordinator.get() == []
+    assert result is vendor_result
+
+
+# ---------------------------------------------------------------------------
+# PageAwareFixedSizeSplitter
+# ---------------------------------------------------------------------------
 
 
 def test_page_aware_splitter_assigns_page_numbers_from_coordinator():
