@@ -89,13 +89,18 @@ def test_page_aware_splitter_assigns_page_numbers_from_coordinator():
         _coordinator.clear()
 
     assert len(result.chunks) > 0
+    assert page_offsets, "page_offsets must be non-empty for this test to exercise page mapping"
     for chunk in result.chunks:
         assert chunk.metadata is not None
-        assert "page_number" in chunk.metadata
-        assert chunk.metadata["page_number"] >= 1
         assert "start_char" in chunk.metadata
         assert "end_char" in chunk.metadata
-        assert chunk.metadata["end_char"] >= chunk.metadata["start_char"]
+        sc = chunk.metadata["start_char"]
+        ec = chunk.metadata["end_char"]
+        assert ec >= sc
+        # Page number must match what _page_number_for_offset would give for
+        # this chunk's start offset.
+        expected_page = _page_number_for_offset(sc, page_offsets)
+        assert chunk.metadata["page_number"] == expected_page
 
 
 def test_page_aware_splitter_assigns_page_1_without_coordinator_offsets():

@@ -150,7 +150,7 @@ def run_pdf_ingest(
         return {
             "status": "dry_run",
             "documents": [pdf_source_uri],
-            "vendor_pattern": "SimpleKGPipeline + OpenAIEmbeddings + FixedSizeSplitter",
+            "vendor_pattern": "SimpleKGPipeline + OpenAIEmbeddings + PageAwareFixedSizeSplitter",
             "pipeline_config": str(PDF_PIPELINE_CONFIG_PATH),
             "pipeline_config_sha256": pipeline_config_sha256,
             "vector_index": {

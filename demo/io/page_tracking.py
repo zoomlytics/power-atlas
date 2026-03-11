@@ -12,6 +12,7 @@ asyncio event loop (no concurrent pipeline runs), module-level state is safe her
 
 from __future__ import annotations
 
+import bisect
 import io
 import logging
 from pathlib import Path
@@ -71,16 +72,14 @@ def _page_number_for_offset(char_offset: int, page_offsets: list[int]) -> int:
     ``page_offsets`` is a list of character offsets at which each page starts
     (index 0 → page 1 starts at offset 0, index 1 → page 2 starts at offset N,
     etc.).  The returned value is always >= 1.
+
+    Uses :func:`bisect.bisect_right` for O(log num_pages) lookup.
     """
     if not page_offsets:
         return 1
-    page_index = 0
-    for i, offset in enumerate(page_offsets):
-        if offset <= char_offset:
-            page_index = i
-        else:
-            break
-    return page_index + 1  # convert to 1-based
+    # bisect_right gives the insertion point after all existing entries <= char_offset,
+    # i.e. the number of page boundaries that have been crossed.
+    return bisect.bisect_right(page_offsets, char_offset)
 
 
 def _compute_page_offsets(filepath: str) -> list[int]:
@@ -89,6 +88,12 @@ def _compute_page_offsets(filepath: str) -> list[int]:
     The offsets match the concatenated-text representation produced by the
     vendor ``PdfLoader``, which joins pages with ``'\\n'``.  Returns an empty
     list on any error so callers can degrade gracefully.
+
+    .. note::
+        This helper is retained as a convenience for callers that only have a
+        local file path and do not need the full
+        :class:`PageTrackingPdfLoader` pipeline component.  It uses the local
+        filesystem ``open()`` and therefore only works for local paths.
     """
     try:
         import pypdf  # type: ignore[import]
@@ -243,8 +248,8 @@ class PageAwareFixedSizeSplitter(FixedSizeSplitter):
             metadata: dict[str, Any] = {
                 "page_number": page_number,
                 "start_char": start,
-                # end_char is inclusive; end > start is guaranteed by the loop guard
-                # (text_length > 0 and start < text_length), so end >= 1 always.
+                # end_char is inclusive; chunk_size > 0 (enforced by the vendor
+                # FixedSizeSplitter.__init__) guarantees end > start for every chunk.
                 "end_char": max(end - 1, start),
             }
             chunks.append(TextChunk(text=chunk_text, index=index, metadata=metadata))
