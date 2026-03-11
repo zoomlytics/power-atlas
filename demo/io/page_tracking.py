@@ -200,13 +200,7 @@ class PageTrackingPdfLoader(PdfLoader):
                     # +1 accounts for the '\n' that joins pages (mirrors vendor logic).
                     cumulative += len(page_text) + 1
             full_text = "\n".join(text_parts)
-            _coordinator.set(offsets)
-            _logger.debug(
-                "PageTrackingPdfLoader: %d page(s) detected for %s",
-                len(offsets),
-                filepath,
-            )
-            return PdfDocument(
+            doc = PdfDocument(
                 text=full_text,
                 document_info=DocumentInfo(
                     path=filepath,
@@ -214,12 +208,24 @@ class PageTrackingPdfLoader(PdfLoader):
                     document_type="pdf",
                 ),
             )
+            # Only set the coordinator *after* PdfDocument is fully built so
+            # that a failure in get_document_metadata() does not leak stale
+            # offsets into the subsequent fallback run.
+            _coordinator.set(offsets)
+            _logger.debug(
+                "PageTrackingPdfLoader: %d page(s) detected for %s",
+                len(offsets),
+                filepath,
+            )
+            return doc
         except ImportError:
+            _coordinator.clear()
             _logger.debug(
                 "PageTrackingPdfLoader: pypdf not available; falling back to vendor loader. "
                 "All chunks will be assigned to page 1."
             )
         except Exception as exc:
+            _coordinator.clear()
             _logger.warning(
                 "PageTrackingPdfLoader: single-pass load failed (%s); "
                 "falling back to vendor loader without page tracking.",

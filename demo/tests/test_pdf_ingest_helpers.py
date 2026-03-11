@@ -184,6 +184,48 @@ def test_page_tracking_loader_fallback_leaves_coordinator_empty_on_exception():
     assert result is vendor_result
 
 
+def test_page_tracking_loader_clears_coordinator_on_late_failure():
+    """Coordinator is cleared when PdfDocument construction fails after offsets are computed.
+
+    Guards against the scenario where get_document_metadata() (or any other
+    step after offset computation) raises an exception, which must not leave
+    stale offsets in the coordinator for the fallback run.
+    """
+    _coordinator.clear()
+    loader = PageTrackingPdfLoader()
+
+    mock_page = MagicMock()
+    mock_page.extract_text.return_value = "Some page content."
+    mock_reader = MagicMock()
+    mock_reader.pages = [mock_page]
+
+    mock_pypdf = MagicMock()
+    mock_pypdf.PdfReader.return_value = mock_reader
+
+    mock_fs = MagicMock()
+    mock_fs.open.return_value.__enter__ = lambda s: io.BytesIO(b"")
+    mock_fs.open.return_value.__exit__ = MagicMock(return_value=False)
+
+    vendor_result = MagicMock()
+    with patch(
+        "neo4j_graphrag.experimental.components.pdf_loader.PdfLoader.run",
+        new_callable=AsyncMock,
+        return_value=vendor_result,
+    ):
+        with patch.dict("sys.modules", {"pypdf": mock_pypdf}):
+            with patch("demo.io.page_tracking.is_default_fs", return_value=True):
+                with patch.object(
+                    loader,
+                    "get_document_metadata",
+                    side_effect=RuntimeError("metadata error"),
+                ):
+                    result = _run(loader.run("/fake/doc.pdf", fs=mock_fs))
+
+    # Offsets must NOT have been leaked into the coordinator.
+    assert _coordinator.get() == []
+    assert result is vendor_result
+
+
 # ---------------------------------------------------------------------------
 # PageAwareFixedSizeSplitter
 # ---------------------------------------------------------------------------
