@@ -84,7 +84,7 @@ python demo/run_demo.py --dry-run ask
 python demo/run_demo.py --dry-run ingest
 ```
 
-Runs all stages sequentially with a single command. The batch manifest is written to `<output-dir>/manifest.json` with its own `run_id`; internally, structured stages share `structured_ingest_run_id` and unstructured stages (PDF ingest, claim extraction, entity resolution, retrieval) share `unstructured_ingest_run_id`.
+Runs all stages as sequential independent runs with a single command. The batch manifest is written to `<output-dir>/manifest.json` with its own `run_id`; internally, structured stages share `structured_ingest_run_id` and unstructured stages (PDF ingest, claim extraction, entity resolution, retrieval) share `unstructured_ingest_run_id`.
 
 ### Step 5 — Run smoke test
 

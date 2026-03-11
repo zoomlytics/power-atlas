@@ -1608,10 +1608,10 @@ def test_retrieval_and_qa_live_path_passes_message_history_to_graphrag(tmp_path:
 
 
 def test_retrieval_and_qa_live_path_uses_openai_llm_with_model_from_config(tmp_path: Path):
-    """Live path must create OpenAILLM with the model from config and temperature=0."""
+    """Live path must create an LLM with the model from config via build_openai_llm."""
     from demo.stages import run_retrieval_and_qa
 
-    captured_llm_args: dict = {}
+    captured_llm_calls: list = []
 
     class _FakeRetriever:
         def __init__(self, **kwargs):
@@ -1622,8 +1622,11 @@ def test_retrieval_and_qa_live_path_uses_openai_llm_with_model_from_config(tmp_p
 
     class _FakeLLM:
         def __init__(self, model_name, model_params=None):
-            captured_llm_args["model_name"] = model_name
-            captured_llm_args["model_params"] = model_params
+            pass
+
+    def _fake_build_openai_llm(model_name):
+        captured_llm_calls.append(model_name)
+        return _FakeLLM(model_name)
 
     live_config = Config(
         dry_run=False,
@@ -1638,7 +1641,7 @@ def test_retrieval_and_qa_live_path_uses_openai_llm_with_model_from_config(tmp_p
     with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
     ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class()), mock.patch(
-        "demo.stages.retrieval_and_qa.OpenAILLM", _FakeLLM
+        "demo.stages.retrieval_and_qa.build_openai_llm", _fake_build_openai_llm
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
         run_retrieval_and_qa(
             live_config,
@@ -1647,8 +1650,7 @@ def test_retrieval_and_qa_live_path_uses_openai_llm_with_model_from_config(tmp_p
             question="Test question",
         )
 
-    assert captured_llm_args["model_name"] == "gpt-4o"
-    assert captured_llm_args["model_params"] == {"temperature": 0}
+    assert captured_llm_calls == ["gpt-4o"]
 
 
 def test_retrieval_and_qa_live_path_uses_power_atlas_prompt_template(tmp_path: Path):

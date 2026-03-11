@@ -17,12 +17,12 @@ async def _async_read_chunks_and_extract(
     model_name: str,
 ) -> tuple[Any, list[Any], Any]:
     from neo4j_graphrag.experimental.components.entity_relation_extractor import LLMEntityRelationExtractor
-    from neo4j_graphrag.llm import OpenAILLM
     from demo.contracts import (
         claim_extraction_lexical_config,
         claim_extraction_schema,
     )
     from demo.io import RunScopedNeo4jChunkReader
+    from demo.llm_utils import build_openai_llm
 
     lexical_config = claim_extraction_lexical_config()
     chunk_reader = RunScopedNeo4jChunkReader(
@@ -33,10 +33,7 @@ async def _async_read_chunks_and_extract(
         neo4j_database=neo4j_database,
     )
     text_chunks = await chunk_reader.run(lexical_graph_config=lexical_config)
-    llm = OpenAILLM(
-        model_name=model_name,
-        model_params={"temperature": 0},
-    )
+    llm = build_openai_llm(model_name)
     # create_lexical_graph=False: the lexical graph (Document/Chunk nodes) was already
     # created by the ingest stage. This extraction stage must not recreate or mutate
     # those nodes; it only adds derived outputs (ExtractedClaim, EntityMention,
