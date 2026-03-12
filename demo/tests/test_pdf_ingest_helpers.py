@@ -355,3 +355,122 @@ def test_page_aware_splitter_raises_at_construction_when_overlap_exceeds_chunk_s
     """chunk_overlap > chunk_size (negative step) must raise ValueError at construction."""
     with pytest.raises(ValueError, match="chunk_overlap"):
         PageAwareFixedSizeSplitter(chunk_size=50, chunk_overlap=60, approximate=False)
+
+
+# ---------------------------------------------------------------------------
+# _run_pipeline_with_cleanup
+# ---------------------------------------------------------------------------
+
+
+def _run(coro):  # noqa: D401 — test-only helper
+    return asyncio.run(coro)
+
+
+class _FakeLLMWithAsyncClient:
+    """LLM stub that owns an async_client with a close() coroutine."""
+
+    def __init__(self):
+        self.async_client = MagicMock()
+        self.async_client.close = AsyncMock()
+
+
+class _FakeLLMWithoutAsyncClient:
+    """LLM stub that has no async_client attribute at all."""
+
+
+class _FakePipelineConfig:
+    """Minimal pipeline config stub that exposes _global_data."""
+
+    def __init__(self, llms):
+        self._global_data = {"llm_config": llms}
+
+
+class _FakePipelineRunner:
+    """Minimal PipelineRunner stub."""
+
+    def __init__(self, config, result="ok"):
+        self.config = config
+        self._result = result
+
+    async def run(self, run_params):
+        return self._result
+
+
+def test_run_pipeline_with_cleanup_closes_llm_async_client():
+    """async_client.close() is awaited for every LLM that owns one."""
+    llm = _FakeLLMWithAsyncClient()
+    config = _FakePipelineConfig({"default": llm})
+    runner = _FakePipelineRunner(config, result="pipeline_result")
+
+    result = _run(pdf_ingest._run_pipeline_with_cleanup(runner, {}))
+
+    assert result == "pipeline_result"
+    llm.async_client.close.assert_awaited_once()
+
+
+def test_run_pipeline_with_cleanup_skips_llm_without_async_client():
+    """LLMs without an async_client attribute are silently skipped."""
+    llm = _FakeLLMWithoutAsyncClient()
+    config = _FakePipelineConfig({"default": llm})
+    runner = _FakePipelineRunner(config, result="ok")
+
+    # Must not raise.
+    _run(pdf_ingest._run_pipeline_with_cleanup(runner, {}))
+
+
+def test_run_pipeline_with_cleanup_handles_multiple_llms():
+    """All LLMs in llm_config have their async_client closed."""
+    llm_a = _FakeLLMWithAsyncClient()
+    llm_b = _FakeLLMWithAsyncClient()
+    config = _FakePipelineConfig({"a": llm_a, "b": llm_b})
+    runner = _FakePipelineRunner(config)
+
+    _run(pdf_ingest._run_pipeline_with_cleanup(runner, {}))
+
+    llm_a.async_client.close.assert_awaited_once()
+    llm_b.async_client.close.assert_awaited_once()
+
+
+def test_run_pipeline_with_cleanup_closes_llms_even_on_pipeline_error():
+    """async_client.close() is called in the finally block even if pipeline.run() raises."""
+
+    class _ErrorRunner:
+        def __init__(self, config):
+            self.config = config
+
+        async def run(self, run_params):
+            raise RuntimeError("pipeline boom")
+
+    llm = _FakeLLMWithAsyncClient()
+    config = _FakePipelineConfig({"default": llm})
+    runner = _ErrorRunner(config)
+
+    with pytest.raises(RuntimeError, match="pipeline boom"):
+        _run(pdf_ingest._run_pipeline_with_cleanup(runner, {}))
+
+    llm.async_client.close.assert_awaited_once()
+
+
+def test_run_pipeline_with_cleanup_tolerates_close_error():
+    """An error from async_client.close() is swallowed so the pipeline result is still returned."""
+    llm = _FakeLLMWithAsyncClient()
+    llm.async_client.close = AsyncMock(side_effect=RuntimeError("close failed"))
+    config = _FakePipelineConfig({"default": llm})
+    runner = _FakePipelineRunner(config, result="done")
+
+    # Should not raise even though close() raises.
+    result = _run(pdf_ingest._run_pipeline_with_cleanup(runner, {}))
+    assert result == "done"
+
+
+def test_run_pipeline_with_cleanup_handles_none_config():
+    """When pipeline.config is None the function runs without error."""
+
+    class _NoneConfigRunner:
+        config = None
+
+        async def run(self, run_params):
+            return "no_config"
+
+    result = _run(pdf_ingest._run_pipeline_with_cleanup(_NoneConfigRunner(), {}))
+    assert result == "no_config"
