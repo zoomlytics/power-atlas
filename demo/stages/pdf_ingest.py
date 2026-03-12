@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import logging
 import os
 from pathlib import Path
 from typing import Any
@@ -20,6 +21,8 @@ from demo.contracts import (
 )
 from demo.contracts.runtime import make_run_id
 from demo.cypher_utils import validate_cypher_identifier as _validate_cypher_identifier
+
+_logger = logging.getLogger(__name__)
 
 
 def sha256_file(path: Path, *, chunk_size: int = 1024 * 1024) -> str:
@@ -68,6 +71,34 @@ def _require_positive_int(value: int, param_name: str) -> int:
     if value <= 0:
         raise ValueError(f"{param_name} must be a positive integer (int type), got {value!r}")
     return value
+
+
+async def _run_pipeline_with_cleanup(pipeline: Any, run_params: dict[str, Any]) -> Any:
+    """Run the pipeline and close all LLM async clients within the same event loop.
+
+    The vendor PipelineRunner.close() only tears down Neo4j drivers.  Any LLM
+    that owns an httpx AsyncClient (e.g. OpenAI) must also be explicitly closed
+    before the event loop exits; otherwise its garbage-collection finaliser fires
+    after the loop is shut down and prints an 'Event loop is closed' traceback.
+    """
+    try:
+        return await pipeline.run(run_params)
+    finally:
+        config = getattr(pipeline, "config", None)
+        if config is not None:
+            global_data = getattr(config, "_global_data", None) or {}
+            llm_config: dict[str, Any] = global_data.get("llm_config", {})
+            for llm in llm_config.values():
+                async_client = getattr(llm, "async_client", None)
+                if async_client is not None and callable(getattr(async_client, "close", None)):
+                    try:
+                        await async_client.close()
+                    except Exception:
+                        _logger.warning(
+                            "Failed to close async_client for LLM %r during pipeline cleanup",
+                            llm,
+                            exc_info=True,
+                        )
 
 
 def run_pdf_ingest(
@@ -230,7 +261,8 @@ def run_pdf_ingest(
 
             pipeline = PipelineRunner.from_config_file(PDF_PIPELINE_CONFIG_PATH)
             pipeline_result = asyncio.run(
-                pipeline.run(
+                _run_pipeline_with_cleanup(
+                    pipeline,
                     {
                         "file_path": pdf_file_path,
                         "document_metadata": {
@@ -238,7 +270,7 @@ def run_pdf_ingest(
                             "dataset_id": dataset_id,
                             "source_uri": pdf_source_uri,
                         },
-                    }
+                    },
                 )
             )
             if isinstance(pipeline_result, dict):
