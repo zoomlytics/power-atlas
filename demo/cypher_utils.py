@@ -20,7 +20,7 @@ def validate_cypher_identifier(value: str, kind: str) -> None:
     """
     if not isinstance(value, str):
         raise ValueError(
-            f"Invalid {kind} for Cypher fallback: expected a string, got {value!r} (type {type(value).__name__})"
+            f"Invalid {kind} for Cypher index creation: expected a string, got {value!r} (type {type(value).__name__})"
         )
     if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", value):
-        raise ValueError(f"Unsafe {kind} for Cypher fallback: {value!r}")
+        raise ValueError(f"Unsafe {kind} for Cypher index creation: {value!r}")
