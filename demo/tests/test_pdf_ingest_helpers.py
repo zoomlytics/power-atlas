@@ -117,8 +117,7 @@ def test_page_tracking_loader_sets_offsets_with_pypdf():
     mock_pypdf.PdfReader.return_value = mock_reader
 
     mock_fs = MagicMock()
-    mock_fs.open.return_value.__enter__ = lambda s: io.BytesIO(b"")
-    mock_fs.open.return_value.__exit__ = MagicMock(return_value=False)
+    mock_fs.open.return_value.__enter__.return_value = io.BytesIO(b"")
 
     _coordinator.clear()
     loader = PageTrackingPdfLoader()
@@ -167,8 +166,7 @@ def test_page_tracking_loader_fallback_leaves_coordinator_empty_on_exception():
     mock_pypdf.PdfReader.side_effect = RuntimeError("corrupt PDF")
 
     mock_fs = MagicMock()
-    mock_fs.open.return_value.__enter__ = lambda s: io.BytesIO(b"")
-    mock_fs.open.return_value.__exit__ = MagicMock(return_value=False)
+    mock_fs.open.return_value.__enter__.return_value = io.BytesIO(b"")
 
     vendor_result = MagicMock()
     with patch(
@@ -203,8 +201,7 @@ def test_page_tracking_loader_clears_coordinator_on_late_failure():
     mock_pypdf.PdfReader.return_value = mock_reader
 
     mock_fs = MagicMock()
-    mock_fs.open.return_value.__enter__ = lambda s: io.BytesIO(b"")
-    mock_fs.open.return_value.__exit__ = MagicMock(return_value=False)
+    mock_fs.open.return_value.__enter__.return_value = io.BytesIO(b"")
 
     vendor_result = MagicMock()
     with patch(
