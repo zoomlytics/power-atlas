@@ -110,6 +110,28 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                 default=False,
                 help="Start an interactive REPL-style Q&A session with message history",
             )
+            scope_group = subparsers.choices[command].add_mutually_exclusive_group()
+            scope_group.add_argument(
+                "--run-id",
+                default=None,
+                dest="run_id",
+                metavar="RUN_ID",
+                help="Retrieve from a specific ingest run (overrides UNSTRUCTURED_RUN_ID env var)",
+            )
+            scope_group.add_argument(
+                "--latest",
+                action="store_true",
+                default=False,
+                dest="latest",
+                help="Retrieve from the latest unstructured ingest run (default behavior)",
+            )
+            scope_group.add_argument(
+                "--all-runs",
+                action="store_true",
+                default=False,
+                dest="all_runs",
+                help="Retrieve across all ingested data (no run_id filter); citations may span multiple runs",
+            )
         if command == "reset":
             subparsers.choices[command].add_argument(
                 "--confirm",
@@ -127,6 +149,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--neo4j-database",
         "--openai-model",
         "--question",
+        "--run-id",
     }
     saw_dry_run_flag = False
     saw_live_flag = False
@@ -145,6 +168,90 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     if saw_dry_run_flag and saw_live_flag:
         parser.error("argument --dry-run: not allowed with argument --live")
     return parser.parse_args(raw_argv)
+
+
+def _fetch_latest_unstructured_run_id(config: Config) -> str | None:
+    """Query Neo4j for the latest unstructured ingest run_id from Chunk nodes.
+
+    Returns the run_id of the most recently created unstructured ingest run,
+    or None if no Chunk nodes with an unstructured_ingest run_id exist.
+    Only call this in live mode; it opens a real Neo4j connection.
+    """
+    import neo4j as _neo4j
+
+    with _neo4j.GraphDatabase.driver(
+        config.neo4j_uri, auth=(config.neo4j_username, config.neo4j_password)
+    ) as driver:
+        with driver.session(database=config.neo4j_database) as session:
+            result = session.run(
+                "MATCH (c:Chunk) WHERE c.run_id STARTS WITH 'unstructured_ingest' "
+                "RETURN c.run_id ORDER BY c.run_id DESC LIMIT 1"
+            )
+            record = result.single()
+            return record[0] if record else None
+
+
+def _resolve_ask_scope(
+    args: argparse.Namespace, config: Config
+) -> tuple[str | None, bool]:
+    """Resolve the retrieval scope for the ask command.
+
+    Returns a ``(resolved_run_id, all_runs)`` tuple where:
+
+    - ``all_runs=True`` means no run_id filter (queries all Chunk nodes).
+    - ``resolved_run_id`` is the run_id to scope retrieval to; may be ``None``
+      in dry-run mode when no scope is available (dry-run handles this gracefully).
+
+    Precedence: CLI flag (``--run-id`` / ``--latest`` / ``--all-runs``)
+    overrides the ``UNSTRUCTURED_RUN_ID`` environment variable. Warnings are
+    printed whenever the env var is overridden or stale.
+    """
+    env_run_id = os.getenv("UNSTRUCTURED_RUN_ID")
+    all_runs: bool = getattr(args, "all_runs", False)
+    explicit_run_id: str | None = getattr(args, "run_id", None)
+    use_latest: bool = getattr(args, "latest", False)
+
+    if all_runs:
+        if env_run_id:
+            print(
+                f"WARNING: UNSTRUCTURED_RUN_ID={env_run_id!r} is set "
+                "but overridden by --all-runs."
+            )
+        return None, True
+
+    if explicit_run_id:
+        if env_run_id and env_run_id != explicit_run_id:
+            print(
+                f"WARNING: UNSTRUCTURED_RUN_ID={env_run_id!r} is set "
+                f"but overridden by --run-id={explicit_run_id!r}."
+            )
+        return explicit_run_id, False
+
+    # Default / --latest: resolve the latest run_id.
+    if config.dry_run:
+        # In dry-run mode, Neo4j is unavailable; honour env var if set, else proceed
+        # without a run scope (dry-run stubs don't require a real run_id).
+        if env_run_id:
+            return env_run_id, False
+        return None, False
+
+    # Live mode: query Neo4j for the latest unstructured ingest run_id.
+    if not use_latest:
+        # Implicit --latest (no flag given).  Honor env var if set and no newer run exists.
+        pass
+    latest_run_id = _fetch_latest_unstructured_run_id(config)
+    if latest_run_id is None:
+        raise SystemExit(
+            "No unstructured ingest runs found in the database. "
+            "Run 'ingest-pdf' first, or use --all-runs to query all available data."
+        )
+    if env_run_id and env_run_id != latest_run_id:
+        print(
+            f"WARNING: UNSTRUCTURED_RUN_ID={env_run_id!r} is set but is not the latest run. "
+            f"Using latest: {latest_run_id!r}. "
+            "Use --run-id to pin to a specific run, or unset UNSTRUCTURED_RUN_ID to suppress this warning."
+        )
+    return latest_run_id, False
 
 
 def _run_orchestrated(config: Config) -> Path:
@@ -206,8 +313,16 @@ def _run_orchestrated(config: Config) -> Path:
     return manifest_path
 
 
-def _run_independent_stage(config: Config, command: str) -> Path:
+def _run_independent_stage(
+    config: Config,
+    command: str,
+    *,
+    resolved_run_id: str | None = None,
+    all_runs: bool = False,
+) -> Path:
     config.output_dir.mkdir(parents=True, exist_ok=True)
+    # all_runs is only relevant for the ask command.
+    _ask_all_runs = all_runs and command == "ask"
     stage_runners: dict[str, tuple[str, str, Callable[[Config, str], dict[str, Any]]]] = {
         "ingest-structured": (
             "structured_ingest",
@@ -258,12 +373,13 @@ def _run_independent_stage(config: Config, command: str) -> Path:
             "unstructured_ingest_run_id",
             lambda cfg, stage_run_id: run_retrieval_and_qa(
                 cfg,
-                run_id=stage_run_id,
+                run_id=stage_run_id if not _ask_all_runs else None,
                 question=getattr(cfg, "question", None),
                 # Independent-stage default: use the canonical demo fixture URI.
                 # See note above for extract-claims.
                 source_uri=str((FIXTURES_DIR / "unstructured" / "chain_of_custody.pdf").resolve().as_uri()),
                 index_name=CHUNK_EMBEDDING_INDEX_NAME,
+                all_runs=_ask_all_runs,
             ),
         ),
     }
@@ -271,7 +387,7 @@ def _run_independent_stage(config: Config, command: str) -> Path:
         raise ValueError(f"Unsupported independent command: {command}")
     stage_name, run_scope_key, stage_runner = stage_runners[command]
     run_scope = run_scope_key.removesuffix("_run_id")
-    if command in ("extract-claims", "resolve-entities", "ask"):
+    if command in ("extract-claims", "resolve-entities"):
         env_run_id = os.getenv("UNSTRUCTURED_RUN_ID")
         if not env_run_id:
             raise ValueError(
@@ -281,6 +397,17 @@ def _run_independent_stage(config: Config, command: str) -> Path:
                 "(for example, a value like 'unstructured_ingest-20260304T224739123456Z-1a2b3c4d')."
             )
         stage_run_id = env_run_id
+    elif command == "ask":
+        # Scope for ask has already been resolved by _resolve_ask_scope in main().
+        # resolved_run_id may be None when all_runs=True or in dry-run without a scope.
+        # Use descriptive directory names so the manifest path is always valid.
+        if _ask_all_runs:
+            stage_run_id = "all_runs"
+        elif resolved_run_id is not None:
+            stage_run_id = resolved_run_id
+        else:
+            # dry-run without a specific run scope; use a placeholder to keep the path valid.
+            stage_run_id = "dry_run_no_scope"
     else:
         stage_run_id = make_run_id(run_scope)
     started_at = _now_iso()
@@ -371,20 +498,35 @@ def main() -> None:
                         "Interactive 'ask' is not supported in dry-run mode. "
                         "Re-run the command with --live to enable live Neo4j/OpenAI calls."
                     )
-                env_run_id = os.getenv("UNSTRUCTURED_RUN_ID")
-                if not env_run_id:
-                    raise SystemExit(
-                        "UNSTRUCTURED_RUN_ID is not set. When running 'ask' interactively, "
-                        "set this to the run_id from a prior 'ingest' or 'ingest-pdf' command."
-                    )
+                resolved_run_id, ask_all_runs = _resolve_ask_scope(args, config)
+                if ask_all_runs:
+                    print("Using retrieval scope: all runs in database")
+                else:
+                    print(f"Using retrieval scope: run={resolved_run_id}")
                 run_interactive_qa(
                     config,
-                    run_id=env_run_id,
+                    run_id=resolved_run_id,
+                    all_runs=ask_all_runs,
                     # Interactive Q&A default: use the canonical demo fixture URI.
                     # See note in _run_independent_stage for extract-claims.
                     source_uri=str((FIXTURES_DIR / "unstructured" / "chain_of_custody.pdf").resolve().as_uri()),
                     index_name=CHUNK_EMBEDDING_INDEX_NAME,
                 )
+            elif args.command == "ask":
+                # Non-interactive ask: resolve scope, print it, then run and write manifest.
+                resolved_run_id, ask_all_runs = _resolve_ask_scope(args, config)
+                if ask_all_runs:
+                    print("Using retrieval scope: all runs in database")
+                else:
+                    scope_label = resolved_run_id if resolved_run_id else "(none — dry-run placeholder)"
+                    print(f"Using retrieval scope: run={scope_label}")
+                manifest_path = _run_independent_stage(
+                    config,
+                    args.command,
+                    resolved_run_id=resolved_run_id,
+                    all_runs=ask_all_runs,
+                )
+                print(f"Independent run manifest written to: {manifest_path}")
             else:
                 manifest_path = _run_independent_stage(config, args.command)
                 print(f"Independent run manifest written to: {manifest_path}")

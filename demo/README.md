@@ -74,9 +74,30 @@ These stages also require `UNSTRUCTURED_RUN_ID` (same env var as Step 3); they r
 # Entity resolution (deterministic; uses same run_id as unstructured ingest):
 python demo/run_demo.py --dry-run resolve-entities
 
-# Retrieval and Q&A:
+# Retrieval and Q&A (scope defaults to latest run):
 python demo/run_demo.py --dry-run ask
 ```
+
+#### Retrieval scope selection for `ask`
+
+The `ask` command supports explicit retrieval scope flags:
+
+| Flag | Behaviour |
+| --- | --- |
+| *(none)* | Default: same as `--latest` |
+| `--latest` | Retrieve from the latest successful unstructured ingest run (queries Neo4j in live mode; uses `UNSTRUCTURED_RUN_ID` env var in dry-run) |
+| `--run-id <RUN_ID>` | Retrieve from a specific ingest run (overrides `UNSTRUCTURED_RUN_ID`) |
+| `--all-runs` | Retrieve across all ingested data — no run_id filter (citations may span multiple runs/files) |
+
+The resolved scope is always printed before query execution, for example:
+```
+Using retrieval scope: run=unstructured_ingest-20260312T055234558447Z-47b28b7f
+Using retrieval scope: all runs in database
+```
+
+**Precedence:** CLI flag → `UNSTRUCTURED_RUN_ID` env var → `--latest` (default). A warning is printed whenever the env var is overridden by a CLI flag or is not the latest run.
+
+**All-runs mode caveats:** Citations returned by `--all-runs` may reference chunks from different ingest runs. Each citation includes its own `run_id` provenance field so you can trace which run it came from, but cross-run citations may reflect different versions of the same source document.
 
 ### Convenience batch mode (alternative to steps 2–4)
 
@@ -103,7 +124,7 @@ By default, artifacts are written to an isolated temporary directory deleted on 
 - The demo supplies its own stage run scope (`run_id`, plus `dataset_id`/`source_uri` when applicable) via `document_metadata` for PDF ingest, persisted on `Document`/`Chunk` nodes.
 - Vendor pipelines also emit an orchestration `run_id` (`PipelineResult.run_id` / `RunContext.run_id`) for callbacks; the demo does **not** inject that vendor-orchestration id into graph nodes.
 - Entity resolution uses the same `run_id` as the unstructured/PDF ingest stages — it is part of the unstructured run scope, not a separate run boundary. Conceptually, it is **run-scoped post-ingest normalization** over the previously ingested PDF-derived nodes: it adds resolved entities and links while preserving the original lexical layer and its provenance.
-- Retrieval is **run-scoped by default**: vector search is constrained to `Chunk` nodes matching the active `run_id`. Retrieving across multiple runs requires explicit opt-in. `source_uri` filtering is supported for narrowing within a run.
+- **Retrieval is run-scoped by default**: vector search is constrained to `Chunk` nodes matching the active `run_id`. The `ask` command supports `--latest` (default), `--run-id <RUN_ID>`, and `--all-runs` flags to control retrieval scope. `source_uri` filtering is also supported for narrowing within a run.
 
 ### Manifest layout
 
@@ -197,7 +218,7 @@ The orchestrator CLI exposes the following subcommands:
 | `NEO4J_PASSWORD` | Yes (live) | |
 | `NEO4J_DATABASE` | No | Defaults to `neo4j` |
 | `OPENAI_MODEL` | No | Defaults to `gpt-4o-mini` if unset |
-| `UNSTRUCTURED_RUN_ID` | Yes (for independent `extract-claims`, `resolve-entities`, `ask`) | Must match `run_id` from a prior `ingest-pdf` run |
+| `UNSTRUCTURED_RUN_ID` | Required for independent `extract-claims` and `resolve-entities`; optional for `ask` | For `ask`, the `--run-id`, `--latest`, and `--all-runs` CLI flags are preferred over this env var. CLI flag overrides env var; a warning is printed when the env var is set but overridden. |
 
 Demo vector index: `demo_chunk_embedding_index` (label: `Chunk`, property: `embedding`, dimensions: `1536`). Deterministic naming keeps `reset_demo_db.py` and retrieval scripts aligned.
 

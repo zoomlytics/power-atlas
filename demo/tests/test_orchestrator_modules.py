@@ -2619,3 +2619,438 @@ def test_chunk_citation_formatter_emits_log_warning_for_empty_text(tmp_path: Pat
         # The chunk_id must be passed as a separate format argument, not embedded in the format string.
         assert len(args) >= 2, "Expected chunk_id to be passed as a separate argument to logger.warning"
         assert args[1] == "chunk-log-empty"
+
+
+# ---------------------------------------------------------------------------
+# Tests for ask mode retrieval scope: --run-id, --latest, --all-runs (issue #230)
+# ---------------------------------------------------------------------------
+
+
+def test_parse_args_ask_accepts_run_id_flag():
+    """--run-id flag must set args.run_id for the ask subcommand."""
+    from demo.run_demo import parse_args
+
+    args = parse_args(["--dry-run", "ask", "--run-id", "unstructured_ingest-test-123"])
+    assert args.run_id == "unstructured_ingest-test-123"
+    assert args.all_runs is False
+    assert args.latest is False
+
+
+def test_parse_args_ask_accepts_latest_flag():
+    """--latest flag must set args.latest=True for the ask subcommand."""
+    from demo.run_demo import parse_args
+
+    args = parse_args(["--dry-run", "ask", "--latest"])
+    assert args.latest is True
+    assert args.run_id is None
+    assert args.all_runs is False
+
+
+def test_parse_args_ask_accepts_all_runs_flag():
+    """--all-runs flag must set args.all_runs=True for the ask subcommand."""
+    from demo.run_demo import parse_args
+
+    args = parse_args(["--dry-run", "ask", "--all-runs"])
+    assert args.all_runs is True
+    assert args.run_id is None
+    assert args.latest is False
+
+
+def test_parse_args_ask_scope_flags_mutually_exclusive():
+    """--run-id, --latest, and --all-runs must be mutually exclusive."""
+    from demo.run_demo import parse_args
+
+    with pytest.raises(SystemExit):
+        parse_args(["--dry-run", "ask", "--run-id", "some-id", "--all-runs"])
+
+    with pytest.raises(SystemExit):
+        parse_args(["--dry-run", "ask", "--latest", "--all-runs"])
+
+    with pytest.raises(SystemExit):
+        parse_args(["--dry-run", "ask", "--run-id", "some-id", "--latest"])
+
+
+def test_parse_args_ask_no_scope_flag_defaults_to_false():
+    """When no scope flag is given, all scope flags default to False/None."""
+    from demo.run_demo import parse_args
+
+    args = parse_args(["--dry-run", "ask"])
+    assert args.run_id is None
+    assert args.latest is False
+    assert args.all_runs is False
+
+
+def test_run_retrieval_and_qa_all_runs_dry_run(tmp_path: Path):
+    """all_runs=True must be accepted in dry-run mode; retrieval_scope must reflect all_runs."""
+    from demo.stages import run_retrieval_and_qa
+
+    config = _dry_run_config(tmp_path)
+    result = run_retrieval_and_qa(config, run_id=None, source_uri=None, all_runs=True)
+    assert result["status"] == "dry_run"
+    scope = result["retrieval_scope"]
+    assert scope["all_runs"] is True
+    assert scope["scope_widened"] is True
+    # run_id should be None in all_runs dry-run mode
+    assert scope["run_id"] is None
+
+
+def test_run_retrieval_and_qa_all_runs_scope_in_result(tmp_path: Path):
+    """retrieval_scope must record all_runs=True and scope_widened=True."""
+    from demo.stages import run_retrieval_and_qa
+
+    config = _dry_run_config(tmp_path)
+    result = run_retrieval_and_qa(config, run_id="some-run", source_uri=None, all_runs=True)
+    # run_id is ignored in all_runs mode
+    assert result["retrieval_scope"]["all_runs"] is True
+    assert result["retrieval_scope"]["scope_widened"] is True
+
+
+def test_run_retrieval_and_qa_run_scoped_scope_in_result(tmp_path: Path):
+    """retrieval_scope must record all_runs=False and scope_widened=False for run-scoped mode."""
+    from demo.stages import run_retrieval_and_qa
+
+    config = _dry_run_config(tmp_path)
+    result = run_retrieval_and_qa(config, run_id="qa-run-scope", source_uri=None, all_runs=False)
+    assert result["retrieval_scope"]["all_runs"] is False
+    assert result["retrieval_scope"]["scope_widened"] is False
+    assert result["retrieval_scope"]["run_id"] == "qa-run-scope"
+
+
+def test_run_retrieval_and_qa_live_requires_run_id_when_not_all_runs(tmp_path: Path):
+    """Live mode must still raise ValueError when run_id is None and all_runs is False."""
+    from demo.stages import run_retrieval_and_qa
+
+    live_config = Config(
+        dry_run=False,
+        output_dir=tmp_path,
+        neo4j_uri="bolt://example.invalid",
+        neo4j_username="neo4j",
+        neo4j_password="secret",
+        neo4j_database="neo4j",
+        openai_model="gpt-4o-mini",
+    )
+    with mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+        with pytest.raises(ValueError, match="run_id is required"):
+            run_retrieval_and_qa(live_config, run_id=None, source_uri=None, question="Test?", all_runs=False)
+
+
+def test_run_retrieval_and_qa_live_all_runs_uses_unscoped_query(tmp_path: Path):
+    """Live all_runs=True must pass query_params without 'run_id' to the retriever."""
+    from demo.stages import run_retrieval_and_qa
+
+    captured_params: dict[str, object] = {}
+
+    class _FakeRetriever:
+        def __init__(self, **kwargs):
+            self._retrieval_query = kwargs.get("retrieval_query", "")
+
+        def search(self, *, query_text="", top_k=None, query_params=None):
+            if query_params is not None:
+                captured_params.update(query_params)
+            return _make_fake_retriever_result([])
+
+    live_config = Config(
+        dry_run=False,
+        output_dir=tmp_path,
+        neo4j_uri="bolt://example.invalid",
+        neo4j_username="neo4j",
+        neo4j_password="secret",
+        neo4j_database="neo4j",
+        openai_model="gpt-4o-mini",
+    )
+
+    with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
+    ), mock.patch(
+        "demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class()
+    ), mock.patch(
+        "demo.stages.retrieval_and_qa.build_openai_llm"
+    ), mock.patch(
+        "neo4j.GraphDatabase.driver"
+    ), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+        run_retrieval_and_qa(
+            live_config,
+            run_id=None,
+            source_uri=None,
+            question="What happened?",
+            all_runs=True,
+        )
+
+    # all_runs mode must NOT include run_id in query_params
+    assert "run_id" not in captured_params, (
+        f"all_runs=True must not pass run_id to the retriever; got params: {captured_params}"
+    )
+    # source_uri filter must still be present
+    assert "source_uri" in captured_params
+
+
+def test_resolve_ask_scope_run_id_flag(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """--run-id flag must be returned directly and suppress env var override."""
+    from demo.run_demo import parse_args, _resolve_ask_scope
+
+    monkeypatch.delenv("UNSTRUCTURED_RUN_ID", raising=False)
+    args = parse_args(["--dry-run", "ask", "--run-id", "my-run-123"])
+    config = _dry_run_config(tmp_path)
+    run_id, all_runs = _resolve_ask_scope(args, config)
+    assert run_id == "my-run-123"
+    assert all_runs is False
+
+
+def test_resolve_ask_scope_run_id_flag_overrides_env_var(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+):
+    """--run-id must override UNSTRUCTURED_RUN_ID and print a warning."""
+    from demo.run_demo import parse_args, _resolve_ask_scope
+
+    monkeypatch.setenv("UNSTRUCTURED_RUN_ID", "env-run-id")
+    args = parse_args(["--dry-run", "ask", "--run-id", "cli-run-id"])
+    config = _dry_run_config(tmp_path)
+    run_id, all_runs = _resolve_ask_scope(args, config)
+    assert run_id == "cli-run-id"
+    assert all_runs is False
+    output = capsys.readouterr().out
+    assert "WARNING" in output
+    assert "env-run-id" in output
+    assert "cli-run-id" in output
+
+
+def test_resolve_ask_scope_all_runs_flag(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """--all-runs must return all_runs=True."""
+    from demo.run_demo import parse_args, _resolve_ask_scope
+
+    monkeypatch.delenv("UNSTRUCTURED_RUN_ID", raising=False)
+    args = parse_args(["--dry-run", "ask", "--all-runs"])
+    config = _dry_run_config(tmp_path)
+    run_id, all_runs = _resolve_ask_scope(args, config)
+    assert all_runs is True
+    assert run_id is None
+
+
+def test_resolve_ask_scope_all_runs_overrides_env_var(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+):
+    """--all-runs must override UNSTRUCTURED_RUN_ID and print a warning."""
+    from demo.run_demo import parse_args, _resolve_ask_scope
+
+    monkeypatch.setenv("UNSTRUCTURED_RUN_ID", "stale-env-run-id")
+    args = parse_args(["--dry-run", "ask", "--all-runs"])
+    config = _dry_run_config(tmp_path)
+    run_id, all_runs = _resolve_ask_scope(args, config)
+    assert all_runs is True
+    output = capsys.readouterr().out
+    assert "WARNING" in output
+    assert "stale-env-run-id" in output
+
+
+def test_resolve_ask_scope_dry_run_uses_env_var(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """In dry-run default mode, UNSTRUCTURED_RUN_ID must be used as run_id."""
+    from demo.run_demo import parse_args, _resolve_ask_scope
+
+    monkeypatch.setenv("UNSTRUCTURED_RUN_ID", "env-run-for-dry")
+    args = parse_args(["--dry-run", "ask"])
+    config = _dry_run_config(tmp_path)
+    run_id, all_runs = _resolve_ask_scope(args, config)
+    assert run_id == "env-run-for-dry"
+    assert all_runs is False
+
+
+def test_resolve_ask_scope_dry_run_no_env_var_returns_none(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """In dry-run default mode with no env var, run_id must be None (gracefully handled)."""
+    from demo.run_demo import parse_args, _resolve_ask_scope
+
+    monkeypatch.delenv("UNSTRUCTURED_RUN_ID", raising=False)
+    args = parse_args(["--dry-run", "ask"])
+    config = _dry_run_config(tmp_path)
+    run_id, all_runs = _resolve_ask_scope(args, config)
+    assert run_id is None
+    assert all_runs is False
+
+
+def test_main_ask_dry_run_prints_scope_run_id(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+):
+    """main() must print the resolved scope before running ask in non-interactive mode."""
+    import sys
+    from demo.run_demo import main
+
+    monkeypatch.setenv("UNSTRUCTURED_RUN_ID", "scope-test-run")
+    monkeypatch.setattr(
+        sys, "argv", ["demo", "--dry-run", "ask", "--run-id", "scope-test-run", f"--output-dir={tmp_path}"]
+    )
+    main()
+    output = capsys.readouterr().out
+    assert "Using retrieval scope: run=scope-test-run" in output
+
+
+def test_main_ask_dry_run_all_runs_prints_scope(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+):
+    """main() must print 'all runs in database' when --all-runs is specified."""
+    import sys
+    from demo.run_demo import main
+
+    monkeypatch.delenv("UNSTRUCTURED_RUN_ID", raising=False)
+    monkeypatch.setattr(
+        sys, "argv", ["demo", "--dry-run", "ask", "--all-runs", f"--output-dir={tmp_path}"]
+    )
+    main()
+    output = capsys.readouterr().out
+    assert "Using retrieval scope: all runs in database" in output
+
+
+def test_main_ask_dry_run_no_scope_prints_placeholder(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+):
+    """main() must print a placeholder scope label when no scope is set in dry-run mode."""
+    import sys
+    from demo.run_demo import main
+
+    monkeypatch.delenv("UNSTRUCTURED_RUN_ID", raising=False)
+    monkeypatch.setattr(
+        sys, "argv", ["demo", "--dry-run", "ask", f"--output-dir={tmp_path}"]
+    )
+    main()
+    output = capsys.readouterr().out
+    # The output should mention the scope, even as a placeholder
+    assert "Using retrieval scope:" in output
+
+
+def test_run_interactive_qa_all_runs_prints_scope(
+    tmp_path: Path, capsys: pytest.CaptureFixture
+):
+    """run_interactive_qa with all_runs=True must print 'all runs in database' scope message."""
+    from demo.stages.retrieval_and_qa import run_interactive_qa
+
+    live_config = Config(
+        dry_run=False,
+        output_dir=tmp_path,
+        neo4j_uri="bolt://example.invalid",
+        neo4j_username="neo4j",
+        neo4j_password="secret",
+        neo4j_database="neo4j",
+        openai_model="gpt-4o-mini",
+    )
+
+    class _FakeRetriever:
+        def __init__(self, **kwargs):
+            pass
+
+        def search(self, **kwargs):
+            return _make_fake_retriever_result([])
+
+    with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
+    ), mock.patch(
+        "demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class()
+    ), mock.patch(
+        "demo.stages.retrieval_and_qa.build_openai_llm"
+    ), mock.patch(
+        "neo4j.GraphDatabase.driver"
+    ), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}), mock.patch(
+        "builtins.input", side_effect=EOFError
+    ):
+        run_interactive_qa(live_config, run_id=None, all_runs=True)
+
+    output = capsys.readouterr().out
+    assert "all runs in database" in output
+
+
+def test_run_interactive_qa_run_scoped_prints_scope(
+    tmp_path: Path, capsys: pytest.CaptureFixture
+):
+    """run_interactive_qa must print the run_id scope message at session start."""
+    from demo.stages.retrieval_and_qa import run_interactive_qa
+
+    live_config = Config(
+        dry_run=False,
+        output_dir=tmp_path,
+        neo4j_uri="bolt://example.invalid",
+        neo4j_username="neo4j",
+        neo4j_password="secret",
+        neo4j_database="neo4j",
+        openai_model="gpt-4o-mini",
+    )
+
+    class _FakeRetriever:
+        def __init__(self, **kwargs):
+            pass
+
+        def search(self, **kwargs):
+            return _make_fake_retriever_result([])
+
+    with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
+    ), mock.patch(
+        "demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class()
+    ), mock.patch(
+        "demo.stages.retrieval_and_qa.build_openai_llm"
+    ), mock.patch(
+        "neo4j.GraphDatabase.driver"
+    ), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}), mock.patch(
+        "builtins.input", side_effect=EOFError
+    ):
+        run_interactive_qa(live_config, run_id="interactive-scope-run")
+
+    output = capsys.readouterr().out
+    assert "Using retrieval scope: run=interactive-scope-run" in output
+
+
+def test_run_interactive_qa_requires_run_id_when_not_all_runs(tmp_path: Path):
+    """run_interactive_qa must raise ValueError when run_id is None and all_runs is False."""
+    from demo.stages.retrieval_and_qa import run_interactive_qa
+
+    live_config = Config(
+        dry_run=False,
+        output_dir=tmp_path,
+        neo4j_uri="bolt://example.invalid",
+        neo4j_username="neo4j",
+        neo4j_password="secret",
+        neo4j_database="neo4j",
+        openai_model="gpt-4o-mini",
+    )
+    with mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+        with pytest.raises(ValueError, match="run_id is required"):
+            run_interactive_qa(live_config, run_id=None, all_runs=False)
+
+
+def test_run_retrieval_and_qa_all_runs_uses_unscoped_retrieval_query_contract(tmp_path: Path):
+    """retrieval_query_contract in the result must not contain '$run_id' when all_runs=True."""
+    from demo.stages import run_retrieval_and_qa
+
+    config = _dry_run_config(tmp_path)
+    result = run_retrieval_and_qa(config, run_id=None, source_uri=None, all_runs=True)
+    contract = result.get("retrieval_query_contract", "")
+    assert "$run_id" not in contract, (
+        f"all_runs=True retrieval_query_contract must not filter by $run_id, got:\n{contract}"
+    )
+
+
+def test_run_retrieval_and_qa_run_scoped_uses_run_id_in_query_contract(tmp_path: Path):
+    """retrieval_query_contract must contain '$run_id' for run-scoped (non-all_runs) mode."""
+    from demo.stages import run_retrieval_and_qa
+
+    config = _dry_run_config(tmp_path)
+    result = run_retrieval_and_qa(config, run_id="qa-run-contract", source_uri=None, all_runs=False)
+    contract = result.get("retrieval_query_contract", "")
+    assert "$run_id" in contract, (
+        f"run-scoped retrieval_query_contract must filter by $run_id, got:\n{contract}"
+    )
+
+
+def test_ask_interactive_rejects_dry_run_still_works(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """Regression: CLI 'ask --interactive' must still raise SystemExit when config.dry_run=True.
+    This behavior must not be broken by the new scope resolution changes."""
+    import sys
+    from demo.run_demo import main
+
+    monkeypatch.setenv("UNSTRUCTURED_RUN_ID", "test-run-id")
+    monkeypatch.setattr(sys, "argv", ["demo", "--dry-run", "ask", "--interactive"])
+    with pytest.raises(SystemExit) as exc_info:
+        main()
+    assert "live" in str(exc_info.value).lower() or exc_info.value.code not in (0, None)
