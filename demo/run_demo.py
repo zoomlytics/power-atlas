@@ -243,21 +243,23 @@ def _resolve_ask_scope(
             return env_run_id, False
         return None, False
 
-    # Live mode: query Neo4j for the latest unstructured ingest run_id.
-    if not use_latest:
-        # Implicit --latest (no flag given).  Honor env var if set and no newer run exists.
-        pass
+    # Live mode: resolve run_id according to precedence:
+    # CLI flags (--run-id/--latest/--all-runs) > UNSTRUCTURED_RUN_ID > implicit latest.
+    if not use_latest and env_run_id:
+        # No explicit --latest flag; honour UNSTRUCTURED_RUN_ID if set.
+        return env_run_id, False
+
+    # Either --latest was explicitly requested, or no env var is set: query Neo4j.
     latest_run_id = _fetch_latest_unstructured_run_id(config)
     if latest_run_id is None:
         raise SystemExit(
             "No unstructured ingest runs found in the database. "
             "Run 'ingest-pdf' first, or use --all-runs to query all available data."
         )
-    if env_run_id and env_run_id != latest_run_id:
+    if use_latest and env_run_id and env_run_id != latest_run_id:
         print(
-            f"WARNING: UNSTRUCTURED_RUN_ID={env_run_id!r} is set but is not the latest run. "
-            f"Using latest: {latest_run_id!r}. "
-            "Use --run-id to pin to a specific run, or unset UNSTRUCTURED_RUN_ID to suppress this warning."
+            f"WARNING: UNSTRUCTURED_RUN_ID={env_run_id!r} is set but overridden by --latest. "
+            f"Using latest: {latest_run_id!r}."
         )
     return latest_run_id, False
 
