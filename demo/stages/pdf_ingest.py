@@ -195,7 +195,10 @@ def run_pdf_ingest(
 
     import neo4j
     from neo4j_graphrag.experimental.pipeline.config.runner import PipelineRunner
-    from neo4j_graphrag.indexes import create_vector_index
+
+    _validate_cypher_identifier(effective_index_name, "index name")
+    _validate_cypher_identifier(effective_chunk_label, "label")
+    _validate_cypher_identifier(effective_embedding_property, "property")
 
     env_updates = {
         "NEO4J_URI": config.neo4j_uri,
@@ -210,36 +213,19 @@ def run_pdf_ingest(
     try:
         driver = neo4j.GraphDatabase.driver(config.neo4j_uri, auth=(config.neo4j_username, config.neo4j_password))
         with driver:
-            index_creation_strategy = "neo4j_graphrag.indexes.create_vector_index"
-            index_fallback_reason: str | None = None
-            try:
-                create_vector_index(
-                    driver,
-                    effective_index_name,
-                    label=effective_chunk_label,
-                    embedding_property=effective_embedding_property,
+            index_creation_strategy = "cypher"
+            with driver.session(database=config.neo4j_database) as session:
+                session.run(
+                    f"""
+                    CREATE VECTOR INDEX `{effective_index_name}` IF NOT EXISTS
+                    FOR (n:{effective_chunk_label}) ON (n.{effective_embedding_property})
+                    OPTIONS {{indexConfig: {{
+                        `vector.dimensions`: $dimensions,
+                        `vector.similarity_function`: 'cosine'
+                    }}}}
+                    """,
                     dimensions=effective_embedding_dimensions,
-                    similarity_fn="cosine",
-                )
-            except Exception as exc:
-                index_creation_strategy = "cypher_fallback"
-                exc_message = str(exc).splitlines()[0].strip()
-                index_fallback_reason = f"{type(exc).__name__}: {exc_message}" if exc_message else type(exc).__name__
-                _validate_cypher_identifier(effective_index_name, "index name")
-                _validate_cypher_identifier(effective_chunk_label, "label")
-                _validate_cypher_identifier(effective_embedding_property, "property")
-                with driver.session(database=config.neo4j_database) as session:
-                    session.run(
-                        f"""
-                        CREATE VECTOR INDEX `{effective_index_name}` IF NOT EXISTS
-                        FOR (n:{effective_chunk_label}) ON (n.{effective_embedding_property})
-                        OPTIONS {{indexConfig: {{
-                            `vector.dimensions`: $dimensions,
-                            `vector.similarity_function`: 'cosine'
-                        }}}}
-                        """,
-                        dimensions=effective_embedding_dimensions,
-                    ).consume()
+                ).consume()
 
             # Post-creation contract validation: verify the vector index was created with the
             # contract name. This catches configuration drift where a fallback or override causes
@@ -521,7 +507,6 @@ def run_pdf_ingest(
         "counts": summary_counts,
         "embedding_model": effective_embedder_model,
         "warnings": extraction_warnings,
-        **({"vector_index_fallback_reason": index_fallback_reason} if index_fallback_reason else {}),
     }
 
 

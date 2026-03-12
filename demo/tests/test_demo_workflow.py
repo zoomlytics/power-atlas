@@ -56,7 +56,6 @@ class WorkflowTests(unittest.TestCase):
         calls: dict[str, object],
         query_payloads: dict[str, dict[str, int]] | None = None,
         pipeline_result: object = None,
-        index_creator=None,
     ) -> dict[str, types.ModuleType]:
         query_payloads = query_payloads or {}
         if pipeline_result is None:
@@ -119,12 +118,9 @@ class WorkflowTests(unittest.TestCase):
         fake_neo4j.GraphDatabase = types.SimpleNamespace(driver=lambda *_args, **_kwargs: _FakeDriver())
         fake_runner = types.ModuleType("neo4j_graphrag.experimental.pipeline.config.runner")
         fake_runner.PipelineRunner = _FakePipelineRunner
-        fake_indexes = types.ModuleType("neo4j_graphrag.indexes")
-        fake_indexes.create_vector_index = index_creator or (lambda *_args, **_kwargs: None)
 
         return {
             "neo4j": fake_neo4j,
-            "neo4j_graphrag.indexes": fake_indexes,
             "neo4j_graphrag.experimental.pipeline.config.runner": fake_runner,
         }
 
@@ -610,9 +606,6 @@ class WorkflowTests(unittest.TestCase):
                 "missing_page_count": {"missing_page_count": 0},
                 "missing_char_offset_count": {"missing_char_offset_count": 0},
             },
-            index_creator=lambda _driver, index_name, **kwargs: calls.update(
-                {"index_name": index_name, "index_kwargs": kwargs}
-            ),
         )
         expected_fingerprint = module.sha256_file(
             DEMO_DIR / "fixtures" / "unstructured" / "chain_of_custody.pdf"
@@ -639,15 +632,14 @@ class WorkflowTests(unittest.TestCase):
             module.sha256_file(DEMO_DIR / "config" / "pdf_simple_kg_pipeline.yaml"),
         )
         self.assertEqual(summary["embedding_model"], module.EMBEDDER_MODEL_NAME)
-        self.assertEqual(result["vector_index"]["creation_strategy"], "neo4j_graphrag.indexes.create_vector_index")
+        self.assertEqual(result["vector_index"]["creation_strategy"], "cypher")
         self.assertEqual(result["pipeline_result"], {"ok": True})
         self.assertEqual(result["provenance"]["dataset_id"], "demo_dataset_v1")
-        self.assertEqual(calls["index_name"], "demo_chunk_embedding_index")
-        self.assertEqual(calls["index_kwargs"]["label"], "Chunk")
-        self.assertEqual(calls["index_kwargs"]["embedding_property"], "embedding")
-        self.assertEqual(calls["index_kwargs"]["dimensions"], 1536)
-        self.assertEqual(calls["index_kwargs"]["similarity_fn"], "cosine")
-        self.assertNotIn("database_", calls["index_kwargs"])
+        self.assertTrue(
+            any("CREATE VECTOR INDEX `demo_chunk_embedding_index` IF NOT EXISTS" in query for query, _ in calls["queries"]),
+            "Expected Cypher vector index creation query",
+        )
+        self.assertNotIn("vector_index_fallback_reason", result)
         self.assertEqual(
             calls["config_path"],
             str(DEMO_DIR / "config" / "pdf_simple_kg_pipeline.yaml"),
@@ -801,8 +793,8 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(result["pipeline_result"]["type"], "object")
         self.assertIn("object object", result["pipeline_result"]["summary"])
 
-    def test_run_pdf_ingest_non_dry_run_falls_back_to_cypher_index_creation(self):
-        module = _load_module(RUN_DEMO_PATH, "run_non_dry_fallback_test")
+    def test_run_pdf_ingest_non_dry_run_always_uses_cypher_index_creation(self):
+        module = _load_module(RUN_DEMO_PATH, "run_non_dry_cypher_index_test")
         config = module.Config(
             dry_run=False,
             output_dir=DEMO_DIR / "artifacts",
@@ -814,9 +806,6 @@ class WorkflowTests(unittest.TestCase):
         )
         calls: dict[str, object] = {}
 
-        def _raise_index_error(*_args, **_kwargs):
-            raise RuntimeError("index helper unavailable")
-
         injected_modules = self._build_pdf_ingest_test_modules(
             calls=calls,
             query_payloads={
@@ -826,13 +815,12 @@ class WorkflowTests(unittest.TestCase):
                 "missing_page_count": {"missing_page_count": 0},
                 "missing_char_offset_count": {"missing_char_offset_count": 0},
             },
-            index_creator=_raise_index_error,
         )
         with self._with_injected_pdf_ingest_modules(injected_modules):
             result = module._run_pdf_ingest(config, run_id="unstructured_ingest-test")
 
-        self.assertEqual(result["vector_index"]["creation_strategy"], "cypher_fallback")
-        self.assertEqual(result["vector_index_fallback_reason"], "RuntimeError: index helper unavailable")
+        self.assertEqual(result["vector_index"]["creation_strategy"], "cypher")
+        self.assertNotIn("vector_index_fallback_reason", result)
         self.assertTrue(
             any("CREATE VECTOR INDEX `demo_chunk_embedding_index` IF NOT EXISTS" in query for query, _ in calls["queries"])
         )
@@ -849,11 +837,8 @@ class WorkflowTests(unittest.TestCase):
             openai_model="gpt-4o-mini",
         )
         calls: dict[str, object] = {}
-        def _raise_index_error(*_args, **_kwargs):
-            raise RuntimeError("index helper unavailable")
         injected_modules = self._build_pdf_ingest_test_modules(
             calls=calls,
-            index_creator=_raise_index_error,
         )
         original_identifiers = {
             "CHUNK_EMBEDDING_INDEX_NAME": module.CHUNK_EMBEDDING_INDEX_NAME,
