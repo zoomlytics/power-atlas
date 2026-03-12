@@ -410,9 +410,11 @@ def _run_independent_stage(
     elif command == "ask":
         # Scope for ask has already been resolved by _resolve_ask_scope in main().
         # resolved_run_id may be None when all_runs=True or in dry-run without a scope.
-        # Use descriptive directory names so the manifest path is always valid.
         if _ask_all_runs:
-            stage_run_id = "all_runs"
+            # Whole-database retrieval is not scoped to any ingest run, so we generate
+            # a unique artifact id for this ask execution rather than using the sentinel
+            # "all_runs" string, which is not a real ingest run id.
+            stage_run_id = make_run_id("ask")
         elif resolved_run_id is not None:
             stage_run_id = resolved_run_id
         else:
@@ -423,11 +425,16 @@ def _run_independent_stage(
     started_at = _now_iso()
     stage_output = stage_runner(config, stage_run_id)
     finished_at = _now_iso()
+    # In all-runs mode the ask run is not associated with any specific ingest run, so
+    # run_scopes.unstructured_ingest_run_id must be null rather than a fake sentinel.
+    # Retrieval scope details are captured in retrieval_scope within the stage output.
+    # For all other commands, scope_run_id == stage_run_id (default behaviour).
     manifest = build_stage_manifest(
         config=config,
         stage_name=stage_name,
         stage_run_id=stage_run_id,
         run_scope_key=run_scope_key,
+        scope_run_id=None if _ask_all_runs else stage_run_id,
         stage_output=stage_output,
         started_at=started_at,
         finished_at=finished_at,

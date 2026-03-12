@@ -71,6 +71,9 @@ def build_batch_manifest(
     return manifest
 
 
+_SCOPE_RUN_ID_UNSET = object()
+
+
 def build_stage_manifest(
     *,
     config: Any,
@@ -78,9 +81,20 @@ def build_stage_manifest(
     stage_run_id: str,
     run_scope_key: str,
     stage_output: dict[str, Any],
+    scope_run_id: str | None = _SCOPE_RUN_ID_UNSET,  # type: ignore[assignment]
     started_at: str | None = None,
     finished_at: str | None = None,
 ) -> dict[str, Any]:
+    """Build a stage-level manifest.
+
+    *scope_run_id* controls the value stored in ``run_scopes[run_scope_key]``.
+    When not provided it defaults to *stage_run_id*.  Pass ``None`` explicitly
+    to store a JSON ``null`` (e.g. for ``ask --all-runs`` where no ingest
+    run_id applies to the retrieval scope).
+    """
+    effective_scope_id: str | None = (
+        stage_run_id if scope_run_id is _SCOPE_RUN_ID_UNSET else scope_run_id
+    )
     now = datetime.now(UTC).isoformat()
     manifest: dict[str, Any] = {
         "run_id": stage_run_id,
@@ -88,7 +102,7 @@ def build_stage_manifest(
         "started_at": started_at or now,
         "run_scopes": {
             "batch_mode": "single_independent_run",
-            run_scope_key: stage_run_id,
+            run_scope_key: effective_scope_id,
         },
         "config": {
             "dry_run": getattr(config, "dry_run", False),

@@ -3054,3 +3054,78 @@ def test_ask_interactive_rejects_dry_run_still_works(
     with pytest.raises(SystemExit) as exc_info:
         main()
     assert "live" in str(exc_info.value).lower() or exc_info.value.code not in (0, None)
+
+
+# ---------------------------------------------------------------------------
+# ask --all-runs manifest: run_id must not be "all_runs" sentinel
+# ---------------------------------------------------------------------------
+
+def test_ask_all_runs_manifest_run_id_is_not_sentinel(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """ask --all-runs manifest top-level run_id must not be the 'all_runs' sentinel string."""
+    import sys
+    from demo.run_demo import main
+
+    monkeypatch.delenv("UNSTRUCTURED_RUN_ID", raising=False)
+    monkeypatch.setattr(
+        sys, "argv", ["demo", "--dry-run", "ask", "--all-runs", f"--output-dir={tmp_path}"]
+    )
+    main()
+    import json
+    # The manifest path sits under runs/<run_id>/retrieval_and_qa/manifest.json
+    manifests = list(tmp_path.glob("runs/*/retrieval_and_qa/manifest.json"))
+    assert len(manifests) == 1, f"Expected exactly one ask manifest, found: {manifests}"
+    manifest = json.loads(manifests[0].read_text(encoding="utf-8"))
+    assert manifest["run_id"] != "all_runs", (
+        "ask --all-runs must not use 'all_runs' as a fake ingest run id; "
+        f"got run_id={manifest['run_id']!r}"
+    )
+    assert manifest["run_id"].startswith("ask-"), (
+        f"ask --all-runs run_id should start with 'ask-', got: {manifest['run_id']!r}"
+    )
+
+
+def test_ask_all_runs_manifest_unstructured_run_id_is_null(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """ask --all-runs manifest run_scopes.unstructured_ingest_run_id must be null, not 'all_runs'."""
+    import sys
+    from demo.run_demo import main
+
+    monkeypatch.delenv("UNSTRUCTURED_RUN_ID", raising=False)
+    monkeypatch.setattr(
+        sys, "argv", ["demo", "--dry-run", "ask", "--all-runs", f"--output-dir={tmp_path}"]
+    )
+    main()
+    import json
+    manifests = list(tmp_path.glob("runs/*/retrieval_and_qa/manifest.json"))
+    assert len(manifests) == 1, f"Expected exactly one ask manifest, found: {manifests}"
+    manifest = json.loads(manifests[0].read_text(encoding="utf-8"))
+    run_scopes = manifest.get("run_scopes", {})
+    assert run_scopes.get("unstructured_ingest_run_id") is None, (
+        "ask --all-runs must not store a fake ingest run id; "
+        f"run_scopes.unstructured_ingest_run_id={run_scopes.get('unstructured_ingest_run_id')!r}"
+    )
+    # batch_mode must still be present to identify this as a single independent run
+    assert run_scopes.get("batch_mode") == "single_independent_run"
+
+
+def test_ask_run_scoped_manifest_unstructured_run_id_is_set(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """ask with an explicit run_id must store it in run_scopes.unstructured_ingest_run_id."""
+    import sys
+    from demo.run_demo import main
+
+    monkeypatch.setenv("UNSTRUCTURED_RUN_ID", "unstructured_ingest-20260101T000000000000Z-aabbccdd")
+    monkeypatch.setattr(
+        sys, "argv", ["demo", "--dry-run", "ask", f"--output-dir={tmp_path}"]
+    )
+    main()
+    import json
+    manifests = list(tmp_path.glob("runs/*/retrieval_and_qa/manifest.json"))
+    assert len(manifests) == 1, f"Expected exactly one ask manifest, found: {manifests}"
+    manifest = json.loads(manifests[0].read_text(encoding="utf-8"))
+    run_scopes = manifest.get("run_scopes", {})
+    assert run_scopes.get("unstructured_ingest_run_id") == "unstructured_ingest-20260101T000000000000Z-aabbccdd"
