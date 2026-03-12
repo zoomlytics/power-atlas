@@ -27,7 +27,7 @@ _RETRIEVAL_QUERY_BASE = """
 WITH node AS c, score
 WHERE c.run_id = $run_id
   AND ($source_uri IS NULL OR c.source_uri = $source_uri)
-RETURN coalesce(c.text, c.body, c.content) AS chunk_text,
+RETURN c.text AS chunk_text,
        c.chunk_id AS chunk_id,
        c.run_id AS run_id,
        c.source_uri AS source_uri,
@@ -46,7 +46,7 @@ _RETRIEVAL_QUERY_WITH_EXPANSION = """
 WITH node AS c, score
 WHERE c.run_id = $run_id
   AND ($source_uri IS NULL OR c.source_uri = $source_uri)
-RETURN coalesce(c.text, c.body, c.content) AS chunk_text,
+RETURN c.text AS chunk_text,
        c.chunk_id AS chunk_id,
        c.run_id AS run_id,
        c.source_uri AS source_uri,
