@@ -43,9 +43,9 @@ from pathlib import Path
 from typing import Any
 
 import neo4j
-from neo4j_graphrag.indexes import drop_index_if_exists
 
 from demo.contracts import ARTIFACTS_DIR, CHUNK_EMBEDDING_INDEX_NAME
+from demo.cypher_utils import validate_cypher_identifier as _validate_cypher_identifier
 
 logger = logging.getLogger(__name__)
 
@@ -96,8 +96,9 @@ def run_reset(
     """Reset demo-owned graph content and indexes in *database*.
 
     Deletes all nodes with demo-owned labels (and their relationships) using
-    ``DETACH DELETE``.  Drops each demo-owned index using the vendor
-    ``drop_index_if_exists`` helper (idempotent: safe if the index is absent).
+    ``DETACH DELETE``.  Drops each demo-owned index by issuing a direct Cypher
+    ``DROP INDEX <name> IF EXISTS`` statement scoped to *database*
+    (idempotent: safe if the index is absent).
 
     Does **not** touch any other nodes, relationships, indexes, constraints, or
     databases.
@@ -165,9 +166,13 @@ def run_reset(
     # and demo.contracts.pipeline (CHUNK_EMBEDDING_INDEX_NAME).
     for index_name in DEMO_OWNED_INDEXES:
         if _index_exists(driver, index_name, database):
-            # Use vendor helper: issues DROP INDEX $name IF EXISTS safely.
-            # drop_index_if_exists uses the database_ keyword argument.
-            drop_index_if_exists(driver, index_name, database_=database)
+            # Issue a direct DROP INDEX statement in a session scoped to the
+            # demo database.  The index name is a compile-time constant from
+            # demo.contracts, but we validate it as a safe bare identifier
+            # before interpolating it into the Cypher string.
+            _validate_cypher_identifier(index_name, "index name")
+            with driver.session(database=database) as _drop_session:
+                _drop_session.run(f"DROP INDEX {index_name} IF EXISTS")
             indexes_dropped.append(index_name)
             logger.info("Dropped demo index: %s", index_name)
         else:
