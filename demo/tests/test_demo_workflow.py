@@ -610,8 +610,8 @@ class WorkflowTests(unittest.TestCase):
                 "missing_page_count": {"missing_page_count": 0},
                 "missing_char_offset_count": {"missing_char_offset_count": 0},
             },
-            index_creator=lambda _driver, index_name, database_=None, **kwargs: calls.update(
-                {"index_name": index_name, "index_kwargs": {"database_": database_, **kwargs}}
+            index_creator=lambda _driver, index_name, **kwargs: calls.update(
+                {"index_name": index_name, "index_kwargs": kwargs}
             ),
         )
         expected_fingerprint = module.sha256_file(
@@ -647,7 +647,7 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(calls["index_kwargs"]["embedding_property"], "embedding")
         self.assertEqual(calls["index_kwargs"]["dimensions"], 1536)
         self.assertEqual(calls["index_kwargs"]["similarity_fn"], "cosine")
-        self.assertEqual(calls["index_kwargs"]["database_"], "neo4j")
+        self.assertNotIn("database_", calls["index_kwargs"])
         self.assertEqual(
             calls["config_path"],
             str(DEMO_DIR / "config" / "pdf_simple_kg_pipeline.yaml"),

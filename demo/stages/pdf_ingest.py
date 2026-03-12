@@ -220,7 +220,6 @@ def run_pdf_ingest(
                     embedding_property=effective_embedding_property,
                     dimensions=effective_embedding_dimensions,
                     similarity_fn="cosine",
-                    database_=config.neo4j_database,
                 )
             except Exception as exc:
                 index_creation_strategy = "cypher_fallback"
