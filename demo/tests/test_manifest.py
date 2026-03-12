@@ -352,3 +352,53 @@ def test_build_stage_manifest_core_fields_present():
     assert manifest["run_scopes"]["structured_ingest_run_id"] == "s-id"
     assert manifest["stages"]["structured_ingest"]["claims"] == 10
     assert manifest["config"]["dry_run"] is True
+
+
+# ---------------------------------------------------------------------------
+# build_stage_manifest – scope_run_id override (ask --all-runs semantics)
+# ---------------------------------------------------------------------------
+
+def test_build_stage_manifest_scope_run_id_none_stores_null_in_run_scopes():
+    """scope_run_id=None must store None (JSON null) in run_scopes, not the stage_run_id."""
+    config = _make_config()
+    manifest = build_stage_manifest(
+        config=config,
+        stage_name="retrieval_and_qa",
+        stage_run_id="ask-20260312T000000000000Z-abcd1234",
+        run_scope_key="unstructured_ingest_run_id",
+        stage_output={"status": "dry_run"},
+        scope_run_id=None,
+    )
+    assert manifest["run_scopes"]["unstructured_ingest_run_id"] is None
+    # Top-level run_id must remain the unique ask artifact id, not null
+    assert manifest["run_id"] == "ask-20260312T000000000000Z-abcd1234"
+
+
+def test_build_stage_manifest_scope_run_id_default_uses_stage_run_id():
+    """When scope_run_id is not provided, run_scopes[key] must equal stage_run_id (default)."""
+    config = _make_config()
+    manifest = build_stage_manifest(
+        config=config,
+        stage_name="pdf_ingest",
+        stage_run_id="u-id",
+        run_scope_key="unstructured_ingest_run_id",
+        stage_output={"status": "dry_run"},
+    )
+    assert manifest["run_scopes"]["unstructured_ingest_run_id"] == "u-id"
+    assert manifest["run_id"] == "u-id"
+
+
+def test_build_stage_manifest_scope_run_id_explicit_string_overrides():
+    """An explicit non-None scope_run_id must be stored in run_scopes, distinct from stage_run_id."""
+    config = _make_config()
+    manifest = build_stage_manifest(
+        config=config,
+        stage_name="retrieval_and_qa",
+        stage_run_id="ask-artifact-id",
+        run_scope_key="unstructured_ingest_run_id",
+        stage_output={"status": "dry_run"},
+        scope_run_id="original-ingest-run-id",
+    )
+    assert manifest["run_scopes"]["unstructured_ingest_run_id"] == "original-ingest-run-id"
+    assert manifest["run_id"] == "ask-artifact-id"
+
