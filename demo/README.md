@@ -210,7 +210,7 @@ Demo vector index: `demo_chunk_embedding_index` (label: `Chunk`, property: `embe
 ### Two-pipeline unstructured flow
 
 Pipeline 1 (`ingest-pdf`) writes the **lexical layer**:
-- loads and splits the PDF into chunks (`FixedSizeSplitter`)
+- loads and splits the PDF into chunks (`PageAwareFixedSizeSplitter`)
 - embeds chunks and writes vector-index-ready chunk data (`OpenAIEmbeddings`)
 - writes `Document` and `Chunk` nodes with run-scoped provenance; these are **append-only for the run**
 

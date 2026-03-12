@@ -537,17 +537,23 @@ def run_retrieval_and_qa(
             for item in rag_result.retriever_result.items:
                 meta = item.metadata or {}
                 citation_obj = meta.get("citation_object") or {}
-                # Surface warnings for chunks missing optional citation-relevant fields.
+                # Surface informational warnings for chunks missing optional citation
+                # fields (page, start_char, end_char).  These are logged for
+                # observability but are intentionally not added to citation_warnings_list
+                # because missing optional fields do not degrade citation enforcement.
+                # evidence_level is only degraded by critical issues (empty chunk text
+                # or uncited answer segments); see RFC #159 citation contract.
                 missing_fields = [f for f in _CITATION_OPTIONAL_FIELDS if citation_obj.get(f) is None]
                 if missing_fields:
-                    _logger.warning(
-                        "Chunk %r missing citation fields: %s",
+                    _logger.info(
+                        "Chunk %r missing optional citation fields: %s",
                         citation_obj.get("chunk_id"),
                         ", ".join(missing_fields),
                     )
-                    chunk_warning = f"Chunk {citation_obj.get('chunk_id')!r} missing citation fields: {', '.join(missing_fields)}"
+                    chunk_warning = f"Chunk {citation_obj.get('chunk_id')!r} missing optional citation fields: {', '.join(missing_fields)}"
                     warnings_list.append(chunk_warning)
-                    citation_warnings_list.append(chunk_warning)
+                    # Intentionally NOT added to citation_warnings_list: optional
+                    # fields do not affect evidence_level per citation contract #159.
                 # Surface warnings for chunks with empty or whitespace-only text.
                 # These chunks contribute no evidence to the answer and degrade retrieval quality.
                 if meta.get("empty_chunk_text"):
@@ -587,9 +593,11 @@ def run_retrieval_and_qa(
     # evidence_level encodes the overall quality of the retrieved evidence:
     #   "no_answer"  – no answer was generated (empty answer text)
     #   "full"       – every answer sentence and bullet ends with a citation token AND
-    #                  no citation-quality warnings exist (e.g. no missing chunk fields)
-    #   "degraded"   – any answer sentence or bullet is missing a citation token, OR any
-    #                  citation-quality warning exists (e.g. chunk missing page/start_char/end_char)
+    #                  no critical citation-quality warnings exist (e.g. no empty chunks)
+    #   "degraded"   – any answer sentence or bullet is missing a citation token, OR a
+    #                  critical citation-quality warning exists (e.g. empty chunk text).
+    #                  Missing OPTIONAL citation fields (page, start_char, end_char) do
+    #                  NOT degrade evidence_level per citation contract #159.
     evidence_level = (
         "no_answer" if not answer_text
         else ("degraded" if (not all_cited or citation_warnings_list) else "full")

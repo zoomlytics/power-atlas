@@ -35,12 +35,12 @@ contract:
     embedding_property: embedding
     dimensions: 1536
 text_splitter:
- class_: text_splitters.fixed_size_splitter.FixedSizeSplitter
+ class_: demo.io.page_tracking.PageAwareFixedSizeSplitter
  params_:
    chunk_size: 1000
    chunk_overlap: 200
 pdf_loader:
- class_: pdf_loader.PdfLoader
+ class_: demo.io.page_tracking.PageTrackingPdfLoader
 kg_writer:
   class_: demo.provenance_writer.ProvenanceNeo4jWriter
   params_:
