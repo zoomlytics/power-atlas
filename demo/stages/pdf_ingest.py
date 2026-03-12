@@ -4,7 +4,6 @@ import asyncio
 import hashlib
 import json
 import os
-import re
 from pathlib import Path
 from typing import Any
 
@@ -20,6 +19,7 @@ from demo.contracts import (
     PDF_PIPELINE_CONFIG_PATH,
 )
 from demo.contracts.runtime import make_run_id
+from demo.cypher_utils import validate_cypher_identifier as _validate_cypher_identifier
 
 
 def sha256_file(path: Path, *, chunk_size: int = 1024 * 1024) -> str:
@@ -33,15 +33,6 @@ def sha256_file(path: Path, *, chunk_size: int = 1024 * 1024) -> str:
             exc.add_note(f"While hashing file {path}")
         raise
     return hasher.hexdigest()
-
-
-def _validate_cypher_identifier(value: str, kind: str) -> None:
-    if not isinstance(value, str):
-        raise ValueError(
-            f"Invalid {kind} for Cypher fallback: expected a string, got {value!r} (type {type(value).__name__})"
-        )
-    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", value):
-        raise ValueError(f"Unsafe {kind} for Cypher fallback: {value!r}")
 
 
 def _record_as_mapping(record: Any) -> dict[str, Any]:

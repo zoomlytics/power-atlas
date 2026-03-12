@@ -38,7 +38,6 @@ import argparse
 import json
 import logging
 import os
-import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -46,6 +45,7 @@ from typing import Any
 import neo4j
 
 from demo.contracts import ARTIFACTS_DIR, CHUNK_EMBEDDING_INDEX_NAME
+from demo.cypher_utils import validate_cypher_identifier as _validate_cypher_identifier
 
 logger = logging.getLogger(__name__)
 
@@ -74,16 +74,6 @@ DEMO_NODE_LABELS: tuple[str, ...] = (
 #   - demo/contracts/pipeline.py  (CHUNK_EMBEDDING_INDEX_NAME)
 #   - demo/config/pdf_simple_kg_pipeline.yaml  (contract.chunk_embedding.index_name)
 DEMO_OWNED_INDEXES: tuple[str, ...] = (CHUNK_EMBEDDING_INDEX_NAME,)
-
-
-def _validate_cypher_identifier(value: str, kind: str) -> None:
-    """Raise ValueError if *value* is not a safe bare Cypher identifier."""
-    if not isinstance(value, str):
-        raise ValueError(
-            f"Invalid {kind} for Cypher: expected a string, got {value!r} (type {type(value).__name__})"
-        )
-    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", value):
-        raise ValueError(f"Unsafe {kind} for Cypher fallback: {value!r}")
 
 
 def _index_exists(driver: neo4j.Driver, index_name: str, database: str) -> bool:
