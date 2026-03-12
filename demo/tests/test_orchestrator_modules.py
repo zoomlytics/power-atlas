@@ -2778,7 +2778,7 @@ def test_run_retrieval_and_qa_live_all_runs_uses_unscoped_query(tmp_path: Path):
 
     # all_runs mode must NOT include run_id in query_params
     assert "run_id" not in captured_params, (
-        f"all_runs=True must not pass run_id to the retriever; got params: {captured_params}"
+        f"all_runs=True must not pass run_id to the retriever; got param keys: {sorted(captured_params.keys())}"
     )
     # source_uri filter must still be present
     assert "source_uri" in captured_params

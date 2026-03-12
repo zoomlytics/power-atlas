@@ -134,6 +134,19 @@ _BULLET_PREFIX_RE = re.compile(r"^([-*•]\s+|\d+\.\s+)")
 _CITATION_FALLBACK_PREFIX = "Insufficient citations detected"
 
 
+def _format_scope_label(run_id: str | None, all_runs: bool) -> str:
+    """Return a human-readable retrieval scope label for CLI output.
+
+    Used by both ``run_interactive_qa`` and the ``ask`` path in ``run_demo.main``
+    to ensure consistent scope messaging across all entry points.
+    """
+    if all_runs:
+        return "all runs in database"
+    if run_id is not None:
+        return f"run={run_id}"
+    return "run=(none — dry-run placeholder)"
+
+
 def _build_citation_fallback(answer: str) -> tuple[str, str, bool]:
     """Compute citation-fallback display and history answers for a single LLM response.
 
@@ -774,10 +787,7 @@ def run_interactive_qa(
         query_params["run_id"] = run_id
 
     history: MessageHistory = InMemoryMessageHistory()
-    if all_runs:
-        print("Using retrieval scope: all runs in database")
-    else:
-        print(f"Using retrieval scope: run={run_id}")
+    print(f"Using retrieval scope: {_format_scope_label(run_id, all_runs)}")
     print("Power Atlas interactive Q&A (type 'exit'/'quit' or Ctrl-D to stop)\n")
 
     # Build driver, retriever, LLM, and GraphRAG once and reuse across all REPL turns
@@ -842,5 +852,6 @@ __all__ = [
     "run_retrieval_and_qa",
     "run_interactive_qa",
     "_CITATION_FALLBACK_PREFIX",
+    "_format_scope_label",
 ]
 

@@ -36,6 +36,7 @@ from demo.stages import (  # noqa: E402
     run_retrieval_and_qa,
     run_structured_ingest,
 )
+from demo.stages.retrieval_and_qa import _format_scope_label  # noqa: E402
 from demo.stages.pdf_ingest import sha256_file  # noqa: E402, F401 - re-exported for callers and tests
 
 
@@ -176,6 +177,13 @@ def _fetch_latest_unstructured_run_id(config: Config) -> str | None:
     Returns the run_id of the most recently created unstructured ingest run,
     or None if no Chunk nodes with an unstructured_ingest run_id exist.
     Only call this in live mode; it opens a real Neo4j connection.
+
+    Ordering assumption: run_ids are formatted as
+    ``unstructured_ingest-<ISO8601_timestamp>-<uuid8>`` (e.g.
+    ``unstructured_ingest-20260312T055234558447Z-47b28b7f``).  The embedded
+    timestamp string is lexicographically sortable so ``ORDER BY run_id DESC``
+    reliably returns the most recent run.  If the run_id format ever changes
+    to a non-sortable scheme, this query must be updated accordingly.
     """
     import neo4j as _neo4j
 
@@ -499,10 +507,7 @@ def main() -> None:
                         "Re-run the command with --live to enable live Neo4j/OpenAI calls."
                     )
                 resolved_run_id, ask_all_runs = _resolve_ask_scope(args, config)
-                if ask_all_runs:
-                    print("Using retrieval scope: all runs in database")
-                else:
-                    print(f"Using retrieval scope: run={resolved_run_id}")
+                print(f"Using retrieval scope: {_format_scope_label(resolved_run_id, ask_all_runs)}")
                 run_interactive_qa(
                     config,
                     run_id=resolved_run_id,
@@ -515,11 +520,7 @@ def main() -> None:
             elif args.command == "ask":
                 # Non-interactive ask: resolve scope, print it, then run and write manifest.
                 resolved_run_id, ask_all_runs = _resolve_ask_scope(args, config)
-                if ask_all_runs:
-                    print("Using retrieval scope: all runs in database")
-                else:
-                    scope_label = resolved_run_id if resolved_run_id else "(none — dry-run placeholder)"
-                    print(f"Using retrieval scope: run={scope_label}")
+                print(f"Using retrieval scope: {_format_scope_label(resolved_run_id, ask_all_runs)}")
                 manifest_path = _run_independent_stage(
                     config,
                     args.command,
