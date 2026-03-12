@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import logging
 import os
 from pathlib import Path
 from typing import Any
@@ -20,6 +21,8 @@ from demo.contracts import (
 )
 from demo.contracts.runtime import make_run_id
 from demo.cypher_utils import validate_cypher_identifier as _validate_cypher_identifier
+
+_logger = logging.getLogger(__name__)
 
 
 def sha256_file(path: Path, *, chunk_size: int = 1024 * 1024) -> str:
@@ -91,7 +94,11 @@ async def _run_pipeline_with_cleanup(pipeline: Any, run_params: dict[str, Any]) 
                     try:
                         await async_client.close()
                     except Exception:
-                        pass
+                        _logger.warning(
+                            "Failed to close async_client for LLM %r during pipeline cleanup",
+                            llm,
+                            exc_info=True,
+                        )
 
 
 def run_pdf_ingest(

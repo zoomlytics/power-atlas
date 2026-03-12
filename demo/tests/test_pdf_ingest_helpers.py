@@ -362,10 +362,6 @@ def test_page_aware_splitter_raises_at_construction_when_overlap_exceeds_chunk_s
 # ---------------------------------------------------------------------------
 
 
-def _run(coro):  # noqa: D401 — test-only helper
-    return asyncio.run(coro)
-
-
 class _FakeLLMWithAsyncClient:
     """LLM stub that owns an async_client with a close() coroutine."""
 
@@ -452,15 +448,20 @@ def test_run_pipeline_with_cleanup_closes_llms_even_on_pipeline_error():
 
 
 def test_run_pipeline_with_cleanup_tolerates_close_error():
-    """An error from async_client.close() is swallowed so the pipeline result is still returned."""
+    """An error from async_client.close() is logged as a warning and the pipeline result is still returned."""
     llm = _FakeLLMWithAsyncClient()
     llm.async_client.close = AsyncMock(side_effect=RuntimeError("close failed"))
     config = _FakePipelineConfig({"default": llm})
     runner = _FakePipelineRunner(config, result="done")
 
-    # Should not raise even though close() raises.
-    result = _run(pdf_ingest._run_pipeline_with_cleanup(runner, {}))
+    with patch("demo.stages.pdf_ingest._logger") as mock_logger:
+        # Should not raise even though close() raises.
+        result = _run(pdf_ingest._run_pipeline_with_cleanup(runner, {}))
+
     assert result == "done"
+    mock_logger.warning.assert_called_once()
+    warning_msg = mock_logger.warning.call_args[0][0]
+    assert "async_client" in warning_msg
 
 
 def test_run_pipeline_with_cleanup_handles_none_config():
