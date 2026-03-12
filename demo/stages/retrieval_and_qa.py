@@ -60,6 +60,41 @@ RETURN c.text AS chunk_text,
        [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:RESOLVES_TO]->(canonical) WHERE mention.run_id = $run_id | coalesce(canonical.name, canonical.label)] AS canonical_entities
 """
 
+# All-runs retrieval query: no run_id filter; queries across the whole database.
+# Used when --all-runs flag is set. Citations may span multiple runs/files so provenance
+# should be interpreted with care — each citation includes its own run_id field.
+_RETRIEVAL_QUERY_BASE_ALL_RUNS = """
+WITH node AS c, score
+WHERE ($source_uri IS NULL OR c.source_uri = $source_uri)
+RETURN c.text AS chunk_text,
+       c.chunk_id AS chunk_id,
+       c.run_id AS run_id,
+       c.source_uri AS source_uri,
+       c.chunk_index AS chunk_index,
+       coalesce(c.page_number, c.page) AS page,
+       c.start_char AS start_char,
+       c.end_char AS end_char,
+       score AS similarityScore
+"""
+
+# All-runs graph-expanded retrieval: no run_id filter on chunks or derived nodes.
+_RETRIEVAL_QUERY_WITH_EXPANSION_ALL_RUNS = """
+WITH node AS c, score
+WHERE ($source_uri IS NULL OR c.source_uri = $source_uri)
+RETURN c.text AS chunk_text,
+       c.chunk_id AS chunk_id,
+       c.run_id AS run_id,
+       c.source_uri AS source_uri,
+       c.chunk_index AS chunk_index,
+       coalesce(c.page_number, c.page) AS page,
+       c.start_char AS start_char,
+       c.end_char AS end_char,
+       score AS similarityScore,
+       [(c)<-[:SUPPORTED_BY]-(claim:ExtractedClaim) | claim.claim_text] AS claims,
+       [(c)<-[:MENTIONED_IN]-(mention:EntityMention) | mention.name] AS mentions,
+       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:RESOLVES_TO]->(canonical) | coalesce(canonical.name, canonical.label)] AS canonical_entities
+"""
+
 # Optional citation-relevant fields that should be surfaced as warnings when absent.
 _CITATION_OPTIONAL_FIELDS = ("page", "start_char", "end_char")
 
@@ -97,6 +132,19 @@ _BULLET_PREFIX_RE = re.compile(r"^([-*•]\s+|\d+\.\s+)")
 # (for example, a `citation_fallback_applied` flag or citation-quality fields),
 # not by matching this prefix against the answer text.
 _CITATION_FALLBACK_PREFIX = "Insufficient citations detected"
+
+
+def _format_scope_label(run_id: str | None, all_runs: bool) -> str:
+    """Return a human-readable retrieval scope label for CLI output.
+
+    Used by both ``run_interactive_qa`` and the ``ask`` path in ``run_demo.main``
+    to ensure consistent scope messaging across all entry points.
+    """
+    if all_runs:
+        return "all runs in database"
+    if run_id is not None:
+        return f"run={run_id}"
+    return "run=(none — dry-run placeholder)"
 
 
 def _build_citation_fallback(answer: str) -> tuple[str, str, bool]:
@@ -325,6 +373,7 @@ def run_retrieval_and_qa(
     expand_graph: bool = False,
     message_history: MessageHistory | list[dict[str, str]] | None = None,
     interactive: bool = False,
+    all_runs: bool = False,
 ) -> dict[str, object]:
     """Run retrieval and GraphRAG Q&A for a single question or interactive session.
 
@@ -333,7 +382,8 @@ def run_retrieval_and_qa(
     config:
         Runtime config with Neo4j/OpenAI settings.
     run_id:
-        Mandatory for live mode; scopes retrieval to a specific ingest run.
+        Scopes retrieval to a specific ingest run.  Mandatory for live mode
+        unless *all_runs* is True.
     source_uri:
         Optional source-level filter within the run scope.
     top_k:
@@ -358,6 +408,10 @@ def run_retrieval_and_qa(
     interactive:
         Records whether the call originated from an interactive REPL session.
         Does not change retrieval or generation behaviour on its own.
+    all_runs:
+        When True, retrieval queries all Chunk nodes regardless of run_id.
+        Citations may span multiple runs/files; *run_id* is ignored.  In this
+        mode each citation still carries its own ``run_id`` provenance field.
     """
     resolved_index_name = index_name if index_name is not None else CHUNK_EMBEDDING_INDEX_NAME
     qa_model = getattr(config, "openai_model", None)
@@ -382,7 +436,10 @@ def run_retrieval_and_qa(
         end_char=999,
     )
     retrieval_query_contract = (
-        _RETRIEVAL_QUERY_WITH_EXPANSION if expand_graph else _RETRIEVAL_QUERY_BASE
+        _RETRIEVAL_QUERY_WITH_EXPANSION_ALL_RUNS if (expand_graph and all_runs)
+        else _RETRIEVAL_QUERY_BASE_ALL_RUNS if all_runs
+        else _RETRIEVAL_QUERY_WITH_EXPANSION if expand_graph
+        else _RETRIEVAL_QUERY_BASE
     )
     citation_object_example: dict[str, object] = {
         "chunk_id": "example_chunk",
@@ -395,12 +452,13 @@ def run_retrieval_and_qa(
     }
 
     # Retrieval scope metadata: always recorded so manifests document the scope used.
-    # Use the raw run_id (possibly None for dry-run) so the recorded scope reflects the
-    # actual input rather than the citation-example fallback value.
+    # Use the raw run_id (possibly None for dry-run or all-runs mode) so the recorded
+    # scope reflects the actual input rather than the citation-example fallback value.
     retrieval_scope: dict[str, object] = {
         "run_id": run_id,
         "source_uri": source_uri,
-        "scope_widened": False,
+        "scope_widened": all_runs,
+        "all_runs": all_runs,
     }
 
     # Build shared base dict; only status/retrievers/qa and live-specific fields differ.
@@ -449,21 +507,27 @@ def run_retrieval_and_qa(
             "qa": "GraphRAG run-scoped citations",
         }
 
-    # Live retrieval: build a run-scoped VectorCypherRetriever with citation formatter.
-    # run_id is mandatory for live retrieval — it is the primary run-scope boundary.
-    if run_id is None:
+    # Live retrieval: build a VectorCypherRetriever with citation formatter.
+    # run_id is mandatory unless all_runs=True (which queries across all chunks).
+    if not all_runs and run_id is None:
         raise ValueError(
-            "run_id is required for live retrieval. Set UNSTRUCTURED_RUN_ID or pass run_id explicitly."
+            "run_id is required for live retrieval. "
+            "Pass --run-id, --latest, or use --all-runs to query across all data."
         )
 
-    retrieval_query = _RETRIEVAL_QUERY_WITH_EXPANSION if expand_graph else _RETRIEVAL_QUERY_BASE
+    retrieval_query = (
+        _RETRIEVAL_QUERY_WITH_EXPANSION_ALL_RUNS if (expand_graph and all_runs)
+        else _RETRIEVAL_QUERY_BASE_ALL_RUNS if all_runs
+        else _RETRIEVAL_QUERY_WITH_EXPANSION if expand_graph
+        else _RETRIEVAL_QUERY_BASE
+    )
 
-    # Query params for run-scoped filtering. source_uri=None is valid: the null-conditional
+    # Query params for filtering. source_uri=None is valid: the null-conditional
     # in the WHERE clause skips source_uri filtering when the parameter is None.
-    query_params: dict[str, object] = {
-        "run_id": run_id,
-        "source_uri": source_uri,
-    }
+    # run_id is only included for run-scoped queries (not all-runs mode).
+    query_params: dict[str, object] = {"source_uri": source_uri}
+    if not all_runs:
+        query_params["run_id"] = run_id
 
     warnings_list: list[str] = []
     citation_warnings_list: list[str] = []
@@ -623,11 +687,12 @@ def run_retrieval_and_qa(
     live_retrievers = (
         ["VectorCypherRetriever", "graph expansion"] if expand_graph else ["VectorCypherRetriever"]
     )
+    qa_scope_label = "GraphRAG all-runs citations" if all_runs else "GraphRAG run-scoped citations"
     return {
         **base,
         "status": "live",
         "retrievers": live_retrievers,
-        "qa": "GraphRAG run-scoped citations",
+        "qa": qa_scope_label,
         "hits": len(hits),
         "retrieval_results": hits,
         "warnings": warnings_list,
@@ -645,11 +710,12 @@ def run_retrieval_and_qa(
 def run_interactive_qa(
     config: object,
     *,
-    run_id: str,
+    run_id: str | None = None,
     source_uri: str | None = None,
     top_k: int = _DEFAULT_TOP_K,
     index_name: str | None = None,
     expand_graph: bool = False,
+    all_runs: bool = False,
 ) -> None:
     """Run a REPL-style interactive Q&A session.
 
@@ -670,8 +736,32 @@ def run_interactive_qa(
       (list[dict]-based history)
     - vendor-resources/examples/question_answering/graphrag_with_neo4j_message_history.py
       (MessageHistory-based; this REPL uses InMemoryMessageHistory)
+
+    Parameters
+    ----------
+    config:
+        Runtime config with Neo4j/OpenAI settings.
+    run_id:
+        Scopes retrieval to a specific ingest run.  Mandatory unless *all_runs* is True.
+    source_uri:
+        Optional source-level filter within the run scope.
+    top_k:
+        Maximum number of retrieved chunks to pass to the LLM as context.
+    index_name:
+        Vector index name; defaults to the contract value.
+    expand_graph:
+        When True, adds graph-expansion context via ExtractedClaim / EntityMention.
+    all_runs:
+        When True, retrieval queries all Chunk nodes regardless of run_id.
+        Citations may span multiple runs/files.
     """
     # Validate and resolve session-level config once before opening any connections.
+    if not all_runs and run_id is None:
+        raise ValueError(
+            "run_id is required for interactive retrieval. "
+            "Pass run_id, or set all_runs=True to query across all data."
+        )
+
     if not os.getenv("OPENAI_API_KEY"):
         raise ValueError("OPENAI_API_KEY environment variable is required for live retrieval.")
 
@@ -686,10 +776,18 @@ def run_interactive_qa(
 
     resolved_index_name = index_name if index_name is not None else CHUNK_EMBEDDING_INDEX_NAME
     effective_qa_model = getattr(config, "openai_model", None) or "gpt-4o-mini"
-    retrieval_query = _RETRIEVAL_QUERY_WITH_EXPANSION if expand_graph else _RETRIEVAL_QUERY_BASE
-    query_params: dict[str, object] = {"run_id": run_id, "source_uri": source_uri}
+    retrieval_query = (
+        _RETRIEVAL_QUERY_WITH_EXPANSION_ALL_RUNS if (expand_graph and all_runs)
+        else _RETRIEVAL_QUERY_BASE_ALL_RUNS if all_runs
+        else _RETRIEVAL_QUERY_WITH_EXPANSION if expand_graph
+        else _RETRIEVAL_QUERY_BASE
+    )
+    query_params: dict[str, object] = {"source_uri": source_uri}
+    if not all_runs:
+        query_params["run_id"] = run_id
 
     history: MessageHistory = InMemoryMessageHistory()
+    print(f"Using retrieval scope: {_format_scope_label(run_id, all_runs)}")
     print("Power Atlas interactive Q&A (type 'exit'/'quit' or Ctrl-D to stop)\n")
 
     # Build driver, retriever, LLM, and GraphRAG once and reuse across all REPL turns
@@ -754,5 +852,6 @@ __all__ = [
     "run_retrieval_and_qa",
     "run_interactive_qa",
     "_CITATION_FALLBACK_PREFIX",
+    "_format_scope_label",
 ]
 
