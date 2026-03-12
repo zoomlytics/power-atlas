@@ -640,6 +640,13 @@ class WorkflowTests(unittest.TestCase):
             "Expected Cypher vector index creation query",
         )
         self.assertNotIn("vector_index_fallback_reason", result)
+        self.assertTrue(
+            any(
+                session_kwargs.get("database") == config.neo4j_database
+                for session_kwargs in calls["sessions"]
+            ),
+            "Expected Neo4j session to be opened with database=config.neo4j_database",
+        )
         self.assertEqual(
             calls["config_path"],
             str(DEMO_DIR / "config" / "pdf_simple_kg_pipeline.yaml"),
@@ -825,7 +832,7 @@ class WorkflowTests(unittest.TestCase):
             any("CREATE VECTOR INDEX `demo_chunk_embedding_index` IF NOT EXISTS" in query for query, _ in calls["queries"])
         )
 
-    def test_run_pdf_ingest_non_dry_run_rejects_unsafe_cypher_fallback_identifiers(self):
+    def test_run_pdf_ingest_non_dry_run_rejects_unsafe_cypher_identifiers(self):
         module = _load_module(RUN_DEMO_PATH, "run_non_dry_unsafe_identifier_test")
         config = module.Config(
             dry_run=False,
@@ -848,9 +855,9 @@ class WorkflowTests(unittest.TestCase):
         try:
             with self._with_injected_pdf_ingest_modules(injected_modules):
                 for attr_name, value, expected in [
-                    ("CHUNK_EMBEDDING_INDEX_NAME", "bad`index", "Unsafe index name for Cypher fallback"),
-                    ("CHUNK_EMBEDDING_LABEL", "Chunk:Bad", "Unsafe label for Cypher fallback"),
-                    ("CHUNK_EMBEDDING_PROPERTY", "embedding`bad", "Unsafe property for Cypher fallback"),
+                    ("CHUNK_EMBEDDING_INDEX_NAME", "bad`index", "Unsafe index name for Cypher index creation"),
+                    ("CHUNK_EMBEDDING_LABEL", "Chunk:Bad", "Unsafe label for Cypher index creation"),
+                    ("CHUNK_EMBEDDING_PROPERTY", "embedding`bad", "Unsafe property for Cypher index creation"),
                 ]:
                     for original_attr_name, original_value in original_identifiers.items():
                         setattr(module, original_attr_name, original_value)
