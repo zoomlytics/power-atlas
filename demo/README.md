@@ -161,7 +161,7 @@ Here, `<stage_name>` is the on-disk **manifest folder name** under `runs/<run_id
 
 - `ingest-structured` → `structured_ingest`
 - `ingest-pdf` → `pdf_ingest`
-- `extract-claims` → `claim_and_mention_extraction` (manifest directory; stage artifacts are written under `runs/<run_id>/claim_extraction/`)
+- `extract-claims` → `claim_and_mention_extraction` (manifest directory; stage artifacts are written under `<output-dir>/runs/<run_id>/claim_extraction/`)
 - `resolve-entities` → `entity_resolution`
 - `ask` → `retrieval_and_qa`
 
@@ -293,13 +293,18 @@ Removes both the `run_id` filter and the `source_uri` filter — retrieval spans
 demo/artifacts/runs/<run_id>/retrieval_and_qa/manifest.json
 ```
 
-Useful Q&A manifest fields include:
+Useful Q&A manifest fields include (all nested under `stages.retrieval_and_qa`):
 
-- `all_answers_cited`
-- `citation_fallback_applied`
-- `citation_quality`
-- `retrieval_scope`
-- `retrieval_results`
+- `stages.retrieval_and_qa.all_answers_cited`
+- `stages.retrieval_and_qa.citation_fallback_applied`
+- `stages.retrieval_and_qa.citation_quality`
+- `stages.retrieval_and_qa.retrieval_results`
+
+To diagnose which retrieval scope was actually applied (useful when debugging `--all-runs` or unexpected results), inspect:
+
+- `stages.retrieval_and_qa.retrieval_scope.run_id` — the run id used (or `null` for all-runs)
+- `stages.retrieval_and_qa.retrieval_scope.source_uri` — the source filter applied (or `null` for whole-database)
+- `stages.retrieval_and_qa.retrieval_scope.all_runs` — whether all-runs mode was active
 
 ---
 
