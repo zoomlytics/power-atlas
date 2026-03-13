@@ -390,7 +390,7 @@ Every `Chunk` node includes ingest metadata fields such as `run_id`, `source_uri
 | --- | --- | --- |
 | Batch (`ingest`) | `<output-dir>/manifest.json` | `run_id`, `run_scopes.structured_ingest_run_id`, `run_scopes.unstructured_ingest_run_id` |
 | Independent stage (`ingest-structured`, `ingest-pdf`) | `<output-dir>/runs/<run_id>/<stage_name>/manifest.json` | `run_id`, `run_scopes.batch_mode: single_independent_run`, one of `structured_ingest_run_id` / `unstructured_ingest_run_id` |
-| Derived stage (`extract-claims`, `resolve-entities`, `ask`) | `<output-dir>/runs/<run_id>/<stage_name>/manifest.json` | `run_id`, `run_scopes.unstructured_ingest_run_id` or explicit ask scope fields |
+| Derived stage (`extract-claims`, `resolve-entities`, `ask`) | `<output-dir>/runs/<run_id>/<stage_name>/manifest.json` | `run_id`, `run_scopes.unstructured_ingest_run_id` (ingest run id for run-scoped stages; `null` for `--all-runs`); for `ask`, resolved retrieval scope under `stages.retrieval_and_qa.retrieval_scope.{run_id,all_runs,source_uri}` |
 
 Each stage records a `run_id` in its manifest. Producer stages generate a new run scope; derived stages intentionally share the producer run scope where appropriate.
 
