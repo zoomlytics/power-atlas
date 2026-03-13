@@ -62,7 +62,7 @@ Run PDF ingest:
 python -m demo.run_demo --live ingest-pdf
 ```
 
-Then ask a question against the latest successful unstructured ingest run:
+Then ask a question against the latest unstructured ingest run found in the database:
 
 ```bash
 python -m demo.run_demo --live ask --question "What does the document say about Endeavor and MercadoLibre?"
