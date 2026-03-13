@@ -59,7 +59,7 @@ python -m demo.reset_demo_db --confirm
 Run PDF ingest:
 
 ```bash
-python -m demo.run_demo --live ingest-pdf
+python -m demo.run_demo ingest-pdf --live
 ```
 
 Then ask a question against the latest unstructured ingest run found in the database (use `--latest` to ensure this, even if `UNSTRUCTURED_RUN_ID` is set):
