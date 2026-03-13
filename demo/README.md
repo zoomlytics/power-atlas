@@ -380,7 +380,7 @@ Every `Chunk` node includes ingest metadata fields such as `run_id`, `source_uri
 
 | Mode | Manifest path | Key fields |
 | --- | --- | --- |
-| Batch (`ingest`) | `<output-dir>/manifest.json` or configured output manifest | `run_id`, `run_scopes.structured_ingest_run_id`, `run_scopes.unstructured_ingest_run_id` |
+| Batch (`ingest`) | `<output-dir>/manifest.json` | `run_id`, `run_scopes.structured_ingest_run_id`, `run_scopes.unstructured_ingest_run_id` |
 | Independent stage (`ingest-structured`, `ingest-pdf`) | `<output-dir>/runs/<run_id>/<stage_name>/manifest.json` | `run_id`, `run_scopes.batch_mode: single_independent_run`, one of `structured_ingest_run_id` / `unstructured_ingest_run_id` |
 | Derived stage (`extract-claims`, `resolve-entities`, `ask`) | `<output-dir>/runs/<run_id>/<stage_name>/manifest.json` | `run_id`, `run_scopes.unstructured_ingest_run_id` or explicit ask scope fields |
 
