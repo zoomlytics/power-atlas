@@ -257,7 +257,7 @@ Use these commands depending on what you want to query.
 ### Ask against the latest unstructured ingest
 
 ```bash
-python -m demo.run_demo --live ask --question "What does the document say about Endeavor and MercadoLibre?"
+python -m demo.run_demo --live ask --latest --question "What does the document say about Endeavor and MercadoLibre?"
 ```
 
 ### Ask against a specific ingest run
