@@ -68,7 +68,7 @@ Then ask a question against the latest unstructured ingest run found in the data
 python -m demo.run_demo --live ask --latest --question "What does the document say about Endeavor and MercadoLibre?"
 ```
 
-You can also ask across all ingested unstructured runs:
+You can also ask across the whole database (all runs and all source documents):
 
 ```bash
 python -m demo.run_demo --live ask --all-runs --question "What does the document say about Endeavor and MercadoLibre?"
@@ -215,7 +215,7 @@ The `ask` command supports explicit retrieval scope flags:
 | *(none)* | Default: if `UNSTRUCTURED_RUN_ID` is set, use that run; otherwise same as `--latest` in `--live` mode |
 | `--latest` | In `--live` mode: retrieve from the latest successful unstructured ingest run. In `--dry-run` mode: behaves like the default (uses `UNSTRUCTURED_RUN_ID` if set; otherwise no run id is used and the CLI prints `run=(none — dry-run placeholder)`). |
 | `--run-id <RUN_ID>` | Retrieve from a specific ingest run |
-| `--all-runs` | Retrieve across all ingested data with no run filter |
+| `--all-runs` | Retrieve across the whole database — no `run_id` filter and no `source_uri` filter |
 
 Examples (`--live` mode):
 
@@ -241,7 +241,7 @@ In `--dry-run` mode, Neo4j is not queried; if `UNSTRUCTURED_RUN_ID` is set it wi
 
 For first-time users, prefer the CLI flags over environment-variable-based run selection.
 
-**All-runs mode note:** citations in `--all-runs` mode may refer to chunks from different ingest runs. Each citation includes its own `run_id`.
+**All-runs mode note:** `--all-runs` removes both the `run_id` filter and the `source_uri` filter, querying the whole database. Citations returned may refer to chunks from different ingest runs and different source documents. Each citation includes its own `run_id` and `source_uri` for traceability.
 
 ### Convenience batch mode (alternative to steps 2–4)
 
@@ -279,11 +279,13 @@ python -m demo.run_demo --live ask --latest --question "What does the document s
 python -m demo.run_demo --live ask --run-id <RUN_ID> --question "What does the document say about Endeavor and MercadoLibre?"
 ```
 
-### Ask across all ingested unstructured runs
+### Ask across the whole database
 
 ```bash
 python -m demo.run_demo --live ask --all-runs --question "What does the document say about Endeavor and MercadoLibre?"
 ```
+
+Removes both the `run_id` filter and the `source_uri` filter — retrieval spans all chunks in the database, across all runs and all source documents.
 
 ### Inspect the output manifest
 
@@ -320,13 +322,15 @@ If needed, force an explicit run:
 python -m demo.run_demo --live ask --run-id <RUN_ID> --question "..."
 ```
 
-### I want to query everything, not just one run
+### I want to query the whole database
 
 Use:
 
 ```bash
 python -m demo.run_demo --live ask --all-runs --question "..."
 ```
+
+This removes both the `run_id` filter and the `source_uri` filter, querying all chunks in the database regardless of which run or document they came from.
 
 ### I want reproducible results for debugging
 
