@@ -182,9 +182,12 @@ In live mode, `extract-claims` reads `Chunk` nodes for the selected `run_id`. In
 
 ### Step 4 — Optional stages
 
-These stages also operate within an existing unstructured ingest run scope.
+These stages also operate within an existing unstructured ingest run scope. When running them independently (without first running Step 3 in the same process), you must set `UNSTRUCTURED_RUN_ID` to the target unstructured ingest run id.
 
 ```bash
+# Reuse the run id from `ingest-pdf` / `extract-claims`
+export UNSTRUCTURED_RUN_ID=<run_id from ingest-pdf or extract-claims output>
+
 # Entity resolution
 python -m demo.run_demo --dry-run resolve-entities
 
