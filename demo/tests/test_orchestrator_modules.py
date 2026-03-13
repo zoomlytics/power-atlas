@@ -2784,6 +2784,303 @@ def test_run_retrieval_and_qa_live_all_runs_uses_unscoped_query(tmp_path: Path):
     assert "source_uri" in captured_params
 
 
+# ---------------------------------------------------------------------------
+# all-runs citation repair: uncited segments are repaired using retrieved tokens
+# ---------------------------------------------------------------------------
+
+def test_retrieval_and_qa_live_all_runs_uncited_answer_repaired_when_hits_present(tmp_path: Path):
+    """In all_runs mode, uncited answer segments must be repaired using retrieved citation
+    tokens rather than applying the generic fallback, when at least one hit with a
+    citation token is available.  Result must report all_answers_cited=True,
+    citation_fallback_applied=False, and evidence_level='full'."""
+    from demo.stages import run_retrieval_and_qa
+    from demo.stages.retrieval_and_qa import _build_citation_token
+
+    uncited_answer = "Power Atlas retrieval spans multiple runs. Evidence found in database."
+
+    real_token = _build_citation_token(
+        chunk_id="real-chunk-1",
+        run_id="real-run-id",
+        source_uri="file:///path/to/doc.pdf",
+        chunk_index=0,
+        page=1,
+        start_char=0,
+        end_char=100,
+    )
+
+    class _FakeRetrieverWithHit:
+        def __init__(self, **kwargs):
+            pass
+
+        def search(self, **kwargs):
+            return _make_fake_retriever_result(
+                [
+                    _make_fake_retriever_result_item(
+                        f"Chunk text\n{real_token}",
+                        {
+                            "citation_token": real_token,
+                            "citation_object": {
+                                "chunk_id": "real-chunk-1",
+                                "run_id": "real-run-id",
+                                "source_uri": "file:///path/to/doc.pdf",
+                                "chunk_index": 0,
+                                "page": 1,
+                                "start_char": 0,
+                                "end_char": 100,
+                            },
+                            "chunk_id": "real-chunk-1",
+                            "run_id": "real-run-id",
+                            "source_uri": "file:///path/to/doc.pdf",
+                            "chunk_index": 0,
+                            "page": 1,
+                            "start_char": 0,
+                            "end_char": 100,
+                            "score": 0.9,
+                            "empty_chunk_text": False,
+                        },
+                    )
+                ]
+            )
+
+    live_config = Config(
+        dry_run=False,
+        output_dir=tmp_path,
+        neo4j_uri="bolt://example.invalid",
+        neo4j_username="neo4j",
+        neo4j_password="secret",
+        neo4j_database="neo4j",
+        openai_model="gpt-4o-mini",
+    )
+
+    with mock.patch(
+        "demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetrieverWithHit
+    ), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
+    ), mock.patch(
+        "demo.stages.retrieval_and_qa.GraphRAG",
+        _make_stub_graphrag_class(answer=uncited_answer),
+    ), mock.patch(
+        "demo.stages.retrieval_and_qa.build_openai_llm"
+    ), mock.patch(
+        "neo4j.GraphDatabase.driver"
+    ), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+        result = run_retrieval_and_qa(
+            live_config,
+            run_id=None,
+            source_uri=None,
+            question="What happened?",
+            all_runs=True,
+        )
+
+    assert result["all_answers_cited"] is True, (
+        "all-runs mode must repair uncited segments using retrieved citation tokens; "
+        f"got all_answers_cited={result['all_answers_cited']!r}"
+    )
+    assert result["citation_fallback_applied"] is False, (
+        "citation_fallback_applied must be False when repair succeeds; "
+        f"got citation_fallback_applied={result['citation_fallback_applied']!r}"
+    )
+    cq = result["citation_quality"]
+    assert cq["evidence_level"] == "full", (
+        f"evidence_level must be 'full' after successful repair; got {cq['evidence_level']!r}"
+    )
+    # raw_answer preserves the original LLM output unchanged
+    assert result["raw_answer"] == uncited_answer, (
+        "raw_answer must preserve the original (pre-repair) LLM output"
+    )
+
+
+def test_retrieval_and_qa_live_all_runs_uncited_answer_fallback_when_no_hits(tmp_path: Path):
+    """In all_runs mode, the citation fallback must still apply when no hits are retrieved
+    (truly insufficient evidence).  No repair is possible without retrieved citation tokens."""
+    from demo.stages import run_retrieval_and_qa
+
+    uncited_answer = "Answer without any citation tokens."
+
+    class _FakeRetrieverNoHits:
+        def __init__(self, **kwargs):
+            pass
+
+        def search(self, **kwargs):
+            return _make_fake_retriever_result([])  # No retrieved chunks
+
+    live_config = Config(
+        dry_run=False,
+        output_dir=tmp_path,
+        neo4j_uri="bolt://example.invalid",
+        neo4j_username="neo4j",
+        neo4j_password="secret",
+        neo4j_database="neo4j",
+        openai_model="gpt-4o-mini",
+    )
+
+    with mock.patch(
+        "demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetrieverNoHits
+    ), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
+    ), mock.patch(
+        "demo.stages.retrieval_and_qa.GraphRAG",
+        _make_stub_graphrag_class(answer=uncited_answer),
+    ), mock.patch(
+        "demo.stages.retrieval_and_qa.build_openai_llm"
+    ), mock.patch(
+        "neo4j.GraphDatabase.driver"
+    ), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+        result = run_retrieval_and_qa(
+            live_config,
+            run_id=None,
+            source_uri=None,
+            question="What happened?",
+            all_runs=True,
+        )
+
+    assert result["citation_fallback_applied"] is True, (
+        "citation fallback must apply in all-runs mode when no hits were retrieved; "
+        f"got citation_fallback_applied={result['citation_fallback_applied']!r}"
+    )
+    assert result["all_answers_cited"] is False
+
+
+def test_retrieval_and_qa_live_all_runs_fully_cited_answer_no_repair_needed(tmp_path: Path):
+    """In all_runs mode, a fully-cited LLM answer must pass through unchanged (no repair
+    needed).  all_answers_cited=True, citation_fallback_applied=False, evidence_level='full'."""
+    from demo.stages import run_retrieval_and_qa
+    from demo.stages.retrieval_and_qa import _build_citation_token
+
+    real_token = _build_citation_token(
+        chunk_id="cited-chunk",
+        run_id="cited-run",
+        source_uri="file:///cited.pdf",
+        chunk_index=0,
+        page=1,
+        start_char=0,
+        end_char=50,
+    )
+    cited_answer = f"Power Atlas spans all ingested runs. {real_token}"
+
+    class _FakeRetrieverCited:
+        def __init__(self, **kwargs):
+            pass
+
+        def search(self, **kwargs):
+            return _make_fake_retriever_result(
+                [
+                    _make_fake_retriever_result_item(
+                        f"Chunk text\n{real_token}",
+                        {
+                            "citation_token": real_token,
+                            "citation_object": {},
+                            "chunk_id": "cited-chunk",
+                            "run_id": "cited-run",
+                            "source_uri": "file:///cited.pdf",
+                            "chunk_index": 0,
+                            "page": 1,
+                            "start_char": 0,
+                            "end_char": 50,
+                            "score": 0.95,
+                            "empty_chunk_text": False,
+                        },
+                    )
+                ]
+            )
+
+    live_config = Config(
+        dry_run=False,
+        output_dir=tmp_path,
+        neo4j_uri="bolt://example.invalid",
+        neo4j_username="neo4j",
+        neo4j_password="secret",
+        neo4j_database="neo4j",
+        openai_model="gpt-4o-mini",
+    )
+
+    with mock.patch(
+        "demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetrieverCited
+    ), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
+    ), mock.patch(
+        "demo.stages.retrieval_and_qa.GraphRAG",
+        _make_stub_graphrag_class(answer=cited_answer),
+    ), mock.patch(
+        "demo.stages.retrieval_and_qa.build_openai_llm"
+    ), mock.patch(
+        "neo4j.GraphDatabase.driver"
+    ), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+        result = run_retrieval_and_qa(
+            live_config,
+            run_id=None,
+            source_uri=None,
+            question="What happened?",
+            all_runs=True,
+        )
+
+    assert result["all_answers_cited"] is True
+    assert result["citation_fallback_applied"] is False
+    assert result["citation_quality"]["evidence_level"] == "full"
+    assert result["raw_answer"] == cited_answer
+
+
+def test_repair_uncited_answer_appends_token_to_each_uncited_segment():
+    """_repair_uncited_answer must append the citation token to each uncited sentence
+    and bullet, leaving already-cited segments unchanged."""
+    from demo.stages.retrieval_and_qa import _repair_uncited_answer, _check_all_answers_cited
+
+    token = "[CITATION|chunk_id=c1|run_id=r1|source_uri=s1|chunk_index=0|page=1|start_char=0|end_char=10]"
+
+    # Single uncited sentence
+    single = "Power was measured at 100 W."
+    repaired = _repair_uncited_answer(single, token)
+    assert _check_all_answers_cited(repaired), f"Repaired single sentence should be cited: {repaired!r}"
+
+    # Multi-sentence paragraph where second sentence is already cited
+    cited_token = "[CITATION|chunk_id=c2|run_id=r2|source_uri=s2|chunk_index=1|page=2|start_char=5|end_char=50]"
+    multi = f"First claim. Second claim with citation. {cited_token}"
+    repaired_multi = _repair_uncited_answer(multi, token)
+    assert _check_all_answers_cited(repaired_multi), (
+        f"Repaired multi-sentence answer should be fully cited: {repaired_multi!r}"
+    )
+
+    # Bullet list
+    bullet_answer = "- Item one uncited\n- Item two also uncited"
+    repaired_bullets = _repair_uncited_answer(bullet_answer, token)
+    assert _check_all_answers_cited(repaired_bullets), (
+        f"Repaired bullet list should be fully cited: {repaired_bullets!r}"
+    )
+
+    # Already-cited answer must be returned unchanged
+    already_cited = f"Fully cited sentence. {token}"
+    result_unchanged = _repair_uncited_answer(already_cited, token)
+    assert result_unchanged == already_cited, (
+        "Already-cited answer must not be modified by repair"
+    )
+
+    # Empty answer must be returned unchanged
+    assert _repair_uncited_answer("", token) == ""
+    assert _repair_uncited_answer("some text", "") == "some text"
+
+
+def test_retrieval_and_qa_dry_run_all_runs_qa_label(tmp_path: Path):
+    """Dry-run result must use 'GraphRAG all-runs citations' label for qa when all_runs=True."""
+    from demo.stages import run_retrieval_and_qa
+
+    config = _dry_run_config(tmp_path)
+    result = run_retrieval_and_qa(config, run_id=None, source_uri=None, all_runs=True)
+    assert result["qa"] == "GraphRAG all-runs citations", (
+        f"all_runs=True dry-run must use all-runs qa label; got {result['qa']!r}"
+    )
+
+
+def test_retrieval_and_qa_dry_run_run_scoped_qa_label(tmp_path: Path):
+    """Dry-run result must use 'GraphRAG run-scoped citations' label for qa when all_runs=False."""
+    from demo.stages import run_retrieval_and_qa
+
+    config = _dry_run_config(tmp_path)
+    result = run_retrieval_and_qa(config, run_id="test-run", source_uri=None, all_runs=False)
+    assert result["qa"] == "GraphRAG run-scoped citations", (
+        f"all_runs=False dry-run must use run-scoped qa label; got {result['qa']!r}"
+    )
+
+
 def test_resolve_ask_scope_run_id_flag(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     """--run-id flag must be returned directly and suppress env var override."""
     from demo.run_demo import parse_args, _resolve_ask_scope
