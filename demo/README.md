@@ -105,6 +105,12 @@ Using retrieval scope: all runs in database
 python demo/run_demo.py --dry-run ingest
 ```
 
+for a live run ingesting structured and unstructured data:
+
+```bash
+python -m demo.run_demo ingest --live
+```
+
 Runs all stages as sequential independent runs with a single command. The batch manifest is written to `<output-dir>/manifest.json` with its own `run_id`; internally, structured stages share `structured_ingest_run_id` and unstructured stages (PDF ingest, claim extraction, entity resolution, retrieval) share `unstructured_ingest_run_id`.
 
 ### Step 5 — Run smoke test
