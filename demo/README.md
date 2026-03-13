@@ -88,11 +88,13 @@ or:
 Using retrieval scope: all runs in database
 ```
 
-Successful runs also write manifests under:
+Non-interactive successful runs also write manifests under:
 
 ```text
 demo/artifacts/runs/<run_id>/<stage_name>/manifest.json
 ```
+
+Note: interactive Q&A sessions (for example, using `ask --interactive`) do not write a manifest; rely on the console output or your shell history instead.
 
 For successful Q&A runs, the manifest should normally show:
 
