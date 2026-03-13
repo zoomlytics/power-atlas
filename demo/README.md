@@ -140,7 +140,7 @@ python -m demo.run_demo --live reset --confirm
 
 Without `--confirm`, the standalone script exits with an error and the CLI reset path prints instructions only.
 
-Both reset paths write a JSON reset report to the demo artifacts directory.
+Both reset paths write a JSON reset report to `<output-dir>/reset_report_<timestamp>.json`, with `demo/artifacts` used as the default `--output-dir`.
 
 ### Step 2 — Run ingestion stages independently (recommended)
 
