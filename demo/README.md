@@ -198,12 +198,12 @@ The `ask` command supports explicit retrieval scope flags:
 
 | Flag | Behavior |
 | --- | --- |
-| *(none)* | Default: if `UNSTRUCTURED_RUN_ID` is set, use that run; otherwise same as `--latest` |
-| `--latest` | Retrieve from the latest successful unstructured ingest run |
+| *(none)* | Default: if `UNSTRUCTURED_RUN_ID` is set, use that run; otherwise same as `--latest` in `--live` mode |
+| `--latest` | In `--live` mode: retrieve from the latest successful unstructured ingest run. In `--dry-run` mode: behaves like the default (uses `UNSTRUCTURED_RUN_ID` if set, otherwise a placeholder run id). |
 | `--run-id <RUN_ID>` | Retrieve from a specific ingest run |
 | `--all-runs` | Retrieve across all ingested data with no run filter |
 
-Examples:
+Examples (`--live` mode):
 
 ```bash
 # Default: use UNSTRUCTURED_RUN_ID if set; otherwise latest successful unstructured ingest run
