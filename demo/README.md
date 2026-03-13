@@ -102,9 +102,9 @@ Note: interactive Q&A sessions (for example, using `ask --interactive`) do not w
 
 For successful Q&A runs, the manifest should normally show:
 
-- `all_answers_cited: true`
-- `citation_fallback_applied: false`
-- `citation_quality.evidence_level: "full"`
+- `stages.retrieval_and_qa.all_answers_cited: true`
+- `stages.retrieval_and_qa.citation_fallback_applied: false`
+- `stages.retrieval_and_qa.citation_quality.evidence_level: "full"`
 
 ---
 
