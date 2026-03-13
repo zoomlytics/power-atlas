@@ -190,7 +190,7 @@ The `ask` command supports explicit retrieval scope flags:
 
 | Flag | Behavior |
 | --- | --- |
-| *(none)* | Default: same as `--latest` |
+| *(none)* | Default: if `UNSTRUCTURED_RUN_ID` is set, use that run; otherwise same as `--latest` |
 | `--latest` | Retrieve from the latest successful unstructured ingest run |
 | `--run-id <RUN_ID>` | Retrieve from a specific ingest run |
 | `--all-runs` | Retrieve across all ingested data with no run filter |
@@ -198,10 +198,10 @@ The `ask` command supports explicit retrieval scope flags:
 Examples:
 
 ```bash
-# Default: latest successful unstructured ingest run
+# Default: use UNSTRUCTURED_RUN_ID if set; otherwise latest successful unstructured ingest run
 python -m demo.run_demo --live ask --question "What does the document say about Endeavor and MercadoLibre?"
 
-# Explicit latest
+# Explicit latest (ignores UNSTRUCTURED_RUN_ID)
 python -m demo.run_demo --live ask --latest --question "What does the document say about Endeavor and MercadoLibre?"
 
 # Explicit run
