@@ -227,7 +227,9 @@ python -m demo.run_demo --live ask --all-runs --question "What does the document
 
 The resolved scope is always printed before query execution.
 
-**Precedence:** `--run-id` / `--latest` / `--all-runs` CLI flags → `UNSTRUCTURED_RUN_ID` env var → implicit latest successful unstructured ingest run (default).
+**Precedence (for `--live` mode):** `--run-id` / `--latest` / `--all-runs` CLI flags → `UNSTRUCTURED_RUN_ID` env var → implicit latest successful unstructured ingest run (default).
+
+In `--dry-run` mode, Neo4j is not queried; if `UNSTRUCTURED_RUN_ID` is set it will still be honored even when `--latest` is provided.
 
 For first-time users, prefer the CLI flags over environment-variable-based run selection.
 
