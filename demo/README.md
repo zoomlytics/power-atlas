@@ -153,11 +153,11 @@ Producer stages (`ingest-structured`, `ingest-pdf`) each generate a new `run_id`
 demo/artifacts/runs/<run_id>/<stage_name>/manifest.json
 ```
 
-Here, `<stage_name>` is the on-disk stage directory name, which does not always match the CLI subcommand. The mappings are:
+Here, `<stage_name>` is the on-disk **manifest folder name** under `runs/<run_id>/`, which does not always match the CLI subcommand. The mappings are:
 
 - `ingest-structured` → `structured_ingest`
 - `ingest-pdf` → `pdf_ingest`
-- `extract-claims` → `claim_and_mention_extraction`
+- `extract-claims` → `claim_and_mention_extraction` (manifest directory; stage artifacts are written under `runs/<run_id>/claim_extraction/`)
 - `resolve-entities` → `entity_resolution`
 - `ask` → `retrieval_and_qa`
 
