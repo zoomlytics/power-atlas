@@ -152,7 +152,7 @@ python -m demo.run_demo --dry-run ingest-pdf
 Producer stages (`ingest-structured`, `ingest-pdf`) each generate a new `run_id` and write a stage manifest to:
 
 ```text
-demo/artifacts/runs/<run_id>/<stage_name>/manifest.json
+<output-dir>/runs/<run_id>/<stage_name>/manifest.json
 ```
 
 Here, `<stage_name>` is the on-disk **manifest folder name** under `runs/<run_id>/`, which does not always match the CLI subcommand. The mappings are:
