@@ -224,7 +224,7 @@ python -m demo.run_demo --live ask --all-runs --question "What does the document
 
 The resolved scope is always printed before query execution.
 
-**Precedence:** CLI flag → `UNSTRUCTURED_RUN_ID` env var → `--latest` (default).
+**Precedence:** `--run-id` / `--latest` / `--all-runs` CLI flags → `UNSTRUCTURED_RUN_ID` env var → implicit latest successful unstructured ingest run (default).
 
 For first-time users, prefer the CLI flags over environment-variable-based run selection.
 
