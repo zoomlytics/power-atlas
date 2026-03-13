@@ -238,7 +238,7 @@ Runs all stages as sequential independent runs with a single command. The batch 
 ### Step 5 — Run smoke test
 
 ```bash
-python demo/smoke_test.py
+python -m demo.smoke_test
 ```
 
 By default, artifacts are written to a temporary directory deleted on exit. Pass `--output-dir` to retain them.
