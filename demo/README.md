@@ -149,6 +149,14 @@ Producer stages (`ingest-structured`, `ingest-pdf`) each generate a new `run_id`
 demo/artifacts/runs/<run_id>/<stage_name>/manifest.json
 ```
 
+Here, `<stage_name>` is the on-disk stage directory name, which does not always match the CLI subcommand. The mappings are:
+
+- `ingest-structured` → `structured_ingest`
+- `ingest-pdf` → `pdf_ingest`
+- `extract-claims` → `claim_and_mention_extraction`
+- `resolve-entities` → `entity_resolution`
+- `ask` → `retrieval_and_qa`
+
 For a real unstructured workflow, use:
 
 ```bash
