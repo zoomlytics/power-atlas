@@ -243,7 +243,7 @@ The smoke test runs structured, unstructured, and batch scenarios in sequence.
 
 Use these commands depending on what you want to query.
 
-### Ask against the latest successful unstructured ingest
+### Ask against the latest unstructured ingest
 
 ```bash
 python -m demo.run_demo --live ask --question "What does the document say about Endeavor and MercadoLibre?"
