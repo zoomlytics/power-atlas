@@ -62,10 +62,10 @@ Run PDF ingest:
 python -m demo.run_demo --live ingest-pdf
 ```
 
-Then ask a question against the latest unstructured ingest run found in the database:
+Then ask a question against the latest unstructured ingest run found in the database (use `--latest` to ensure this, even if `UNSTRUCTURED_RUN_ID` is set):
 
 ```bash
-python -m demo.run_demo --live ask --question "What does the document say about Endeavor and MercadoLibre?"
+python -m demo.run_demo --live ask --latest --question "What does the document say about Endeavor and MercadoLibre?"
 ```
 
 You can also ask across all ingested unstructured runs:
