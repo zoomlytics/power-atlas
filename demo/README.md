@@ -134,8 +134,8 @@ python -m demo.reset_demo_db --confirm
 
 # Or via the CLI orchestrator:
 python -m demo.run_demo --live reset --confirm
-# (The CLI may also show the equivalent legacy form:
-#  python demo/run_demo.py --live reset --confirm)
+# The CLI's own output currently shows the equivalent script-path form:
+#   python demo/run_demo.py --live reset --confirm
 ```
 
 Without `--confirm`, the standalone script exits with an error and the CLI reset path prints instructions only.
