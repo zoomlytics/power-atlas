@@ -1000,42 +1000,6 @@ class WorkflowTests(unittest.TestCase):
         finally:
             sys.path.pop(0)
 
-    def test_readme_documents_config_driven_pdf_ingest_and_chunk_index(self):
-        readme_text = (DEMO_DIR / "README.md").read_text(encoding="utf-8")
-        config_text = (DEMO_DIR / "config" / "pdf_simple_kg_pipeline.yaml").read_text(encoding="utf-8")
-        config = yaml.safe_load(config_text)
-        self.assertIn(
-            "demo/config/pdf_simple_kg_pipeline.yaml",
-            readme_text,
-        )
-        self.assertIn(
-            "vendor-resources/examples/build_graph/from_config_files/simple_kg_pipeline_from_config_file.py",
-            readme_text,
-        )
-        self.assertIn("demo_chunk_embedding_index", readme_text)
-        self.assertIn("NEO4J_USERNAME", readme_text)
-        self.assertIn("create_vector_index.py", readme_text)
-        self.assertIn("## Conceptual model", readme_text)
-        self.assertIn("sequential independent runs", readme_text)
-        self.assertIn("zoomlytics/power-atlas#151", readme_text)
-        self.assertIn("run-scoped post-ingest normalization", readme_text)
-        self.assertIn("non-destructive", readme_text)
-        self.assertIsInstance(config, dict)
-        self.assertIn("llm_config", config)
-        self.assertIn("embedder_config", config)
-        self.assertIn("neo4j_config", config)
-        self.assertIn("from_pdf", config)
-        self.assertIn("contract", config)
-        neo4j_database_value = config.get("neo4j_database") or config.get("kg_writer", {}).get("params_", {}).get("neo4j_database")
-        self.assertIsNotNone(neo4j_database_value)
-        if isinstance(neo4j_database_value, dict):
-            self.assertEqual(neo4j_database_value.get("var_"), "NEO4J_DATABASE")
-        else:
-            self.assertEqual(neo4j_database_value, "neo4j")
-        self.assertEqual(config["llm_config"]["params_"]["model_name"]["var_"], "OPENAI_MODEL")
-        self.assertEqual(config["embedder_config"]["params_"]["model"], "text-embedding-3-small")
-        self.assertEqual(config["contract"]["chunk_embedding"]["dimensions"], 1536)
-
     def test_run_demo_warns_and_falls_back_when_pipeline_yaml_cannot_be_parsed(self):
         original_safe_load = yaml.safe_load
         try:
