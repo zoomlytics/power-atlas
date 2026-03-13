@@ -88,11 +88,13 @@ or:
 Using retrieval scope: all runs in database
 ```
 
-Non-interactive successful runs also write manifests under:
+Non-interactive successful independent stage runs (for example, `ask`, `ingest-pdf`, etc.) also write manifests under:
 
 ```text
 demo/artifacts/runs/<run_id>/<stage_name>/manifest.json
 ```
+
+Batch `ingest` runs instead write their manifest to the specified output directory as `<output-dir>/manifest.json`.
 
 Note: interactive Q&A sessions (for example, using `ask --interactive`) do not write a manifest; rely on the console output or your shell history instead.
 
