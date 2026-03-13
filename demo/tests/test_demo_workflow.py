@@ -1531,6 +1531,88 @@ class WorkflowTests(unittest.TestCase):
         finally:
             sys.path.pop(0)
 
+    # ── regression: ask --all-runs source_uri filtering ───────────────────────
+
+    def test_ask_all_runs_non_interactive_manifest_has_null_source_uri(self):
+        """Non-interactive ask --all-runs must write a manifest with retrieval_scope.source_uri=null.
+
+        This is a regression guard: before the fix, _run_independent_stage always
+        passed the demo fixture source_uri even in all-runs mode, silently constraining
+        retrieval to a single document.
+        """
+        module = _load_module(RUN_DEMO_PATH, "run_ask_all_runs_regression_test")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = module.Config(
+                dry_run=True,
+                output_dir=Path(tmpdir),
+                neo4j_uri="neo4j://localhost:7687",
+                neo4j_username="neo4j",
+                neo4j_password="testtesttest",
+                neo4j_database="neo4j",
+                openai_model="gpt-4o-mini",
+            )
+            manifest_path = module.run_independent_demo(config, "ask", all_runs=True)
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            retrieval_scope = manifest["stages"]["retrieval_and_qa"]["retrieval_scope"]
+            self.assertIsNone(
+                retrieval_scope["source_uri"],
+                "ask --all-runs must not apply a source_uri filter (whole-database retrieval)",
+            )
+            self.assertTrue(retrieval_scope["all_runs"])
+            self.assertIsNone(retrieval_scope["run_id"])
+            # Confirm the run_scopes entry is also null in all-runs mode.
+            self.assertIsNone(manifest["run_scopes"].get("unstructured_ingest_run_id"))
+
+    def test_ask_all_runs_interactive_passes_null_source_uri(self):
+        """Interactive ask --interactive --all-runs must call run_interactive_qa with source_uri=None.
+
+        This is a regression guard: before the fix, the interactive path hard-coded
+        the demo fixture URI, so --all-runs still filtered to a single document.
+        """
+        module = _load_module(RUN_DEMO_PATH, "run_ask_interactive_all_runs_regression_test")
+        captured: dict[str, object] = {}
+
+        def _fake_run_interactive_qa(config, **kwargs):
+            captured.update(kwargs)
+
+        args = type(
+            "Args",
+            (),
+            {
+                "command": "ask",
+                "dry_run": False,
+                "interactive": True,
+                "all_runs": True,
+                "run_id": None,
+                "latest": False,
+                "output_dir": DEMO_DIR / "artifacts",
+                "neo4j_uri": "neo4j://localhost:7687",
+                "neo4j_username": "neo4j",
+                "neo4j_password": "testtesttest",
+                "neo4j_database": "neo4j",
+                "openai_model": "gpt-4o-mini",
+                "question": None,
+            },
+        )()
+        original_parse_args = module.parse_args
+        original_run_interactive_qa = module.run_interactive_qa
+        try:
+            module.parse_args = lambda: args
+            module.run_interactive_qa = _fake_run_interactive_qa
+            with io.StringIO() as buf, redirect_stdout(buf):
+                module.main()
+        finally:
+            module.parse_args = original_parse_args
+            module.run_interactive_qa = original_run_interactive_qa
+
+        self.assertIn("source_uri", captured, "run_interactive_qa must be called with source_uri kwarg")
+        self.assertIsNone(
+            captured["source_uri"],
+            "ask --interactive --all-runs must pass source_uri=None (whole-database retrieval)",
+        )
+        self.assertTrue(captured.get("all_runs"))
+        self.assertIsNone(captured.get("run_id"))
+
 
 class ResetDemoDbTests(unittest.TestCase):
     """Tests for demo/reset_demo_db.py run_reset() and related helpers."""

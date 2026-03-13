@@ -385,9 +385,12 @@ def _run_independent_stage(
                 cfg,
                 run_id=stage_run_id if not _ask_all_runs else None,
                 question=getattr(cfg, "question", None),
-                # Independent-stage default: use the canonical demo fixture URI.
-                # See note above for extract-claims.
-                source_uri=str((FIXTURES_DIR / "unstructured" / "chain_of_custody.pdf").resolve().as_uri()),
+                # In all-runs mode, do not constrain by source_uri so that retrieval
+                # queries the whole database (no run_id and no source_uri filter).
+                # In single-run mode, default to the canonical demo fixture URI.
+                source_uri=None if _ask_all_runs else str(
+                    (FIXTURES_DIR / "unstructured" / "chain_of_custody.pdf").resolve().as_uri()
+                ),
                 index_name=CHUNK_EMBEDDING_INDEX_NAME,
                 all_runs=_ask_all_runs,
             ),
@@ -521,9 +524,12 @@ def main() -> None:
                     config,
                     run_id=resolved_run_id,
                     all_runs=ask_all_runs,
-                    # Interactive Q&A default: use the canonical demo fixture URI.
-                    # See note in _run_independent_stage for extract-claims.
-                    source_uri=str((FIXTURES_DIR / "unstructured" / "chain_of_custody.pdf").resolve().as_uri()),
+                    # In all-runs mode, do not constrain by source_uri so that retrieval
+                    # queries the whole database (no run_id and no source_uri filter).
+                    # In single-run mode, default to the canonical demo fixture URI.
+                    source_uri=None if ask_all_runs else str(
+                        (FIXTURES_DIR / "unstructured" / "chain_of_custody.pdf").resolve().as_uri()
+                    ),
                     index_name=CHUNK_EMBEDDING_INDEX_NAME,
                 )
             elif args.command == "ask":
