@@ -190,7 +190,7 @@ In live mode, `extract-claims` reads `Chunk` nodes for the selected `run_id`. In
 
 These stages also operate within an existing unstructured ingest run scope.
 
-- For `resolve-entities` (and `extract-claims` if you rerun it), you must set `UNSTRUCTURED_RUN_ID` whenever you run these stages as independent subcommands so they know which unstructured ingest run to target. Each `python -m demo.run_demo ...` invocation runs in its own process, so the environment variable is always required when calling these subcommands directly.
+- For `extract-claims` and `resolve-entities`, you must set `UNSTRUCTURED_RUN_ID` whenever you run these stages as independent subcommands so they know which unstructured ingest run to target. Each `python -m demo.run_demo ...` invocation runs in its own process, so the environment variable is always required when calling these subcommands directly, including the first time you run `extract-claims`.
 - For `ask`, retrieval scope is selected as described below; you can optionally set `UNSTRUCTURED_RUN_ID` if you want to target a specific unstructured run without passing `--run-id`.
 
 ```bash
