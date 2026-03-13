@@ -91,8 +91,10 @@ Using retrieval scope: all runs in database
 Non-interactive successful independent stage runs (for example, `ask`, `ingest-pdf`, etc.) also write manifests under:
 
 ```text
-demo/artifacts/runs/<run_id>/<stage_name>/manifest.json
+<output-dir>/runs/<run_id>/<stage_name>/manifest.json
 ```
+
+Here, `<output-dir>` is the directory specified via `--output-dir` (default: `demo/artifacts`).
 
 Batch `ingest` runs instead write their manifest to the specified output directory as `<output-dir>/manifest.json`.
 
