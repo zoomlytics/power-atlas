@@ -110,7 +110,7 @@ The most important idea for first-time users is:
 
 - **producer stages** create or write new run-scoped data
 - **derived stages** operate within an existing producer run scope
-- **Q&A retrieval is latest-run by default**, but can also target a specific run or all runs
+- **Q&A retrieval, in `--live` mode, uses `UNSTRUCTURED_RUN_ID` if set, otherwise the latest run by default**, and can also target a specific run or all runs
 
 You do **not** need to understand every graph layer before running the demo successfully. Use the Quickstart first, then return to the sections below as needed.
 
