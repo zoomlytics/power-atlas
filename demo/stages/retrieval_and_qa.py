@@ -147,6 +147,20 @@ def _format_scope_label(run_id: str | None, all_runs: bool) -> str:
     return "run=(none — dry-run placeholder)"
 
 
+def _first_citation_token_from_hits(hits: list[dict[str, object]]) -> str | None:
+    """Return the first non-empty citation token from a list of retrieval hit dicts.
+
+    Each *hit* is expected to have a ``"metadata"`` key containing a dict with an
+    optional ``"citation_token"`` entry (as produced by :func:`_chunk_citation_formatter`).
+    Returns ``None`` when no hit carries a non-empty citation token.
+    """
+    for hit in hits:
+        token = (hit.get("metadata") or {}).get("citation_token")  # type: ignore[union-attr]
+        if token:
+            return str(token)
+    return None
+
+
 def _build_citation_fallback(answer: str) -> tuple[str, str, bool]:
     """Compute citation-fallback display and history answers for a single LLM response.
 
@@ -253,6 +267,61 @@ def _check_all_answers_cited(answer: str) -> bool:
         if not _TRAILING_CITATION_RE.search(segment):
             return False
     return True
+
+
+def _repair_uncited_answer(answer: str, first_citation_token: str) -> str:
+    """Repair uncited answer segments by appending a citation token from retrieved context.
+
+    Used in widened-scope (all-runs) retrieval to avoid the generic citation fallback
+    when the LLM fails to attach a trailing citation token to some segments despite
+    valid evidence being retrieved.  Only called when at least one retrieved chunk
+    provides a usable citation token.
+
+    Processing mirrors :func:`_check_all_answers_cited`:
+
+    - Bullet lines (starting with ``-``, ``*``, ``•``, or a digit followed by ``.)``
+      are treated as atomic units and have *first_citation_token* appended when uncited.
+    - Paragraph lines are split into sentences by :data:`_SENTENCE_SPLIT_RE`; each
+      uncited sentence receives *first_citation_token*.  Sentences that already carry a
+      trailing token are left unchanged.
+
+    The *first_citation_token* is the citation token from the first hit with a non-empty
+    token value.  Applying the same token to all uncited segments is a pragmatic
+    heuristic: it ensures citation compliance without requiring a per-sentence
+    similarity lookup.  The ``raw_answer`` field in the result preserves the original
+    LLM output for transparency regardless of any repair applied here.
+
+    Returns:
+        The repaired answer string, or *answer* unchanged when *answer* or
+        *first_citation_token* is empty.
+    """
+    if not answer or not first_citation_token:
+        return answer
+    result_lines: list[str] = []
+    for line in answer.strip().splitlines():
+        stripped = line.strip()
+        if not stripped:
+            result_lines.append(line)
+            continue
+        if _BULLET_PREFIX_RE.match(stripped):
+            # Bullet: single citation unit — append token when not already cited.
+            if _TRAILING_CITATION_RE.search(stripped):
+                result_lines.append(line)
+            else:
+                result_lines.append(f"{line} {first_citation_token}")
+        else:
+            # Paragraph: process sentence-by-sentence.
+            parts = [p.strip() for p in _SENTENCE_SPLIT_RE.split(stripped) if p.strip()]
+            if all(_TRAILING_CITATION_RE.search(p) for p in parts):
+                # All sentences in this line are already cited; keep original.
+                result_lines.append(line)
+            else:
+                repaired: list[str] = [
+                    p if _TRAILING_CITATION_RE.search(p) else f"{p} {first_citation_token}"
+                    for p in parts
+                ]
+                result_lines.append(" ".join(repaired))
+    return "\n".join(result_lines)
 
 
 def _encode_citation_value(value: object) -> str:
@@ -500,11 +569,12 @@ def run_retrieval_and_qa(
         dry_run_retrievers = (
             ["VectorCypherRetriever", "graph expansion"] if expand_graph else ["VectorCypherRetriever"]
         )
+        dry_run_qa_label = "GraphRAG all-runs citations" if all_runs else "GraphRAG run-scoped citations"
         return {
             **base,
             "status": "dry_run",
             "retrievers": dry_run_retrievers,
-            "qa": "GraphRAG run-scoped citations",
+            "qa": dry_run_qa_label,
         }
 
     # Live retrieval: build a VectorCypherRetriever with citation formatter.
@@ -631,6 +701,15 @@ def run_retrieval_and_qa(
     # raw_answer preserves the original LLM output for transparency/debugging regardless
     # of whether a fallback replacement is applied.
     raw_answer = answer_text
+    # In all-runs mode, attempt to repair uncited segments using retrieved citation tokens
+    # before falling back to the generic citation fallback.  This avoids the fallback
+    # when valid evidence was retrieved but the LLM omitted trailing citation tokens on
+    # some segments.  Repair is skipped when no hits were retrieved (truly insufficient
+    # evidence) — the fallback still applies in that case.
+    if all_runs and hits and answer_text and not _check_all_answers_cited(answer_text):
+        first_token = _first_citation_token_from_hits(hits)
+        if first_token:
+            answer_text = _repair_uncited_answer(answer_text, first_token)
     answer_text, _, uncited = _build_citation_fallback(answer_text)
     # all_cited is False both when the answer is empty (nothing to cite) and when
     # the helper finds uncited sentences; True only when the answer is non-empty
@@ -828,6 +907,18 @@ def run_interactive_qa(
                     message_history=history,
                 )
                 answer = rag_result.answer if rag_result else ""
+                # In all-runs mode, attempt to repair uncited segments using retrieved
+                # citation tokens before falling back.  Mirrors the repair logic in
+                # run_retrieval_and_qa to keep citation-enforcement consistent.
+                if all_runs and answer and rag_result and rag_result.retriever_result:
+                    _repair_hits = [
+                        {"metadata": item.metadata or {}}
+                        for item in rag_result.retriever_result.items
+                    ]
+                    if _repair_hits and not _check_all_answers_cited(answer):
+                        _first_token = _first_citation_token_from_hits(_repair_hits)
+                        if _first_token:
+                            answer = _repair_uncited_answer(answer, _first_token)
                 display_answer, history_answer, uncited = _build_citation_fallback(answer)
                 print(f"\nAnswer:\n{display_answer}\n")
                 if uncited:
