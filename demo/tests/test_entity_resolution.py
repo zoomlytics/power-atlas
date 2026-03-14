@@ -987,6 +987,34 @@ class TestClusterMentionsUnstructuredOnly(unittest.TestCase):
                          "Same-type fuzzy match must work after cross-type normalized_exact hit")
         self.assertIn(by_mid["m3"]["resolution_method"], ("fuzzy", "normalized_exact"))
 
+    def test_multiple_abbreviation_variants_all_promoted_to_long_form(self):
+        """Both 'fbi' and 'f.b.i.' (same alpha 'fbi') must be promoted to the
+        long-form cluster when 'federal bureau of investigation' is seen; no
+        abbreviation cluster should remain orphaned.
+        """
+        mentions = [
+            # Two abbreviation variants of the same long form, same type.
+            {"mention_id": "m1", "name": "fbi", "entity_type": "organization"},
+            {"mention_id": "m2", "name": "f.b.i.", "entity_type": "organization"},
+            # Long form seen last — must adopt BOTH prior abbreviation mentions.
+            {"mention_id": "m3", "name": "Federal Bureau of Investigation",
+             "entity_type": "organization"},
+        ]
+        result = _cluster_mentions_unstructured_only(mentions)
+        by_mid = {r["mention_id"]: r for r in result}
+        long_key = "federal bureau of investigation"
+        self.assertEqual(
+            by_mid["m1"]["normalized_text"], long_key,
+            "'fbi' mention must be promoted to the long-form cluster",
+        )
+        self.assertEqual(
+            by_mid["m2"]["normalized_text"], long_key,
+            "'f.b.i.' mention must be promoted to the long-form cluster",
+        )
+        self.assertEqual(
+            by_mid["m3"]["normalized_text"], long_key,
+            "Long-form mention must belong to its own cluster key",
+        )
 
 class TestRunEntityResolutionUnstructuredOnly(unittest.TestCase):
     """Tests for run_entity_resolution with resolution_mode='unstructured_only'."""

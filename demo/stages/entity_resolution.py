@@ -239,10 +239,13 @@ def _cluster_mentions_unstructured_only(
     #     Forward check: is the current text's alpha form an initialism of some
     #     already-registered long-form cluster?
     initials_to_long_by_type: dict[str | None, dict[str, str]] = {}
-    #   abbrev_alpha_by_type:  alpha_of_cluster_key → cluster_key
-    #     Reverse check: does any existing cluster key look like an abbreviation
-    #     of the current text (i.e. do its initials equal an existing cluster key)?
-    abbrev_alpha_by_type: dict[str | None, dict[str, str]] = {}
+    #   abbrev_alpha_by_type:  alpha_of_cluster_key → list[cluster_key]
+    #     Reverse check: which existing cluster keys look like abbreviations of
+    #     the current text (i.e. their alpha-stripped form equals the current
+    #     text's initials)?  A list is used so that multiple abbreviation variants
+    #     sharing the same alpha (e.g. "fbi" and "f.b.i.") are *all* promoted when
+    #     a long form is encountered, rather than only the last-registered one.
+    abbrev_alpha_by_type: dict[str | None, dict[str, list[str]]] = {}
 
     # Per-type ordered list of cluster representatives (for fuzzy scan).
     seen_texts_by_type: dict[str | None, list[str]] = {}
@@ -251,9 +254,9 @@ def _cluster_mentions_unstructured_only(
         """Add a brand-new cluster key to every per-type index."""
         seen_keys.add(cluster_key)
         seen_texts_by_type.setdefault(etype, []).append(cluster_key)
-        abbrev_alpha_by_type.setdefault(etype, {})[
-            _RE_NON_ALPHA.sub("", cluster_key)
-        ] = cluster_key
+        abbrev_alpha_by_type.setdefault(etype, {}).setdefault(
+            _RE_NON_ALPHA.sub("", cluster_key), []
+        ).append(cluster_key)
         initials = _compute_initials(cluster_key)
         if initials is not None:
             initials_to_long_by_type.setdefault(etype, {})[initials] = cluster_key
@@ -271,7 +274,9 @@ def _cluster_mentions_unstructured_only(
         if cluster_key not in type_texts:
             type_texts.append(cluster_key)
         alpha = _RE_NON_ALPHA.sub("", cluster_key)
-        abbrev_alpha_by_type.setdefault(etype, {}).setdefault(alpha, cluster_key)
+        bucket = abbrev_alpha_by_type.setdefault(etype, {}).setdefault(alpha, [])
+        if cluster_key not in bucket:
+            bucket.append(cluster_key)
         initials = _compute_initials(cluster_key)
         if initials is not None:
             initials_to_long_by_type.setdefault(etype, {}).setdefault(initials, cluster_key)
@@ -294,10 +299,17 @@ def _cluster_mentions_unstructured_only(
 
         # Update abbreviation indices for this type.
         old_alpha = _RE_NON_ALPHA.sub("", short_key)
-        abbrev_alpha_by_type.get(etype, {}).pop(old_alpha, None)
-        abbrev_alpha_by_type.setdefault(etype, {})[
-            _RE_NON_ALPHA.sub("", long_key)
-        ] = long_key
+        type_abbrev = abbrev_alpha_by_type.get(etype, {})
+        bucket = type_abbrev.get(old_alpha, [])
+        if short_key in bucket:
+            bucket.remove(short_key)
+        if not bucket:
+            type_abbrev.pop(old_alpha, None)
+        # Add long_key to its own alpha bucket.
+        long_alpha = _RE_NON_ALPHA.sub("", long_key)
+        long_bucket = abbrev_alpha_by_type.setdefault(etype, {}).setdefault(long_alpha, [])
+        if long_key not in long_bucket:
+            long_bucket.append(long_key)
         # Remove any longform-initials entry that pointed to short_key.
         initials_map = initials_to_long_by_type.get(etype, {})
         for k in [k for k, v in initials_map.items() if v == short_key]:
@@ -359,16 +371,19 @@ def _cluster_mentions_unstructured_only(
             cluster_to_mentions.setdefault(existing_long, []).append(mid)
             continue
 
-        # Reverse: is current text a long form whose initials match an existing
-        # cluster key (which would then be the abbreviation)?
+        # Reverse: is current text a long form whose initials match existing
+        # cluster keys (which would then be abbreviations)?  Multiple variants
+        # sharing the same alpha (e.g. "fbi" and "f.b.i.") must ALL be promoted
+        # to avoid orphaned abbreviation clusters.
         current_initials = _compute_initials(normalized)
-        existing_abbrev: str | None = None
+        abbrev_cluster_keys: list[str] = []
         if current_initials is not None:
-            existing_abbrev = abbrev_alpha_by_type.get(entity_type, {}).get(
-                current_initials
+            abbrev_cluster_keys = list(
+                abbrev_alpha_by_type.get(entity_type, {}).get(current_initials, [])
             )
-        if existing_abbrev is not None:
-            _promote_long_form(existing_abbrev, normalized, entity_type)
+        if abbrev_cluster_keys:
+            for abbrev_key in abbrev_cluster_keys:
+                _promote_long_form(abbrev_key, normalized, entity_type)
             mention_to_cluster[mid] = normalized
             mention_to_method[mid] = ("label_cluster", 1.0)
             mention_to_type[mid] = entity_type
@@ -805,7 +820,4 @@ __all__ = [
     "_RESOLUTION_MODE_STRUCTURED_ANCHOR",
     "_RESOLUTION_MODE_UNSTRUCTURED_ONLY",
     "_VALID_RESOLUTION_MODES",
-    "_cluster_mentions_unstructured_only",
-    "_is_abbreviation",
-    "_fuzzy_ratio",
 ]
