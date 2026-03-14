@@ -736,13 +736,14 @@ def _write_alignment_results(
         UNWIND $rows AS row
         MATCH (cluster:ResolvedEntityCluster {cluster_id: row.cluster_id})
         MATCH (canonical:CanonicalEntity {entity_id: row.canonical_entity_id, run_id: row.canonical_run_id})
-        MERGE (cluster)-[r:ALIGNED_WITH]->(canonical)
-        SET r.alignment_method  = row.alignment_method,
-            r.alignment_score   = row.alignment_score,
-            r.alignment_status  = row.alignment_status,
-            r.alignment_version = $alignment_version,
-            r.run_id            = $run_id,
-            r.source_uri        = $source_uri
+        MERGE (cluster)-[r:ALIGNED_WITH {
+            run_id: $run_id,
+            source_uri: $source_uri,
+            alignment_version: $alignment_version
+        }]->(canonical)
+        SET r.alignment_method = row.alignment_method,
+            r.alignment_score  = row.alignment_score,
+            r.alignment_status = row.alignment_status
         """,
         parameters_={
             "rows": alignment_rows,
