@@ -531,10 +531,12 @@ Phase 1 has been implemented in the following modules:
 
 ### `demo/contracts/claim_schema.py`
 
-- Added the `ResolvedEntityCluster` `NodeType` to `claim_extraction_schema()` with documented
+- Added a new `resolution_layer_schema()` function (intentionally separate from
+  `claim_extraction_schema()`) that defines the `ResolvedEntityCluster` `NodeType` with documented
   properties: `cluster_id`, `canonical_name`, `normalized_text`, `resolver_version`, `created_at`.
-- Added `MEMBER_OF` and `ALIGNED_WITH` `RelationshipType` entries to the schema so that the
-  extraction pipeline's graph model is aware of both provisional-resolution relationships.
+- Added `MEMBER_OF` and `ALIGNED_WITH` `RelationshipType` entries to `resolution_layer_schema()`.
+  Keeping these out of `claim_extraction_schema()` ensures the LLM extractor never attempts to
+  produce resolution-layer nodes or edges directly.
 
 ### Graph model (Phase 1)
 
