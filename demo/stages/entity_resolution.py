@@ -295,7 +295,17 @@ def _cluster_mentions_unstructured_only(
         # Update per-type text list (swap short → long for this type).
         type_texts = seen_texts_by_type.get(etype, [])
         if short_key in type_texts:
+            # Replace the short form with the long form for this type.
             type_texts[type_texts.index(short_key)] = long_key
+            # De-duplicate representatives for this type (preserve order).
+            seen_for_type: set[str] = set()
+            deduped_type_texts: list[str] = []
+            for t in type_texts:
+                if t not in seen_for_type:
+                    seen_for_type.add(t)
+                    deduped_type_texts.append(t)
+            if len(deduped_type_texts) != len(type_texts):
+                seen_texts_by_type[etype] = deduped_type_texts
 
         # Update abbreviation indices for this type.
         old_alpha = _RE_NON_ALPHA.sub("", short_key)
