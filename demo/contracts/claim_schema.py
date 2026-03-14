@@ -42,11 +42,31 @@ def claim_extraction_schema() -> GraphSchema:
                 ],
                 additional_properties=True,
             ),
+            NodeType(
+                label="ResolvedEntityCluster",
+                description=(
+                    "Provisional cluster of EntityMention nodes believed to refer to the same "
+                    "underlying entity. Sits between the extracted-assertion layer (EntityMention) "
+                    "and the optional curated layer (CanonicalEntity). Created non-destructively "
+                    "by the entity resolution stage; raw mentions are never modified."
+                ),
+                properties=[
+                    PropertyType(name="cluster_id", type="STRING", required=True),
+                    PropertyType(name="canonical_name", type="STRING"),
+                    PropertyType(name="normalized_text", type="STRING"),
+                    PropertyType(name="resolver_version", type="STRING"),
+                    PropertyType(name="created_at", type="STRING"),
+                ],
+                additional_properties=True,
+            ),
         ],
         relationship_types=[
             RelationshipType(label="MENTIONS"),
             RelationshipType(label="SUPPORTED_BY"),
             RelationshipType(label="MENTIONED_IN"),
+            # Provisional resolution layer relationships
+            RelationshipType(label="MEMBER_OF"),
+            RelationshipType(label="ALIGNED_WITH"),
         ],
     )
 

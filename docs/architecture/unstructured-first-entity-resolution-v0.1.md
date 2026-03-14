@@ -1,6 +1,6 @@
 # Power Atlas — Unstructured-First Entity Resolution (v0.1, Draft)
 
-**Status:** Proposed  
+**Status:** Accepted — Phase 1 implemented  
 **Audience:** Contributors, architects, reviewers  
 **Scope:** Entity resolution, ingestion architecture, demo posture, retrieval implications
 
@@ -499,7 +499,58 @@ This decision is intended to keep Power Atlas aligned with:
 
 ## 13) Suggested follow-on work
 
-1. Add a first implementation issue for `ResolvedEntityCluster` + `unstructured_only` mode
-2. Add a second issue for `hybrid_additive` structured alignment
-3. Update demo documentation to show unstructured-only usefulness before structured ingest
-4. Add a follow-on retrieval design note if cluster-aware retrieval introduces material answer-policy changes
+1. Add a second issue for `hybrid_additive` structured alignment
+2. Update demo documentation to show unstructured-only usefulness before structured ingest
+3. Add a follow-on retrieval design note if cluster-aware retrieval introduces material answer-policy changes
+
+---
+
+## 14) Phase 1 implementation notes
+
+Phase 1 has been implemented in the following modules:
+
+### `demo/stages/entity_resolution.py`
+
+- The `_resolve_mention()` helper now returns `resolution_method = "label_cluster"` (replacing the
+  former `"unresolved"` placeholder) for every mention that does not match a `CanonicalEntity`.
+- `_write_resolution_results()` creates a `:ResolvedEntityCluster` node for each unique
+  `normalized_text` value in the unresolved set, using `MERGE` so that clusters are
+  **additive across runs** (the same normalized text always maps to the same cluster node).
+- Each `:EntityMention` in the unresolved set receives a `MEMBER_OF` edge to its cluster carrying
+  the required metadata:
+  - `score` — membership confidence (1.0 for deterministic label matching)
+  - `method` — `"label_cluster"`
+  - `resolver_version` — value of `_CLUSTER_VERSION` constant
+  - `run_id` — the run that created the membership link
+  - `status` — `"accepted"` for high-confidence label-cluster assignments
+- The run summary dict now includes `clusters_created` (count of unique clusters created or
+  merged in this run) and `cluster_version`.
+- A `_CLUSTER_VERSION` module constant (currently `"v1.0"`) is bumped independently of
+  `_RESOLVER_VERSION` so that cluster-membership edges can be distinguished by the version that
+  created them.
+
+### `demo/contracts/claim_schema.py`
+
+- Added the `ResolvedEntityCluster` `NodeType` to `claim_extraction_schema()` with documented
+  properties: `cluster_id`, `canonical_name`, `normalized_text`, `resolver_version`, `created_at`.
+- Added `MEMBER_OF` and `ALIGNED_WITH` `RelationshipType` entries to the schema so that the
+  extraction pipeline's graph model is aware of both provisional-resolution relationships.
+
+### Graph model (Phase 1)
+
+```
+(:EntityMention)-[:MENTIONED_IN]->(:Chunk)
+(:ExtractedClaim)-[:SUPPORTED_BY]->(:Chunk)
+(:ExtractedClaim)-[:MENTIONS]->(:EntityMention)
+(:EntityMention)-[:RESOLVES_TO]->(:CanonicalEntity)   ← structured match
+(:EntityMention)-[:MEMBER_OF]->(:ResolvedEntityCluster) ← provisional cluster
+(:ResolvedEntityCluster)-[:ALIGNED_WITH]->(:CanonicalEntity) ← future Phase 3
+```
+
+### What is not yet implemented (Phases 2–5)
+
+- `unstructured_only` / `hybrid_additive` explicit mode flags on `run_entity_resolution()`.
+- Fuzzy lexical or semantic similarity clustering (Phase 2 resolution methods).
+- `ALIGNED_WITH` edge creation from `ResolvedEntityCluster` → `CanonicalEntity` (Phase 3).
+- Cluster-aware retrieval and Q&A traversal (Phase 4).
+- Review-required threshold bands and audit workflow (Phase 5).

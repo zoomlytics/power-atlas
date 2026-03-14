@@ -2,7 +2,9 @@
 
 Reads :EntityMention nodes (scoped to a ``run_id``) from Neo4j and performs
 deterministic, non-destructive resolution to :CanonicalEntity nodes.
-Mentions that cannot be resolved are linked to :UnresolvedEntity nodes instead.
+Mentions that cannot be resolved are grouped by their normalized text into
+:ResolvedEntityCluster provisional cluster nodes and linked via :MEMBER_OF
+edges instead.
 
 Resolution strategies (applied in priority order):
 
@@ -11,13 +13,21 @@ Resolution strategies (applied in priority order):
 2. **label_exact** — ``normalized(mention.name) == normalized(canonical.name)``.
 3. **alias_exact** — ``normalized(mention.name)`` appears in the
    ``canonical.aliases`` string (pipe-separated or comma-separated list).
+4. **label_cluster** — no canonical match found; mention is grouped with other
+   mentions sharing the same normalized text into a :ResolvedEntityCluster.
 
 All resolution is **non-destructive**: existing nodes are never mutated;
-only ``RESOLVES_TO`` relationship edges are added/updated.
+only ``RESOLVES_TO`` and ``MEMBER_OF`` relationship edges are added/updated.
+
+Graph model
+-----------
+* ``(:EntityMention)-[:RESOLVES_TO]->(:CanonicalEntity)``   — structured match
+* ``(:EntityMention)-[:MEMBER_OF]->(:ResolvedEntityCluster)`` — provisional cluster
+* ``(:ResolvedEntityCluster)-[:ALIGNED_WITH]->(:CanonicalEntity)`` — future alignment
 
 Artifacts written to ``runs/<run_id>/entity_resolution/``:
 - ``entity_resolution_summary.json`` — counts, breakdown, resolver metadata.
-- ``unresolved_mentions.json``        — list of unresolved mentions for follow-up.
+- ``unresolved_mentions.json``        — list of clustered (unresolved) mentions.
 """
 from __future__ import annotations
 
@@ -30,6 +40,11 @@ from typing import Any
 # so that RESOLVES_TO edges in the graph can be distinguished by the version that
 # created them (e.g. when re-running resolution after a strategy upgrade).
 _RESOLVER_VERSION = "v1.0"
+
+# Bump this constant whenever cluster-assignment logic changes so that MEMBER_OF
+# edges can be distinguished by the version that created them.
+_CLUSTER_VERSION = "v1.0"
+
 _QID_PATTERN = re.compile(r"^Q\d+$")
 
 
@@ -98,12 +113,13 @@ def _resolve_mention(
                 "resolved": True,
             }
         # Name looks like a QID but no canonical QID match exists:
-        # treat as unresolved instead of falling through to label/alias strategies.
+        # treat as a provisional cluster rather than falling through to
+        # label/alias strategies.
         return {
             "mention_id": mention["mention_id"],
             "normalized_text": normalized,
             "mention_name": name,
-            "resolution_method": "unresolved",
+            "resolution_method": "label_cluster",
             "resolution_confidence": 0.0,
             "candidate_ids": [],
             "resolved": False,
@@ -135,12 +151,12 @@ def _resolve_mention(
             "resolved": True,
         }
 
-    # Unresolved
+    # Strategy 4: label_cluster — group into a provisional ResolvedEntityCluster
     return {
         "mention_id": mention["mention_id"],
         "normalized_text": normalized,
         "mention_name": name,
-        "resolution_method": "unresolved",
+        "resolution_method": "label_cluster",
         "resolution_confidence": 0.0,
         "candidate_ids": [],
         "resolved": False,
@@ -156,7 +172,16 @@ def _write_resolution_results(
     unresolved_rows: list[dict[str, Any]],
     neo4j_database: str,
 ) -> None:
-    """Persist RESOLVES_TO edges and UnresolvedEntity nodes to Neo4j."""
+    """Persist RESOLVES_TO edges and ResolvedEntityCluster nodes to Neo4j.
+
+    Resolved mentions receive a ``RESOLVES_TO`` edge pointing at the matched
+    :CanonicalEntity.
+
+    Unresolved mentions are grouped by their ``normalized_text`` into
+    :ResolvedEntityCluster nodes.  Each mention receives a ``MEMBER_OF`` edge
+    carrying the required provenance metadata: ``score``, ``method``,
+    ``resolver_version``, ``run_id``, and ``status``.
+    """
     if resolved_rows:
         driver.execute_query(
             """
@@ -179,24 +204,43 @@ def _write_resolution_results(
         )
 
     if unresolved_rows:
+        created_at = datetime.now(UTC).isoformat()
+        # Build per-mention rows for the cluster MERGE + MEMBER_OF edge.
+        cluster_rows = [
+            {
+                "mention_id": row["mention_id"],
+                "cluster_id": f"cluster::{row['normalized_text']}",
+                "canonical_name": row["mention_name"],
+                "normalized_text": row["normalized_text"],
+                "score": 1.0,
+                "method": "label_cluster",
+                "status": "accepted",
+            }
+            for row in unresolved_rows
+        ]
         driver.execute_query(
             """
             UNWIND $rows AS row
-            MERGE (unresolved:UnresolvedEntity {normalized_text: row.normalized_text})
-            ON CREATE SET unresolved.source_uri = $source_uri
-            WITH row, unresolved
+            MERGE (cluster:ResolvedEntityCluster {cluster_id: row.cluster_id})
+            ON CREATE SET
+                cluster.canonical_name  = row.canonical_name,
+                cluster.normalized_text = row.normalized_text,
+                cluster.resolver_version = $resolver_version,
+                cluster.created_at = $created_at
+            WITH row, cluster
             MATCH (mention:EntityMention {mention_id: row.mention_id, run_id: $run_id})
-            MERGE (mention)-[r:RESOLVES_TO]->(unresolved)
-            SET r.run_id = $run_id,
-                r.source_uri = $source_uri,
-                r.resolution_method = 'unresolved',
-                r.resolution_confidence = 0.0,
-                r.candidate_ids = []
+            MERGE (mention)-[r:MEMBER_OF]->(cluster)
+            SET r.score            = row.score,
+                r.method           = row.method,
+                r.resolver_version = $resolver_version,
+                r.run_id           = $run_id,
+                r.status           = row.status
             """,
             parameters_={
-                "rows": unresolved_rows,
+                "rows": cluster_rows,
                 "run_id": run_id,
-                "source_uri": source_uri,
+                "resolver_version": _CLUSTER_VERSION,
+                "created_at": created_at,
             },
             database_=neo4j_database,
         )
@@ -233,9 +277,11 @@ def run_entity_resolution(
             "source_uri": source_uri,
             "resolver_method": "exact_match",
             "resolver_version": _RESOLVER_VERSION,
+            "cluster_version": _CLUSTER_VERSION,
             "mentions_total": 0,
             "resolved": 0,
             "unresolved": 0,
+            "clusters_created": 0,
             "resolution_breakdown": {},
             "warnings": ["entity resolution skipped in dry_run mode"],
         }
@@ -313,7 +359,7 @@ def run_entity_resolution(
             else:
                 unresolved_rows.append(result_rec)
 
-        # 4. Write RESOLVES_TO edges and UnresolvedEntity nodes.
+        # 4. Write RESOLVES_TO edges and ResolvedEntityCluster nodes.
         _write_resolution_results(
             driver,
             run_id=run_id,
@@ -329,10 +375,14 @@ def run_entity_resolution(
             "mention_id": row["mention_id"],
             "mention_name": row["mention_name"],
             "normalized_text": row["normalized_text"],
+            "cluster_id": f"cluster::{row['normalized_text']}",
         }
         for row in unresolved_rows
     ]
     unresolved_path.write_text(json.dumps(unresolved_list, indent=2), encoding="utf-8")
+
+    # Count unique clusters (one cluster per unique normalized_text value).
+    clusters_created = len({row["normalized_text"] for row in unresolved_rows})
 
     summary = {
         "status": "live",
@@ -340,10 +390,12 @@ def run_entity_resolution(
         "source_uri": source_uri,
         "resolver_method": "exact_match",
         "resolver_version": _RESOLVER_VERSION,
+        "cluster_version": _CLUSTER_VERSION,
         "resolved_at": resolved_at,
         "mentions_total": len(mentions),
         "resolved": len(resolved_rows),
         "unresolved": len(unresolved_rows),
+        "clusters_created": clusters_created,
         "resolution_breakdown": resolution_breakdown,
         "entity_resolution_summary_path": str(summary_path),
         "unresolved_mentions_path": str(unresolved_path),
@@ -353,4 +405,4 @@ def run_entity_resolution(
     return summary
 
 
-__all__ = ["run_entity_resolution"]
+__all__ = ["run_entity_resolution", "_CLUSTER_VERSION"]
