@@ -549,10 +549,17 @@ Phase 1 has been implemented in the following modules:
 (:ResolvedEntityCluster)-[:ALIGNED_WITH]->(:CanonicalEntity) ← future Phase 3
 ```
 
+### What is implemented (Phase 1 + `unstructured_only`)
+
+- `unstructured_only` resolution mode flag on `run_entity_resolution()` and `Config`.
+- `--resolution-mode` CLI argument on the `resolve-entities` command.
+- Matching pipeline in `unstructured_only` mode: normalized exact, abbreviation/initialism, basic fuzzy (difflib).
+- `ResolvedEntityCluster` nodes and `MEMBER_OF` edges persist provisional clusters; summary metrics emitted.
+
 ### What is not yet implemented (Phases 2–5)
 
-- `unstructured_only` / `hybrid_additive` explicit mode flags on `run_entity_resolution()`.
-- Fuzzy lexical or semantic similarity clustering (Phase 2 resolution methods).
+- `hybrid_additive` explicit mode flag on `run_entity_resolution()`.
+- Advanced fuzzy lexical or semantic similarity clustering (Phase 2 resolution methods).
 - `ALIGNED_WITH` edge creation from `ResolvedEntityCluster` → `CanonicalEntity` (Phase 3).
 - Cluster-aware retrieval and Q&A traversal (Phase 4).
 - Review-required threshold bands and audit workflow (Phase 5).

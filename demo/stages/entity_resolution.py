@@ -6,7 +6,7 @@ Mentions that cannot be resolved are grouped by their normalized text into
 :ResolvedEntityCluster provisional cluster nodes and linked via :MEMBER_OF
 edges instead.
 
-Resolution strategies (applied in priority order):
+Resolution strategies applied in priority order (``structured_anchor`` mode):
 
 1. **qid_exact**   — mention ``name`` matches ``^Q\\d+$``; MATCH
    ``CanonicalEntity {entity_id: name}``.
@@ -15,6 +15,17 @@ Resolution strategies (applied in priority order):
    ``canonical.aliases`` string (pipe-separated or comma-separated list).
 4. **label_cluster** — no canonical match found; mention is grouped with other
    mentions sharing the same normalized text into a :ResolvedEntityCluster.
+
+Resolution strategies applied in priority order (``unstructured_only`` mode):
+
+1. **normalized_exact** — mentions sharing the same normalized text are
+   clustered together.
+2. **abbreviation** — a mention that is an initialism of another mention's
+   normalized text is placed in that mention's cluster.
+3. **fuzzy** — mentions whose normalized texts are sufficiently similar
+   (difflib SequenceMatcher ratio ≥ 0.85) are placed in the same cluster.
+4. **label_cluster** — fallback; mention is grouped in a singleton cluster
+   keyed by its own normalized text.
 
 All resolution is **non-destructive**: existing nodes are never mutated;
 only ``RESOLVES_TO`` and ``MEMBER_OF`` relationship edges are added/updated.
@@ -34,6 +45,7 @@ from __future__ import annotations
 import json
 import re
 from datetime import UTC, datetime
+from difflib import SequenceMatcher
 from typing import Any
 
 # Bump this constant whenever the resolution strategies or scoring logic change
@@ -46,6 +58,14 @@ _RESOLVER_VERSION = "v1.0"
 _CLUSTER_VERSION = "v1.0"
 
 _QID_PATTERN = re.compile(r"^Q\d+$")
+
+# Supported resolution mode identifiers.
+_RESOLUTION_MODE_STRUCTURED_ANCHOR = "structured_anchor"
+_RESOLUTION_MODE_UNSTRUCTURED_ONLY = "unstructured_only"
+_VALID_RESOLUTION_MODES = frozenset({
+    _RESOLUTION_MODE_STRUCTURED_ANCHOR,
+    _RESOLUTION_MODE_UNSTRUCTURED_ONLY,
+})
 
 
 def _normalize(text: str) -> str:
@@ -87,6 +107,153 @@ def _build_lookup_tables(
                 by_alias[alias] = row
 
     return by_qid, by_label, by_alias
+
+
+# ---------------------------------------------------------------------------
+# Helpers for unstructured_only resolution
+# ---------------------------------------------------------------------------
+
+# Common articles/prepositions that are typically skipped when forming initialisms.
+_INITIALISM_STOP_WORDS = frozenset({"of", "the", "and", "for", "in", "on", "at", "to", "a", "an"})
+
+
+def _is_abbreviation(short: str, long_form: str) -> bool:
+    """Return True if *short* looks like an initialism of *long_form*.
+
+    Example: "fbi" is an initialism of "federal bureau of investigation"
+    (skipping the stop word "of").  Both inputs must already be normalized
+    (lowercased, stripped).
+    """
+    words = long_form.split()
+    if len(words) < 2:
+        return False
+    # Build initials from significant words only (skip common stop words).
+    significant = [w for w in words if w and w not in _INITIALISM_STOP_WORDS]
+    if len(significant) < 2:
+        return False
+    initials = "".join(w[0] for w in significant)
+    return bool(short) and short == initials
+
+
+def _fuzzy_ratio(a: str, b: str) -> float:
+    """Return the SequenceMatcher similarity ratio for two strings."""
+    return SequenceMatcher(None, a, b).ratio()
+
+
+def _cluster_mentions_unstructured_only(
+    mentions: list[dict[str, Any]],
+    *,
+    fuzzy_threshold: float = 0.85,
+) -> list[dict[str, Any]]:
+    """Cluster *mentions* against each other without relying on canonical entities.
+
+    Strategies applied in priority order:
+
+    1. **normalized_exact** — identical normalized text → same cluster.
+    2. **abbreviation** — a mention that is an initialism of another's text is
+       placed into that mention's cluster.
+    3. **fuzzy** — mentions with SequenceMatcher ratio ≥ *fuzzy_threshold* are
+       placed in the same cluster as the first sufficiently similar mention.
+    4. **label_cluster** — fallback; singleton cluster keyed by the mention's
+       own normalized text.
+
+    Returns a list of dicts with the same shape as the ``unresolved_rows``
+    produced by :func:`_resolve_mention` (``mention_id``, ``mention_name``,
+    ``normalized_text``, ``resolution_method``, ``resolution_confidence``).
+    """
+    # Canonical cluster text for each mention: maps mention_id → canonical_text
+    # (the normalized text that will be used as the cluster key).
+    mention_to_cluster: dict[str, str] = {}
+    # All unique normalized texts seen so far (in insertion order), used as
+    # cluster representatives for fuzzy / abbreviation look-ups.
+    seen_texts: list[str] = []
+    # Map from normalized_text → resolution_method that assigned it as a cluster rep
+    seen_method: dict[str, str] = {}
+
+    for mention in mentions:
+        name = (mention.get("name") or "").strip()
+        normalized = _normalize(name)
+
+        # Strategy 1: normalized_exact — if we've already seen this exact text,
+        # assign to the existing cluster representative.
+        if normalized in seen_method:
+            mention_to_cluster[mention["mention_id"]] = normalized
+            # The method recorded on this mention's row is "normalized_exact".
+            continue
+
+        # Strategy 2: abbreviation — check if this mention is an initialism of
+        # any existing cluster representative, or vice versa.
+        abbrev_target: str | None = None
+        for existing in seen_texts:
+            if _is_abbreviation(normalized, existing) or _is_abbreviation(existing, normalized):
+                # Use the existing representative as the cluster key.
+                # The existing representative was registered first and is already
+                # used as the key for any prior mentions in that cluster.
+                abbrev_target = existing
+                break
+        if abbrev_target is not None:
+            mention_to_cluster[mention["mention_id"]] = abbrev_target
+            continue
+
+        # Strategy 3: fuzzy — find the first existing representative that is
+        # similar enough.
+        fuzzy_target: str | None = None
+        for existing in seen_texts:
+            if _fuzzy_ratio(normalized, existing) >= fuzzy_threshold:
+                fuzzy_target = existing
+                break
+        if fuzzy_target is not None:
+            mention_to_cluster[mention["mention_id"]] = fuzzy_target
+            continue
+
+        # Strategy 4: label_cluster fallback — new cluster keyed by own text.
+        seen_texts.append(normalized)
+        seen_method[normalized] = "label_cluster"
+        mention_to_cluster[mention["mention_id"]] = normalized
+
+    # Build result rows.
+    # Determine per-mention resolution_method:
+    # - "normalized_exact" if the cluster key was already seen before this mention
+    # - "abbreviation" if it matched an existing representative by initialism
+    # - "fuzzy" if it matched by fuzzy ratio
+    # - "label_cluster" if it became its own cluster representative
+
+    # Re-derive the method per mention by re-walking the assignments.
+    # We track which mention introduced each cluster key.
+    first_introducer: dict[str, str] = {}  # cluster_key → mention_id of introducer
+    result_rows: list[dict[str, Any]] = []
+
+    for mention in mentions:
+        name = (mention.get("name") or "").strip()
+        normalized = _normalize(name)
+        cluster_key = mention_to_cluster[mention["mention_id"]]
+
+        if cluster_key not in first_introducer:
+            first_introducer[cluster_key] = mention["mention_id"]
+            # This mention introduced the cluster.
+            method = "label_cluster"
+            confidence = 0.0
+        elif cluster_key == normalized:
+            # Same normalized text as the cluster key → normalized_exact.
+            method = "normalized_exact"
+            confidence = 1.0
+        elif _is_abbreviation(normalized, cluster_key) or _is_abbreviation(cluster_key, normalized):
+            method = "abbreviation"
+            confidence = 0.75
+        else:
+            method = "fuzzy"
+            confidence = _fuzzy_ratio(normalized, cluster_key)
+
+        result_rows.append({
+            "mention_id": mention["mention_id"],
+            "mention_name": name,
+            "normalized_text": cluster_key,
+            "resolution_method": method,
+            "resolution_confidence": confidence,
+            "resolved": False,
+        })
+
+    return result_rows
 
 
 def _resolve_mention(
@@ -254,18 +421,32 @@ def run_entity_resolution(
     *,
     run_id: str,
     source_uri: str | None,
+    resolution_mode: str | None = None,
 ) -> dict[str, Any]:
     """Resolve :EntityMention nodes (scoped to *run_id*) to canonical entities.
 
     Args:
-        config:     :class:`~demo.contracts.runtime.Config`.
-        run_id:     The run_id whose EntityMention nodes are to be resolved.
-                    Must match the run_id used during PDF ingest / claim extraction.
-        source_uri: Provenance URI for the source document.
+        config:          :class:`~demo.contracts.runtime.Config`.
+        run_id:          The run_id whose EntityMention nodes are to be resolved.
+                         Must match the run_id used during PDF ingest / claim extraction.
+        source_uri:      Provenance URI for the source document.
+        resolution_mode: One of ``"structured_anchor"`` (default) or
+                         ``"unstructured_only"``.  When ``None`` the value is
+                         read from ``config.resolution_mode`` (if present) and
+                         falls back to ``"structured_anchor"``.
 
     Returns:
         A summary dict with counts, resolution breakdown, and artifact paths.
     """
+    # Resolve the effective mode: explicit arg > config attribute > default.
+    if resolution_mode is None:
+        resolution_mode = getattr(config, "resolution_mode", _RESOLUTION_MODE_STRUCTURED_ANCHOR) or _RESOLUTION_MODE_STRUCTURED_ANCHOR
+    if resolution_mode not in _VALID_RESOLUTION_MODES:
+        raise ValueError(
+            f"Unknown resolution_mode {resolution_mode!r}. "
+            f"Valid modes: {sorted(_VALID_RESOLUTION_MODES)}"
+        )
+
     resolved_at = datetime.now(UTC).isoformat()
     run_root = config.output_dir / "runs" / run_id
     resolution_dir = run_root / "entity_resolution"
@@ -274,11 +455,17 @@ def run_entity_resolution(
     unresolved_path = resolution_dir / "unresolved_mentions.json"
 
     if config.dry_run:
+        resolver_method = (
+            "unstructured_clustering"
+            if resolution_mode == _RESOLUTION_MODE_UNSTRUCTURED_ONLY
+            else "canonical_exact_match"
+        )
         summary: dict[str, Any] = {
             "status": "dry_run",
             "run_id": run_id,
             "source_uri": source_uri,
-            "resolver_method": "exact_match",
+            "resolution_mode": resolution_mode,
+            "resolver_method": resolver_method,
             "resolver_version": _RESOLVER_VERSION,
             "cluster_version": _CLUSTER_VERSION,
             "mentions_total": 0,
@@ -321,48 +508,56 @@ def run_entity_resolution(
             for record in mention_result
         ]
 
-        # 2. Read all CanonicalEntity nodes (cross-run; resolution is non-destructive).
-        canonical_result, _, _ = driver.execute_query(
-            """
-            MATCH (canonical:CanonicalEntity)
-            RETURN canonical.entity_id AS entity_id,
-                   canonical.run_id AS run_id,
-                   canonical.name AS name,
-                   canonical.aliases AS aliases
-            ORDER BY canonical.entity_id
-            """,
-            parameters_={},
-            database_=config.neo4j_database,
-            routing_=neo4j.RoutingControl.READ,
-        )
-        canonical_nodes = [
-            {
-                "entity_id": record["entity_id"] or "",
-                "run_id": record["run_id"] or "",
-                "name": record["name"] or "",
-                "aliases": record["aliases"],
-            }
-            for record in canonical_result
-        ]
-
-        # 3. Build lookup tables and resolve each mention.
-        by_qid, by_label, by_alias = _build_lookup_tables(canonical_nodes)
-
         resolved_rows: list[dict[str, Any]] = []
         unresolved_rows: list[dict[str, Any]] = []
         resolution_breakdown: dict[str, int] = {}
 
-        for mention in mentions:
-            result_rec = _resolve_mention(mention, by_qid, by_label, by_alias)
-            method = result_rec["resolution_method"]
-            resolution_breakdown[method] = resolution_breakdown.get(method, 0) + 1
+        if resolution_mode == _RESOLUTION_MODE_UNSTRUCTURED_ONLY:
+            # 2a. unstructured_only: cluster mentions against each other.
+            #     No CanonicalEntity lookup is performed.
+            cluster_rows_result = _cluster_mentions_unstructured_only(mentions)
+            for row in cluster_rows_result:
+                method = row["resolution_method"]
+                resolution_breakdown[method] = resolution_breakdown.get(method, 0) + 1
+                unresolved_rows.append(row)
+        else:
+            # 2b. structured_anchor (default): resolve against CanonicalEntity nodes.
+            canonical_result, _, _ = driver.execute_query(
+                """
+                MATCH (canonical:CanonicalEntity)
+                RETURN canonical.entity_id AS entity_id,
+                       canonical.run_id AS run_id,
+                       canonical.name AS name,
+                       canonical.aliases AS aliases
+                ORDER BY canonical.entity_id
+                """,
+                parameters_={},
+                database_=config.neo4j_database,
+                routing_=neo4j.RoutingControl.READ,
+            )
+            canonical_nodes = [
+                {
+                    "entity_id": record["entity_id"] or "",
+                    "run_id": record["run_id"] or "",
+                    "name": record["name"] or "",
+                    "aliases": record["aliases"],
+                }
+                for record in canonical_result
+            ]
 
-            if result_rec["resolved"]:
-                resolved_rows.append(result_rec)
-            else:
-                unresolved_rows.append(result_rec)
+            by_qid, by_label, by_alias = _build_lookup_tables(canonical_nodes)
 
-        # 4. Write RESOLVES_TO edges and ResolvedEntityCluster nodes.
+            for mention in mentions:
+                result_rec = _resolve_mention(mention, by_qid, by_label, by_alias)
+                method = result_rec["resolution_method"]
+                resolution_breakdown[method] = resolution_breakdown.get(method, 0) + 1
+
+                if result_rec["resolved"]:
+                    resolved_rows.append(result_rec)
+                else:
+                    unresolved_rows.append(result_rec)
+
+        # 3. Write RESOLVES_TO edges and ResolvedEntityCluster nodes.
         _write_resolution_results(
             driver,
             run_id=run_id,
@@ -372,7 +567,7 @@ def run_entity_resolution(
             neo4j_database=config.neo4j_database,
         )
 
-    # 5. Write artifacts.
+    # 4. Write artifacts.
     unresolved_list = [
         {
             "mention_id": row["mention_id"],
@@ -387,11 +582,17 @@ def run_entity_resolution(
     # Count unique clusters (one cluster per unique normalized_text value).
     clusters_created = len({row["normalized_text"] for row in unresolved_rows})
 
+    live_resolver_method = (
+        "unstructured_clustering"
+        if resolution_mode == _RESOLUTION_MODE_UNSTRUCTURED_ONLY
+        else "canonical_exact_match"
+    )
     summary = {
         "status": "live",
         "run_id": run_id,
         "source_uri": source_uri,
-        "resolver_method": "exact_match",
+        "resolution_mode": resolution_mode,
+        "resolver_method": live_resolver_method,
         "resolver_version": _RESOLVER_VERSION,
         "cluster_version": _CLUSTER_VERSION,
         "resolved_at": resolved_at,
@@ -408,4 +609,12 @@ def run_entity_resolution(
     return summary
 
 
-__all__ = ["run_entity_resolution"]
+__all__ = [
+    "run_entity_resolution",
+    "_RESOLUTION_MODE_STRUCTURED_ANCHOR",
+    "_RESOLUTION_MODE_UNSTRUCTURED_ONLY",
+    "_VALID_RESOLUTION_MODES",
+    "_cluster_mentions_unstructured_only",
+    "_is_abbreviation",
+    "_fuzzy_ratio",
+]

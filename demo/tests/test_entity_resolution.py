@@ -11,7 +11,11 @@ from unittest.mock import MagicMock, patch
 from demo.contracts.runtime import Config
 from demo.stages.entity_resolution import (
     _CLUSTER_VERSION,
+    _RESOLUTION_MODE_UNSTRUCTURED_ONLY,
     _build_lookup_tables,
+    _cluster_mentions_unstructured_only,
+    _fuzzy_ratio,
+    _is_abbreviation,
     _normalize,
     _resolve_mention,
     _split_aliases,
@@ -731,6 +735,264 @@ class TestResolvedEntityCluster(unittest.TestCase):
                 any("ResolvedEntityCluster" in call for call in cypher_calls),
                 "Expected a Cypher call containing ResolvedEntityCluster for unresolved mentions",
             )
+
+
+class TestIsAbbreviation(unittest.TestCase):
+    def test_initialism_match(self):
+        self.assertTrue(_is_abbreviation("fbi", "federal bureau of investigation"))
+
+    def test_initialism_mismatch(self):
+        self.assertFalse(_is_abbreviation("cia", "federal bureau of investigation"))
+
+    def test_single_word_long_form_returns_false(self):
+        self.assertFalse(_is_abbreviation("f", "fbi"))
+
+    def test_empty_short_returns_false(self):
+        self.assertFalse(_is_abbreviation("", "federal bureau of investigation"))
+
+    def test_reverse_abbreviation_detected(self):
+        self.assertTrue(_is_abbreviation("fbi", "federal bureau of investigation"))
+
+
+class TestFuzzyRatio(unittest.TestCase):
+    def test_identical_strings_return_one(self):
+        self.assertAlmostEqual(_fuzzy_ratio("alice", "alice"), 1.0)
+
+    def test_completely_different_returns_low(self):
+        ratio = _fuzzy_ratio("alice", "xyz")
+        self.assertLess(ratio, 0.5)
+
+    def test_similar_strings_return_high(self):
+        ratio = _fuzzy_ratio("alice smith", "alice smyth")
+        self.assertGreater(ratio, 0.85)
+
+
+class TestClusterMentionsUnstructuredOnly(unittest.TestCase):
+    """Tests for _cluster_mentions_unstructured_only."""
+
+    def test_empty_returns_empty(self):
+        result = _cluster_mentions_unstructured_only([])
+        self.assertEqual(result, [])
+
+    def test_single_mention_becomes_label_cluster(self):
+        mentions = [{"mention_id": "m1", "name": "Alice"}]
+        result = _cluster_mentions_unstructured_only(mentions)
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["resolution_method"], "label_cluster")
+        self.assertEqual(result[0]["normalized_text"], "alice")
+
+    def test_same_normalized_text_shares_cluster(self):
+        mentions = [
+            {"mention_id": "m1", "name": "Alice"},
+            {"mention_id": "m2", "name": "alice"},
+        ]
+        result = _cluster_mentions_unstructured_only(mentions)
+        self.assertEqual(len(result), 2)
+        cluster_keys = {r["normalized_text"] for r in result}
+        self.assertEqual(len(cluster_keys), 1, "Both mentions should share one cluster key")
+
+    def test_normalized_exact_method_for_duplicate(self):
+        mentions = [
+            {"mention_id": "m1", "name": "Bob Corp"},
+            {"mention_id": "m2", "name": "Bob Corp"},
+        ]
+        result = _cluster_mentions_unstructured_only(mentions)
+        methods = [r["resolution_method"] for r in result]
+        self.assertIn("label_cluster", methods)
+        self.assertIn("normalized_exact", methods)
+
+    def test_abbreviation_clusters_with_long_form(self):
+        mentions = [
+            {"mention_id": "m1", "name": "Federal Bureau of Investigation"},
+            {"mention_id": "m2", "name": "fbi"},
+        ]
+        result = _cluster_mentions_unstructured_only(mentions)
+        self.assertEqual(len(result), 2)
+        cluster_keys = {r["normalized_text"] for r in result}
+        self.assertEqual(len(cluster_keys), 1, "Abbreviation should map to long-form cluster")
+        abbrev_row = next(r for r in result if r["mention_id"] == "m2")
+        self.assertEqual(abbrev_row["resolution_method"], "abbreviation")
+
+    def test_fuzzy_similar_names_share_cluster(self):
+        mentions = [
+            {"mention_id": "m1", "name": "Alice Smith"},
+            {"mention_id": "m2", "name": "Alice Smyth"},
+        ]
+        result = _cluster_mentions_unstructured_only(mentions)
+        cluster_keys = {r["normalized_text"] for r in result}
+        self.assertEqual(len(cluster_keys), 1, "Fuzzy-similar names should share one cluster")
+        fuzzy_row = next(r for r in result if r["mention_id"] == "m2")
+        self.assertEqual(fuzzy_row["resolution_method"], "fuzzy")
+
+    def test_distinct_names_produce_separate_clusters(self):
+        mentions = [
+            {"mention_id": "m1", "name": "Alice"},
+            {"mention_id": "m2", "name": "Bob"},
+            {"mention_id": "m3", "name": "Charlie"},
+        ]
+        result = _cluster_mentions_unstructured_only(mentions)
+        cluster_keys = {r["normalized_text"] for r in result}
+        self.assertEqual(len(cluster_keys), 3)
+
+    def test_all_rows_have_resolved_false(self):
+        mentions = [
+            {"mention_id": "m1", "name": "Alice"},
+            {"mention_id": "m2", "name": "Bob"},
+        ]
+        result = _cluster_mentions_unstructured_only(mentions)
+        for row in result:
+            self.assertFalse(row["resolved"])
+
+
+class TestRunEntityResolutionUnstructuredOnly(unittest.TestCase):
+    """Tests for run_entity_resolution with resolution_mode='unstructured_only'."""
+
+    def _live_config(self, tmp_path: Path) -> Config:
+        return Config(
+            dry_run=False,
+            output_dir=tmp_path,
+            neo4j_uri="bolt://example.invalid",
+            neo4j_username="neo4j",
+            neo4j_password="secret",
+            neo4j_database="neo4j",
+            openai_model="test-model",
+            resolution_mode=_RESOLUTION_MODE_UNSTRUCTURED_ONLY,
+        )
+
+    def _make_driver(self, mentions: list[dict[str, Any]]) -> MagicMock:
+        return _make_neo4j_test_driver(mentions, [])
+
+    def test_dry_run_mode_in_summary(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = Config(
+                dry_run=True,
+                output_dir=Path(tmpdir),
+                neo4j_uri="bolt://example.invalid",
+                neo4j_username="neo4j",
+                neo4j_password="not-used",
+                neo4j_database="neo4j",
+                openai_model="test-model",
+                resolution_mode=_RESOLUTION_MODE_UNSTRUCTURED_ONLY,
+            )
+            result = run_entity_resolution(config, run_id="test-uo-dry", source_uri=None)
+            self.assertEqual(result["resolution_mode"], _RESOLUTION_MODE_UNSTRUCTURED_ONLY)
+
+    def test_live_no_canonical_lookup(self):
+        """unstructured_only should NOT query CanonicalEntity nodes."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config(Path(tmpdir))
+            mentions = [{"mention_id": "m1", "name": "Alice", "entity_type": "person"}]
+            driver = self._make_driver(mentions)
+
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                run_entity_resolution(config, run_id="run-uo-001", source_uri=None)
+
+            all_calls = [str(c) for c in driver.execute_query.call_args_list]
+            self.assertFalse(
+                any("CanonicalEntity" in call and "RETURN" in call for call in all_calls),
+                "unstructured_only mode must not query CanonicalEntity nodes",
+            )
+
+    def test_live_all_mentions_clustered(self):
+        """In unstructured_only mode all mentions end up in clusters (unresolved)."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config(Path(tmpdir))
+            mentions = [
+                {"mention_id": "m1", "name": "Alice", "entity_type": "person"},
+                {"mention_id": "m2", "name": "Bob", "entity_type": "person"},
+            ]
+            driver = self._make_driver(mentions)
+
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                result = run_entity_resolution(config, run_id="run-uo-002", source_uri=None)
+
+            self.assertEqual(result["resolved"], 0)
+            self.assertEqual(result["unresolved"], 2)
+            self.assertEqual(result["mentions_total"], 2)
+
+    def test_live_normalized_exact_reduces_clusters(self):
+        """Two mentions with the same normalized text -> one cluster."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config(Path(tmpdir))
+            mentions = [
+                {"mention_id": "m1", "name": "Alice", "entity_type": None},
+                {"mention_id": "m2", "name": "ALICE", "entity_type": None},
+            ]
+            driver = self._make_driver(mentions)
+
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                result = run_entity_resolution(config, run_id="run-uo-003", source_uri=None)
+
+            self.assertEqual(result["clusters_created"], 1)
+
+    def test_live_resolution_mode_in_summary(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config(Path(tmpdir))
+            driver = self._make_driver([])
+
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                result = run_entity_resolution(config, run_id="run-uo-004", source_uri=None)
+
+            self.assertEqual(result["resolution_mode"], _RESOLUTION_MODE_UNSTRUCTURED_ONLY)
+
+    def test_live_resolution_breakdown_no_structured_methods(self):
+        """Resolution breakdown should not contain qid_exact/label_exact/alias_exact."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config(Path(tmpdir))
+            mentions = [
+                {"mention_id": "m1", "name": "Widget Corp", "entity_type": None},
+                {"mention_id": "m2", "name": "Widget Corp.", "entity_type": None},
+            ]
+            driver = self._make_driver(mentions)
+
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                result = run_entity_resolution(config, run_id="run-uo-005", source_uri=None)
+
+            breakdown = result["resolution_breakdown"]
+            self.assertNotIn("qid_exact", breakdown)
+            self.assertNotIn("label_exact", breakdown)
+            self.assertNotIn("alias_exact", breakdown)
+
+    def test_explicit_arg_overrides_config_mode(self):
+        """resolution_mode kwarg overrides config.resolution_mode."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = Config(
+                dry_run=True,
+                output_dir=Path(tmpdir),
+                neo4j_uri="bolt://example.invalid",
+                neo4j_username="neo4j",
+                neo4j_password="not-used",
+                neo4j_database="neo4j",
+                openai_model="test-model",
+                resolution_mode="structured_anchor",
+            )
+            result = run_entity_resolution(
+                config,
+                run_id="run-uo-override",
+                source_uri=None,
+                resolution_mode=_RESOLUTION_MODE_UNSTRUCTURED_ONLY,
+            )
+            self.assertEqual(result["resolution_mode"], _RESOLUTION_MODE_UNSTRUCTURED_ONLY)
+
+    def test_invalid_resolution_mode_raises(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = Config(
+                dry_run=True,
+                output_dir=Path(tmpdir),
+                neo4j_uri="bolt://example.invalid",
+                neo4j_username="neo4j",
+                neo4j_password="not-used",
+                neo4j_database="neo4j",
+                openai_model="test-model",
+            )
+            with self.assertRaises(ValueError) as ctx:
+                run_entity_resolution(
+                    config,
+                    run_id="run-uo-bad-mode",
+                    source_uri=None,
+                    resolution_mode="invalid_mode",
+                )
+            self.assertIn("invalid_mode", str(ctx.exception))
 
 
 if __name__ == "__main__":

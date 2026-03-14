@@ -16,6 +16,7 @@ class Config:
     neo4j_database: str
     openai_model: str
     question: str | None = None
+    resolution_mode: str = "structured_anchor"
 
 
 def timestamp() -> str:

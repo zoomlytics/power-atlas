@@ -79,6 +79,7 @@ def _build_config_from_args(args: argparse.Namespace) -> Config:
         neo4j_database=args.neo4j_database,
         openai_model=args.openai_model,
         question=getattr(args, "question", None),
+        resolution_mode=getattr(args, "resolution_mode", None) or "structured_anchor",
     )
 
 
@@ -140,6 +141,18 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                 default=False,
                 help="Required safety flag; without it the command prints instructions only",
             )
+        if command == "resolve-entities":
+            subparsers.choices[command].add_argument(
+                "--resolution-mode",
+                default=None,
+                dest="resolution_mode",
+                choices=["structured_anchor", "unstructured_only"],
+                help=(
+                    "Resolution mode: 'structured_anchor' (default) resolves mentions "
+                    "against CanonicalEntity nodes; 'unstructured_only' clusters mentions "
+                    "against each other without requiring structured ingest."
+                ),
+            )
     parser.set_defaults(command="ingest")
 
     options_with_values = {
@@ -151,6 +164,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--openai-model",
         "--question",
         "--run-id",
+        "--resolution-mode",
     }
     saw_dry_run_flag = False
     saw_live_flag = False
