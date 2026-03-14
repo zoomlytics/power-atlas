@@ -754,6 +754,18 @@ class TestIsAbbreviation(unittest.TestCase):
         # The long form is NOT an initialism of the abbreviation.
         self.assertFalse(_is_abbreviation("federal bureau of investigation", "fbi"))
 
+    def test_dotted_abbreviation_matches(self):
+        # "f.b.i." should normalize to "fbi" and match the long form.
+        self.assertTrue(_is_abbreviation("f.b.i.", "federal bureau of investigation"))
+
+    def test_trailing_punctuation_abbreviation_matches(self):
+        # "fbi," (common in extracted text) should still match.
+        self.assertTrue(_is_abbreviation("fbi,", "federal bureau of investigation"))
+
+    def test_uppercase_dotted_abbreviation_matches(self):
+        # Inputs are expected to be lowercased, but verify mixed punct is stripped.
+        self.assertTrue(_is_abbreviation("f.b.i", "federal bureau of investigation"))
+
 
 class TestFuzzyRatio(unittest.TestCase):
     def test_identical_strings_return_one(self):
@@ -862,6 +874,28 @@ class TestClusterMentionsUnstructuredOnly(unittest.TestCase):
         result = _cluster_mentions_unstructured_only(mentions)
         for row in result:
             self.assertFalse(row["resolved"])
+
+    def test_fuzzy_blocked_by_entity_type(self):
+        """Fuzzy matching must not cross entity_type boundaries."""
+        # "Alice Smith" (person) and "Alice Smyth" (org) are fuzzy-similar, but
+        # the entity_type blocking should prevent them from sharing a cluster.
+        mentions = [
+            {"mention_id": "m1", "name": "Alice Smith", "entity_type": "person"},
+            {"mention_id": "m2", "name": "Alice Smyth", "entity_type": "organization"},
+        ]
+        result = _cluster_mentions_unstructured_only(mentions)
+        cluster_keys = {r["normalized_text"] for r in result}
+        self.assertEqual(len(cluster_keys), 2, "Cross-type fuzzy match should be blocked")
+
+    def test_fuzzy_within_same_entity_type(self):
+        """Fuzzy matching works when entity_type matches."""
+        mentions = [
+            {"mention_id": "m1", "name": "Alice Smith", "entity_type": "person"},
+            {"mention_id": "m2", "name": "Alice Smyth", "entity_type": "person"},
+        ]
+        result = _cluster_mentions_unstructured_only(mentions)
+        cluster_keys = {r["normalized_text"] for r in result}
+        self.assertEqual(len(cluster_keys), 1, "Same-type fuzzy-similar names should cluster")
 
 
 class TestRunEntityResolutionUnstructuredOnly(unittest.TestCase):

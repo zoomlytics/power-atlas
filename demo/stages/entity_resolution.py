@@ -59,6 +59,11 @@ _CLUSTER_VERSION = "v1.1"
 
 _QID_PATTERN = re.compile(r"^Q\d+$")
 
+# Strips everything that is not a lowercase ASCII letter.  Used to normalize
+# abbreviated forms like "F.B.I." → "fbi" and "fbi," → "fbi" so that
+# _is_abbreviation() works on typical extracted text.
+_RE_NON_ALPHA = re.compile(r"[^a-z]")
+
 # Supported resolution mode identifiers.
 _RESOLUTION_MODE_STRUCTURED_ANCHOR = "structured_anchor"
 _RESOLUTION_MODE_UNSTRUCTURED_ONLY = "unstructured_only"
@@ -122,8 +127,12 @@ def _is_abbreviation(short: str, long_form: str) -> bool:
 
     Example: "fbi" is an initialism of "federal bureau of investigation"
     (skipping the stop word "of").  Both inputs must already be normalized
-    (lowercased, stripped).
+    (lowercased, stripped).  The *short* token is further stripped of
+    non-alphabetic characters so forms like ``"f.b.i."`` and ``"fbi,"``
+    still match the same initialism as ``"fbi"``.
     """
+    # Strip punctuation so "f.b.i." and "fbi," both reduce to "fbi".
+    short_alpha = _RE_NON_ALPHA.sub("", short)
     words = long_form.split()
     if len(words) < 2:
         return False
@@ -132,7 +141,7 @@ def _is_abbreviation(short: str, long_form: str) -> bool:
     if len(significant) < 2:
         return False
     initials = "".join(w[0] for w in significant)
-    return bool(short) and short == initials
+    return bool(short_alpha) and short_alpha == initials
 
 
 def _fuzzy_ratio(a: str, b: str) -> float:
@@ -167,32 +176,42 @@ def _cluster_mentions_unstructured_only(
     Strategies applied in priority order:
 
     1. **normalized_exact** — identical normalized text → same cluster.
-    2. **abbreviation** — a mention that is an initialism of another's text is
-       placed into that mention's cluster.
-    3. **fuzzy** — mentions with SequenceMatcher ratio ≥ *fuzzy_threshold* are
-       placed in the same cluster as the first sufficiently similar mention.
+    2. **abbreviation** — a mention that is an initialism of another mention's
+       normalized text (within the same ``entity_type``) is placed into that
+       mention's cluster.
+    3. **fuzzy** — mentions with SequenceMatcher ratio ≥ *fuzzy_threshold*
+       (within the same ``entity_type``) are placed in the same cluster as the
+       first sufficiently similar mention.
     4. **label_cluster** — fallback; singleton cluster keyed by the mention's
        own normalized text.
 
-    Returns a list of dicts with the same shape as the ``unresolved_rows``
-    produced by :func:`_resolve_mention` (``mention_id``, ``mention_name``,
-    ``normalized_text``, ``resolution_method``, ``resolution_confidence``).
+    Abbreviation and fuzzy comparisons are scoped to mentions sharing the same
+    ``entity_type`` value (including ``None``).  This acts as a cheap blocking
+    step that avoids cross-type spurious matches and keeps the comparison set
+    small even for large runs.
+
+    Returns a list of dicts with keys: ``mention_id``, ``mention_name``,
+    ``normalized_text``, ``resolution_method``, ``resolution_confidence``,
+    and ``resolved`` (always ``False``).
     """
     # mention_id → cluster key (normalized text used as the cluster representative).
     mention_to_cluster: dict[str, str] = {}
     # mention_id → (resolution_method, resolution_confidence) tracked during pass 1
     # so that re-keying can update methods without a second derivation pass.
     mention_to_method: dict[str, tuple[str, float]] = {}
-    # All unique cluster-key texts seen so far (in insertion order), used as
-    # cluster representatives for fuzzy / abbreviation look-ups.
-    seen_texts: list[str] = []
-    # Set of cluster keys currently registered (for O(1) membership check).
+    # All unique cluster keys (type-agnostic, for O(1) normalized_exact check).
     seen_keys: set[str] = set()
+    # entity_type → ordered list of cluster-representative texts.
+    # Abbreviation and fuzzy comparisons are scoped to the same entity_type so
+    # that only mentions of the same type compete (cheap blocking step).
+    seen_texts_by_type: dict[str | None, list[str]] = {}
 
     for mention in mentions:
         name = (mention.get("name") or "").strip()
         normalized = _normalize(name)
         mid = mention["mention_id"]
+        entity_type: str | None = mention.get("entity_type")
+        type_texts = seen_texts_by_type.get(entity_type, [])
 
         # Strategy 1: normalized_exact — identical normalized text → same cluster.
         if normalized in seen_keys:
@@ -201,13 +220,13 @@ def _cluster_mentions_unstructured_only(
             continue
 
         # Strategy 2: abbreviation — check if this mention is an initialism of
-        # any existing cluster representative, or vice versa.
-        # To be order-independent, when the current mention is the *long form* of
-        # an existing abbreviation cluster key, we re-key prior assignments so the
-        # long form becomes the stable cluster key regardless of mention order.
+        # any existing cluster representative of the same entity_type, or vice
+        # versa.  To be order-independent, when the current mention is the *long
+        # form* of an existing abbreviation cluster key, we re-key prior
+        # assignments so the long form becomes the stable cluster key.
         abbrev_target: str | None = None
         abbrev_existing_is_short: bool = False
-        for existing in seen_texts:
+        for existing in type_texts:
             if _is_abbreviation(normalized, existing):
                 # Current text is an initialism of an existing long-form key.
                 abbrev_target = existing
@@ -224,7 +243,8 @@ def _cluster_mentions_unstructured_only(
                 # remap all prior mentions that pointed to the short-form key.
                 long_key = normalized
                 short_key = abbrev_target
-                seen_texts[seen_texts.index(short_key)] = long_key
+                # type_texts is a reference into seen_texts_by_type; mutate in place.
+                type_texts[type_texts.index(short_key)] = long_key
                 seen_keys.discard(short_key)
                 seen_keys.add(long_key)
                 for prior_mid, key in mention_to_cluster.items():
@@ -242,15 +262,15 @@ def _cluster_mentions_unstructured_only(
                 mention_to_method[mid] = ("abbreviation", 0.75)
             continue
 
-        # Strategy 3: fuzzy — find the first existing representative that is
-        # similar enough.
+        # Strategy 3: fuzzy — find the first existing representative (same
+        # entity_type) that is similar enough.
         # Cheap prefilter: SequenceMatcher ratio ≤ 2*min/(min+max), so if the
         # length ratio is too small the ratio cannot reach fuzzy_threshold.
         # Skipping dissimilar-length pairs avoids expensive SequenceMatcher calls.
         norm_len = len(normalized)
         fuzzy_target: str | None = None
         fuzzy_score: float = 0.0
-        for existing in seen_texts:
+        for existing in type_texts:
             ex_len = len(existing)
             if ex_len == 0 and norm_len == 0:
                 fuzzy_target = existing
@@ -275,7 +295,9 @@ def _cluster_mentions_unstructured_only(
             continue
 
         # Strategy 4: label_cluster fallback — new cluster keyed by own text.
-        seen_texts.append(normalized)
+        if entity_type not in seen_texts_by_type:
+            seen_texts_by_type[entity_type] = []
+        seen_texts_by_type[entity_type].append(normalized)
         seen_keys.add(normalized)
         mention_to_cluster[mid] = normalized
         mention_to_method[mid] = ("label_cluster", 1.0)
