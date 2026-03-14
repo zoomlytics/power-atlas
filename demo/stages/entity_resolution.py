@@ -43,9 +43,10 @@ pure unstructured clustering.
 
 Alignment strategies applied in priority order (``hybrid`` mode):
 
-1. **label_exact** — ``normalized(cluster.canonical_name)`` matches a
-   :CanonicalEntity by its normalized label.
-2. **alias_exact** — ``normalized(cluster.canonical_name)`` appears in the
+1. **label_exact** — the cluster's ``normalized_text`` key (or the normalized
+   suffix of its ``cluster_id``) matches a :CanonicalEntity by its normalized
+   label.
+2. **alias_exact** — the same normalized cluster value appears in the
    ``canonical.aliases`` list of a :CanonicalEntity.
 
 All resolution and clustering is **non-destructive**: existing nodes are
