@@ -55,7 +55,7 @@ _RESOLVER_VERSION = "v1.0"
 
 # Bump this constant whenever cluster-assignment logic changes so that MEMBER_OF
 # edges can be distinguished by the version that created them.
-_CLUSTER_VERSION = "v1.0"
+_CLUSTER_VERSION = "v1.1"
 
 _QID_PATTERN = re.compile(r"^Q\d+$")
 
@@ -183,22 +183,59 @@ def _cluster_mentions_unstructured_only(
 
         # Strategy 2: abbreviation — check if this mention is an initialism of
         # any existing cluster representative, or vice versa.
+        # To be order-independent, when the current mention is the *long form* of
+        # an existing abbreviation cluster key, we re-key prior assignments so the
+        # long form becomes the stable cluster key.
         abbrev_target: str | None = None
+        abbrev_existing_is_short: bool = False
         for existing in seen_texts:
-            if _is_abbreviation(normalized, existing) or _is_abbreviation(existing, normalized):
-                # Use the existing representative as the cluster key.
-                # The existing representative was registered first and is already
-                # used as the key for any prior mentions in that cluster.
+            if _is_abbreviation(normalized, existing):
+                # Current is the abbreviation of an existing long form → use existing.
                 abbrev_target = existing
                 break
+            if _is_abbreviation(existing, normalized):
+                # Existing is an abbreviation of the current long form.
+                # Prefer the long form as the canonical cluster key.
+                abbrev_target = existing
+                abbrev_existing_is_short = True
+                break
         if abbrev_target is not None:
+            if abbrev_existing_is_short:
+                # Re-key: swap the abbreviation cluster key to the long form so
+                # the cluster key is stable regardless of mention order.
+                long_key = normalized
+                short_key = abbrev_target
+                # Update seen_texts and seen_method.
+                seen_texts[seen_texts.index(short_key)] = long_key
+                seen_method[long_key] = seen_method.pop(short_key)
+                # Remap all prior mentions pointing to the abbreviation cluster key.
+                for mid, key in mention_to_cluster.items():
+                    if key == short_key:
+                        mention_to_cluster[mid] = long_key
+                abbrev_target = long_key
             mention_to_cluster[mention["mention_id"]] = abbrev_target
             continue
 
         # Strategy 3: fuzzy — find the first existing representative that is
         # similar enough.
+        # Cheap prefilter: SequenceMatcher ratio ≤ 2*min/(min+max), so if the
+        # length ratio is too small the ratio cannot reach fuzzy_threshold.
+        # Skipping dissimilar-length pairs avoids expensive SequenceMatcher calls.
+        norm_len = len(normalized)
         fuzzy_target: str | None = None
         for existing in seen_texts:
+            ex_len = len(existing)
+            if ex_len == 0 and norm_len == 0:
+                fuzzy_target = existing
+                break
+            if ex_len == 0 or norm_len == 0:
+                continue
+            min_len = min(norm_len, ex_len)
+            max_len = max(norm_len, ex_len)
+            # Maximum possible SequenceMatcher ratio given these lengths.
+            max_possible = 2 * min_len / (min_len + max_len)
+            if max_possible < fuzzy_threshold:
+                continue
             if _fuzzy_ratio(normalized, existing) >= fuzzy_threshold:
                 fuzzy_target = existing
                 break
@@ -373,6 +410,9 @@ def _write_resolution_results(
     if unresolved_rows:
         created_at = datetime.now(UTC).isoformat()
         # Build per-mention rows for the cluster MERGE + MEMBER_OF edge.
+        # Use the per-row resolution_method and resolution_confidence so that
+        # the MEMBER_OF edge carries accurate provenance (abbreviation/fuzzy/etc.)
+        # rather than a hardcoded fallback.
         cluster_rows = [
             {
                 "mention_id": row["mention_id"],
@@ -380,8 +420,8 @@ def _write_resolution_results(
                 # Use a deterministic canonical name derived from the normalized text
                 "canonical_name": row["normalized_text"].title(),
                 "normalized_text": row["normalized_text"],
-                "score": 1.0,
-                "method": "label_cluster",
+                "score": row.get("resolution_confidence", 1.0),
+                "method": row.get("resolution_method", "label_cluster"),
                 "status": "accepted",
             }
             for row in unresolved_rows
@@ -423,7 +463,21 @@ def run_entity_resolution(
     source_uri: str | None,
     resolution_mode: str | None = None,
 ) -> dict[str, Any]:
-    """Resolve :EntityMention nodes (scoped to *run_id*) to canonical entities.
+    """Resolve or cluster :EntityMention nodes scoped to *run_id*.
+
+    Behaviour depends on *resolution_mode*:
+
+    * ``"structured_anchor"`` (default) — resolves mentions against
+      :CanonicalEntity nodes using QID, label-exact, and alias-exact strategies.
+      Mentions that cannot be matched are grouped into provisional
+      :ResolvedEntityCluster nodes via ``MEMBER_OF`` edges.
+
+    * ``"unstructured_only"`` — clusters mentions against each other without
+      any :CanonicalEntity lookup.  All mentions produce ``MEMBER_OF`` edges to
+      :ResolvedEntityCluster nodes; no ``RESOLVES_TO`` edges are created.
+
+    All resolution is **non-destructive**: existing nodes are never mutated;
+    only ``RESOLVES_TO`` and ``MEMBER_OF`` relationship edges are added.
 
     Args:
         config:          :class:`~demo.contracts.runtime.Config`.
@@ -436,7 +490,8 @@ def run_entity_resolution(
                          falls back to ``"structured_anchor"``.
 
     Returns:
-        A summary dict with counts, resolution breakdown, and artifact paths.
+        A summary dict with counts, resolution breakdown, ``resolution_mode``,
+        and artifact paths.
     """
     # Resolve the effective mode: explicit arg > config attribute > default.
     if resolution_mode is None:

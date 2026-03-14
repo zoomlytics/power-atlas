@@ -750,8 +750,9 @@ class TestIsAbbreviation(unittest.TestCase):
     def test_empty_short_returns_false(self):
         self.assertFalse(_is_abbreviation("", "federal bureau of investigation"))
 
-    def test_reverse_abbreviation_detected(self):
-        self.assertTrue(_is_abbreviation("fbi", "federal bureau of investigation"))
+    def test_reverse_direction_long_form_is_not_initialism_of_short(self):
+        # The long form is NOT an initialism of the abbreviation.
+        self.assertFalse(_is_abbreviation("federal bureau of investigation", "fbi"))
 
 
 class TestFuzzyRatio(unittest.TestCase):
@@ -812,6 +813,19 @@ class TestClusterMentionsUnstructuredOnly(unittest.TestCase):
         self.assertEqual(len(cluster_keys), 1, "Abbreviation should map to long-form cluster")
         abbrev_row = next(r for r in result if r["mention_id"] == "m2")
         self.assertEqual(abbrev_row["resolution_method"], "abbreviation")
+
+    def test_abbreviation_seen_before_long_form_uses_long_form_as_cluster_key(self):
+        """Cluster key should be the long form regardless of mention order."""
+        mentions = [
+            {"mention_id": "m1", "name": "fbi"},
+            {"mention_id": "m2", "name": "Federal Bureau of Investigation"},
+        ]
+        result = _cluster_mentions_unstructured_only(mentions)
+        cluster_keys = {r["normalized_text"] for r in result}
+        self.assertEqual(len(cluster_keys), 1, "Both mentions should share one cluster key")
+        # The long form should be the stable cluster key.
+        self.assertIn("federal bureau of investigation", cluster_keys)
+        self.assertNotIn("fbi", cluster_keys)
 
     def test_fuzzy_similar_names_share_cluster(self):
         mentions = [
