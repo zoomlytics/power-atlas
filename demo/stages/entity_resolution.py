@@ -131,16 +131,18 @@ _INITIALISM_STOP_WORDS = frozenset({"of", "the", "and", "for", "in", "on", "at",
 def _compute_initials(text: str) -> str | None:
     """Return the initialism formed by the significant words in *text*.
 
-    Each word token is stripped of non-alphabetic characters before stop-word
-    filtering and initial extraction, so tokens like ``"of,"`` or ``"the."``
-    are treated identically to their clean equivalents.
+    The input is lowercased, and each word token is stripped of non-alphabetic
+    characters before stop-word filtering and initial extraction, so tokens like
+    ``"Of,"``/``"of,"`` or ``"The."``/``"the."`` are treated identically to their
+    clean equivalents.
 
     Returns ``None`` when *text* has fewer than two significant words (i.e.
     it would not produce a meaningful abbreviation).
     """
-    significant = []
+    significant: list[str] = []
     for w in text.split():
-        alpha = _RE_NON_ALPHA.sub("", w)
+        w_lower = w.lower()
+        alpha = _RE_NON_ALPHA.sub("", w_lower)
         if alpha and alpha not in _INITIALISM_STOP_WORDS:
             significant.append(alpha)
     if len(significant) < 2:
@@ -152,17 +154,17 @@ def _is_abbreviation(short: str, long_form: str) -> bool:
     """Return True if *short* looks like an initialism of *long_form*.
 
     Example: ``"fbi"`` is an initialism of ``"federal bureau of investigation"``
-    (skipping the stop word ``"of"``).  Both inputs must already be normalized
-    (lowercased, stripped).  The *short* token is further stripped of
-    non-alphabetic characters so forms like ``"f.b.i."`` and ``"fbi,"``
-    still match the same initialism as ``"fbi"``.  Each word in *long_form* is
-    likewise stripped of punctuation before stop-word filtering and initial
-    extraction, so tokens like ``"investigation,"`` are handled correctly.
+    (skipping the stop word ``"of"``).  Inputs are case-normalized internally.
+    The *short* token is further stripped of non-alphabetic characters so forms
+    like ``"F.B.I."`` and ``"fbi,"`` still match the same initialism as
+    ``"fbi"``.  Each word in *long_form* is likewise stripped of punctuation
+    before stop-word filtering and initial extraction, so tokens like
+    ``"Investigation,"``/``"investigation,"`` are handled correctly.
     """
-    short_alpha = _RE_NON_ALPHA.sub("", short)
+    short_alpha = _RE_NON_ALPHA.sub("", short.lower())
     if not short_alpha:
         return False
-    initials = _compute_initials(long_form)
+    initials = _compute_initials(long_form.lower())
     if initials is None:
         return False
     return short_alpha == initials
