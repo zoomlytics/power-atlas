@@ -525,7 +525,7 @@ Phase 1 has been implemented in the following modules:
   - `status` — `"accepted"` for high-confidence label-cluster assignments
 - The run summary dict now includes `clusters_created` (count of unique clusters created or
   merged in this run) and `cluster_version`.
-- A `_CLUSTER_VERSION` module constant (currently `"v1.0"`) is bumped independently of
+- A `_CLUSTER_VERSION` module constant (currently `"v1.1"`) is bumped independently of
   `_RESOLVER_VERSION` so that cluster-membership edges can be distinguished by the version that
   created them.
 

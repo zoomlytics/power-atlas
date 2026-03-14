@@ -250,6 +250,24 @@ def _cluster_mentions_unstructured_only(
         if initials is not None:
             initials_to_long_by_type.setdefault(etype, {})[initials] = cluster_key
 
+    def _register_cluster_for_type(cluster_key: str, etype: str | None) -> None:
+        """Ensure cluster_key is visible in the per-type indices for etype.
+
+        Called when a normalized_exact match joins a cluster that was first
+        introduced by a different entity_type.  This ensures later same-type
+        fuzzy/abbreviation matching can still find the cluster without
+        disturbing existing assignments.  Uses setdefault so that existing
+        entries for this type are never overwritten.
+        """
+        type_texts = seen_texts_by_type.setdefault(etype, [])
+        if cluster_key not in type_texts:
+            type_texts.append(cluster_key)
+        alpha = _RE_NON_ALPHA.sub("", cluster_key)
+        abbrev_alpha_by_type.setdefault(etype, {}).setdefault(alpha, cluster_key)
+        initials = _compute_initials(cluster_key)
+        if initials is not None:
+            initials_to_long_by_type.setdefault(etype, {}).setdefault(initials, cluster_key)
+
     def _promote_long_form(short_key: str, long_key: str, etype: str | None) -> None:
         """Re-key same-*etype* mentions from short_key to long_key.
 
@@ -258,14 +276,15 @@ def _cluster_mentions_unstructured_only(
         clustering is never disturbed by an abbreviation relationship found in
         another type.
         """
-        # Update global key set and per-type text list.
-        seen_keys.discard(short_key)
+        # Always register long_key in the global key set.
         seen_keys.add(long_key)
+
+        # Update per-type text list (swap short → long for this type).
         type_texts = seen_texts_by_type.get(etype, [])
         if short_key in type_texts:
             type_texts[type_texts.index(short_key)] = long_key
 
-        # Update abbreviation indices.
+        # Update abbreviation indices for this type.
         old_alpha = _RE_NON_ALPHA.sub("", short_key)
         abbrev_alpha_by_type.get(etype, {}).pop(old_alpha, None)
         abbrev_alpha_by_type.setdefault(etype, {})[
@@ -296,6 +315,12 @@ def _cluster_mentions_unstructured_only(
         elif short_key in cluster_to_mentions:
             del cluster_to_mentions[short_key]
 
+        # Only remove short_key from seen_keys when no cross-type mentions
+        # remain on it; otherwise Strategy 1 (normalized_exact) must still be
+        # able to match future mentions of those other types.
+        if not remaining:
+            seen_keys.discard(short_key)
+
     for mention in mentions:
         name = (mention.get("name") or "").strip()
         normalized = _normalize(name)
@@ -308,6 +333,10 @@ def _cluster_mentions_unstructured_only(
             mention_to_method[mid] = ("normalized_exact", 1.0)
             mention_to_type[mid] = entity_type
             cluster_to_mentions.setdefault(normalized, []).append(mid)
+            # Ensure the cluster is visible in the per-type indices so later
+            # same-type mentions can still fuzzy/abbreviation-match against it
+            # even if the cluster was first introduced by a different entity_type.
+            _register_cluster_for_type(normalized, entity_type)
             continue
 
         # Strategy 2: abbreviation (type-scoped, O(1) via index).

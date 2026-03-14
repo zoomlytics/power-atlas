@@ -934,6 +934,59 @@ class TestClusterMentionsUnstructuredOnly(unittest.TestCase):
         self.assertEqual(by_mid["m2"]["normalized_text"], "fbi",
                          "Cross-type remap must not affect person mention")
 
+    def test_short_key_stays_in_seen_keys_when_cross_type_mentions_remain(self):
+        """After abbreviation re-key, short_key must remain in seen_keys if
+        cross-type mentions still reference it, so future same-text mentions of
+        those types still hit normalized_exact (Strategy 1) rather than
+        creating a duplicate cluster.
+        """
+        mentions = [
+            # organization: "fbi" first
+            {"mention_id": "m1", "name": "fbi", "entity_type": "organization"},
+            # person: "fbi" second — hits normalized_exact, shares "fbi" key
+            {"mention_id": "m2", "name": "fbi", "entity_type": "person"},
+            # organization: long form — re-keys "fbi" → long form for org only
+            {"mention_id": "m3", "name": "Federal Bureau of Investigation",
+             "entity_type": "organization"},
+            # person: a fourth mention with identical name must still join the
+            # existing "fbi" cluster (not create a new one), because the
+            # cross-type short_key must still be in seen_keys.
+            {"mention_id": "m4", "name": "fbi", "entity_type": "person"},
+        ]
+        result = _cluster_mentions_unstructured_only(mentions)
+        by_mid = {r["mention_id"]: r for r in result}
+        # m2 and m4 are both person-type "fbi"; they must be in the same cluster
+        self.assertEqual(by_mid["m2"]["normalized_text"],
+                         by_mid["m4"]["normalized_text"],
+                         "Duplicate person 'fbi' must join existing cluster, not create new one")
+        # m4 is a normalized_exact hit (not label_cluster)
+        self.assertEqual(by_mid["m4"]["resolution_method"], "normalized_exact")
+        # org mentions (m1, m3) share the long-form cluster
+        self.assertEqual(by_mid["m1"]["normalized_text"], "federal bureau of investigation")
+        self.assertEqual(by_mid["m3"]["normalized_text"], "federal bureau of investigation")
+
+    def test_normalized_exact_registers_cluster_for_same_type_fuzzy_matching(self):
+        """After a normalized_exact cross-type hit the cluster must be visible
+        in the per-type indices so that a later same-type mention can still
+        fuzzy-match against it.
+        """
+        mentions = [
+            # "org" type introduces "federal reserve system" first
+            {"mention_id": "m1", "name": "Federal Reserve System", "entity_type": "org"},
+            # "agency" type hits normalized_exact — joins the same key
+            {"mention_id": "m2", "name": "Federal Reserve System", "entity_type": "agency"},
+            # "agency" type: pluralised variant — should fuzzy-match the
+            # cluster that "agency" now knows about via the cross-type hit
+            {"mention_id": "m3", "name": "Federal Reserve Systems", "entity_type": "agency"},
+        ]
+        result = _cluster_mentions_unstructured_only(mentions)
+        by_mid = {r["mention_id"]: r for r in result}
+        # m2 and m3 must share the same cluster key (both are "agency" type)
+        self.assertEqual(by_mid["m2"]["normalized_text"],
+                         by_mid["m3"]["normalized_text"],
+                         "Same-type fuzzy match must work after cross-type normalized_exact hit")
+        self.assertIn(by_mid["m3"]["resolution_method"], ("fuzzy", "normalized_exact"))
+
 
 class TestRunEntityResolutionUnstructuredOnly(unittest.TestCase):
     """Tests for run_entity_resolution with resolution_mode='unstructured_only'."""
