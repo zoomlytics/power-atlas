@@ -59,9 +59,10 @@ _CLUSTER_VERSION = "v1.1"
 
 _QID_PATTERN = re.compile(r"^Q\d+$")
 
-# Strips everything that is not a lowercase ASCII letter.  Used to normalize
-# abbreviated forms like "F.B.I." → "fbi" and "fbi," → "fbi" so that
-# _is_abbreviation() works on typical extracted text.
+# Strips everything that is not a lowercase ASCII letter. Intended to be used
+# on already-normalized (lowercased) text to normalize abbreviated forms like
+# "f.b.i." → "fbi" and "fbi," → "fbi" so that _is_abbreviation() works on
+# typical extracted text.
 _RE_NON_ALPHA = re.compile(r"[^a-z]")
 
 # Supported resolution mode identifiers.
