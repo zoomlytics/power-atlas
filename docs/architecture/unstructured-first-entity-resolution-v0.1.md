@@ -525,7 +525,7 @@ Phase 1 has been implemented in the following modules:
   - `status` — `"accepted"` for high-confidence label-cluster assignments
 - The run summary dict now includes `clusters_created` (count of unique clusters created or
   merged in this run) and `cluster_version`.
-- A `_CLUSTER_VERSION` module constant (currently `"v1.0"`) is bumped independently of
+- A `_CLUSTER_VERSION` module constant (currently `"v1.1"`) is bumped independently of
   `_RESOLVER_VERSION` so that cluster-membership edges can be distinguished by the version that
   created them.
 
@@ -549,10 +549,23 @@ Phase 1 has been implemented in the following modules:
 (:ResolvedEntityCluster)-[:ALIGNED_WITH]->(:CanonicalEntity) ← future Phase 3
 ```
 
+### What is implemented (Phase 1 + `unstructured_only`)
+
+- `unstructured_only` resolution mode flag on `run_entity_resolution()` and `Config`.
+- `--resolution-mode` CLI argument on the `resolve-entities` command.
+- Matching pipeline in `unstructured_only` mode: normalized exact, abbreviation/initialism, basic fuzzy (difflib).
+- `ResolvedEntityCluster` nodes and `MEMBER_OF` edges persist provisional clusters; summary metrics emitted.
+- `MEMBER_OF` edge metadata in `unstructured_only` mode:
+  - `method` — the actual strategy used: `"normalized_exact"`, `"abbreviation"`, `"fuzzy"`, or `"label_cluster"` (singleton fallback).
+  - `score` — `1.0` for deterministic assignments (`label_cluster`, `normalized_exact`), `0.75` for `abbreviation`, actual SequenceMatcher ratio for `fuzzy`.
+  - `status` — `"accepted"` for deterministic assignments (`label_cluster`, `normalized_exact`); `"provisional"` for probabilistic assignments (`abbreviation`, `fuzzy`) to distinguish high-confidence memberships from those warranting downstream review.
+  - `resolver_version` — value of `_CLUSTER_VERSION` constant.
+  - `run_id` — the run that created the membership link.
+
 ### What is not yet implemented (Phases 2–5)
 
-- `unstructured_only` / `hybrid_additive` explicit mode flags on `run_entity_resolution()`.
-- Fuzzy lexical or semantic similarity clustering (Phase 2 resolution methods).
+- `hybrid_additive` explicit mode flag on `run_entity_resolution()`.
+- Advanced fuzzy lexical or semantic similarity clustering (Phase 2 resolution methods).
 - `ALIGNED_WITH` edge creation from `ResolvedEntityCluster` → `CanonicalEntity` (Phase 3).
 - Cluster-aware retrieval and Q&A traversal (Phase 4).
 - Review-required threshold bands and audit workflow (Phase 5).

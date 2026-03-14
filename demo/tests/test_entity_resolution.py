@@ -11,7 +11,11 @@ from unittest.mock import MagicMock, patch
 from demo.contracts.runtime import Config
 from demo.stages.entity_resolution import (
     _CLUSTER_VERSION,
+    _RESOLUTION_MODE_UNSTRUCTURED_ONLY,
     _build_lookup_tables,
+    _cluster_mentions_unstructured_only,
+    _fuzzy_ratio,
+    _is_abbreviation,
     _normalize,
     _resolve_mention,
     _split_aliases,
@@ -732,6 +736,524 @@ class TestResolvedEntityCluster(unittest.TestCase):
                 "Expected a Cypher call containing ResolvedEntityCluster for unresolved mentions",
             )
 
+
+class TestIsAbbreviation(unittest.TestCase):
+    def test_initialism_match(self):
+        self.assertTrue(_is_abbreviation("fbi", "federal bureau of investigation"))
+
+    def test_initialism_mismatch(self):
+        self.assertFalse(_is_abbreviation("cia", "federal bureau of investigation"))
+
+    def test_single_word_long_form_returns_false(self):
+        self.assertFalse(_is_abbreviation("f", "fbi"))
+
+    def test_empty_short_returns_false(self):
+        self.assertFalse(_is_abbreviation("", "federal bureau of investigation"))
+
+    def test_reverse_direction_long_form_is_not_initialism_of_short(self):
+        # The long form is NOT an initialism of the abbreviation.
+        self.assertFalse(_is_abbreviation("federal bureau of investigation", "fbi"))
+
+    def test_dotted_abbreviation_matches(self):
+        # "f.b.i." should normalize to "fbi" and match the long form.
+        self.assertTrue(_is_abbreviation("f.b.i.", "federal bureau of investigation"))
+
+    def test_trailing_punctuation_abbreviation_matches(self):
+        # "fbi," (common in extracted text) should still match.
+        self.assertTrue(_is_abbreviation("fbi,", "federal bureau of investigation"))
+
+    def test_dotted_abbreviation_without_trailing_dot_matches(self):
+        # "f.b.i" (no trailing dot) — same initialism as "fbi".
+        self.assertTrue(_is_abbreviation("f.b.i", "federal bureau of investigation"))
+
+    def test_long_form_trailing_punctuation_on_token(self):
+        # Punctuation attached to a long_form token must be stripped before
+        # building initials; "investigation," → "investigation".
+        self.assertTrue(_is_abbreviation("fbi", "federal bureau of investigation,"))
+
+    def test_long_form_mid_punctuation_on_token(self):
+        # Mid-sentence punctuation on a long_form word must also be stripped.
+        self.assertTrue(_is_abbreviation("fbi", "federal bureau, of investigation"))
+
+class TestFuzzyRatio(unittest.TestCase):
+    def test_identical_strings_return_one(self):
+        self.assertAlmostEqual(_fuzzy_ratio("alice", "alice"), 1.0)
+
+    def test_completely_different_returns_low(self):
+        ratio = _fuzzy_ratio("alice", "xyz")
+        self.assertLess(ratio, 0.5)
+
+    def test_similar_strings_return_high(self):
+        ratio = _fuzzy_ratio("alice smith", "alice smyth")
+        self.assertGreater(ratio, 0.85)
+
+
+class TestClusterMentionsUnstructuredOnly(unittest.TestCase):
+    """Tests for _cluster_mentions_unstructured_only."""
+
+    def test_empty_returns_empty(self):
+        result = _cluster_mentions_unstructured_only([])
+        self.assertEqual(result, [])
+
+    def test_single_mention_becomes_label_cluster(self):
+        mentions = [{"mention_id": "m1", "name": "Alice"}]
+        result = _cluster_mentions_unstructured_only(mentions)
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["resolution_method"], "label_cluster")
+        self.assertEqual(result[0]["normalized_text"], "alice")
+
+    def test_same_normalized_text_shares_cluster(self):
+        mentions = [
+            {"mention_id": "m1", "name": "Alice"},
+            {"mention_id": "m2", "name": "alice"},
+        ]
+        result = _cluster_mentions_unstructured_only(mentions)
+        self.assertEqual(len(result), 2)
+        cluster_keys = {r["normalized_text"] for r in result}
+        self.assertEqual(len(cluster_keys), 1, "Both mentions should share one cluster key")
+
+    def test_normalized_exact_method_for_duplicate(self):
+        mentions = [
+            {"mention_id": "m1", "name": "Bob Corp"},
+            {"mention_id": "m2", "name": "Bob Corp"},
+        ]
+        result = _cluster_mentions_unstructured_only(mentions)
+        methods = [r["resolution_method"] for r in result]
+        self.assertIn("label_cluster", methods)
+        self.assertIn("normalized_exact", methods)
+
+    def test_abbreviation_clusters_with_long_form(self):
+        mentions = [
+            {"mention_id": "m1", "name": "Federal Bureau of Investigation"},
+            {"mention_id": "m2", "name": "fbi"},
+        ]
+        result = _cluster_mentions_unstructured_only(mentions)
+        self.assertEqual(len(result), 2)
+        cluster_keys = {r["normalized_text"] for r in result}
+        self.assertEqual(len(cluster_keys), 1, "Abbreviation should map to long-form cluster")
+        abbrev_row = next(r for r in result if r["mention_id"] == "m2")
+        self.assertEqual(abbrev_row["resolution_method"], "abbreviation")
+
+    def test_abbreviation_seen_before_long_form_uses_long_form_as_cluster_key(self):
+        """Cluster key should be the long form regardless of mention order."""
+        mentions = [
+            {"mention_id": "m1", "name": "fbi"},
+            {"mention_id": "m2", "name": "Federal Bureau of Investigation"},
+        ]
+        result = _cluster_mentions_unstructured_only(mentions)
+        cluster_keys = {r["normalized_text"] for r in result}
+        self.assertEqual(len(cluster_keys), 1, "Both mentions should share one cluster key")
+        # The long form should be the stable cluster key.
+        self.assertIn("federal bureau of investigation", cluster_keys)
+        self.assertNotIn("fbi", cluster_keys)
+        # The abbreviation (m1, seen first) should be re-labeled "abbreviation"
+        # after re-keying; the long form (m2, the introducer) is "label_cluster".
+        m1_row = next(r for r in result if r["mention_id"] == "m1")
+        m2_row = next(r for r in result if r["mention_id"] == "m2")
+        self.assertEqual(m1_row["resolution_method"], "abbreviation")
+        self.assertEqual(m2_row["resolution_method"], "label_cluster")
+
+    def test_fuzzy_similar_names_share_cluster(self):
+        mentions = [
+            {"mention_id": "m1", "name": "Alice Smith"},
+            {"mention_id": "m2", "name": "Alice Smyth"},
+        ]
+        result = _cluster_mentions_unstructured_only(mentions)
+        cluster_keys = {r["normalized_text"] for r in result}
+        self.assertEqual(len(cluster_keys), 1, "Fuzzy-similar names should share one cluster")
+        fuzzy_row = next(r for r in result if r["mention_id"] == "m2")
+        self.assertEqual(fuzzy_row["resolution_method"], "fuzzy")
+
+    def test_distinct_names_produce_separate_clusters(self):
+        mentions = [
+            {"mention_id": "m1", "name": "Alice"},
+            {"mention_id": "m2", "name": "Bob"},
+            {"mention_id": "m3", "name": "Charlie"},
+        ]
+        result = _cluster_mentions_unstructured_only(mentions)
+        cluster_keys = {r["normalized_text"] for r in result}
+        self.assertEqual(len(cluster_keys), 3)
+
+    def test_all_rows_have_resolved_false(self):
+        mentions = [
+            {"mention_id": "m1", "name": "Alice"},
+            {"mention_id": "m2", "name": "Bob"},
+        ]
+        result = _cluster_mentions_unstructured_only(mentions)
+        for row in result:
+            self.assertFalse(row["resolved"])
+
+    def test_fuzzy_blocked_by_entity_type(self):
+        """Fuzzy matching must not cross entity_type boundaries."""
+        # "Alice Smith" (person) and "Alice Smyth" (org) are fuzzy-similar, but
+        # the entity_type blocking should prevent them from sharing a cluster.
+        mentions = [
+            {"mention_id": "m1", "name": "Alice Smith", "entity_type": "person"},
+            {"mention_id": "m2", "name": "Alice Smyth", "entity_type": "organization"},
+        ]
+        result = _cluster_mentions_unstructured_only(mentions)
+        cluster_keys = {r["normalized_text"] for r in result}
+        self.assertEqual(len(cluster_keys), 2, "Cross-type fuzzy match should be blocked")
+
+    def test_fuzzy_within_same_entity_type(self):
+        """Fuzzy matching works when entity_type matches."""
+        mentions = [
+            {"mention_id": "m1", "name": "Alice Smith", "entity_type": "person"},
+            {"mention_id": "m2", "name": "Alice Smyth", "entity_type": "person"},
+        ]
+        result = _cluster_mentions_unstructured_only(mentions)
+        cluster_keys = {r["normalized_text"] for r in result}
+        self.assertEqual(len(cluster_keys), 1, "Same-type fuzzy-similar names should cluster")
+
+    def test_rekey_does_not_cross_entity_type_boundary(self):
+        """Abbreviation re-key must not remap mentions of a different entity_type.
+
+        A 'person' mention with key "fbi" (introduced via normalized_exact from
+        a different type) must stay on that key even when an 'organization' long
+        form causes a re-key of 'fbi' → 'federal bureau of investigation' within
+        the organization type.
+        """
+        mentions = [
+            # organization: "fbi" arrives first (label_cluster for org type)
+            {"mention_id": "m1", "name": "fbi", "entity_type": "organization"},
+            # person: "fbi" arrives second — normalized_exact hit, clusters into the
+            # shared 'fbi' key (type-agnostic strategy 1)
+            {"mention_id": "m2", "name": "fbi", "entity_type": "person"},
+            # organization: long form arrives; re-keys 'fbi' → long form for org only
+            {"mention_id": "m3", "name": "Federal Bureau of Investigation",
+             "entity_type": "organization"},
+        ]
+        result = _cluster_mentions_unstructured_only(mentions)
+        by_mid = {r["mention_id"]: r for r in result}
+        # org mentions (m1, m3) must share the long-form cluster key
+        self.assertEqual(by_mid["m1"]["normalized_text"],
+                         by_mid["m3"]["normalized_text"])
+        self.assertEqual(by_mid["m1"]["normalized_text"],
+                         "federal bureau of investigation")
+        # person mention (m2) must NOT be re-keyed — it has a different entity_type
+        self.assertEqual(by_mid["m2"]["normalized_text"], "fbi",
+                         "Cross-type remap must not affect person mention")
+
+    def test_short_key_stays_in_seen_keys_when_cross_type_mentions_remain(self):
+        """After abbreviation re-key, short_key must remain in seen_keys if
+        cross-type mentions still reference it, so future same-text mentions of
+        those types still hit normalized_exact (Strategy 1) rather than
+        creating a duplicate cluster.
+        """
+        mentions = [
+            # organization: "fbi" first
+            {"mention_id": "m1", "name": "fbi", "entity_type": "organization"},
+            # person: "fbi" second — hits normalized_exact, shares "fbi" key
+            {"mention_id": "m2", "name": "fbi", "entity_type": "person"},
+            # organization: long form — re-keys "fbi" → long form for org only
+            {"mention_id": "m3", "name": "Federal Bureau of Investigation",
+             "entity_type": "organization"},
+            # person: a fourth mention with identical name must still join the
+            # existing "fbi" cluster (not create a new one), because the
+            # cross-type short_key must still be in seen_keys.
+            {"mention_id": "m4", "name": "fbi", "entity_type": "person"},
+        ]
+        result = _cluster_mentions_unstructured_only(mentions)
+        by_mid = {r["mention_id"]: r for r in result}
+        # m2 and m4 are both person-type "fbi"; they must be in the same cluster
+        self.assertEqual(by_mid["m2"]["normalized_text"],
+                         by_mid["m4"]["normalized_text"],
+                         "Duplicate person 'fbi' must join existing cluster, not create new one")
+        # m4 is a normalized_exact hit (not label_cluster)
+        self.assertEqual(by_mid["m4"]["resolution_method"], "normalized_exact")
+        # org mentions (m1, m3) share the long-form cluster
+        self.assertEqual(by_mid["m1"]["normalized_text"], "federal bureau of investigation")
+        self.assertEqual(by_mid["m3"]["normalized_text"], "federal bureau of investigation")
+
+    def test_normalized_exact_registers_cluster_for_same_type_fuzzy_matching(self):
+        """After a normalized_exact cross-type hit the cluster must be visible
+        in the per-type indices so that a later same-type mention can still
+        fuzzy-match against it.
+        """
+        mentions = [
+            # "org" type introduces "federal reserve system" first
+            {"mention_id": "m1", "name": "Federal Reserve System", "entity_type": "org"},
+            # "agency" type hits normalized_exact — joins the same key
+            {"mention_id": "m2", "name": "Federal Reserve System", "entity_type": "agency"},
+            # "agency" type: pluralised variant — should fuzzy-match the
+            # cluster that "agency" now knows about via the cross-type hit
+            {"mention_id": "m3", "name": "Federal Reserve Systems", "entity_type": "agency"},
+        ]
+        result = _cluster_mentions_unstructured_only(mentions)
+        by_mid = {r["mention_id"]: r for r in result}
+        # m2 and m3 must share the same cluster key (both are "agency" type)
+        self.assertEqual(by_mid["m2"]["normalized_text"],
+                         by_mid["m3"]["normalized_text"],
+                         "Same-type fuzzy match must work after cross-type normalized_exact hit")
+        self.assertIn(by_mid["m3"]["resolution_method"], ("fuzzy", "normalized_exact"))
+
+    def test_multiple_abbreviation_variants_all_promoted_to_long_form(self):
+        """Both 'fbi' and 'f.b.i.' (same alpha 'fbi') must be promoted to the
+        long-form cluster when 'federal bureau of investigation' is seen; no
+        abbreviation cluster should remain orphaned.
+        """
+        mentions = [
+            # Two abbreviation variants of the same long form, same type.
+            {"mention_id": "m1", "name": "fbi", "entity_type": "organization"},
+            {"mention_id": "m2", "name": "f.b.i.", "entity_type": "organization"},
+            # Long form seen last — must adopt BOTH prior abbreviation mentions.
+            {"mention_id": "m3", "name": "Federal Bureau of Investigation",
+             "entity_type": "organization"},
+        ]
+        result = _cluster_mentions_unstructured_only(mentions)
+        by_mid = {r["mention_id"]: r for r in result}
+        long_key = "federal bureau of investigation"
+        self.assertEqual(
+            by_mid["m1"]["normalized_text"], long_key,
+            "'fbi' mention must be promoted to the long-form cluster",
+        )
+        self.assertEqual(
+            by_mid["m2"]["normalized_text"], long_key,
+            "'f.b.i.' mention must be promoted to the long-form cluster",
+        )
+        self.assertEqual(
+            by_mid["m3"]["normalized_text"], long_key,
+            "Long-form mention must belong to its own cluster key",
+        )
+
+class TestRunEntityResolutionUnstructuredOnly(unittest.TestCase):
+    """Tests for run_entity_resolution with resolution_mode='unstructured_only'."""
+
+    def _live_config(self, tmp_path: Path) -> Config:
+        return Config(
+            dry_run=False,
+            output_dir=tmp_path,
+            neo4j_uri="bolt://example.invalid",
+            neo4j_username="neo4j",
+            neo4j_password="secret",
+            neo4j_database="neo4j",
+            openai_model="test-model",
+            resolution_mode=_RESOLUTION_MODE_UNSTRUCTURED_ONLY,
+        )
+
+    def _make_driver(self, mentions: list[dict[str, Any]]) -> MagicMock:
+        return _make_neo4j_test_driver(mentions, [])
+
+    def test_dry_run_mode_in_summary(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = Config(
+                dry_run=True,
+                output_dir=Path(tmpdir),
+                neo4j_uri="bolt://example.invalid",
+                neo4j_username="neo4j",
+                neo4j_password="not-used",
+                neo4j_database="neo4j",
+                openai_model="test-model",
+                resolution_mode=_RESOLUTION_MODE_UNSTRUCTURED_ONLY,
+            )
+            result = run_entity_resolution(config, run_id="test-uo-dry", source_uri=None)
+            self.assertEqual(result["resolution_mode"], _RESOLUTION_MODE_UNSTRUCTURED_ONLY)
+
+    def test_live_no_canonical_lookup(self):
+        """unstructured_only should NOT touch CanonicalEntity nodes at all."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config(Path(tmpdir))
+            mentions = [{"mention_id": "m1", "name": "Alice", "entity_type": "person"}]
+            driver = self._make_driver(mentions)
+
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                run_entity_resolution(config, run_id="run-uo-001", source_uri=None)
+
+            all_calls = [str(c) for c in driver.execute_query.call_args_list]
+            self.assertFalse(
+                any("CanonicalEntity" in call for call in all_calls),
+                "unstructured_only mode must not reference CanonicalEntity in any query",
+            )
+
+    def test_live_all_mentions_clustered(self):
+        """In unstructured_only mode all mentions end up in clusters (unresolved)."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config(Path(tmpdir))
+            mentions = [
+                {"mention_id": "m1", "name": "Alice", "entity_type": "person"},
+                {"mention_id": "m2", "name": "Bob", "entity_type": "person"},
+            ]
+            driver = self._make_driver(mentions)
+
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                result = run_entity_resolution(config, run_id="run-uo-002", source_uri=None)
+
+            self.assertEqual(result["resolved"], 0)
+            self.assertEqual(result["unresolved"], 2)
+            self.assertEqual(result["mentions_total"], 2)
+
+    def test_live_normalized_exact_reduces_clusters(self):
+        """Two mentions with the same normalized text -> one cluster."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config(Path(tmpdir))
+            mentions = [
+                {"mention_id": "m1", "name": "Alice", "entity_type": None},
+                {"mention_id": "m2", "name": "ALICE", "entity_type": None},
+            ]
+            driver = self._make_driver(mentions)
+
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                result = run_entity_resolution(config, run_id="run-uo-003", source_uri=None)
+
+            self.assertEqual(result["clusters_created"], 1)
+
+    def test_live_resolution_mode_in_summary(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config(Path(tmpdir))
+            driver = self._make_driver([])
+
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                result = run_entity_resolution(config, run_id="run-uo-004", source_uri=None)
+
+            self.assertEqual(result["resolution_mode"], _RESOLUTION_MODE_UNSTRUCTURED_ONLY)
+
+    def test_live_resolution_breakdown_no_structured_methods(self):
+        """Resolution breakdown should not contain qid_exact/label_exact/alias_exact."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config(Path(tmpdir))
+            mentions = [
+                {"mention_id": "m1", "name": "Widget Corp", "entity_type": None},
+                {"mention_id": "m2", "name": "Widget Corp.", "entity_type": None},
+            ]
+            driver = self._make_driver(mentions)
+
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                result = run_entity_resolution(config, run_id="run-uo-005", source_uri=None)
+
+            breakdown = result["resolution_breakdown"]
+            self.assertNotIn("qid_exact", breakdown)
+            self.assertNotIn("label_exact", breakdown)
+            self.assertNotIn("alias_exact", breakdown)
+
+    def test_explicit_arg_overrides_config_mode(self):
+        """resolution_mode kwarg overrides config.resolution_mode."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = Config(
+                dry_run=True,
+                output_dir=Path(tmpdir),
+                neo4j_uri="bolt://example.invalid",
+                neo4j_username="neo4j",
+                neo4j_password="not-used",
+                neo4j_database="neo4j",
+                openai_model="test-model",
+                resolution_mode="structured_anchor",
+            )
+            result = run_entity_resolution(
+                config,
+                run_id="run-uo-override",
+                source_uri=None,
+                resolution_mode=_RESOLUTION_MODE_UNSTRUCTURED_ONLY,
+            )
+            self.assertEqual(result["resolution_mode"], _RESOLUTION_MODE_UNSTRUCTURED_ONLY)
+
+    def test_invalid_resolution_mode_raises(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = Config(
+                dry_run=True,
+                output_dir=Path(tmpdir),
+                neo4j_uri="bolt://example.invalid",
+                neo4j_username="neo4j",
+                neo4j_password="not-used",
+                neo4j_database="neo4j",
+                openai_model="test-model",
+            )
+            with self.assertRaises(ValueError) as ctx:
+                run_entity_resolution(
+                    config,
+                    run_id="run-uo-bad-mode",
+                    source_uri=None,
+                    resolution_mode="invalid_mode",
+                )
+            self.assertIn("invalid_mode", str(ctx.exception))
+
+    def _get_member_of_rows(self, driver: MagicMock) -> list[dict]:
+        """Extract the 'rows' parameter from the MEMBER_OF Cypher write call."""
+        for call in driver.execute_query.call_args_list:
+            query = call.args[0] if call.args else ""
+            params = call.kwargs.get("parameters_", {})
+            if "MEMBER_OF" in query and "rows" in params:
+                return params["rows"]
+        return []
+
+    def test_deterministic_methods_write_accepted_status(self):
+        """label_cluster and normalized_exact must write status='accepted'."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config(Path(tmpdir))
+            mentions = [
+                # m1: singleton → label_cluster for "uniquename1"
+                {"mention_id": "m1", "name": "UniqueName1", "entity_type": "person"},
+                # m2: duplicate of m1 → normalized_exact for "uniquename1"
+                {"mention_id": "m2", "name": "UniqueName1", "entity_type": "person"},
+                # m3: distinct singleton → label_cluster for "uniquename2"
+                {"mention_id": "m3", "name": "UniqueName2", "entity_type": "person"},
+            ]
+            driver = self._make_driver(mentions)
+
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                run_entity_resolution(config, run_id="run-status-001", source_uri=None)
+
+            rows = self._get_member_of_rows(driver)
+            self.assertTrue(rows, "Expected MEMBER_OF rows in Cypher call")
+            by_method = {r["method"]: r["status"] for r in rows}
+            self.assertEqual(
+                by_method.get("label_cluster"), "accepted",
+                "label_cluster must write status='accepted'",
+            )
+            self.assertEqual(
+                by_method.get("normalized_exact"), "accepted",
+                "normalized_exact must write status='accepted'",
+            )
+
+    def test_fuzzy_method_writes_provisional_status(self):
+        """fuzzy cluster assignments must write status='provisional'."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config(Path(tmpdir))
+            # Two mentions that fuzzy-match each other (same type, similar text)
+            mentions = [
+                {"mention_id": "m1", "name": "Federal Reserve Board",
+                 "entity_type": "organization"},
+                {"mention_id": "m2", "name": "Federal Reserve Boards",
+                 "entity_type": "organization"},
+            ]
+            driver = self._make_driver(mentions)
+
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                run_entity_resolution(config, run_id="run-status-002", source_uri=None)
+
+            rows = self._get_member_of_rows(driver)
+            self.assertTrue(rows, "Expected MEMBER_OF rows in Cypher call")
+            fuzzy_rows = [r for r in rows if r["method"] == "fuzzy"]
+            self.assertTrue(fuzzy_rows, "Expected at least one fuzzy row")
+            for r in fuzzy_rows:
+                self.assertEqual(
+                    r["status"], "provisional",
+                    f"fuzzy row must write status='provisional', got {r['status']!r}",
+                )
+
+    def test_abbreviation_method_writes_provisional_status(self):
+        """abbreviation cluster assignments must write status='provisional'."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config(Path(tmpdir))
+            mentions = [
+                {"mention_id": "m1", "name": "Federal Bureau of Investigation",
+                 "entity_type": "organization"},
+                {"mention_id": "m2", "name": "fbi",
+                 "entity_type": "organization"},
+            ]
+            driver = self._make_driver(mentions)
+
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                run_entity_resolution(config, run_id="run-status-003", source_uri=None)
+
+            rows = self._get_member_of_rows(driver)
+            self.assertTrue(rows, "Expected MEMBER_OF rows in Cypher call")
+            abbrev_rows = [r for r in rows if r["method"] == "abbreviation"]
+            self.assertTrue(abbrev_rows, "Expected at least one abbreviation row")
+            for r in abbrev_rows:
+                self.assertEqual(
+                    r["status"], "provisional",
+                    f"abbreviation row must write status='provisional', got {r['status']!r}",
+                )
 
 if __name__ == "__main__":
     unittest.main()
