@@ -1862,7 +1862,7 @@ class ResetDemoDbTests(unittest.TestCase):
             "Document", "Chunk",
             "CanonicalEntity", "Claim", "Fact", "Relationship", "Source",
             "ExtractedClaim", "EntityMention",
-            "UnresolvedEntity",
+            "UnresolvedEntity", "ResolvedEntityCluster",
         }
         self.assertEqual(set(report["demo_labels_deleted"]), expected_labels)
 
@@ -1886,7 +1886,7 @@ class ResetDemoDbTests(unittest.TestCase):
             "Document", "Chunk",
             "CanonicalEntity", "Claim", "Fact", "Relationship", "Source",
             "ExtractedClaim", "EntityMention",
-            "UnresolvedEntity",
+            "UnresolvedEntity", "ResolvedEntityCluster",
         ):
             self.assertIn(
                 f"n:{label}", delete_query,

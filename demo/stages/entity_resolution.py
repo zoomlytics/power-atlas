@@ -405,4 +405,4 @@ def run_entity_resolution(
     return summary
 
 
-__all__ = ["run_entity_resolution", "_CLUSTER_VERSION"]
+__all__ = ["run_entity_resolution"]

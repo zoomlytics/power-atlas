@@ -66,8 +66,9 @@ DEMO_NODE_LABELS: tuple[str, ...] = (
     # Extraction layer — claim/mention extraction
     "ExtractedClaim",
     "EntityMention",
-    # Resolution layer — entity resolution (fallback nodes for unresolved mentions)
+    # Resolution layer — entity resolution
     "UnresolvedEntity",
+    "ResolvedEntityCluster",
 )
 
 # Demo-owned index names dropped on reset.  Keep in sync with:
