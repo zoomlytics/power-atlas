@@ -10,8 +10,11 @@ from unittest.mock import MagicMock, patch
 
 from demo.contracts.runtime import Config
 from demo.stages.entity_resolution import (
+    _ALIGNMENT_VERSION,
     _CLUSTER_VERSION,
+    _RESOLUTION_MODE_HYBRID,
     _RESOLUTION_MODE_UNSTRUCTURED_ONLY,
+    _align_clusters_to_canonical,
     _build_lookup_tables,
     _cluster_mentions_unstructured_only,
     _fuzzy_ratio,
@@ -1254,6 +1257,307 @@ class TestRunEntityResolutionUnstructuredOnly(unittest.TestCase):
                     r["status"], "provisional",
                     f"abbreviation row must write status='provisional', got {r['status']!r}",
                 )
+
+class TestAlignClustersToCanonical(unittest.TestCase):
+    """Unit tests for _align_clusters_to_canonical."""
+
+    def setUp(self):
+        canonical_nodes = [
+            {"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": "Ali|Alicia"},
+            {"entity_id": "Q2", "run_id": "run-s1", "name": "Bob Corp", "aliases": "BC,Bobby Corp"},
+        ]
+        _, self.by_label, self.by_alias = _build_lookup_tables(canonical_nodes)
+
+    def test_label_exact_match_returned(self):
+        rows = _align_clusters_to_canonical(["alice"], self.by_label, self.by_alias)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["cluster_id"], "cluster::alice")
+        self.assertEqual(rows[0]["canonical_entity_id"], "Q1")
+        self.assertEqual(rows[0]["alignment_method"], "label_exact")
+        self.assertAlmostEqual(rows[0]["alignment_score"], 0.9)
+        self.assertEqual(rows[0]["alignment_status"], "aligned")
+
+    def test_alias_exact_match_returned(self):
+        rows = _align_clusters_to_canonical(["ali"], self.by_label, self.by_alias)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["canonical_entity_id"], "Q1")
+        self.assertEqual(rows[0]["alignment_method"], "alias_exact")
+        self.assertAlmostEqual(rows[0]["alignment_score"], 0.8)
+
+    def test_label_preferred_over_alias(self):
+        # "bob corp" should match label_exact, not alias_exact
+        rows = _align_clusters_to_canonical(["bob corp"], self.by_label, self.by_alias)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["alignment_method"], "label_exact")
+
+    def test_no_match_returns_empty(self):
+        rows = _align_clusters_to_canonical(["unknown entity xyz"], self.by_label, self.by_alias)
+        self.assertEqual(rows, [])
+
+    def test_empty_input_returns_empty(self):
+        rows = _align_clusters_to_canonical([], self.by_label, self.by_alias)
+        self.assertEqual(rows, [])
+
+    def test_partial_matches_only_matched_returned(self):
+        rows = _align_clusters_to_canonical(
+            ["alice", "unknown xyz", "bc"],
+            self.by_label, self.by_alias,
+        )
+        # "alice" label_exact + "bc" alias_exact; "unknown xyz" has no match
+        self.assertEqual(len(rows), 2)
+        cluster_ids = {r["cluster_id"] for r in rows}
+        self.assertIn("cluster::alice", cluster_ids)
+        self.assertIn("cluster::bc", cluster_ids)
+
+    def test_empty_lookup_tables_returns_empty(self):
+        rows = _align_clusters_to_canonical(["alice"], {}, {})
+        self.assertEqual(rows, [])
+
+
+class TestRunEntityResolutionHybrid(unittest.TestCase):
+    """Tests for run_entity_resolution with resolution_mode='hybrid'."""
+
+    def _live_config(self, tmp_path: Path) -> Config:
+        return Config(
+            dry_run=False,
+            output_dir=tmp_path,
+            neo4j_uri="bolt://example.invalid",
+            neo4j_username="neo4j",
+            neo4j_password="secret",
+            neo4j_database="neo4j",
+            openai_model="test-model",
+            resolution_mode=_RESOLUTION_MODE_HYBRID,
+        )
+
+    def _dry_config(self, tmp_path: Path) -> Config:
+        return Config(
+            dry_run=True,
+            output_dir=tmp_path,
+            neo4j_uri="bolt://example.invalid",
+            neo4j_username="neo4j",
+            neo4j_password="not-used",
+            neo4j_database="neo4j",
+            openai_model="test-model",
+            resolution_mode=_RESOLUTION_MODE_HYBRID,
+        )
+
+    def _make_driver(
+        self,
+        mentions: list[dict[str, Any]],
+        canonical_nodes: list[dict[str, Any]],
+    ) -> MagicMock:
+        return _make_neo4j_test_driver(mentions, canonical_nodes)
+
+    # ------------------------------------------------------------------
+    # Dry-run
+    # ------------------------------------------------------------------
+
+    def test_dry_run_returns_hybrid_mode(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._dry_config(Path(tmpdir))
+            result = run_entity_resolution(config, run_id="hybrid-dry-001", source_uri=None)
+            self.assertEqual(result["status"], "dry_run")
+            self.assertEqual(result["resolution_mode"], _RESOLUTION_MODE_HYBRID)
+
+    def test_dry_run_includes_alignment_version(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._dry_config(Path(tmpdir))
+            result = run_entity_resolution(config, run_id="hybrid-dry-002", source_uri=None)
+            self.assertIn("alignment_version", result)
+            self.assertEqual(result["alignment_version"], _ALIGNMENT_VERSION)
+
+    def test_dry_run_includes_aligned_clusters_zero(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._dry_config(Path(tmpdir))
+            result = run_entity_resolution(config, run_id="hybrid-dry-003", source_uri=None)
+            self.assertIn("aligned_clusters", result)
+            self.assertEqual(result["aligned_clusters"], 0)
+
+    def test_dry_run_includes_alignment_breakdown_empty(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._dry_config(Path(tmpdir))
+            result = run_entity_resolution(config, run_id="hybrid-dry-004", source_uri=None)
+            self.assertIn("alignment_breakdown", result)
+            self.assertEqual(result["alignment_breakdown"], {})
+
+    def test_dry_run_resolver_method(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._dry_config(Path(tmpdir))
+            result = run_entity_resolution(config, run_id="hybrid-dry-005", source_uri=None)
+            self.assertEqual(
+                result["resolver_method"],
+                "unstructured_clustering_with_canonical_alignment",
+            )
+
+    # ------------------------------------------------------------------
+    # Live: unstructured clustering behaves identically to unstructured_only
+    # ------------------------------------------------------------------
+
+    def test_live_all_mentions_become_unresolved(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config(Path(tmpdir))
+            mentions = [
+                {"mention_id": "m1", "name": "Alice", "entity_type": "person"},
+                {"mention_id": "m2", "name": "Bob", "entity_type": "person"},
+            ]
+            driver = self._make_driver(mentions, [])
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                result = run_entity_resolution(config, run_id="hybrid-live-001", source_uri=None)
+            self.assertEqual(result["resolved"], 0)
+            self.assertEqual(result["unresolved"], 2)
+            self.assertEqual(result["mentions_total"], 2)
+
+    def test_live_member_of_edge_written(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config(Path(tmpdir))
+            mentions = [{"mention_id": "m1", "name": "Widget Corp", "entity_type": None}]
+            driver = self._make_driver(mentions, [])
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                run_entity_resolution(config, run_id="hybrid-live-002", source_uri=None)
+            all_calls = [str(c) for c in driver.execute_query.call_args_list]
+            self.assertTrue(any("MEMBER_OF" in c for c in all_calls))
+
+    def test_live_no_aligned_clusters_when_no_canonical(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config(Path(tmpdir))
+            mentions = [{"mention_id": "m1", "name": "Alice", "entity_type": "person"}]
+            driver = self._make_driver(mentions, [])
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                result = run_entity_resolution(config, run_id="hybrid-live-003", source_uri=None)
+            self.assertEqual(result["aligned_clusters"], 0)
+            # ALIGNED_WITH must NOT appear in Cypher calls when no canonicals exist
+            all_calls = [str(c) for c in driver.execute_query.call_args_list]
+            self.assertFalse(any("ALIGNED_WITH" in c for c in all_calls))
+
+    # ------------------------------------------------------------------
+    # Live: enrichment alignment when CanonicalEntity nodes exist
+    # ------------------------------------------------------------------
+
+    def test_live_aligned_with_edge_written_for_label_match(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config(Path(tmpdir))
+            mentions = [{"mention_id": "m1", "name": "Alice", "entity_type": "person"}]
+            canonicals = [{"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": None}]
+            driver = self._make_driver(mentions, canonicals)
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                result = run_entity_resolution(config, run_id="hybrid-live-004", source_uri=None)
+            self.assertEqual(result["aligned_clusters"], 1)
+            all_calls = [str(c) for c in driver.execute_query.call_args_list]
+            self.assertTrue(any("ALIGNED_WITH" in c for c in all_calls))
+
+    def test_live_aligned_with_written_for_alias_match(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config(Path(tmpdir))
+            # "ali" is an alias for "Alice" (Q1)
+            mentions = [{"mention_id": "m1", "name": "Ali", "entity_type": "person"}]
+            canonicals = [{"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": "Ali|Alicia"}]
+            driver = self._make_driver(mentions, canonicals)
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                result = run_entity_resolution(config, run_id="hybrid-live-005", source_uri=None)
+            self.assertEqual(result["aligned_clusters"], 1)
+            self.assertEqual(result["alignment_breakdown"].get("alias_exact"), 1)
+
+    def test_live_alignment_breakdown_reflects_methods(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config(Path(tmpdir))
+            mentions = [
+                {"mention_id": "m1", "name": "Alice", "entity_type": "person"},
+                {"mention_id": "m2", "name": "BC", "entity_type": "org"},
+            ]
+            canonicals = [
+                {"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": None},
+                {"entity_id": "Q2", "run_id": "run-s1", "name": "Bob Corp", "aliases": "BC"},
+            ]
+            driver = self._make_driver(mentions, canonicals)
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                result = run_entity_resolution(config, run_id="hybrid-live-006", source_uri=None)
+            self.assertEqual(result["aligned_clusters"], 2)
+            self.assertEqual(result["alignment_breakdown"].get("label_exact"), 1)
+            self.assertEqual(result["alignment_breakdown"].get("alias_exact"), 1)
+
+    def test_live_unaligned_clusters_preserved(self):
+        """Clusters with no canonical match must still exist (MEMBER_OF written)."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config(Path(tmpdir))
+            mentions = [
+                {"mention_id": "m1", "name": "Alice", "entity_type": "person"},
+                {"mention_id": "m2", "name": "Unknown Corp", "entity_type": "org"},
+            ]
+            canonicals = [
+                {"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": None},
+            ]
+            driver = self._make_driver(mentions, canonicals)
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                result = run_entity_resolution(config, run_id="hybrid-live-007", source_uri=None)
+            # One cluster aligned, one unaligned — both clusters still in unresolved
+            self.assertEqual(result["unresolved"], 2)
+            self.assertEqual(result["clusters_created"], 2)
+            self.assertEqual(result["aligned_clusters"], 1)
+
+    def test_live_resolution_mode_in_summary(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config(Path(tmpdir))
+            driver = self._make_driver([], [])
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                result = run_entity_resolution(config, run_id="hybrid-live-008", source_uri=None)
+            self.assertEqual(result["resolution_mode"], _RESOLUTION_MODE_HYBRID)
+
+    def test_live_resolver_method_in_summary(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config(Path(tmpdir))
+            driver = self._make_driver([], [])
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                result = run_entity_resolution(config, run_id="hybrid-live-009", source_uri=None)
+            self.assertEqual(
+                result["resolver_method"],
+                "unstructured_clustering_with_canonical_alignment",
+            )
+
+    def test_live_alignment_version_in_summary(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config(Path(tmpdir))
+            driver = self._make_driver([], [])
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                result = run_entity_resolution(config, run_id="hybrid-live-010", source_uri=None)
+            self.assertIn("alignment_version", result)
+            self.assertEqual(result["alignment_version"], _ALIGNMENT_VERSION)
+
+    def test_explicit_arg_overrides_config_mode(self):
+        """resolution_mode kwarg overrides config.resolution_mode."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = Config(
+                dry_run=True,
+                output_dir=Path(tmpdir),
+                neo4j_uri="bolt://example.invalid",
+                neo4j_username="neo4j",
+                neo4j_password="not-used",
+                neo4j_database="neo4j",
+                openai_model="test-model",
+                resolution_mode="structured_anchor",
+            )
+            result = run_entity_resolution(
+                config,
+                run_id="hybrid-override",
+                source_uri=None,
+                resolution_mode=_RESOLUTION_MODE_HYBRID,
+            )
+            self.assertEqual(result["resolution_mode"], _RESOLUTION_MODE_HYBRID)
+
+    def test_live_does_not_create_resolves_to_edges(self):
+        """hybrid mode must not write RESOLVES_TO edges (mentions stay in clusters)."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config(Path(tmpdir))
+            mentions = [{"mention_id": "m1", "name": "Alice", "entity_type": "person"}]
+            canonicals = [{"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": None}]
+            driver = self._make_driver(mentions, canonicals)
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                run_entity_resolution(config, run_id="hybrid-live-011", source_uri=None)
+            all_calls = [str(c) for c in driver.execute_query.call_args_list]
+            self.assertFalse(
+                any("RESOLVES_TO" in c for c in all_calls),
+                "hybrid mode must not write RESOLVES_TO edges",
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

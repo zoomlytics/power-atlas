@@ -79,6 +79,10 @@ def resolution_layer_schema() -> GraphSchema:
         relationship_types=[
             # Provisional resolution layer relationships
             RelationshipType(label="MEMBER_OF"),
+            # Enrichment alignment: cluster → canonical (hybrid mode).
+            # Properties: alignment_method, alignment_score, alignment_status,
+            #   alignment_version, run_id, source_uri.
+            # Created non-destructively; does not modify MEMBER_OF edges or cluster nodes.
             RelationshipType(label="ALIGNED_WITH"),
         ],
     )
