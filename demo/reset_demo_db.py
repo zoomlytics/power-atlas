@@ -15,6 +15,7 @@ Demo-owned labels (nodes + all their relationships are removed):
   - ExtractedClaim          (extraction layer written by extract-claims)
   - EntityMention           (extraction layer written by extract-claims)
   - UnresolvedEntity        (resolution layer written by resolve-entities; fallback for unresolved mentions)
+  - ResolvedEntityCluster   (resolution layer written by resolve-entities; resolved entity clusters)
 
 Demo-owned indexes (dropped by name):
   - demo_chunk_embedding_index  (vector index on Chunk.embedding, created by
@@ -66,8 +67,9 @@ DEMO_NODE_LABELS: tuple[str, ...] = (
     # Extraction layer — claim/mention extraction
     "ExtractedClaim",
     "EntityMention",
-    # Resolution layer — entity resolution (fallback nodes for unresolved mentions)
+    # Resolution layer — entity resolution
     "UnresolvedEntity",
+    "ResolvedEntityCluster",
 )
 
 # Demo-owned index names dropped on reset.  Keep in sync with:

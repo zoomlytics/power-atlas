@@ -10,6 +10,7 @@ from unittest.mock import MagicMock, patch
 
 from demo.contracts.runtime import Config
 from demo.stages.entity_resolution import (
+    _CLUSTER_VERSION,
     _build_lookup_tables,
     _normalize,
     _resolve_mention,
@@ -40,6 +41,42 @@ def _live_config(tmp_path: Path) -> Config:
         neo4j_database="neo4j",
         openai_model="test-model",
     )
+
+
+def _make_neo4j_test_driver(
+    mentions: list[dict[str, Any]],
+    canonical_nodes: list[dict[str, Any]],
+) -> MagicMock:
+    """Build a mock neo4j.Driver that returns the given data."""
+
+    # Records returned by execute_query must support subscript access (record["key"]).
+    # Using a plain dict subclass is the simplest way to simulate Neo4j record behaviour
+    # without pulling in the real driver.
+    class _Record(dict):
+        pass
+
+    mention_records = [
+        _Record(mention_id=m["mention_id"], name=m["name"], entity_type=m.get("entity_type"))
+        for m in mentions
+    ]
+    canonical_records = [
+        _Record(entity_id=c["entity_id"], run_id=c.get("run_id", ""), name=c["name"], aliases=c.get("aliases"))
+        for c in canonical_nodes
+    ]
+
+    def execute_query(query, parameters_=None, database_=None, routing_=None):
+        if "EntityMention" in query and "RETURN" in query:
+            return (mention_records, None, None)
+        if "CanonicalEntity" in query and "RETURN" in query:
+            return (canonical_records, None, None)
+        # write queries — return empty
+        return ([], None, None)
+
+    driver = MagicMock()
+    driver.execute_query.side_effect = execute_query
+    driver.__enter__ = lambda s: s
+    driver.__exit__ = MagicMock(return_value=False)
+    return driver
 
 
 class TestNormalize(unittest.TestCase):
@@ -139,11 +176,11 @@ class TestResolveMention(unittest.TestCase):
         self.assertEqual(result["canonical_run_id"], "run-s1")
         self.assertEqual(result["resolution_confidence"], 1.0)
 
-    def test_qid_pattern_match_no_canonical_falls_through_to_unresolved(self):
+    def test_qid_pattern_match_no_canonical_falls_through_to_label_cluster(self):
         mention = {"mention_id": "m2", "name": "Q999"}
         result = _resolve_mention(mention, self.by_qid, self.by_label, self.by_alias)
         self.assertFalse(result["resolved"])
-        self.assertEqual(result["resolution_method"], "unresolved")
+        self.assertEqual(result["resolution_method"], "label_cluster")
 
     def test_label_exact_case_insensitive(self):
         mention = {"mention_id": "m3", "name": "douglas adams"}
@@ -163,11 +200,11 @@ class TestResolveMention(unittest.TestCase):
         self.assertEqual(result["canonical_run_id"], "run-s1")
         self.assertEqual(result["resolution_confidence"], 0.8)
 
-    def test_unresolved(self):
+    def test_unresolved_falls_to_label_cluster(self):
         mention = {"mention_id": "m5", "name": "Unknown Entity XYZ"}
         result = _resolve_mention(mention, self.by_qid, self.by_label, self.by_alias)
         self.assertFalse(result["resolved"])
-        self.assertEqual(result["resolution_method"], "unresolved")
+        self.assertEqual(result["resolution_method"], "label_cluster")
         self.assertEqual(result["resolution_confidence"], 0.0)
         self.assertEqual(result["candidate_ids"], [])
         self.assertEqual(result["normalized_text"], "unknown entity xyz")
@@ -228,35 +265,7 @@ class TestRunEntityResolutionLive(unittest.TestCase):
         canonical_nodes: list[dict[str, Any]],
     ) -> MagicMock:
         """Build a mock neo4j.Driver that returns the given data."""
-
-        # Records returned by execute_query must support subscript access (record["key"]).
-        # Using a plain dict subclass is the simplest way to simulate Neo4j record behaviour
-        # without pulling in the real driver.
-        class _Record(dict):
-            pass
-
-        mention_records = [
-            _Record(mention_id=m["mention_id"], name=m["name"], entity_type=m.get("entity_type"))
-            for m in mentions
-        ]
-        canonical_records = [
-            _Record(entity_id=c["entity_id"], run_id=c.get("run_id", ""), name=c["name"], aliases=c.get("aliases"))
-            for c in canonical_nodes
-        ]
-
-        def execute_query(query, parameters_=None, database_=None, routing_=None):
-            if "EntityMention" in query and "RETURN" in query:
-                return (mention_records, None, None)
-            if "CanonicalEntity" in query and "RETURN" in query:
-                return (canonical_records, None, None)
-            # write queries — return empty
-            return ([], None, None)
-
-        driver = MagicMock()
-        driver.execute_query.side_effect = execute_query
-        driver.__enter__ = lambda s: s
-        driver.__exit__ = MagicMock(return_value=False)
-        return driver
+        return _make_neo4j_test_driver(mentions, canonical_nodes)
 
     def test_live_resolves_qid_match(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -312,7 +321,7 @@ class TestRunEntityResolutionLive(unittest.TestCase):
 
             self.assertEqual(result["resolved"], 0)
             self.assertEqual(result["unresolved"], 1)
-            self.assertEqual(result["resolution_breakdown"].get("unresolved"), 1)
+            self.assertEqual(result["resolution_breakdown"].get("label_cluster"), 1)
 
     def test_live_writes_unresolved_artifact(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -504,6 +513,224 @@ class TestBatchManifestEntityResolution(unittest.TestCase):
                 retrieval_stage={"status": "dry_run"},
             )
             self.assertNotIn("entity_resolution", manifest["stages"])
+
+
+class TestResolvedEntityCluster(unittest.TestCase):
+    """Tests for the ResolvedEntityCluster (provisional cluster) layer."""
+
+    # ------------------------------------------------------------------
+    # Resolution method for non-canonical mentions
+    # ------------------------------------------------------------------
+
+    def test_unresolved_mention_gets_label_cluster_method(self):
+        by_qid, by_label, by_alias = _build_lookup_tables([])
+        mention = {"mention_id": "m1", "name": "Mystery Corp"}
+        result = _resolve_mention(mention, by_qid, by_label, by_alias)
+        self.assertFalse(result["resolved"])
+        self.assertEqual(result["resolution_method"], "label_cluster")
+
+    def test_unresolved_mention_carries_normalized_text(self):
+        by_qid, by_label, by_alias = _build_lookup_tables([])
+        mention = {"mention_id": "m1", "name": "  Mystery Corp  "}
+        result = _resolve_mention(mention, by_qid, by_label, by_alias)
+        self.assertEqual(result["normalized_text"], "mystery corp")
+        self.assertEqual(result["mention_name"], "  Mystery Corp  ".strip())
+
+    # ------------------------------------------------------------------
+    # Dry-run summary includes cluster fields
+    # ------------------------------------------------------------------
+
+    def test_dry_run_summary_includes_clusters_created(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = Config(
+                dry_run=True,
+                output_dir=Path(tmpdir),
+                neo4j_uri="bolt://example.invalid",
+                neo4j_username="neo4j",
+                neo4j_password="not-used",
+                neo4j_database="neo4j",
+                openai_model="test-model",
+            )
+            result = run_entity_resolution(config, run_id="test-cluster-001", source_uri=None)
+            self.assertIn("clusters_created", result)
+            self.assertEqual(result["clusters_created"], 0)
+
+    def test_dry_run_summary_includes_cluster_version(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = Config(
+                dry_run=True,
+                output_dir=Path(tmpdir),
+                neo4j_uri="bolt://example.invalid",
+                neo4j_username="neo4j",
+                neo4j_password="not-used",
+                neo4j_database="neo4j",
+                openai_model="test-model",
+            )
+            result = run_entity_resolution(config, run_id="test-cluster-002", source_uri=None)
+            self.assertIn("cluster_version", result)
+            self.assertEqual(result["cluster_version"], _CLUSTER_VERSION)
+
+    # ------------------------------------------------------------------
+    # Live path: clusters_created count
+    # ------------------------------------------------------------------
+
+    def _make_driver(
+        self,
+        mentions: list[dict[str, Any]],
+        canonical_nodes: list[dict[str, Any]],
+    ) -> MagicMock:
+        """Build a mock neo4j.Driver that returns the given data."""
+        return _make_neo4j_test_driver(mentions, canonical_nodes)
+
+    def test_live_clusters_created_equals_unique_normalized_texts(self):
+        """Two mentions with the same normalized text map to ONE cluster."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = Config(
+                dry_run=False,
+                output_dir=Path(tmpdir),
+                neo4j_uri="bolt://example.invalid",
+                neo4j_username="neo4j",
+                neo4j_password="secret",
+                neo4j_database="neo4j",
+                openai_model="test-model",
+            )
+            mentions = [
+                {"mention_id": "m1", "name": "Mystery Corp", "entity_type": None},
+                {"mention_id": "m2", "name": "mystery corp", "entity_type": None},  # same normalized
+                {"mention_id": "m3", "name": "Other Entity", "entity_type": None},
+            ]
+            driver = self._make_driver(mentions, [])
+
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                result = run_entity_resolution(config, run_id="run-cluster-001", source_uri=None)
+
+            # "mystery corp" (normalized) → 1 cluster; "other entity" → 1 cluster
+            self.assertEqual(result["unresolved"], 3)
+            self.assertEqual(result["clusters_created"], 2)
+
+    def test_live_clusters_created_is_zero_when_all_resolved(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = Config(
+                dry_run=False,
+                output_dir=Path(tmpdir),
+                neo4j_uri="bolt://example.invalid",
+                neo4j_username="neo4j",
+                neo4j_password="secret",
+                neo4j_database="neo4j",
+                openai_model="test-model",
+            )
+            mentions = [{"mention_id": "m1", "name": "Q42", "entity_type": "person"}]
+            canonicals = [{"entity_id": "Q42", "run_id": "run-s1", "name": "Douglas Adams", "aliases": None}]
+            driver = self._make_driver(mentions, canonicals)
+
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                result = run_entity_resolution(config, run_id="run-cluster-002", source_uri=None)
+
+            self.assertEqual(result["resolved"], 1)
+            self.assertEqual(result["clusters_created"], 0)
+
+    def test_live_summary_carries_cluster_version(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = Config(
+                dry_run=False,
+                output_dir=Path(tmpdir),
+                neo4j_uri="bolt://example.invalid",
+                neo4j_username="neo4j",
+                neo4j_password="secret",
+                neo4j_database="neo4j",
+                openai_model="test-model",
+            )
+            driver = self._make_driver([], [])
+
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                result = run_entity_resolution(config, run_id="run-cluster-003", source_uri=None)
+
+            self.assertIn("cluster_version", result)
+            self.assertEqual(result["cluster_version"], _CLUSTER_VERSION)
+
+    # ------------------------------------------------------------------
+    # Live path: cluster_id in unresolved artifact
+    # ------------------------------------------------------------------
+
+    def test_live_unresolved_artifact_includes_cluster_id(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = Config(
+                dry_run=False,
+                output_dir=Path(tmpdir),
+                neo4j_uri="bolt://example.invalid",
+                neo4j_username="neo4j",
+                neo4j_password="secret",
+                neo4j_database="neo4j",
+                openai_model="test-model",
+            )
+            mentions = [{"mention_id": "m1", "name": "Widget Inc", "entity_type": None}]
+            driver = self._make_driver(mentions, [])
+
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                run_entity_resolution(config, run_id="run-cluster-004", source_uri=None)
+
+            unresolved_path = (
+                Path(tmpdir) / "runs" / "run-cluster-004" / "entity_resolution" / "unresolved_mentions.json"
+            )
+            unresolved = json.loads(unresolved_path.read_text(encoding="utf-8"))
+            self.assertEqual(len(unresolved), 1)
+            self.assertIn("cluster_id", unresolved[0])
+            self.assertEqual(unresolved[0]["cluster_id"], "cluster::widget inc")
+
+    # ------------------------------------------------------------------
+    # Cypher: MEMBER_OF edge written for unresolved mentions
+    # ------------------------------------------------------------------
+
+    def test_live_member_of_edge_written_for_unresolved(self):
+        """Verify the MEMBER_OF Cypher is invoked for unresolved mentions."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = Config(
+                dry_run=False,
+                output_dir=Path(tmpdir),
+                neo4j_uri="bolt://example.invalid",
+                neo4j_username="neo4j",
+                neo4j_password="secret",
+                neo4j_database="neo4j",
+                openai_model="test-model",
+            )
+            mentions = [{"mention_id": "m1", "name": "Nobody Known", "entity_type": None}]
+            driver = self._make_driver(mentions, [])
+
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                run_entity_resolution(config, run_id="run-cluster-005", source_uri=None)
+
+            # At least one call should contain MEMBER_OF
+            all_calls = driver.execute_query.call_args_list
+            cypher_calls = [str(c) for c in all_calls]
+            self.assertTrue(
+                any("MEMBER_OF" in call for call in cypher_calls),
+                "Expected a Cypher call containing MEMBER_OF for unresolved mentions",
+            )
+
+    def test_live_resolved_entity_cluster_node_merged(self):
+        """Verify ResolvedEntityCluster label appears in the Cypher for unresolved mentions."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = Config(
+                dry_run=False,
+                output_dir=Path(tmpdir),
+                neo4j_uri="bolt://example.invalid",
+                neo4j_username="neo4j",
+                neo4j_password="secret",
+                neo4j_database="neo4j",
+                openai_model="test-model",
+            )
+            mentions = [{"mention_id": "m1", "name": "Widget Co", "entity_type": None}]
+            driver = self._make_driver(mentions, [])
+
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                run_entity_resolution(config, run_id="run-cluster-006", source_uri=None)
+
+            all_calls = driver.execute_query.call_args_list
+            cypher_calls = [str(c) for c in all_calls]
+            self.assertTrue(
+                any("ResolvedEntityCluster" in call for call in cypher_calls),
+                "Expected a Cypher call containing ResolvedEntityCluster for unresolved mentions",
+            )
 
 
 if __name__ == "__main__":
