@@ -762,10 +762,18 @@ class TestIsAbbreviation(unittest.TestCase):
         # "fbi," (common in extracted text) should still match.
         self.assertTrue(_is_abbreviation("fbi,", "federal bureau of investigation"))
 
-    def test_uppercase_dotted_abbreviation_matches(self):
-        # Inputs are expected to be lowercased, but verify mixed punct is stripped.
+    def test_dotted_abbreviation_without_trailing_dot_matches(self):
+        # "f.b.i" (no trailing dot) — same initialism as "fbi".
         self.assertTrue(_is_abbreviation("f.b.i", "federal bureau of investigation"))
 
+    def test_long_form_trailing_punctuation_on_token(self):
+        # Punctuation attached to a long_form token must be stripped before
+        # building initials; "investigation," → "investigation".
+        self.assertTrue(_is_abbreviation("fbi", "federal bureau of investigation,"))
+
+    def test_long_form_mid_punctuation_on_token(self):
+        # Mid-sentence punctuation on a long_form word must also be stripped.
+        self.assertTrue(_is_abbreviation("fbi", "federal bureau, of investigation"))
 
 class TestFuzzyRatio(unittest.TestCase):
     def test_identical_strings_return_one(self):
@@ -896,6 +904,35 @@ class TestClusterMentionsUnstructuredOnly(unittest.TestCase):
         result = _cluster_mentions_unstructured_only(mentions)
         cluster_keys = {r["normalized_text"] for r in result}
         self.assertEqual(len(cluster_keys), 1, "Same-type fuzzy-similar names should cluster")
+
+    def test_rekey_does_not_cross_entity_type_boundary(self):
+        """Abbreviation re-key must not remap mentions of a different entity_type.
+
+        A 'person' mention with key "fbi" (introduced via normalized_exact from
+        a different type) must stay on that key even when an 'organization' long
+        form causes a re-key of 'fbi' → 'federal bureau of investigation' within
+        the organization type.
+        """
+        mentions = [
+            # organization: "fbi" arrives first (label_cluster for org type)
+            {"mention_id": "m1", "name": "fbi", "entity_type": "organization"},
+            # person: "fbi" arrives second — normalized_exact hit, clusters into the
+            # shared 'fbi' key (type-agnostic strategy 1)
+            {"mention_id": "m2", "name": "fbi", "entity_type": "person"},
+            # organization: long form arrives; re-keys 'fbi' → long form for org only
+            {"mention_id": "m3", "name": "Federal Bureau of Investigation",
+             "entity_type": "organization"},
+        ]
+        result = _cluster_mentions_unstructured_only(mentions)
+        by_mid = {r["mention_id"]: r for r in result}
+        # org mentions (m1, m3) must share the long-form cluster key
+        self.assertEqual(by_mid["m1"]["normalized_text"],
+                         by_mid["m3"]["normalized_text"])
+        self.assertEqual(by_mid["m1"]["normalized_text"],
+                         "federal bureau of investigation")
+        # person mention (m2) must NOT be re-keyed — it has a different entity_type
+        self.assertEqual(by_mid["m2"]["normalized_text"], "fbi",
+                         "Cross-type remap must not affect person mention")
 
 
 class TestRunEntityResolutionUnstructuredOnly(unittest.TestCase):
