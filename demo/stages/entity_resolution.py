@@ -1,10 +1,14 @@
-"""Entity mention resolution stage.
+"""Entity mention resolution and clustering stage.
 
-Reads :EntityMention nodes (scoped to a ``run_id``) from Neo4j and performs
-deterministic, non-destructive resolution to :CanonicalEntity nodes.
-Mentions that cannot be resolved are grouped by their normalized text into
-:ResolvedEntityCluster provisional cluster nodes and linked via :MEMBER_OF
-edges instead.
+Reads :EntityMention nodes (scoped to a ``run_id``) from Neo4j and, depending
+on the configured mode, either performs deterministic resolution to
+:CanonicalEntity nodes (``structured_anchor`` mode) or performs
+normalization- and similarity-based clustering of mentions without requiring
+a canonical entity anchor (``unstructured_only`` mode).
+
+In ``structured_anchor`` mode, mentions that cannot be resolved are grouped by
+their normalized text into :ResolvedEntityCluster provisional cluster nodes
+and linked via :MEMBER_OF edges instead.
 
 Resolution strategies applied in priority order (``structured_anchor`` mode):
 
@@ -27,8 +31,9 @@ Resolution strategies applied in priority order (``unstructured_only`` mode):
 4. **label_cluster** — fallback; mention is grouped in a singleton cluster
    keyed by its own normalized text.
 
-All resolution is **non-destructive**: existing nodes are never mutated;
-only ``RESOLVES_TO`` and ``MEMBER_OF`` relationship edges are added/updated.
+All resolution and clustering is **non-destructive**: existing nodes are
+never mutated; only ``RESOLVES_TO`` and ``MEMBER_OF`` relationship edges are
+added/updated.
 
 Graph model
 -----------
