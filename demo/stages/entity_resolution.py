@@ -210,7 +210,8 @@ def _write_resolution_results(
             {
                 "mention_id": row["mention_id"],
                 "cluster_id": f"cluster::{row['normalized_text']}",
-                "canonical_name": row["mention_name"],
+                # Use a deterministic canonical name derived from the normalized text
+                "canonical_name": row["normalized_text"].title(),
                 "normalized_text": row["normalized_text"],
                 "score": 1.0,
                 "method": "label_cluster",
