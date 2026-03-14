@@ -346,9 +346,25 @@ def _cluster_mentions_unstructured_only(
         normalized = _normalize(name)
         mid = mention["mention_id"]
         entity_type: str | None = mention.get("entity_type")
+        short_alpha = _RE_NON_ALPHA.sub("", normalized)
 
         # Strategy 1: normalized_exact (type-agnostic).
         if normalized in seen_keys:
+            # IMPORTANT: If this normalized key is a known short-form whose
+            # initials have been promoted to a different long-form cluster for
+            # this entity_type, prefer the long-form cluster instead of
+            # re-attaching to the short-form key. This preserves the invariant
+            # that abbreviation promotion yields a stable long-form cluster key
+            # per entity_type, even though short-form keys remain in seen_keys
+            # for cross-type mentions.
+            mapped_long = initials_to_long_by_type.get(entity_type, {}).get(short_alpha)
+            if mapped_long is not None and mapped_long != normalized:
+                mention_to_cluster[mid] = mapped_long
+                mention_to_method[mid] = ("abbreviation", 0.75)
+                mention_to_type[mid] = entity_type
+                cluster_to_mentions.setdefault(mapped_long, []).append(mid)
+                continue
+
             mention_to_cluster[mid] = normalized
             mention_to_method[mid] = ("normalized_exact", 1.0)
             mention_to_type[mid] = entity_type
@@ -360,7 +376,6 @@ def _cluster_mentions_unstructured_only(
             continue
 
         # Strategy 2: abbreviation (type-scoped, O(1) via index).
-        short_alpha = _RE_NON_ALPHA.sub("", normalized)
 
         # Forward: is current text an abbreviation of an existing long-form cluster?
         existing_long = initials_to_long_by_type.get(entity_type, {}).get(short_alpha)
