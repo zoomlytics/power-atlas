@@ -42,6 +42,22 @@ def claim_extraction_schema() -> GraphSchema:
                 ],
                 additional_properties=True,
             ),
+        ],
+        relationship_types=[
+            RelationshipType(label="MENTIONS"),
+            RelationshipType(label="SUPPORTED_BY"),
+            RelationshipType(label="MENTIONED_IN"),
+        ],
+    )
+
+
+def resolution_layer_schema() -> GraphSchema:
+    """Schema for resolution-layer artifacts created programmatically by the entity resolution stage.
+
+    This schema is not intended to be used as an extraction target for the LLM.
+    """
+    return GraphSchema(
+        node_types=[
             NodeType(
                 label="ResolvedEntityCluster",
                 description=(
@@ -61,9 +77,6 @@ def claim_extraction_schema() -> GraphSchema:
             ),
         ],
         relationship_types=[
-            RelationshipType(label="MENTIONS"),
-            RelationshipType(label="SUPPORTED_BY"),
-            RelationshipType(label="MENTIONED_IN"),
             # Provisional resolution layer relationships
             RelationshipType(label="MEMBER_OF"),
             RelationshipType(label="ALIGNED_WITH"),
@@ -71,4 +84,4 @@ def claim_extraction_schema() -> GraphSchema:
     )
 
 
-__all__ = ["claim_extraction_schema", "claim_extraction_lexical_config"]
+__all__ = ["claim_extraction_schema", "claim_extraction_lexical_config", "resolution_layer_schema"]
