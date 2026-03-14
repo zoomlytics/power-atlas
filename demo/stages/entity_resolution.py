@@ -235,13 +235,15 @@ def _write_resolution_results(
                 r.method           = row.method,
                 r.resolver_version = $resolver_version,
                 r.run_id           = $run_id,
-                r.status           = row.status
+                r.status           = row.status,
+                r.source_uri       = $source_uri
             """,
             parameters_={
                 "rows": cluster_rows,
                 "run_id": run_id,
                 "resolver_version": _CLUSTER_VERSION,
                 "created_at": created_at,
+                "source_uri": source_uri,
             },
             database_=neo4j_database,
         )
