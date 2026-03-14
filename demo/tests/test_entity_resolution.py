@@ -43,6 +43,42 @@ def _live_config(tmp_path: Path) -> Config:
     )
 
 
+def _make_neo4j_test_driver(
+    mentions: list[dict[str, Any]],
+    canonical_nodes: list[dict[str, Any]],
+) -> MagicMock:
+    """Build a mock neo4j.Driver that returns the given data."""
+
+    # Records returned by execute_query must support subscript access (record["key"]).
+    # Using a plain dict subclass is the simplest way to simulate Neo4j record behaviour
+    # without pulling in the real driver.
+    class _Record(dict):
+        pass
+
+    mention_records = [
+        _Record(mention_id=m["mention_id"], name=m["name"], entity_type=m.get("entity_type"))
+        for m in mentions
+    ]
+    canonical_records = [
+        _Record(entity_id=c["entity_id"], run_id=c.get("run_id", ""), name=c["name"], aliases=c.get("aliases"))
+        for c in canonical_nodes
+    ]
+
+    def execute_query(query, parameters_=None, database_=None, routing_=None):
+        if "EntityMention" in query and "RETURN" in query:
+            return (mention_records, None, None)
+        if "CanonicalEntity" in query and "RETURN" in query:
+            return (canonical_records, None, None)
+        # write queries — return empty
+        return ([], None, None)
+
+    driver = MagicMock()
+    driver.execute_query.side_effect = execute_query
+    driver.__enter__ = lambda s: s
+    driver.__exit__ = MagicMock(return_value=False)
+    return driver
+
+
 class TestNormalize(unittest.TestCase):
     def test_strips_and_lowercases(self):
         self.assertEqual(_normalize("  Hello World  "), "hello world")
@@ -229,35 +265,7 @@ class TestRunEntityResolutionLive(unittest.TestCase):
         canonical_nodes: list[dict[str, Any]],
     ) -> MagicMock:
         """Build a mock neo4j.Driver that returns the given data."""
-
-        # Records returned by execute_query must support subscript access (record["key"]).
-        # Using a plain dict subclass is the simplest way to simulate Neo4j record behaviour
-        # without pulling in the real driver.
-        class _Record(dict):
-            pass
-
-        mention_records = [
-            _Record(mention_id=m["mention_id"], name=m["name"], entity_type=m.get("entity_type"))
-            for m in mentions
-        ]
-        canonical_records = [
-            _Record(entity_id=c["entity_id"], run_id=c.get("run_id", ""), name=c["name"], aliases=c.get("aliases"))
-            for c in canonical_nodes
-        ]
-
-        def execute_query(query, parameters_=None, database_=None, routing_=None):
-            if "EntityMention" in query and "RETURN" in query:
-                return (mention_records, None, None)
-            if "CanonicalEntity" in query and "RETURN" in query:
-                return (canonical_records, None, None)
-            # write queries — return empty
-            return ([], None, None)
-
-        driver = MagicMock()
-        driver.execute_query.side_effect = execute_query
-        driver.__enter__ = lambda s: s
-        driver.__exit__ = MagicMock(return_value=False)
-        return driver
+        return _make_neo4j_test_driver(mentions, canonical_nodes)
 
     def test_live_resolves_qid_match(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -571,30 +579,8 @@ class TestResolvedEntityCluster(unittest.TestCase):
         mentions: list[dict[str, Any]],
         canonical_nodes: list[dict[str, Any]],
     ) -> MagicMock:
-        class _Record(dict):
-            pass
-
-        mention_records = [
-            _Record(mention_id=m["mention_id"], name=m["name"], entity_type=m.get("entity_type"))
-            for m in mentions
-        ]
-        canonical_records = [
-            _Record(entity_id=c["entity_id"], run_id=c.get("run_id", ""), name=c["name"], aliases=c.get("aliases"))
-            for c in canonical_nodes
-        ]
-
-        def execute_query(query, parameters_=None, database_=None, routing_=None):
-            if "EntityMention" in query and "RETURN" in query:
-                return (mention_records, None, None)
-            if "CanonicalEntity" in query and "RETURN" in query:
-                return (canonical_records, None, None)
-            return ([], None, None)
-
-        driver = MagicMock()
-        driver.execute_query.side_effect = execute_query
-        driver.__enter__ = lambda s: s
-        driver.__exit__ = MagicMock(return_value=False)
-        return driver
+        """Build a mock neo4j.Driver that returns the given data."""
+        return _make_neo4j_test_driver(mentions, canonical_nodes)
 
     def test_live_clusters_created_equals_unique_normalized_texts(self):
         """Two mentions with the same normalized text map to ONE cluster."""
