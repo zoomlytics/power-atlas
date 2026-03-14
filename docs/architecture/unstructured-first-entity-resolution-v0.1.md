@@ -555,6 +555,12 @@ Phase 1 has been implemented in the following modules:
 - `--resolution-mode` CLI argument on the `resolve-entities` command.
 - Matching pipeline in `unstructured_only` mode: normalized exact, abbreviation/initialism, basic fuzzy (difflib).
 - `ResolvedEntityCluster` nodes and `MEMBER_OF` edges persist provisional clusters; summary metrics emitted.
+- `MEMBER_OF` edge metadata in `unstructured_only` mode:
+  - `method` — the actual strategy used: `"normalized_exact"`, `"abbreviation"`, `"fuzzy"`, or `"label_cluster"` (singleton fallback).
+  - `score` — `1.0` for deterministic assignments (`label_cluster`, `normalized_exact`), `0.75` for `abbreviation`, actual SequenceMatcher ratio for `fuzzy`.
+  - `status` — `"accepted"` for deterministic assignments (`label_cluster`, `normalized_exact`); `"provisional"` for probabilistic assignments (`abbreviation`, `fuzzy`) to distinguish high-confidence memberships from those warranting downstream review.
+  - `resolver_version` — value of `_CLUSTER_VERSION` constant.
+  - `run_id` — the run that created the membership link.
 
 ### What is not yet implemented (Phases 2–5)
 

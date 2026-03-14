@@ -538,22 +538,23 @@ def _write_resolution_results(
         # MEMBER_OF score via _membership_score so deterministic cluster
         # assignments (label_cluster, normalized_exact) always get score=1.0,
         # regardless of any match-quality confidence on the unresolved row.
-        cluster_rows = [
-            {
+        cluster_rows = []
+        for row in unresolved_rows:
+            method = row.get("resolution_method", "label_cluster")
+            cluster_rows.append({
                 "mention_id": row["mention_id"],
                 "cluster_id": f"cluster::{row['normalized_text']}",
                 # Use a deterministic canonical name derived from the normalized text
                 "canonical_name": row["normalized_text"].title(),
                 "normalized_text": row["normalized_text"],
-                "score": _membership_score(
-                    row.get("resolution_method", "label_cluster"),
-                    row.get("resolution_confidence", 1.0),
-                ),
-                "method": row.get("resolution_method", "label_cluster"),
-                "status": "accepted",
-            }
-            for row in unresolved_rows
-        ]
+                "score": _membership_score(method, row.get("resolution_confidence", 1.0)),
+                "method": method,
+                # "accepted" only for deterministic cluster assignments;
+                # probabilistic methods (abbreviation, fuzzy) are "provisional"
+                # so downstream consumers can distinguish high-confidence from
+                # review-required memberships.
+                "status": "accepted" if method in ("label_cluster", "normalized_exact") else "provisional",
+            })
         driver.execute_query(
             """
             UNWIND $rows AS row

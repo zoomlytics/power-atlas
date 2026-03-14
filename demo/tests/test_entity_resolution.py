@@ -1138,6 +1138,94 @@ class TestRunEntityResolutionUnstructuredOnly(unittest.TestCase):
                 )
             self.assertIn("invalid_mode", str(ctx.exception))
 
+    def _get_member_of_rows(self, driver: MagicMock) -> list[dict]:
+        """Extract the 'rows' parameter from the MEMBER_OF Cypher write call."""
+        for call in driver.execute_query.call_args_list:
+            query = call.args[0] if call.args else ""
+            params = call.kwargs.get("parameters_", {})
+            if "MEMBER_OF" in query and "rows" in params:
+                return params["rows"]
+        return []
+
+    def test_deterministic_methods_write_accepted_status(self):
+        """label_cluster and normalized_exact must write status='accepted'."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config(Path(tmpdir))
+            mentions = [
+                # m1: singleton → label_cluster for "uniquename1"
+                {"mention_id": "m1", "name": "UniqueName1", "entity_type": "person"},
+                # m2: duplicate of m1 → normalized_exact for "uniquename1"
+                {"mention_id": "m2", "name": "UniqueName1", "entity_type": "person"},
+                # m3: distinct singleton → label_cluster for "uniquename2"
+                {"mention_id": "m3", "name": "UniqueName2", "entity_type": "person"},
+            ]
+            driver = self._make_driver(mentions)
+
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                run_entity_resolution(config, run_id="run-status-001", source_uri=None)
+
+            rows = self._get_member_of_rows(driver)
+            self.assertTrue(rows, "Expected MEMBER_OF rows in Cypher call")
+            by_method = {r["method"]: r["status"] for r in rows}
+            self.assertEqual(
+                by_method.get("label_cluster"), "accepted",
+                "label_cluster must write status='accepted'",
+            )
+            self.assertEqual(
+                by_method.get("normalized_exact"), "accepted",
+                "normalized_exact must write status='accepted'",
+            )
+
+    def test_fuzzy_method_writes_provisional_status(self):
+        """fuzzy cluster assignments must write status='provisional'."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config(Path(tmpdir))
+            # Two mentions that fuzzy-match each other (same type, similar text)
+            mentions = [
+                {"mention_id": "m1", "name": "Federal Reserve Board",
+                 "entity_type": "organization"},
+                {"mention_id": "m2", "name": "Federal Reserve Boards",
+                 "entity_type": "organization"},
+            ]
+            driver = self._make_driver(mentions)
+
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                run_entity_resolution(config, run_id="run-status-002", source_uri=None)
+
+            rows = self._get_member_of_rows(driver)
+            self.assertTrue(rows, "Expected MEMBER_OF rows in Cypher call")
+            fuzzy_rows = [r for r in rows if r["method"] == "fuzzy"]
+            self.assertTrue(fuzzy_rows, "Expected at least one fuzzy row")
+            for r in fuzzy_rows:
+                self.assertEqual(
+                    r["status"], "provisional",
+                    f"fuzzy row must write status='provisional', got {r['status']!r}",
+                )
+
+    def test_abbreviation_method_writes_provisional_status(self):
+        """abbreviation cluster assignments must write status='provisional'."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config(Path(tmpdir))
+            mentions = [
+                {"mention_id": "m1", "name": "Federal Bureau of Investigation",
+                 "entity_type": "organization"},
+                {"mention_id": "m2", "name": "fbi",
+                 "entity_type": "organization"},
+            ]
+            driver = self._make_driver(mentions)
+
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                run_entity_resolution(config, run_id="run-status-003", source_uri=None)
+
+            rows = self._get_member_of_rows(driver)
+            self.assertTrue(rows, "Expected MEMBER_OF rows in Cypher call")
+            abbrev_rows = [r for r in rows if r["method"] == "abbreviation"]
+            self.assertTrue(abbrev_rows, "Expected at least one abbreviation row")
+            for r in abbrev_rows:
+                self.assertEqual(
+                    r["status"], "provisional",
+                    f"abbreviation row must write status='provisional', got {r['status']!r}",
+                )
 
 if __name__ == "__main__":
     unittest.main()
