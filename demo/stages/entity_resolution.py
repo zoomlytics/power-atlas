@@ -140,6 +140,23 @@ def _fuzzy_ratio(a: str, b: str) -> float:
     return SequenceMatcher(None, a, b).ratio()
 
 
+def _membership_score(method: str, resolution_confidence: float) -> float:
+    """Return the MEMBER_OF edge score for a given cluster assignment method.
+
+    ``resolution_confidence`` from :func:`_resolve_mention` is a match-quality
+    score, not a membership certainty score.  Deterministic cluster assignments
+    (``label_cluster``, ``normalized_exact``) have certainty 1.0 even though
+    their match confidence may be stored as 0.0 on the unresolved-row.  Fuzzy
+    matches use the actual SequenceMatcher ratio as the membership score.
+    """
+    if method in ("label_cluster", "normalized_exact"):
+        return 1.0
+    if method == "abbreviation":
+        return 0.75
+    # fuzzy: use the actual similarity ratio stored in resolution_confidence.
+    return resolution_confidence
+
+
 def _cluster_mentions_unstructured_only(
     mentions: list[dict[str, Any]],
     *,
@@ -161,59 +178,68 @@ def _cluster_mentions_unstructured_only(
     produced by :func:`_resolve_mention` (``mention_id``, ``mention_name``,
     ``normalized_text``, ``resolution_method``, ``resolution_confidence``).
     """
-    # Canonical cluster text for each mention: maps mention_id → canonical_text
-    # (the normalized text that will be used as the cluster key).
+    # mention_id → cluster key (normalized text used as the cluster representative).
     mention_to_cluster: dict[str, str] = {}
-    # All unique normalized texts seen so far (in insertion order), used as
+    # mention_id → (resolution_method, resolution_confidence) tracked during pass 1
+    # so that re-keying can update methods without a second derivation pass.
+    mention_to_method: dict[str, tuple[str, float]] = {}
+    # All unique cluster-key texts seen so far (in insertion order), used as
     # cluster representatives for fuzzy / abbreviation look-ups.
     seen_texts: list[str] = []
-    # Map from normalized_text → resolution_method that assigned it as a cluster rep
-    seen_method: dict[str, str] = {}
+    # Set of cluster keys currently registered (for O(1) membership check).
+    seen_keys: set[str] = set()
 
     for mention in mentions:
         name = (mention.get("name") or "").strip()
         normalized = _normalize(name)
+        mid = mention["mention_id"]
 
-        # Strategy 1: normalized_exact — if we've already seen this exact text,
-        # assign to the existing cluster representative.
-        if normalized in seen_method:
-            mention_to_cluster[mention["mention_id"]] = normalized
-            # The method recorded on this mention's row is "normalized_exact".
+        # Strategy 1: normalized_exact — identical normalized text → same cluster.
+        if normalized in seen_keys:
+            mention_to_cluster[mid] = normalized
+            mention_to_method[mid] = ("normalized_exact", 1.0)
             continue
 
         # Strategy 2: abbreviation — check if this mention is an initialism of
         # any existing cluster representative, or vice versa.
         # To be order-independent, when the current mention is the *long form* of
         # an existing abbreviation cluster key, we re-key prior assignments so the
-        # long form becomes the stable cluster key.
+        # long form becomes the stable cluster key regardless of mention order.
         abbrev_target: str | None = None
         abbrev_existing_is_short: bool = False
         for existing in seen_texts:
             if _is_abbreviation(normalized, existing):
-                # Current is the abbreviation of an existing long form → use existing.
+                # Current text is an initialism of an existing long-form key.
                 abbrev_target = existing
                 break
             if _is_abbreviation(existing, normalized):
-                # Existing is an abbreviation of the current long form.
+                # Existing key is an initialism of the current long form.
                 # Prefer the long form as the canonical cluster key.
                 abbrev_target = existing
                 abbrev_existing_is_short = True
                 break
         if abbrev_target is not None:
             if abbrev_existing_is_short:
-                # Re-key: swap the abbreviation cluster key to the long form so
-                # the cluster key is stable regardless of mention order.
+                # Re-key: promote the long form as the stable cluster key and
+                # remap all prior mentions that pointed to the short-form key.
                 long_key = normalized
                 short_key = abbrev_target
-                # Update seen_texts and seen_method.
                 seen_texts[seen_texts.index(short_key)] = long_key
-                seen_method[long_key] = seen_method.pop(short_key)
-                # Remap all prior mentions pointing to the abbreviation cluster key.
-                for mid, key in mention_to_cluster.items():
+                seen_keys.discard(short_key)
+                seen_keys.add(long_key)
+                for prior_mid, key in mention_to_cluster.items():
                     if key == short_key:
-                        mention_to_cluster[mid] = long_key
+                        mention_to_cluster[prior_mid] = long_key
+                        # Prior mentions pointed to the short key; they are now
+                        # abbreviation members of the long-form cluster.
+                        mention_to_method[prior_mid] = ("abbreviation", 0.75)
                 abbrev_target = long_key
-            mention_to_cluster[mention["mention_id"]] = abbrev_target
+                # The current mention introduces the long-form cluster key.
+                mention_to_cluster[mid] = abbrev_target
+                mention_to_method[mid] = ("label_cluster", 1.0)
+            else:
+                mention_to_cluster[mid] = abbrev_target
+                mention_to_method[mid] = ("abbreviation", 0.75)
             continue
 
         # Strategy 3: fuzzy — find the first existing representative that is
@@ -223,10 +249,12 @@ def _cluster_mentions_unstructured_only(
         # Skipping dissimilar-length pairs avoids expensive SequenceMatcher calls.
         norm_len = len(normalized)
         fuzzy_target: str | None = None
+        fuzzy_score: float = 0.0
         for existing in seen_texts:
             ex_len = len(existing)
             if ex_len == 0 and norm_len == 0:
                 fuzzy_target = existing
+                fuzzy_score = 1.0
                 break
             if ex_len == 0 or norm_len == 0:
                 continue
@@ -236,61 +264,34 @@ def _cluster_mentions_unstructured_only(
             max_possible = 2 * min_len / (min_len + max_len)
             if max_possible < fuzzy_threshold:
                 continue
-            if _fuzzy_ratio(normalized, existing) >= fuzzy_threshold:
+            ratio = _fuzzy_ratio(normalized, existing)
+            if ratio >= fuzzy_threshold:
                 fuzzy_target = existing
+                fuzzy_score = ratio
                 break
         if fuzzy_target is not None:
-            mention_to_cluster[mention["mention_id"]] = fuzzy_target
+            mention_to_cluster[mid] = fuzzy_target
+            mention_to_method[mid] = ("fuzzy", fuzzy_score)
             continue
 
         # Strategy 4: label_cluster fallback — new cluster keyed by own text.
         seen_texts.append(normalized)
-        seen_method[normalized] = "label_cluster"
-        mention_to_cluster[mention["mention_id"]] = normalized
+        seen_keys.add(normalized)
+        mention_to_cluster[mid] = normalized
+        mention_to_method[mid] = ("label_cluster", 1.0)
 
-    # Build result rows.
-    # Determine per-mention resolution_method:
-    # - "normalized_exact" if the cluster key was already seen before this mention
-    # - "abbreviation" if it matched an existing representative by initialism
-    # - "fuzzy" if it matched by fuzzy ratio
-    # - "label_cluster" if it became its own cluster representative
-
-    # Re-derive the method per mention by re-walking the assignments.
-    # We track which mention introduced each cluster key.
-    first_introducer: dict[str, str] = {}  # cluster_key → mention_id of introducer
-    result_rows: list[dict[str, Any]] = []
-
-    for mention in mentions:
-        name = (mention.get("name") or "").strip()
-        normalized = _normalize(name)
-        cluster_key = mention_to_cluster[mention["mention_id"]]
-
-        if cluster_key not in first_introducer:
-            first_introducer[cluster_key] = mention["mention_id"]
-            # This mention introduced the cluster.
-            method = "label_cluster"
-            confidence = 0.0
-        elif cluster_key == normalized:
-            # Same normalized text as the cluster key → normalized_exact.
-            method = "normalized_exact"
-            confidence = 1.0
-        elif _is_abbreviation(normalized, cluster_key) or _is_abbreviation(cluster_key, normalized):
-            method = "abbreviation"
-            confidence = 0.75
-        else:
-            method = "fuzzy"
-            confidence = _fuzzy_ratio(normalized, cluster_key)
-
-        result_rows.append({
+    # Build result rows using the per-mention method/confidence tracked above.
+    return [
+        {
             "mention_id": mention["mention_id"],
-            "mention_name": name,
-            "normalized_text": cluster_key,
-            "resolution_method": method,
-            "resolution_confidence": confidence,
+            "mention_name": (mention.get("name") or "").strip(),
+            "normalized_text": mention_to_cluster[mention["mention_id"]],
+            "resolution_method": mention_to_method[mention["mention_id"]][0],
+            "resolution_confidence": mention_to_method[mention["mention_id"]][1],
             "resolved": False,
-        })
-
-    return result_rows
+        }
+        for mention in mentions
+    ]
 
 
 def _resolve_mention(
@@ -410,9 +411,10 @@ def _write_resolution_results(
     if unresolved_rows:
         created_at = datetime.now(UTC).isoformat()
         # Build per-mention rows for the cluster MERGE + MEMBER_OF edge.
-        # Use the per-row resolution_method and resolution_confidence so that
-        # the MEMBER_OF edge carries accurate provenance (abbreviation/fuzzy/etc.)
-        # rather than a hardcoded fallback.
+        # Use per-row resolution_method for accurate provenance and compute the
+        # MEMBER_OF score via _membership_score so deterministic cluster
+        # assignments (label_cluster, normalized_exact) always get score=1.0,
+        # regardless of any match-quality confidence on the unresolved row.
         cluster_rows = [
             {
                 "mention_id": row["mention_id"],
@@ -420,7 +422,10 @@ def _write_resolution_results(
                 # Use a deterministic canonical name derived from the normalized text
                 "canonical_name": row["normalized_text"].title(),
                 "normalized_text": row["normalized_text"],
-                "score": row.get("resolution_confidence", 1.0),
+                "score": _membership_score(
+                    row.get("resolution_method", "label_cluster"),
+                    row.get("resolution_confidence", 1.0),
+                ),
                 "method": row.get("resolution_method", "label_cluster"),
                 "status": "accepted",
             }

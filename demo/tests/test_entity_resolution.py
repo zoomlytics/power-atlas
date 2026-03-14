@@ -826,6 +826,12 @@ class TestClusterMentionsUnstructuredOnly(unittest.TestCase):
         # The long form should be the stable cluster key.
         self.assertIn("federal bureau of investigation", cluster_keys)
         self.assertNotIn("fbi", cluster_keys)
+        # The abbreviation (m1, seen first) should be re-labeled "abbreviation"
+        # after re-keying; the long form (m2, the introducer) is "label_cluster".
+        m1_row = next(r for r in result if r["mention_id"] == "m1")
+        m2_row = next(r for r in result if r["mention_id"] == "m2")
+        self.assertEqual(m1_row["resolution_method"], "abbreviation")
+        self.assertEqual(m2_row["resolution_method"], "label_cluster")
 
     def test_fuzzy_similar_names_share_cluster(self):
         mentions = [
@@ -892,7 +898,7 @@ class TestRunEntityResolutionUnstructuredOnly(unittest.TestCase):
             self.assertEqual(result["resolution_mode"], _RESOLUTION_MODE_UNSTRUCTURED_ONLY)
 
     def test_live_no_canonical_lookup(self):
-        """unstructured_only should NOT query CanonicalEntity nodes."""
+        """unstructured_only should NOT touch CanonicalEntity nodes at all."""
         with tempfile.TemporaryDirectory() as tmpdir:
             config = self._live_config(Path(tmpdir))
             mentions = [{"mention_id": "m1", "name": "Alice", "entity_type": "person"}]
@@ -903,8 +909,8 @@ class TestRunEntityResolutionUnstructuredOnly(unittest.TestCase):
 
             all_calls = [str(c) for c in driver.execute_query.call_args_list]
             self.assertFalse(
-                any("CanonicalEntity" in call and "RETURN" in call for call in all_calls),
-                "unstructured_only mode must not query CanonicalEntity nodes",
+                any("CanonicalEntity" in call for call in all_calls),
+                "unstructured_only mode must not reference CanonicalEntity in any query",
             )
 
     def test_live_all_mentions_clustered(self):
