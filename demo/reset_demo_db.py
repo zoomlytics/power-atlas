@@ -15,6 +15,7 @@ Demo-owned labels (nodes + all their relationships are removed):
   - ExtractedClaim          (extraction layer written by extract-claims)
   - EntityMention           (extraction layer written by extract-claims)
   - UnresolvedEntity        (resolution layer written by resolve-entities; fallback for unresolved mentions)
+  - ResolvedEntityCluster   (resolution layer written by resolve-entities; resolved entity clusters)
 
 Demo-owned indexes (dropped by name):
   - demo_chunk_embedding_index  (vector index on Chunk.embedding, created by
