@@ -934,12 +934,13 @@ def run_entity_resolution(
             )
             canonical_nodes = [
                 {
-                    "entity_id": record["entity_id"] or "",
-                    "run_id": record["run_id"] or "",
+                    "entity_id": record["entity_id"],
+                    "run_id": record["run_id"],
                     "name": record["name"] or "",
                     "aliases": record["aliases"],
                 }
                 for record in canonical_result
+                if record["entity_id"] and record["run_id"]
             ]
             if canonical_nodes:
                 _, by_label, by_alias = _build_lookup_tables(canonical_nodes)
@@ -964,12 +965,13 @@ def run_entity_resolution(
             )
             canonical_nodes = [
                 {
-                    "entity_id": record["entity_id"] or "",
-                    "run_id": record["run_id"] or "",
+                    "entity_id": record["entity_id"],
+                    "run_id": record["run_id"],
                     "name": record["name"] or "",
                     "aliases": record["aliases"],
                 }
                 for record in canonical_result
+                if record["entity_id"] and record["run_id"]
             ]
 
             by_qid, by_label, by_alias = _build_lookup_tables(canonical_nodes)
