@@ -664,7 +664,7 @@ def _write_resolution_results(
             MATCH (canonical:CanonicalEntity {entity_id: row.canonical_entity_id, run_id: row.canonical_run_id})
             MERGE (mention)-[r:RESOLVES_TO]->(canonical)
             SET r.run_id = $run_id,
-                r.source_uri = $source_uri,
+                r.source_uri = mention.source_uri,
                 r.resolution_method = row.resolution_method,
                 r.resolution_confidence = row.resolution_confidence,
                 r.candidate_ids = row.candidate_ids
@@ -672,7 +672,6 @@ def _write_resolution_results(
             parameters_={
                 "rows": resolved_rows,
                 "run_id": run_id,
-                "source_uri": source_uri,
             },
             database_=neo4j_database,
         )
