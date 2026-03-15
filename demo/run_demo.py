@@ -141,7 +141,8 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                 help=(
                     "Optional demo question to run through the Q&A passes in both "
                     "the unstructured-only and hybrid enrichment phases. "
-                    "When omitted, Q&A stages are skipped in --live mode."
+                    "When omitted in --live mode, the Q&A stage is still recorded "
+                    "but vector retrieval is skipped."
                 ),
             )
         if command == "reset":
