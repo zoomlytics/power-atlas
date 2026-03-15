@@ -28,8 +28,9 @@ def build_batch_manifest(
 ) -> dict[str, Any]:
     """Build a batch manifest for a multi-stage demo run.
 
-    The new unstructured-first batch sequence emits these stage keys when the
-    corresponding optional stage arguments are provided:
+    The new unstructured-first batch sequence emits these stage keys; some are
+    always present, and others are included only when the corresponding optional
+    stage arguments are provided:
 
     * ``pdf_ingest`` — lexical graph written from the PDF
     * ``claim_and_mention_extraction`` — extracted claims and entity mentions
@@ -38,7 +39,8 @@ def build_batch_manifest(
     * ``retrieval_and_qa_unstructured_only`` — Q&A pass *before* structured ingest,
       demonstrating meaningful results from unstructured data alone; present when
       *retrieval_unstructured_stage* is given
-    * ``structured_ingest`` — optional structured enrichment/verification
+    * ``structured_ingest`` — structured enrichment/verification stage, always
+      present in this batch manifest
     * ``entity_resolution_hybrid`` — hybrid alignment pass that enriches
       :ResolvedEntityCluster nodes with :ALIGNED_WITH edges to :CanonicalEntity nodes
       where available; present when *entity_resolution_hybrid_stage* is given
