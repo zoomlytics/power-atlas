@@ -13,7 +13,7 @@ from demo.llm_utils import build_openai_llm
 from neo4j_graphrag.retrievers import VectorCypherRetriever
 from neo4j_graphrag.types import LLMMessage, RetrieverResultItem
 
-from demo.contracts import CHUNK_EMBEDDING_INDEX_NAME, EMBEDDER_MODEL_NAME, FIXTURES_DIR, PROMPT_IDS
+from demo.contracts import CHUNK_EMBEDDING_INDEX_NAME, EMBEDDER_MODEL_NAME, FIXTURES_DIR, PROMPT_IDS, ALIGNMENT_VERSION
 from demo.contracts.prompts import POWER_ATLAS_RAG_TEMPLATE
 
 _DEFAULT_TOP_K = 10
@@ -102,7 +102,8 @@ RETURN c.text AS chunk_text,
 # cluster_canonical_alignments surfaces canonical entity identities reached via
 # the cluster's ALIGNED_WITH edge, including alignment method and status so
 # provisional (non-confirmed) alignments are explicitly labelled.
-_RETRIEVAL_QUERY_WITH_CLUSTER = """
+_RETRIEVAL_QUERY_WITH_CLUSTER = (
+    """
 WITH node AS c, score
 WHERE c.run_id = $run_id
   AND ($source_uri IS NULL OR c.source_uri = $source_uri)
@@ -119,9 +120,13 @@ RETURN c.text AS chunk_text,
        [(c)<-[:MENTIONED_IN]-(mention:EntityMention) WHERE mention.run_id = $run_id | mention.name] AS mentions,
        [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:RESOLVES_TO]->(canonical) WHERE mention.run_id = $run_id | coalesce(canonical.name, canonical.label)] AS canonical_entities,
        [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[r:MEMBER_OF]->(cluster:ResolvedEntityCluster) WHERE mention.run_id = $run_id | {cluster_id: cluster.cluster_id, cluster_name: cluster.canonical_name, membership_status: r.status, membership_method: r.method}] AS cluster_memberships,
-       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:MEMBER_OF]->(cluster:ResolvedEntityCluster)-[a:ALIGNED_WITH]->(aligned_canonical) WHERE mention.run_id = $run_id AND a.run_id = $run_id | {canonical_name: coalesce(aligned_canonical.name, aligned_canonical.label), alignment_method: a.alignment_method, alignment_status: a.alignment_status}] AS cluster_canonical_alignments
+       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:MEMBER_OF]->(cluster:ResolvedEntityCluster)-[a:ALIGNED_WITH]->(aligned_canonical) WHERE mention.run_id = $run_id AND a.run_id = $run_id AND a.alignment_version = """
+    + str(ALIGNMENT_VERSION)
+    + """ | {canonical_name: coalesce(aligned_canonical.name, aligned_canonical.label), alignment_method: a.alignment_method, alignment_status: a.alignment_status}] AS cluster_canonical_alignments
 """
-_RETRIEVAL_QUERY_WITH_CLUSTER_ALL_RUNS = """
+)
+_RETRIEVAL_QUERY_WITH_CLUSTER_ALL_RUNS = (
+    """
 WITH node AS c, score
 WHERE ($source_uri IS NULL OR c.source_uri = $source_uri)
 RETURN c.text AS chunk_text,
@@ -137,8 +142,11 @@ RETURN c.text AS chunk_text,
        [(c)<-[:MENTIONED_IN]-(mention:EntityMention) | mention.name] AS mentions,
        [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:RESOLVES_TO]->(canonical) | coalesce(canonical.name, canonical.label)] AS canonical_entities,
        [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[r:MEMBER_OF]->(cluster:ResolvedEntityCluster) | {cluster_id: cluster.cluster_id, cluster_name: cluster.canonical_name, membership_status: r.status, membership_method: r.method}] AS cluster_memberships,
-       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:MEMBER_OF]->(cluster:ResolvedEntityCluster)-[a:ALIGNED_WITH]->(aligned_canonical) | {canonical_name: coalesce(aligned_canonical.name, aligned_canonical.label), alignment_method: a.alignment_method, alignment_status: a.alignment_status}] AS cluster_canonical_alignments
+       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:MEMBER_OF]->(cluster:ResolvedEntityCluster)-[a:ALIGNED_WITH]->(aligned_canonical) WHERE a.alignment_version = """
+    + str(ALIGNMENT_VERSION)
+    + """ | {canonical_name: coalesce(aligned_canonical.name, aligned_canonical.label), alignment_method: a.alignment_method, alignment_status: a.alignment_status}] AS cluster_canonical_alignments
 """
+)
 
 # Optional citation-relevant fields that should be surfaced as warnings when absent.
 _CITATION_OPTIONAL_FIELDS = ("page", "start_char", "end_char")
