@@ -95,6 +95,53 @@ RETURN c.text AS chunk_text,
        [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:RESOLVES_TO]->(canonical) | coalesce(canonical.name, canonical.label)] AS canonical_entities
 """
 
+# Cluster-aware retrieval (run-scoped): extends graph expansion with provisional
+# ResolvedEntityCluster membership and optional ALIGNED_WITH canonical enrichment.
+# cluster_memberships returns per-membership provenance (status, method) so the
+# LLM context can distinguish provisional from accepted cluster assignments.
+# cluster_canonical_alignments surfaces canonical entity identities reached via
+# the cluster's ALIGNED_WITH edge, including alignment method and status so
+# provisional (non-confirmed) alignments are explicitly labelled.
+_RETRIEVAL_QUERY_WITH_CLUSTER = """
+WITH node AS c, score
+WHERE c.run_id = $run_id
+  AND ($source_uri IS NULL OR c.source_uri = $source_uri)
+RETURN c.text AS chunk_text,
+       c.chunk_id AS chunk_id,
+       c.run_id AS run_id,
+       c.source_uri AS source_uri,
+       c.chunk_index AS chunk_index,
+       coalesce(c.page_number, c.page) AS page,
+       c.start_char AS start_char,
+       c.end_char AS end_char,
+       score AS similarityScore,
+       [(c)<-[:SUPPORTED_BY]-(claim:ExtractedClaim) WHERE claim.run_id = $run_id | claim.claim_text] AS claims,
+       [(c)<-[:MENTIONED_IN]-(mention:EntityMention) WHERE mention.run_id = $run_id | mention.name] AS mentions,
+       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:RESOLVES_TO]->(canonical) WHERE mention.run_id = $run_id | coalesce(canonical.name, canonical.label)] AS canonical_entities,
+       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[r:MEMBER_OF]->(cluster:ResolvedEntityCluster) WHERE mention.run_id = $run_id | {cluster_id: cluster.cluster_id, cluster_name: cluster.canonical_name, membership_status: r.status, membership_method: r.method}] AS cluster_memberships,
+       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:MEMBER_OF]->(cluster:ResolvedEntityCluster)-[a:ALIGNED_WITH]->(aligned_canonical) WHERE mention.run_id = $run_id | {canonical_name: coalesce(aligned_canonical.name, aligned_canonical.label), alignment_method: a.alignment_method, alignment_status: a.alignment_status}] AS cluster_canonical_alignments
+"""
+
+# Cluster-aware retrieval (all-runs): no run_id filter on any traversal.
+_RETRIEVAL_QUERY_WITH_CLUSTER_ALL_RUNS = """
+WITH node AS c, score
+WHERE ($source_uri IS NULL OR c.source_uri = $source_uri)
+RETURN c.text AS chunk_text,
+       c.chunk_id AS chunk_id,
+       c.run_id AS run_id,
+       c.source_uri AS source_uri,
+       c.chunk_index AS chunk_index,
+       coalesce(c.page_number, c.page) AS page,
+       c.start_char AS start_char,
+       c.end_char AS end_char,
+       score AS similarityScore,
+       [(c)<-[:SUPPORTED_BY]-(claim:ExtractedClaim) | claim.claim_text] AS claims,
+       [(c)<-[:MENTIONED_IN]-(mention:EntityMention) | mention.name] AS mentions,
+       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:RESOLVES_TO]->(canonical) | coalesce(canonical.name, canonical.label)] AS canonical_entities,
+       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[r:MEMBER_OF]->(cluster:ResolvedEntityCluster) | {cluster_id: cluster.cluster_id, cluster_name: cluster.canonical_name, membership_status: r.status, membership_method: r.method}] AS cluster_memberships,
+       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:MEMBER_OF]->(cluster:ResolvedEntityCluster)-[a:ALIGNED_WITH]->(aligned_canonical) | {canonical_name: coalesce(aligned_canonical.name, aligned_canonical.label), alignment_method: a.alignment_method, alignment_status: a.alignment_status}] AS cluster_canonical_alignments
+"""
+
 # Optional citation-relevant fields that should be surfaced as warnings when absent.
 _CITATION_OPTIONAL_FIELDS = ("page", "start_char", "end_char")
 
@@ -359,6 +406,55 @@ def _build_citation_token(
     )
 
 
+def _format_cluster_context(
+    cluster_memberships: list[dict[str, object]],
+    cluster_canonical_alignments: list[dict[str, object]],
+) -> str:
+    """Format provisional cluster membership and alignment information for LLM context.
+
+    Produces a human-readable section labelled as provisional inference so the LLM
+    can distinguish cluster-derived entity hints from settled canonical identities.
+    Memberships with ``status='provisional'`` (abbreviation / fuzzy matches) are
+    explicitly labelled ``PROVISIONAL`` so the LLM surfaces appropriate ambiguity
+    in its answer.  Deterministic ``accepted`` memberships are labelled as confirmed
+    cluster assignments.  Canonical alignments via ``ALIGNED_WITH`` edges include
+    alignment method and status so tentative alignments are clearly distinguishable.
+
+    Returns an empty string when both input lists are empty or contain no usable entries.
+    """
+    lines: list[str] = []
+    for cm in cluster_memberships:
+        cluster_name = cm.get("cluster_name") or cm.get("cluster_id") or ""
+        method = cm.get("membership_method") or ""
+        status = cm.get("membership_status") or "unknown"
+        if status == "provisional":
+            lines.append(
+                f"PROVISIONAL CLUSTER: '{cluster_name}' (membership via {method}; "
+                f"identity not confirmed — treat as a hypothesis, not a settled fact)"
+            )
+        else:
+            lines.append(
+                f"Entity cluster: '{cluster_name}' (membership via {method}; accepted assignment)"
+            )
+    for ca in cluster_canonical_alignments:
+        canon_name = ca.get("canonical_name") or ""
+        a_method = ca.get("alignment_method") or ""
+        a_status = ca.get("alignment_status") or "unknown"
+        if a_status == "aligned":
+            lines.append(
+                f"Cluster aligned to canonical entity: '{canon_name}' (via {a_method})"
+            )
+        else:
+            lines.append(
+                f"PROVISIONAL ALIGNMENT to: '{canon_name}' "
+                f"(via {a_method}, status: {a_status} — not yet confirmed)"
+            )
+    if not lines:
+        return ""
+    header = "[Cluster context — provisional inference; not primary evidence]"
+    return header + "\n" + "\n".join(lines)
+
+
 def _chunk_citation_formatter(record: neo4j.Record) -> RetrieverResultItem:
     """Format a retrieved Chunk record into a RetrieverResultItem with a stable citation token.
 
@@ -367,6 +463,11 @@ def _chunk_citation_formatter(record: neo4j.Record) -> RetrieverResultItem:
 
     The returned item embeds the citation token in the content string (for prompt context)
     and preserves all citation-relevant fields in metadata (for downstream citation mapping).
+
+    When the cluster-aware retrieval query was used, provisional cluster membership and
+    alignment context is appended to the content string so the LLM can distinguish between
+    settled entity identities and provisional cluster hypotheses.  Citations always reference
+    the underlying Chunk, not the cluster node.
     """
     chunk_id = record.get("chunk_id")
     run_id = record.get("run_id")
@@ -407,8 +508,20 @@ def _chunk_citation_formatter(record: neo4j.Record) -> RetrieverResultItem:
         "end_char": end_char,
     }
 
-    # Embed citation token in content so prompt context is self-documenting.
-    content = f"{chunk_text}\n{citation_token}"
+    # Build cluster context section when the cluster-aware query returned cluster fields.
+    # Provisional cluster membership and alignment are appended to the content so the LLM
+    # can reason about tentative identity inference without treating it as settled evidence.
+    cluster_memberships: list[dict[str, object]] = list(record.get("cluster_memberships") or [])
+    cluster_canonical_alignments: list[dict[str, object]] = list(record.get("cluster_canonical_alignments") or [])
+    cluster_context = _format_cluster_context(cluster_memberships, cluster_canonical_alignments)
+
+    # Embed citation token (and optional cluster context) in content so prompt context
+    # is self-documenting.  The citation token always trails the content block.
+    if cluster_context:
+        content = f"{chunk_text}\n{cluster_context}\n{citation_token}"
+    else:
+        content = f"{chunk_text}\n{citation_token}"
+
     metadata: dict[str, object] = {
         "chunk_id": chunk_id,
         "run_id": run_id,
@@ -427,6 +540,11 @@ def _chunk_citation_formatter(record: neo4j.Record) -> RetrieverResultItem:
         value = record.get(field)
         if value is not None:
             metadata[field] = value
+    # Include cluster fields when the cluster-aware retrieval query was used.
+    for field in ("cluster_memberships", "cluster_canonical_alignments"):
+        value = record.get(field)
+        if value is not None:
+            metadata[field] = value
 
     return RetrieverResultItem(content=content, metadata=metadata)
 
@@ -440,6 +558,7 @@ def run_retrieval_and_qa(
     index_name: str | None = None,
     question: str | None = None,
     expand_graph: bool = False,
+    cluster_aware: bool = False,
     message_history: MessageHistory | list[dict[str, str]] | None = None,
     interactive: bool = False,
     all_runs: bool = False,
@@ -467,6 +586,14 @@ def run_retrieval_and_qa(
     expand_graph:
         When True, adds ExtractedClaim / EntityMention / canonical-entity context
         via graph expansion on top of the base vector retrieval.
+    cluster_aware:
+        When True, extends graph expansion with :ResolvedEntityCluster traversal.
+        Cluster membership status (``accepted`` / ``provisional``) and any
+        :ALIGNED_WITH canonical entity enrichment are included in the LLM
+        context so the model can distinguish settled entity identities from
+        provisional cluster hypotheses.  Citations always reference the
+        underlying Chunk node, not the cluster.  Implies graph expansion
+        (``expand_graph`` behaviour is included automatically).
     message_history:
         Vendor ``MessageHistory`` object (or a plain list of dicts) for
         conversational/interactive mode.  When provided, prior turns supply
@@ -504,8 +631,12 @@ def run_retrieval_and_qa(
         start_char=0,
         end_char=999,
     )
+    # cluster_aware implies expansion (clusters are reached via entity mention traversal).
+    # The retrieval query selection priority: cluster_aware > expand_graph > base.
     retrieval_query_contract = (
-        _RETRIEVAL_QUERY_WITH_EXPANSION_ALL_RUNS if (expand_graph and all_runs)
+        _RETRIEVAL_QUERY_WITH_CLUSTER_ALL_RUNS if (cluster_aware and all_runs)
+        else _RETRIEVAL_QUERY_WITH_CLUSTER if cluster_aware
+        else _RETRIEVAL_QUERY_WITH_EXPANSION_ALL_RUNS if (expand_graph and all_runs)
         else _RETRIEVAL_QUERY_BASE_ALL_RUNS if all_runs
         else _RETRIEVAL_QUERY_WITH_EXPANSION if expand_graph
         else _RETRIEVAL_QUERY_BASE
@@ -556,6 +687,7 @@ def run_retrieval_and_qa(
         "all_answers_cited": False,
         "citation_quality": _default_citation_quality,
         "expand_graph": expand_graph,
+        "cluster_aware": cluster_aware,
         "retrieval_scope": retrieval_scope,
         "citation_token_example": citation_token_example,
         "citation_object_example": citation_object_example,
@@ -566,9 +698,11 @@ def run_retrieval_and_qa(
         "message_history_enabled": message_history is not None,
     }
     if getattr(config, "dry_run", False):
-        dry_run_retrievers = (
-            ["VectorCypherRetriever", "graph expansion"] if expand_graph else ["VectorCypherRetriever"]
-        )
+        dry_run_retrievers: list[str] = ["VectorCypherRetriever"]
+        if cluster_aware:
+            dry_run_retrievers += ["graph expansion", "cluster traversal"]
+        elif expand_graph:
+            dry_run_retrievers.append("graph expansion")
         dry_run_qa_label = "GraphRAG all-runs citations" if all_runs else "GraphRAG run-scoped citations"
         return {
             **base,
@@ -586,7 +720,9 @@ def run_retrieval_and_qa(
         )
 
     retrieval_query = (
-        _RETRIEVAL_QUERY_WITH_EXPANSION_ALL_RUNS if (expand_graph and all_runs)
+        _RETRIEVAL_QUERY_WITH_CLUSTER_ALL_RUNS if (cluster_aware and all_runs)
+        else _RETRIEVAL_QUERY_WITH_CLUSTER if cluster_aware
+        else _RETRIEVAL_QUERY_WITH_EXPANSION_ALL_RUNS if (expand_graph and all_runs)
         else _RETRIEVAL_QUERY_BASE_ALL_RUNS if all_runs
         else _RETRIEVAL_QUERY_WITH_EXPANSION if expand_graph
         else _RETRIEVAL_QUERY_BASE
@@ -763,9 +899,11 @@ def run_retrieval_and_qa(
         if first_meta.get("citation_object"):
             actual_citation_object = first_meta["citation_object"]
 
-    live_retrievers = (
-        ["VectorCypherRetriever", "graph expansion"] if expand_graph else ["VectorCypherRetriever"]
-    )
+    live_retrievers: list[str] = ["VectorCypherRetriever"]
+    if cluster_aware:
+        live_retrievers += ["graph expansion", "cluster traversal"]
+    elif expand_graph:
+        live_retrievers.append("graph expansion")
     qa_scope_label = "GraphRAG all-runs citations" if all_runs else "GraphRAG run-scoped citations"
     return {
         **base,
@@ -794,6 +932,7 @@ def run_interactive_qa(
     top_k: int = _DEFAULT_TOP_K,
     index_name: str | None = None,
     expand_graph: bool = False,
+    cluster_aware: bool = False,
     all_runs: bool = False,
 ) -> None:
     """Run a REPL-style interactive Q&A session.
@@ -830,6 +969,10 @@ def run_interactive_qa(
         Vector index name; defaults to the contract value.
     expand_graph:
         When True, adds graph-expansion context via ExtractedClaim / EntityMention.
+    cluster_aware:
+        When True, extends graph expansion with :ResolvedEntityCluster traversal so
+        provisional cluster membership and alignment context are included in the LLM
+        context for each turn.  Implies graph expansion behaviour.
     all_runs:
         When True, retrieval queries all Chunk nodes regardless of run_id.
         Citations may span multiple runs/files.
@@ -856,7 +999,9 @@ def run_interactive_qa(
     resolved_index_name = index_name if index_name is not None else CHUNK_EMBEDDING_INDEX_NAME
     effective_qa_model = getattr(config, "openai_model", None) or "gpt-4o-mini"
     retrieval_query = (
-        _RETRIEVAL_QUERY_WITH_EXPANSION_ALL_RUNS if (expand_graph and all_runs)
+        _RETRIEVAL_QUERY_WITH_CLUSTER_ALL_RUNS if (cluster_aware and all_runs)
+        else _RETRIEVAL_QUERY_WITH_CLUSTER if cluster_aware
+        else _RETRIEVAL_QUERY_WITH_EXPANSION_ALL_RUNS if (expand_graph and all_runs)
         else _RETRIEVAL_QUERY_BASE_ALL_RUNS if all_runs
         else _RETRIEVAL_QUERY_WITH_EXPANSION if expand_graph
         else _RETRIEVAL_QUERY_BASE

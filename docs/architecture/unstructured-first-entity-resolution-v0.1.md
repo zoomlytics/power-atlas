@@ -462,10 +462,20 @@ Implement `hybrid` alignment (implemented):
 - degrade gracefully when no CanonicalEntity nodes are present
 
 ### Phase 4
-Update retrieval and Q&A behavior:
-- allow traversal via provisional clusters
-- keep answers grounded in original evidence
-- surface ambiguity where appropriate
+Update retrieval and Q&A behavior (implemented):
+- `cluster_aware=True` flag on `run_retrieval_and_qa` and `run_interactive_qa` enables
+  cluster-aware retrieval using `_RETRIEVAL_QUERY_WITH_CLUSTER` (run-scoped) and
+  `_RETRIEVAL_QUERY_WITH_CLUSTER_ALL_RUNS` (all-runs)
+- Cluster membership (`MEMBER_OF`) and canonical alignment (`ALIGNED_WITH`) context is
+  appended to each retrieved chunk's LLM context via `_format_cluster_context`
+- Provisional memberships (`status='provisional'`) are labelled `PROVISIONAL CLUSTER`
+  in the context; accepted assignments use the `Entity cluster` label
+- Provisional canonical alignments are labelled `PROVISIONAL ALIGNMENT`; confirmed
+  alignments use `Cluster aligned to canonical entity`
+- The QA prompt template (`qa_v3`) instructs the model to use qualified language
+  ("possibly", "may be") for provisional inferences and never present them as settled
+  identity claims
+- Citations always reference the underlying `Chunk` node, never the cluster node
 
 ### Phase 5
 Add review-oriented features if needed:
@@ -487,8 +497,9 @@ The following questions remain intentionally open for implementation design:
    - tentative membership
    - review-required cases
 5. How should retrieval rank evidence that is connected through provisional clusters but not yet aligned to canonical entities?
-
-These questions should be resolved in implementation issues and follow-on design notes.
+   - **Phase 4 partial answer**: cluster membership and alignment context is surfaced to the LLM
+     but is labelled explicitly as provisional inference; ranking is currently identical to base
+     vector retrieval — cluster context enriches the prompt without reordering results.
 
 ---
 
