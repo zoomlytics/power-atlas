@@ -134,6 +134,16 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                 dest="all_runs",
                 help="Retrieve across all ingested data (no run_id filter); citations may span multiple runs",
             )
+        if command == "ingest":
+            subparsers.choices[command].add_argument(
+                "--question",
+                default=None,
+                help=(
+                    "Optional demo question to run through the Q&A passes in both "
+                    "the unstructured-only and hybrid enrichment phases. "
+                    "When omitted, Q&A stages are skipped in --live mode."
+                ),
+            )
         if command == "reset":
             subparsers.choices[command].add_argument(
                 "--confirm",
@@ -371,6 +381,7 @@ def _run_orchestrated(config: Config) -> Path:
         run_id=unstructured_run_id,
         source_uri=pdf_source_uri,
         index_name=CHUNK_EMBEDDING_INDEX_NAME,
+        question=getattr(config, "question", None),
     )
 
     finished_at = _now_iso()

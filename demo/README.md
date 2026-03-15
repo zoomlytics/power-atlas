@@ -312,6 +312,15 @@ python -m demo.run_demo --dry-run ingest
 
 Runs the full unstructured-first sequence as a single command: PDF ingest → claim extraction → entity resolution (`unstructured_only`) → Q&A → structured ingest → entity resolution (`hybrid`) → final Q&A. The batch manifest captures both passes so you can compare Q&A quality before and after structured enrichment.
 
+To include live Q&A in both phases, pass a question:
+
+```bash
+python -m demo.run_demo --live ingest \
+    --question "What does the document say about Endeavor and MercadoLibre?"
+```
+
+When `--question` is omitted, the Q&A stages are included in the manifest but skip vector retrieval in `--live` mode.
+
 The batch manifest has its own `run_id`, while producer stages still preserve separate structured and unstructured run scopes internally.
 
 ### Step 5 — Run smoke test

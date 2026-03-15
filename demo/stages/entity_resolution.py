@@ -60,7 +60,12 @@ Graph model
 * ``(:EntityMention)-[:MEMBER_OF]->(:ResolvedEntityCluster)`` — provisional cluster
 * ``(:ResolvedEntityCluster)-[:ALIGNED_WITH]->(:CanonicalEntity)`` — enrichment link
 
-Artifacts written to ``runs/<run_id>/entity_resolution/``:
+Artifacts written to ``runs/<run_id>/entity_resolution/`` by default.
+Callers may pass ``artifact_subdir`` to ``run_entity_resolution`` to
+redirect artifacts to a different subdirectory under ``runs/<run_id>/``
+(e.g. ``"entity_resolution_unstructured_only"``), which is useful when
+running multiple passes for the same *run_id*:
+
 - ``entity_resolution_summary.json`` — counts, breakdown, resolver metadata.
 - ``unresolved_mentions.json``        — list of clustered (unresolved) mentions.
 """
