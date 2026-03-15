@@ -119,10 +119,8 @@ RETURN c.text AS chunk_text,
        [(c)<-[:MENTIONED_IN]-(mention:EntityMention) WHERE mention.run_id = $run_id | mention.name] AS mentions,
        [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:RESOLVES_TO]->(canonical) WHERE mention.run_id = $run_id | coalesce(canonical.name, canonical.label)] AS canonical_entities,
        [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[r:MEMBER_OF]->(cluster:ResolvedEntityCluster) WHERE mention.run_id = $run_id | {cluster_id: cluster.cluster_id, cluster_name: cluster.canonical_name, membership_status: r.status, membership_method: r.method}] AS cluster_memberships,
-       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:MEMBER_OF]->(cluster:ResolvedEntityCluster)-[a:ALIGNED_WITH]->(aligned_canonical) WHERE mention.run_id = $run_id | {canonical_name: coalesce(aligned_canonical.name, aligned_canonical.label), alignment_method: a.alignment_method, alignment_status: a.alignment_status}] AS cluster_canonical_alignments
+       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:MEMBER_OF]->(cluster:ResolvedEntityCluster)-[a:ALIGNED_WITH]->(aligned_canonical) WHERE mention.run_id = $run_id AND a.run_id = $run_id | {canonical_name: coalesce(aligned_canonical.name, aligned_canonical.label), alignment_method: a.alignment_method, alignment_status: a.alignment_status}] AS cluster_canonical_alignments
 """
-
-# Cluster-aware retrieval (all-runs): no run_id filter on any traversal.
 _RETRIEVAL_QUERY_WITH_CLUSTER_ALL_RUNS = """
 WITH node AS c, score
 WHERE ($source_uri IS NULL OR c.source_uri = $source_uri)
@@ -434,7 +432,7 @@ def _format_cluster_context(
             )
         else:
             lines.append(
-                f"Entity cluster: '{cluster_name}' (membership via {method}; accepted assignment)"
+                f"Entity cluster (accepted): '{cluster_name}' (membership via {method})"
             )
     for ca in cluster_canonical_alignments:
         canon_name = ca.get("canonical_name") or ""
@@ -633,6 +631,9 @@ def run_retrieval_and_qa(
     )
     # cluster_aware implies expansion (clusters are reached via entity mention traversal).
     # The retrieval query selection priority: cluster_aware > expand_graph > base.
+    # effective_expand_graph records whether any form of graph expansion is active so
+    # manifests accurately describe the retrieval context used.
+    effective_expand_graph = expand_graph or cluster_aware
     retrieval_query_contract = (
         _RETRIEVAL_QUERY_WITH_CLUSTER_ALL_RUNS if (cluster_aware and all_runs)
         else _RETRIEVAL_QUERY_WITH_CLUSTER if cluster_aware
@@ -686,7 +687,7 @@ def run_retrieval_and_qa(
         "citation_fallback_applied": False,
         "all_answers_cited": False,
         "citation_quality": _default_citation_quality,
-        "expand_graph": expand_graph,
+        "expand_graph": effective_expand_graph,
         "cluster_aware": cluster_aware,
         "retrieval_scope": retrieval_scope,
         "citation_token_example": citation_token_example,

@@ -892,7 +892,8 @@ def test_retrieval_and_qa_live_path_uses_expanded_query_when_expand_graph(tmp_pa
 
 def test_retrieval_and_qa_dry_run_cluster_aware_flag_recorded(tmp_path: Path):
     """cluster_aware flag must be preserved in the returned stage output and the
-    retrievers list must include 'cluster traversal' when cluster_aware=True."""
+    retrievers list must include 'cluster traversal' when cluster_aware=True.
+    expand_graph must be True when cluster_aware=True (cluster_aware implies expansion)."""
     from demo.stages import run_retrieval_and_qa
 
     config = _dry_run_config(tmp_path)
@@ -903,8 +904,9 @@ def test_retrieval_and_qa_dry_run_cluster_aware_flag_recorded(tmp_path: Path):
     # retrievers list must include "cluster traversal" only when cluster_aware=True
     assert "cluster traversal" not in result_no_cluster["retrievers"]
     assert "cluster traversal" in result_cluster["retrievers"]
-    # cluster_aware implies graph expansion — both labels should appear
+    # cluster_aware implies graph expansion — both labels and expand_graph flag should reflect that
     assert "graph expansion" in result_cluster["retrievers"]
+    assert result_cluster["expand_graph"] is True
 
 
 def test_retrieval_and_qa_live_path_uses_cluster_query_when_cluster_aware(tmp_path: Path):
@@ -948,6 +950,8 @@ def test_retrieval_and_qa_live_path_uses_cluster_query_when_cluster_aware(tmp_pa
     assert result["cluster_aware"] is True
     assert "cluster traversal" in result["retrievers"]
     assert "graph expansion" in result["retrievers"]
+    # expand_graph must be True when cluster_aware=True (cluster_aware implies expansion)
+    assert result["expand_graph"] is True
 
 
 def test_retrieval_and_qa_live_path_cluster_aware_all_runs_uses_all_runs_query(tmp_path: Path):
@@ -1007,7 +1011,7 @@ def test_format_cluster_context_provisional_membership():
 
 
 def test_format_cluster_context_accepted_membership():
-    """_format_cluster_context must label accepted memberships without the PROVISIONAL prefix."""
+    """_format_cluster_context must label accepted memberships with 'Entity cluster (accepted)'."""
     from demo.stages.retrieval_and_qa import _format_cluster_context
 
     memberships = [
@@ -1016,7 +1020,7 @@ def test_format_cluster_context_accepted_membership():
     result = _format_cluster_context(memberships, [])
     assert "PROVISIONAL CLUSTER" not in result
     assert "Jane Doe" in result
-    assert "accepted" in result.lower() or "entity cluster" in result.lower()
+    assert "Entity cluster (accepted)" in result
 
 
 def test_format_cluster_context_provisional_alignment():
