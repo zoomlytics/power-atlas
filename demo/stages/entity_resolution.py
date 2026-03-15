@@ -286,8 +286,11 @@ def _cluster_mentions_unstructured_only(
     to same-type cluster representatives.
 
     Returns a list of dicts with keys: ``mention_id``, ``mention_name``,
-    ``normalized_text``, ``resolution_method``, ``resolution_confidence``,
-    and ``resolved`` (always ``False``).
+    ``normalized_text``, ``entity_type``, ``resolution_method``,
+    ``resolution_confidence``, and ``resolved`` (always ``False``).
+    ``entity_type`` is normalized so that ``None`` and ``""`` both appear
+    as ``None`` on output rows (matching the identity scope of
+    :func:`_make_cluster_id`).
     """
     # mention_id → cluster key
     mention_to_cluster: dict[str, str] = {}
@@ -424,7 +427,7 @@ def _cluster_mentions_unstructured_only(
         name = (mention.get("name") or "").strip()
         normalized = _normalize(name)
         mid = mention["mention_id"]
-        entity_type: str | None = mention.get("entity_type")
+        entity_type: str | None = mention.get("entity_type") or None
         short_alpha = _RE_NON_ALPHA.sub("", normalized)
 
         # Strategy 1: normalized_exact (type-agnostic).
