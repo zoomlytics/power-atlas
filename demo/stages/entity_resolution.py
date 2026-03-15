@@ -2,9 +2,12 @@
 
 Reads :EntityMention nodes (scoped to a ``run_id``) from Neo4j and, depending
 on the configured mode, either performs deterministic resolution to
-:CanonicalEntity nodes (``structured_anchor`` mode) or performs
+:CanonicalEntity nodes (``structured_anchor`` mode), performs
 normalization- and similarity-based clustering of mentions without requiring
-a canonical entity anchor (``unstructured_only`` mode).
+a canonical entity anchor (``unstructured_only`` mode), or performs a
+two-stage process that first clusters mentions against each other and then
+optionally enriches resulting clusters with alignment links to
+:CanonicalEntity nodes (``hybrid`` mode).
 
 In ``structured_anchor`` mode, mentions that cannot be resolved are grouped by
 their normalized text into :ResolvedEntityCluster provisional cluster nodes
@@ -31,15 +34,31 @@ Resolution strategies applied in priority order (``unstructured_only`` mode):
 4. **label_cluster** — fallback; mention is grouped in a singleton cluster
    keyed by its own normalized text.
 
+``hybrid`` mode runs the full ``unstructured_only`` clustering pass first, then
+performs a best-effort alignment of each resulting :ResolvedEntityCluster to a
+matching :CanonicalEntity node (if any exist).  Alignment uses label-exact and
+alias-exact strategies; matched clusters receive an ``ALIGNED_WITH`` edge
+pointing at the :CanonicalEntity.  Structured ingest is entirely optional:
+when no :CanonicalEntity nodes are present the mode degrades gracefully to
+pure unstructured clustering.
+
+Alignment strategies applied in priority order (``hybrid`` mode):
+
+1. **label_exact** — the cluster's ``normalized_text`` key (or the normalized
+   suffix of its ``cluster_id``) matches a :CanonicalEntity by its normalized
+   label.
+2. **alias_exact** — the same normalized cluster value appears in the
+   ``canonical.aliases`` string (pipe-separated or comma-separated list) of a :CanonicalEntity.
+
 All resolution and clustering is **non-destructive**: existing nodes are
-never mutated; only ``RESOLVES_TO`` and ``MEMBER_OF`` relationship edges are
-added/updated.
+never mutated; only ``RESOLVES_TO``, ``MEMBER_OF``, and ``ALIGNED_WITH``
+relationship edges are added/updated.
 
 Graph model
 -----------
-* ``(:EntityMention)-[:RESOLVES_TO]->(:CanonicalEntity)``   — structured match
+* ``(:EntityMention)-[:RESOLVES_TO]->(:CanonicalEntity)``     — structured match
 * ``(:EntityMention)-[:MEMBER_OF]->(:ResolvedEntityCluster)`` — provisional cluster
-* ``(:ResolvedEntityCluster)-[:ALIGNED_WITH]->(:CanonicalEntity)`` — future alignment
+* ``(:ResolvedEntityCluster)-[:ALIGNED_WITH]->(:CanonicalEntity)`` — enrichment link
 
 Artifacts written to ``runs/<run_id>/entity_resolution/``:
 - ``entity_resolution_summary.json`` — counts, breakdown, resolver metadata.
@@ -62,6 +81,10 @@ _RESOLVER_VERSION = "v1.0"
 # edges can be distinguished by the version that created them.
 _CLUSTER_VERSION = "v1.1"
 
+# Bump this constant whenever the cluster-to-canonical alignment logic changes so
+# that ALIGNED_WITH edges can be distinguished by the version that created them.
+_ALIGNMENT_VERSION = "v1.0"
+
 _QID_PATTERN = re.compile(r"^Q\d+$")
 
 # Strips everything that is not a lowercase ASCII letter. Intended to be used
@@ -73,9 +96,11 @@ _RE_NON_ALPHA = re.compile(r"[^a-z]")
 # Supported resolution mode identifiers.
 _RESOLUTION_MODE_STRUCTURED_ANCHOR = "structured_anchor"
 _RESOLUTION_MODE_UNSTRUCTURED_ONLY = "unstructured_only"
+_RESOLUTION_MODE_HYBRID = "hybrid"
 _VALID_RESOLUTION_MODES = frozenset({
     _RESOLUTION_MODE_STRUCTURED_ANCHOR,
     _RESOLUTION_MODE_UNSTRUCTURED_ONLY,
+    _RESOLUTION_MODE_HYBRID,
 })
 
 
@@ -632,6 +657,106 @@ def _write_resolution_results(
         )
 
 
+def _align_clusters_to_canonical(
+    cluster_normalized_texts: list[str],
+    by_label: dict[str, dict[str, Any]],
+    by_alias: dict[str, dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Align :ResolvedEntityCluster nodes to :CanonicalEntity nodes.
+
+    For each unique cluster (identified by its *normalized_text* key) applies
+    label-exact then alias-exact lookup against the pre-built lookup tables.
+    Returns one alignment row per cluster that matched a canonical entity.
+
+    Alignment strategies applied in priority order:
+
+    1. **label_exact** — cluster's normalized text matches a CanonicalEntity
+       by its normalized label.
+    2. **alias_exact** — cluster's normalized text appears in a CanonicalEntity's
+       alias list.
+
+    Args:
+        cluster_normalized_texts: Unique normalized-text keys of clusters to align.
+        by_label: Mapping of normalized canonical label → canonical row.
+        by_alias:  Mapping of normalized alias → canonical row.
+
+    Returns:
+        A list of alignment row dicts with keys: ``cluster_id``,
+        ``canonical_entity_id``, ``canonical_run_id``, ``alignment_method``,
+        ``alignment_score``, and ``alignment_status``.
+    """
+    rows: list[dict[str, Any]] = []
+    for normalized_text in cluster_normalized_texts:
+        cluster_id = f"cluster::{normalized_text}"
+
+        canonical = by_label.get(normalized_text)
+        if canonical:
+            rows.append({
+                "cluster_id": cluster_id,
+                "canonical_entity_id": canonical["entity_id"],
+                "canonical_run_id": canonical["run_id"],
+                "alignment_method": "label_exact",
+                "alignment_score": 0.9,
+                "alignment_status": "aligned",
+            })
+            continue
+
+        canonical = by_alias.get(normalized_text)
+        if canonical:
+            rows.append({
+                "cluster_id": cluster_id,
+                "canonical_entity_id": canonical["entity_id"],
+                "canonical_run_id": canonical["run_id"],
+                "alignment_method": "alias_exact",
+                "alignment_score": 0.8,
+                "alignment_status": "aligned",
+            })
+
+    return rows
+
+
+def _write_alignment_results(
+    driver: "neo4j.Driver",  # type: ignore[name-defined]  # noqa: F821
+    *,
+    run_id: str,
+    source_uri: str | None,
+    alignment_rows: list[dict[str, Any]],
+    neo4j_database: str,
+) -> None:
+    """Persist ALIGNED_WITH edges from :ResolvedEntityCluster to :CanonicalEntity.
+
+    Each matched cluster receives a non-destructive ``ALIGNED_WITH`` edge
+    carrying alignment provenance metadata: ``alignment_method``,
+    ``alignment_score``, ``alignment_status``, ``alignment_version``,
+    ``run_id``, and ``source_uri``.  Existing cluster nodes and ``MEMBER_OF``
+    edges are never modified.
+    """
+    if not alignment_rows:
+        return
+    driver.execute_query(
+        """
+        UNWIND $rows AS row
+        MATCH (cluster:ResolvedEntityCluster {cluster_id: row.cluster_id})
+        MATCH (canonical:CanonicalEntity {entity_id: row.canonical_entity_id, run_id: row.canonical_run_id})
+        MERGE (cluster)-[r:ALIGNED_WITH {
+            run_id:            $run_id,
+            alignment_version: $alignment_version
+        }]->(canonical)
+        SET r.alignment_method = row.alignment_method,
+            r.alignment_score  = row.alignment_score,
+            r.alignment_status = row.alignment_status,
+            r.source_uri       = $source_uri
+        """,
+        parameters_={
+            "rows": alignment_rows,
+            "run_id": run_id,
+            "source_uri": source_uri,
+            "alignment_version": _ALIGNMENT_VERSION,
+        },
+        database_=neo4j_database,
+    )
+
+
 def run_entity_resolution(
     config: Any,
     *,
@@ -652,22 +777,32 @@ def run_entity_resolution(
       any :CanonicalEntity lookup.  All mentions produce ``MEMBER_OF`` edges to
       :ResolvedEntityCluster nodes; no ``RESOLVES_TO`` edges are created.
 
+    * ``"hybrid"`` — runs the full unstructured clustering pass first (identical
+      to ``unstructured_only``), then optionally enriches resulting
+      :ResolvedEntityCluster nodes with ``ALIGNED_WITH`` edges to any matching
+      :CanonicalEntity nodes.  Structured ingest is not required; when no
+      :CanonicalEntity nodes are present the mode degrades gracefully to pure
+      unstructured clustering.
+
     All resolution is **non-destructive**: existing nodes are never mutated;
-    only ``RESOLVES_TO`` and ``MEMBER_OF`` relationship edges are added.
+    only ``RESOLVES_TO``, ``MEMBER_OF``, and ``ALIGNED_WITH`` relationship edges
+    are added.
 
     Args:
         config:          :class:`~demo.contracts.runtime.Config`.
         run_id:          The run_id whose EntityMention nodes are to be resolved.
                          Must match the run_id used during PDF ingest / claim extraction.
         source_uri:      Provenance URI for the source document.
-        resolution_mode: One of ``"structured_anchor"`` (default) or
-                         ``"unstructured_only"``.  When ``None`` the value is
-                         read from ``config.resolution_mode`` (if present) and
-                         falls back to ``"structured_anchor"``.
+        resolution_mode: One of ``"structured_anchor"`` (default),
+                         ``"unstructured_only"``, or ``"hybrid"``.  When ``None``
+                         the value is read from ``config.resolution_mode`` (if
+                         present) and falls back to ``"structured_anchor"``.
 
     Returns:
         A summary dict with counts, resolution breakdown, ``resolution_mode``,
-        and artifact paths.
+        and artifact paths.  In ``"hybrid"`` mode the summary additionally
+        includes ``aligned_clusters``, ``alignment_breakdown``, and
+        ``alignment_version``.
     """
     # Resolve the effective mode: explicit arg > config attribute > default.
     if resolution_mode is None:
@@ -686,11 +821,12 @@ def run_entity_resolution(
     unresolved_path = resolution_dir / "unresolved_mentions.json"
 
     if config.dry_run:
-        resolver_method = (
-            "unstructured_clustering"
-            if resolution_mode == _RESOLUTION_MODE_UNSTRUCTURED_ONLY
-            else "canonical_exact_match"
-        )
+        if resolution_mode == _RESOLUTION_MODE_UNSTRUCTURED_ONLY:
+            resolver_method = "unstructured_clustering"
+        elif resolution_mode == _RESOLUTION_MODE_HYBRID:
+            resolver_method = "unstructured_clustering_with_canonical_alignment"
+        else:
+            resolver_method = "canonical_exact_match"
         summary: dict[str, Any] = {
             "status": "dry_run",
             "run_id": run_id,
@@ -706,6 +842,10 @@ def run_entity_resolution(
             "resolution_breakdown": {},
             "warnings": ["entity resolution skipped in dry_run mode"],
         }
+        if resolution_mode == _RESOLUTION_MODE_HYBRID:
+            summary["alignment_version"] = _ALIGNMENT_VERSION
+            summary["aligned_clusters"] = 0
+            summary["alignment_breakdown"] = {}
         summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
         unresolved_path.write_text(json.dumps([], indent=2), encoding="utf-8")
         return summary
@@ -742,6 +882,7 @@ def run_entity_resolution(
         resolved_rows: list[dict[str, Any]] = []
         unresolved_rows: list[dict[str, Any]] = []
         resolution_breakdown: dict[str, int] = {}
+        alignment_rows: list[dict[str, Any]] = []
 
         if resolution_mode == _RESOLUTION_MODE_UNSTRUCTURED_ONLY:
             # 2a. unstructured_only: cluster mentions against each other.
@@ -751,6 +892,48 @@ def run_entity_resolution(
                 method = row["resolution_method"]
                 resolution_breakdown[method] = resolution_breakdown.get(method, 0) + 1
                 unresolved_rows.append(row)
+        elif resolution_mode == _RESOLUTION_MODE_HYBRID:
+            # 2c. hybrid: cluster mentions first (identical to unstructured_only),
+            #     then optionally align resulting clusters to CanonicalEntity nodes.
+            cluster_rows_result = _cluster_mentions_unstructured_only(mentions)
+            for row in cluster_rows_result:
+                method = row["resolution_method"]
+                resolution_breakdown[method] = resolution_breakdown.get(method, 0) + 1
+                unresolved_rows.append(row)
+
+            # Enrichment step: align clusters to canonical entities where possible.
+            # This is additive — clusters with no canonical match remain unchanged.
+            canonical_result, _, _ = driver.execute_query(
+                """
+                MATCH (canonical:CanonicalEntity)
+                RETURN canonical.entity_id AS entity_id,
+                       canonical.run_id AS run_id,
+                       canonical.name AS name,
+                       canonical.aliases AS aliases
+                ORDER BY canonical.entity_id
+                """,
+                parameters_={},
+                database_=config.neo4j_database,
+                routing_=neo4j.RoutingControl.READ,
+            )
+            canonical_nodes = [
+                {
+                    "entity_id": record["entity_id"],
+                    "run_id": record["run_id"],
+                    "name": record["name"] or "",
+                    "aliases": record["aliases"],
+                }
+                for record in canonical_result
+                if record["entity_id"] and record["run_id"]
+            ]
+            if canonical_nodes:
+                _, by_label, by_alias = _build_lookup_tables(canonical_nodes)
+                unique_cluster_texts = sorted(
+                    {row["normalized_text"] for row in unresolved_rows}
+                )
+                alignment_rows = _align_clusters_to_canonical(
+                    unique_cluster_texts, by_label, by_alias
+                )
         else:
             # 2b. structured_anchor (default): resolve against CanonicalEntity nodes.
             canonical_result, _, _ = driver.execute_query(
@@ -768,12 +951,13 @@ def run_entity_resolution(
             )
             canonical_nodes = [
                 {
-                    "entity_id": record["entity_id"] or "",
-                    "run_id": record["run_id"] or "",
+                    "entity_id": record["entity_id"],
+                    "run_id": record["run_id"],
                     "name": record["name"] or "",
                     "aliases": record["aliases"],
                 }
                 for record in canonical_result
+                if record["entity_id"] and record["run_id"]
             ]
 
             by_qid, by_label, by_alias = _build_lookup_tables(canonical_nodes)
@@ -798,6 +982,16 @@ def run_entity_resolution(
             neo4j_database=config.neo4j_database,
         )
 
+        # 3b. In hybrid mode, write ALIGNED_WITH enrichment edges.
+        if resolution_mode == _RESOLUTION_MODE_HYBRID:
+            _write_alignment_results(
+                driver,
+                run_id=run_id,
+                source_uri=source_uri,
+                alignment_rows=alignment_rows,
+                neo4j_database=config.neo4j_database,
+            )
+
     # 4. Write artifacts.
     unresolved_list = [
         {
@@ -813,11 +1007,13 @@ def run_entity_resolution(
     # Count unique clusters (one cluster per unique normalized_text value).
     clusters_created = len({row["normalized_text"] for row in unresolved_rows})
 
-    live_resolver_method = (
-        "unstructured_clustering"
-        if resolution_mode == _RESOLUTION_MODE_UNSTRUCTURED_ONLY
-        else "canonical_exact_match"
-    )
+    if resolution_mode == _RESOLUTION_MODE_UNSTRUCTURED_ONLY:
+        live_resolver_method = "unstructured_clustering"
+    elif resolution_mode == _RESOLUTION_MODE_HYBRID:
+        live_resolver_method = "unstructured_clustering_with_canonical_alignment"
+    else:
+        live_resolver_method = "canonical_exact_match"
+
     summary = {
         "status": "live",
         "run_id": run_id,
@@ -836,6 +1032,14 @@ def run_entity_resolution(
         "unresolved_mentions_path": str(unresolved_path),
         "warnings": [],
     }
+    if resolution_mode == _RESOLUTION_MODE_HYBRID:
+        alignment_breakdown: dict[str, int] = {}
+        for row in alignment_rows:
+            m = row["alignment_method"]
+            alignment_breakdown[m] = alignment_breakdown.get(m, 0) + 1
+        summary["alignment_version"] = _ALIGNMENT_VERSION
+        summary["aligned_clusters"] = len(alignment_rows)
+        summary["alignment_breakdown"] = alignment_breakdown
     summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
     return summary
 
@@ -844,5 +1048,7 @@ __all__ = [
     "run_entity_resolution",
     "_RESOLUTION_MODE_STRUCTURED_ANCHOR",
     "_RESOLUTION_MODE_UNSTRUCTURED_ONLY",
+    "_RESOLUTION_MODE_HYBRID",
     "_VALID_RESOLUTION_MODES",
+    "_ALIGNMENT_VERSION",
 ]

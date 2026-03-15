@@ -1,6 +1,6 @@
 # Power Atlas — Unstructured-First Entity Resolution (v0.1, Draft)
 
-**Status:** Accepted — Phase 1 implemented  
+**Status:** Accepted — Phase 1 + Phase 3 implemented  
 **Audience:** Contributors, architects, reviewers  
 **Scope:** Entity resolution, ingestion architecture, demo posture, retrieval implications
 
@@ -280,17 +280,25 @@ Use case:
 - demos or workflows where a high-quality structured registry already exists
 - tightly scoped curated environments
 
-### Mode C — `hybrid_additive`
+### Mode C — `hybrid`
 
 Resolve unstructured mentions into clusters first, then optionally align clusters to structured/canonical entities.
 
 Behavior:
-- preserves the usefulness of unstructured extraction on its own
-- adds structured verification/enrichment later
-- supports additive graph growth
+- runs the full `unstructured_only` clustering pass first (normalized-exact, abbreviation, fuzzy, label_cluster)
+- for each resulting :ResolvedEntityCluster, checks whether its normalized text matches a :CanonicalEntity by label or alias
+- creates `ALIGNED_WITH` edges from matched clusters to their canonical counterparts
+- structured ingest is entirely optional; when no :CanonicalEntity nodes are present the mode degrades gracefully to pure unstructured clustering
+- all existing `MEMBER_OF` edges and cluster nodes remain unchanged (non-destructive)
+
+Summary fields added in `hybrid` mode (beyond the standard set):
+- `aligned_clusters` — number of clusters that received an `ALIGNED_WITH` edge
+- `alignment_breakdown` — per-method count of alignment edges written (`label_exact`, `alias_exact`)
+- `alignment_version` — value of `_ALIGNMENT_VERSION` constant
 
 Use case:
 - the intended long-term default product posture
+- workflows where structured data should enrich but not gate resolution
 
 ---
 
@@ -415,7 +423,7 @@ The demo should evolve to show the intended product behavior more clearly.
 3. resolve entities in `unstructured_only` mode
 4. ask questions
 5. ingest structured data
-6. align or re-resolve in `hybrid_additive` mode
+6. align or re-resolve in `hybrid` mode
 7. ask questions again
 
 ### Why
@@ -447,10 +455,11 @@ Implement `unstructured_only` resolution:
 - emit summary metrics
 
 ### Phase 3
-Implement `hybrid_additive` alignment:
-- align clusters to canonical entities
-- preserve additive enrichment semantics
-- avoid canonical override behavior
+Implement `hybrid` alignment (implemented):
+- align clusters to canonical entities after unstructured clustering
+- create ALIGNED_WITH edges with alignment provenance metadata
+- preserve additive enrichment semantics; structured ingest remains optional
+- degrade gracefully when no CanonicalEntity nodes are present
 
 ### Phase 4
 Update retrieval and Q&A behavior:
@@ -499,7 +508,7 @@ This decision is intended to keep Power Atlas aligned with:
 
 ## 13) Suggested follow-on work
 
-1. Add a second issue for `hybrid_additive` structured alignment
+1. ~~Add a second issue for `hybrid_additive` structured alignment~~ (implemented as `hybrid` mode)
 2. Update demo documentation to show unstructured-only usefulness before structured ingest
 3. Add a follow-on retrieval design note if cluster-aware retrieval introduces material answer-policy changes
 
@@ -538,18 +547,18 @@ Phase 1 has been implemented in the following modules:
   Keeping these out of `claim_extraction_schema()` ensures the LLM extractor never attempts to
   produce resolution-layer nodes or edges directly.
 
-### Graph model (Phase 1)
+### Graph model (Phase 1 + Phase 3)
 
 ```
 (:EntityMention)-[:MENTIONED_IN]->(:Chunk)
 (:ExtractedClaim)-[:SUPPORTED_BY]->(:Chunk)
 (:ExtractedClaim)-[:MENTIONS]->(:EntityMention)
-(:EntityMention)-[:RESOLVES_TO]->(:CanonicalEntity)   ← structured match
-(:EntityMention)-[:MEMBER_OF]->(:ResolvedEntityCluster) ← provisional cluster
-(:ResolvedEntityCluster)-[:ALIGNED_WITH]->(:CanonicalEntity) ← future Phase 3
+(:EntityMention)-[:RESOLVES_TO]->(:CanonicalEntity)      ← structured match (structured_anchor)
+(:EntityMention)-[:MEMBER_OF]->(:ResolvedEntityCluster)  ← provisional cluster
+(:ResolvedEntityCluster)-[:ALIGNED_WITH]->(:CanonicalEntity) ← enrichment alignment (hybrid)
 ```
 
-### What is implemented (Phase 1 + `unstructured_only`)
+### What is implemented (Phase 1 + `unstructured_only` + `hybrid`)
 
 - `unstructured_only` resolution mode flag on `run_entity_resolution()` and `Config`.
 - `--resolution-mode` CLI argument on the `resolve-entities` command.
@@ -561,11 +570,16 @@ Phase 1 has been implemented in the following modules:
   - `status` — `"accepted"` for deterministic assignments (`label_cluster`, `normalized_exact`); `"provisional"` for probabilistic assignments (`abbreviation`, `fuzzy`) to distinguish high-confidence memberships from those warranting downstream review.
   - `resolver_version` — value of `_CLUSTER_VERSION` constant.
   - `run_id` — the run that created the membership link.
+- `hybrid` resolution mode (Phase 3):
+  - runs the full `unstructured_only` clustering pass first
+  - after clustering, optionally queries `CanonicalEntity` nodes; if any exist, attempts label-exact then alias-exact alignment for each unique cluster
+  - writes `ALIGNED_WITH` edges from matched `ResolvedEntityCluster` nodes to their `CanonicalEntity` counterparts
+  - `ALIGNED_WITH` edge metadata: `alignment_method`, `alignment_score`, `alignment_status`, `alignment_version` (`_ALIGNMENT_VERSION` constant), `run_id`, `source_uri`
+  - summary includes `aligned_clusters`, `alignment_breakdown`, `alignment_version`
+  - gracefully degrades to pure unstructured clustering when no `CanonicalEntity` nodes are present
+  - structured ingest is not required; all existing `MEMBER_OF` edges and cluster nodes remain unchanged
 
-### What is not yet implemented (Phases 2–5)
+### What is not yet implemented (Phases 4–5)
 
-- `hybrid_additive` explicit mode flag on `run_entity_resolution()`.
-- Advanced fuzzy lexical or semantic similarity clustering (Phase 2 resolution methods).
-- `ALIGNED_WITH` edge creation from `ResolvedEntityCluster` → `CanonicalEntity` (Phase 3).
 - Cluster-aware retrieval and Q&A traversal (Phase 4).
 - Review-required threshold bands and audit workflow (Phase 5).
