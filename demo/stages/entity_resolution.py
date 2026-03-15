@@ -25,12 +25,15 @@ Resolution strategies applied in priority order (``structured_anchor`` mode):
    mentions sharing the same ``(run_id, entity_type, normalized_text)`` into a
    :ResolvedEntityCluster.
 
-Resolution strategies applied in priority order (``unstructured_only`` mode).
-All strategies are scoped by ``entity_type``: mentions with the same
-normalized text but different entity types are treated as distinct clusters.
+Resolution strategies applied in priority order (``unstructured_only`` mode):
 
-1. **normalized_exact** — mentions sharing the same ``(entity_type,
-   normalized_text)`` pair are clustered together.
+1. **normalized_exact** — mentions sharing the same ``normalized_text`` are
+   attached to the same internal cluster key regardless of entity type.
+   Entity-type isolation is **not** enforced here; it is enforced later when
+   ``_make_cluster_id`` generates the final ``cluster_id`` (which encodes
+   ``entity_type`` as a separate component).  This means two mentions with the
+   same normalized text but different entity types share one internal key but
+   end up in two separate :ResolvedEntityCluster nodes in Neo4j.
 2. **abbreviation** — a mention that is an initialism of another mention's
    normalized text is placed in that mention's cluster (within the same
    ``entity_type`` bucket).

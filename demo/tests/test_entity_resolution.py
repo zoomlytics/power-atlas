@@ -822,6 +822,34 @@ class TestResolvedEntityCluster(unittest.TestCase):
         with self.assertRaises(ValueError):
             _make_cluster_id("", "ORG", "ibm")
 
+    def test_make_cluster_id_delimiter_in_run_id_does_not_collide(self):
+        """run_id containing '::' must not produce an ID identical to a different tuple."""
+        # run_id="a::b", entity_type="", text="c"  vs  run_id="a", entity_type="b", text="c"
+        cid_combined = _make_cluster_id("a::b", None, "c")
+        cid_split = _make_cluster_id("a", "b", "c")
+        self.assertNotEqual(cid_combined, cid_split)
+
+    def test_make_cluster_id_delimiter_in_entity_type_does_not_collide(self):
+        """entity_type containing '::' must not produce an ID identical to a different tuple."""
+        # run_id="a", entity_type="b::c", text=""  vs  run_id="a", entity_type="b", text="c"
+        cid_combined = _make_cluster_id("a", "b::c", "")
+        cid_split = _make_cluster_id("a", "b", "c")
+        self.assertNotEqual(cid_combined, cid_split)
+
+    def test_make_cluster_id_percent_in_component_does_not_collide(self):
+        """A '%' literal in a component must be encoded and not decode to a collision."""
+        # run_id containing a literal % — e.g. "run%3A" would encode as "run%253A",
+        # which is distinct from encoding "run:" → "run%3A".
+        cid_literal_pct = _make_cluster_id("run%3A", None, "ibm")
+        cid_colon = _make_cluster_id("run:", None, "ibm")
+        self.assertNotEqual(cid_literal_pct, cid_colon)
+
+    def test_make_cluster_id_space_in_text_does_not_collide(self):
+        """Spaces in normalized_text are encoded and don't collapse with other representations."""
+        cid_with_space = _make_cluster_id("run-A", "ORG", "new york")
+        cid_no_space = _make_cluster_id("run-A", "ORG", "newyork")
+        self.assertNotEqual(cid_with_space, cid_no_space)
+
     def test_clusters_created_counts_unique_entity_type_and_text_pairs(self):
         """clusters_created treats same text with different entity types as separate clusters."""
         with tempfile.TemporaryDirectory() as tmpdir:
