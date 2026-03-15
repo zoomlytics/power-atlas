@@ -795,9 +795,10 @@ def run_entity_resolution(
                          Must match the run_id used during PDF ingest / claim extraction.
         source_uri:      Provenance URI for the source document.
         resolution_mode: One of ``"structured_anchor"``, ``"unstructured_only"``, or
-                         ``"hybrid"``.  When ``None`` the value is read from
-                         ``config.resolution_mode`` (if present) and falls back to
-                         ``"structured_anchor"``.
+                         ``"hybrid"``. When ``None``, the effective mode is resolved as:
+                         explicit argument (if provided) > ``config.resolution_mode``
+                         (if present and truthy, typically defaulting to ``"unstructured_only"``)
+                         > ``"structured_anchor"`` as a final fallback.
         artifact_subdir: Subdirectory under ``runs/<run_id>/`` where artifacts are
                          written.  Defaults to ``"entity_resolution"``.  Pass a
                          mode-specific name (e.g. ``"entity_resolution_unstructured_only"``
