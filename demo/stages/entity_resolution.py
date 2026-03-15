@@ -828,7 +828,22 @@ def run_entity_resolution(
         )
 
     resolved_at = datetime.now(UTC).isoformat()
-    run_root = (config.output_dir / "runs" / run_id).resolve()
+
+    # Ensure the run directory is always a descendant of <output_dir>/runs and that
+    # run_id cannot be used for path traversal or absolute path escape.
+    runs_root = (config.output_dir / "runs").resolve()
+    run_id_path = Path(run_id)
+    if run_id_path.is_absolute() or ".." in run_id_path.parts:
+        raise ValueError(
+            f"Invalid run_id {run_id!r}: must be a simple relative name without path separators or '..'."
+        )
+    run_root = (runs_root / run_id_path).resolve()
+    # Reject run_ids that resolve to the runs_root itself (e.g. "" or ".") or that
+    # escape it (e.g. via symlinks after the parts-level '..' check above).
+    if run_root == runs_root or runs_root not in run_root.parents:
+        raise ValueError(
+            f"Invalid run_id {run_id!r}: must resolve to a subdirectory of the runs directory."
+        )
 
     artifact_subdir_path = Path(artifact_subdir)
     # Prevent path traversal and absolute paths in artifact_subdir to keep writes
