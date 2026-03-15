@@ -48,7 +48,7 @@ Alignment strategies applied in priority order (``hybrid`` mode):
    suffix of its ``cluster_id``) matches a :CanonicalEntity by its normalized
    label.
 2. **alias_exact** — the same normalized cluster value appears in the
-   ``canonical.aliases`` list of a :CanonicalEntity.
+   ``canonical.aliases`` string (pipe-separated or comma-separated list) of a :CanonicalEntity.
 
 All resolution and clustering is **non-destructive**: existing nodes are
 never mutated; only ``RESOLVES_TO``, ``MEMBER_OF``, and ``ALIGNED_WITH``
