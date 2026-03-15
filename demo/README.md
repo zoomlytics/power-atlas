@@ -532,6 +532,7 @@ All nodes with the following labels and **all their relationships** (`DETACH DEL
 | `ExtractedClaim` | `extract-claims` |
 | `EntityMention` | `extract-claims` |
 | `ResolvedEntityCluster` | `resolve-entities` |
+| `UnresolvedEntity` | `resolve-entities` (legacy/back-compat) |
 
 The index `demo_chunk_embedding_index` (vector, `Chunk.embedding`, 1536 dims) is also dropped if present.
 
