@@ -1045,19 +1045,21 @@ def run_entity_resolution(
                 # pass to _align_clusters_to_canonical.  Each (entity_type,
                 # normalized_text) pair must be deduplicated since the same
                 # pair can appear in multiple rows from different mentions.
-                seen_cluster_ids: set[str] = set()
-                unique_clusters: list[dict[str, Any]] = []
-                for row in sorted(
-                    unresolved_rows,
-                    key=lambda r: (r.get("entity_type") or "", r["normalized_text"]),
-                ):
+                # Deduplicate first via a dict, then sort only the unique
+                # entries (O(u log u) where u ≤ n) instead of sorting all
+                # mention rows before deduplication (O(n log n)).
+                cluster_entries_by_id: dict[str, tuple[tuple[str, str], dict[str, Any]]] = {}
+                for row in unresolved_rows:
                     cid = _make_cluster_id(run_id, row.get("entity_type"), row["normalized_text"])
-                    if cid not in seen_cluster_ids:
-                        seen_cluster_ids.add(cid)
-                        unique_clusters.append({
+                    if cid not in cluster_entries_by_id:
+                        sort_key = (row.get("entity_type") or "", row["normalized_text"])
+                        cluster_entries_by_id[cid] = (sort_key, {
                             "cluster_id": cid,
                             "normalized_text": row["normalized_text"],
                         })
+                unique_clusters: list[dict[str, Any]] = [
+                    c for _, c in sorted(cluster_entries_by_id.values(), key=lambda t: t[0])
+                ]
                 alignment_rows = _align_clusters_to_canonical(
                     unique_clusters, by_label, by_alias
                 )
