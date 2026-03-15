@@ -41,7 +41,7 @@ Resolution strategies applied in priority order (``unstructured_only`` mode):
    (difflib SequenceMatcher ratio ≥ 0.85) are placed in the same cluster
    (within the same ``entity_type`` bucket).
 4. **label_cluster** — fallback; mention is grouped in a singleton cluster
-   keyed by its ``(run_id, entity_type, normalized_text)`` identity.
+   keyed by its ``(run_id, source_uri, entity_type, normalized_text)`` identity.
 
 ``hybrid`` mode runs the full ``unstructured_only`` clustering pass first, then
 performs a best-effort alignment of each resulting :ResolvedEntityCluster to a
@@ -124,39 +124,51 @@ def _normalize(text: str) -> str:
     return text.strip().lower()
 
 
-def _make_cluster_id(run_id: str, entity_type: str | None, normalized_text: str) -> str:
+def _make_cluster_id(
+    run_id: str,
+    entity_type: str | None,
+    normalized_text: str,
+    *,
+    source_uri: str | None = None,
+) -> str:
     """Compute a scoped cluster_id for a :ResolvedEntityCluster node.
 
-    The cluster_id encodes three identity dimensions so that clusters are never
-    unintentionally merged across runs, entity types, or normalized texts:
+    The cluster_id encodes four identity dimensions so that clusters are never
+    unintentionally merged across runs, sources, entity types, or normalized
+    texts:
 
     * **run_id** — prevents cross-run collision when the same text appears in
       multiple independent processing runs.
+    * **source_uri** — prevents merging clusters from different source
+      documents/datasets that happen to share the same ``run_id``.  When
+      ``source_uri=None`` the source segment is empty (same behaviour as
+      ``entity_type=None``).
     * **entity_type** — prevents merging semantically distinct clusters that
       share a normalized text but belong to different entity types (e.g. "IBM"
       as an ORG vs "IBM" as a PRODUCT).
     * **normalized_text** — the canonical text of the cluster representative.
 
-    Format: ``cluster::<run_id_enc>::<entity_type_enc>::<normalized_text_enc>``
+    Format:
+    ``cluster::<run_id_enc>::<source_uri_enc>::<entity_type_enc>::<normalized_text_enc>``
 
     Each component is percent-encoded (RFC 3986, ``safe=''``) before joining
     so that a component containing the ``::`` delimiter cannot produce a
     cluster_id that collides with a legitimately different tuple.
 
-    ``entity_type=None`` is treated as an empty string before encoding, so
-    ``entity_type=None`` and ``entity_type=""`` produce the same cluster_id.
-    An empty *normalized_text* (e.g. produced from a mention with a blank name)
-    is accepted and yields a deterministic ID that groups all empty-name
-    mentions for the same (run_id, entity_type) together.  A non-empty
-    *run_id* is required; passing an empty string raises :exc:`ValueError`
-    because it would produce IDs indistinguishable across runs.
+    ``source_uri=None`` and ``entity_type=None`` are both treated as empty
+    strings before encoding, so ``None`` and ``""`` produce the same cluster_id
+    for those dimensions.  An empty *normalized_text* is accepted and yields a
+    deterministic ID.  A non-empty *run_id* is required; passing an empty
+    string raises :exc:`ValueError` because it would produce IDs
+    indistinguishable across runs.
     """
     if not run_id:
         raise ValueError("run_id must be a non-empty string")
     run_id_enc = _pct_encode(run_id, safe="")
+    source_uri_enc = _pct_encode(source_uri or "", safe="")
     entity_type_enc = _pct_encode(entity_type or "", safe="")
     normalized_text_enc = _pct_encode(normalized_text, safe="")
-    return f"cluster::{run_id_enc}::{entity_type_enc}::{normalized_text_enc}"
+    return f"cluster::{run_id_enc}::{source_uri_enc}::{entity_type_enc}::{normalized_text_enc}"
 
 
 def _split_aliases(raw: Any) -> list[str]:
@@ -685,7 +697,7 @@ def _write_resolution_results(
             entity_type = row.get("entity_type")
             cluster_rows.append({
                 "mention_id": row["mention_id"],
-                "cluster_id": _make_cluster_id(run_id, entity_type, row["normalized_text"]),
+                "cluster_id": _make_cluster_id(run_id, entity_type, row["normalized_text"], source_uri=source_uri),
                 # Use a deterministic canonical name derived from the normalized text
                 "canonical_name": row["normalized_text"].title(),
                 "normalized_text": row["normalized_text"],
@@ -1050,7 +1062,7 @@ def run_entity_resolution(
                 # mention rows before deduplication (O(n log n)).
                 cluster_entries_by_id: dict[str, tuple[tuple[str, str], dict[str, Any]]] = {}
                 for row in unresolved_rows:
-                    cid = _make_cluster_id(run_id, row.get("entity_type"), row["normalized_text"])
+                    cid = _make_cluster_id(run_id, row.get("entity_type"), row["normalized_text"], source_uri=source_uri)
                     if cid not in cluster_entries_by_id:
                         sort_key = (row.get("entity_type") or "", row["normalized_text"])
                         cluster_entries_by_id[cid] = (sort_key, {
@@ -1128,7 +1140,7 @@ def run_entity_resolution(
             "mention_name": row["mention_name"],
             "normalized_text": row["normalized_text"],
             "entity_type": row.get("entity_type") or None,
-            "cluster_id": _make_cluster_id(run_id, row.get("entity_type"), row["normalized_text"]),
+            "cluster_id": _make_cluster_id(run_id, row.get("entity_type"), row["normalized_text"], source_uri=source_uri),
         }
         for row in unresolved_rows
     ]
