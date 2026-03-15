@@ -1063,13 +1063,15 @@ def run_entity_resolution(
             ]
             if canonical_nodes:
                 _, by_label, by_alias = _build_lookup_tables(canonical_nodes)
-                # Build unique cluster dicts (keyed by scoped cluster_id) to
-                # pass to _align_clusters_to_canonical.  Each (entity_type,
-                # normalized_text) pair must be deduplicated since the same
-                # pair can appear in multiple rows from different mentions.
-                # Deduplicate first via a dict, then sort only the unique
-                # entries (O(u log u) where u ≤ n) instead of sorting all
-                # mention rows before deduplication (O(n log n)).
+                # Build unique cluster dicts keyed by the scoped cluster_id
+                # produced by _make_cluster_id (which incorporates run_id,
+                # entity_type, normalized_text, and source_uri when present)
+                # to pass to _align_clusters_to_canonical. Multiple mention
+                # rows can map to the same cluster_id; we deduplicate those
+                # first via a dict, then sort only the unique entries by
+                # (entity_type, normalized_text) (O(u log u) where u ≤ n)
+                # instead of sorting all mention rows before deduplication
+                # (O(n log n)).
                 cluster_entries_by_id: dict[str, tuple[tuple[str, str], dict[str, Any]]] = {}
                 for row in unresolved_rows:
                     cid = _make_cluster_id(run_id, row.get("entity_type"), row["normalized_text"], source_uri=row.get("source_uri"))
