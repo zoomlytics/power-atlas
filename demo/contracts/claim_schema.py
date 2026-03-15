@@ -64,12 +64,19 @@ def resolution_layer_schema() -> GraphSchema:
                     "Provisional cluster of EntityMention nodes believed to refer to the same "
                     "underlying entity. Sits between the extracted-assertion layer (EntityMention) "
                     "and the optional curated layer (CanonicalEntity). Created non-destructively "
-                    "by the entity resolution stage; raw mentions are never modified."
+                    "by the entity resolution stage; raw mentions are never modified.\n\n"
+                    "**Identity scoping**: ``cluster_id`` encodes ``run_id``, ``entity_type``, "
+                    "and ``normalized_text`` so that clusters are never unintentionally merged "
+                    "across processing runs or entity types. Format: "
+                    "``cluster::<run_id>::<entity_type>::<normalized_text>``."
                 ),
                 properties=[
                     PropertyType(name="cluster_id", type="STRING", required=True),
                     PropertyType(name="canonical_name", type="STRING"),
                     PropertyType(name="normalized_text", type="STRING"),
+                    PropertyType(name="entity_type", type="STRING"),
+                    PropertyType(name="run_id", type="STRING"),
+                    PropertyType(name="source_uri", type="STRING"),
                     PropertyType(name="resolver_version", type="STRING"),
                     PropertyType(name="created_at", type="STRING"),
                 ],

@@ -20,6 +20,7 @@ from demo.stages.entity_resolution import (
     _cluster_mentions_unstructured_only,
     _fuzzy_ratio,
     _is_abbreviation,
+    _make_cluster_id,
     _normalize,
     _resolve_mention,
     _split_aliases,
@@ -221,6 +222,22 @@ class TestResolveMention(unittest.TestCase):
         mention = {"mention_id": "m6", "name": ""}
         result = _resolve_mention(mention, self.by_qid, self.by_label, self.by_alias)
         self.assertFalse(result["resolved"])
+
+    def test_unresolved_row_carries_entity_type(self):
+        """Unresolved rows (label_cluster) must include entity_type for cluster scoping."""
+        mention = {"mention_id": "m7", "name": "Nobody Known", "entity_type": "ORG"}
+        result = _resolve_mention(mention, self.by_qid, self.by_label, self.by_alias)
+        self.assertFalse(result["resolved"])
+        self.assertIn("entity_type", result)
+        self.assertEqual(result["entity_type"], "ORG")
+
+    def test_unresolved_qid_row_carries_entity_type(self):
+        """Unresolved QID-pattern rows (no canonical match) must include entity_type."""
+        mention = {"mention_id": "m8", "name": "Q99999", "entity_type": "concept"}
+        result = _resolve_mention(mention, self.by_qid, self.by_label, self.by_alias)
+        self.assertFalse(result["resolved"])
+        self.assertIn("entity_type", result)
+        self.assertEqual(result["entity_type"], "concept")
 
 
 class TestRunEntityResolutionDryRun(unittest.TestCase):
@@ -526,6 +543,12 @@ class TestBatchManifestEntityResolution(unittest.TestCase):
 class TestResolvedEntityCluster(unittest.TestCase):
     """Tests for the ResolvedEntityCluster (provisional cluster) layer."""
 
+    @staticmethod
+    def _load_unresolved_json(output_dir: Path, run_id: str, artifact_subdir: str = "entity_resolution") -> list:
+        """Load the unresolved_mentions.json artifact for *run_id*."""
+        path = output_dir / "runs" / run_id / artifact_subdir / "unresolved_mentions.json"
+        return json.loads(path.read_text(encoding="utf-8"))
+
     # ------------------------------------------------------------------
     # Resolution method for non-canonical mentions
     # ------------------------------------------------------------------
@@ -677,13 +700,11 @@ class TestResolvedEntityCluster(unittest.TestCase):
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
                 run_entity_resolution(config, run_id="run-cluster-004", source_uri=None)
 
-            unresolved_path = (
-                Path(tmpdir) / "runs" / "run-cluster-004" / "entity_resolution" / "unresolved_mentions.json"
-            )
-            unresolved = json.loads(unresolved_path.read_text(encoding="utf-8"))
+            unresolved = self._load_unresolved_json(Path(tmpdir), "run-cluster-004")
             self.assertEqual(len(unresolved), 1)
             self.assertIn("cluster_id", unresolved[0])
-            self.assertEqual(unresolved[0]["cluster_id"], "cluster::widget inc")
+            expected_cluster_id = _make_cluster_id("run-cluster-004", None, "widget inc")
+            self.assertEqual(unresolved[0]["cluster_id"], expected_cluster_id)
 
     # ------------------------------------------------------------------
     # Cypher: MEMBER_OF edge written for unresolved mentions
@@ -739,6 +760,119 @@ class TestResolvedEntityCluster(unittest.TestCase):
                 any("ResolvedEntityCluster" in call for call in cypher_calls),
                 "Expected a Cypher call containing ResolvedEntityCluster for unresolved mentions",
             )
+
+    # ------------------------------------------------------------------
+    # Cluster identity scoping: _make_cluster_id and isolation guarantees
+    # ------------------------------------------------------------------
+
+    def test_unresolved_artifact_includes_entity_type(self):
+        """Unresolved artifact rows expose entity_type for downstream consumers."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = Config(
+                dry_run=False,
+                output_dir=Path(tmpdir),
+                neo4j_uri="bolt://example.invalid",
+                neo4j_username="neo4j",
+                neo4j_password="secret",
+                neo4j_database="neo4j",
+                openai_model="test-model",
+            )
+            mentions = [{"mention_id": "m1", "name": "Acme Corp", "entity_type": "ORG"}]
+            driver = _make_neo4j_test_driver(mentions, [])
+
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                run_entity_resolution(config, run_id="run-scope-001", source_uri=None)
+
+            unresolved_path = (
+                Path(tmpdir) / "runs" / "run-scope-001" / "entity_resolution" / "unresolved_mentions.json"
+            )
+            unresolved = json.loads(unresolved_path.read_text(encoding="utf-8"))
+            self.assertEqual(len(unresolved), 1)
+            self.assertIn("entity_type", unresolved[0])
+            self.assertEqual(unresolved[0]["entity_type"], "ORG")
+
+    def test_cross_run_same_text_produces_distinct_cluster_ids(self):
+        """Same normalized text in two different runs must yield different cluster_ids."""
+        cid_run1 = _make_cluster_id("run-A", None, "ibm")
+        cid_run2 = _make_cluster_id("run-B", None, "ibm")
+        self.assertNotEqual(cid_run1, cid_run2)
+
+    def test_cross_type_same_text_produces_distinct_cluster_ids(self):
+        """Same normalized text with different entity types must yield different cluster_ids."""
+        cid_org = _make_cluster_id("run-A", "ORG", "ibm")
+        cid_product = _make_cluster_id("run-A", "PRODUCT", "ibm")
+        self.assertNotEqual(cid_org, cid_product)
+
+    def test_same_run_same_type_same_text_produces_same_cluster_id(self):
+        """Identical (run_id, entity_type, normalized_text) must yield the same cluster_id."""
+        cid_a = _make_cluster_id("run-A", "ORG", "ibm")
+        cid_b = _make_cluster_id("run-A", "ORG", "ibm")
+        self.assertEqual(cid_a, cid_b)
+
+    def test_none_entity_type_and_empty_string_handled_consistently(self):
+        """None entity_type is treated as empty string so cluster_id is stable."""
+        cid_none = _make_cluster_id("run-A", None, "ibm")
+        cid_empty = _make_cluster_id("run-A", "", "ibm")
+        self.assertEqual(cid_none, cid_empty)
+
+    def test_clusters_created_counts_unique_entity_type_and_text_pairs(self):
+        """clusters_created treats same text with different entity types as separate clusters."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = Config(
+                dry_run=False,
+                output_dir=Path(tmpdir),
+                neo4j_uri="bolt://example.invalid",
+                neo4j_username="neo4j",
+                neo4j_password="secret",
+                neo4j_database="neo4j",
+                openai_model="test-model",
+            )
+            # "IBM" appears as both ORG and PRODUCT — should create 2 distinct clusters.
+            mentions = [
+                {"mention_id": "m1", "name": "IBM", "entity_type": "ORG"},
+                {"mention_id": "m2", "name": "IBM", "entity_type": "PRODUCT"},
+            ]
+            driver = _make_neo4j_test_driver(mentions, [])
+
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                result = run_entity_resolution(
+                    config, run_id="run-scope-002", source_uri=None,
+                    resolution_mode="unstructured_only",
+                )
+
+            self.assertEqual(result["clusters_created"], 2)
+
+    def test_cross_run_clusters_created_are_isolated(self):
+        """Two separate runs with the same mentions produce independent clusters."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = Config(
+                dry_run=False,
+                output_dir=Path(tmpdir),
+                neo4j_uri="bolt://example.invalid",
+                neo4j_username="neo4j",
+                neo4j_password="secret",
+                neo4j_database="neo4j",
+                openai_model="test-model",
+            )
+            mentions = [{"mention_id": "m1", "name": "Acme Corp", "entity_type": "ORG"}]
+
+            with patch("neo4j.GraphDatabase.driver", return_value=_make_neo4j_test_driver(mentions, [])):
+                result_run1 = run_entity_resolution(
+                    config, run_id="run-iso-001", source_uri=None,
+                    resolution_mode="unstructured_only",
+                )
+            with patch("neo4j.GraphDatabase.driver", return_value=_make_neo4j_test_driver(mentions, [])):
+                result_run2 = run_entity_resolution(
+                    config, run_id="run-iso-002", source_uri=None,
+                    resolution_mode="unstructured_only",
+                )
+
+            # Each run sees 1 cluster, and those cluster_ids must differ.
+            self.assertEqual(result_run1["clusters_created"], 1)
+            self.assertEqual(result_run2["clusters_created"], 1)
+            unresolved_run1 = self._load_unresolved_json(Path(tmpdir), "run-iso-001")
+            unresolved_run2 = self._load_unresolved_json(Path(tmpdir), "run-iso-002")
+            self.assertNotEqual(unresolved_run1[0]["cluster_id"], unresolved_run2[0]["cluster_id"])
 
 
 class TestIsAbbreviation(unittest.TestCase):
@@ -1020,6 +1154,20 @@ class TestClusterMentionsUnstructuredOnly(unittest.TestCase):
             "Long-form mention must belong to its own cluster key",
         )
 
+    def test_output_rows_include_entity_type(self):
+        """Every output row must carry the entity_type from the input mention."""
+        mentions = [
+            {"mention_id": "m1", "name": "Acme", "entity_type": "ORG"},
+            {"mention_id": "m2", "name": "Acme", "entity_type": "PRODUCT"},
+            {"mention_id": "m3", "name": "Widget"},  # no entity_type key
+        ]
+        result = _cluster_mentions_unstructured_only(mentions)
+        by_mid = {r["mention_id"]: r for r in result}
+        self.assertIn("entity_type", by_mid["m1"])
+        self.assertEqual(by_mid["m1"]["entity_type"], "ORG")
+        self.assertEqual(by_mid["m2"]["entity_type"], "PRODUCT")
+        self.assertIsNone(by_mid["m3"]["entity_type"])
+
 class TestRunEntityResolutionUnstructuredOnly(unittest.TestCase):
     """Tests for run_entity_resolution with resolution_mode='unstructured_only'."""
 
@@ -1269,17 +1417,26 @@ class TestAlignClustersToCanonical(unittest.TestCase):
         ]
         _, self.by_label, self.by_alias = _build_lookup_tables(canonical_nodes)
 
+    def _cluster(self, run_id: str, entity_type: str | None, normalized_text: str) -> dict:
+        """Build a cluster dict matching the _make_cluster_id format used in production."""
+        return {
+            "cluster_id": _make_cluster_id(run_id, entity_type, normalized_text),
+            "normalized_text": normalized_text,
+        }
+
     def test_label_exact_match_returned(self):
-        rows = _align_clusters_to_canonical(["alice"], self.by_label, self.by_alias)
+        c = self._cluster("run-t1", "person", "alice")
+        rows = _align_clusters_to_canonical([c], self.by_label, self.by_alias)
         self.assertEqual(len(rows), 1)
-        self.assertEqual(rows[0]["cluster_id"], "cluster::alice")
+        self.assertEqual(rows[0]["cluster_id"], c["cluster_id"])
         self.assertEqual(rows[0]["canonical_entity_id"], "Q1")
         self.assertEqual(rows[0]["alignment_method"], "label_exact")
         self.assertAlmostEqual(rows[0]["alignment_score"], 0.9)
         self.assertEqual(rows[0]["alignment_status"], "aligned")
 
     def test_alias_exact_match_returned(self):
-        rows = _align_clusters_to_canonical(["ali"], self.by_label, self.by_alias)
+        c = self._cluster("run-t1", None, "ali")
+        rows = _align_clusters_to_canonical([c], self.by_label, self.by_alias)
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["canonical_entity_id"], "Q1")
         self.assertEqual(rows[0]["alignment_method"], "alias_exact")
@@ -1287,12 +1444,14 @@ class TestAlignClustersToCanonical(unittest.TestCase):
 
     def test_label_preferred_over_alias(self):
         # "bob corp" should match label_exact, not alias_exact
-        rows = _align_clusters_to_canonical(["bob corp"], self.by_label, self.by_alias)
+        c = self._cluster("run-t1", "org", "bob corp")
+        rows = _align_clusters_to_canonical([c], self.by_label, self.by_alias)
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["alignment_method"], "label_exact")
 
     def test_no_match_returns_empty(self):
-        rows = _align_clusters_to_canonical(["unknown entity xyz"], self.by_label, self.by_alias)
+        c = self._cluster("run-t1", None, "unknown entity xyz")
+        rows = _align_clusters_to_canonical([c], self.by_label, self.by_alias)
         self.assertEqual(rows, [])
 
     def test_empty_input_returns_empty(self):
@@ -1300,18 +1459,21 @@ class TestAlignClustersToCanonical(unittest.TestCase):
         self.assertEqual(rows, [])
 
     def test_partial_matches_only_matched_returned(self):
-        rows = _align_clusters_to_canonical(
-            ["alice", "unknown xyz", "bc"],
-            self.by_label, self.by_alias,
-        )
+        clusters = [
+            self._cluster("run-t1", "person", "alice"),
+            self._cluster("run-t1", None, "unknown xyz"),
+            self._cluster("run-t1", "org", "bc"),
+        ]
+        rows = _align_clusters_to_canonical(clusters, self.by_label, self.by_alias)
         # "alice" label_exact + "bc" alias_exact; "unknown xyz" has no match
         self.assertEqual(len(rows), 2)
         cluster_ids = {r["cluster_id"] for r in rows}
-        self.assertIn("cluster::alice", cluster_ids)
-        self.assertIn("cluster::bc", cluster_ids)
+        self.assertIn(clusters[0]["cluster_id"], cluster_ids)
+        self.assertIn(clusters[2]["cluster_id"], cluster_ids)
 
     def test_empty_lookup_tables_returns_empty(self):
-        rows = _align_clusters_to_canonical(["alice"], {}, {})
+        c = self._cluster("run-t1", None, "alice")
+        rows = _align_clusters_to_canonical([c], {}, {})
         self.assertEqual(rows, [])
 
 

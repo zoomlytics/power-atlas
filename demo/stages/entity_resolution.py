@@ -112,6 +112,33 @@ def _normalize(text: str) -> str:
     return text.strip().lower()
 
 
+def _make_cluster_id(run_id: str, entity_type: str | None, normalized_text: str) -> str:
+    """Compute a scoped cluster_id for a :ResolvedEntityCluster node.
+
+    The cluster_id encodes three identity dimensions so that clusters are never
+    unintentionally merged across runs, entity types, or normalized texts:
+
+    * **run_id** — prevents cross-run collision when the same text appears in
+      multiple independent processing runs.
+    * **entity_type** — prevents merging semantically distinct clusters that
+      share a normalized text but belong to different entity types (e.g. "IBM"
+      as an ORG vs "IBM" as a PRODUCT).
+    * **normalized_text** — the canonical text of the cluster representative.
+
+    Format: ``cluster::<run_id>::<entity_type>::<normalized_text>``
+
+    ``entity_type`` is stored as an empty string when ``None`` so the cluster_id
+    remains a stable, delimiter-safe string.
+
+    Callers are responsible for passing a non-empty *run_id* and a non-empty
+    *normalized_text*; the function does not validate these to avoid overhead
+    on the hot path.  Empty values would produce ambiguous IDs such as
+    ``cluster:::::`` that cannot be distinguished from each other.
+    """
+    entity_type_part = entity_type or ""
+    return f"cluster::{run_id}::{entity_type_part}::{normalized_text}"
+
+
 def _split_aliases(raw: Any) -> list[str]:
     """Parse a pipe- or comma-separated alias string into individual tokens."""
     if not raw or not isinstance(raw, str):
@@ -485,6 +512,7 @@ def _cluster_mentions_unstructured_only(
             "mention_id": mention["mention_id"],
             "mention_name": (mention.get("name") or "").strip(),
             "normalized_text": mention_to_cluster[mention["mention_id"]],
+            "entity_type": mention_to_type[mention["mention_id"]],
             "resolution_method": mention_to_method[mention["mention_id"]][0],
             "resolution_confidence": mention_to_method[mention["mention_id"]][1],
             "resolved": False,
@@ -523,6 +551,7 @@ def _resolve_mention(
             "mention_id": mention["mention_id"],
             "normalized_text": normalized,
             "mention_name": name,
+            "entity_type": mention.get("entity_type"),
             "resolution_method": "label_cluster",
             "resolution_confidence": 0.0,
             "candidate_ids": [],
@@ -560,6 +589,7 @@ def _resolve_mention(
         "mention_id": mention["mention_id"],
         "normalized_text": normalized,
         "mention_name": name,
+        "entity_type": mention.get("entity_type"),
         "resolution_method": "label_cluster",
         "resolution_confidence": 0.0,
         "candidate_ids": [],
@@ -614,15 +644,19 @@ def _write_resolution_results(
         # MEMBER_OF score via _membership_score so deterministic cluster
         # assignments (label_cluster, normalized_exact) always get score=1.0,
         # regardless of any match-quality confidence on the unresolved row.
+        # The cluster_id is scoped by (run_id, entity_type, normalized_text) to
+        # prevent unintentional merging across runs or entity types.
         cluster_rows = []
         for row in unresolved_rows:
             method = row.get("resolution_method", "label_cluster")
+            entity_type = row.get("entity_type")
             cluster_rows.append({
                 "mention_id": row["mention_id"],
-                "cluster_id": f"cluster::{row['normalized_text']}",
+                "cluster_id": _make_cluster_id(run_id, entity_type, row["normalized_text"]),
                 # Use a deterministic canonical name derived from the normalized text
                 "canonical_name": row["normalized_text"].title(),
                 "normalized_text": row["normalized_text"],
+                "entity_type": entity_type,
                 "score": _membership_score(method, row.get("resolution_confidence", 1.0)),
                 "method": method,
                 # "accepted" only for deterministic cluster assignments;
@@ -638,6 +672,9 @@ def _write_resolution_results(
             ON CREATE SET
                 cluster.canonical_name  = row.canonical_name,
                 cluster.normalized_text = row.normalized_text,
+                cluster.entity_type     = row.entity_type,
+                cluster.run_id          = $run_id,
+                cluster.source_uri      = $source_uri,
                 cluster.resolver_version = $resolver_version,
                 cluster.created_at = $created_at
             WITH row, cluster
@@ -662,15 +699,15 @@ def _write_resolution_results(
 
 
 def _align_clusters_to_canonical(
-    cluster_normalized_texts: list[str],
+    clusters: list[dict[str, Any]],
     by_label: dict[str, dict[str, Any]],
     by_alias: dict[str, dict[str, Any]],
 ) -> list[dict[str, Any]]:
     """Align :ResolvedEntityCluster nodes to :CanonicalEntity nodes.
 
-    For each unique cluster (identified by its *normalized_text* key) applies
-    label-exact then alias-exact lookup against the pre-built lookup tables.
-    Returns one alignment row per cluster that matched a canonical entity.
+    For each unique cluster applies label-exact then alias-exact lookup against
+    the pre-built lookup tables.  Returns one alignment row per cluster that
+    matched a canonical entity.
 
     Alignment strategies applied in priority order:
 
@@ -680,7 +717,10 @@ def _align_clusters_to_canonical(
        alias list.
 
     Args:
-        cluster_normalized_texts: Unique normalized-text keys of clusters to align.
+        clusters: Unique clusters to align.  Each element must be a dict with
+            at least ``cluster_id`` (the scoped identity key produced by
+            :func:`_make_cluster_id`) and ``normalized_text`` (used for
+            label/alias lookup).
         by_label: Mapping of normalized canonical label → canonical row.
         by_alias:  Mapping of normalized alias → canonical row.
 
@@ -690,8 +730,9 @@ def _align_clusters_to_canonical(
         ``alignment_score``, and ``alignment_status``.
     """
     rows: list[dict[str, Any]] = []
-    for normalized_text in cluster_normalized_texts:
-        cluster_id = f"cluster::{normalized_text}"
+    for cluster in clusters:
+        cluster_id = cluster["cluster_id"]
+        normalized_text = cluster["normalized_text"]
 
         canonical = by_label.get(normalized_text)
         if canonical:
@@ -967,11 +1008,25 @@ def run_entity_resolution(
             ]
             if canonical_nodes:
                 _, by_label, by_alias = _build_lookup_tables(canonical_nodes)
-                unique_cluster_texts = sorted(
-                    {row["normalized_text"] for row in unresolved_rows}
-                )
+                # Build unique cluster dicts (keyed by scoped cluster_id) to
+                # pass to _align_clusters_to_canonical.  Each (entity_type,
+                # normalized_text) pair must be deduplicated since the same
+                # pair can appear in multiple rows from different mentions.
+                seen_cluster_ids: set[str] = set()
+                unique_clusters: list[dict[str, Any]] = []
+                for row in sorted(
+                    unresolved_rows,
+                    key=lambda r: (r.get("entity_type") or "", r["normalized_text"]),
+                ):
+                    cid = _make_cluster_id(run_id, row.get("entity_type"), row["normalized_text"])
+                    if cid not in seen_cluster_ids:
+                        seen_cluster_ids.add(cid)
+                        unique_clusters.append({
+                            "cluster_id": cid,
+                            "normalized_text": row["normalized_text"],
+                        })
                 alignment_rows = _align_clusters_to_canonical(
-                    unique_cluster_texts, by_label, by_alias
+                    unique_clusters, by_label, by_alias
                 )
         else:
             # 2b. structured_anchor (default): resolve against CanonicalEntity nodes.
@@ -1037,14 +1092,18 @@ def run_entity_resolution(
             "mention_id": row["mention_id"],
             "mention_name": row["mention_name"],
             "normalized_text": row["normalized_text"],
-            "cluster_id": f"cluster::{row['normalized_text']}",
+            "entity_type": row.get("entity_type"),
+            "cluster_id": _make_cluster_id(run_id, row.get("entity_type"), row["normalized_text"]),
         }
         for row in unresolved_rows
     ]
     unresolved_path.write_text(json.dumps(unresolved_list, indent=2), encoding="utf-8")
 
-    # Count unique clusters (one cluster per unique normalized_text value).
-    clusters_created = len({row["normalized_text"] for row in unresolved_rows})
+    # Count unique clusters — one cluster per unique (entity_type, normalized_text)
+    # pair, matching the scoped identity enforced by _make_cluster_id.
+    clusters_created = len({
+        (row.get("entity_type"), row["normalized_text"]) for row in unresolved_rows
+    })
 
     if resolution_mode == _RESOLUTION_MODE_UNSTRUCTURED_ONLY:
         live_resolver_method = "unstructured_clustering"
