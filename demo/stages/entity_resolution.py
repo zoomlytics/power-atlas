@@ -71,6 +71,7 @@ import re
 from datetime import UTC, datetime
 from difflib import SequenceMatcher
 from typing import Any
+from pathlib import Path
 
 # Bump this constant whenever the resolution strategies or scoring logic change
 # so that RESOLVES_TO edges in the graph can be distinguished by the version that
@@ -822,8 +823,20 @@ def run_entity_resolution(
         )
 
     resolved_at = datetime.now(UTC).isoformat()
-    run_root = config.output_dir / "runs" / run_id
-    resolution_dir = run_root / artifact_subdir
+    run_root = (config.output_dir / "runs" / run_id).resolve()
+
+    artifact_subdir_path = Path(artifact_subdir)
+    # Prevent path traversal and absolute paths in artifact_subdir to keep writes
+    # confined under the run_root directory.
+    if artifact_subdir_path.is_absolute() or ".." in artifact_subdir_path.parts:
+        raise ValueError(f"Invalid artifact_subdir {artifact_subdir!r}: must be a relative path without '..'.")
+    if any(part in ("", ".") for part in artifact_subdir_path.parts):
+        raise ValueError(f"Invalid artifact_subdir {artifact_subdir!r}: contains empty or '.' path components.")
+
+    resolution_dir = (run_root / artifact_subdir_path).resolve()
+    if run_root != resolution_dir and run_root not in resolution_dir.parents:
+        raise ValueError(f"Invalid artifact_subdir {artifact_subdir!r}: resolved path escapes run directory.")
+
     resolution_dir.mkdir(parents=True, exist_ok=True)
     summary_path = resolution_dir / "entity_resolution_summary.json"
     unresolved_path = resolution_dir / "unresolved_mentions.json"
