@@ -567,7 +567,7 @@ def _resolve_mention(
             "mention_id": mention["mention_id"],
             "normalized_text": normalized,
             "mention_name": name,
-            "entity_type": mention.get("entity_type"),
+            "entity_type": mention.get("entity_type") or None,
             "resolution_method": "label_cluster",
             "resolution_confidence": 0.0,
             "candidate_ids": [],
@@ -605,7 +605,7 @@ def _resolve_mention(
         "mention_id": mention["mention_id"],
         "normalized_text": normalized,
         "mention_name": name,
-        "entity_type": mention.get("entity_type"),
+        "entity_type": mention.get("entity_type") or None,
         "resolution_method": "label_cluster",
         "resolution_confidence": 0.0,
         "candidate_ids": [],
@@ -1108,7 +1108,7 @@ def run_entity_resolution(
             "mention_id": row["mention_id"],
             "mention_name": row["mention_name"],
             "normalized_text": row["normalized_text"],
-            "entity_type": row.get("entity_type"),
+            "entity_type": row.get("entity_type") or None,
             "cluster_id": _make_cluster_id(run_id, row.get("entity_type"), row["normalized_text"]),
         }
         for row in unresolved_rows

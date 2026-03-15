@@ -815,6 +815,13 @@ class TestResolvedEntityCluster(unittest.TestCase):
         cid_empty = _make_cluster_id("run-A", "", "ibm")
         self.assertEqual(cid_none, cid_empty)
 
+    def test_make_cluster_id_raises_on_empty_run_id(self):
+        """_make_cluster_id must raise ValueError when run_id is empty."""
+        with self.assertRaises(ValueError):
+            _make_cluster_id("", None, "ibm")
+        with self.assertRaises(ValueError):
+            _make_cluster_id("", "ORG", "ibm")
+
     def test_clusters_created_counts_unique_entity_type_and_text_pairs(self):
         """clusters_created treats same text with different entity types as separate clusters."""
         with tempfile.TemporaryDirectory() as tmpdir:
