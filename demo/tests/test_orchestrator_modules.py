@@ -1165,6 +1165,9 @@ def test_power_atlas_rag_template_includes_provisional_cluster_instructions():
     assert "provisional" in sys_instructions.lower(), (
         "System instructions must reference provisional cluster handling"
     )
+
+
+def test_build_citation_token_format():
     """_build_citation_token must produce a stable [CITATION|key=value|...] token."""
     from demo.stages.retrieval_and_qa import _build_citation_token
 
