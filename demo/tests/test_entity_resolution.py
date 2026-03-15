@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -1624,6 +1625,39 @@ class TestArtifactSubdirValidation(unittest.TestCase):
                 source_uri=None,
                 artifact_subdir="phase1/entity_resolution",
             )
+
+    @unittest.skipIf(not hasattr(os, "symlink"), "os.symlink not supported on this platform")
+    def test_symlink_escape_is_rejected(self):
+        """
+        A symlink under the run directory that points outside must be rejected.
+
+        This ensures that artifact_subdir validation using .resolve() and a parent
+        check correctly prevents symlink-based directory escapes.
+        """
+        with tempfile.TemporaryDirectory() as tmpdir, tempfile.TemporaryDirectory() as outside_dir:
+            config = self._config(Path(tmpdir))
+            run_id = "run-subdir-symlink-escape"
+            run_root = Path(tmpdir) / "runs" / run_id
+            run_root.mkdir(parents=True, exist_ok=True)
+
+            outside_path = Path(outside_dir)
+            evil_link = run_root / "evil_link"
+
+            try:
+                # Create a symlink under the run directory pointing outside it.
+                evil_link.symlink_to(outside_path, target_is_directory=True)
+            except (OSError, NotImplementedError):
+                self.skipTest("Symlinks are not supported or cannot be created on this platform")
+
+            # artifact_subdir refers to the symlink; resolution should detect that the
+            # resolved path is outside the run root and reject it.
+            with self.assertRaises(ValueError):
+                run_entity_resolution(
+                    config,
+                    run_id=run_id,
+                    source_uri=None,
+                    artifact_subdir="evil_link",
+                )
 
     def test_absolute_path_is_rejected(self):
         """An absolute path in artifact_subdir must be rejected."""
