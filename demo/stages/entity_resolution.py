@@ -306,10 +306,10 @@ def _cluster_mentions_unstructured_only(
 
     Returns a list of dicts with keys: ``mention_id``, ``mention_name``,
     ``normalized_text``, ``entity_type``, ``resolution_method``,
-    ``resolution_confidence``, and ``resolved`` (always ``False``).
-    ``entity_type`` is normalized so that ``None`` and ``""`` both appear
-    as ``None`` on output rows (matching the identity scope of
-    :func:`_make_cluster_id`).
+    ``resolution_confidence``, ``resolved`` (always ``False``), and
+    ``source_uri``. ``entity_type`` is normalized so that ``None`` and
+    ``""`` both appear as ``None`` on output rows (matching the identity
+    scope of :func:`_make_cluster_id`).
     """
     # mention_id → cluster key
     mention_to_cluster: dict[str, str] = {}
