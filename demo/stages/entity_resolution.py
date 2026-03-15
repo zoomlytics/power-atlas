@@ -763,12 +763,13 @@ def run_entity_resolution(
     run_id: str,
     source_uri: str | None,
     resolution_mode: str | None = None,
+    artifact_subdir: str = "entity_resolution",
 ) -> dict[str, Any]:
     """Resolve or cluster :EntityMention nodes scoped to *run_id*.
 
     Behaviour depends on *resolution_mode*:
 
-    * ``"structured_anchor"`` (default) — resolves mentions against
+    * ``"structured_anchor"`` — resolves mentions against
       :CanonicalEntity nodes using QID, label-exact, and alias-exact strategies.
       Mentions that cannot be matched are grouped into provisional
       :ResolvedEntityCluster nodes via ``MEMBER_OF`` edges.
@@ -793,10 +794,16 @@ def run_entity_resolution(
         run_id:          The run_id whose EntityMention nodes are to be resolved.
                          Must match the run_id used during PDF ingest / claim extraction.
         source_uri:      Provenance URI for the source document.
-        resolution_mode: One of ``"structured_anchor"`` (default),
-                         ``"unstructured_only"``, or ``"hybrid"``.  When ``None``
-                         the value is read from ``config.resolution_mode`` (if
-                         present) and falls back to ``"structured_anchor"``.
+        resolution_mode: One of ``"structured_anchor"``, ``"unstructured_only"``, or
+                         ``"hybrid"``.  When ``None`` the value is read from
+                         ``config.resolution_mode`` (if present) and falls back to
+                         ``"structured_anchor"``.
+        artifact_subdir: Subdirectory under ``runs/<run_id>/`` where artifacts are
+                         written.  Defaults to ``"entity_resolution"``.  Pass a
+                         mode-specific name (e.g. ``"entity_resolution_unstructured_only"``
+                         or ``"entity_resolution_hybrid"``) when calling the function
+                         multiple times for the same *run_id* to avoid overwriting
+                         artifacts from an earlier pass.
 
     Returns:
         A summary dict with counts, resolution breakdown, ``resolution_mode``,
@@ -815,7 +822,7 @@ def run_entity_resolution(
 
     resolved_at = datetime.now(UTC).isoformat()
     run_root = config.output_dir / "runs" / run_id
-    resolution_dir = run_root / "entity_resolution"
+    resolution_dir = run_root / artifact_subdir
     resolution_dir.mkdir(parents=True, exist_ok=True)
     summary_path = resolution_dir / "entity_resolution_summary.json"
     unresolved_path = resolution_dir / "unresolved_mentions.json"

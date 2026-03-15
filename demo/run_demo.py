@@ -148,11 +148,12 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                 dest="resolution_mode",
                 choices=["structured_anchor", "unstructured_only", "hybrid"],
                 help=(
-                    "Resolution mode: 'structured_anchor' (default) resolves mentions "
-                    "against CanonicalEntity nodes; 'unstructured_only' clusters mentions "
+                    "Resolution mode: 'unstructured_only' (default) clusters mentions "
                     "against each other without requiring structured ingest; 'hybrid' "
                     "clusters mentions first then optionally aligns clusters to "
-                    "CanonicalEntity nodes via ALIGNED_WITH enrichment edges."
+                    "CanonicalEntity nodes via ALIGNED_WITH enrichment edges; "
+                    "'structured_anchor' resolves mentions against CanonicalEntity nodes "
+                    "using exact-match strategies."
                 ),
             )
     parser.set_defaults(command="ingest")
@@ -333,11 +334,14 @@ def _run_orchestrated(config: Config) -> Path:
         source_uri=pdf_source_uri,
     )
     # Cluster extracted mentions against each other; no CanonicalEntity lookup required.
+    # Use a mode-specific artifact subdirectory so the hybrid pass does not overwrite
+    # the unstructured-only artifacts when both passes share the same run_id.
     entity_resolution_unstructured_stage = run_entity_resolution(
         config,
         run_id=unstructured_run_id,
         source_uri=pdf_source_uri,
         resolution_mode="unstructured_only",
+        artifact_subdir="entity_resolution_unstructured_only",
     )
     # Demonstrate that meaningful Q&A is available before any structured ingest.
     retrieval_unstructured_stage = run_retrieval_and_qa(
@@ -352,11 +356,13 @@ def _run_orchestrated(config: Config) -> Path:
     structured_stage = run_structured_ingest(config, structured_run_id, fixtures_dir=FIXTURES_DIR)
     # Hybrid alignment enriches existing ResolvedEntityCluster nodes with ALIGNED_WITH
     # edges to CanonicalEntity nodes; gracefully degrades when no matches exist.
+    # Use a separate artifact subdirectory to preserve the unstructured-only artifacts.
     entity_resolution_hybrid_stage = run_entity_resolution(
         config,
         run_id=unstructured_run_id,
         source_uri=pdf_source_uri,
         resolution_mode="hybrid",
+        artifact_subdir="entity_resolution_hybrid",
     )
     # Final Q&A after structured enrichment shows the additive benefit.
     retrieval_stage = run_retrieval_and_qa(
