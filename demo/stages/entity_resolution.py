@@ -78,6 +78,8 @@ from difflib import SequenceMatcher
 from typing import Any
 from pathlib import Path
 
+from demo.contracts.resolution import ALIGNMENT_VERSION as _ALIGNMENT_VERSION
+
 # Bump this constant whenever the resolution strategies or scoring logic change
 # so that RESOLVES_TO edges in the graph can be distinguished by the version that
 # created them (e.g. when re-running resolution after a strategy upgrade).
@@ -86,10 +88,6 @@ _RESOLVER_VERSION = "v1.0"
 # Bump this constant whenever cluster-assignment logic changes so that MEMBER_OF
 # edges can be distinguished by the version that created them.
 _CLUSTER_VERSION = "v1.1"
-
-# Bump this constant whenever the cluster-to-canonical alignment logic changes so
-# that ALIGNED_WITH edges can be distinguished by the version that created them.
-_ALIGNMENT_VERSION = "v1.0"
 
 _QID_PATTERN = re.compile(r"^Q\d+$")
 

@@ -418,14 +418,23 @@ def _format_cluster_context(
     cluster assignments.  Canonical alignments via ``ALIGNED_WITH`` edges include
     alignment method and status so tentative alignments are clearly distinguishable.
 
+    Duplicate membership/alignment entries (e.g. from multiple mentions in the same
+    chunk pointing at the same cluster) are deduplicated before rendering so the per-
+    chunk LLM context is not bloated with repeated lines.
+
     Returns an empty string when both input lists are empty or contain no usable entries.
     """
     lines: list[str] = []
+    seen_memberships: set[tuple[str, str, str]] = set()
     for cm in cluster_memberships:
         cluster_name = cm.get("cluster_name") or cm.get("cluster_id") or ""
         method = cm.get("membership_method") or ""
         raw_status = cm.get("membership_status")
         status = (raw_status or "unknown").lower()
+        dedup_key = (cluster_name, method, status)
+        if dedup_key in seen_memberships:
+            continue
+        seen_memberships.add(dedup_key)
         if status == "accepted":
             lines.append(
                 f"Entity cluster (accepted): '{cluster_name}' (membership via {method})"
@@ -437,10 +446,15 @@ def _format_cluster_context(
                 f"(membership via {method}, status: {display_status} — "
                 f"identity not confirmed; treat as tentative, not a settled fact)"
             )
+    seen_alignments: set[tuple[str, str, str]] = set()
     for ca in cluster_canonical_alignments:
         canon_name = ca.get("canonical_name") or ""
         a_method = ca.get("alignment_method") or ""
         a_status = ca.get("alignment_status") or "unknown"
+        dedup_key = (canon_name, a_method, a_status)
+        if dedup_key in seen_alignments:
+            continue
+        seen_alignments.add(dedup_key)
         if a_status == "aligned":
             lines.append(
                 f"Cluster aligned to canonical entity: '{canon_name}' (via {a_method})"

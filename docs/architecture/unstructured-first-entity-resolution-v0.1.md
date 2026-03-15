@@ -469,7 +469,7 @@ Update retrieval and Q&A behavior (implemented):
 - Cluster membership (`MEMBER_OF`) and canonical alignment (`ALIGNED_WITH`) context is
   appended to each retrieved chunk's LLM context via `_format_cluster_context`
 - Provisional memberships (`status='provisional'`) are labelled `PROVISIONAL CLUSTER`
-  in the context; accepted assignments use the `Entity cluster` label
+  in the context; accepted assignments use the `Entity cluster (accepted)` label
 - Provisional canonical alignments are labelled `PROVISIONAL ALIGNMENT`; confirmed
   alignments use `Cluster aligned to canonical entity`
 - The QA prompt template (`qa_v3`) instructs the model to use qualified language

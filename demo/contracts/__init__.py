@@ -16,6 +16,7 @@ from demo.contracts.pipeline import (
     ensure_pipeline_contract_loaded,
 )
 from demo.contracts.prompts import POWER_ATLAS_RAG_TEMPLATE, PROMPT_IDS
+from demo.contracts.resolution import ALIGNMENT_VERSION
 from demo.contracts.runtime import Config, make_run_id, timestamp
 from demo.contracts.structured import (
     COMMON_PREDICATE_LABELS,
@@ -24,10 +25,6 @@ from demo.contracts.structured import (
     STRUCTURED_FILE_HEADERS,
     VALUE_TYPES,
 )
-
-# Shared alignment version constant; resolved lazily from entity_resolution so
-# retrieval queries filter the correct ALIGNED_WITH edges without a hard
-# contracts → stages import dependency.
 
 __all__ = [
     "ALIGNMENT_VERSION",
@@ -68,10 +65,6 @@ def __getattr__(name: str) -> Any:  # pragma: no cover - thin import proxy
     if name in {"claim_extraction_lexical_config", "claim_extraction_schema"}:
         module = import_module("demo.contracts.claim_schema")
         return getattr(module, name)
-    if name == "ALIGNMENT_VERSION":
-        # Lazily proxy the alignment version from the entity_resolution stage.
-        module = import_module("demo.stages.entity_resolution")
-        return getattr(module, "_ALIGNMENT_VERSION")
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
