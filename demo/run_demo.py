@@ -375,6 +375,7 @@ def _run_orchestrated(config: Config) -> Path:
         source_uri=pdf_source_uri,
         resolution_mode="hybrid",
         artifact_subdir="entity_resolution_hybrid",
+        canonical_run_id=structured_run_id,
     )
     # Final Q&A after structured enrichment shows the additive benefit.
     retrieval_stage = run_retrieval_and_qa(
