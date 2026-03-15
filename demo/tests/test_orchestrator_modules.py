@@ -890,6 +890,283 @@ def test_retrieval_and_qa_live_path_uses_expanded_query_when_expand_graph(tmp_pa
     assert "graph expansion" in result["retrievers"]
 
 
+def test_retrieval_and_qa_dry_run_cluster_aware_flag_recorded(tmp_path: Path):
+    """cluster_aware flag must be preserved in the returned stage output and the
+    retrievers list must include 'cluster traversal' when cluster_aware=True.
+    expand_graph must be True when cluster_aware=True (cluster_aware implies expansion)."""
+    from demo.stages import run_retrieval_and_qa
+
+    config = _dry_run_config(tmp_path)
+    result_no_cluster = run_retrieval_and_qa(config, run_id="qa-run-ca-1", source_uri=None, cluster_aware=False)
+    result_cluster = run_retrieval_and_qa(config, run_id="qa-run-ca-2", source_uri=None, cluster_aware=True)
+    assert result_no_cluster["cluster_aware"] is False
+    assert result_cluster["cluster_aware"] is True
+    # retrievers list must include "cluster traversal" only when cluster_aware=True
+    assert "cluster traversal" not in result_no_cluster["retrievers"]
+    assert "cluster traversal" in result_cluster["retrievers"]
+    # cluster_aware implies graph expansion — both labels and expand_graph flag should reflect that
+    assert "graph expansion" in result_cluster["retrievers"]
+    assert result_cluster["expand_graph"] is True
+
+
+def test_retrieval_and_qa_live_path_uses_cluster_query_when_cluster_aware(tmp_path: Path):
+    """When cluster_aware=True, the retriever must be initialised with the cluster-aware query."""
+    from demo.stages import run_retrieval_and_qa
+    from demo.stages.retrieval_and_qa import _RETRIEVAL_QUERY_WITH_CLUSTER
+
+    captured_init: dict = {}
+
+    class _FakeRetriever:
+        def __init__(self, **kwargs):
+            captured_init.update(kwargs)
+
+        def search(self, **kwargs):
+            return _make_fake_retriever_result([])
+
+    live_config = Config(
+        dry_run=False,
+        output_dir=tmp_path,
+        neo4j_uri="bolt://example.invalid",
+        neo4j_username="neo4j",
+        neo4j_password="not-used",
+        neo4j_database="neo4j",
+        openai_model="gpt-4o-mini",
+    )
+
+    with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
+    ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class()), mock.patch(
+        "demo.stages.retrieval_and_qa.build_openai_llm"
+    ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+        result = run_retrieval_and_qa(
+            live_config,
+            run_id="cluster-run",
+            source_uri=None,
+            question="Test cluster",
+            cluster_aware=True,
+        )
+
+    assert captured_init["retrieval_query"] == _RETRIEVAL_QUERY_WITH_CLUSTER
+    assert result["cluster_aware"] is True
+    assert "cluster traversal" in result["retrievers"]
+    assert "graph expansion" in result["retrievers"]
+    # expand_graph must be True when cluster_aware=True (cluster_aware implies expansion)
+    assert result["expand_graph"] is True
+
+
+def test_retrieval_and_qa_live_path_cluster_aware_all_runs_uses_all_runs_query(tmp_path: Path):
+    """When cluster_aware=True and all_runs=True, the all-runs cluster query must be used."""
+    from demo.stages import run_retrieval_and_qa
+    from demo.stages.retrieval_and_qa import _RETRIEVAL_QUERY_WITH_CLUSTER_ALL_RUNS
+
+    captured_init: dict = {}
+
+    class _FakeRetriever:
+        def __init__(self, **kwargs):
+            captured_init.update(kwargs)
+
+        def search(self, **kwargs):
+            return _make_fake_retriever_result([])
+
+    live_config = Config(
+        dry_run=False,
+        output_dir=tmp_path,
+        neo4j_uri="bolt://example.invalid",
+        neo4j_username="neo4j",
+        neo4j_password="not-used",
+        neo4j_database="neo4j",
+        openai_model="gpt-4o-mini",
+    )
+
+    with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
+    ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class()), mock.patch(
+        "demo.stages.retrieval_and_qa.build_openai_llm"
+    ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+        result = run_retrieval_and_qa(
+            live_config,
+            run_id=None,
+            source_uri=None,
+            question="Test cluster all runs",
+            cluster_aware=True,
+            all_runs=True,
+        )
+
+    assert captured_init["retrieval_query"] == _RETRIEVAL_QUERY_WITH_CLUSTER_ALL_RUNS
+    assert result["cluster_aware"] is True
+
+
+def test_format_cluster_context_provisional_membership():
+    """_format_cluster_context must label provisional memberships as PROVISIONAL CLUSTER."""
+    from demo.stages.retrieval_and_qa import _format_cluster_context
+
+    memberships = [
+        {"cluster_name": "John Smith", "membership_status": "provisional", "membership_method": "fuzzy"},
+    ]
+    result = _format_cluster_context(memberships, [])
+    assert "PROVISIONAL CLUSTER" in result
+    assert "John Smith" in result
+    assert "fuzzy" in result
+    assert "not confirmed" in result.lower() or "hypothesis" in result.lower()
+
+
+def test_format_cluster_context_accepted_membership():
+    """_format_cluster_context must label accepted memberships with 'Entity cluster (accepted)'."""
+    from demo.stages.retrieval_and_qa import _format_cluster_context
+
+    memberships = [
+        {"cluster_name": "Jane Doe", "membership_status": "accepted", "membership_method": "label_cluster"},
+    ]
+    result = _format_cluster_context(memberships, [])
+    assert "PROVISIONAL CLUSTER" not in result
+    assert "Jane Doe" in result
+    assert "Entity cluster (accepted)" in result
+
+
+def test_format_cluster_context_provisional_alignment():
+    """_format_cluster_context must label non-aligned canonical alignments as PROVISIONAL ALIGNMENT."""
+    from demo.stages.retrieval_and_qa import _format_cluster_context
+
+    alignments = [
+        {"canonical_name": "John Smith (Wikidata)", "alignment_method": "alias_exact", "alignment_status": "tentative"},
+    ]
+    result = _format_cluster_context([], alignments)
+    assert "PROVISIONAL ALIGNMENT" in result
+    assert "John Smith (Wikidata)" in result
+    assert "not yet confirmed" in result.lower() or "tentative" in result.lower()
+
+
+def test_format_cluster_context_confirmed_alignment():
+    """_format_cluster_context must use the 'aligned' label for confirmed canonical alignments."""
+    from demo.stages.retrieval_and_qa import _format_cluster_context
+
+    alignments = [
+        {"canonical_name": "Jane Doe (Canon)", "alignment_method": "label_exact", "alignment_status": "aligned"},
+    ]
+    result = _format_cluster_context([], alignments)
+    assert "PROVISIONAL ALIGNMENT" not in result
+    assert "Jane Doe (Canon)" in result
+    assert "aligned" in result.lower() or "canonical entity" in result.lower()
+
+
+def test_format_cluster_context_empty_inputs():
+    """_format_cluster_context must return empty string when both inputs are empty."""
+    from demo.stages.retrieval_and_qa import _format_cluster_context
+
+    assert _format_cluster_context([], []) == ""
+
+
+def test_chunk_citation_formatter_includes_cluster_context_in_content():
+    """_chunk_citation_formatter must include cluster context in content when cluster fields
+    are present in the record, and the context must be labelled as provisional inference."""
+    from demo.stages.retrieval_and_qa import _chunk_citation_formatter
+
+    record = _make_fake_neo4j_record(
+        chunk_id="c1",
+        run_id="r1",
+        source_uri="file:///doc.pdf",
+        chunk_index=0,
+        page=1,
+        start_char=0,
+        end_char=100,
+        chunk_text="Some evidence text.",
+        similarityScore=0.9,
+        cluster_memberships=[
+            {"cluster_name": "J. Smith", "membership_status": "provisional", "membership_method": "fuzzy"},
+        ],
+        cluster_canonical_alignments=[],
+    )
+    item = _chunk_citation_formatter(record)
+    assert "Some evidence text." in item.content
+    assert "PROVISIONAL CLUSTER" in item.content
+    assert "J. Smith" in item.content
+    assert "[Cluster context" in item.content
+    # Citation token must still be present
+    assert "[CITATION|" in item.content
+    # Cluster fields must also appear in metadata
+    assert item.metadata["cluster_memberships"] is not None
+
+
+def test_chunk_citation_formatter_no_cluster_context_when_fields_absent():
+    """_chunk_citation_formatter must not include cluster context section when cluster
+    fields are absent from the record (non-cluster-aware query)."""
+    from demo.stages.retrieval_and_qa import _chunk_citation_formatter
+
+    record = _make_fake_neo4j_record(
+        chunk_id="c2",
+        run_id="r1",
+        source_uri="file:///doc.pdf",
+        chunk_index=1,
+        page=2,
+        start_char=100,
+        end_char=200,
+        chunk_text="Another evidence text.",
+        similarityScore=0.85,
+        # No cluster_memberships or cluster_canonical_alignments keys
+    )
+    item = _chunk_citation_formatter(record)
+    assert "Another evidence text." in item.content
+    assert "[Cluster context" not in item.content
+    assert "PROVISIONAL" not in item.content
+    assert "[CITATION|" in item.content
+
+
+def test_chunk_citation_formatter_no_cluster_context_when_fields_empty():
+    """_chunk_citation_formatter must not include cluster context section when cluster
+    lists are empty (cluster-aware query but no clusters found for this chunk)."""
+    from demo.stages.retrieval_and_qa import _chunk_citation_formatter
+
+    record = _make_fake_neo4j_record(
+        chunk_id="c3",
+        run_id="r1",
+        source_uri="file:///doc.pdf",
+        chunk_index=2,
+        page=3,
+        start_char=200,
+        end_char=300,
+        chunk_text="Third evidence text.",
+        similarityScore=0.80,
+        cluster_memberships=[],
+        cluster_canonical_alignments=[],
+    )
+    item = _chunk_citation_formatter(record)
+    assert "[Cluster context" not in item.content
+    assert "PROVISIONAL" not in item.content
+
+
+def test_retrieval_and_qa_cluster_aware_retrieval_query_contract_recorded(tmp_path: Path):
+    """The retrieval_query_contract in the result must use the cluster-aware query when
+    cluster_aware=True, so manifests accurately document which retrieval strategy was used."""
+    from demo.stages import run_retrieval_and_qa
+    from demo.stages.retrieval_and_qa import _RETRIEVAL_QUERY_WITH_CLUSTER
+
+    config = _dry_run_config(tmp_path)
+    result = run_retrieval_and_qa(config, run_id="qa-run-ca-3", source_uri=None, cluster_aware=True)
+    assert result["retrieval_query_contract"] == _RETRIEVAL_QUERY_WITH_CLUSTER.strip()
+
+
+def test_power_atlas_rag_template_includes_provisional_cluster_instructions():
+    """The prompt template must include instructions for handling provisional cluster context."""
+    from demo.contracts.prompts import POWER_ATLAS_RAG_TEMPLATE
+
+    tmpl = POWER_ATLAS_RAG_TEMPLATE.template
+    sys_instructions = POWER_ATLAS_RAG_TEMPLATE.system_instructions
+
+    assert "provisional" in tmpl.lower(), (
+        "Template must mention provisional cluster handling"
+    )
+    assert "PROVISIONAL CLUSTER" in tmpl or "provisional cluster" in tmpl.lower(), (
+        "Template must reference provisional cluster labels"
+    )
+    assert "settled identity" in tmpl.lower() or "settled" in tmpl.lower(), (
+        "Template must prohibit presenting provisional inferences as settled identity claims"
+    )
+    # System instructions must also carry the provisional cluster posture
+    assert "provisional" in sys_instructions.lower(), (
+        "System instructions must reference provisional cluster handling"
+    )
+
+
 def test_build_citation_token_format():
     """_build_citation_token must produce a stable [CITATION|key=value|...] token."""
     from demo.stages.retrieval_and_qa import _build_citation_token
@@ -992,11 +1269,11 @@ def test_power_atlas_rag_template_uses_vendor_rag_template_class():
 
 
 def test_power_atlas_rag_template_prompt_id_updated():
-    """qa prompt ID must reflect the updated prompt version (qa_v2)."""
+    """qa prompt ID must reflect the updated prompt version (qa_v3) with cluster-aware instructions."""
     from demo.contracts.prompts import PROMPT_IDS
 
-    assert PROMPT_IDS["qa"] == "qa_v2", (
-        "PROMPT_IDS['qa'] must be updated to 'qa_v2' to reflect the new citation-enforcing template"
+    assert PROMPT_IDS["qa"] == "qa_v3", (
+        "PROMPT_IDS['qa'] must be updated to 'qa_v3' to reflect the cluster-aware prompt template"
     )
 
 

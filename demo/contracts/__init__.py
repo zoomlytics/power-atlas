@@ -16,6 +16,7 @@ from demo.contracts.pipeline import (
     ensure_pipeline_contract_loaded,
 )
 from demo.contracts.prompts import POWER_ATLAS_RAG_TEMPLATE, PROMPT_IDS
+from demo.contracts.resolution import ALIGNMENT_VERSION
 from demo.contracts.runtime import Config, make_run_id, timestamp
 from demo.contracts.structured import (
     COMMON_PREDICATE_LABELS,
@@ -26,6 +27,7 @@ from demo.contracts.structured import (
 )
 
 __all__ = [
+    "ALIGNMENT_VERSION",
     "ARTIFACTS_DIR",
     "build_batch_manifest",
     "build_stage_manifest",

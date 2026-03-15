@@ -7,13 +7,22 @@ from neo4j_graphrag.generation import RagTemplate
 PROMPT_IDS = {
     "claim_extraction": "claims_v1",
     "narrative_extraction": "narrative_claims_v1",
-    "qa": "qa_v2",
+    "qa": "qa_v3",
 }
 
 # Power Atlas GraphRAG Q&A prompt template.
 # Enforces retrieval-grounded, citation-complete answers aligned with vendor RagTemplate.
 # Each sentence or materially distinct claim must include at least one [CITATION|...] token
 # copied verbatim from the provided context.
+#
+# Cluster-aware posture (Phase 4):
+#   When context snippets include a "[Cluster context — provisional inference]" section,
+#   the model must treat that section as a hypothesis hint only, not primary evidence.
+#   Provisional clusters (labelled "PROVISIONAL CLUSTER" or "PROVISIONAL ALIGNMENT")
+#   must be explicitly qualified in the answer (e.g. "possibly the same entity as …",
+#   "may be associated with …").  Accepted cluster assignments and confirmed canonical
+#   alignments may be stated with higher confidence, but citations must still reference
+#   the underlying chunk, not the cluster node itself.
 #
 # The {examples} placeholder is inherited from the vendor RagTemplate base class
 # (neo4j_graphrag.generation.RagTemplate).  It is left empty by default but may be
@@ -45,6 +54,20 @@ POWER_ATLAS_RAG_TEMPLATE = RagTemplate(
           Do NOT cite or treat any prior assistant turn as evidence. All answer evidence
           must come exclusively from the retrieved context snippets in the Context section.
 
+        Provisional cluster context (when present):
+        - Some context snippets may include a section labelled
+          "[Cluster context — provisional inference; not primary evidence]".
+        - This section contains entity cluster membership and alignment hints derived
+          from the graph's provisional entity resolution layer.
+        - Items labelled "PROVISIONAL CLUSTER" or "PROVISIONAL ALIGNMENT" are hypotheses,
+          not confirmed facts.  When referencing them, use qualified language such as
+          "possibly the same entity as", "may be associated with", or
+          "tentatively grouped with" to reflect their uncertain status.
+        - Items labelled "Entity cluster (accepted)" or "Cluster aligned to canonical
+          entity" carry higher confidence and may be stated more directly, but citations
+          must still reference the underlying source chunk, not the cluster node itself.
+        - Never present a provisional cluster inference as a settled identity claim.
+
         Context:
         {context}
 
@@ -60,7 +83,10 @@ POWER_ATLAS_RAG_TEMPLATE = RagTemplate(
         "You are a strict evidence analyst. Answer only from provided context. "
         "Every claim must be cited with a verbatim [CITATION|...] token from the context. "
         "Message history provides conversational context only, never evidence. "
-        "Do not source any answer evidence from prior assistant turns."
+        "Do not source any answer evidence from prior assistant turns. "
+        "When context includes provisional cluster sections, use qualified language "
+        "(e.g. 'possibly', 'may be') for any provisional cluster inferences and never "
+        "present them as settled identity claims."
     ),
 )
 
