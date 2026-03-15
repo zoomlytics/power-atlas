@@ -4,9 +4,10 @@ Reads :EntityMention nodes (scoped to a ``run_id``) from Neo4j and, depending
 on the configured mode, either performs deterministic resolution to
 :CanonicalEntity nodes (``structured_anchor`` mode), performs
 normalization- and similarity-based clustering of mentions without requiring
-a canonical entity anchor (``unstructured_only`` mode), or first clusters
-mentions against each other and then optionally enriches resulting clusters
-with alignment links to :CanonicalEntity nodes (``hybrid`` mode).
+a canonical entity anchor (``unstructured_only`` mode), or performs a
+two-stage process that first clusters mentions against each other and then
+optionally enriches resulting clusters with alignment links to
+:CanonicalEntity nodes (``hybrid`` mode).
 
 In ``structured_anchor`` mode, mentions that cannot be resolved are grouped by
 their normalized text into :ResolvedEntityCluster provisional cluster nodes
