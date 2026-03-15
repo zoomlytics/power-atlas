@@ -349,6 +349,7 @@ def _run_orchestrated(config: Config) -> Path:
         run_id=unstructured_run_id,
         source_uri=pdf_source_uri,
         index_name=CHUNK_EMBEDDING_INDEX_NAME,
+        question=getattr(config, "question", None),
     )
 
     # ── Phase 2: Structured enrichment pass ──────────────────────────────────
