@@ -24,10 +24,10 @@ from demo.contracts.structured import (
     STRUCTURED_FILE_HEADERS,
     VALUE_TYPES,
 )
+from demo.stages.entity_resolution import _ALIGNMENT_VERSION as ALIGNMENT_VERSION
 
-# Shared alignment version constant; must stay in sync with entity_resolution's
-# _ALIGNMENT_VERSION so retrieval queries filter the correct ALIGNED_WITH edges.
-ALIGNMENT_VERSION: str = "v1.0"
+# Shared alignment version constant imported from entity_resolution so retrieval
+# queries filter the correct ALIGNED_WITH edges and the value cannot drift.
 
 __all__ = [
     "ALIGNMENT_VERSION",
