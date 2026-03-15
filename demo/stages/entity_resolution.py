@@ -69,7 +69,7 @@ running multiple passes for the same *run_id*:
 - ``entity_resolution_summary.json`` — counts, breakdown, resolver metadata.
 - ``unresolved_mentions.json``        — list of clustered (unresolved) mentions, each
   containing: ``mention_id``, ``mention_name``, ``normalized_text``, ``entity_type``,
-  ``resolution_method``, ``resolution_confidence``, and ``resolved``.
+  and ``cluster_id``.
 """
 from __future__ import annotations
 
