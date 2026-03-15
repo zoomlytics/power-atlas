@@ -1445,6 +1445,28 @@ class TestRunEntityResolutionHybrid(unittest.TestCase):
             all_calls = [str(c) for c in driver.execute_query.call_args_list]
             self.assertTrue(any("ALIGNED_WITH" in c for c in all_calls))
 
+    def test_live_aligned_with_written_with_non_null_source_uri(self):
+        """ALIGNED_WITH edges must also be written correctly with a non-null source_uri."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config(Path(tmpdir))
+            mentions = [{"mention_id": "m1", "name": "Alice", "entity_type": "person"}]
+            canonicals = [{"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": None}]
+            driver = self._make_driver(mentions, canonicals)
+            source_uri = "file:///test-doc.pdf"
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                result = run_entity_resolution(
+                    config, run_id="hybrid-live-004b", source_uri=source_uri
+                )
+            self.assertEqual(result["aligned_clusters"], 1)
+            # Verify the ALIGNED_WITH write call carries the source_uri in its parameters
+            aligned_with_calls = [
+                call for call in driver.execute_query.call_args_list
+                if "ALIGNED_WITH" in (call.args[0] if call.args else "")
+            ]
+            self.assertTrue(aligned_with_calls, "Expected an ALIGNED_WITH write call")
+            params = aligned_with_calls[0].kwargs.get("parameters_", {})
+            self.assertEqual(params.get("source_uri"), source_uri)
+
     def test_live_aligned_with_written_for_alias_match(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             config = self._live_config(Path(tmpdir))

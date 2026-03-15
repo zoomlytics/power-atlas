@@ -737,32 +737,14 @@ def _write_alignment_results(
         UNWIND $rows AS row
         MATCH (cluster:ResolvedEntityCluster {cluster_id: row.cluster_id})
         MATCH (canonical:CanonicalEntity {entity_id: row.canonical_entity_id, run_id: row.canonical_run_id})
-        WITH row, cluster, canonical,
-             $run_id AS run_id,
-             $source_uri AS source_uri,
-             $alignment_version AS alignment_version
-        CALL {
-            WITH row, cluster, canonical, run_id, alignment_version, source_uri
-            WHERE source_uri IS NULL
-            MERGE (cluster)-[r:ALIGNED_WITH {
-                run_id: run_id,
-                alignment_version: alignment_version
-            }]->(canonical)
-            RETURN r
-        }
-        CALL {
-            WITH row, cluster, canonical, run_id, alignment_version, source_uri
-            WHERE source_uri IS NOT NULL
-            MERGE (cluster)-[r:ALIGNED_WITH {
-                run_id: run_id,
-                source_uri: source_uri,
-                alignment_version: alignment_version
-            }]->(canonical)
-            RETURN r
-        }
+        MERGE (cluster)-[r:ALIGNED_WITH {
+            run_id:            $run_id,
+            alignment_version: $alignment_version
+        }]->(canonical)
         SET r.alignment_method = row.alignment_method,
             r.alignment_score  = row.alignment_score,
-            r.alignment_status = row.alignment_status
+            r.alignment_status = row.alignment_status,
+            r.source_uri       = $source_uri
         """,
         parameters_={
             "rows": alignment_rows,
@@ -818,7 +800,8 @@ def run_entity_resolution(
     Returns:
         A summary dict with counts, resolution breakdown, ``resolution_mode``,
         and artifact paths.  In ``"hybrid"`` mode the summary additionally
-        includes ``aligned_clusters`` and ``alignment_breakdown``.
+        includes ``aligned_clusters``, ``alignment_breakdown``, and
+        ``alignment_version``.
     """
     # Resolve the effective mode: explicit arg > config attribute > default.
     if resolution_mode is None:

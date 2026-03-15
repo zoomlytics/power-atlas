@@ -146,11 +146,13 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                 "--resolution-mode",
                 default=None,
                 dest="resolution_mode",
-                choices=["structured_anchor", "unstructured_only"],
+                choices=["structured_anchor", "unstructured_only", "hybrid"],
                 help=(
                     "Resolution mode: 'structured_anchor' (default) resolves mentions "
                     "against CanonicalEntity nodes; 'unstructured_only' clusters mentions "
-                    "against each other without requiring structured ingest."
+                    "against each other without requiring structured ingest; 'hybrid' "
+                    "clusters mentions first then optionally aligns clusters to "
+                    "CanonicalEntity nodes via ALIGNED_WITH enrichment edges."
                 ),
             )
     parser.set_defaults(command="ingest")
