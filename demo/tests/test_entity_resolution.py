@@ -1581,5 +1581,124 @@ class TestRunEntityResolutionHybrid(unittest.TestCase):
             )
 
 
+class TestArtifactSubdirValidation(unittest.TestCase):
+    """Tests for artifact_subdir path safety in run_entity_resolution."""
+
+    def _config(self, tmp_path: Path) -> Config:
+        return Config(
+            dry_run=True,
+            output_dir=tmp_path,
+            neo4j_uri="bolt://example.invalid",
+            neo4j_username="neo4j",
+            neo4j_password="not-used",
+            neo4j_database="neo4j",
+            openai_model="test-model",
+        )
+
+    def test_valid_simple_subdir_writes_artifacts(self):
+        """A simple relative subdir name is accepted and artifacts are written there."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._config(Path(tmpdir))
+            run_entity_resolution(
+                config,
+                run_id="run-subdir-001",
+                source_uri=None,
+                artifact_subdir="entity_resolution_custom",
+            )
+            expected = (
+                Path(tmpdir)
+                / "runs"
+                / "run-subdir-001"
+                / "entity_resolution_custom"
+                / "entity_resolution_summary.json"
+            )
+            self.assertTrue(expected.exists())
+
+    def test_valid_nested_subdir_is_accepted(self):
+        """A nested relative subdir path such as 'a/b' is accepted."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._config(Path(tmpdir))
+            run_entity_resolution(
+                config,
+                run_id="run-subdir-002",
+                source_uri=None,
+                artifact_subdir="phase1/entity_resolution",
+            )
+
+    def test_absolute_path_is_rejected(self):
+        """An absolute path in artifact_subdir must be rejected."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._config(Path(tmpdir))
+            with self.assertRaises(ValueError):
+                run_entity_resolution(
+                    config,
+                    run_id="run-subdir-003",
+                    source_uri=None,
+                    artifact_subdir="/etc/passwd",
+                )
+
+    def test_double_dot_segment_is_rejected(self):
+        """A subdir containing '..' must be rejected to prevent directory traversal."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._config(Path(tmpdir))
+            with self.assertRaises(ValueError):
+                run_entity_resolution(
+                    config,
+                    run_id="run-subdir-004",
+                    source_uri=None,
+                    artifact_subdir="../escaped_dir",
+                )
+
+    def test_double_dot_in_middle_is_rejected(self):
+        """A subdir like 'a/../b' also contains '..' and must be rejected."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._config(Path(tmpdir))
+            with self.assertRaises(ValueError):
+                run_entity_resolution(
+                    config,
+                    run_id="run-subdir-005",
+                    source_uri=None,
+                    artifact_subdir="a/../b",
+                )
+
+    def test_empty_string_subdir_is_rejected(self):
+        """An empty string artifact_subdir resolves to run_root itself and must be rejected."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._config(Path(tmpdir))
+            with self.assertRaises(ValueError):
+                run_entity_resolution(
+                    config,
+                    run_id="run-subdir-006",
+                    source_uri=None,
+                    artifact_subdir="",
+                )
+
+    def test_dot_subdir_is_rejected(self):
+        """A bare '.' artifact_subdir resolves to run_root itself and must be rejected."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._config(Path(tmpdir))
+            with self.assertRaises(ValueError):
+                run_entity_resolution(
+                    config,
+                    run_id="run-subdir-007",
+                    source_uri=None,
+                    artifact_subdir=".",
+                )
+
+    def test_default_subdir_still_writes_to_entity_resolution(self):
+        """The default artifact_subdir="entity_resolution" is preserved."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._config(Path(tmpdir))
+            run_entity_resolution(config, run_id="run-subdir-008", source_uri=None)
+            expected = (
+                Path(tmpdir)
+                / "runs"
+                / "run-subdir-008"
+                / "entity_resolution"
+                / "entity_resolution_summary.json"
+            )
+            self.assertTrue(expected.exists())
+
+
 if __name__ == "__main__":
     unittest.main()

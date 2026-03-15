@@ -830,12 +830,12 @@ def run_entity_resolution(
     # confined under the run_root directory.
     if artifact_subdir_path.is_absolute() or ".." in artifact_subdir_path.parts:
         raise ValueError(f"Invalid artifact_subdir {artifact_subdir!r}: must be a relative path without '..'.")
-    if any(part in ("", ".") for part in artifact_subdir_path.parts):
-        raise ValueError(f"Invalid artifact_subdir {artifact_subdir!r}: contains empty or '.' path components.")
 
     resolution_dir = (run_root / artifact_subdir_path).resolve()
-    if run_root != resolution_dir and run_root not in resolution_dir.parents:
-        raise ValueError(f"Invalid artifact_subdir {artifact_subdir!r}: resolved path escapes run directory.")
+    # Reject subdirs that resolve to run_root itself (e.g. "" or ".") or that escape it
+    # (e.g. via symlinks after the parts-level ".." check above).
+    if resolution_dir == run_root or run_root not in resolution_dir.parents:
+        raise ValueError(f"Invalid artifact_subdir {artifact_subdir!r}: must resolve to a subdirectory of the run directory.")
 
     resolution_dir.mkdir(parents=True, exist_ok=True)
     summary_path = resolution_dir / "entity_resolution_summary.json"
