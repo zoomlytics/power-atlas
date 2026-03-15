@@ -215,13 +215,18 @@ class WorkflowTests(unittest.TestCase):
             self.assertIn("structured_ingest_run_id", manifest["run_scopes"])
             self.assertIn("unstructured_ingest_run_id", manifest["run_scopes"])
             self.assertNotIn("resolution_run_id", manifest["run_scopes"])
+            # The new unstructured-first sequence emits two entity-resolution passes
+            # (unstructured_only, then hybrid) and two Q&A passes (before and after
+            # structured ingest) so consumers can see meaningful results at each phase.
             self.assertEqual(
                 set(manifest["stages"].keys()),
                 {
-                    "structured_ingest",
                     "pdf_ingest",
                     "claim_and_mention_extraction",
-                    "entity_resolution",
+                    "entity_resolution_unstructured_only",
+                    "retrieval_and_qa_unstructured_only",
+                    "structured_ingest",
+                    "entity_resolution_hybrid",
                     "retrieval_and_qa",
                 },
             )
@@ -238,7 +243,11 @@ class WorkflowTests(unittest.TestCase):
                 manifest["run_scopes"]["unstructured_ingest_run_id"],
             )
             self.assertEqual(
-                manifest["stages"]["entity_resolution"]["run_id"],
+                manifest["stages"]["entity_resolution_unstructured_only"]["run_id"],
+                manifest["run_scopes"]["unstructured_ingest_run_id"],
+            )
+            self.assertEqual(
+                manifest["stages"]["entity_resolution_hybrid"]["run_id"],
                 manifest["run_scopes"]["unstructured_ingest_run_id"],
             )
             self.assertEqual(

@@ -10,13 +10,25 @@ If you are running the demo for the first time, start here.
 
 ### What this demo does
 
+The demo follows an **unstructured-first** approach:
+
+1. Ingest a PDF and build a lexical graph
+2. Extract claims and entity mentions from the document
+3. Resolve entities using **`unstructured_only`** mode — mentions are clustered against each other; no structured data required
+4. Ask citation-grounded questions and see meaningful answers from unstructured data alone
+5. *(Optional)* Ingest structured CSV data as additive enrichment
+6. *(Optional)* Re-resolve entities using **`hybrid`** mode — existing clusters gain `ALIGNED_WITH` links to canonical entities where matches exist
+7. *(Optional)* Ask questions again to see the enriched graph
+
+Structured ingest is **optional verification and enrichment**, not a prerequisite for entity resolution or Q&A.
+
 The demo supports:
 
-- **structured ingest** from CSV fixtures
 - **unstructured ingest** from a PDF fixture
 - **claim extraction** from previously ingested PDF chunks
-- **entity resolution** over extracted mentions
-- **retrieval and citation-grounded Q&A** over ingested material
+- **entity resolution** in `unstructured_only` mode (default), `hybrid` mode (after structured ingest), or `structured_anchor` mode
+- **retrieval and citation-grounded Q&A** over ingested material, available after unstructured ingest alone
+- **structured ingest** from CSV fixtures (additive enrichment)
 
 ### What you need
 
@@ -56,15 +68,33 @@ Start from a clean graph:
 python -m demo.reset_demo_db --confirm
 ```
 
-Run PDF ingest:
+**Phase 1 — Unstructured-only pass** (no structured data required):
 
 ```bash
+# Ingest the PDF
 python -m demo.run_demo ingest-pdf --live
+
+# Extract claims and entity mentions
+export UNSTRUCTURED_RUN_ID=<run_id from ingest-pdf output>
+python -m demo.run_demo --live extract-claims
+
+# Cluster entity mentions (unstructured_only mode is the default)
+python -m demo.run_demo --live resolve-entities
+
+# Ask questions — meaningful answers are available before structured ingest
+python -m demo.run_demo --live ask --latest --question "What does the document say about Endeavor and MercadoLibre?"
 ```
 
-Then ask a question against the latest unstructured ingest run found in the database (use `--latest` to ensure this, even if `UNSTRUCTURED_RUN_ID` is set):
+**Phase 2 — Structured enrichment pass** (optional, additive):
 
 ```bash
+# Ingest structured CSV data as optional enrichment/verification
+python -m demo.run_demo --live ingest-structured
+
+# Re-resolve entities in hybrid mode to align clusters with canonical entities
+python -m demo.run_demo --live resolve-entities --resolution-mode hybrid
+
+# Ask again to see the graph enriched by structured alignment
 python -m demo.run_demo --live ask --latest --question "What does the document say about Endeavor and MercadoLibre?"
 ```
 
@@ -88,6 +118,23 @@ or:
 Using retrieval scope: all runs in database
 ```
 
+**Example Q&A output (citation-grounded):**
+
+```text
+Endeavor is a global entrepreneurship network that supports high-impact entrepreneurs
+through mentoring, access to capital, and market expansion.
+[CITATION|chunk_id=chunk-42|run_id=unstructured_ingest-20260312T221631097539Z-d821ea28|source_uri=file:///chain_of_custody.pdf|chunk_index=3|page=2|start_char=140|end_char=310]
+
+MercadoLibre is a Latin American e-commerce and fintech platform mentioned in the
+document as a portfolio company with regional growth ambitions.
+[CITATION|chunk_id=chunk-17|run_id=unstructured_ingest-20260312T221631097539Z-d821ea28|source_uri=file:///chain_of_custody.pdf|chunk_index=1|page=1|start_char=520|end_char=680]
+```
+
+In successful runs, answer sentences are expected to be backed by `[CITATION|...]` tokens that trace directly to
+`Chunk` nodes in the lexical graph. The `chunk_id`, `run_id`, `source_uri`, `page`, and character offsets help you
+verify each claim against the source document; if a citation is missing, the system emits an explicit fallback or
+warning marker rather than an unlabeled claim.
+
 Non-interactive successful independent stage runs (for example, `ask`, `ingest-pdf`, etc.) also write manifests under:
 
 ```text
@@ -110,13 +157,15 @@ For successful Q&A runs, the manifest should normally show:
 
 ## Overview
 
-The demo exercises two independent ingestion pipelines — structured CSV ingest and unstructured PDF ingest — followed by claim extraction, entity resolution, and citation-grounded Q&A retrieval.
+The demo follows an **unstructured-first** posture: unstructured PDF ingest, claim extraction, entity resolution, and Q&A retrieval form a complete standalone workflow. Structured CSV ingest is an optional, additive enrichment layer — not a prerequisite.
 
-The most important idea for first-time users is:
+The most important ideas for first-time users:
 
 - **producer stages** create or write new run-scoped data
 - **derived stages** operate within an existing producer run scope
+- **entity resolution defaults to `unstructured_only`** — mentions are clustered against each other without requiring structured ingest; structured canonical entity lookup is available as an explicit enrichment step
 - **Q&A retrieval, in `--live` mode, uses `UNSTRUCTURED_RUN_ID` if set, otherwise the latest run by default**, and can also target a specific run or all runs
+- **structured ingest is optional enrichment**, not the identity anchor — the graph is meaningful before it runs
 
 You do **not** need to understand every graph layer before running the demo successfully. Use the Quickstart first, then return to the sections below as needed.
 
@@ -144,14 +193,13 @@ Without `--confirm`, the standalone script exits with an error and the CLI reset
 
 Both reset paths write a JSON reset report to `<output-dir>/reset_report_<timestamp>.json`, with `demo/artifacts` used as the default `--output-dir`.
 
-### Step 2 — Run ingestion stages independently (recommended)
+### Step 2 — Run the unstructured-only pass (no structured data required)
 
 ```bash
-python -m demo.run_demo --dry-run ingest-structured
 python -m demo.run_demo --dry-run ingest-pdf
 ```
 
-Producer stages (`ingest-structured`, `ingest-pdf`) each generate a new `run_id` and write a stage manifest to:
+`ingest-pdf` generates a new `run_id` and writes a stage manifest to:
 
 ```text
 <output-dir>/runs/<run_id>/<stage_name>/manifest.json
@@ -159,22 +207,16 @@ Producer stages (`ingest-structured`, `ingest-pdf`) each generate a new `run_id`
 
 Here, `<stage_name>` is the on-disk **manifest folder name** under `runs/<run_id>/`, which does not always match the CLI subcommand. The mappings are:
 
-- `ingest-structured` → `structured_ingest`
 - `ingest-pdf` → `pdf_ingest`
 - `extract-claims` → `claim_and_mention_extraction` (manifest directory; stage artifacts are written under `<output-dir>/runs/<run_id>/claim_extraction/`)
 - `resolve-entities` → `entity_resolution`
 - `ask` → `retrieval_and_qa`
+- `ingest-structured` → `structured_ingest` (optional enrichment)
 
-For a real unstructured workflow, use:
+For a real unstructured run:
 
 ```bash
 python -m demo.run_demo --live ingest-pdf
-```
-
-For a real structured workflow, use:
-
-```bash
-python -m demo.run_demo --live ingest-structured
 ```
 
 ### Step 3 — Run claim extraction (same run scope as `ingest-pdf`)
@@ -188,23 +230,42 @@ python -m demo.run_demo --dry-run extract-claims
 
 In live mode, `extract-claims` reads `Chunk` nodes for the selected `run_id`. In `--dry-run` mode it returns a stub summary.
 
-### Step 4 — Optional stages
+### Step 4 — Entity resolution and Q&A (unstructured-only)
 
-These stages also operate within an existing unstructured ingest run scope.
+These stages operate within an existing unstructured ingest run scope.
 
-- For `extract-claims` and `resolve-entities`, you must set `UNSTRUCTURED_RUN_ID` whenever you run these stages as independent subcommands so they know which unstructured ingest run to target. Each `python -m demo.run_demo ...` invocation runs in its own process, so the environment variable is always required when calling these subcommands directly, including the first time you run `extract-claims`.
+- For `extract-claims` and `resolve-entities`, you must set `UNSTRUCTURED_RUN_ID` whenever you run these stages as independent subcommands so they know which unstructured ingest run to target. Each `python -m demo.run_demo ...` invocation runs in its own process, so the environment variable is always required when calling these subcommands directly.
 - For `ask`, retrieval scope is selected as described below; you can optionally set `UNSTRUCTURED_RUN_ID` if you want to target a specific unstructured run without passing `--run-id`.
 
 ```bash
 # Reuse the run id from `ingest-pdf` / `extract-claims`
 export UNSTRUCTURED_RUN_ID=<run_id from ingest-pdf or extract-claims output>
 
-# Entity resolution
+# Entity resolution — defaults to unstructured_only mode (clusters mentions without structured ingest)
 python -m demo.run_demo --dry-run resolve-entities
 
-# Retrieval and Q&A
+# Retrieval and Q&A — meaningful answers available before structured ingest
 python -m demo.run_demo --dry-run ask
 ```
+
+At this point you have a working graph and citation-grounded Q&A from unstructured data alone.
+
+### Step 4b — Optional: structured enrichment pass
+
+Structured ingest is optional additive enrichment. Run it *after* the unstructured pass to demonstrate its additive nature:
+
+```bash
+# Ingest structured CSV data as optional enrichment/verification
+python -m demo.run_demo --dry-run ingest-structured
+
+# Re-resolve entities in hybrid mode to align clusters with canonical entities
+python -m demo.run_demo --dry-run resolve-entities --resolution-mode hybrid
+
+# Ask again to see the enriched graph
+python -m demo.run_demo --dry-run ask
+```
+
+The `hybrid` mode enriches existing `ResolvedEntityCluster` nodes with `ALIGNED_WITH` edges to `CanonicalEntity` nodes where label or alias matches exist. It gracefully degrades when no structured entities are present.
 
 #### Retrieval scope selection for `ask`
 
@@ -243,13 +304,24 @@ For first-time users, prefer the CLI flags over environment-variable-based run s
 
 **All-runs mode note:** `--all-runs` removes both the `run_id` filter and the `source_uri` filter, querying the whole database. Citations returned may refer to chunks from different ingest runs and different source documents. Each citation includes its own `run_id` and `source_uri` for traceability.
 
-### Convenience batch mode (alternative to steps 2–4)
+### Convenience batch mode (alternative to steps 2–4b)
 
 ```bash
 python -m demo.run_demo --dry-run ingest
 ```
 
-Runs all stages as sequential independent runs with a single command. The batch manifest has its own `run_id`, while producer stages still preserve separate structured and unstructured run scopes internally.
+Runs the full unstructured-first sequence as a single command: PDF ingest → claim extraction → entity resolution (`unstructured_only`) → Q&A → structured ingest → entity resolution (`hybrid`) → final Q&A. The batch manifest captures both passes so you can compare Q&A quality before and after structured enrichment.
+
+To include live Q&A in both phases, pass a question:
+
+```bash
+python -m demo.run_demo --live ingest \
+    --question "What does the document say about Endeavor and MercadoLibre?"
+```
+
+When `--question` is omitted, the Q&A stages are included in the manifest but skip vector retrieval in `--live` mode.
+
+The batch manifest has its own `run_id`, while producer stages still preserve separate structured and unstructured run scopes internally.
 
 ### Step 5 — Run smoke test
 
@@ -373,11 +445,13 @@ demo/artifacts/runs/<run_id>/retrieval_and_qa/manifest.json
 
 ## Conceptual model
 
+- **Unstructured-first posture**: unstructured PDF ingest, claim extraction, entity resolution, and Q&A form a complete standalone workflow. Structured ingest is optional and additive.
 - **Independent ingestion runs**: structured ingest and unstructured/PDF ingest are separate producer runs with separate `run_id` boundaries; neither implies the other must also run.
 - **Two-pipeline unstructured flow**: `extract-claims` runs within the same `run_id` scope established by `ingest-pdf` — it is not a separate run.
 - **Layered graph model**: source assertions are preserved as written (with provenance), while canonical/resolved views are derived in a separate layer and may be revised over time.
+- **Structured ingest is additive enrichment**: `CanonicalEntity` nodes from structured ingest are not the sole identity anchor. Entity resolution can cluster mentions without them (`unstructured_only`), and structured alignment is an optional enrichment pass (`hybrid`).
 - **Explicit convergence**: cross-source links are an optional resolution step; they must be explainable and non-destructive.
-- **Batch mode is convenience only**: `ingest` runs all stages sequentially in one command. The batch manifest has its own `run_id`; internally, stages share two producer run scopes — a `structured_ingest_run_id` and an `unstructured_ingest_run_id`.
+- **Batch mode is convenience only**: `ingest` runs the full unstructured-first sequence in one command. The batch manifest has its own `run_id`; internally, stages share two producer run scopes — a `structured_ingest_run_id` and an `unstructured_ingest_run_id`.
 
 ### Graph layers
 
@@ -385,8 +459,8 @@ demo/artifacts/runs/<run_id>/retrieval_and_qa/manifest.json
 | --- | --- | --- | --- |
 | Lexical | `Document`, `Chunk` | `ingest-pdf` | Stable for the run — never overwritten by downstream stages |
 | Extraction | `ExtractedClaim`, `EntityMention` | `extract-claims` | Non-destructive additions only |
-| Resolution | `UnresolvedEntity` (fallback) | `resolve-entities` | Non-destructive additions only; creates `RESOLVES_TO` edges to existing `CanonicalEntity` nodes |
-| Structured | `Claim`, `Fact`, `Relationship`, `Source`, `CanonicalEntity` | `ingest-structured` | Non-destructive additions only |
+| Resolution | `ResolvedEntityCluster` (provisional), `UnresolvedEntity` (legacy/unused fallback; kept for cleanup/back-compat) | `resolve-entities` | Non-destructive additions only; creates `MEMBER_OF` edges (all modes) and optionally `ALIGNED_WITH` edges to `CanonicalEntity` nodes (hybrid mode) |
+| Structured (optional) | `Claim`, `Fact`, `Relationship`, `Source`, `CanonicalEntity` | `ingest-structured` | Non-destructive additions only; structured ingest is optional enrichment |
 
 Every `Chunk` node includes ingest metadata fields such as `run_id`, `source_uri`, `dataset_id`, and positional provenance fields. `Document` nodes include the same ingest metadata.
 
@@ -405,7 +479,7 @@ Every `Chunk` node includes ingest metadata fields such as `run_id`, `source_uri
 
 | Mode | Manifest path | Key fields |
 | --- | --- | --- |
-| Batch (`ingest`) | `<output-dir>/manifest.json` | `run_id`, `run_scopes.structured_ingest_run_id`, `run_scopes.unstructured_ingest_run_id` |
+| Batch (`ingest`) | `<output-dir>/manifest.json` | `run_id`, `run_scopes.structured_ingest_run_id`, `run_scopes.unstructured_ingest_run_id`; batch stages include `entity_resolution_unstructured_only`, `retrieval_and_qa_unstructured_only`, `entity_resolution_hybrid`, and `retrieval_and_qa` |
 | Independent stage (`ingest-structured`, `ingest-pdf`) | `<output-dir>/runs/<run_id>/<stage_name>/manifest.json` | `run_id`, `run_scopes.batch_mode: single_independent_run`, one of `structured_ingest_run_id` / `unstructured_ingest_run_id` |
 | Derived stage (`extract-claims`, `resolve-entities`, `ask`) | `<output-dir>/runs/<run_id>/<stage_name>/manifest.json` | `run_id`, `run_scopes.unstructured_ingest_run_id` (ingest run id for run-scoped stages; `null` for `--all-runs`); for `ask`, resolved retrieval scope under `stages.retrieval_and_qa.retrieval_scope.{run_id,all_runs,source_uri}` |
 
@@ -466,7 +540,8 @@ All nodes with the following labels and **all their relationships** (`DETACH DEL
 | `Source` | `ingest-structured` |
 | `ExtractedClaim` | `extract-claims` |
 | `EntityMention` | `extract-claims` |
-| `UnresolvedEntity` | `resolve-entities` |
+| `ResolvedEntityCluster` | `resolve-entities` |
+| `UnresolvedEntity` | `resolve-entities` (legacy/back-compat) |
 
 The index `demo_chunk_embedding_index` (vector, `Chunk.embedding`, 1536 dims) is also dropped if present.
 

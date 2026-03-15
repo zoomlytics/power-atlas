@@ -60,7 +60,12 @@ Graph model
 * ``(:EntityMention)-[:MEMBER_OF]->(:ResolvedEntityCluster)`` — provisional cluster
 * ``(:ResolvedEntityCluster)-[:ALIGNED_WITH]->(:CanonicalEntity)`` — enrichment link
 
-Artifacts written to ``runs/<run_id>/entity_resolution/``:
+Artifacts written to ``runs/<run_id>/entity_resolution/`` by default.
+Callers may pass ``artifact_subdir`` to ``run_entity_resolution`` to
+redirect artifacts to a different subdirectory under ``runs/<run_id>/``
+(e.g. ``"entity_resolution_unstructured_only"``), which is useful when
+running multiple passes for the same *run_id*:
+
 - ``entity_resolution_summary.json`` — counts, breakdown, resolver metadata.
 - ``unresolved_mentions.json``        — list of clustered (unresolved) mentions.
 """
@@ -71,6 +76,7 @@ import re
 from datetime import UTC, datetime
 from difflib import SequenceMatcher
 from typing import Any
+from pathlib import Path
 
 # Bump this constant whenever the resolution strategies or scoring logic change
 # so that RESOLVES_TO edges in the graph can be distinguished by the version that
@@ -763,12 +769,13 @@ def run_entity_resolution(
     run_id: str,
     source_uri: str | None,
     resolution_mode: str | None = None,
+    artifact_subdir: str = "entity_resolution",
 ) -> dict[str, Any]:
     """Resolve or cluster :EntityMention nodes scoped to *run_id*.
 
     Behaviour depends on *resolution_mode*:
 
-    * ``"structured_anchor"`` (default) — resolves mentions against
+    * ``"structured_anchor"`` — resolves mentions against
       :CanonicalEntity nodes using QID, label-exact, and alias-exact strategies.
       Mentions that cannot be matched are grouped into provisional
       :ResolvedEntityCluster nodes via ``MEMBER_OF`` edges.
@@ -793,10 +800,17 @@ def run_entity_resolution(
         run_id:          The run_id whose EntityMention nodes are to be resolved.
                          Must match the run_id used during PDF ingest / claim extraction.
         source_uri:      Provenance URI for the source document.
-        resolution_mode: One of ``"structured_anchor"`` (default),
-                         ``"unstructured_only"``, or ``"hybrid"``.  When ``None``
-                         the value is read from ``config.resolution_mode`` (if
-                         present) and falls back to ``"structured_anchor"``.
+        resolution_mode: One of ``"structured_anchor"``, ``"unstructured_only"``, or
+                         ``"hybrid"``. When ``None``, the effective mode is resolved as:
+                         explicit argument (if provided) > ``config.resolution_mode``
+                         (if present and truthy, typically defaulting to ``"unstructured_only"``)
+                         > ``"structured_anchor"`` as a final fallback.
+        artifact_subdir: Subdirectory under ``runs/<run_id>/`` where artifacts are
+                         written.  Defaults to ``"entity_resolution"``.  Pass a
+                         mode-specific name (e.g. ``"entity_resolution_unstructured_only"``
+                         or ``"entity_resolution_hybrid"``) when calling the function
+                         multiple times for the same *run_id* to avoid overwriting
+                         artifacts from an earlier pass.
 
     Returns:
         A summary dict with counts, resolution breakdown, ``resolution_mode``,
@@ -814,8 +828,35 @@ def run_entity_resolution(
         )
 
     resolved_at = datetime.now(UTC).isoformat()
-    run_root = config.output_dir / "runs" / run_id
-    resolution_dir = run_root / "entity_resolution"
+
+    # Ensure the run directory is always a descendant of <output_dir>/runs and that
+    # run_id cannot be used for path traversal or absolute path escape.
+    runs_root = (config.output_dir / "runs").resolve()
+    run_id_path = Path(run_id)
+    if run_id_path.is_absolute() or ".." in run_id_path.parts or run_id_path.name != run_id:
+        raise ValueError(
+            f"Invalid run_id {run_id!r}: must be a simple relative name without path separators or '..'."
+        )
+    run_root = (runs_root / run_id_path).resolve()
+    # Reject run_ids that resolve to the runs_root itself (e.g. "" or ".") or that
+    # escape it (e.g. via symlinks after the parts-level '..' check above).
+    if run_root == runs_root or runs_root not in run_root.parents:
+        raise ValueError(
+            f"Invalid run_id {run_id!r}: must resolve to a subdirectory of the runs directory."
+        )
+
+    artifact_subdir_path = Path(artifact_subdir)
+    # Prevent path traversal and absolute paths in artifact_subdir to keep writes
+    # confined under the run_root directory.
+    if artifact_subdir_path.is_absolute() or ".." in artifact_subdir_path.parts:
+        raise ValueError(f"Invalid artifact_subdir {artifact_subdir!r}: must be a relative path without '..'.")
+
+    resolution_dir = (run_root / artifact_subdir_path).resolve()
+    # Reject subdirs that resolve to run_root itself (e.g. "" or ".") or that escape it
+    # (e.g. via symlinks after the parts-level ".." check above).
+    if resolution_dir == run_root or run_root not in resolution_dir.parents:
+        raise ValueError(f"Invalid artifact_subdir {artifact_subdir!r}: must resolve to a subdirectory of the run directory.")
+
     resolution_dir.mkdir(parents=True, exist_ok=True)
     summary_path = resolution_dir / "entity_resolution_summary.json"
     unresolved_path = resolution_dir / "unresolved_mentions.json"

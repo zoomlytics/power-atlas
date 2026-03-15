@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -282,7 +283,7 @@ class TestRunEntityResolutionLive(unittest.TestCase):
             driver = self._make_driver(mentions, canonicals)
 
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                result = run_entity_resolution(config, run_id="run-live-001", source_uri="file:///doc.pdf")
+                result = run_entity_resolution(config, run_id="run-live-001", source_uri="file:///doc.pdf", resolution_mode="structured_anchor")
 
             self.assertEqual(result["status"], "live")
             self.assertEqual(result["mentions_total"], 1)
@@ -298,7 +299,7 @@ class TestRunEntityResolutionLive(unittest.TestCase):
             driver = self._make_driver(mentions, canonicals)
 
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                result = run_entity_resolution(config, run_id="run-live-002", source_uri=None)
+                result = run_entity_resolution(config, run_id="run-live-002", source_uri=None, resolution_mode="structured_anchor")
 
             self.assertEqual(result["resolved"], 1)
             self.assertEqual(result["resolution_breakdown"].get("label_exact"), 1)
@@ -311,7 +312,7 @@ class TestRunEntityResolutionLive(unittest.TestCase):
             driver = self._make_driver(mentions, canonicals)
 
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                result = run_entity_resolution(config, run_id="run-live-003", source_uri=None)
+                result = run_entity_resolution(config, run_id="run-live-003", source_uri=None, resolution_mode="structured_anchor")
 
             self.assertEqual(result["resolved"], 1)
             self.assertEqual(result["resolution_breakdown"].get("alias_exact"), 1)
@@ -360,7 +361,7 @@ class TestRunEntityResolutionLive(unittest.TestCase):
             driver = self._make_driver(mentions, canonicals)
 
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                run_entity_resolution(config, run_id="run-live-006", source_uri="file:///a.pdf")
+                run_entity_resolution(config, run_id="run-live-006", source_uri="file:///a.pdf", resolution_mode="structured_anchor")
 
             summary_path = (
                 Path(tmpdir) / "runs" / "run-live-006" / "entity_resolution" / "entity_resolution_summary.json"
@@ -631,7 +632,7 @@ class TestResolvedEntityCluster(unittest.TestCase):
             driver = self._make_driver(mentions, canonicals)
 
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                result = run_entity_resolution(config, run_id="run-cluster-002", source_uri=None)
+                result = run_entity_resolution(config, run_id="run-cluster-002", source_uri=None, resolution_mode="structured_anchor")
 
             self.assertEqual(result["resolved"], 1)
             self.assertEqual(result["clusters_created"], 0)
@@ -1579,6 +1580,158 @@ class TestRunEntityResolutionHybrid(unittest.TestCase):
                 any("RESOLVES_TO" in c for c in all_calls),
                 "hybrid mode must not write RESOLVES_TO edges",
             )
+
+
+class TestArtifactSubdirValidation(unittest.TestCase):
+    """Tests for artifact_subdir path safety in run_entity_resolution."""
+
+    def _config(self, tmp_path: Path) -> Config:
+        return Config(
+            dry_run=True,
+            output_dir=tmp_path,
+            neo4j_uri="bolt://example.invalid",
+            neo4j_username="neo4j",
+            neo4j_password="not-used",
+            neo4j_database="neo4j",
+            openai_model="test-model",
+        )
+
+    def test_valid_simple_subdir_writes_artifacts(self):
+        """A simple relative subdir name is accepted and artifacts are written there."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._config(Path(tmpdir))
+            run_entity_resolution(
+                config,
+                run_id="run-subdir-001",
+                source_uri=None,
+                artifact_subdir="entity_resolution_custom",
+            )
+            expected = (
+                Path(tmpdir)
+                / "runs"
+                / "run-subdir-001"
+                / "entity_resolution_custom"
+                / "entity_resolution_summary.json"
+            )
+            self.assertTrue(expected.exists())
+
+    def test_valid_nested_subdir_is_accepted(self):
+        """A nested relative subdir path such as 'a/b' is accepted."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._config(Path(tmpdir))
+            run_entity_resolution(
+                config,
+                run_id="run-subdir-002",
+                source_uri=None,
+                artifact_subdir="phase1/entity_resolution",
+            )
+
+    @unittest.skipIf(not hasattr(os, "symlink"), "os.symlink not supported on this platform")
+    def test_symlink_escape_is_rejected(self):
+        """
+        A symlink under the run directory that points outside must be rejected.
+
+        This ensures that artifact_subdir validation using .resolve() and a parent
+        check correctly prevents symlink-based directory escapes.
+        """
+        with tempfile.TemporaryDirectory() as tmpdir, tempfile.TemporaryDirectory() as outside_dir:
+            config = self._config(Path(tmpdir))
+            run_id = "run-subdir-symlink-escape"
+            run_root = Path(tmpdir) / "runs" / run_id
+            run_root.mkdir(parents=True, exist_ok=True)
+
+            outside_path = Path(outside_dir)
+            evil_link = run_root / "evil_link"
+
+            try:
+                # Create a symlink under the run directory pointing outside it.
+                evil_link.symlink_to(outside_path, target_is_directory=True)
+            except (OSError, NotImplementedError):
+                self.skipTest("Symlinks are not supported or cannot be created on this platform")
+
+            # artifact_subdir refers to the symlink; resolution should detect that the
+            # resolved path is outside the run root and reject it.
+            with self.assertRaises(ValueError):
+                run_entity_resolution(
+                    config,
+                    run_id=run_id,
+                    source_uri=None,
+                    artifact_subdir="evil_link",
+                )
+
+    def test_absolute_path_is_rejected(self):
+        """An absolute path in artifact_subdir must be rejected."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._config(Path(tmpdir))
+            with self.assertRaises(ValueError):
+                run_entity_resolution(
+                    config,
+                    run_id="run-subdir-003",
+                    source_uri=None,
+                    artifact_subdir="/etc/passwd",
+                )
+
+    def test_double_dot_segment_is_rejected(self):
+        """A subdir containing '..' must be rejected to prevent directory traversal."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._config(Path(tmpdir))
+            with self.assertRaises(ValueError):
+                run_entity_resolution(
+                    config,
+                    run_id="run-subdir-004",
+                    source_uri=None,
+                    artifact_subdir="../escaped_dir",
+                )
+
+    def test_double_dot_in_middle_is_rejected(self):
+        """A subdir like 'a/../b' also contains '..' and must be rejected."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._config(Path(tmpdir))
+            with self.assertRaises(ValueError):
+                run_entity_resolution(
+                    config,
+                    run_id="run-subdir-005",
+                    source_uri=None,
+                    artifact_subdir="a/../b",
+                )
+
+    def test_empty_string_subdir_is_rejected(self):
+        """An empty string artifact_subdir resolves to run_root itself and must be rejected."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._config(Path(tmpdir))
+            with self.assertRaises(ValueError):
+                run_entity_resolution(
+                    config,
+                    run_id="run-subdir-006",
+                    source_uri=None,
+                    artifact_subdir="",
+                )
+
+    def test_dot_subdir_is_rejected(self):
+        """A bare '.' artifact_subdir resolves to run_root itself and must be rejected."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._config(Path(tmpdir))
+            with self.assertRaises(ValueError):
+                run_entity_resolution(
+                    config,
+                    run_id="run-subdir-007",
+                    source_uri=None,
+                    artifact_subdir=".",
+                )
+
+    def test_default_subdir_still_writes_to_entity_resolution(self):
+        """The default artifact_subdir="entity_resolution" is preserved."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._config(Path(tmpdir))
+            run_entity_resolution(config, run_id="run-subdir-008", source_uri=None)
+            expected = (
+                Path(tmpdir)
+                / "runs"
+                / "run-subdir-008"
+                / "entity_resolution"
+                / "entity_resolution_summary.json"
+            )
+            self.assertTrue(expected.exists())
 
 
 if __name__ == "__main__":
