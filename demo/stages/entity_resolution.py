@@ -618,10 +618,10 @@ def _write_resolution_results(
     Resolved mentions receive a ``RESOLVES_TO`` edge pointing at the matched
     :CanonicalEntity.
 
-    Unresolved mentions are grouped by their ``normalized_text`` into
-    :ResolvedEntityCluster nodes.  Each mention receives a ``MEMBER_OF`` edge
-    carrying the required provenance metadata: ``score``, ``method``,
-    ``resolver_version``, ``run_id``, and ``status``.
+    Unresolved mentions are grouped into :ResolvedEntityCluster nodes keyed by
+    ``(run_id, entity_type, normalized_text)``. Each mention receives a
+    ``MEMBER_OF`` edge carrying the required provenance metadata: ``score``,
+    ``method``, ``resolver_version``, ``run_id``, and ``status``.
     """
     if resolved_rows:
         driver.execute_query(
