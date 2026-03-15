@@ -65,7 +65,7 @@ def _make_neo4j_test_driver(
         pass
 
     mention_records = [
-        _Record(mention_id=m["mention_id"], name=m["name"], entity_type=m.get("entity_type"))
+        _Record(mention_id=m["mention_id"], name=m["name"], entity_type=m.get("entity_type"), source_uri=m.get("source_uri"))
         for m in mentions
     ]
     canonical_records = [
@@ -802,6 +802,50 @@ class TestResolvedEntityCluster(unittest.TestCase):
         cid_src1 = _make_cluster_id("run-A", None, "ibm", source_uri="https://example.com/doc1.pdf")
         cid_src2 = _make_cluster_id("run-A", None, "ibm", source_uri="https://example.com/doc2.pdf")
         self.assertNotEqual(cid_src1, cid_src2)
+
+    def test_per_mention_source_uri_scopes_cluster_id_in_artifact(self):
+        """Mentions from different sources within the same run_id produce distinct cluster_ids
+        in the unresolved artifact, using each mention's own DB-stored source_uri."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = Config(
+                dry_run=False,
+                output_dir=Path(tmpdir),
+                neo4j_uri="bolt://example.invalid",
+                neo4j_username="neo4j",
+                neo4j_password="secret",
+                neo4j_database="neo4j",
+                openai_model="test-model",
+            )
+            # Two mentions with identical text and entity_type, but different source_uri
+            # stored on the EntityMention node in the DB.
+            mentions = [
+                {"mention_id": "m1", "name": "IBM", "entity_type": "ORG", "source_uri": "https://example.com/doc1.pdf"},
+                {"mention_id": "m2", "name": "IBM", "entity_type": "ORG", "source_uri": "https://example.com/doc2.pdf"},
+            ]
+            driver = _make_neo4j_test_driver(mentions, [])
+
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                result = run_entity_resolution(
+                    config, run_id="run-src-scope-001", source_uri=None,
+                    resolution_mode="unstructured_only",
+                )
+
+            unresolved_path = (
+                Path(tmpdir) / "runs" / "run-src-scope-001" / "entity_resolution" / "unresolved_mentions.json"
+            )
+            unresolved = json.loads(unresolved_path.read_text(encoding="utf-8"))
+            self.assertEqual(len(unresolved), 2)
+            # Each mention's cluster_id must be scoped to its own source_uri.
+            cid_m1 = unresolved[0]["cluster_id"]
+            cid_m2 = unresolved[1]["cluster_id"]
+            self.assertNotEqual(cid_m1, cid_m2, "Mentions from different sources must yield different cluster_ids")
+            # Verify the cluster_ids match what _make_cluster_id would produce.
+            expected_cid_m1 = _make_cluster_id("run-src-scope-001", "ORG", "ibm", source_uri="https://example.com/doc1.pdf")
+            expected_cid_m2 = _make_cluster_id("run-src-scope-001", "ORG", "ibm", source_uri="https://example.com/doc2.pdf")
+            self.assertEqual(cid_m1, expected_cid_m1)
+            self.assertEqual(cid_m2, expected_cid_m2)
+            # clusters_created should be 2 (one per distinct source_uri).
+            self.assertEqual(result["clusters_created"], 2)
 
     def test_cross_type_same_text_produces_distinct_cluster_ids(self):
         """Same normalized text with different entity types must yield different cluster_ids."""

@@ -10,7 +10,7 @@ optionally enriches resulting clusters with alignment links to
 :CanonicalEntity nodes (``hybrid`` mode).
 
 In ``structured_anchor`` mode, mentions that cannot be resolved are grouped by
-their ``(run_id, entity_type, normalized_text)`` identity into
+their ``(run_id, source_uri, entity_type, normalized_text)`` identity into
 :ResolvedEntityCluster provisional cluster nodes and linked via :MEMBER_OF
 edges instead.
 
@@ -22,8 +22,8 @@ Resolution strategies applied in priority order (``structured_anchor`` mode):
 3. **alias_exact** — ``normalized(mention.name)`` appears in the
    ``canonical.aliases`` string (pipe-separated or comma-separated list).
 4. **label_cluster** — no canonical match found; mention is grouped with other
-   mentions sharing the same ``(run_id, entity_type, normalized_text)`` into a
-   :ResolvedEntityCluster.
+   mentions sharing the same ``(run_id, source_uri, entity_type, normalized_text)``
+   into a :ResolvedEntityCluster.
 
 Resolution strategies applied in priority order (``unstructured_only`` mode):
 
@@ -548,6 +548,7 @@ def _cluster_mentions_unstructured_only(
             "mention_name": (mention.get("name") or "").strip(),
             "normalized_text": mention_to_cluster[mention["mention_id"]],
             "entity_type": mention_to_type[mention["mention_id"]],
+            "source_uri": mention.get("source_uri"),
             "resolution_method": mention_to_method[mention["mention_id"]][0],
             "resolution_confidence": mention_to_method[mention["mention_id"]][1],
             "resolved": False,
@@ -587,6 +588,7 @@ def _resolve_mention(
             "normalized_text": normalized,
             "mention_name": name,
             "entity_type": mention.get("entity_type") or None,
+            "source_uri": mention.get("source_uri"),
             "resolution_method": "label_cluster",
             "resolution_confidence": 0.0,
             "candidate_ids": [],
@@ -625,6 +627,7 @@ def _resolve_mention(
         "normalized_text": normalized,
         "mention_name": name,
         "entity_type": mention.get("entity_type") or None,
+        "source_uri": mention.get("source_uri"),
         "resolution_method": "label_cluster",
         "resolution_confidence": 0.0,
         "candidate_ids": [],
@@ -647,9 +650,11 @@ def _write_resolution_results(
     :CanonicalEntity.
 
     Unresolved mentions are grouped into :ResolvedEntityCluster nodes keyed by
-    ``(run_id, entity_type, normalized_text)``. Each mention receives a
+    ``(run_id, source_uri, entity_type, normalized_text)``. Each mention receives a
     ``MEMBER_OF`` edge carrying the required provenance metadata: ``score``,
-    ``method``, ``resolver_version``, ``run_id``, and ``status``.
+    ``method``, ``resolver_version``, ``run_id``, ``source_uri``, and ``status``.
+    The ``source_uri`` on both the cluster node and the edge is taken from the
+    per-mention value propagated from the EntityMention node in the DB.
     """
     if resolved_rows:
         driver.execute_query(
@@ -679,8 +684,11 @@ def _write_resolution_results(
         # MEMBER_OF score via _membership_score so deterministic cluster
         # assignments (label_cluster, normalized_exact) always get score=1.0,
         # regardless of any match-quality confidence on the unresolved row.
-        # The cluster_id is scoped by (run_id, entity_type, normalized_text) to
-        # prevent unintentional merging across runs or entity types.
+        # The cluster_id is scoped by (run_id, source_uri, entity_type, normalized_text)
+        # to prevent unintentional merging across runs, sources, or entity types.
+        # The per-mention source_uri is read from the EntityMention node in the DB
+        # (propagated via the unresolved row) so that cross-source isolation works
+        # correctly even when a single run_id spans multiple source documents.
         #
         # NOTE — cluster_id scheme compatibility: if the cluster_id format
         # changes (e.g. due to a future schema upgrade) any previously-written
@@ -695,13 +703,15 @@ def _write_resolution_results(
         for row in unresolved_rows:
             method = row.get("resolution_method", "label_cluster")
             entity_type = row.get("entity_type")
+            row_source_uri = row.get("source_uri")
             cluster_rows.append({
                 "mention_id": row["mention_id"],
-                "cluster_id": _make_cluster_id(run_id, entity_type, row["normalized_text"], source_uri=source_uri),
+                "cluster_id": _make_cluster_id(run_id, entity_type, row["normalized_text"], source_uri=row_source_uri),
                 # Use a deterministic canonical name derived from the normalized text
                 "canonical_name": row["normalized_text"].title(),
                 "normalized_text": row["normalized_text"],
                 "entity_type": entity_type,
+                "source_uri": row_source_uri,
                 "score": _membership_score(method, row.get("resolution_confidence", 1.0)),
                 "method": method,
                 # "accepted" only for deterministic cluster assignments;
@@ -719,7 +729,7 @@ def _write_resolution_results(
                 cluster.normalized_text = row.normalized_text,
                 cluster.entity_type     = row.entity_type,
                 cluster.run_id          = $run_id,
-                cluster.source_uri      = $source_uri,
+                cluster.source_uri      = row.source_uri,
                 cluster.resolver_version = $resolver_version,
                 cluster.created_at = $created_at
             WITH row, cluster
@@ -730,14 +740,13 @@ def _write_resolution_results(
                 r.resolver_version = $resolver_version,
                 r.run_id           = $run_id,
                 r.status           = row.status,
-                r.source_uri       = $source_uri
+                r.source_uri       = row.source_uri
             """,
             parameters_={
                 "rows": cluster_rows,
                 "run_id": run_id,
                 "resolver_version": _CLUSTER_VERSION,
                 "created_at": created_at,
-                "source_uri": source_uri,
             },
             database_=neo4j_database,
         )
@@ -988,7 +997,8 @@ def run_entity_resolution(
             MATCH (mention:EntityMention {run_id: $run_id})
             RETURN mention.mention_id AS mention_id,
                    mention.name AS name,
-                   mention.entity_type AS entity_type
+                   mention.entity_type AS entity_type,
+                   mention.source_uri AS source_uri
             ORDER BY mention.mention_id
             """,
             parameters_={"run_id": run_id},
@@ -1000,6 +1010,7 @@ def run_entity_resolution(
                 "mention_id": record["mention_id"],
                 "name": record["name"] or "",
                 "entity_type": record["entity_type"],
+                "source_uri": record["source_uri"],
             }
             for record in mention_result
         ]
@@ -1062,7 +1073,7 @@ def run_entity_resolution(
                 # mention rows before deduplication (O(n log n)).
                 cluster_entries_by_id: dict[str, tuple[tuple[str, str], dict[str, Any]]] = {}
                 for row in unresolved_rows:
-                    cid = _make_cluster_id(run_id, row.get("entity_type"), row["normalized_text"], source_uri=source_uri)
+                    cid = _make_cluster_id(run_id, row.get("entity_type"), row["normalized_text"], source_uri=row.get("source_uri"))
                     if cid not in cluster_entries_by_id:
                         sort_key = (row.get("entity_type") or "", row["normalized_text"])
                         cluster_entries_by_id[cid] = (sort_key, {
@@ -1140,18 +1151,18 @@ def run_entity_resolution(
             "mention_name": row["mention_name"],
             "normalized_text": row["normalized_text"],
             "entity_type": row.get("entity_type") or None,
-            "cluster_id": _make_cluster_id(run_id, row.get("entity_type"), row["normalized_text"], source_uri=source_uri),
+            "cluster_id": _make_cluster_id(run_id, row.get("entity_type"), row["normalized_text"], source_uri=row.get("source_uri")),
         }
         for row in unresolved_rows
     ]
     unresolved_path.write_text(json.dumps(unresolved_list, indent=2), encoding="utf-8")
 
-    # Count unique clusters — one cluster per unique (entity_type, normalized_text)
-    # pair, matching the scoped identity enforced by _make_cluster_id.
-    # Normalize entity_type with `or ""` to match _make_cluster_id's treatment
-    # of None and empty string as equivalent (both produce an empty segment).
+    # Count unique clusters — one cluster per unique (source_uri, entity_type, normalized_text)
+    # triple, matching the scoped identity enforced by _make_cluster_id.
+    # Normalize source_uri and entity_type with `or ""` to match _make_cluster_id's
+    # treatment of None and empty string as equivalent (both produce an empty segment).
     clusters_created = len({
-        (row.get("entity_type") or "", row["normalized_text"]) for row in unresolved_rows
+        (row.get("source_uri") or "", row.get("entity_type") or "", row["normalized_text"]) for row in unresolved_rows
     })
 
     if resolution_mode == _RESOLUTION_MODE_UNSTRUCTURED_ONLY:
