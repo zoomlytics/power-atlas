@@ -25,7 +25,12 @@ from demo.contracts.structured import (
     VALUE_TYPES,
 )
 
+# Shared alignment version constant; must stay in sync with entity_resolution's
+# _ALIGNMENT_VERSION so retrieval queries filter the correct ALIGNED_WITH edges.
+ALIGNMENT_VERSION: str = "v1.0"
+
 __all__ = [
+    "ALIGNMENT_VERSION",
     "ARTIFACTS_DIR",
     "build_batch_manifest",
     "build_stage_manifest",

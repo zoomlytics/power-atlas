@@ -102,8 +102,7 @@ RETURN c.text AS chunk_text,
 # cluster_canonical_alignments surfaces canonical entity identities reached via
 # the cluster's ALIGNED_WITH edge, including alignment method and status so
 # provisional (non-confirmed) alignments are explicitly labelled.
-_RETRIEVAL_QUERY_WITH_CLUSTER = (
-    """
+_RETRIEVAL_QUERY_WITH_CLUSTER = """
 WITH node AS c, score
 WHERE c.run_id = $run_id
   AND ($source_uri IS NULL OR c.source_uri = $source_uri)
@@ -120,13 +119,9 @@ RETURN c.text AS chunk_text,
        [(c)<-[:MENTIONED_IN]-(mention:EntityMention) WHERE mention.run_id = $run_id | mention.name] AS mentions,
        [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:RESOLVES_TO]->(canonical) WHERE mention.run_id = $run_id | coalesce(canonical.name, canonical.label)] AS canonical_entities,
        [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[r:MEMBER_OF]->(cluster:ResolvedEntityCluster) WHERE mention.run_id = $run_id | {cluster_id: cluster.cluster_id, cluster_name: cluster.canonical_name, membership_status: r.status, membership_method: r.method}] AS cluster_memberships,
-       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:MEMBER_OF]->(cluster:ResolvedEntityCluster)-[a:ALIGNED_WITH]->(aligned_canonical) WHERE mention.run_id = $run_id AND a.run_id = $run_id AND a.alignment_version = """
-    + str(ALIGNMENT_VERSION)
-    + """ | {canonical_name: coalesce(aligned_canonical.name, aligned_canonical.label), alignment_method: a.alignment_method, alignment_status: a.alignment_status}] AS cluster_canonical_alignments
+       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:MEMBER_OF]->(cluster:ResolvedEntityCluster)-[a:ALIGNED_WITH]->(aligned_canonical) WHERE mention.run_id = $run_id AND a.run_id = $run_id AND a.alignment_version = $alignment_version | {canonical_name: coalesce(aligned_canonical.name, aligned_canonical.label), alignment_method: a.alignment_method, alignment_status: a.alignment_status}] AS cluster_canonical_alignments
 """
-)
-_RETRIEVAL_QUERY_WITH_CLUSTER_ALL_RUNS = (
-    """
+_RETRIEVAL_QUERY_WITH_CLUSTER_ALL_RUNS = """
 WITH node AS c, score
 WHERE ($source_uri IS NULL OR c.source_uri = $source_uri)
 RETURN c.text AS chunk_text,
@@ -142,11 +137,8 @@ RETURN c.text AS chunk_text,
        [(c)<-[:MENTIONED_IN]-(mention:EntityMention) | mention.name] AS mentions,
        [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:RESOLVES_TO]->(canonical) | coalesce(canonical.name, canonical.label)] AS canonical_entities,
        [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[r:MEMBER_OF]->(cluster:ResolvedEntityCluster) | {cluster_id: cluster.cluster_id, cluster_name: cluster.canonical_name, membership_status: r.status, membership_method: r.method}] AS cluster_memberships,
-       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:MEMBER_OF]->(cluster:ResolvedEntityCluster)-[a:ALIGNED_WITH]->(aligned_canonical) WHERE a.alignment_version = """
-    + str(ALIGNMENT_VERSION)
-    + """ | {canonical_name: coalesce(aligned_canonical.name, aligned_canonical.label), alignment_method: a.alignment_method, alignment_status: a.alignment_status}] AS cluster_canonical_alignments
+       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:MEMBER_OF]->(cluster:ResolvedEntityCluster)-[a:ALIGNED_WITH]->(aligned_canonical) WHERE a.run_id = mention.run_id AND a.alignment_version = $alignment_version | {canonical_name: coalesce(aligned_canonical.name, aligned_canonical.label), alignment_method: a.alignment_method, alignment_status: a.alignment_status}] AS cluster_canonical_alignments
 """
-)
 
 # Optional citation-relevant fields that should be surfaced as warnings when absent.
 _CITATION_OPTIONAL_FIELDS = ("page", "start_char", "end_char")
@@ -441,7 +433,7 @@ def _format_cluster_context(
         else:
             display_status = raw_status or "unknown"
             lines.append(
-                f"PROVISIONAL/UNCONFIRMED CLUSTER: '{cluster_name}' "
+                f"PROVISIONAL CLUSTER: '{cluster_name}' "
                 f"(membership via {method}, status: {display_status} — "
                 f"identity not confirmed; treat as tentative, not a settled fact)"
             )
@@ -743,9 +735,13 @@ def run_retrieval_and_qa(
     # Query params for filtering. source_uri=None is valid: the null-conditional
     # in the WHERE clause skips source_uri filtering when the parameter is None.
     # run_id is only included for run-scoped queries (not all-runs mode).
+    # alignment_version is passed when cluster_aware=True to filter ALIGNED_WITH edges
+    # to the current alignment generation only.
     query_params: dict[str, object] = {"source_uri": source_uri}
     if not all_runs:
         query_params["run_id"] = run_id
+    if cluster_aware:
+        query_params["alignment_version"] = ALIGNMENT_VERSION
 
     warnings_list: list[str] = []
     citation_warnings_list: list[str] = []
@@ -1021,6 +1017,8 @@ def run_interactive_qa(
     query_params: dict[str, object] = {"source_uri": source_uri}
     if not all_runs:
         query_params["run_id"] = run_id
+    if cluster_aware:
+        query_params["alignment_version"] = ALIGNMENT_VERSION
 
     history: MessageHistory = InMemoryMessageHistory()
     print(f"Using retrieval scope: {_format_scope_label(run_id, all_runs)}")
