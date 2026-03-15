@@ -130,9 +130,10 @@ document as a portfolio company with regional growth ambitions.
 [CITATION|chunk_id=chunk-17|run_id=unstructured_ingest-20260312T221631097539Z-d821ea28|source_uri=file:///chain_of_custody.pdf|chunk_index=1|page=1|start_char=520|end_char=680]
 ```
 
-Every answer sentence is backed by a `[CITATION|...]` token that traces directly to a
-`Chunk` node in the lexical graph. The `chunk_id`, `run_id`, `source_uri`, `page`, and
-character offsets let you verify each claim against the source document.
+In successful runs, answer sentences are expected to be backed by `[CITATION|...]` tokens that trace directly to
+`Chunk` nodes in the lexical graph. The `chunk_id`, `run_id`, `source_uri`, `page`, and character offsets help you
+verify each claim against the source document; if a citation is missing, the system emits an explicit fallback or
+warning marker rather than an unlabeled claim.
 
 Non-interactive successful independent stage runs (for example, `ask`, `ingest-pdf`, etc.) also write manifests under:
 
