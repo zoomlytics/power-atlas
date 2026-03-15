@@ -432,15 +432,18 @@ def _format_cluster_context(
     for cm in cluster_memberships:
         cluster_name = cm.get("cluster_name") or cm.get("cluster_id") or ""
         method = cm.get("membership_method") or ""
-        status = cm.get("membership_status") or "unknown"
-        if status == "provisional":
-            lines.append(
-                f"PROVISIONAL CLUSTER: '{cluster_name}' (membership via {method}; "
-                f"identity not confirmed — treat as a hypothesis, not a settled fact)"
-            )
-        else:
+        raw_status = cm.get("membership_status")
+        status = (raw_status or "unknown").lower()
+        if status == "accepted":
             lines.append(
                 f"Entity cluster (accepted): '{cluster_name}' (membership via {method})"
+            )
+        else:
+            display_status = raw_status or "unknown"
+            lines.append(
+                f"PROVISIONAL/UNCONFIRMED CLUSTER: '{cluster_name}' "
+                f"(membership via {method}, status: {display_status} — "
+                f"identity not confirmed; treat as tentative, not a settled fact)"
             )
     for ca in cluster_canonical_alignments:
         canon_name = ca.get("canonical_name") or ""
