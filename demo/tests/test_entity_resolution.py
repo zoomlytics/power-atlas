@@ -842,6 +842,35 @@ class TestResolvedEntityCluster(unittest.TestCase):
 
             self.assertEqual(result["clusters_created"], 2)
 
+    def test_clusters_created_none_and_empty_entity_type_counted_as_one(self):
+        """None and empty-string entity_type must be treated as the same cluster scope."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = Config(
+                dry_run=False,
+                output_dir=Path(tmpdir),
+                neo4j_uri="bolt://example.invalid",
+                neo4j_username="neo4j",
+                neo4j_password="secret",
+                neo4j_database="neo4j",
+                openai_model="test-model",
+            )
+            # Both mentions have the same normalized text; one has entity_type=None,
+            # the other has entity_type="".  They must map to the same cluster_id
+            # and clusters_created must be 1, not 2.
+            mentions = [
+                {"mention_id": "m1", "name": "Acme", "entity_type": None},
+                {"mention_id": "m2", "name": "Acme", "entity_type": ""},
+            ]
+            driver = _make_neo4j_test_driver(mentions, [])
+
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                result = run_entity_resolution(
+                    config, run_id="run-scope-003", source_uri=None,
+                    resolution_mode="unstructured_only",
+                )
+
+            self.assertEqual(result["clusters_created"], 1)
+
     def test_cross_run_clusters_created_are_isolated(self):
         """Two separate runs with the same mentions produce independent clusters."""
         with tempfile.TemporaryDirectory() as tmpdir:

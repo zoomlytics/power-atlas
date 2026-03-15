@@ -128,12 +128,11 @@ def _make_cluster_id(run_id: str, entity_type: str | None, normalized_text: str)
     Format: ``cluster::<run_id>::<entity_type>::<normalized_text>``
 
     ``entity_type`` is stored as an empty string when ``None`` so the cluster_id
-    remains a stable, delimiter-safe string.
-
-    Callers are responsible for passing a non-empty *run_id* and a non-empty
-    *normalized_text*; the function does not validate these to avoid overhead
-    on the hot path.  Empty values would produce ambiguous IDs such as
-    ``cluster:::::`` that cannot be distinguished from each other.
+    remains a stable, delimiter-safe string.  An empty *normalized_text* (e.g.
+    produced from a mention with a blank name) is also accepted and yields a
+    deterministic ID that groups all empty-name mentions for the same
+    (run_id, entity_type) together.  Callers should pass a non-empty *run_id*;
+    an empty *run_id* would produce IDs indistinguishable across runs.
     """
     entity_type_part = entity_type or ""
     return f"cluster::{run_id}::{entity_type_part}::{normalized_text}"
@@ -1101,8 +1100,10 @@ def run_entity_resolution(
 
     # Count unique clusters — one cluster per unique (entity_type, normalized_text)
     # pair, matching the scoped identity enforced by _make_cluster_id.
+    # Normalize entity_type with `or ""` to match _make_cluster_id's treatment
+    # of None and empty string as equivalent (both produce an empty segment).
     clusters_created = len({
-        (row.get("entity_type"), row["normalized_text"]) for row in unresolved_rows
+        (row.get("entity_type") or "", row["normalized_text"]) for row in unresolved_rows
     })
 
     if resolution_mode == _RESOLUTION_MODE_UNSTRUCTURED_ONLY:
