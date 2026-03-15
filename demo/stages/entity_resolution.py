@@ -833,7 +833,7 @@ def run_entity_resolution(
     # run_id cannot be used for path traversal or absolute path escape.
     runs_root = (config.output_dir / "runs").resolve()
     run_id_path = Path(run_id)
-    if run_id_path.is_absolute() or ".." in run_id_path.parts:
+    if run_id_path.is_absolute() or ".." in run_id_path.parts or run_id_path.name != run_id:
         raise ValueError(
             f"Invalid run_id {run_id!r}: must be a simple relative name without path separators or '..'."
         )
