@@ -10,8 +10,9 @@ optionally enriches resulting clusters with alignment links to
 :CanonicalEntity nodes (``hybrid`` mode).
 
 In ``structured_anchor`` mode, mentions that cannot be resolved are grouped by
-their normalized text into :ResolvedEntityCluster provisional cluster nodes
-and linked via :MEMBER_OF edges instead.
+their ``(run_id, entity_type, normalized_text)`` identity into
+:ResolvedEntityCluster provisional cluster nodes and linked via :MEMBER_OF
+edges instead.
 
 Resolution strategies applied in priority order (``structured_anchor`` mode):
 
@@ -21,7 +22,8 @@ Resolution strategies applied in priority order (``structured_anchor`` mode):
 3. **alias_exact** — ``normalized(mention.name)`` appears in the
    ``canonical.aliases`` string (pipe-separated or comma-separated list).
 4. **label_cluster** — no canonical match found; mention is grouped with other
-   mentions sharing the same normalized text into a :ResolvedEntityCluster.
+   mentions sharing the same ``(run_id, entity_type, normalized_text)`` into a
+   :ResolvedEntityCluster.
 
 Resolution strategies applied in priority order (``unstructured_only`` mode):
 
@@ -32,7 +34,7 @@ Resolution strategies applied in priority order (``unstructured_only`` mode):
 3. **fuzzy** — mentions whose normalized texts are sufficiently similar
    (difflib SequenceMatcher ratio ≥ 0.85) are placed in the same cluster.
 4. **label_cluster** — fallback; mention is grouped in a singleton cluster
-   keyed by its own normalized text.
+   keyed by its ``(run_id, entity_type, normalized_text)`` identity.
 
 ``hybrid`` mode runs the full ``unstructured_only`` clustering pass first, then
 performs a best-effort alignment of each resulting :ResolvedEntityCluster to a
@@ -138,10 +140,12 @@ def _make_cluster_id(run_id: str, entity_type: str | None, normalized_text: str)
     ``entity_type=None`` and ``entity_type=""`` produce the same cluster_id.
     An empty *normalized_text* (e.g. produced from a mention with a blank name)
     is accepted and yields a deterministic ID that groups all empty-name
-    mentions for the same (run_id, entity_type) together.  Callers should pass
-    a non-empty *run_id*; an empty *run_id* would produce IDs
-    indistinguishable across runs.
+    mentions for the same (run_id, entity_type) together.  A non-empty
+    *run_id* is required; passing an empty string raises :exc:`ValueError`
+    because it would produce IDs indistinguishable across runs.
     """
+    if not run_id:
+        raise ValueError("run_id must be a non-empty string")
     run_id_enc = _pct_encode(run_id, safe="")
     entity_type_enc = _pct_encode(entity_type or "", safe="")
     normalized_text_enc = _pct_encode(normalized_text, safe="")
