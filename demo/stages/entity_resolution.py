@@ -25,14 +25,18 @@ Resolution strategies applied in priority order (``structured_anchor`` mode):
    mentions sharing the same ``(run_id, entity_type, normalized_text)`` into a
    :ResolvedEntityCluster.
 
-Resolution strategies applied in priority order (``unstructured_only`` mode):
+Resolution strategies applied in priority order (``unstructured_only`` mode).
+All strategies are scoped by ``entity_type``: mentions with the same
+normalized text but different entity types are treated as distinct clusters.
 
-1. **normalized_exact** — mentions sharing the same normalized text are
-   clustered together.
+1. **normalized_exact** — mentions sharing the same ``(entity_type,
+   normalized_text)`` pair are clustered together.
 2. **abbreviation** — a mention that is an initialism of another mention's
-   normalized text is placed in that mention's cluster.
+   normalized text is placed in that mention's cluster (within the same
+   ``entity_type`` bucket).
 3. **fuzzy** — mentions whose normalized texts are sufficiently similar
-   (difflib SequenceMatcher ratio ≥ 0.85) are placed in the same cluster.
+   (difflib SequenceMatcher ratio ≥ 0.85) are placed in the same cluster
+   (within the same ``entity_type`` bucket).
 4. **label_cluster** — fallback; mention is grouped in a singleton cluster
    keyed by its ``(run_id, entity_type, normalized_text)`` identity.
 
@@ -662,6 +666,16 @@ def _write_resolution_results(
         # regardless of any match-quality confidence on the unresolved row.
         # The cluster_id is scoped by (run_id, entity_type, normalized_text) to
         # prevent unintentional merging across runs or entity types.
+        #
+        # NOTE — cluster_id scheme compatibility: if the cluster_id format
+        # changes (e.g. due to a future schema upgrade) any previously-written
+        # ResolvedEntityCluster nodes for the same run_id will become orphaned
+        # (old MEMBER_OF edges won't be touched and old cluster nodes will
+        # remain). The demo DB is assumed to be cleanly reset before each run,
+        # so this is not a concern for the demo workflow. For production use
+        # cases that retain DB state across upgrades, callers should delete
+        # all MEMBER_OF and ResolvedEntityCluster nodes for the affected run_id
+        # before re-running entity resolution with the new scheme.
         cluster_rows = []
         for row in unresolved_rows:
             method = row.get("resolution_method", "label_cluster")
