@@ -20,15 +20,56 @@ def build_batch_manifest(
     claim_stage: dict[str, Any],
     retrieval_stage: dict[str, Any],
     entity_resolution_stage: dict[str, Any] | None = None,
+    entity_resolution_unstructured_stage: dict[str, Any] | None = None,
+    retrieval_unstructured_stage: dict[str, Any] | None = None,
+    entity_resolution_hybrid_stage: dict[str, Any] | None = None,
     started_at: str | None = None,
     finished_at: str | None = None,
 ) -> dict[str, Any]:
+    """Build a batch manifest for a multi-stage demo run.
+
+    The new unstructured-first batch sequence emits these stage keys when the
+    corresponding optional stage arguments are provided:
+
+    * ``pdf_ingest`` — lexical graph written from the PDF
+    * ``claim_and_mention_extraction`` — extracted claims and entity mentions
+    * ``entity_resolution_unstructured_only`` — mention clustering pass (no structured
+      ingest required); present when *entity_resolution_unstructured_stage* is given
+    * ``retrieval_and_qa_unstructured_only`` — Q&A pass *before* structured ingest,
+      demonstrating meaningful results from unstructured data alone; present when
+      *retrieval_unstructured_stage* is given
+    * ``structured_ingest`` — optional structured enrichment/verification
+    * ``entity_resolution_hybrid`` — hybrid alignment pass that enriches
+      :ResolvedEntityCluster nodes with :ALIGNED_WITH edges to :CanonicalEntity nodes
+      where available; present when *entity_resolution_hybrid_stage* is given
+    * ``retrieval_and_qa`` — final Q&A pass after structured enrichment
+
+    For backward compatibility, if *entity_resolution_stage* is provided it is still
+    emitted under the legacy ``entity_resolution`` key.
+    """
     stages: dict[str, Any] = {
-        "structured_ingest": {**structured_stage, "run_id": structured_run_id},
         "pdf_ingest": {**pdf_stage, "run_id": unstructured_run_id},
         "claim_and_mention_extraction": {**claim_stage, "run_id": unstructured_run_id},
-        "retrieval_and_qa": {**retrieval_stage, "run_id": unstructured_run_id},
     }
+    if entity_resolution_unstructured_stage is not None:
+        stages["entity_resolution_unstructured_only"] = {
+            **entity_resolution_unstructured_stage,
+            "run_id": unstructured_run_id,
+        }
+    if retrieval_unstructured_stage is not None:
+        stages["retrieval_and_qa_unstructured_only"] = {
+            **retrieval_unstructured_stage,
+            "run_id": unstructured_run_id,
+        }
+    stages["structured_ingest"] = {**structured_stage, "run_id": structured_run_id}
+    if entity_resolution_hybrid_stage is not None:
+        stages["entity_resolution_hybrid"] = {
+            **entity_resolution_hybrid_stage,
+            "run_id": unstructured_run_id,
+        }
+    stages["retrieval_and_qa"] = {**retrieval_stage, "run_id": unstructured_run_id}
+    # Backward-compatible legacy key; only emitted when the caller explicitly passes the
+    # old entity_resolution_stage parameter (e.g. pre-existing tests or callers).
     if entity_resolution_stage is not None:
         stages["entity_resolution"] = {**entity_resolution_stage, "run_id": unstructured_run_id}
 

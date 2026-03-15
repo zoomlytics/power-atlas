@@ -79,7 +79,7 @@ def _build_config_from_args(args: argparse.Namespace) -> Config:
         neo4j_database=args.neo4j_database,
         openai_model=args.openai_model,
         question=getattr(args, "question", None),
-        resolution_mode=getattr(args, "resolution_mode", None) or "structured_anchor",
+        resolution_mode=getattr(args, "resolution_mode", None) or "unstructured_only",
     )
 
 
@@ -281,12 +281,36 @@ def _resolve_ask_scope(
 
 
 def _run_orchestrated(config: Config) -> Path:
+    """Run the full demo batch sequence with an unstructured-first posture.
+
+    Sequence:
+
+    **Phase 1 — Unstructured-only pass** (demonstrates meaningful Q&A without structured ingest):
+
+    1. PDF ingest → lexical graph
+    2. Claim and mention extraction
+    3. Entity resolution in ``unstructured_only`` mode — clusters mentions against each
+       other without any structured canonical entity lookup
+    4. Q&A — shows that useful retrieval and citation-grounded answers are available
+       *before* any structured data is loaded
+
+    **Phase 2 — Structured enrichment pass** (structured ingest is additive):
+
+    5. Structured ingest — writes :CanonicalEntity nodes and structured claims as optional
+       verification/enrichment; this step is intentionally deferred to demonstrate that
+       unstructured data stands on its own
+    6. Entity resolution in ``hybrid`` mode — enriches existing :ResolvedEntityCluster
+       nodes with :ALIGNED_WITH edges to matching :CanonicalEntity nodes where available;
+       gracefully degrades if no matches exist
+    7. Final Q&A — demonstrates enriched retrieval after structured alignment
+    """
     config.output_dir.mkdir(parents=True, exist_ok=True)
     started_at = _now_iso()
     structured_run_id = make_run_id("structured_ingest")
     unstructured_run_id = make_run_id("unstructured_ingest")
 
-    structured_stage = run_structured_ingest(config, structured_run_id, fixtures_dir=FIXTURES_DIR)
+    # ── Phase 1: Unstructured-only pass ──────────────────────────────────────
+    # Ingest the PDF and build the lexical graph first.
     pdf_stage = run_pdf_ingest(
         config,
         unstructured_run_id,
@@ -308,17 +332,40 @@ def _run_orchestrated(config: Config) -> Path:
         run_id=unstructured_run_id,
         source_uri=pdf_source_uri,
     )
-    entity_resolution_stage = run_entity_resolution(
+    # Cluster extracted mentions against each other; no CanonicalEntity lookup required.
+    entity_resolution_unstructured_stage = run_entity_resolution(
         config,
         run_id=unstructured_run_id,
         source_uri=pdf_source_uri,
+        resolution_mode="unstructured_only",
     )
+    # Demonstrate that meaningful Q&A is available before any structured ingest.
+    retrieval_unstructured_stage = run_retrieval_and_qa(
+        config,
+        run_id=unstructured_run_id,
+        source_uri=pdf_source_uri,
+        index_name=CHUNK_EMBEDDING_INDEX_NAME,
+    )
+
+    # ── Phase 2: Structured enrichment pass ──────────────────────────────────
+    # Structured ingest is deferred to demonstrate it is optional enrichment.
+    structured_stage = run_structured_ingest(config, structured_run_id, fixtures_dir=FIXTURES_DIR)
+    # Hybrid alignment enriches existing ResolvedEntityCluster nodes with ALIGNED_WITH
+    # edges to CanonicalEntity nodes; gracefully degrades when no matches exist.
+    entity_resolution_hybrid_stage = run_entity_resolution(
+        config,
+        run_id=unstructured_run_id,
+        source_uri=pdf_source_uri,
+        resolution_mode="hybrid",
+    )
+    # Final Q&A after structured enrichment shows the additive benefit.
     retrieval_stage = run_retrieval_and_qa(
         config,
         run_id=unstructured_run_id,
         source_uri=pdf_source_uri,
         index_name=CHUNK_EMBEDDING_INDEX_NAME,
     )
+
     finished_at = _now_iso()
     manifest = build_batch_manifest(
         config=config,
@@ -327,7 +374,9 @@ def _run_orchestrated(config: Config) -> Path:
         structured_stage=structured_stage,
         pdf_stage=pdf_stage,
         claim_stage=claim_stage,
-        entity_resolution_stage=entity_resolution_stage,
+        entity_resolution_unstructured_stage=entity_resolution_unstructured_stage,
+        retrieval_unstructured_stage=retrieval_unstructured_stage,
+        entity_resolution_hybrid_stage=entity_resolution_hybrid_stage,
         retrieval_stage=retrieval_stage,
         started_at=started_at,
         finished_at=finished_at,

@@ -282,7 +282,7 @@ class TestRunEntityResolutionLive(unittest.TestCase):
             driver = self._make_driver(mentions, canonicals)
 
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                result = run_entity_resolution(config, run_id="run-live-001", source_uri="file:///doc.pdf")
+                result = run_entity_resolution(config, run_id="run-live-001", source_uri="file:///doc.pdf", resolution_mode="structured_anchor")
 
             self.assertEqual(result["status"], "live")
             self.assertEqual(result["mentions_total"], 1)
@@ -298,7 +298,7 @@ class TestRunEntityResolutionLive(unittest.TestCase):
             driver = self._make_driver(mentions, canonicals)
 
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                result = run_entity_resolution(config, run_id="run-live-002", source_uri=None)
+                result = run_entity_resolution(config, run_id="run-live-002", source_uri=None, resolution_mode="structured_anchor")
 
             self.assertEqual(result["resolved"], 1)
             self.assertEqual(result["resolution_breakdown"].get("label_exact"), 1)
@@ -311,7 +311,7 @@ class TestRunEntityResolutionLive(unittest.TestCase):
             driver = self._make_driver(mentions, canonicals)
 
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                result = run_entity_resolution(config, run_id="run-live-003", source_uri=None)
+                result = run_entity_resolution(config, run_id="run-live-003", source_uri=None, resolution_mode="structured_anchor")
 
             self.assertEqual(result["resolved"], 1)
             self.assertEqual(result["resolution_breakdown"].get("alias_exact"), 1)
@@ -360,7 +360,7 @@ class TestRunEntityResolutionLive(unittest.TestCase):
             driver = self._make_driver(mentions, canonicals)
 
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                run_entity_resolution(config, run_id="run-live-006", source_uri="file:///a.pdf")
+                run_entity_resolution(config, run_id="run-live-006", source_uri="file:///a.pdf", resolution_mode="structured_anchor")
 
             summary_path = (
                 Path(tmpdir) / "runs" / "run-live-006" / "entity_resolution" / "entity_resolution_summary.json"
@@ -631,7 +631,7 @@ class TestResolvedEntityCluster(unittest.TestCase):
             driver = self._make_driver(mentions, canonicals)
 
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                result = run_entity_resolution(config, run_id="run-cluster-002", source_uri=None)
+                result = run_entity_resolution(config, run_id="run-cluster-002", source_uri=None, resolution_mode="structured_anchor")
 
             self.assertEqual(result["resolved"], 1)
             self.assertEqual(result["clusters_created"], 0)
