@@ -449,7 +449,7 @@ demo/artifacts/runs/<run_id>/retrieval_and_qa/manifest.json
 | --- | --- | --- | --- |
 | Lexical | `Document`, `Chunk` | `ingest-pdf` | Stable for the run — never overwritten by downstream stages |
 | Extraction | `ExtractedClaim`, `EntityMention` | `extract-claims` | Non-destructive additions only |
-| Resolution | `ResolvedEntityCluster` (provisional), `UnresolvedEntity` (fallback) | `resolve-entities` | Non-destructive additions only; creates `MEMBER_OF` edges (all modes) and optionally `ALIGNED_WITH` edges to `CanonicalEntity` nodes (hybrid mode) |
+| Resolution | `ResolvedEntityCluster` (provisional), `UnresolvedEntity` (legacy/unused fallback; kept for cleanup/back-compat) | `resolve-entities` | Non-destructive additions only; creates `MEMBER_OF` edges (all modes) and optionally `ALIGNED_WITH` edges to `CanonicalEntity` nodes (hybrid mode) |
 | Structured (optional) | `Claim`, `Fact`, `Relationship`, `Source`, `CanonicalEntity` | `ingest-structured` | Non-destructive additions only; structured ingest is optional enrichment |
 
 Every `Chunk` node includes ingest metadata fields such as `run_id`, `source_uri`, `dataset_id`, and positional provenance fields. `Document` nodes include the same ingest metadata.
