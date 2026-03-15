@@ -928,7 +928,9 @@ def run_entity_resolution(
             ]
             if canonical_nodes:
                 _, by_label, by_alias = _build_lookup_tables(canonical_nodes)
-                unique_cluster_texts = list({row["normalized_text"] for row in unresolved_rows})
+                unique_cluster_texts = sorted(
+                    {row["normalized_text"] for row in unresolved_rows}
+                )
                 alignment_rows = _align_clusters_to_canonical(
                     unique_cluster_texts, by_label, by_alias
                 )
