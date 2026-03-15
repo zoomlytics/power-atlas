@@ -67,8 +67,13 @@ def resolution_layer_schema() -> GraphSchema:
                     "by the entity resolution stage; raw mentions are never modified.\n\n"
                     "**Identity scoping**: ``cluster_id`` encodes ``run_id``, ``entity_type``, "
                     "and ``normalized_text`` so that clusters are never unintentionally merged "
-                    "across processing runs or entity types. Format: "
-                    "``cluster::<run_id>::<entity_type>::<normalized_text>``."
+                    "across processing runs or entity types. Each component is percent-encoded "
+                    "(RFC 3986) before joining so that a component containing the ``::`` "
+                    "delimiter cannot collide with a legitimately different tuple. Format: "
+                    "``cluster::<run_id_enc>::<entity_type_enc>::<normalized_text_enc>``. "
+                    "``entity_type=None`` is treated as an empty string before encoding, "
+                    "producing an empty ``<entity_type_enc>`` segment "
+                    "(e.g. ``cluster::run1::::ibm``)."
                 ),
                 properties=[
                     PropertyType(name="cluster_id", type="STRING", required=True),

@@ -77,6 +77,7 @@ from datetime import UTC, datetime
 from difflib import SequenceMatcher
 from typing import Any
 from pathlib import Path
+from urllib.parse import quote as _pct_encode
 
 from demo.contracts.resolution import ALIGNMENT_VERSION as _ALIGNMENT_VERSION
 
@@ -125,17 +126,24 @@ def _make_cluster_id(run_id: str, entity_type: str | None, normalized_text: str)
       as an ORG vs "IBM" as a PRODUCT).
     * **normalized_text** — the canonical text of the cluster representative.
 
-    Format: ``cluster::<run_id>::<entity_type>::<normalized_text>``
+    Format: ``cluster::<run_id_enc>::<entity_type_enc>::<normalized_text_enc>``
 
-    ``entity_type`` is stored as an empty string when ``None`` so the cluster_id
-    remains a stable, delimiter-safe string.  An empty *normalized_text* (e.g.
-    produced from a mention with a blank name) is also accepted and yields a
-    deterministic ID that groups all empty-name mentions for the same
-    (run_id, entity_type) together.  Callers should pass a non-empty *run_id*;
-    an empty *run_id* would produce IDs indistinguishable across runs.
+    Each component is percent-encoded (RFC 3986, ``safe=''``) before joining
+    so that a component containing the ``::`` delimiter cannot produce a
+    cluster_id that collides with a legitimately different tuple.
+
+    ``entity_type=None`` is treated as an empty string before encoding, so
+    ``entity_type=None`` and ``entity_type=""`` produce the same cluster_id.
+    An empty *normalized_text* (e.g. produced from a mention with a blank name)
+    is accepted and yields a deterministic ID that groups all empty-name
+    mentions for the same (run_id, entity_type) together.  Callers should pass
+    a non-empty *run_id*; an empty *run_id* would produce IDs
+    indistinguishable across runs.
     """
-    entity_type_part = entity_type or ""
-    return f"cluster::{run_id}::{entity_type_part}::{normalized_text}"
+    run_id_enc = _pct_encode(run_id, safe="")
+    entity_type_enc = _pct_encode(entity_type or "", safe="")
+    normalized_text_enc = _pct_encode(normalized_text, safe="")
+    return f"cluster::{run_id_enc}::{entity_type_enc}::{normalized_text_enc}"
 
 
 def _split_aliases(raw: Any) -> list[str]:
