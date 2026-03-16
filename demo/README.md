@@ -94,8 +94,8 @@ python -m demo.run_demo --live ingest-structured
 # Re-resolve entities in hybrid mode to align clusters with canonical entities
 python -m demo.run_demo --live resolve-entities --resolution-mode hybrid
 
-# Ask again to see the graph enriched by structured alignment
-python -m demo.run_demo --live ask --latest --question "What does the document say about Endeavor and MercadoLibre?"
+# Ask with cluster-aware retrieval to validate post-hybrid graph enrichment
+python -m demo.run_demo --live ask --latest --cluster-aware --question "What does the document say about Endeavor and MercadoLibre?"
 ```
 
 You can also ask across the whole database (all runs and all source documents):
@@ -261,8 +261,8 @@ python -m demo.run_demo --dry-run ingest-structured
 # Re-resolve entities in hybrid mode to align clusters with canonical entities
 python -m demo.run_demo --dry-run resolve-entities --resolution-mode hybrid
 
-# Ask again to see the enriched graph
-python -m demo.run_demo --dry-run ask
+# Ask with cluster-aware retrieval to validate post-hybrid graph enrichment
+python -m demo.run_demo --dry-run ask --cluster-aware
 ```
 
 The `hybrid` mode enriches existing `ResolvedEntityCluster` nodes with `ALIGNED_WITH` edges to `CanonicalEntity` nodes where label or alias matches exist. It gracefully degrades when no structured entities are present.
@@ -277,6 +277,18 @@ The `ask` command supports explicit retrieval scope flags:
 | `--latest` | In `--live` mode: retrieve from the latest successful unstructured ingest run. In `--dry-run` mode: behaves like the default (uses `UNSTRUCTURED_RUN_ID` if set; otherwise no run id is used and the CLI prints `run=(none — dry-run placeholder)`). |
 | `--run-id <RUN_ID>` | Retrieve from a specific ingest run |
 | `--all-runs` | Retrieve across the whole database — no `run_id` filter and no `source_uri` filter |
+
+#### Retrieval mode selection for `ask`
+
+The `ask` command also exposes flags to select the retrieval mode. These are independent of the scope flags above and may be combined with any scope flag.
+
+| Flag | Retrieval mode | When to use |
+| --- | --- | --- |
+| *(none)* | **Plain run-scoped vector retrieval** — returns chunk text with basic metadata only | Default for ad-hoc questions before structured enrichment |
+| `--expand-graph` | **Graph-expanded retrieval** — adds `ExtractedClaim`, `EntityMention`, and canonical entity context from the graph alongside each retrieved chunk | After entity resolution (`unstructured_only` mode) to include claim and mention context |
+| `--cluster-aware` | **Cluster-aware retrieval** — full graph expansion plus `ResolvedEntityCluster` membership and `ALIGNED_WITH` edges to canonical entities (implies `--expand-graph`) | **Recommended post-hybrid validation step** — run after `resolve-entities --resolution-mode hybrid` to confirm that ALIGNED_WITH enrichment is surfaced during retrieval |
+
+The manifest records both flags under `stages.retrieval_and_qa.cluster_aware` and `stages.retrieval_and_qa.expand_graph` so you can confirm which retrieval mode was active for any given run.
 
 Examples (`--live` mode):
 
@@ -359,6 +371,38 @@ python -m demo.run_demo --live ask --all-runs --question "What does the document
 
 Removes both the `run_id` filter and the `source_uri` filter — retrieval spans all chunks in the database, across all runs and all source documents.
 
+### Post-hybrid cluster-aware Q&A (recommended final validation step)
+
+After running `resolve-entities --resolution-mode hybrid`, use `--cluster-aware` to confirm that the hybrid alignment is surfaced during retrieval. This is the **intended final validation step** for the unstructured-first ER architecture:
+
+```bash
+# Step 1: run hybrid alignment (if not already done)
+python -m demo.run_demo --live resolve-entities --resolution-mode hybrid
+
+# Step 2: ask with cluster-aware retrieval to validate post-alignment graph enrichment
+python -m demo.run_demo --live ask --latest --cluster-aware \
+    --question "What does the document say about Endeavor and MercadoLibre?"
+```
+
+The manifest will record `cluster_aware: true` and `expand_graph: true` under `stages.retrieval_and_qa`, confirming that cluster membership and `ALIGNED_WITH` edges were consulted during retrieval.
+
+### Graph-expanded retrieval (without cluster awareness)
+
+```bash
+python -m demo.run_demo --live ask --latest --expand-graph \
+    --question "What does the document say about Endeavor and MercadoLibre?"
+```
+
+Adds `ExtractedClaim`, `EntityMention`, and canonical entity context from the graph alongside each retrieved chunk. Use this after entity resolution in `unstructured_only` mode to include claim and mention context before structured enrichment is available.
+
+### Retrieval mode comparison
+
+| Mode | CLI flags | Manifest fields | When to use |
+| --- | --- | --- | --- |
+| Plain vector retrieval | *(none)* | `cluster_aware: false`, `expand_graph: false` | Ad-hoc questions, no graph context needed |
+| Graph-expanded | `--expand-graph` | `cluster_aware: false`, `expand_graph: true` | After `unstructured_only` entity resolution |
+| Cluster-aware | `--cluster-aware` | `cluster_aware: true`, `expand_graph: true` | After `hybrid` entity resolution — recommended final validation |
+
 ### Inspect the output manifest
 
 ```text
@@ -371,6 +415,8 @@ Useful Q&A manifest fields include (all nested under `stages.retrieval_and_qa`):
 - `stages.retrieval_and_qa.citation_fallback_applied`
 - `stages.retrieval_and_qa.citation_quality`
 - `stages.retrieval_and_qa.retrieval_results`
+- `stages.retrieval_and_qa.cluster_aware` — `true` when `--cluster-aware` was passed
+- `stages.retrieval_and_qa.expand_graph` — `true` when `--expand-graph` or `--cluster-aware` was passed
 
 To diagnose which retrieval scope was actually applied (useful when debugging `--all-runs` or unexpected results), inspect:
 

@@ -1586,6 +1586,167 @@ class WorkflowTests(unittest.TestCase):
         self.assertTrue(captured.get("all_runs"))
         self.assertIsNone(captured.get("run_id"))
 
+    # ── cluster-aware / expand-graph retrieval flags ───────────────────────────
+
+    def test_ask_cluster_aware_manifest_records_cluster_aware_true(self):
+        """Non-interactive ask --cluster-aware must write a manifest with cluster_aware=true.
+
+        This is the intended final validation step for the unstructured-first ER
+        architecture: after hybrid alignment the manifest must confirm that
+        cluster-aware retrieval was active, not the default plain vector path.
+        """
+        module = _load_module(RUN_DEMO_PATH, "run_ask_cluster_aware_test")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = module.Config(
+                dry_run=True,
+                output_dir=Path(tmpdir),
+                neo4j_uri="neo4j://localhost:7687",
+                neo4j_username="neo4j",
+                neo4j_password="testtesttest",
+                neo4j_database="neo4j",
+                openai_model="gpt-4o-mini",
+            )
+            manifest_path = module.run_independent_demo(config, "ask", cluster_aware=True)
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            stage = manifest["stages"]["retrieval_and_qa"]
+            self.assertTrue(
+                stage["cluster_aware"],
+                "ask --cluster-aware must record cluster_aware=true in the manifest",
+            )
+            self.assertTrue(
+                stage["expand_graph"],
+                "ask --cluster-aware implies expand_graph=true in the manifest",
+            )
+
+    def test_ask_expand_graph_manifest_records_expand_graph_true(self):
+        """Non-interactive ask --expand-graph must write a manifest with expand_graph=true."""
+        module = _load_module(RUN_DEMO_PATH, "run_ask_expand_graph_test")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = module.Config(
+                dry_run=True,
+                output_dir=Path(tmpdir),
+                neo4j_uri="neo4j://localhost:7687",
+                neo4j_username="neo4j",
+                neo4j_password="testtesttest",
+                neo4j_database="neo4j",
+                openai_model="gpt-4o-mini",
+            )
+            manifest_path = module.run_independent_demo(config, "ask", expand_graph=True)
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            stage = manifest["stages"]["retrieval_and_qa"]
+            self.assertTrue(
+                stage["expand_graph"],
+                "ask --expand-graph must record expand_graph=true in the manifest",
+            )
+            self.assertFalse(
+                stage["cluster_aware"],
+                "ask --expand-graph alone must not set cluster_aware=true",
+            )
+
+    def test_ask_default_manifest_records_plain_retrieval(self):
+        """Non-interactive ask with no retrieval flags must record both flags as false.
+
+        This verifies the baseline plain vector retrieval mode so that the
+        difference from graph-aware modes is explicit in manifests.
+        """
+        module = _load_module(RUN_DEMO_PATH, "run_ask_plain_retrieval_test")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = module.Config(
+                dry_run=True,
+                output_dir=Path(tmpdir),
+                neo4j_uri="neo4j://localhost:7687",
+                neo4j_username="neo4j",
+                neo4j_password="testtesttest",
+                neo4j_database="neo4j",
+                openai_model="gpt-4o-mini",
+            )
+            manifest_path = module.run_independent_demo(config, "ask")
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            stage = manifest["stages"]["retrieval_and_qa"]
+            self.assertFalse(
+                stage["cluster_aware"],
+                "default ask must record cluster_aware=false",
+            )
+            self.assertFalse(
+                stage["expand_graph"],
+                "default ask must record expand_graph=false",
+            )
+
+    def test_ask_cluster_aware_interactive_passes_cluster_aware_kwarg(self):
+        """Interactive ask --cluster-aware must call run_interactive_qa with cluster_aware=True."""
+        module = _load_module(RUN_DEMO_PATH, "run_ask_interactive_cluster_aware_test")
+        captured: dict[str, object] = {}
+
+        def _fake_run_interactive_qa(config, **kwargs):
+            captured.update(kwargs)
+
+        args = type(
+            "Args",
+            (),
+            {
+                "command": "ask",
+                "dry_run": False,
+                "interactive": True,
+                "all_runs": False,
+                "run_id": None,
+                "latest": False,
+                "cluster_aware": True,
+                "expand_graph": False,
+                "output_dir": DEMO_DIR / "artifacts",
+                "neo4j_uri": "neo4j://localhost:7687",
+                "neo4j_username": "neo4j",
+                "neo4j_password": "testtesttest",
+                "neo4j_database": "neo4j",
+                "openai_model": "gpt-4o-mini",
+                "question": None,
+            },
+        )()
+        original_parse_args = module.parse_args
+        original_run_interactive_qa = module.run_interactive_qa
+        original_resolve = module._resolve_ask_scope
+        try:
+            module.parse_args = lambda: args
+            module.run_interactive_qa = _fake_run_interactive_qa
+            # Stub _resolve_ask_scope to avoid a live Neo4j call.
+            module._resolve_ask_scope = lambda _args, _cfg: ("test-run-id", False)
+            with io.StringIO() as buf, redirect_stdout(buf):
+                module.main()
+        finally:
+            module.parse_args = original_parse_args
+            module.run_interactive_qa = original_run_interactive_qa
+            module._resolve_ask_scope = original_resolve
+
+        self.assertTrue(
+            captured.get("cluster_aware"),
+            "run_interactive_qa must be called with cluster_aware=True when --cluster-aware is set",
+        )
+
+    def test_parse_args_ask_cluster_aware_flag(self):
+        """parse_args must accept --cluster-aware for the ask subcommand."""
+        module = _load_module(RUN_DEMO_PATH, "run_ask_parse_cluster_aware_test")
+        args = module.parse_args(["ask", "--cluster-aware"])
+        self.assertTrue(
+            getattr(args, "cluster_aware", False),
+            "--cluster-aware flag must be parsed as cluster_aware=True",
+        )
+        self.assertFalse(
+            getattr(args, "expand_graph", True),
+            "--expand-graph must default to False when not specified",
+        )
+
+    def test_parse_args_ask_expand_graph_flag(self):
+        """parse_args must accept --expand-graph for the ask subcommand."""
+        module = _load_module(RUN_DEMO_PATH, "run_ask_parse_expand_graph_test")
+        args = module.parse_args(["ask", "--expand-graph"])
+        self.assertTrue(
+            getattr(args, "expand_graph", False),
+            "--expand-graph flag must be parsed as expand_graph=True",
+        )
+        self.assertFalse(
+            getattr(args, "cluster_aware", True),
+            "--cluster-aware must default to False when not specified",
+        )
+
 
 class ResetDemoDbTests(unittest.TestCase):
     """Tests for demo/reset_demo_db.py run_reset() and related helpers."""
