@@ -172,7 +172,10 @@ Recommended metrics per mode
 * ``"hybrid"``: use ``mentions_clustered``, ``mentions_unclustered``,
   ``clusters_created``, ``aligned_clusters``, ``distinct_canonical_entities_aligned``,
   ``mentions_in_aligned_clusters``, ``clusters_pending_alignment``, and
-  ``alignment_breakdown``.  Ignore ``resolved``/``unresolved``.
+  ``alignment_breakdown``.  Alignment-related counts such as
+  ``aligned_clusters`` and ``distinct_canonical_entities_aligned`` reflect
+  intended alignments derived from in-memory rows, not necessarily persisted
+  ``ALIGNED_WITH`` edges.  Ignore ``resolved``/``unresolved``.
 """
 from __future__ import annotations
 
@@ -1474,6 +1477,10 @@ def run_entity_resolution(
             if _make_cluster_id(run_id, row.get("entity_type"), row["normalized_text"])
             in aligned_cluster_ids
         )
+        # Alignment-related summary metrics below are derived from in-memory
+        # ``alignment_rows`` and represent intended alignments. They may differ
+        # from the number of persisted ``ALIGNED_WITH`` edges if the write step
+        # fails partially or matches fewer nodes than expected.
         summary["alignment_version"] = _ALIGNMENT_VERSION
         summary["aligned_clusters"] = len(alignment_rows)
         summary["alignment_breakdown"] = alignment_breakdown
