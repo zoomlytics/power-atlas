@@ -1179,6 +1179,438 @@ def test_retrieval_and_qa_cluster_aware_retrieval_query_contract_recorded(tmp_pa
     assert result["retrieval_query_contract"] == _RETRIEVAL_QUERY_WITH_CLUSTER.strip()
 
 
+def test_retrieval_and_qa_cluster_aware_passes_alignment_version_in_query_params(tmp_path: Path):
+    """When cluster_aware=True, alignment_version must be included in the query params passed to
+    the retriever so that ALIGNED_WITH edge filtering in the Cypher query is version-scoped."""
+    from demo.stages import run_retrieval_and_qa
+    from demo.contracts import ALIGNMENT_VERSION
+
+    captured_params: dict = {}
+
+    class _FakeRetriever:
+        def __init__(self, **kwargs):
+            pass
+
+        def search(self, **kwargs):
+            captured_params.update(kwargs.get("query_params", {}))
+            return _make_fake_retriever_result([])
+
+    live_config = Config(
+        dry_run=False,
+        output_dir=tmp_path,
+        neo4j_uri="bolt://example.invalid",
+        neo4j_username="neo4j",
+        neo4j_password="not-used",
+        neo4j_database="neo4j",
+        openai_model="gpt-4o-mini",
+    )
+
+    with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
+    ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class()), mock.patch(
+        "demo.stages.retrieval_and_qa.build_openai_llm"
+    ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+        run_retrieval_and_qa(
+            live_config,
+            run_id="cluster-av-run",
+            source_uri=None,
+            question="Test alignment version?",
+            cluster_aware=True,
+        )
+
+    assert "alignment_version" in captured_params, (
+        "cluster_aware retrieval must pass alignment_version in query_params for ALIGNED_WITH filtering"
+    )
+    assert captured_params["alignment_version"] == ALIGNMENT_VERSION
+
+
+def test_retrieval_and_qa_cluster_aware_query_params_omit_alignment_version_when_not_cluster_aware(tmp_path: Path):
+    """alignment_version must NOT appear in query params when cluster_aware=False, because the
+    non-cluster queries do not use ALIGNED_WITH edges and the param would be unexpected noise."""
+    from demo.stages import run_retrieval_and_qa
+
+    captured_params: dict = {}
+
+    class _FakeRetriever:
+        def __init__(self, **kwargs):
+            pass
+
+        def search(self, **kwargs):
+            captured_params.update(kwargs.get("query_params", {}))
+            return _make_fake_retriever_result([])
+
+    live_config = Config(
+        dry_run=False,
+        output_dir=tmp_path,
+        neo4j_uri="bolt://example.invalid",
+        neo4j_username="neo4j",
+        neo4j_password="not-used",
+        neo4j_database="neo4j",
+        openai_model="gpt-4o-mini",
+    )
+
+    with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
+    ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class()), mock.patch(
+        "demo.stages.retrieval_and_qa.build_openai_llm"
+    ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+        run_retrieval_and_qa(
+            live_config,
+            run_id="no-cluster-run",
+            source_uri=None,
+            question="Test non-cluster?",
+            cluster_aware=False,
+        )
+
+    assert "alignment_version" not in captured_params, (
+        "non-cluster-aware retrieval must not pass alignment_version in query_params"
+    )
+
+
+def test_retrieval_and_qa_cluster_aware_live_path_surfaces_member_of_traversal(tmp_path: Path):
+    """Live cluster-aware retrieval must surface cluster_memberships (MEMBER_OF traversal) in
+    retrieval_results metadata, verifying that indirect mention→cluster expansion reaches the
+    result layer so downstream consumers can inspect the traversal path."""
+    from demo.stages import run_retrieval_and_qa
+    from demo.stages.retrieval_and_qa import _chunk_citation_formatter
+
+    cluster_membership_data = [
+        {
+            "cluster_id": "cluster::run1::PERSON::john%20smith",
+            "cluster_name": "John Smith",
+            "membership_status": "provisional",
+            "membership_method": "fuzzy",
+        }
+    ]
+    record = _make_fake_neo4j_record(
+        chunk_id="chunk-cluster-1",
+        run_id="cluster-live-run",
+        source_uri="file:///evidence.pdf",
+        chunk_index=0,
+        page=1,
+        start_char=0,
+        end_char=150,
+        chunk_text="John Smith was involved in the transaction.",
+        similarityScore=0.92,
+        mentions=["John Smith"],
+        claims=[],
+        canonical_entities=[],
+        cluster_memberships=cluster_membership_data,
+        cluster_canonical_alignments=[],
+    )
+    item = _chunk_citation_formatter(record)
+
+    class _FakeRetriever:
+        def __init__(self, **kwargs):
+            pass
+
+        def search(self, **kwargs):
+            return _make_fake_retriever_result([item])
+
+    live_config = Config(
+        dry_run=False,
+        output_dir=tmp_path,
+        neo4j_uri="bolt://example.invalid",
+        neo4j_username="neo4j",
+        neo4j_password="not-used",
+        neo4j_database="neo4j",
+        openai_model="gpt-4o-mini",
+    )
+
+    with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
+    ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class()), mock.patch(
+        "demo.stages.retrieval_and_qa.build_openai_llm"
+    ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+        result = run_retrieval_and_qa(
+            live_config,
+            run_id="cluster-live-run",
+            source_uri=None,
+            question="Who was involved?",
+            cluster_aware=True,
+        )
+
+    assert result["status"] == "live"
+    assert result["hits"] == 1
+    assert len(result["retrieval_results"]) == 1
+
+    # The retrieval result must expose cluster_memberships so the traversal path is visible
+    hit_meta = result["retrieval_results"][0]["metadata"]
+    assert "cluster_memberships" in hit_meta, (
+        "cluster-aware retrieval results must include cluster_memberships in metadata"
+    )
+    assert hit_meta["cluster_memberships"] == cluster_membership_data, (
+        "cluster_memberships in result metadata must match the MEMBER_OF traversal data"
+    )
+
+    # The content string must include the cluster context label
+    hit_content = result["retrieval_results"][0]["content"]
+    assert "PROVISIONAL CLUSTER" in hit_content, (
+        "retrieval result content must include PROVISIONAL CLUSTER label from MEMBER_OF traversal"
+    )
+    assert "John Smith" in hit_content
+
+
+def test_retrieval_and_qa_cluster_aware_live_path_surfaces_aligned_with_traversal(tmp_path: Path):
+    """Live cluster-aware retrieval must surface cluster_canonical_alignments (ALIGNED_WITH
+    traversal via cluster node) in retrieval_results metadata.  This verifies that the indirect
+    path mention→MEMBER_OF→cluster→ALIGNED_WITH→canonical actually reaches the result layer."""
+    from demo.stages import run_retrieval_and_qa
+    from demo.stages.retrieval_and_qa import _chunk_citation_formatter
+
+    cluster_canonical_alignment_data = [
+        {
+            "canonical_name": "John Smith (Q12345)",
+            "alignment_method": "label_exact",
+            "alignment_status": "aligned",
+        }
+    ]
+    record = _make_fake_neo4j_record(
+        chunk_id="chunk-aligned-1",
+        run_id="aligned-live-run",
+        source_uri="file:///evidence.pdf",
+        chunk_index=1,
+        page=2,
+        start_char=150,
+        end_char=300,
+        chunk_text="The suspect matched the canonical entity.",
+        similarityScore=0.88,
+        mentions=["John Smith"],
+        claims=[],
+        canonical_entities=[],
+        cluster_memberships=[
+            {
+                "cluster_id": "cluster::run1::PERSON::john%20smith",
+                "cluster_name": "John Smith",
+                "membership_status": "accepted",
+                "membership_method": "label_cluster",
+            }
+        ],
+        cluster_canonical_alignments=cluster_canonical_alignment_data,
+    )
+    item = _chunk_citation_formatter(record)
+
+    class _FakeRetriever:
+        def __init__(self, **kwargs):
+            pass
+
+        def search(self, **kwargs):
+            return _make_fake_retriever_result([item])
+
+    live_config = Config(
+        dry_run=False,
+        output_dir=tmp_path,
+        neo4j_uri="bolt://example.invalid",
+        neo4j_username="neo4j",
+        neo4j_password="not-used",
+        neo4j_database="neo4j",
+        openai_model="gpt-4o-mini",
+    )
+
+    with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
+    ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class()), mock.patch(
+        "demo.stages.retrieval_and_qa.build_openai_llm"
+    ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+        result = run_retrieval_and_qa(
+            live_config,
+            run_id="aligned-live-run",
+            source_uri=None,
+            question="Who is the canonical entity?",
+            cluster_aware=True,
+        )
+
+    assert result["status"] == "live"
+    assert result["hits"] == 1
+
+    hit_meta = result["retrieval_results"][0]["metadata"]
+
+    # cluster_canonical_alignments must be present: this is the ALIGNED_WITH traversal path
+    assert "cluster_canonical_alignments" in hit_meta, (
+        "cluster-aware retrieval results must include cluster_canonical_alignments from ALIGNED_WITH traversal"
+    )
+    assert hit_meta["cluster_canonical_alignments"] == cluster_canonical_alignment_data
+
+    # The content must carry the canonical alignment label
+    hit_content = result["retrieval_results"][0]["content"]
+    assert "John Smith (Q12345)" in hit_content, (
+        "canonical entity name reached via ALIGNED_WITH must appear in retrieval result content"
+    )
+    assert "Cluster aligned to canonical entity" in hit_content, (
+        "confirmed ALIGNED_WITH traversal must render as 'Cluster aligned to canonical entity'"
+    )
+
+
+def test_retrieval_and_qa_cluster_aware_hybrid_traversal_both_member_of_and_aligned_with(tmp_path: Path):
+    """Full hybrid traversal test: a single retrieved chunk whose mentions reach a
+    ResolvedEntityCluster (via MEMBER_OF) which is itself aligned to a CanonicalEntity
+    (via ALIGNED_WITH).  Both cluster_memberships and cluster_canonical_alignments must
+    appear in the retrieval result, confirming the complete indirect expansion path."""
+    from demo.stages import run_retrieval_and_qa
+    from demo.stages.retrieval_and_qa import _chunk_citation_formatter
+
+    membership_data = [
+        {
+            "cluster_id": "cluster::hybrid-run::ORG::acme%20corp",
+            "cluster_name": "Acme Corp",
+            "membership_status": "provisional",
+            "membership_method": "fuzzy",
+        }
+    ]
+    alignment_data = [
+        {
+            "canonical_name": "Acme Corporation (Wikidata Q99)",
+            "alignment_method": "alias_exact",
+            "alignment_status": "tentative",
+        }
+    ]
+    record = _make_fake_neo4j_record(
+        chunk_id="chunk-hybrid-1",
+        run_id="hybrid-run",
+        source_uri="file:///report.pdf",
+        chunk_index=0,
+        page=5,
+        start_char=200,
+        end_char=400,
+        chunk_text="Acme Corp signed a contract with the government.",
+        similarityScore=0.91,
+        mentions=["Acme Corp"],
+        claims=["Acme Corp signed a contract."],
+        canonical_entities=[],
+        cluster_memberships=membership_data,
+        cluster_canonical_alignments=alignment_data,
+    )
+    item = _chunk_citation_formatter(record)
+
+    class _FakeRetriever:
+        def __init__(self, **kwargs):
+            pass
+
+        def search(self, **kwargs):
+            return _make_fake_retriever_result([item])
+
+    live_config = Config(
+        dry_run=False,
+        output_dir=tmp_path,
+        neo4j_uri="bolt://example.invalid",
+        neo4j_username="neo4j",
+        neo4j_password="not-used",
+        neo4j_database="neo4j",
+        openai_model="gpt-4o-mini",
+    )
+
+    with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
+    ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class()), mock.patch(
+        "demo.stages.retrieval_and_qa.build_openai_llm"
+    ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+        result = run_retrieval_and_qa(
+            live_config,
+            run_id="hybrid-run",
+            source_uri=None,
+            question="What did Acme Corp sign?",
+            cluster_aware=True,
+        )
+
+    assert result["status"] == "live"
+    assert result["hits"] == 1
+
+    hit_meta = result["retrieval_results"][0]["metadata"]
+
+    # Both traversal paths must surface in metadata
+    assert hit_meta["cluster_memberships"] == membership_data, (
+        "MEMBER_OF traversal data must appear in retrieval result metadata"
+    )
+    assert hit_meta["cluster_canonical_alignments"] == alignment_data, (
+        "ALIGNED_WITH traversal data must appear in retrieval result metadata"
+    )
+
+    # Content must include both cluster context labels
+    hit_content = result["retrieval_results"][0]["content"]
+    assert "PROVISIONAL CLUSTER" in hit_content, "provisional MEMBER_OF membership must label content"
+    assert "Acme Corp" in hit_content
+    assert "PROVISIONAL ALIGNMENT" in hit_content, "tentative ALIGNED_WITH edge must label content as provisional"
+    assert "Acme Corporation (Wikidata Q99)" in hit_content
+
+
+def test_format_cluster_context_deduplicates_repeated_memberships():
+    """_format_cluster_context must collapse duplicate (cluster_name, method, status) entries
+    that arise when multiple EntityMention nodes in the same chunk point at the same cluster."""
+    from demo.stages.retrieval_and_qa import _format_cluster_context
+
+    # Two memberships with identical cluster_name/method/status — typical when two
+    # co-reference mentions in the same chunk both have MEMBER_OF edges to the same cluster.
+    memberships = [
+        {"cluster_name": "Apple Inc", "membership_status": "accepted", "membership_method": "label_cluster"},
+        {"cluster_name": "Apple Inc", "membership_status": "accepted", "membership_method": "label_cluster"},
+        {"cluster_name": "Apple Inc", "membership_status": "accepted", "membership_method": "label_cluster"},
+    ]
+    result = _format_cluster_context(memberships, [])
+    # The cluster name should appear exactly once despite three identical entries
+    assert result.count("Apple Inc") == 1, (
+        "_format_cluster_context must deduplicate identical cluster membership entries"
+    )
+
+
+def test_format_cluster_context_deduplicates_repeated_alignments():
+    """_format_cluster_context must deduplicate repeated canonical alignment entries that
+    arise when the same ALIGNED_WITH edge is traversed from multiple mention paths."""
+    from demo.stages.retrieval_and_qa import _format_cluster_context
+
+    alignments = [
+        {"canonical_name": "Apple Inc. (Q312)", "alignment_method": "label_exact", "alignment_status": "aligned"},
+        {"canonical_name": "Apple Inc. (Q312)", "alignment_method": "label_exact", "alignment_status": "aligned"},
+    ]
+    result = _format_cluster_context([], alignments)
+    assert result.count("Apple Inc. (Q312)") == 1, (
+        "_format_cluster_context must deduplicate identical canonical alignment entries"
+    )
+
+
+def test_format_cluster_context_falls_back_to_cluster_id_when_name_absent():
+    """_format_cluster_context must use cluster_id as the display label when cluster_name is
+    absent or empty, so the cluster context section is always informative even for clusters
+    whose canonical_name has not yet been set."""
+    from demo.stages.retrieval_and_qa import _format_cluster_context
+
+    memberships = [
+        {
+            "cluster_id": "cluster::run1::PERSON::jane%20doe",
+            "cluster_name": None,
+            "membership_status": "provisional",
+            "membership_method": "fuzzy",
+        }
+    ]
+    result = _format_cluster_context(memberships, [])
+    assert "cluster::run1::PERSON::jane%20doe" in result, (
+        "_format_cluster_context must fall back to cluster_id when cluster_name is absent"
+    )
+    assert "PROVISIONAL CLUSTER" in result
+
+
+def test_format_cluster_context_handles_unknown_membership_status():
+    """_format_cluster_context must handle membership statuses outside the known set
+    by falling back to the PROVISIONAL CLUSTER label with the raw status preserved,
+    so novel pipeline statuses do not raise errors or silently discard information."""
+    from demo.stages.retrieval_and_qa import _format_cluster_context
+
+    memberships = [
+        {
+            "cluster_name": "Some Entity",
+            "membership_status": "experimental_new_status",
+            "membership_method": "ml_classifier",
+        }
+    ]
+    result = _format_cluster_context(memberships, [])
+    assert "PROVISIONAL CLUSTER" in result, (
+        "unknown membership status must fall back to PROVISIONAL CLUSTER label"
+    )
+    assert "Some Entity" in result
+    assert "experimental_new_status" in result, (
+        "unknown status value must be preserved in the rendered output for traceability"
+    )
+
+
 def test_power_atlas_rag_template_includes_provisional_cluster_instructions():
     """The prompt template must include instructions for handling provisional cluster context."""
     from demo.contracts.prompts import POWER_ATLAS_RAG_TEMPLATE
