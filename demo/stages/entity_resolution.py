@@ -150,21 +150,21 @@ In ``"hybrid"`` mode, canonical alignment metrics are also present:
 
 * ``alignment_version``: Version string for the canonical alignment algorithm.
 * ``aligned_clusters``: Number of :ResolvedEntityCluster nodes that received an
-  ``ALIGNED_WITH`` edge (scoped to ``run_id`` **and** ``alignment_version``) pointing
-  to a :CanonicalEntity node in this run.
+  ``ALIGNED_WITH`` edge whose ``(run_id, alignment_version)`` properties match
+  this stage, pointing to some :CanonicalEntity node.
 * ``alignment_breakdown``: Mapping from alignment strategy name to the number
   of ``ALIGNED_WITH`` edges written by that strategy, derived from persisted
   graph state (scoped to ``run_id`` and ``alignment_version``).
 * ``distinct_canonical_entities_aligned``: Count of unique :CanonicalEntity
-  nodes that are the target of at least one ``ALIGNED_WITH`` edge created in
-  this run (scoped to ``alignment_version``).
+  nodes that are the target of at least one ``ALIGNED_WITH`` edge whose
+  ``(run_id, alignment_version)`` properties match this stage.
 * ``mentions_in_aligned_clusters``: Number of :EntityMention nodes (via
-  ``MEMBER_OF``) that belong to a :ResolvedEntityCluster which has an
-  ``ALIGNED_WITH`` edge (scoped to ``alignment_version``) to some :CanonicalEntity.
+  ``MEMBER_OF``) that belong to a :ResolvedEntityCluster which has at least one
+  ``ALIGNED_WITH`` edge whose ``(run_id, alignment_version)`` properties match
+  this stage, to some :CanonicalEntity.
 * ``clusters_pending_alignment``: Number of run-scoped :ResolvedEntityCluster
-  nodes that did **not** receive an ``ALIGNED_WITH`` edge in this run.
-  Computed as ``total_graph_clusters - aligned_clusters``, clamped at 0 to
-  guard against stale edges on a reused ``run_id``.
+  nodes that did **not** receive any ``ALIGNED_WITH`` edge whose
+  ``(run_id, alignment_version)`` properties match this stage.
 
 All alignment counts are scoped to ``(run_id, alignment_version)`` so they are
 consistent with the write path (which MERGEs ``ALIGNED_WITH`` by that composite
