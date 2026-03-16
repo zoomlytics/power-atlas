@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import tempfile
 import unittest
 from pathlib import Path
@@ -2542,6 +2543,330 @@ class TestRunEntityResolutionHybrid(unittest.TestCase):
                 any("RESOLVES_TO" in c for c in all_calls),
                 "hybrid mode must not write RESOLVES_TO edges",
             )
+
+
+class TestManifestGraphConsistency(unittest.TestCase):
+    """End-to-end consistency checks between manifest summaries and graph state.
+
+    These tests mirror the live-run scenario described in the issue tracker:
+      - graph state:  262 mentions, 197 clusters, 262 MEMBER_OF, 23 ALIGNED_WITH
+      - manifest bug: alignment metrics (e.g. ``aligned_clusters``) are 0/absent
+        despite 23 ALIGNED_WITH edges; ``resolved=0, unresolved=262`` is expected
+        in hybrid/unstructured_only modes and is not itself a bug.
+
+    Each assertion message identifies whether the failure is in graph-write
+    execution (MERGE queries) or in manifest post-write query capture, so
+    reviewers can narrow the root cause without inspecting Neo4j directly.
+    """
+
+    def _live_hybrid_config(self, tmp_path: Path) -> Config:
+        cfg = _live_config(tmp_path)
+        cfg.resolution_mode = _RESOLUTION_MODE_HYBRID
+        return cfg
+
+    def _live_unstructured_config(self, tmp_path: Path) -> Config:
+        cfg = _live_config(tmp_path)
+        cfg.resolution_mode = _RESOLUTION_MODE_UNSTRUCTURED_ONLY
+        return cfg
+
+    @staticmethod
+    def _make_mentions(count: int, prefix: str = "Entity") -> list[dict[str, Any]]:
+        """Generate ``count`` unique mentions with distinct normalized texts."""
+        return [
+            {"mention_id": f"m{i}", "name": f"{prefix} {i}", "entity_type": "person"}
+            for i in range(count)
+        ]
+
+    @staticmethod
+    def _make_canonicals(
+        mentions: list[dict[str, Any]], count: int
+    ) -> list[dict[str, Any]]:
+        """Return canonical nodes matching the first ``count`` mention names."""
+        return [
+            {
+                "entity_id": f"Q{i}",
+                "run_id": "canonical-run",
+                "name": m["name"],
+                "aliases": None,
+            }
+            for i, m in enumerate(mentions[:count])
+        ]
+
+    # ------------------------------------------------------------------
+    # unstructured_only: clustering invariants at scale
+    # ------------------------------------------------------------------
+
+    def test_unstructured_only_all_mentions_clustered_at_scale(self):
+        """A moderate number of mentions must all appear in MEMBER_OF clusters and partition invariants must hold."""
+        n = 64
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_unstructured_config(Path(tmpdir))
+            mentions = self._make_mentions(n)
+            driver = _make_neo4j_test_driver(mentions, [])
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                result = run_entity_resolution(
+                    config, run_id="consistency-uo-scale-001", source_uri=None
+                )
+        # All mentions must be clustered.
+        self.assertEqual(
+            result["mentions_clustered"],
+            n,
+            "mentions_clustered must equal mentions_total; "
+            "if this fails, MEMBER_OF edges were not written for all mentions "
+            "(graph-write failure, not manifest summarization).",
+        )
+        self.assertEqual(
+            result["mentions_unclustered"],
+            0,
+            "mentions_unclustered must be 0 when all mentions have MEMBER_OF edges; "
+            "if this fails, the post-write MEMBER_OF coverage query is incorrect "
+            "(manifest summarization failure).",
+        )
+        # Partition invariant: clustered + unclustered == total.
+        self.assertEqual(
+            result["mentions_clustered"] + result["mentions_unclustered"],
+            result["mentions_total"],
+            "mentions_clustered + mentions_unclustered must equal mentions_total; "
+            "a mismatch indicates the manifest summarization is inconsistent with graph state.",
+        )
+
+    def test_unstructured_only_clusters_created_at_most_mentions_total(self):
+        """clusters_created can never exceed mentions_total."""
+        n = 262
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_unstructured_config(Path(tmpdir))
+            mentions = self._make_mentions(n)
+            driver = _make_neo4j_test_driver(mentions, [])
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                result = run_entity_resolution(
+                    config, run_id="consistency-uo-clusters-001", source_uri=None
+                )
+        self.assertLessEqual(
+            result["clusters_created"],
+            result["mentions_total"],
+            "clusters_created must not exceed mentions_total; "
+            "each cluster needs at least one member mention.",
+        )
+
+    # ------------------------------------------------------------------
+    # hybrid: alignment invariants — mirrors the live-run evidence
+    # ------------------------------------------------------------------
+
+    def test_hybrid_all_mentions_clustered_at_scale(self):
+        """In hybrid mode all mentions must be in MEMBER_OF clusters."""
+        n = 64
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_hybrid_config(Path(tmpdir))
+            mentions = self._make_mentions(n)
+            driver = _make_neo4j_test_driver(mentions, [])
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                result = run_entity_resolution(
+                    config, run_id="consistency-hybrid-cluster-001", source_uri=None
+                )
+        self.assertEqual(
+            result["mentions_clustered"],
+            n,
+            "Graph-backed mentions_clustered must equal mentions_total in hybrid mode; "
+            "if this fails, MEMBER_OF writes did not cover every mention "
+            "(graph-write failure).",
+        )
+        self.assertEqual(
+            result["mentions_unclustered"],
+            0,
+            "mentions_unclustered must be 0 when all mentions have MEMBER_OF edges; "
+            "if this fails, the post-write MEMBER_OF coverage query is returning "
+            "a non-zero count (manifest summarization failure).",
+        )
+
+    def test_hybrid_aligned_clusters_nonzero_when_alignments_exist(self):
+        """Manifest aligned_clusters must be > 0 when ALIGNED_WITH edges exist in the graph.
+
+        This is the primary regression test for the live-run divergence where the
+        graph held 23 ALIGNED_WITH edges but the manifest reported resolved=0 /
+        unresolved=262 with no alignment metrics.  A failure here means the
+        post-write ALIGNED_WITH query result is not being captured in the manifest
+        (manifest summarization failure, not a graph-write failure).
+        """
+        n_mentions = 30
+        n_aligned = 23
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_hybrid_config(Path(tmpdir))
+            mentions = self._make_mentions(n_mentions)
+            canonicals = self._make_canonicals(mentions, n_aligned)
+            driver = _make_neo4j_test_driver(mentions, canonicals)
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                result = run_entity_resolution(
+                    config, run_id="consistency-hybrid-align-001", source_uri=None
+                )
+                aligned_query_calls = []
+                for (_args, kwargs) in driver.execute_query.call_args_list:
+                    params = kwargs.get("parameters_")
+                    if not params:
+                        continue
+                    if params.get("run_id") != "consistency-hybrid-align-001":
+                        continue
+                    if params.get("alignment_version") != _ALIGNMENT_VERSION:
+                        continue
+                    if not _args or not isinstance(_args[0], str):
+                        continue
+                    query_text = re.sub(r"\s+", " ", _args[0]).strip()
+                    if "ALIGNED_WITH" in query_text and "AS aligned_clusters" in query_text:
+                        aligned_query_calls.append(kwargs)
+                self.assertTrue(
+                    aligned_query_calls,
+                    "expected aligned-clusters query to be called with run_id and "
+                    "alignment_version parameters to scope post-write alignment metrics.",
+                )
+        self.assertGreater(
+            result["aligned_clusters"],
+            0,
+            "aligned_clusters must be > 0 when canonical nodes exist and ALIGNED_WITH "
+            "edges were written; if this fails, the manifest is not reading post-write "
+            "graph state (manifest summarization failure).",
+        )
+        self.assertGreater(
+            result["mentions_in_aligned_clusters"],
+            0,
+            "mentions_in_aligned_clusters must be > 0 when aligned_clusters > 0; "
+            "if this fails, the graph-backed query for aligned mentions is returning 0 "
+            "(post-write query failure).",
+        )
+
+    def test_hybrid_alignment_bounds_invariant(self):
+        """aligned_clusters <= clusters_created and mentions_in_aligned <= mentions_clustered."""
+        n_mentions = 50
+        n_aligned = 20
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_hybrid_config(Path(tmpdir))
+            mentions = self._make_mentions(n_mentions)
+            canonicals = self._make_canonicals(mentions, n_aligned)
+            driver = _make_neo4j_test_driver(mentions, canonicals)
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                result = run_entity_resolution(
+                    config, run_id="consistency-hybrid-bounds-001", source_uri=None
+                )
+        self.assertLessEqual(
+            result["aligned_clusters"],
+            result["clusters_created"],
+            "aligned_clusters cannot exceed clusters_created; "
+            "a violation means the manifest is over-counting aligned clusters.",
+        )
+        self.assertLessEqual(
+            result["mentions_in_aligned_clusters"],
+            result["mentions_clustered"],
+            "mentions_in_aligned_clusters cannot exceed mentions_clustered; "
+            "a violation means the manifest is over-counting aligned mentions.",
+        )
+
+    def test_hybrid_alignment_partition_invariant(self):
+        """aligned_clusters + clusters_pending_alignment == clusters_created."""
+        n_mentions = 40
+        n_aligned = 15
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_hybrid_config(Path(tmpdir))
+            mentions = self._make_mentions(n_mentions)
+            canonicals = self._make_canonicals(mentions, n_aligned)
+            driver = _make_neo4j_test_driver(mentions, canonicals)
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                result = run_entity_resolution(
+                    config, run_id="consistency-hybrid-partition-001", source_uri=None
+                )
+        self.assertEqual(
+            result["aligned_clusters"] + result["clusters_pending_alignment"],
+            result["clusters_created"],
+            "aligned_clusters + clusters_pending_alignment must equal clusters_created; "
+            "a mismatch indicates the manifest is deriving clusters_pending_alignment "
+            "from stale or incorrect graph totals.",
+        )
+
+    def test_hybrid_manifest_reflects_graph_at_live_run_scale(self):
+        """End-to-end: manifest must accurately reflect graph state at a realistic live-run scale.
+
+        This test uses a moderately sized synthetic dataset with:
+          - all extracted mentions clustered (MEMBER_OF coverage)
+          - a non-zero number of ALIGNED_WITH edges via provided canonical nodes
+
+        The unstructured clustering algorithm merges similarly-named mentions via
+        fuzzy matching, so the actual number of distinct clusters (and therefore
+        aligned clusters) will be smaller than the raw mention count.  The key
+        invariant is that the manifest must *not* report zero aligned_clusters when
+        ALIGNED_WITH edges exist in the graph — that was the live-run bug.
+
+        Assertion messages identify whether the failure is in graph-write execution
+        or in manifest post-write query capture.
+        """
+        # Use a moderate number of mentions to keep test runtime reasonable while
+        # still exercising the clustering and alignment logic at scale.
+        n_mentions = 50
+        # Provide canonical nodes for the first few mentions.  Due to fuzzy merging
+        # some of these will correspond to the same cluster, so the resulting
+        # aligned_clusters count will be <= n_canonical.  The critical property under
+        # test is that aligned_clusters > 0, not its exact value.
+        n_canonical = 5
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_hybrid_config(Path(tmpdir))
+            mentions = self._make_mentions(n_mentions)
+            canonicals = self._make_canonicals(mentions, n_canonical)
+            driver = _make_neo4j_test_driver(mentions, canonicals)
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                result = run_entity_resolution(
+                    config, run_id="consistency-hybrid-live-scale-001", source_uri=None
+                )
+
+        # ---- Extraction counts ----
+        self.assertEqual(result["mentions_total"], n_mentions)
+
+        # ---- Clustering counts (MEMBER_OF coverage) ----
+        self.assertEqual(
+            result["mentions_clustered"],
+            n_mentions,
+            "mentions_clustered must equal mentions_total; "
+            "if this fails, MEMBER_OF edges were not written for every mention "
+            "(graph-write failure).",
+        )
+        self.assertEqual(
+            result["mentions_unclustered"],
+            0,
+            "mentions_unclustered must be 0 when all mentions have MEMBER_OF edges; "
+            "if this fails, the post-write MEMBER_OF coverage query returned a "
+            "non-zero count (manifest summarization failure).",
+        )
+        self.assertLessEqual(result["clusters_created"], n_mentions)
+
+        # ---- Alignment counts (ALIGNED_WITH coverage) ----
+        # The graph has ALIGNED_WITH edges (canonical nodes were provided); the
+        # manifest must not report zero.  This is the regression assertion for the
+        # live-run bug where the manifest showed resolved=0 / unresolved=262 while
+        # the graph held 23 ALIGNED_WITH edges.
+        self.assertGreater(
+            result["aligned_clusters"],
+            0,
+            "Manifest aligned_clusters must be > 0 when canonical nodes exist and "
+            "ALIGNED_WITH edges were written to the graph; "
+            "if this fails, the manifest is not reading post-write ALIGNED_WITH state "
+            "(manifest summarization failure).",
+        )
+        self.assertGreater(
+            result["mentions_in_aligned_clusters"],
+            0,
+            "mentions_in_aligned_clusters must be > 0 when aligned_clusters > 0; "
+            "if this fails, the post-write query for aligned mentions is broken "
+            "(manifest summarization failure).",
+        )
+
+        # ---- Internal consistency invariants ----
+        self.assertEqual(
+            result["mentions_clustered"] + result["mentions_unclustered"],
+            result["mentions_total"],
+        )
+        self.assertEqual(
+            result["aligned_clusters"] + result["clusters_pending_alignment"],
+            result["clusters_created"],
+        )
+        self.assertLessEqual(result["aligned_clusters"], result["clusters_created"])
+        self.assertLessEqual(
+            result["mentions_in_aligned_clusters"], result["mentions_clustered"]
+        )
 
 
 class TestArtifactSubdirValidation(unittest.TestCase):
