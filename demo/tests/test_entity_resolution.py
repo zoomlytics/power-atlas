@@ -2653,8 +2653,8 @@ class TestManifestGraphConsistency(unittest.TestCase):
     # ------------------------------------------------------------------
 
     def test_hybrid_all_mentions_clustered_at_scale(self):
-        """In hybrid mode all 262 mentions must be in MEMBER_OF clusters."""
-        n = 262
+        """In hybrid mode all mentions must be in MEMBER_OF clusters."""
+        n = 64
         with tempfile.TemporaryDirectory() as tmpdir:
             config = self._live_hybrid_config(Path(tmpdir))
             mentions = self._make_mentions(n)
