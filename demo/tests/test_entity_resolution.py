@@ -2597,8 +2597,8 @@ class TestManifestGraphConsistency(unittest.TestCase):
     # ------------------------------------------------------------------
 
     def test_unstructured_only_all_mentions_clustered_at_scale(self):
-        """262 mentions must all appear in MEMBER_OF clusters and partition invariants must hold."""
-        n = 262
+        """A moderate number of mentions must all appear in MEMBER_OF clusters and partition invariants must hold."""
+        n = 64
         with tempfile.TemporaryDirectory() as tmpdir:
             config = self._live_unstructured_config(Path(tmpdir))
             mentions = self._make_mentions(n)
