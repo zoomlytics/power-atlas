@@ -134,6 +134,29 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                 dest="all_runs",
                 help="Retrieve across all ingested data (no run_id filter); citations may span multiple runs",
             )
+            subparsers.choices[command].add_argument(
+                "--cluster-aware",
+                action="store_true",
+                default=False,
+                dest="cluster_aware",
+                help=(
+                    "Enable cluster-aware retrieval: extends graph expansion with "
+                    "ResolvedEntityCluster membership and ALIGNED_WITH edges to canonical "
+                    "entities. Implies --expand-graph. Run after 'resolve-entities "
+                    "--resolution-mode hybrid' to demonstrate post-alignment enrichment."
+                ),
+            )
+            subparsers.choices[command].add_argument(
+                "--expand-graph",
+                action="store_true",
+                default=False,
+                dest="expand_graph",
+                help=(
+                    "Enable graph-expanded retrieval: adds ExtractedClaim, EntityMention, "
+                    "and canonical entity context from the graph alongside each retrieved "
+                    "chunk. Use --cluster-aware for the full post-hybrid enrichment path."
+                ),
+            )
         if command == "ingest":
             subparsers.choices[command].add_argument(
                 "--question",
@@ -413,6 +436,8 @@ def _run_independent_stage(
     *,
     resolved_run_id: str | None = None,
     all_runs: bool = False,
+    cluster_aware: bool = False,
+    expand_graph: bool = False,
 ) -> Path:
     config.output_dir.mkdir(parents=True, exist_ok=True)
     # all_runs is only relevant for the ask command.
@@ -477,6 +502,8 @@ def _run_independent_stage(
                 ),
                 index_name=CHUNK_EMBEDDING_INDEX_NAME,
                 all_runs=_ask_all_runs,
+                cluster_aware=cluster_aware,
+                expand_graph=expand_graph,
             ),
         ),
     }
@@ -615,6 +642,8 @@ def main() -> None:
                         (FIXTURES_DIR / "unstructured" / "chain_of_custody.pdf").resolve().as_uri()
                     ),
                     index_name=CHUNK_EMBEDDING_INDEX_NAME,
+                    cluster_aware=getattr(args, "cluster_aware", False),
+                    expand_graph=getattr(args, "expand_graph", False),
                 )
             elif args.command == "ask":
                 # Non-interactive ask: resolve scope, print it, then run and write manifest.
@@ -625,6 +654,8 @@ def main() -> None:
                     args.command,
                     resolved_run_id=resolved_run_id,
                     all_runs=ask_all_runs,
+                    cluster_aware=getattr(args, "cluster_aware", False),
+                    expand_graph=getattr(args, "expand_graph", False),
                 )
                 print(f"Independent run manifest written to: {manifest_path}")
             else:
