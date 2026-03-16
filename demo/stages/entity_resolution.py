@@ -1076,8 +1076,8 @@ def run_entity_resolution(
                 # produced by _make_cluster_id (which incorporates run_id,
                 # source_uri, entity_type, and normalized_text). Multiple
                 # mention rows can map to the same cluster_id; we deduplicate
-                # by cluster_id in a single O(n) pass, then sort only the u
-                # unique entries (O(u log u), u ≤ n). source_uri is retained
+                # by cluster_id in a single O(n) pass, then sort only the unique
+                # entries (O(u log u), u ≤ n). source_uri is retained
                 # in each cluster dict so _write_alignment_results can set
                 # ALIGNED_WITH.source_uri per cluster.
                 cluster_entries_by_id: dict[str, tuple[tuple[str, str], dict[str, Any]]] = {}
