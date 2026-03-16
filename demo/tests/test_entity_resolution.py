@@ -2727,6 +2727,8 @@ class TestManifestGraphConsistency(unittest.TestCase):
                     if "parameters_" in kwargs
                     and kwargs["parameters_"].get("run_id") == "consistency-hybrid-align-001"
                     and kwargs["parameters_"].get("alignment_version") == _ALIGNMENT_VERSION
+                    and "query_" in kwargs
+                    and "RETURN count(DISTINCT c) AS aligned_clusters" in kwargs["query_"]
                 ]
                 self.assertTrue(
                     aligned_query_calls,
