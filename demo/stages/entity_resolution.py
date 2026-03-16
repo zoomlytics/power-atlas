@@ -78,7 +78,9 @@ running multiple passes for the same *run_id*:
 - ``entity_resolution_summary.json`` — counts, breakdown, resolver metadata.
 - ``unresolved_mentions.json``        — list of clustered (unresolved) mentions, each
   containing: ``mention_id``, ``mention_name``, ``normalized_text``, ``entity_type``,
-  and ``cluster_id``.
+  ``cluster_id``, and ``source_uri``.  ``source_uri`` is the per-mention origin URI
+  read from the :EntityMention node in Neo4j; it is included here as provenance
+  metadata only and does **not** affect which cluster a mention belongs to.
 """
 from __future__ import annotations
 
