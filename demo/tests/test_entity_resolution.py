@@ -73,12 +73,65 @@ def _make_neo4j_test_driver(
         for c in canonical_nodes
     ]
 
+    # Pre-compute alignment results to simulate graph-backed post-write queries.
+    # This mirrors what run_entity_resolution does internally so that the mock
+    # returns realistic counts rather than hard-coded zeros.
+    _cluster_rows = _cluster_mentions_unstructured_only([
+        {"mention_id": m["mention_id"], "name": m["name"],
+         "entity_type": m.get("entity_type"), "source_uri": m.get("source_uri")}
+        for m in mentions
+    ])
+    _cluster_entries: dict[str, dict[str, Any]] = {}
+    for row in _cluster_rows:
+        # Use a placeholder run_id consistent with what the live path would use.
+        # The cluster_id is computed in the real code with the actual run_id, but
+        # for counting purposes we just need a stable key per unique cluster.
+        _key = (row.get("entity_type") or "", row["normalized_text"])
+        if _key not in _cluster_entries:
+            _cluster_entries[_key] = {
+                "cluster_id": _key,   # synthetic key only used for set comparisons
+                "normalized_text": row["normalized_text"],
+            }
+    _unique_clusters = list(_cluster_entries.values())
+    _, _by_label, _by_alias = _build_lookup_tables([
+        {"entity_id": c["entity_id"], "run_id": c.get("run_id", ""),
+         "name": c["name"], "aliases": c.get("aliases")}
+        for c in canonical_nodes
+    ])
+    _alignment_rows = _align_clusters_to_canonical(_unique_clusters, _by_label, _by_alias)
+    _aligned_cluster_keys = {r["cluster_id"] for r in _alignment_rows}
+    _aligned_cluster_count = len(_aligned_cluster_keys)
+    _distinct_canonical_count = len(
+        {(r["canonical_entity_id"], r["canonical_run_id"]) for r in _alignment_rows}
+    )
+    _mentions_in_aligned = sum(
+        1 for row in _cluster_rows
+        if (row.get("entity_type") or "", row["normalized_text"]) in _aligned_cluster_keys
+    )
+
     def execute_query(query, parameters_=None, database_=None, routing_=None):
         # Post-write MEMBER_OF coverage count query (distinguished by the
         # "mentions_clustered" alias in the RETURN clause).
         if "mentions_clustered" in query:
             return (
                 [_Record(mentions_clustered=len(mention_records), mentions_unclustered=0)],
+                None,
+                None,
+            )
+        # Post-write ALIGNED_WITH cluster/canonical count query.
+        if "aligned_clusters" in query:
+            return (
+                [_Record(
+                    aligned_clusters=_aligned_cluster_count,
+                    distinct_canonical_entities_aligned=_distinct_canonical_count,
+                )],
+                None,
+                None,
+            )
+        # Post-write mentions-in-aligned-clusters count query.
+        if "mentions_in_aligned" in query:
+            return (
+                [_Record(mentions_in_aligned=_mentions_in_aligned)],
                 None,
                 None,
             )
@@ -2141,9 +2194,14 @@ class TestRunEntityResolutionHybrid(unittest.TestCase):
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
                 result = run_entity_resolution(config, run_id="hybrid-live-003", source_uri=None)
             self.assertEqual(result["aligned_clusters"], 0)
-            # ALIGNED_WITH must NOT appear in Cypher calls when no canonicals exist
+            # No ALIGNED_WITH *write* (MERGE) should happen when there are no canonical nodes.
+            # Post-write read queries do contain ALIGNED_WITH in their text, so we check
+            # specifically for write queries (MERGE) rather than all ALIGNED_WITH occurrences.
             all_calls = [str(c) for c in driver.execute_query.call_args_list]
-            self.assertFalse(any("ALIGNED_WITH" in c for c in all_calls))
+            self.assertFalse(
+                any("MERGE" in c and "ALIGNED_WITH" in c for c in all_calls),
+                "No ALIGNED_WITH MERGE write should occur when there are no canonical nodes",
+            )
 
     # ------------------------------------------------------------------
     # Live: enrichment alignment when CanonicalEntity nodes exist

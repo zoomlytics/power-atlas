@@ -172,10 +172,9 @@ Recommended metrics per mode
 * ``"hybrid"``: use ``mentions_clustered``, ``mentions_unclustered``,
   ``clusters_created``, ``aligned_clusters``, ``distinct_canonical_entities_aligned``,
   ``mentions_in_aligned_clusters``, ``clusters_pending_alignment``, and
-  ``alignment_breakdown``.  Alignment-related counts such as
-  ``aligned_clusters`` and ``distinct_canonical_entities_aligned`` reflect
-  intended alignments derived from in-memory rows, not necessarily persisted
-  ``ALIGNED_WITH`` edges.  Ignore ``resolved``/``unresolved``.
+  ``alignment_breakdown``.  All alignment-related counts are verified against
+  persisted ``ALIGNED_WITH`` edges via post-write graph queries, so they reflect
+  actual graph state rather than in-memory assumptions.  Ignore ``resolved``/``unresolved``.
 """
 from __future__ import annotations
 
@@ -1231,6 +1230,10 @@ def run_entity_resolution(
     # driver context for unstructured-first modes.
     _graph_mentions_clustered: int = 0
     _graph_mentions_unclustered: int = 0
+    # Hybrid-only alignment metrics — computed from post-write graph queries.
+    _graph_aligned_clusters: int = 0
+    _graph_distinct_canonical_entities: int = 0
+    _graph_mentions_in_aligned: int = 0
 
     driver = neo4j.GraphDatabase.driver(
         config.neo4j_uri,
@@ -1411,6 +1414,42 @@ def run_entity_resolution(
                 _graph_mentions_clustered = int(count_result[0]["mentions_clustered"])
                 _graph_mentions_unclustered = int(count_result[0]["mentions_unclustered"])
 
+        # 3d. In hybrid mode, query the graph for post-write ALIGNED_WITH coverage.
+        #     Using driver.execute_query() for consistency with all other queries.
+        if resolution_mode == _RESOLUTION_MODE_HYBRID:
+            aligned_q, _, _ = driver.execute_query(
+                """
+                MATCH (c:ResolvedEntityCluster {run_id: $run_id})
+                      -[:ALIGNED_WITH {run_id: $run_id}]->
+                      (ce:CanonicalEntity)
+                RETURN count(DISTINCT c)  AS aligned_clusters,
+                       count(DISTINCT ce) AS distinct_canonical_entities_aligned
+                """,
+                parameters_={"run_id": run_id},
+                database_=config.neo4j_database,
+                routing_=neo4j.RoutingControl.READ,
+            )
+            if aligned_q:
+                _graph_aligned_clusters = int(aligned_q[0]["aligned_clusters"] or 0)
+                _graph_distinct_canonical_entities = int(
+                    aligned_q[0]["distinct_canonical_entities_aligned"] or 0
+                )
+            mentions_in_q, _, _ = driver.execute_query(
+                """
+                MATCH (m:EntityMention {run_id: $run_id})
+                      -[:MEMBER_OF]->
+                      (c:ResolvedEntityCluster {run_id: $run_id})
+                      -[:ALIGNED_WITH {run_id: $run_id}]->
+                      (:CanonicalEntity)
+                RETURN count(DISTINCT m) AS mentions_in_aligned
+                """,
+                parameters_={"run_id": run_id},
+                database_=config.neo4j_database,
+                routing_=neo4j.RoutingControl.READ,
+            )
+            if mentions_in_q:
+                _graph_mentions_in_aligned = int(mentions_in_q[0]["mentions_in_aligned"] or 0)
+
     # 4. Write artifacts.
     unresolved_list = [
         {
@@ -1471,51 +1510,12 @@ def run_entity_resolution(
         for row in alignment_rows:
             m = row["alignment_method"]
             alignment_breakdown[m] = alignment_breakdown.get(m, 0) + 1
-        # Derive alignment-related counts from persisted graph state so that
-        # the manifest reflects actual ``ALIGNED_WITH``/``MEMBER_OF`` edges.
-        aligned_clusters = 0
-        distinct_canonical_entities_aligned = 0
-        mentions_in_aligned = 0
-        # Count aligned clusters and distinct canonical entities from
-        # (:ResolvedEntityCluster {run_id})-[:ALIGNED_WITH {run_id}]->(:CanonicalEntity)
-        _aligned_result = session.run(
-            """
-            MATCH (c:ResolvedEntityCluster {run_id: $run_id})
-                  -[:ALIGNED_WITH {run_id: $run_id}]->
-                  (ce:CanonicalEntity)
-            RETURN
-              count(DISTINCT c)  AS aligned_clusters,
-              count(DISTINCT ce) AS distinct_canonical_entities_aligned
-            """,
-            {"run_id": run_id},
-        ).single()
-        if _aligned_result is not None:
-            aligned_clusters = _aligned_result["aligned_clusters"] or 0
-            distinct_canonical_entities_aligned = (
-                _aligned_result["distinct_canonical_entities_aligned"] or 0
-            )
-        # Count mentions that belong to aligned clusters via
-        # (:EntityMention {run_id})-[:MEMBER_OF]->(:ResolvedEntityCluster {run_id})
-        # that has an ``ALIGNED_WITH {run_id}`` edge.
-        _mentions_result = session.run(
-            """
-            MATCH (m:EntityMention {run_id: $run_id})
-                  -[:MEMBER_OF]->
-                  (c:ResolvedEntityCluster {run_id: $run_id})
-                  -[:ALIGNED_WITH {run_id: $run_id}]->
-                  (:CanonicalEntity)
-            RETURN count(DISTINCT m) AS mentions_in_aligned
-            """,
-            {"run_id": run_id},
-        ).single()
-        if _mentions_result is not None:
-            mentions_in_aligned = _mentions_result["mentions_in_aligned"] or 0
         summary["alignment_version"] = _ALIGNMENT_VERSION
-        summary["aligned_clusters"] = aligned_clusters
+        summary["aligned_clusters"] = _graph_aligned_clusters
         summary["alignment_breakdown"] = alignment_breakdown
-        summary["distinct_canonical_entities_aligned"] = distinct_canonical_entities_aligned
-        summary["mentions_in_aligned_clusters"] = mentions_in_aligned
-        summary["clusters_pending_alignment"] = clusters_created - aligned_clusters
+        summary["distinct_canonical_entities_aligned"] = _graph_distinct_canonical_entities
+        summary["mentions_in_aligned_clusters"] = _graph_mentions_in_aligned
+        summary["clusters_pending_alignment"] = clusters_created - _graph_aligned_clusters
     summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
     return summary
 
