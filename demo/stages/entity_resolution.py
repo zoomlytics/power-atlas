@@ -98,6 +98,90 @@ running multiple passes for the same *run_id*:
   ``cluster_id``, and ``source_uri``.  ``source_uri`` is the per-mention origin URI
   read from the :EntityMention node in Neo4j; it is included here as provenance
   metadata only and does **not** affect which cluster a mention belongs to.
+
+Summary JSON metrics
+---------------------
+The main resolution routine writes ``entity_resolution_summary.json`` which is
+also returned to callers as a plain ``dict``. It always contains the following
+keys (regardless of resolution mode):
+
+* ``status``: ``"live"`` on success, or ``"dry_run"`` when resolution was skipped.
+* ``run_id``: The run identifier used to scope :EntityMention nodes.
+* ``source_uri``: URI of the ingested source whose mentions were resolved.
+* ``resolution_mode``: One of ``"structured_anchor"``, ``"unstructured_only"``,
+  or ``"hybrid"``.
+* ``resolver_method``: Human-readable label for the resolver strategy used.
+* ``resolver_version``: Version string for the resolver implementation.
+* ``cluster_version``: Version string for the clustering strategy.
+* ``mentions_total``: Total number of :EntityMention nodes considered.
+* ``resolved``: Count of mentions that matched a canonical entity and received a
+  ``RESOLVES_TO`` edge to a :CanonicalEntity node (``"structured_anchor"`` mode
+  only; always ``0`` in ``"unstructured_only"`` and ``"hybrid"`` modes, because
+  those modes do not attempt canonical matching per mention).
+* ``unresolved``: Count of mentions that were **not** matched to any canonical
+  entity and therefore received no ``RESOLVES_TO`` edge.  In
+  ``"unstructured_only"`` and ``"hybrid"`` modes this equals ``mentions_total``
+  (all mentions go through clustering rather than canonical resolution); it does
+  not indicate clustering failure.  Consumers of those modes should use
+  ``mentions_clustered`` and the alignment metrics below instead.
+* ``clusters_created``: Number of unique :ResolvedEntityCluster nodes created or
+  reused in this run.
+* ``resolution_breakdown``: Mapping from resolution strategy name to the
+  number of mentions whose cluster assignment was decided by that strategy.
+* ``warnings``: List of non-fatal issues encountered during resolution.
+
+In modes that perform text-based clustering
+(``resolution_mode`` is ``"unstructured_only"`` or ``"hybrid"``), the summary
+also includes:
+
+* ``mentions_clustered``: Number of :EntityMention nodes for this run_id that
+  have a persisted ``MEMBER_OF`` edge to a :ResolvedEntityCluster node (verified
+  by a post-write graph query).  In current unstructured-first behaviour the
+  ``label_cluster`` fallback ensures every mention receives a ``MEMBER_OF`` edge,
+  so this always equals ``mentions_total`` when the stage succeeds.
+* ``mentions_unclustered``: Number of :EntityMention nodes for this run_id that
+  have **no** ``MEMBER_OF`` edge after the write step, as reported by the same
+  post-write graph query.  Under the current ``label_cluster`` fallback this is
+  always ``0``; a non-zero value indicates a write failure or unexpected data
+  condition and is also surfaced as a warning in the summary.
+  Invariant: ``mentions_clustered + mentions_unclustered == mentions_total``.
+
+In ``"hybrid"`` mode, canonical alignment metrics are also present:
+
+* ``alignment_version``: Version string for the canonical alignment algorithm.
+* ``aligned_clusters``: Number of :ResolvedEntityCluster nodes that received an
+  ``ALIGNED_WITH`` edge whose ``(run_id, alignment_version)`` properties match
+  this stage, pointing to some :CanonicalEntity node.
+* ``alignment_breakdown``: Mapping from alignment strategy name to the number
+  of ``ALIGNED_WITH`` edges written by that strategy, derived from persisted
+  graph state (scoped to ``run_id`` and ``alignment_version``).
+* ``distinct_canonical_entities_aligned``: Count of unique :CanonicalEntity
+  nodes that are the target of at least one ``ALIGNED_WITH`` edge whose
+  ``(run_id, alignment_version)`` properties match this stage.
+* ``mentions_in_aligned_clusters``: Number of :EntityMention nodes (via
+  ``MEMBER_OF``) that belong to a :ResolvedEntityCluster which has at least one
+  ``ALIGNED_WITH`` edge whose ``(run_id, alignment_version)`` properties match
+  this stage, to some :CanonicalEntity.
+* ``clusters_pending_alignment``: Number of run-scoped :ResolvedEntityCluster
+  nodes that did **not** receive any ``ALIGNED_WITH`` edge whose
+  ``(run_id, alignment_version)`` properties match this stage.
+
+All alignment counts are scoped to ``(run_id, alignment_version)`` so they are
+consistent with the write path (which MERGEs ``ALIGNED_WITH`` by that composite
+key) and with cluster-aware retrieval queries that filter by ``alignment_version``.
+
+Recommended metrics per mode
+------------------------------
+* ``"structured_anchor"``: use ``resolved``, ``unresolved``, ``resolution_breakdown``.
+* ``"unstructured_only"``: use ``mentions_clustered``, ``mentions_unclustered``,
+  ``clusters_created``, ``resolution_breakdown``.  Ignore ``resolved``/``unresolved``
+  (always 0 / mentions_total respectively).
+* ``"hybrid"``: use ``mentions_clustered``, ``mentions_unclustered``,
+  ``clusters_created``, ``aligned_clusters``, ``distinct_canonical_entities_aligned``,
+  ``mentions_in_aligned_clusters``, ``clusters_pending_alignment``, and
+  ``alignment_breakdown``.  All alignment-related counts are verified against
+  persisted ``ALIGNED_WITH`` edges via post-write graph queries, so they reflect
+  actual graph state rather than in-memory assumptions.  Ignore ``resolved``/``unresolved``.
 """
 from __future__ import annotations
 
@@ -1059,9 +1143,13 @@ def run_entity_resolution(
 
     Returns:
         A summary dict with counts, resolution breakdown, ``resolution_mode``,
-        and artifact paths.  In ``"hybrid"`` mode the summary additionally
-        includes ``aligned_clusters``, ``alignment_breakdown``, and
-        ``alignment_version``.
+        and artifact paths.  See the module-level "Summary JSON metrics" section
+        for a full description of every field and which modes emit each one.
+        In brief: ``"unstructured_only"`` and ``"hybrid"`` modes add
+        ``mentions_clustered`` / ``mentions_unclustered``; ``"hybrid"`` mode
+        further adds ``aligned_clusters``, ``alignment_breakdown``,
+        ``alignment_version``, ``distinct_canonical_entities_aligned``,
+        ``mentions_in_aligned_clusters``, and ``clusters_pending_alignment``.
     """
     # Resolve the effective mode: explicit arg > config attribute > default.
     if resolution_mode is None:
@@ -1128,15 +1216,33 @@ def run_entity_resolution(
             "resolution_breakdown": {},
             "warnings": ["entity resolution skipped in dry_run mode"],
         }
+        if resolution_mode in (_RESOLUTION_MODE_UNSTRUCTURED_ONLY, _RESOLUTION_MODE_HYBRID):
+            summary["mentions_clustered"] = 0
+            summary["mentions_unclustered"] = 0
         if resolution_mode == _RESOLUTION_MODE_HYBRID:
             summary["alignment_version"] = _ALIGNMENT_VERSION
             summary["aligned_clusters"] = 0
             summary["alignment_breakdown"] = {}
+            summary["distinct_canonical_entities_aligned"] = 0
+            summary["mentions_in_aligned_clusters"] = 0
+            summary["clusters_pending_alignment"] = 0
         summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
         unresolved_path.write_text(json.dumps([], indent=2), encoding="utf-8")
         return summary
 
     import neo4j
+
+    # Initialised here so they are always defined when building the summary below,
+    # regardless of resolution_mode.  Set to graph-queried values inside the
+    # driver context for unstructured-first modes.
+    _graph_mentions_clustered: int = 0
+    _graph_mentions_unclustered: int = 0
+    # Hybrid-only alignment metrics — computed from post-write graph queries.
+    _graph_total_clusters: int = 0
+    _graph_aligned_clusters: int = 0
+    _graph_distinct_canonical_entities: int = 0
+    _graph_mentions_in_aligned: int = 0
+    _graph_alignment_breakdown: dict[str, int] = {}
 
     driver = neo4j.GraphDatabase.driver(
         config.neo4j_uri,
@@ -1297,6 +1403,99 @@ def run_entity_resolution(
                 neo4j_database=config.neo4j_database,
             )
 
+        # 3c. Query the graph for actual MEMBER_OF coverage after all writes so
+        #     mentions_clustered/mentions_unclustered reflect persisted state rather
+        #     than in-memory row counts.  This catches write errors or partial
+        #     failures that in-memory counts would silently mask.
+        if resolution_mode in (_RESOLUTION_MODE_UNSTRUCTURED_ONLY, _RESOLUTION_MODE_HYBRID):
+            count_result, _, _ = driver.execute_query(
+                """
+                MATCH (m:EntityMention {run_id: $run_id})
+                OPTIONAL MATCH (m)-[:MEMBER_OF]->(c:ResolvedEntityCluster {run_id: $run_id})
+                RETURN count(DISTINCT CASE WHEN c IS NOT NULL THEN m END) AS mentions_clustered,
+                       count(DISTINCT CASE WHEN c IS NULL THEN m END)     AS mentions_unclustered
+                """,
+                parameters_={"run_id": run_id},
+                database_=config.neo4j_database,
+                routing_=neo4j.RoutingControl.WRITE,
+            )
+            if count_result:
+                _graph_mentions_clustered = int(count_result[0]["mentions_clustered"])
+                _graph_mentions_unclustered = int(count_result[0]["mentions_unclustered"])
+
+        # 3d. In hybrid mode, query the graph for post-write ALIGNED_WITH coverage.
+        #     Using driver.execute_query() for consistency with all other queries.
+        if resolution_mode == _RESOLUTION_MODE_HYBRID:
+            # Count total run-scoped clusters so that clusters_pending_alignment is
+            # consistent with the graph (not a mix of in-memory and graph values).
+            total_clusters_q, _, _ = driver.execute_query(
+                """
+                MATCH (c:ResolvedEntityCluster {run_id: $run_id})
+                RETURN count(c) AS total_clusters
+                """,
+                parameters_={"run_id": run_id},
+                database_=config.neo4j_database,
+                routing_=neo4j.RoutingControl.WRITE,
+            )
+            if total_clusters_q:
+                _graph_total_clusters = int(total_clusters_q[0]["total_clusters"] or 0)
+            # Count aligned clusters and distinct canonical entities.
+            # Filter by alignment_version to stay consistent with the write path
+            # (MERGE scopes edges by run_id + alignment_version) and with
+            # cluster-aware retrieval queries that also filter by alignment_version.
+            aligned_q, _, _ = driver.execute_query(
+                """
+                MATCH (c:ResolvedEntityCluster {run_id: $run_id})
+                      -[:ALIGNED_WITH {run_id: $run_id, alignment_version: $alignment_version}]->
+                      (ce:CanonicalEntity)
+                RETURN count(DISTINCT c)  AS aligned_clusters,
+                       count(DISTINCT ce) AS distinct_canonical_entities_aligned
+                """,
+                parameters_={"run_id": run_id, "alignment_version": _ALIGNMENT_VERSION},
+                database_=config.neo4j_database,
+                routing_=neo4j.RoutingControl.WRITE,
+            )
+            if aligned_q:
+                _graph_aligned_clusters = int(aligned_q[0]["aligned_clusters"] or 0)
+                _graph_distinct_canonical_entities = int(
+                    aligned_q[0]["distinct_canonical_entities_aligned"] or 0
+                )
+            # Count ALIGNED_WITH edges grouped by alignment_method to build
+            # the breakdown.  Grouped by method so we count edges not clusters.
+            breakdown_q, _, _ = driver.execute_query(
+                """
+                MATCH (:ResolvedEntityCluster {run_id: $run_id})
+                      -[r:ALIGNED_WITH {run_id: $run_id, alignment_version: $alignment_version}]->
+                      (:CanonicalEntity)
+                RETURN r.alignment_method AS alignment_method,
+                       count(r)           AS method_count
+                """,
+                parameters_={"run_id": run_id, "alignment_version": _ALIGNMENT_VERSION},
+                database_=config.neo4j_database,
+                routing_=neo4j.RoutingControl.WRITE,
+            )
+            for record in breakdown_q:
+                method = record.get("alignment_method") or "unknown"
+                count = int(record.get("method_count") or 0)
+                _graph_alignment_breakdown[method] = (
+                    _graph_alignment_breakdown.get(method, 0) + count
+                )
+            mentions_in_q, _, _ = driver.execute_query(
+                """
+                MATCH (m:EntityMention {run_id: $run_id})
+                      -[:MEMBER_OF]->
+                      (c:ResolvedEntityCluster {run_id: $run_id})
+                      -[:ALIGNED_WITH {run_id: $run_id, alignment_version: $alignment_version}]->
+                      (:CanonicalEntity)
+                RETURN count(DISTINCT m) AS mentions_in_aligned
+                """,
+                parameters_={"run_id": run_id, "alignment_version": _ALIGNMENT_VERSION},
+                database_=config.neo4j_database,
+                routing_=neo4j.RoutingControl.WRITE,
+            )
+            if mentions_in_q:
+                _graph_mentions_in_aligned = int(mentions_in_q[0]["mentions_in_aligned"] or 0)
+
     # 4. Write artifacts.
     unresolved_list = [
         {
@@ -1343,14 +1542,26 @@ def run_entity_resolution(
         "unresolved_mentions_path": str(unresolved_path),
         "warnings": [],
     }
+    if resolution_mode in (_RESOLUTION_MODE_UNSTRUCTURED_ONLY, _RESOLUTION_MODE_HYBRID):
+        # Use graph-queried counts (set above) so the metrics reflect actual
+        # MEMBER_OF edges that were persisted, not just in-memory row counts.
+        summary["mentions_clustered"] = _graph_mentions_clustered
+        summary["mentions_unclustered"] = _graph_mentions_unclustered
+        if _graph_mentions_unclustered:
+            summary["warnings"].append(
+                f"{_graph_mentions_unclustered} mentions were not assigned to any cluster"
+            )
     if resolution_mode == _RESOLUTION_MODE_HYBRID:
-        alignment_breakdown: dict[str, int] = {}
-        for row in alignment_rows:
-            m = row["alignment_method"]
-            alignment_breakdown[m] = alignment_breakdown.get(m, 0) + 1
         summary["alignment_version"] = _ALIGNMENT_VERSION
-        summary["aligned_clusters"] = len(alignment_rows)
-        summary["alignment_breakdown"] = alignment_breakdown
+        summary["aligned_clusters"] = _graph_aligned_clusters
+        summary["alignment_breakdown"] = _graph_alignment_breakdown
+        summary["distinct_canonical_entities_aligned"] = _graph_distinct_canonical_entities
+        summary["mentions_in_aligned_clusters"] = _graph_mentions_in_aligned
+        # Derive pending count from graph totals so the subtraction is consistent.
+        # Clamp at 0 to guard against stale edges on a reused run_id.
+        summary["clusters_pending_alignment"] = max(
+            0, _graph_total_clusters - _graph_aligned_clusters
+        )
     summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
     return summary
 

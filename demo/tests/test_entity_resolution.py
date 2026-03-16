@@ -73,7 +73,135 @@ def _make_neo4j_test_driver(
         for c in canonical_nodes
     ]
 
+    # Pre-compute alignment results to simulate graph-backed post-write queries.
+    # This mirrors what run_entity_resolution does internally so that the mock
+    # returns realistic counts rather than hard-coded zeros.
+    _cluster_rows = _cluster_mentions_unstructured_only([
+        {"mention_id": m["mention_id"], "name": m["name"],
+         "entity_type": m.get("entity_type"), "source_uri": m.get("source_uri")}
+        for m in mentions
+    ])
+    _cluster_entries: dict[tuple[str, str], dict[str, Any]] = {}
+    for row in _cluster_rows:
+        # Use a placeholder run_id consistent with what the live path would use.
+        # The cluster_id is computed in the real code with the actual run_id, but
+        # for counting purposes we just need a stable key per unique cluster.
+        _key = (row.get("entity_type") or "", row["normalized_text"])
+        if _key not in _cluster_entries:
+            _cluster_entries[_key] = {
+                "cluster_id": _key,   # synthetic key only used for set comparisons
+                "normalized_text": row["normalized_text"],
+            }
+    _unique_clusters = list(_cluster_entries.values())
+    _total_cluster_count = len(_unique_clusters)
+    _, _by_label, _by_alias = _build_lookup_tables([
+        {"entity_id": c["entity_id"], "run_id": c.get("run_id", ""),
+         "name": c["name"], "aliases": c.get("aliases")}
+        for c in canonical_nodes
+    ])
+    _alignment_rows = _align_clusters_to_canonical(_unique_clusters, _by_label, _by_alias)
+    _aligned_cluster_keys = {r["cluster_id"] for r in _alignment_rows}
+    _aligned_cluster_count = len(_aligned_cluster_keys)
+    _distinct_canonical_count = len(
+        {(r["canonical_entity_id"], r["canonical_run_id"]) for r in _alignment_rows}
+    )
+    _mentions_in_aligned = sum(
+        1 for row in _cluster_rows
+        if (row.get("entity_type") or "", row["normalized_text"]) in _aligned_cluster_keys
+    )
+    # Compute breakdown from in-memory alignment rows (mirrors how the real graph
+    # would aggregate alignment_method on ALIGNED_WITH edges per cluster).
+    _alignment_breakdown: dict[str, int] = {}
+    for _arow in _alignment_rows:
+        _method = _arow.get("alignment_method") or "unknown"
+        _alignment_breakdown[_method] = _alignment_breakdown.get(_method, 0) + 1
+
+    # Track whether the expected write queries have actually been executed.
+    member_of_written = False
+    aligned_with_written = False
+
     def execute_query(query, parameters_=None, database_=None, routing_=None):
+        nonlocal member_of_written, aligned_with_written
+
+        # Detect MERGE write queries that create MEMBER_OF or ALIGNED_WITH relationships.
+        if "MERGE" in query and "MEMBER_OF" in query:
+            member_of_written = True
+        if "MERGE" in query and "ALIGNED_WITH" in query:
+            aligned_with_written = True
+
+        # Post-write MEMBER_OF coverage count query (distinguished by the
+        # "mentions_clustered" alias in the RETURN clause).
+        if "mentions_clustered" in query:
+            if member_of_written:
+                return (
+                    [_Record(mentions_clustered=len(mention_records), mentions_unclustered=0)],
+                    None,
+                    None,
+                )
+            # If no MEMBER_OF writes have occurred, report zero clustered mentions.
+            return (
+                [_Record(mentions_clustered=0, mentions_unclustered=len(mention_records))],
+                None,
+                None,
+            )
+        # Post-write total cluster count query.
+        if "total_clusters" in query:
+            if member_of_written:
+                return (
+                    [_Record(total_clusters=_total_cluster_count)],
+                    None,
+                    None,
+                )
+            return (
+                [_Record(total_clusters=0)],
+                None,
+                None,
+            )
+        # Post-write ALIGNED_WITH cluster/canonical count query.
+        if "aligned_clusters" in query:
+            if aligned_with_written:
+                return (
+                    [_Record(
+                        aligned_clusters=_aligned_cluster_count,
+                        distinct_canonical_entities_aligned=_distinct_canonical_count,
+                    )],
+                    None,
+                    None,
+                )
+            return (
+                [_Record(
+                    aligned_clusters=0,
+                    distinct_canonical_entities_aligned=0,
+                )],
+                None,
+                None,
+            )
+        # Post-write alignment_method breakdown query on ALIGNED_WITH edges.
+        if "alignment_method" in query and "ALIGNED_WITH" in query:
+            if aligned_with_written:
+                return (
+                    [
+                        _Record(alignment_method=method, method_count=count)
+                        for method, count in _alignment_breakdown.items()
+                    ],
+                    None,
+                    None,
+                )
+            # No aligned edges written: no breakdown to report.
+            return ([], None, None)
+        # Post-write mentions-in-aligned-clusters count query.
+        if "mentions_in_aligned" in query:
+            if aligned_with_written:
+                return (
+                    [_Record(mentions_in_aligned=_mentions_in_aligned)],
+                    None,
+                    None,
+                )
+            return (
+                [_Record(mentions_in_aligned=0)],
+                None,
+                None,
+            )
         if "EntityMention" in query and "RETURN" in query:
             return (mention_records, None, None)
         if "CanonicalEntity" in query and "RETURN" in query:
@@ -1611,6 +1739,61 @@ class TestRunEntityResolutionUnstructuredOnly(unittest.TestCase):
             self.assertEqual(result["unresolved"], 2)
             self.assertEqual(result["mentions_total"], 2)
 
+    def test_live_mentions_clustered_equals_mentions_total(self):
+        """In unstructured_only mode mentions_clustered == mentions_total and mentions_unclustered == 0."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config(Path(tmpdir))
+            mentions = [
+                {"mention_id": "m1", "name": "Alice", "entity_type": "person"},
+                {"mention_id": "m2", "name": "Bob", "entity_type": "person"},
+                {"mention_id": "m3", "name": "Charlie", "entity_type": "person"},
+            ]
+            driver = self._make_driver(mentions)
+
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                result = run_entity_resolution(config, run_id="run-uo-clustered-001", source_uri=None)
+
+            self.assertEqual(result["mentions_clustered"], result["mentions_total"])
+            self.assertEqual(result["mentions_unclustered"], 0)
+
+    def test_live_clustering_invariant(self):
+        """mentions_clustered + mentions_unclustered == mentions_total (graph-backed invariant)."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config(Path(tmpdir))
+            mentions = [
+                {"mention_id": "m1", "name": "Alice", "entity_type": "person"},
+                {"mention_id": "m2", "name": "Bob", "entity_type": "person"},
+                {"mention_id": "m3", "name": "Charlie", "entity_type": "person"},
+            ]
+            driver = self._make_driver(mentions)
+
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                result = run_entity_resolution(config, run_id="run-uo-invariant-001", source_uri=None)
+
+            self.assertEqual(
+                result["mentions_clustered"] + result["mentions_unclustered"],
+                result["mentions_total"],
+            )
+
+    def test_dry_run_includes_mentions_clustered_zero(self):
+        """dry_run summary must include mentions_clustered and mentions_unclustered (both 0)."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = Config(
+                dry_run=True,
+                output_dir=Path(tmpdir),
+                neo4j_uri="bolt://example.invalid",
+                neo4j_username="neo4j",
+                neo4j_password="not-used",
+                neo4j_database="neo4j",
+                openai_model="test-model",
+                resolution_mode=_RESOLUTION_MODE_UNSTRUCTURED_ONLY,
+            )
+            result = run_entity_resolution(config, run_id="run-uo-dry-clustered", source_uri=None)
+            self.assertIn("mentions_clustered", result)
+            self.assertIn("mentions_unclustered", result)
+            self.assertEqual(result["mentions_clustered"], 0)
+            self.assertEqual(result["mentions_unclustered"], 0)
+
     def test_live_normalized_exact_reduces_clusters(self):
         """Two mentions with the same normalized text -> one cluster."""
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -2078,9 +2261,14 @@ class TestRunEntityResolutionHybrid(unittest.TestCase):
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
                 result = run_entity_resolution(config, run_id="hybrid-live-003", source_uri=None)
             self.assertEqual(result["aligned_clusters"], 0)
-            # ALIGNED_WITH must NOT appear in Cypher calls when no canonicals exist
+            # No ALIGNED_WITH *write* (MERGE) should happen when there are no canonical nodes.
+            # Post-write read queries do contain ALIGNED_WITH in their text, so we check
+            # specifically for write queries (MERGE) rather than all ALIGNED_WITH occurrences.
             all_calls = [str(c) for c in driver.execute_query.call_args_list]
-            self.assertFalse(any("ALIGNED_WITH" in c for c in all_calls))
+            self.assertFalse(
+                any("MERGE" in c and "ALIGNED_WITH" in c for c in all_calls),
+                "No ALIGNED_WITH MERGE write should occur when there are no canonical nodes",
+            )
 
     # ------------------------------------------------------------------
     # Live: enrichment alignment when CanonicalEntity nodes exist
@@ -2168,6 +2356,128 @@ class TestRunEntityResolutionHybrid(unittest.TestCase):
             self.assertEqual(result["unresolved"], 2)
             self.assertEqual(result["clusters_created"], 2)
             self.assertEqual(result["aligned_clusters"], 1)
+
+    def test_live_mentions_clustered_equals_mentions_total(self):
+        """In hybrid mode mentions_clustered == mentions_total and mentions_unclustered == 0."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config(Path(tmpdir))
+            mentions = [
+                {"mention_id": "m1", "name": "Alice", "entity_type": "person"},
+                {"mention_id": "m2", "name": "Bob", "entity_type": "person"},
+            ]
+            driver = self._make_driver(mentions, [])
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                result = run_entity_resolution(config, run_id="hybrid-live-mc-001", source_uri=None)
+            self.assertEqual(result["mentions_clustered"], result["mentions_total"])
+            self.assertEqual(result["mentions_unclustered"], 0)
+
+    def test_live_clustering_invariant(self):
+        """mentions_clustered + mentions_unclustered == mentions_total (graph-backed invariant)."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config(Path(tmpdir))
+            mentions = [
+                {"mention_id": "m1", "name": "Alice", "entity_type": "person"},
+                {"mention_id": "m2", "name": "Bob", "entity_type": "person"},
+            ]
+            driver = self._make_driver(mentions, [])
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                result = run_entity_resolution(config, run_id="hybrid-live-invariant-001", source_uri=None)
+            self.assertEqual(
+                result["mentions_clustered"] + result["mentions_unclustered"],
+                result["mentions_total"],
+            )
+
+    def test_live_distinct_canonical_entities_aligned(self):
+        """distinct_canonical_entities_aligned counts unique canonical entity IDs."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config(Path(tmpdir))
+            # Two mentions both align to the same canonical entity Q1
+            mentions = [
+                {"mention_id": "m1", "name": "Alice", "entity_type": "person"},
+                {"mention_id": "m2", "name": "Ali", "entity_type": "person"},
+            ]
+            canonicals = [
+                {"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": "Ali"},
+            ]
+            driver = self._make_driver(mentions, canonicals)
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                result = run_entity_resolution(config, run_id="hybrid-live-dce-001", source_uri=None)
+            # Both clusters align to the same canonical entity Q1,
+            # so distinct_canonical_entities_aligned == 1 regardless of cluster count.
+            self.assertGreaterEqual(result["aligned_clusters"], 1)
+            self.assertEqual(result["distinct_canonical_entities_aligned"], 1)
+
+    def test_live_distinct_canonical_entities_aligned_multiple(self):
+        """distinct_canonical_entities_aligned counts multiple distinct canonical IDs."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config(Path(tmpdir))
+            mentions = [
+                {"mention_id": "m1", "name": "Alice", "entity_type": "person"},
+                {"mention_id": "m2", "name": "Bob Corp", "entity_type": "org"},
+            ]
+            canonicals = [
+                {"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": None},
+                {"entity_id": "Q2", "run_id": "run-s1", "name": "Bob Corp", "aliases": None},
+            ]
+            driver = self._make_driver(mentions, canonicals)
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                result = run_entity_resolution(config, run_id="hybrid-live-dce-002", source_uri=None)
+            self.assertEqual(result["distinct_canonical_entities_aligned"], 2)
+
+    def test_live_mentions_in_aligned_clusters(self):
+        """mentions_in_aligned_clusters counts mentions in clusters with ALIGNED_WITH edges."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config(Path(tmpdir))
+            # "alice" and "ALICE" normalize to the same cluster, aligned to Q1
+            # "Unknown" forms a separate unaligned cluster
+            mentions = [
+                {"mention_id": "m1", "name": "Alice", "entity_type": "person"},
+                {"mention_id": "m2", "name": "ALICE", "entity_type": "person"},
+                {"mention_id": "m3", "name": "Unknown", "entity_type": "person"},
+            ]
+            canonicals = [
+                {"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": None},
+            ]
+            driver = self._make_driver(mentions, canonicals)
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                result = run_entity_resolution(config, run_id="hybrid-live-miac-001", source_uri=None)
+            # 2 mentions are in the "alice" cluster which aligns to Q1
+            self.assertEqual(result["mentions_in_aligned_clusters"], 2)
+            # "Unknown" is in an unaligned cluster
+            self.assertEqual(result["clusters_pending_alignment"], 1)
+
+    def test_live_clusters_pending_alignment_zero_when_all_align(self):
+        """clusters_pending_alignment == 0 when every cluster aligns to a canonical."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config(Path(tmpdir))
+            mentions = [
+                {"mention_id": "m1", "name": "Alice", "entity_type": "person"},
+                {"mention_id": "m2", "name": "Bob Corp", "entity_type": "org"},
+            ]
+            canonicals = [
+                {"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": None},
+                {"entity_id": "Q2", "run_id": "run-s1", "name": "Bob Corp", "aliases": None},
+            ]
+            driver = self._make_driver(mentions, canonicals)
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                result = run_entity_resolution(config, run_id="hybrid-live-cpa-001", source_uri=None)
+            self.assertEqual(result["clusters_pending_alignment"], 0)
+            self.assertEqual(result["aligned_clusters"], result["clusters_created"])
+
+    def test_dry_run_includes_clustering_and_alignment_metrics(self):
+        """dry_run summary must include all new clustering/alignment metric fields."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._dry_config(Path(tmpdir))
+            result = run_entity_resolution(config, run_id="hybrid-dry-metrics", source_uri=None)
+            for field in (
+                "mentions_clustered",
+                "mentions_unclustered",
+                "distinct_canonical_entities_aligned",
+                "mentions_in_aligned_clusters",
+                "clusters_pending_alignment",
+            ):
+                self.assertIn(field, result, f"dry_run summary missing field: {field}")
+                self.assertEqual(result[field], 0, f"dry_run {field} should be 0")
 
     def test_live_resolution_mode_in_summary(self):
         with tempfile.TemporaryDirectory() as tmpdir:
