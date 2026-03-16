@@ -1471,24 +1471,51 @@ def run_entity_resolution(
         for row in alignment_rows:
             m = row["alignment_method"]
             alignment_breakdown[m] = alignment_breakdown.get(m, 0) + 1
-        aligned_cluster_ids = {row["cluster_id"] for row in alignment_rows}
-        mentions_in_aligned = sum(
-            1 for row in unresolved_rows
-            if _make_cluster_id(run_id, row.get("entity_type"), row["normalized_text"])
-            in aligned_cluster_ids
-        )
-        # Alignment-related summary metrics below are derived from in-memory
-        # ``alignment_rows`` and represent intended alignments. They may differ
-        # from the number of persisted ``ALIGNED_WITH`` edges if the write step
-        # fails partially or matches fewer nodes than expected.
+        # Derive alignment-related counts from persisted graph state so that
+        # the manifest reflects actual ``ALIGNED_WITH``/``MEMBER_OF`` edges.
+        aligned_clusters = 0
+        distinct_canonical_entities_aligned = 0
+        mentions_in_aligned = 0
+        # Count aligned clusters and distinct canonical entities from
+        # (:ResolvedEntityCluster {run_id})-[:ALIGNED_WITH {run_id}]->(:CanonicalEntity)
+        _aligned_result = session.run(
+            """
+            MATCH (c:ResolvedEntityCluster {run_id: $run_id})
+                  -[:ALIGNED_WITH {run_id: $run_id}]->
+                  (ce:CanonicalEntity)
+            RETURN
+              count(DISTINCT c)  AS aligned_clusters,
+              count(DISTINCT ce) AS distinct_canonical_entities_aligned
+            """,
+            {"run_id": run_id},
+        ).single()
+        if _aligned_result is not None:
+            aligned_clusters = _aligned_result["aligned_clusters"] or 0
+            distinct_canonical_entities_aligned = (
+                _aligned_result["distinct_canonical_entities_aligned"] or 0
+            )
+        # Count mentions that belong to aligned clusters via
+        # (:EntityMention {run_id})-[:MEMBER_OF]->(:ResolvedEntityCluster {run_id})
+        # that has an ``ALIGNED_WITH {run_id}`` edge.
+        _mentions_result = session.run(
+            """
+            MATCH (m:EntityMention {run_id: $run_id})
+                  -[:MEMBER_OF]->
+                  (c:ResolvedEntityCluster {run_id: $run_id})
+                  -[:ALIGNED_WITH {run_id: $run_id}]->
+                  (:CanonicalEntity)
+            RETURN count(DISTINCT m) AS mentions_in_aligned
+            """,
+            {"run_id": run_id},
+        ).single()
+        if _mentions_result is not None:
+            mentions_in_aligned = _mentions_result["mentions_in_aligned"] or 0
         summary["alignment_version"] = _ALIGNMENT_VERSION
-        summary["aligned_clusters"] = len(alignment_rows)
+        summary["aligned_clusters"] = aligned_clusters
         summary["alignment_breakdown"] = alignment_breakdown
-        summary["distinct_canonical_entities_aligned"] = len(
-            {(row["canonical_entity_id"], row["canonical_run_id"]) for row in alignment_rows}
-        )
+        summary["distinct_canonical_entities_aligned"] = distinct_canonical_entities_aligned
         summary["mentions_in_aligned_clusters"] = mentions_in_aligned
-        summary["clusters_pending_alignment"] = clusters_created - len(alignment_rows)
+        summary["clusters_pending_alignment"] = clusters_created - aligned_clusters
     summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
     return summary
 
