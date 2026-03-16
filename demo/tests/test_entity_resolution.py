@@ -2691,7 +2691,13 @@ class TestManifestGraphConsistency(unittest.TestCase):
             "if this fails, MEMBER_OF writes did not cover every mention "
             "(graph-write failure).",
         )
-        self.assertEqual(result["mentions_unclustered"], 0)
+        self.assertEqual(
+            result["mentions_unclustered"],
+            0,
+            "mentions_unclustered must be 0 when all mentions have MEMBER_OF edges; "
+            "if this fails, the post-write MEMBER_OF coverage query is returning "
+            "a non-zero count (manifest summarization failure).",
+        )
 
     def test_hybrid_aligned_clusters_nonzero_when_alignments_exist(self):
         """Manifest aligned_clusters must be > 0 when ALIGNED_WITH edges exist in the graph.
@@ -2819,7 +2825,13 @@ class TestManifestGraphConsistency(unittest.TestCase):
             "if this fails, MEMBER_OF edges were not written for every mention "
             "(graph-write failure).",
         )
-        self.assertEqual(result["mentions_unclustered"], 0)
+        self.assertEqual(
+            result["mentions_unclustered"],
+            0,
+            "mentions_unclustered must be 0 when all mentions have MEMBER_OF edges; "
+            "if this fails, the post-write MEMBER_OF coverage query returned a "
+            "non-zero count (manifest summarization failure).",
+        )
         self.assertLessEqual(result["clusters_created"], n_mentions)
 
         # ---- Alignment counts (ALIGNED_WITH coverage) ----
