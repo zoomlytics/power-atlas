@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import tempfile
 import unittest
 from pathlib import Path
@@ -2697,15 +2698,20 @@ class TestManifestGraphConsistency(unittest.TestCase):
                 result = run_entity_resolution(
                     config, run_id="consistency-hybrid-align-001", source_uri=None
                 )
-                aligned_query_calls = [
-                    kwargs
-                    for (_args, kwargs) in driver.execute_query.call_args_list
-                    if "parameters_" in kwargs
-                    and kwargs["parameters_"].get("run_id") == "consistency-hybrid-align-001"
-                    and kwargs["parameters_"].get("alignment_version") == _ALIGNMENT_VERSION
-                    and "query_" in kwargs
-                    and "RETURN count(DISTINCT c) AS aligned_clusters" in kwargs["query_"]
-                ]
+                aligned_query_calls = []
+                for (_args, kwargs) in driver.execute_query.call_args_list:
+                    params = kwargs.get("parameters_")
+                    if not params:
+                        continue
+                    if params.get("run_id") != "consistency-hybrid-align-001":
+                        continue
+                    if params.get("alignment_version") != _ALIGNMENT_VERSION:
+                        continue
+                    if not _args or not isinstance(_args[0], str):
+                        continue
+                    query_text = re.sub(r"\s+", " ", _args[0]).strip()
+                    if "ALIGNED_WITH" in query_text and "AS aligned_clusters" in query_text:
+                        aligned_query_calls.append(kwargs)
                 self.assertTrue(
                     aligned_query_calls,
                     "expected aligned-clusters query to be called with run_id and "
