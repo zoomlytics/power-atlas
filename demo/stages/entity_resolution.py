@@ -548,7 +548,7 @@ def _cluster_mentions_unstructured_only(
             "mention_name": (mention.get("name") or "").strip(),
             "normalized_text": mention_to_cluster[mention["mention_id"]],
             "entity_type": mention_to_type[mention["mention_id"]],
-            "source_uri": mention.get("source_uri"),
+            "source_uri": mention.get("source_uri") or None,
             "resolution_method": mention_to_method[mention["mention_id"]][0],
             "resolution_confidence": mention_to_method[mention["mention_id"]][1],
             "resolved": False,
@@ -588,7 +588,7 @@ def _resolve_mention(
             "normalized_text": normalized,
             "mention_name": name,
             "entity_type": mention.get("entity_type") or None,
-            "source_uri": mention.get("source_uri"),
+            "source_uri": mention.get("source_uri") or None,
             "resolution_method": "label_cluster",
             "resolution_confidence": 0.0,
             "candidate_ids": [],
@@ -627,7 +627,7 @@ def _resolve_mention(
         "normalized_text": normalized,
         "mention_name": name,
         "entity_type": mention.get("entity_type") or None,
-        "source_uri": mention.get("source_uri"),
+        "source_uri": mention.get("source_uri") or None,
         "resolution_method": "label_cluster",
         "resolution_confidence": 0.0,
         "candidate_ids": [],
@@ -664,7 +664,7 @@ def _write_resolution_results(
             MATCH (canonical:CanonicalEntity {entity_id: row.canonical_entity_id, run_id: row.canonical_run_id})
             MERGE (mention)-[r:RESOLVES_TO]->(canonical)
             SET r.run_id = $run_id,
-                r.source_uri = mention.source_uri,
+                r.source_uri = coalesce(mention.source_uri, $source_uri),
                 r.resolution_method = row.resolution_method,
                 r.resolution_confidence = row.resolution_confidence,
                 r.candidate_ids = row.candidate_ids
@@ -672,6 +672,7 @@ def _write_resolution_results(
             parameters_={
                 "rows": resolved_rows,
                 "run_id": run_id,
+                "source_uri": source_uri,
             },
             database_=neo4j_database,
         )
@@ -780,12 +781,14 @@ def _align_clusters_to_canonical(
     Returns:
         A list of alignment row dicts with keys: ``cluster_id``,
         ``canonical_entity_id``, ``canonical_run_id``, ``alignment_method``,
-        ``alignment_score``, and ``alignment_status``.
+        ``alignment_score``, ``alignment_status``, and ``source_uri``
+        (carried forward from the cluster dict for per-cluster edge provenance).
     """
     rows: list[dict[str, Any]] = []
     for cluster in clusters:
         cluster_id = cluster["cluster_id"]
         normalized_text = cluster["normalized_text"]
+        cluster_source_uri = cluster.get("source_uri")
 
         canonical = by_label.get(normalized_text)
         if canonical:
@@ -796,6 +799,7 @@ def _align_clusters_to_canonical(
                 "alignment_method": "label_exact",
                 "alignment_score": 0.9,
                 "alignment_status": "aligned",
+                "source_uri": cluster_source_uri,
             })
             continue
 
@@ -808,6 +812,7 @@ def _align_clusters_to_canonical(
                 "alignment_method": "alias_exact",
                 "alignment_score": 0.8,
                 "alignment_status": "aligned",
+                "source_uri": cluster_source_uri,
             })
 
     return rows
@@ -826,8 +831,12 @@ def _write_alignment_results(
     Each matched cluster receives a non-destructive ``ALIGNED_WITH`` edge
     carrying alignment provenance metadata: ``alignment_method``,
     ``alignment_score``, ``alignment_status``, ``alignment_version``,
-    ``run_id``, and ``source_uri``.  Existing cluster nodes and ``MEMBER_OF``
-    edges are never modified.
+    ``run_id``, and ``source_uri``.  ``source_uri`` is taken per-row from
+    the alignment row (propagated from the cluster's own ``source_uri``), so
+    multi-source runs write correct provenance on each edge.  The function-
+    level ``source_uri`` argument is kept as a fallback for callers that do
+    not yet carry per-cluster provenance.  Existing cluster nodes and
+    ``MEMBER_OF`` edges are never modified.
     """
     if not alignment_rows:
         return
@@ -843,7 +852,7 @@ def _write_alignment_results(
         SET r.alignment_method = row.alignment_method,
             r.alignment_score  = row.alignment_score,
             r.alignment_status = row.alignment_status,
-            r.source_uri       = $source_uri
+            r.source_uri       = coalesce(row.source_uri, $source_uri)
         """,
         parameters_={
             "rows": alignment_rows,
@@ -1065,13 +1074,12 @@ def run_entity_resolution(
                 _, by_label, by_alias = _build_lookup_tables(canonical_nodes)
                 # Build unique cluster dicts keyed by the scoped cluster_id
                 # produced by _make_cluster_id (which incorporates run_id,
-                # entity_type, normalized_text, and source_uri when present)
-                # to pass to _align_clusters_to_canonical. Multiple mention
-                # rows can map to the same cluster_id; we deduplicate those
-                # first via a dict, then sort only the unique entries by
-                # (entity_type, normalized_text) (O(u log u) where u ≤ n)
-                # instead of sorting all mention rows before deduplication
-                # (O(n log n)).
+                # source_uri, entity_type, and normalized_text). Multiple
+                # mention rows can map to the same cluster_id; we deduplicate
+                # by cluster_id in a single O(n) pass, then sort only the u
+                # unique entries (O(u log u), u ≤ n). source_uri is retained
+                # in each cluster dict so _write_alignment_results can set
+                # ALIGNED_WITH.source_uri per cluster.
                 cluster_entries_by_id: dict[str, tuple[tuple[str, str], dict[str, Any]]] = {}
                 for row in unresolved_rows:
                     cid = _make_cluster_id(run_id, row.get("entity_type"), row["normalized_text"], source_uri=row.get("source_uri"))
@@ -1080,6 +1088,7 @@ def run_entity_resolution(
                         cluster_entries_by_id[cid] = (sort_key, {
                             "cluster_id": cid,
                             "normalized_text": row["normalized_text"],
+                            "source_uri": row.get("source_uri"),
                         })
                 unique_clusters: list[dict[str, Any]] = [
                     c for _, c in sorted(cluster_entries_by_id.values(), key=lambda t: t[0])
