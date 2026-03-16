@@ -1018,7 +1018,7 @@ def run_entity_resolution(
                 "mention_id": record["mention_id"],
                 "name": record["name"] or "",
                 "entity_type": record["entity_type"],
-                "source_uri": record["source_uri"] if record["source_uri"] is not None else source_uri,
+                "source_uri": record["source_uri"] if record["source_uri"] not in (None, "") else source_uri,
             }
             for record in mention_result
         ]
