@@ -170,8 +170,9 @@ def _normalize(text: str) -> str:
        accented forms cluster with their unaccented equivalents
        (e.g. ``"naïve"`` → ``"naive"``, ``"Müller"`` → ``"Muller"``).
     4. Apostrophe normalisation — collapses typographic/curly apostrophe
-       variants (``'``, ``'``, modifier-letter apostrophe, etc.) to the plain
-       ASCII apostrophe (``'``).
+       variants (U+2018 LEFT SINGLE QUOTATION MARK ``‘``, U+2019 RIGHT SINGLE
+       QUOTATION MARK ``’``, U+02BC MODIFIER LETTER APOSTROPHE ``ʼ``, etc.) to
+       the plain ASCII apostrophe (``'``).
     5. Hyphen/dash normalisation — collapses en-dash, em-dash, and other Unicode
        dash code points to the plain ASCII hyphen-minus (``-``).
     6. Whitespace collapse — runs of whitespace (including non-breaking spaces,
