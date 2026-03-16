@@ -1417,7 +1417,7 @@ def run_entity_resolution(
                 """,
                 parameters_={"run_id": run_id},
                 database_=config.neo4j_database,
-                routing_=neo4j.RoutingControl.READ,
+                routing_=neo4j.RoutingControl.WRITE,
             )
             if count_result:
                 _graph_mentions_clustered = int(count_result[0]["mentions_clustered"])
