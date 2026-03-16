@@ -1397,8 +1397,8 @@ def run_entity_resolution(
                 """
                 MATCH (m:EntityMention {run_id: $run_id})
                 OPTIONAL MATCH (m)-[:MEMBER_OF]->(c:ResolvedEntityCluster {run_id: $run_id})
-                RETURN count(CASE WHEN c IS NOT NULL THEN 1 END) AS mentions_clustered,
-                       count(CASE WHEN c IS NULL THEN 1 END)     AS mentions_unclustered
+                RETURN count(DISTINCT CASE WHEN c IS NOT NULL THEN m END) AS mentions_clustered,
+                       count(DISTINCT CASE WHEN c IS NULL THEN m END)     AS mentions_unclustered
                 """,
                 parameters_={"run_id": run_id},
                 database_=config.neo4j_database,
