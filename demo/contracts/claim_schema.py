@@ -97,6 +97,14 @@ def resolution_layer_schema() -> GraphSchema:
         relationship_types=[
             # Provisional resolution layer relationships
             RelationshipType(label="MEMBER_OF"),
+            # Explicit candidate/review-queue relationships for ambiguous memberships.
+            # Written alongside MEMBER_OF for "candidate" (abbreviation) and
+            # "review_required" (borderline fuzzy) status edges so downstream
+            # consumers can use them as a dedicated review queue without disturbing
+            # the cluster membership graph.
+            # Properties mirror MEMBER_OF: score, method, resolver_version, run_id,
+            #   status ("candidate" | "review_required"), source_uri.
+            RelationshipType(label="CANDIDATE_MATCH"),
             # Enrichment alignment: cluster → canonical (hybrid mode).
             # Properties: alignment_method, alignment_score, alignment_status,
             #   alignment_version, run_id, source_uri.

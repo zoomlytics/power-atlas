@@ -1019,8 +1019,42 @@ def test_format_cluster_context_accepted_membership():
     ]
     result = _format_cluster_context(memberships, [])
     assert "PROVISIONAL CLUSTER" not in result
+    assert "REVIEW REQUIRED CLUSTER" not in result
+    assert "CANDIDATE CLUSTER" not in result
     assert "Jane Doe" in result
     assert "Entity cluster (accepted)" in result
+
+
+def test_format_cluster_context_candidate_membership():
+    """_format_cluster_context must label candidate memberships with 'CANDIDATE CLUSTER'."""
+    from demo.stages.retrieval_and_qa import _format_cluster_context
+
+    memberships = [
+        {"cluster_name": "FBI", "membership_status": "candidate", "membership_method": "abbreviation"},
+    ]
+    result = _format_cluster_context(memberships, [])
+    assert "CANDIDATE CLUSTER" in result
+    assert "FBI" in result
+    assert "REVIEW REQUIRED CLUSTER" not in result
+    assert "PROVISIONAL CLUSTER" not in result
+    assert "Entity cluster (accepted)" not in result
+    assert "abbreviated form" in result.lower() or "candidate" in result.lower()
+
+
+def test_format_cluster_context_review_required_membership():
+    """_format_cluster_context must label review_required memberships with 'REVIEW REQUIRED CLUSTER'."""
+    from demo.stages.retrieval_and_qa import _format_cluster_context
+
+    memberships = [
+        {"cluster_name": "Euro Central Bank", "membership_status": "review_required", "membership_method": "fuzzy"},
+    ]
+    result = _format_cluster_context(memberships, [])
+    assert "REVIEW REQUIRED CLUSTER" in result
+    assert "Euro Central Bank" in result
+    assert "CANDIDATE CLUSTER" not in result
+    assert "PROVISIONAL CLUSTER" not in result
+    assert "Entity cluster (accepted)" not in result
+    assert "review" in result.lower()
 
 
 def test_format_cluster_context_provisional_alignment():

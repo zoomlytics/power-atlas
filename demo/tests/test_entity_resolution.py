@@ -1734,7 +1734,12 @@ class TestRunEntityResolutionUnstructuredOnly(unittest.TestCase):
             )
 
     def test_fuzzy_method_writes_provisional_status(self):
-        """fuzzy cluster assignments must write status='provisional'."""
+        """High-confidence fuzzy matches (ratio >= _FUZZY_REVIEW_THRESHOLD) write status='provisional'.
+
+        'Federal Reserve Board' vs 'Federal Reserve Boards' has a SequenceMatcher ratio
+        of ~0.977 which is above _FUZZY_REVIEW_THRESHOLD=0.92, so the membership is
+        classified as 'provisional' (minor surface-form variant, review optional).
+        """
         with tempfile.TemporaryDirectory() as tmpdir:
             config = self._live_config(Path(tmpdir))
             # Two mentions that fuzzy-match each other (same type, similar text)
@@ -1759,8 +1764,13 @@ class TestRunEntityResolutionUnstructuredOnly(unittest.TestCase):
                     f"fuzzy row must write status='provisional', got {r['status']!r}",
                 )
 
-    def test_abbreviation_method_writes_provisional_status(self):
-        """abbreviation cluster assignments must write status='provisional'."""
+    def test_abbreviation_method_writes_candidate_status(self):
+        """abbreviation cluster assignments must write status='candidate'.
+
+        Abbreviated forms are inherently ambiguous (e.g. 'FBI' could match multiple
+        long forms), so they are classified as 'candidate' rather than 'provisional'
+        to make the ambiguity explicit for downstream consumers and reviewers.
+        """
         with tempfile.TemporaryDirectory() as tmpdir:
             config = self._live_config(Path(tmpdir))
             mentions = [
@@ -1780,11 +1790,114 @@ class TestRunEntityResolutionUnstructuredOnly(unittest.TestCase):
             self.assertTrue(abbrev_rows, "Expected at least one abbreviation row")
             for r in abbrev_rows:
                 self.assertEqual(
-                    r["status"], "provisional",
-                    f"abbreviation row must write status='provisional', got {r['status']!r}",
+                    r["status"], "candidate",
+                    f"abbreviation row must write status='candidate', got {r['status']!r}",
                 )
 
-class TestAlignClustersToCanonical(unittest.TestCase):
+    def test_borderline_fuzzy_writes_review_required_status(self):
+        """Borderline fuzzy matches (ratio < _FUZZY_REVIEW_THRESHOLD) must write status='review_required'.
+
+        'European Central Bank' vs 'Euro Central Bank' has a similarity of ~0.895,
+        which is above the fuzzy entry threshold (0.85) but below _FUZZY_REVIEW_THRESHOLD
+        (0.92), so the membership is classified as 'review_required'.
+        """
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config(Path(tmpdir))
+            mentions = [
+                {"mention_id": "m1", "name": "European Central Bank",
+                 "entity_type": "organization"},
+                {"mention_id": "m2", "name": "Euro Central Bank",
+                 "entity_type": "organization"},
+            ]
+            driver = self._make_driver(mentions)
+
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                run_entity_resolution(config, run_id="run-status-005", source_uri=None)
+
+            rows = self._get_member_of_rows(driver)
+            self.assertTrue(rows, "Expected MEMBER_OF rows in Cypher call")
+            fuzzy_rows = [r for r in rows if r["method"] == "fuzzy"]
+            self.assertTrue(fuzzy_rows, "Expected at least one fuzzy row")
+            for r in fuzzy_rows:
+                self.assertEqual(
+                    r["status"], "review_required",
+                    f"borderline fuzzy row must write status='review_required', got {r['status']!r}",
+                )
+
+    def _get_candidate_match_rows(self, driver: MagicMock) -> list[dict]:
+        """Extract the 'rows' parameter from the CANDIDATE_MATCH Cypher write call."""
+        for call in driver.execute_query.call_args_list:
+            query = call.args[0] if call.args else ""
+            params = call.kwargs.get("parameters_", {})
+            if "CANDIDATE_MATCH" in query and "rows" in params:
+                return params["rows"]
+        return []
+
+    def test_candidate_match_edges_written_for_abbreviation(self):
+        """CANDIDATE_MATCH edges must be written for 'candidate' (abbreviation) memberships."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config(Path(tmpdir))
+            mentions = [
+                {"mention_id": "m1", "name": "Federal Bureau of Investigation",
+                 "entity_type": "organization"},
+                {"mention_id": "m2", "name": "fbi",
+                 "entity_type": "organization"},
+            ]
+            driver = self._make_driver(mentions)
+
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                run_entity_resolution(config, run_id="run-cand-001", source_uri=None)
+
+            candidate_rows = self._get_candidate_match_rows(driver)
+            self.assertTrue(candidate_rows, "Expected CANDIDATE_MATCH rows for abbreviation memberships")
+            for r in candidate_rows:
+                self.assertIn(
+                    r["status"], ("candidate", "review_required"),
+                    f"CANDIDATE_MATCH row must have candidate/review_required status, got {r['status']!r}",
+                )
+
+    def test_candidate_match_edges_written_for_borderline_fuzzy(self):
+        """CANDIDATE_MATCH edges must be written for 'review_required' (borderline fuzzy) memberships."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config(Path(tmpdir))
+            mentions = [
+                {"mention_id": "m1", "name": "European Central Bank",
+                 "entity_type": "organization"},
+                {"mention_id": "m2", "name": "Euro Central Bank",
+                 "entity_type": "organization"},
+            ]
+            driver = self._make_driver(mentions)
+
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                run_entity_resolution(config, run_id="run-cand-002", source_uri=None)
+
+            candidate_rows = self._get_candidate_match_rows(driver)
+            self.assertTrue(candidate_rows, "Expected CANDIDATE_MATCH rows for borderline fuzzy memberships")
+            review_rows = [r for r in candidate_rows if r["status"] == "review_required"]
+            self.assertTrue(review_rows, "Expected at least one review_required CANDIDATE_MATCH row")
+
+    def test_no_candidate_match_edges_for_accepted_memberships(self):
+        """CANDIDATE_MATCH edges must NOT be written for deterministic ('accepted') memberships."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config(Path(tmpdir))
+            # Use names with no textual similarity so they each form singletons via
+            # label_cluster (deterministic, status='accepted') and cannot fuzzy-match.
+            mentions = [
+                {"mention_id": "m1", "name": "Alpha Corp", "entity_type": "organization"},
+                {"mention_id": "m2", "name": "Zeta LLC", "entity_type": "organization"},
+            ]
+            driver = self._make_driver(mentions)
+
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                run_entity_resolution(config, run_id="run-cand-003", source_uri=None)
+
+            candidate_rows = self._get_candidate_match_rows(driver)
+            self.assertEqual(
+                candidate_rows, [],
+                "No CANDIDATE_MATCH edges should be written for purely accepted memberships",
+            )
+
+
     """Unit tests for _align_clusters_to_canonical."""
 
     def setUp(self):

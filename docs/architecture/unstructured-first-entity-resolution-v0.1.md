@@ -468,8 +468,11 @@ Update retrieval and Q&A behavior (implemented):
   `_RETRIEVAL_QUERY_WITH_CLUSTER_ALL_RUNS` (all-runs)
 - Cluster membership (`MEMBER_OF`) and canonical alignment (`ALIGNED_WITH`) context is
   appended to each retrieved chunk's LLM context via `_format_cluster_context`
-- Provisional memberships (`status='provisional'`) are labelled `PROVISIONAL CLUSTER`
-  in the context; accepted assignments use the `Entity cluster (accepted)` label
+- Membership status is rendered with graduated labels:
+  - `"accepted"` → `Entity cluster (accepted)` — deterministic; no review needed
+  - `"provisional"` → `PROVISIONAL CLUSTER` — high-confidence fuzzy; review optional
+  - `"candidate"` → `CANDIDATE CLUSTER` — abbreviation match; plausible but ambiguous
+  - `"review_required"` → `REVIEW REQUIRED CLUSTER` — borderline fuzzy; needs verification
 - Provisional canonical alignments are labelled `PROVISIONAL ALIGNMENT`; confirmed
   alignments use `Cluster aligned to canonical entity`
 - The QA prompt template (`qa_v3`) instructs the model to use qualified language
@@ -478,10 +481,13 @@ Update retrieval and Q&A behavior (implemented):
 - Citations always reference the underlying `Chunk` node, never the cluster node
 
 ### Phase 5
-Add review-oriented features if needed:
-- threshold bands
-- review-required states
-- audit trail for resolution decisions
+Review-oriented features (implemented):
+- `CANDIDATE_MATCH` edges written alongside `MEMBER_OF` for all `"candidate"` and
+  `"review_required"` status memberships; provide a dedicated review queue
+- `_FUZZY_REVIEW_THRESHOLD = 0.92` separates high-confidence fuzzy (`"provisional"`)
+  from borderline fuzzy (`"review_required"`)
+- `"candidate"` status on `abbreviation` matches makes ambiguity explicit for HITL review
+- Audit trail: all edges carry `method`, `score`, `resolver_version`, `run_id`, `source_uri`
 
 ---
 
@@ -554,11 +560,11 @@ Phase 1 has been implemented in the following modules:
 - Added a new `resolution_layer_schema()` function (intentionally separate from
   `claim_extraction_schema()`) that defines the `ResolvedEntityCluster` `NodeType` with documented
   properties: `cluster_id`, `canonical_name`, `normalized_text`, `resolver_version`, `created_at`.
-- Added `MEMBER_OF` and `ALIGNED_WITH` `RelationshipType` entries to `resolution_layer_schema()`.
+- Added `MEMBER_OF`, `CANDIDATE_MATCH`, and `ALIGNED_WITH` `RelationshipType` entries to `resolution_layer_schema()`.
   Keeping these out of `claim_extraction_schema()` ensures the LLM extractor never attempts to
   produce resolution-layer nodes or edges directly.
 
-### Graph model (Phase 1 + Phase 3)
+### Graph model (Phase 1 + Phase 3 + Phase 5)
 
 ```
 (:EntityMention)-[:MENTIONED_IN]->(:Chunk)
@@ -566,6 +572,7 @@ Phase 1 has been implemented in the following modules:
 (:ExtractedClaim)-[:MENTIONS]->(:EntityMention)
 (:EntityMention)-[:RESOLVES_TO]->(:CanonicalEntity)      ← structured match (structured_anchor)
 (:EntityMention)-[:MEMBER_OF]->(:ResolvedEntityCluster)  ← provisional cluster
+(:EntityMention)-[:CANDIDATE_MATCH]->(:ResolvedEntityCluster) ← ambiguous candidate (review queue)
 (:ResolvedEntityCluster)-[:ALIGNED_WITH]->(:CanonicalEntity) ← enrichment alignment (hybrid)
 ```
 
@@ -578,10 +585,19 @@ Phase 1 has been implemented in the following modules:
 - `MEMBER_OF` edge metadata in `unstructured_only` mode:
   - `method` — the actual strategy used: `"normalized_exact"`, `"abbreviation"`, `"fuzzy"`, or `"label_cluster"` (singleton fallback).
   - `score` — `1.0` for deterministic assignments (`label_cluster`, `normalized_exact`), `0.75` for `abbreviation`, actual SequenceMatcher ratio for `fuzzy`.
-  - `status` — `"accepted"` for deterministic assignments (`label_cluster`, `normalized_exact`); `"provisional"` for probabilistic assignments (`abbreviation`, `fuzzy`) to distinguish high-confidence memberships from those warranting downstream review.
+  - `status` — encodes ambiguity level for downstream consumers and reviewers:
+    - `"accepted"` — deterministic assignments (`label_cluster`, `normalized_exact`); high-confidence, no review needed.
+    - `"provisional"` — high-confidence fuzzy match (SequenceMatcher ratio ≥ `_FUZZY_REVIEW_THRESHOLD = 0.92`); minor surface-form variant, review optional.
+    - `"candidate"` — abbreviation/initialism match; identity is plausible but the abbreviated form is inherently ambiguous, so human review adds value.
+    - `"review_required"` — borderline fuzzy match (ratio ≥ `0.85` but < `0.92`); relationship is tentative and should be verified before being relied upon.
   - `resolver_version` — value of `_CLUSTER_VERSION` constant.
   - `run_id` — the run that created the membership link.
   - `source_uri` — the per-mention origin URI read from the `:EntityMention` node; provenance metadata only, **not** part of cluster identity.
+- `CANDIDATE_MATCH` edges for ambiguous memberships:
+  - Written alongside `MEMBER_OF` for all `"candidate"` and `"review_required"` status memberships.
+  - Carry the same provenance fields as `MEMBER_OF` (`score`, `method`, `resolver_version`, `run_id`, `status`, `source_uri`).
+  - Provide a dedicated review queue: downstream systems can query `CANDIDATE_MATCH` edges independently without disturbing the cluster membership graph.
+  - Semantics: `(:EntityMention)-[:CANDIDATE_MATCH]->(:ResolvedEntityCluster)`.
 - `hybrid` resolution mode (Phase 3):
   - runs the full `unstructured_only` clustering pass first
   - after clustering, optionally queries `CanonicalEntity` nodes; if any exist, attempts label-exact then alias-exact alignment for each unique cluster
@@ -594,7 +610,7 @@ Phase 1 has been implemented in the following modules:
 ### What is not yet implemented (Phases 4–5)
 
 - Cluster-aware retrieval and Q&A traversal (Phase 4).
-- Review-required threshold bands and audit workflow (Phase 5).
+- Audit workflow tooling and HITL review queue UI (Phase 5).
 
 ---
 
