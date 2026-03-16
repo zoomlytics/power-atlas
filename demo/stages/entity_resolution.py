@@ -108,18 +108,24 @@ keys (regardless of resolution mode):
 * ``status``: ``"ok"`` on success, or ``"dry_run"`` when resolution was skipped.
 * ``run_id``: The run identifier used to scope :EntityMention nodes.
 * ``source_uri``: URI of the ingested source whose mentions were resolved.
-* ``resolution_mode``: One of ``"canonical_only"``, ``"unstructured_only"``,
+* ``resolution_mode``: One of ``"structured_anchor"``, ``"unstructured_only"``,
   or ``"hybrid"``.
 * ``resolver_method``: Human-readable label for the resolver strategy used.
 * ``resolver_version``: Version string for the resolver implementation.
 * ``cluster_version``: Version string for the clustering strategy.
 * ``mentions_total``: Total number of :EntityMention nodes considered.
-* ``resolved``: Count of mentions that have been assigned to a cluster
-  (i.e. have an outgoing ``RESOLVES_TO`` edge), regardless of how that cluster
-  was produced.
-* ``unresolved``: Count of mentions that were **not** assigned to any cluster
-  (typically because they failed all matching heuristics).
-* ``clusters_created``: Number of clusters that were created or reused.
+* ``resolved``: Count of mentions that matched a canonical entity and received a
+  ``RESOLVES_TO`` edge to a :CanonicalEntity node (``"structured_anchor"`` mode
+  only; always ``0`` in ``"unstructured_only"`` and ``"hybrid"`` modes, because
+  those modes do not attempt canonical matching per mention).
+* ``unresolved``: Count of mentions that were **not** matched to any canonical
+  entity and therefore received no ``RESOLVES_TO`` edge.  In
+  ``"unstructured_only"`` and ``"hybrid"`` modes this equals ``mentions_total``
+  (all mentions go through clustering rather than canonical resolution); it does
+  not indicate clustering failure.  Consumers of those modes should use
+  ``mentions_clustered`` and the alignment metrics below instead.
+* ``clusters_created``: Number of unique :ResolvedEntityCluster nodes created or
+  reused in this run.
 * ``resolution_breakdown``: Mapping from resolution strategy name to the
   number of mentions whose cluster assignment was decided by that strategy.
 * ``warnings``: List of non-fatal issues encountered during resolution.
@@ -128,32 +134,44 @@ In modes that perform text-based clustering
 (``resolution_mode`` is ``"unstructured_only"`` or ``"hybrid"``), the summary
 also includes:
 
-* ``mentions_clustered``: Number of mentions that participated in the
-  unstructured clustering step (i.e. were grouped into some cluster, whether or
-  not that cluster was later aligned to a canonical entity).
-* ``mentions_unclustered``: Number of mentions that were considered by the
-  clustering logic but left as singletons or otherwise not placed into any
-  cluster. These are a subset of ``unresolved`` when clustering runs without
-  producing a final ``RESOLVES_TO`` edge.
+* ``mentions_clustered``: Number of mentions that were placed into a
+  :ResolvedEntityCluster node via a ``MEMBER_OF`` edge.  In current
+  unstructured-first behaviour the ``label_cluster`` fallback ensures every
+  mention receives a ``MEMBER_OF`` edge, so this always equals
+  ``mentions_total`` when the stage succeeds.
+* ``mentions_unclustered``: Number of mentions that were processed by the
+  clustering logic but ended up with **no** ``MEMBER_OF`` edge to any cluster.
+  Under the current ``label_cluster`` fallback this is always ``0``; it is
+  included as an explicit health signal (non-zero values indicate a bug or
+  unexpected data condition).
 
 In ``"hybrid"`` mode, canonical alignment metrics are also present:
 
 * ``alignment_version``: Version string for the canonical alignment algorithm.
-* ``aligned_clusters``: Number of text clusters that were successfully aligned
-  to some canonical entity.
+* ``aligned_clusters``: Number of :ResolvedEntityCluster nodes that received an
+  ``ALIGNED_WITH`` edge pointing to a :CanonicalEntity node in this run.
 * ``alignment_breakdown``: Mapping from alignment strategy name to the number
   of clusters aligned by that strategy.
-* ``distinct_canonical_entities_aligned``: Count of unique canonical entities
-  that have at least one aligned cluster.
-* ``mentions_in_aligned_clusters``: Number of mentions that are members of
-  clusters which have been aligned to a canonical entity.
-* ``clusters_pending_alignment``: Number of clusters produced by the
-  unstructured step that were **not** aligned to any canonical entity.
+* ``distinct_canonical_entities_aligned``: Count of unique :CanonicalEntity
+  nodes that are the target of at least one ``ALIGNED_WITH`` edge created in
+  this run.
+* ``mentions_in_aligned_clusters``: Number of :EntityMention nodes (via
+  ``MEMBER_OF``) that belong to a :ResolvedEntityCluster which has an
+  ``ALIGNED_WITH`` edge to some :CanonicalEntity.
+* ``clusters_pending_alignment``: Number of :ResolvedEntityCluster nodes
+  produced by the unstructured clustering step that did **not** receive an
+  ``ALIGNED_WITH`` edge in this run (i.e. ``clusters_created - aligned_clusters``).
 
-In summary, ``resolved``/``unresolved`` report whether a mention ended up with
-any cluster assignment at all, while ``mentions_clustered``/``mentions_unclustered``
-and the alignment metrics provide more fine-grained insight into how those
-assignments were produced in clustering and hybrid modes.
+Recommended metrics per mode
+------------------------------
+* ``"structured_anchor"``: use ``resolved``, ``unresolved``, ``resolution_breakdown``.
+* ``"unstructured_only"``: use ``mentions_clustered``, ``mentions_unclustered``,
+  ``clusters_created``, ``resolution_breakdown``.  Ignore ``resolved``/``unresolved``
+  (always 0 / mentions_total respectively).
+* ``"hybrid"``: use ``mentions_clustered``, ``mentions_unclustered``,
+  ``clusters_created``, ``aligned_clusters``, ``distinct_canonical_entities_aligned``,
+  ``mentions_in_aligned_clusters``, ``clusters_pending_alignment``, and
+  ``alignment_breakdown``.  Ignore ``resolved``/``unresolved``.
 """
 from __future__ import annotations
 
@@ -1115,9 +1133,13 @@ def run_entity_resolution(
 
     Returns:
         A summary dict with counts, resolution breakdown, ``resolution_mode``,
-        and artifact paths.  In ``"hybrid"`` mode the summary additionally
-        includes ``aligned_clusters``, ``alignment_breakdown``, and
-        ``alignment_version``.
+        and artifact paths.  See the module-level "Summary JSON metrics" section
+        for a full description of every field and which modes emit each one.
+        In brief: ``"unstructured_only"`` and ``"hybrid"`` modes add
+        ``mentions_clustered`` / ``mentions_unclustered``; ``"hybrid"`` mode
+        further adds ``aligned_clusters``, ``alignment_breakdown``,
+        ``alignment_version``, ``distinct_canonical_entities_aligned``,
+        ``mentions_in_aligned_clusters``, and ``clusters_pending_alignment``.
     """
     # Resolve the effective mode: explicit arg > config attribute > default.
     if resolution_mode is None:
