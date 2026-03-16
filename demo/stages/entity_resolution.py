@@ -1435,7 +1435,7 @@ def run_entity_resolution(
                 """,
                 parameters_={"run_id": run_id},
                 database_=config.neo4j_database,
-                routing_=neo4j.RoutingControl.READ,
+                routing_=neo4j.RoutingControl.WRITE,
             )
             if total_clusters_q:
                 _graph_total_clusters = int(total_clusters_q[0]["total_clusters"] or 0)
@@ -1453,7 +1453,7 @@ def run_entity_resolution(
                 """,
                 parameters_={"run_id": run_id, "alignment_version": _ALIGNMENT_VERSION},
                 database_=config.neo4j_database,
-                routing_=neo4j.RoutingControl.READ,
+                routing_=neo4j.RoutingControl.WRITE,
             )
             if aligned_q:
                 _graph_aligned_clusters = int(aligned_q[0]["aligned_clusters"] or 0)
@@ -1472,7 +1472,7 @@ def run_entity_resolution(
                 """,
                 parameters_={"run_id": run_id, "alignment_version": _ALIGNMENT_VERSION},
                 database_=config.neo4j_database,
-                routing_=neo4j.RoutingControl.READ,
+                routing_=neo4j.RoutingControl.WRITE,
             )
             for record in breakdown_q:
                 method = record.get("alignment_method") or "unknown"
