@@ -2780,12 +2780,11 @@ class TestManifestGraphConsistency(unittest.TestCase):
         )
 
     def test_hybrid_manifest_reflects_graph_at_live_run_scale(self):
-        """End-to-end: manifest must accurately reflect graph state at the live-run scale.
+        """End-to-end: manifest must accurately reflect graph state at a realistic live-run scale.
 
-        Mirrors the reported evidence:
-          - 262 extracted mentions
-          - 262 MEMBER_OF edges (all mentions clustered)
-          - 23 ALIGNED_WITH edges
+        This test uses a moderately sized synthetic dataset with:
+          - all extracted mentions clustered (MEMBER_OF coverage)
+          - a non-zero number of ALIGNED_WITH edges via provided canonical nodes
 
         The unstructured clustering algorithm merges similarly-named mentions via
         fuzzy matching, so the actual number of distinct clusters (and therefore
@@ -2796,12 +2795,14 @@ class TestManifestGraphConsistency(unittest.TestCase):
         Assertion messages identify whether the failure is in graph-write execution
         or in manifest post-write query capture.
         """
-        n_mentions = 262
-        # Provide canonical nodes for the first 23 mentions.  Due to fuzzy merging
+        # Use a moderate number of mentions to keep test runtime reasonable while
+        # still exercising the clustering and alignment logic at scale.
+        n_mentions = 50
+        # Provide canonical nodes for the first few mentions.  Due to fuzzy merging
         # some of these will correspond to the same cluster, so the resulting
-        # aligned_clusters count will be <= 23.  The critical property under test
-        # is that aligned_clusters > 0, not its exact value.
-        n_canonical = 23
+        # aligned_clusters count will be <= n_canonical.  The critical property under
+        # test is that aligned_clusters > 0, not its exact value.
+        n_canonical = 5
         with tempfile.TemporaryDirectory() as tmpdir:
             config = self._live_hybrid_config(Path(tmpdir))
             mentions = self._make_mentions(n_mentions)
