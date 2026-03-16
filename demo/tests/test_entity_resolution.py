@@ -2721,6 +2721,18 @@ class TestManifestGraphConsistency(unittest.TestCase):
                 result = run_entity_resolution(
                     config, run_id="consistency-hybrid-align-001", source_uri=None
                 )
+                aligned_query_calls = [
+                    kwargs
+                    for (_args, kwargs) in driver.execute_query.call_args_list
+                    if "parameters_" in kwargs
+                    and kwargs["parameters_"].get("run_id") == "consistency-hybrid-align-001"
+                    and kwargs["parameters_"].get("alignment_version") == _ALIGNMENT_VERSION
+                ]
+                self.assertTrue(
+                    aligned_query_calls,
+                    "expected aligned-clusters query to be called with run_id and "
+                    "alignment_version parameters to scope post-write alignment metrics.",
+                )
         self.assertGreater(
             result["aligned_clusters"],
             0,
