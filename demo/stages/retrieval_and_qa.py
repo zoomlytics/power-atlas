@@ -412,11 +412,17 @@ def _format_cluster_context(
 
     Produces a human-readable section labelled as provisional inference so the LLM
     can distinguish cluster-derived entity hints from settled canonical identities.
-    Memberships with ``status='provisional'`` (abbreviation / fuzzy matches) are
-    explicitly labelled ``PROVISIONAL`` so the LLM surfaces appropriate ambiguity
-    in its answer.  Deterministic ``accepted`` memberships are labelled as confirmed
-    cluster assignments.  Canonical alignments via ``ALIGNED_WITH`` edges include
-    alignment method and status so tentative alignments are clearly distinguishable.
+    Membership status values control the rendered label:
+
+    - ``"accepted"`` — deterministic assignment; rendered as ``Entity cluster (accepted)``.
+    - ``"provisional"`` — high-confidence fuzzy match; rendered as ``PROVISIONAL CLUSTER``.
+    - ``"candidate"`` — abbreviation/initialism match; rendered as ``CANDIDATE CLUSTER``
+      to signal that the abbreviated form is ambiguous and requires review.
+    - ``"review_required"`` — borderline fuzzy match; rendered as
+      ``REVIEW REQUIRED CLUSTER`` to signal that the relationship needs verification.
+
+    Canonical alignments via ``ALIGNED_WITH`` edges include alignment method and status
+    so tentative alignments are clearly distinguishable.
 
     Duplicate membership/alignment entries (e.g. from multiple mentions in the same
     chunk pointing at the same cluster) are deduplicated before rendering so the per-
@@ -438,6 +444,24 @@ def _format_cluster_context(
         if status == "accepted":
             lines.append(
                 f"Entity cluster (accepted): '{cluster_name}' (membership via {method})"
+            )
+        elif status == "review_required":
+            lines.append(
+                f"REVIEW REQUIRED CLUSTER: '{cluster_name}' "
+                f"(membership via {method}, status: review_required — "
+                f"borderline match; requires human review before treating as confirmed)"
+            )
+        elif status == "candidate":
+            lines.append(
+                f"CANDIDATE CLUSTER: '{cluster_name}' "
+                f"(membership via {method}, status: candidate — "
+                f"abbreviated form match; identity is plausible but unconfirmed)"
+            )
+        elif status == "provisional":
+            lines.append(
+                f"PROVISIONAL CLUSTER: '{cluster_name}' "
+                f"(membership via {method}, status: provisional — "
+                f"identity not confirmed; treat as tentative, not a settled fact)"
             )
         else:
             display_status = raw_status or "unknown"

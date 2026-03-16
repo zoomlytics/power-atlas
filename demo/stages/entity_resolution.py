@@ -119,7 +119,12 @@ _RESOLVER_VERSION = "v1.2"
 
 # Bump this constant whenever cluster-assignment logic changes so that MEMBER_OF
 # edges can be distinguished by the version that created them.
-_CLUSTER_VERSION = "v1.2"
+_CLUSTER_VERSION = "v1.3"
+
+# Fuzzy SequenceMatcher ratio at-or-above which a fuzzy cluster match is classified
+# as "provisional" (high-confidence minor surface variant) rather than
+# "review_required" (borderline ambiguous match that warrants human review).
+_FUZZY_REVIEW_THRESHOLD = 0.92
 
 _QID_PATTERN = re.compile(r"^Q\d+$")
 
@@ -358,6 +363,35 @@ def _membership_score(method: str, resolution_confidence: float) -> float:
         return 0.75
     # fuzzy: use the actual similarity ratio stored in resolution_confidence.
     return resolution_confidence
+
+
+def _membership_status(method: str, score: float) -> str:
+    """Return the MEMBER_OF edge status for a given cluster assignment method and score.
+
+    Status values reflect the confidence and ambiguity of the membership:
+
+    - ``"accepted"`` — deterministic assignment (``label_cluster``,
+      ``normalized_exact``); high-confidence, no review needed.
+    - ``"provisional"`` — high-confidence probabilistic fuzzy match
+      (SequenceMatcher ratio ≥ :data:`_FUZZY_REVIEW_THRESHOLD`); minor
+      surface-form variant, review is optional.
+    - ``"candidate"`` — abbreviation/initialism match; identity is plausible
+      but the abbreviated form is inherently ambiguous, so human review adds
+      value.  Explicit :data:`CANDIDATE_MATCH` edges are also written for
+      these memberships.
+    - ``"review_required"`` — borderline fuzzy match (ratio below
+      :data:`_FUZZY_REVIEW_THRESHOLD`); the relationship is tentative and
+      should be verified before being relied upon.  Explicit
+      :data:`CANDIDATE_MATCH` edges are also written for these memberships.
+    """
+    if method in ("label_cluster", "normalized_exact"):
+        return "accepted"
+    if method == "abbreviation":
+        return "candidate"
+    if method == "fuzzy":
+        return "provisional" if score >= _FUZZY_REVIEW_THRESHOLD else "review_required"
+    # Fallback for any future methods not yet mapped.
+    return "provisional"
 
 
 def _cluster_mentions_unstructured_only(
@@ -787,6 +821,7 @@ def _write_resolution_results(
             method = row.get("resolution_method", "label_cluster")
             entity_type = row.get("entity_type")
             row_source_uri = row.get("source_uri")
+            score = _membership_score(method, row.get("resolution_confidence", 1.0))
             cluster_rows.append({
                 "mention_id": row["mention_id"],
                 "cluster_id": _make_cluster_id(run_id, entity_type, row["normalized_text"]),
@@ -795,13 +830,14 @@ def _write_resolution_results(
                 "normalized_text": row["normalized_text"],
                 "entity_type": entity_type,
                 "source_uri": row_source_uri,
-                "score": _membership_score(method, row.get("resolution_confidence", 1.0)),
+                "score": score,
                 "method": method,
-                # "accepted" only for deterministic cluster assignments;
-                # probabilistic methods (abbreviation, fuzzy) are "provisional"
-                # so downstream consumers can distinguish high-confidence from
-                # review-required memberships.
-                "status": "accepted" if method in ("label_cluster", "normalized_exact") else "provisional",
+                # Status encodes ambiguity level for downstream consumers and reviewers:
+                # "accepted"        — deterministic assignments (label_cluster, normalized_exact)
+                # "provisional"     — high-confidence fuzzy match (ratio ≥ _FUZZY_REVIEW_THRESHOLD)
+                # "candidate"       — abbreviation/initialism match (plausible but ambiguous)
+                # "review_required" — borderline fuzzy match (ratio < _FUZZY_REVIEW_THRESHOLD)
+                "status": _membership_status(method, score),
             })
         driver.execute_query(
             """
@@ -832,6 +868,34 @@ def _write_resolution_results(
             },
             database_=neo4j_database,
         )
+        # Write explicit CANDIDATE_MATCH edges for memberships that require
+        # human review before being relied upon ("candidate" = abbreviation,
+        # "review_required" = borderline fuzzy).  These edges are written
+        # in addition to MEMBER_OF edges so downstream consumers can use them
+        # as a review queue without disturbing the cluster membership graph.
+        candidate_rows = [r for r in cluster_rows if r["status"] in ("candidate", "review_required")]
+        if candidate_rows:
+            driver.execute_query(
+                """
+                UNWIND $rows AS row
+                MATCH (mention:EntityMention {mention_id: row.mention_id, run_id: $run_id})
+                MATCH (cluster:ResolvedEntityCluster {cluster_id: row.cluster_id})
+                MERGE (mention)-[r:CANDIDATE_MATCH]->(cluster)
+                SET r.score            = row.score,
+                    r.method           = row.method,
+                    r.resolver_version = $resolver_version,
+                    r.run_id           = $run_id,
+                    r.status           = row.status,
+                    r.source_uri       = row.source_uri
+                """,
+                parameters_={
+                    "rows": candidate_rows,
+                    "run_id": run_id,
+                    "resolver_version": _CLUSTER_VERSION,
+                },
+                database_=neo4j_database,
+            )
+
 
 
 def _align_clusters_to_canonical(
