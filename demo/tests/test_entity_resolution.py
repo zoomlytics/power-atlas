@@ -95,6 +95,106 @@ class TestNormalize(unittest.TestCase):
     def test_empty_string(self):
         self.assertEqual(_normalize(""), "")
 
+    # ------------------------------------------------------------------ #
+    # Diacritic / accent removal
+    # ------------------------------------------------------------------ #
+
+    def test_strips_acute_accents(self):
+        self.assertEqual(_normalize("résumé"), "resume")
+
+    def test_strips_umlaut(self):
+        self.assertEqual(_normalize("Müller"), "muller")
+
+    def test_strips_mixed_accents(self):
+        self.assertEqual(_normalize("naïve café"), "naive cafe")
+
+    def test_accented_and_plain_normalize_equal(self):
+        self.assertEqual(_normalize("Resumé"), _normalize("Resume"))
+
+    # ------------------------------------------------------------------ #
+    # NFKD / compatibility decomposition
+    # ------------------------------------------------------------------ #
+
+    def test_fi_ligature_becomes_fi(self):
+        # U+FB01 LATIN SMALL LIGATURE FI → "fi"
+        self.assertEqual(_normalize("\uFB01le"), "file")
+
+    def test_fullwidth_latin_folds_to_ascii(self):
+        # U+FF21 FULLWIDTH LATIN CAPITAL LETTER A → "a"
+        self.assertEqual(_normalize("\uFF21BC"), "abc")
+
+    # ------------------------------------------------------------------ #
+    # Apostrophe / quote variants
+    # ------------------------------------------------------------------ #
+
+    def test_left_single_quotation_mark_normalised(self):
+        # U+2018 LEFT SINGLE QUOTATION MARK
+        self.assertEqual(_normalize("it\u2018s"), "it's")
+
+    def test_right_single_quotation_mark_normalised(self):
+        # U+2019 RIGHT SINGLE QUOTATION MARK
+        self.assertEqual(_normalize("it\u2019s"), "it's")
+
+    def test_modifier_letter_apostrophe_normalised(self):
+        # U+02BC MODIFIER LETTER APOSTROPHE
+        self.assertEqual(_normalize("it\u02BCs"), "it's")
+
+    def test_grave_accent_apostrophe_normalised(self):
+        # U+0060 GRAVE ACCENT used as apostrophe
+        self.assertEqual(_normalize("it\u0060s"), "it's")
+
+    # ------------------------------------------------------------------ #
+    # Hyphen / dash variants
+    # ------------------------------------------------------------------ #
+
+    def test_en_dash_normalised_to_hyphen(self):
+        # U+2013 EN DASH
+        self.assertEqual(_normalize("state\u2013of\u2013the\u2013art"), "state-of-the-art")
+
+    def test_em_dash_normalised_to_hyphen(self):
+        # U+2014 EM DASH
+        self.assertEqual(_normalize("well\u2014known"), "well-known")
+
+    def test_minus_sign_normalised_to_hyphen(self):
+        # U+2212 MINUS SIGN
+        self.assertEqual(_normalize("t\u2212shirt"), "t-shirt")
+
+    def test_non_breaking_hyphen_normalised(self):
+        # U+2011 NON-BREAKING HYPHEN
+        self.assertEqual(_normalize("non\u2011breaking"), "non-breaking")
+
+    # ------------------------------------------------------------------ #
+    # Whitespace collapse
+    # ------------------------------------------------------------------ #
+
+    def test_multiple_spaces_collapsed(self):
+        self.assertEqual(_normalize("hello   world"), "hello world")
+
+    def test_tab_collapsed_to_space(self):
+        self.assertEqual(_normalize("hello\tworld"), "hello world")
+
+    def test_newline_collapsed_to_space(self):
+        self.assertEqual(_normalize("hello\nworld"), "hello world")
+
+    def test_non_breaking_space_collapsed(self):
+        # U+00A0 NO-BREAK SPACE
+        self.assertEqual(_normalize("hello\u00A0world"), "hello world")
+
+    def test_mixed_whitespace_collapsed(self):
+        self.assertEqual(_normalize("  hello \t\n world  "), "hello world")
+
+    # ------------------------------------------------------------------ #
+    # Case-folding (casefold rather than lower)
+    # ------------------------------------------------------------------ #
+
+    def test_eszett_casefolded(self):
+        # German ß should casefold to "ss"
+        self.assertEqual(_normalize("Straße"), "strasse")
+
+    def test_latin_extended_lowercase(self):
+        # Basic non-ASCII lowercase still works
+        self.assertEqual(_normalize("Ñoño"), "nono")
+
 
 class TestSplitAliases(unittest.TestCase):
     def test_pipe_separated(self):
@@ -1338,6 +1438,67 @@ class TestClusterMentionsUnstructuredOnly(unittest.TestCase):
         self.assertEqual(by_mid["m1"]["entity_type"], "ORG")
         self.assertEqual(by_mid["m2"]["entity_type"], "PRODUCT")
         self.assertIsNone(by_mid["m3"]["entity_type"])
+
+    # ------------------------------------------------------------------ #
+    # Normalization-aware clustering edge cases
+    # ------------------------------------------------------------------ #
+
+    def test_accented_and_plain_variants_share_cluster(self):
+        """Accented and unaccented forms of the same name must end up in one cluster."""
+        mentions = [
+            {"mention_id": "m1", "name": "Müller"},
+            {"mention_id": "m2", "name": "Muller"},
+        ]
+        result = _cluster_mentions_unstructured_only(mentions)
+        cluster_keys = {r["normalized_text"] for r in result}
+        self.assertEqual(len(cluster_keys), 1, "Accented and unaccented should share a cluster")
+
+    def test_naive_naive_accented_share_cluster(self):
+        """naïve and naive should end up in the same cluster."""
+        mentions = [
+            {"mention_id": "m1", "name": "naïve"},
+            {"mention_id": "m2", "name": "naive"},
+        ]
+        result = _cluster_mentions_unstructured_only(mentions)
+        cluster_keys = {r["normalized_text"] for r in result}
+        self.assertEqual(len(cluster_keys), 1)
+
+    def test_hyphen_dash_variants_share_cluster(self):
+        """Em-dash and hyphen variants of the same name must share a cluster."""
+        mentions = [
+            {"mention_id": "m1", "name": "state\u2013of\u2013the\u2013art"},  # en-dash
+            {"mention_id": "m2", "name": "state-of-the-art"},              # ASCII hyphen
+        ]
+        result = _cluster_mentions_unstructured_only(mentions)
+        cluster_keys = {r["normalized_text"] for r in result}
+        self.assertEqual(len(cluster_keys), 1, "En-dash and hyphen variants should share a cluster")
+
+    def test_curly_apostrophe_variants_share_cluster(self):
+        """Typographic and ASCII apostrophe variants of the same name must share a cluster."""
+        mentions = [
+            {"mention_id": "m1", "name": "McDonald\u2019s"},   # RIGHT SINGLE QUOTATION MARK
+            {"mention_id": "m2", "name": "McDonald's"},         # ASCII apostrophe
+        ]
+        result = _cluster_mentions_unstructured_only(mentions)
+        cluster_keys = {r["normalized_text"] for r in result}
+        self.assertEqual(len(cluster_keys), 1, "Curly and plain apostrophes should share a cluster")
+
+    def test_whitespace_variants_share_cluster(self):
+        """Extra or non-standard whitespace must not create separate clusters."""
+        mentions = [
+            {"mention_id": "m1", "name": "United  States"},   # double space
+            {"mention_id": "m2", "name": "United\u00A0States"},  # non-breaking space
+            {"mention_id": "m3", "name": "United States"},    # normal space
+        ]
+        result = _cluster_mentions_unstructured_only(mentions)
+        cluster_keys = {r["normalized_text"] for r in result}
+        self.assertEqual(len(cluster_keys), 1, "Whitespace variants should all share a cluster")
+
+    def test_normalized_text_output_is_cleaned(self):
+        """normalized_text field in output rows must reflect the cleaned form."""
+        mentions = [{"mention_id": "m1", "name": "  Ré sumé  "}]
+        result = _cluster_mentions_unstructured_only(mentions)
+        self.assertEqual(result[0]["normalized_text"], "re sume")
 
 class TestRunEntityResolutionUnstructuredOnly(unittest.TestCase):
     """Tests for run_entity_resolution with resolution_mode='unstructured_only'."""
