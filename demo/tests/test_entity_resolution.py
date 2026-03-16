@@ -797,15 +797,19 @@ class TestResolvedEntityCluster(unittest.TestCase):
         cid_run2 = _make_cluster_id("run-B", None, "ibm")
         self.assertNotEqual(cid_run1, cid_run2)
 
-    def test_cross_source_same_text_produces_distinct_cluster_ids(self):
-        """Same normalized text from different source_uris must yield different cluster_ids."""
-        cid_src1 = _make_cluster_id("run-A", None, "ibm", source_uri="https://example.com/doc1.pdf")
-        cid_src2 = _make_cluster_id("run-A", None, "ibm", source_uri="https://example.com/doc2.pdf")
-        self.assertNotEqual(cid_src1, cid_src2)
+    def test_cross_source_same_text_produces_same_cluster_id(self):
+        """Mentions from different source_uris in the same run must yield the SAME cluster_id.
 
-    def test_per_mention_source_uri_scopes_cluster_id_in_artifact(self):
-        """Mentions from different sources within the same run_id produce distinct cluster_ids
-        in the unresolved artifact, using each mention's own DB-stored source_uri."""
+        source_uri is NOT part of cluster identity; it is provenance-only on edges.
+        Cross-document clustering within a run is intentional.
+        """
+        cid_src1 = _make_cluster_id("run-A", "ORG", "ibm")
+        cid_src2 = _make_cluster_id("run-A", "ORG", "ibm")
+        self.assertEqual(cid_src1, cid_src2)
+
+    def test_per_mention_source_uri_produces_same_cluster_id_in_artifact(self):
+        """Mentions from different sources within the same run_id produce the SAME cluster_id
+        in the unresolved artifact — source_uri is provenance on edges, not cluster identity."""
         with tempfile.TemporaryDirectory() as tmpdir:
             config = Config(
                 dry_run=False,
@@ -835,29 +839,20 @@ class TestResolvedEntityCluster(unittest.TestCase):
             )
             unresolved = json.loads(unresolved_path.read_text(encoding="utf-8"))
             self.assertEqual(len(unresolved), 2)
-            # Each mention's cluster_id must be scoped to its own source_uri.
+            # Both mentions must map to the SAME cluster_id since source_uri is not identity.
             cid_m1 = unresolved[0]["cluster_id"]
             cid_m2 = unresolved[1]["cluster_id"]
-            self.assertNotEqual(cid_m1, cid_m2, "Mentions from different sources must yield different cluster_ids")
-            # Verify the cluster_ids match what _make_cluster_id would produce.
-            expected_cid_m1 = _make_cluster_id("run-src-scope-001", "ORG", "ibm", source_uri="https://example.com/doc1.pdf")
-            expected_cid_m2 = _make_cluster_id("run-src-scope-001", "ORG", "ibm", source_uri="https://example.com/doc2.pdf")
-            self.assertEqual(cid_m1, expected_cid_m1)
-            self.assertEqual(cid_m2, expected_cid_m2)
-            # clusters_created should be 2 (one per distinct source_uri).
-            self.assertEqual(result["clusters_created"], 2)
+            expected_cid = _make_cluster_id("run-src-scope-001", "ORG", "ibm")
+            self.assertEqual(cid_m1, expected_cid)
+            self.assertEqual(cid_m2, expected_cid)
+            # clusters_created must be 1 — both mentions belong to the same cluster.
+            self.assertEqual(result["clusters_created"], 1)
 
     def test_cross_type_same_text_produces_distinct_cluster_ids(self):
         """Same normalized text with different entity types must yield different cluster_ids."""
         cid_org = _make_cluster_id("run-A", "ORG", "ibm")
         cid_product = _make_cluster_id("run-A", "PRODUCT", "ibm")
         self.assertNotEqual(cid_org, cid_product)
-
-    def test_same_run_same_source_same_type_same_text_produces_same_cluster_id(self):
-        """Identical (run_id, source_uri, entity_type, normalized_text) must yield the same cluster_id."""
-        cid_a = _make_cluster_id("run-A", "ORG", "ibm", source_uri="https://example.com/doc.pdf")
-        cid_b = _make_cluster_id("run-A", "ORG", "ibm", source_uri="https://example.com/doc.pdf")
-        self.assertEqual(cid_a, cid_b)
 
     def test_same_run_same_type_same_text_produces_same_cluster_id(self):
         """Identical (run_id, entity_type, normalized_text) must yield the same cluster_id."""
@@ -869,12 +864,6 @@ class TestResolvedEntityCluster(unittest.TestCase):
         """None entity_type is treated as empty string so cluster_id is stable."""
         cid_none = _make_cluster_id("run-A", None, "ibm")
         cid_empty = _make_cluster_id("run-A", "", "ibm")
-        self.assertEqual(cid_none, cid_empty)
-
-    def test_none_source_uri_and_empty_string_handled_consistently(self):
-        """None source_uri is treated as empty string so cluster_id is stable."""
-        cid_none = _make_cluster_id("run-A", "ORG", "ibm", source_uri=None)
-        cid_empty = _make_cluster_id("run-A", "ORG", "ibm", source_uri="")
         self.assertEqual(cid_none, cid_empty)
 
     def test_make_cluster_id_raises_on_empty_run_id(self):
@@ -896,13 +885,6 @@ class TestResolvedEntityCluster(unittest.TestCase):
         # run_id="a", entity_type="b::c", text=""  vs  run_id="a", entity_type="b", text="c"
         cid_combined = _make_cluster_id("a", "b::c", "")
         cid_split = _make_cluster_id("a", "b", "c")
-        self.assertNotEqual(cid_combined, cid_split)
-
-    def test_make_cluster_id_delimiter_in_source_uri_does_not_collide(self):
-        """source_uri containing '::' must not produce an ID identical to a different tuple."""
-        # source_uri="s::t", entity_type="" vs source_uri="s", entity_type="t"
-        cid_combined = _make_cluster_id("run-A", None, "ibm", source_uri="s::t")
-        cid_split = _make_cluster_id("run-A", "t", "ibm", source_uri="s")
         self.assertNotEqual(cid_combined, cid_split)
 
     def test_make_cluster_id_percent_in_component_does_not_collide(self):
@@ -1550,10 +1532,10 @@ class TestAlignClustersToCanonical(unittest.TestCase):
         ]
         _, self.by_label, self.by_alias = _build_lookup_tables(canonical_nodes)
 
-    def _cluster(self, run_id: str, entity_type: str | None, normalized_text: str, *, source_uri: str | None = None) -> dict:
+    def _cluster(self, run_id: str, entity_type: str | None, normalized_text: str) -> dict:
         """Build a cluster dict matching the _make_cluster_id format used in production."""
         return {
-            "cluster_id": _make_cluster_id(run_id, entity_type, normalized_text, source_uri=source_uri),
+            "cluster_id": _make_cluster_id(run_id, entity_type, normalized_text),
             "normalized_text": normalized_text,
         }
 

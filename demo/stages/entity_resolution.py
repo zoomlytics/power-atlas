@@ -10,7 +10,7 @@ optionally enriches resulting clusters with alignment links to
 :CanonicalEntity nodes (``hybrid`` mode).
 
 In ``structured_anchor`` mode, mentions that cannot be resolved are grouped by
-their ``(run_id, source_uri, entity_type, normalized_text)`` identity into
+their ``(run_id, entity_type, normalized_text)`` identity into
 :ResolvedEntityCluster provisional cluster nodes and linked via :MEMBER_OF
 edges instead.
 
@@ -22,7 +22,7 @@ Resolution strategies applied in priority order (``structured_anchor`` mode):
 3. **alias_exact** — ``normalized(mention.name)`` appears in the
    ``canonical.aliases`` string (pipe-separated or comma-separated list).
 4. **label_cluster** — no canonical match found; mention is grouped with other
-   mentions sharing the same ``(run_id, source_uri, entity_type, normalized_text)``
+   mentions sharing the same ``(run_id, entity_type, normalized_text)``
    into a :ResolvedEntityCluster.
 
 Resolution strategies applied in priority order (``unstructured_only`` mode):
@@ -41,7 +41,7 @@ Resolution strategies applied in priority order (``unstructured_only`` mode):
    (difflib SequenceMatcher ratio ≥ 0.85) are placed in the same cluster
    (within the same ``entity_type`` bucket).
 4. **label_cluster** — fallback; mention is grouped in a singleton cluster
-   keyed by its ``(run_id, source_uri, entity_type, normalized_text)`` identity.
+   keyed by its ``(run_id, entity_type, normalized_text)`` identity.
 
 ``hybrid`` mode runs the full ``unstructured_only`` clustering pass first, then
 performs a best-effort alignment of each resulting :ResolvedEntityCluster to a
@@ -128,47 +128,46 @@ def _make_cluster_id(
     run_id: str,
     entity_type: str | None,
     normalized_text: str,
-    *,
-    source_uri: str | None = None,
 ) -> str:
     """Compute a scoped cluster_id for a :ResolvedEntityCluster node.
 
-    The cluster_id encodes four identity dimensions so that clusters are never
-    unintentionally merged across runs, sources, entity types, or normalized
-    texts:
+    The cluster_id encodes three identity dimensions so that clusters are never
+    unintentionally merged across runs, entity types, or normalized texts:
 
     * **run_id** — prevents cross-run collision when the same text appears in
       multiple independent processing runs.
-    * **source_uri** — prevents merging clusters from different source
-      documents/datasets that happen to share the same ``run_id``.  When
-      ``source_uri=None`` the source segment is empty (same behaviour as
-      ``entity_type=None``).
     * **entity_type** — prevents merging semantically distinct clusters that
       share a normalized text but belong to different entity types (e.g. "IBM"
       as an ORG vs "IBM" as a PRODUCT).
     * **normalized_text** — the canonical text of the cluster representative.
 
-    Format:
-    ``cluster::<run_id_enc>::<source_uri_enc>::<entity_type_enc>::<normalized_text_enc>``
+    ``source_uri`` is intentionally **not** part of cluster identity.  Mentions
+    from different source documents within the same run that refer to the same
+    entity type and normalized text are considered the same cluster; this allows
+    cross-document clustering within a run.  ``source_uri`` is still propagated
+    as provenance on ``MEMBER_OF``, ``RESOLVES_TO``, and ``ALIGNED_WITH`` edges
+    so that per-mention origin tracking is preserved without forcing
+    source-partitioned cluster identity.
+
+    Format: ``cluster::<run_id_enc>::<entity_type_enc>::<normalized_text_enc>``
 
     Each component is percent-encoded (RFC 3986, ``safe=''``) before joining
     so that a component containing the ``::`` delimiter cannot produce a
     cluster_id that collides with a legitimately different tuple.
 
-    ``source_uri=None`` and ``entity_type=None`` are both treated as empty
-    strings before encoding, so ``None`` and ``""`` produce the same cluster_id
-    for those dimensions.  An empty *normalized_text* is accepted and yields a
-    deterministic ID.  A non-empty *run_id* is required; passing an empty
-    string raises :exc:`ValueError` because it would produce IDs
-    indistinguishable across runs.
+    ``entity_type=None`` is treated as an empty string before encoding, so
+    ``None`` and ``""`` produce the same cluster_id for that dimension.  An
+    empty *normalized_text* is accepted and yields a deterministic ID.  A
+    non-empty *run_id* is required; passing an empty string raises
+    :exc:`ValueError` because it would produce IDs indistinguishable across
+    runs.
     """
     if not run_id:
         raise ValueError("run_id must be a non-empty string")
     run_id_enc = _pct_encode(run_id, safe="")
-    source_uri_enc = _pct_encode(source_uri or "", safe="")
     entity_type_enc = _pct_encode(entity_type or "", safe="")
     normalized_text_enc = _pct_encode(normalized_text, safe="")
-    return f"cluster::{run_id_enc}::{source_uri_enc}::{entity_type_enc}::{normalized_text_enc}"
+    return f"cluster::{run_id_enc}::{entity_type_enc}::{normalized_text_enc}"
 
 
 def _split_aliases(raw: Any) -> list[str]:
@@ -650,11 +649,14 @@ def _write_resolution_results(
     :CanonicalEntity.
 
     Unresolved mentions are grouped into :ResolvedEntityCluster nodes keyed by
-    ``(run_id, source_uri, entity_type, normalized_text)``. Each mention receives a
-    ``MEMBER_OF`` edge carrying the required provenance metadata: ``score``,
-    ``method``, ``resolver_version``, ``run_id``, ``source_uri``, and ``status``.
-    The ``source_uri`` on both the cluster node and the edge is taken from the
-    per-mention value propagated from the EntityMention node in the DB.
+    ``(run_id, entity_type, normalized_text)``.  ``source_uri`` is **not** part
+    of cluster identity — mentions from different source documents within the
+    same run that share the same entity type and normalized text map to the same
+    cluster, enabling cross-document clustering.  Each mention receives a
+    ``MEMBER_OF`` edge carrying per-mention provenance metadata: ``score``,
+    ``method``, ``resolver_version``, ``run_id``, ``source_uri``, and
+    ``status``.  The ``source_uri`` on the edge is taken from the per-mention
+    value propagated from the EntityMention node in the DB.
     """
     if resolved_rows:
         driver.execute_query(
@@ -672,7 +674,7 @@ def _write_resolution_results(
             parameters_={
                 "rows": resolved_rows,
                 "run_id": run_id,
-                "source_uri": source_uri,
+                "source_uri": source_uri or None,
             },
             database_=neo4j_database,
         )
@@ -684,11 +686,11 @@ def _write_resolution_results(
         # MEMBER_OF score via _membership_score so deterministic cluster
         # assignments (label_cluster, normalized_exact) always get score=1.0,
         # regardless of any match-quality confidence on the unresolved row.
-        # The cluster_id is scoped by (run_id, source_uri, entity_type, normalized_text)
-        # to prevent unintentional merging across runs, sources, or entity types.
-        # The per-mention source_uri is read from the EntityMention node in the DB
-        # (propagated via the unresolved row) so that cross-source isolation works
-        # correctly even when a single run_id spans multiple source documents.
+        # The cluster_id is scoped by (run_id, entity_type, normalized_text) to
+        # prevent unintentional merging across runs or entity types.
+        # source_uri is NOT part of cluster identity; it is carried per-mention
+        # as provenance on the MEMBER_OF edge so cross-document clustering
+        # within the same run is supported.
         #
         # NOTE — cluster_id scheme compatibility: if the cluster_id format
         # changes (e.g. due to a future schema upgrade) any previously-written
@@ -706,7 +708,7 @@ def _write_resolution_results(
             row_source_uri = row.get("source_uri")
             cluster_rows.append({
                 "mention_id": row["mention_id"],
-                "cluster_id": _make_cluster_id(run_id, entity_type, row["normalized_text"], source_uri=row_source_uri),
+                "cluster_id": _make_cluster_id(run_id, entity_type, row["normalized_text"]),
                 # Use a deterministic canonical name derived from the normalized text
                 "canonical_name": row["normalized_text"].title(),
                 "normalized_text": row["normalized_text"],
@@ -729,7 +731,6 @@ def _write_resolution_results(
                 cluster.normalized_text = row.normalized_text,
                 cluster.entity_type     = row.entity_type,
                 cluster.run_id          = $run_id,
-                cluster.source_uri      = row.source_uri,
                 cluster.resolver_version = $resolver_version,
                 cluster.created_at = $created_at
             WITH row, cluster
@@ -831,12 +832,10 @@ def _write_alignment_results(
     Each matched cluster receives a non-destructive ``ALIGNED_WITH`` edge
     carrying alignment provenance metadata: ``alignment_method``,
     ``alignment_score``, ``alignment_status``, ``alignment_version``,
-    ``run_id``, and ``source_uri``.  ``source_uri`` is taken per-row from
-    the alignment row (propagated from the cluster's own ``source_uri``), so
-    multi-source runs write correct provenance on each edge.  The function-
-    level ``source_uri`` argument is kept as a fallback for callers that do
-    not yet carry per-cluster provenance.  Existing cluster nodes and
-    ``MEMBER_OF`` edges are never modified.
+    ``run_id``, and ``source_uri``.  The function-level ``source_uri``
+    argument is used as a fallback; it is normalized to ``None`` for empty
+    strings so that blank values are not persisted as a distinct provenance.
+    Existing cluster nodes and ``MEMBER_OF`` edges are never modified.
     """
     if not alignment_rows:
         return
@@ -857,7 +856,7 @@ def _write_alignment_results(
         parameters_={
             "rows": alignment_rows,
             "run_id": run_id,
-            "source_uri": source_uri,
+            "source_uri": source_uri or None,
             "alignment_version": _ALIGNMENT_VERSION,
         },
         database_=neo4j_database,
@@ -1074,21 +1073,20 @@ def run_entity_resolution(
                 _, by_label, by_alias = _build_lookup_tables(canonical_nodes)
                 # Build unique cluster dicts keyed by the scoped cluster_id
                 # produced by _make_cluster_id (which incorporates run_id,
-                # source_uri, entity_type, and normalized_text). Multiple
-                # mention rows can map to the same cluster_id; we deduplicate
-                # by cluster_id in a single O(n) pass, then sort only the unique
-                # entries (O(u log u), u ≤ n). source_uri is retained
-                # in each cluster dict so _write_alignment_results can set
-                # ALIGNED_WITH.source_uri per cluster.
+                # entity_type, and normalized_text). Multiple mention rows
+                # can map to the same cluster_id (including mentions from
+                # different source documents — source_uri is NOT part of
+                # cluster identity). We deduplicate by cluster_id in a single
+                # O(n) pass, then sort only the unique entries (O(u log u),
+                # u ≤ n).
                 cluster_entries_by_id: dict[str, tuple[tuple[str, str], dict[str, Any]]] = {}
                 for row in unresolved_rows:
-                    cid = _make_cluster_id(run_id, row.get("entity_type"), row["normalized_text"], source_uri=row.get("source_uri"))
+                    cid = _make_cluster_id(run_id, row.get("entity_type"), row["normalized_text"])
                     if cid not in cluster_entries_by_id:
                         sort_key = (row.get("entity_type") or "", row["normalized_text"])
                         cluster_entries_by_id[cid] = (sort_key, {
                             "cluster_id": cid,
                             "normalized_text": row["normalized_text"],
-                            "source_uri": row.get("source_uri"),
                         })
                 unique_clusters: list[dict[str, Any]] = [
                     c for _, c in sorted(cluster_entries_by_id.values(), key=lambda t: t[0])
@@ -1161,18 +1159,18 @@ def run_entity_resolution(
             "mention_name": row["mention_name"],
             "normalized_text": row["normalized_text"],
             "entity_type": row.get("entity_type") or None,
-            "cluster_id": _make_cluster_id(run_id, row.get("entity_type"), row["normalized_text"], source_uri=row.get("source_uri")),
+            "cluster_id": _make_cluster_id(run_id, row.get("entity_type"), row["normalized_text"]),
         }
         for row in unresolved_rows
     ]
     unresolved_path.write_text(json.dumps(unresolved_list, indent=2), encoding="utf-8")
 
-    # Count unique clusters — one cluster per unique (source_uri, entity_type, normalized_text)
-    # triple, matching the scoped identity enforced by _make_cluster_id.
-    # Normalize source_uri and entity_type with `or ""` to match _make_cluster_id's
+    # Count unique clusters — one cluster per unique (entity_type, normalized_text)
+    # pair, matching the scoped identity enforced by _make_cluster_id.
+    # Normalize entity_type with `or ""` to match _make_cluster_id's
     # treatment of None and empty string as equivalent (both produce an empty segment).
     clusters_created = len({
-        (row.get("source_uri") or "", row.get("entity_type") or "", row["normalized_text"]) for row in unresolved_rows
+        (row.get("entity_type") or "", row["normalized_text"]) for row in unresolved_rows
     })
 
     if resolution_mode == _RESOLUTION_MODE_UNSTRUCTURED_ONLY:
