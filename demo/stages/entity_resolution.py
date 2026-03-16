@@ -1491,7 +1491,7 @@ def run_entity_resolution(
                 """,
                 parameters_={"run_id": run_id, "alignment_version": _ALIGNMENT_VERSION},
                 database_=config.neo4j_database,
-                routing_=neo4j.RoutingControl.READ,
+                routing_=neo4j.RoutingControl.WRITE,
             )
             if mentions_in_q:
                 _graph_mentions_in_aligned = int(mentions_in_q[0]["mentions_in_aligned"] or 0)
