@@ -2549,7 +2549,9 @@ class TestManifestGraphConsistency(unittest.TestCase):
 
     These tests mirror the live-run scenario described in the issue tracker:
       - graph state:  262 mentions, 197 clusters, 262 MEMBER_OF, 23 ALIGNED_WITH
-      - manifest bug: resolved=0, unresolved=262 (alignment counts absent/zero)
+      - manifest bug: alignment metrics (e.g. ``aligned_clusters``) are 0/absent
+        despite 23 ALIGNED_WITH edges; ``resolved=0, unresolved=262`` is expected
+        in hybrid/unstructured_only modes and is not itself a bug.
 
     Each assertion message identifies whether the failure is in graph-write
     execution (MERGE queries) or in manifest post-write query capture, so
