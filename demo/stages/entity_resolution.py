@@ -1434,7 +1434,12 @@ def run_entity_resolution(
         # resolved=0 — which reflects the absence of canonical entity matches,
         # not a failure of the clustering/alignment stage.
         summary["mentions_clustered"] = len(unresolved_rows)
-        summary["mentions_unclustered"] = 0
+        mentions_unclustered = summary["mentions_total"] - summary["mentions_clustered"]
+        summary["mentions_unclustered"] = mentions_unclustered
+        if mentions_unclustered:
+            summary["warnings"].append(
+                f"{mentions_unclustered} mentions were not assigned to any cluster"
+            )
     if resolution_mode == _RESOLUTION_MODE_HYBRID:
         alignment_breakdown: dict[str, int] = {}
         for row in alignment_rows:
