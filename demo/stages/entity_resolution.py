@@ -150,20 +150,25 @@ In ``"hybrid"`` mode, canonical alignment metrics are also present:
 
 * ``alignment_version``: Version string for the canonical alignment algorithm.
 * ``aligned_clusters``: Number of :ResolvedEntityCluster nodes that received an
-  ``ALIGNED_WITH`` edge pointing to a :CanonicalEntity node in this run.
+  ``ALIGNED_WITH`` edge (scoped to ``run_id`` **and** ``alignment_version``) pointing
+  to a :CanonicalEntity node in this run.
 * ``alignment_breakdown``: Mapping from alignment strategy name to the number
   of ``ALIGNED_WITH`` edges written by that strategy, derived from persisted
-  graph state.
+  graph state (scoped to ``run_id`` and ``alignment_version``).
 * ``distinct_canonical_entities_aligned``: Count of unique :CanonicalEntity
   nodes that are the target of at least one ``ALIGNED_WITH`` edge created in
-  this run.
+  this run (scoped to ``alignment_version``).
 * ``mentions_in_aligned_clusters``: Number of :EntityMention nodes (via
   ``MEMBER_OF``) that belong to a :ResolvedEntityCluster which has an
-  ``ALIGNED_WITH`` edge to some :CanonicalEntity.
+  ``ALIGNED_WITH`` edge (scoped to ``alignment_version``) to some :CanonicalEntity.
 * ``clusters_pending_alignment``: Number of run-scoped :ResolvedEntityCluster
   nodes that did **not** receive an ``ALIGNED_WITH`` edge in this run.
   Computed as ``total_graph_clusters - aligned_clusters``, clamped at 0 to
   guard against stale edges on a reused ``run_id``.
+
+All alignment counts are scoped to ``(run_id, alignment_version)`` so they are
+consistent with the write path (which MERGEs ``ALIGNED_WITH`` by that composite
+key) and with cluster-aware retrieval queries that filter by ``alignment_version``.
 
 Recommended metrics per mode
 ------------------------------
@@ -1435,15 +1440,18 @@ def run_entity_resolution(
             if total_clusters_q:
                 _graph_total_clusters = int(total_clusters_q[0]["total_clusters"] or 0)
             # Count aligned clusters and distinct canonical entities.
+            # Filter by alignment_version to stay consistent with the write path
+            # (MERGE scopes edges by run_id + alignment_version) and with
+            # cluster-aware retrieval queries that also filter by alignment_version.
             aligned_q, _, _ = driver.execute_query(
                 """
                 MATCH (c:ResolvedEntityCluster {run_id: $run_id})
-                      -[:ALIGNED_WITH {run_id: $run_id}]->
+                      -[:ALIGNED_WITH {run_id: $run_id, alignment_version: $alignment_version}]->
                       (ce:CanonicalEntity)
                 RETURN count(DISTINCT c)  AS aligned_clusters,
                        count(DISTINCT ce) AS distinct_canonical_entities_aligned
                 """,
-                parameters_={"run_id": run_id},
+                parameters_={"run_id": run_id, "alignment_version": _ALIGNMENT_VERSION},
                 database_=config.neo4j_database,
                 routing_=neo4j.RoutingControl.READ,
             )
@@ -1457,12 +1465,12 @@ def run_entity_resolution(
             breakdown_q, _, _ = driver.execute_query(
                 """
                 MATCH (:ResolvedEntityCluster {run_id: $run_id})
-                      -[r:ALIGNED_WITH {run_id: $run_id}]->
+                      -[r:ALIGNED_WITH {run_id: $run_id, alignment_version: $alignment_version}]->
                       (:CanonicalEntity)
                 RETURN r.alignment_method AS alignment_method,
                        count(r)           AS method_count
                 """,
-                parameters_={"run_id": run_id},
+                parameters_={"run_id": run_id, "alignment_version": _ALIGNMENT_VERSION},
                 database_=config.neo4j_database,
                 routing_=neo4j.RoutingControl.READ,
             )
@@ -1477,11 +1485,11 @@ def run_entity_resolution(
                 MATCH (m:EntityMention {run_id: $run_id})
                       -[:MEMBER_OF]->
                       (c:ResolvedEntityCluster {run_id: $run_id})
-                      -[:ALIGNED_WITH {run_id: $run_id}]->
+                      -[:ALIGNED_WITH {run_id: $run_id, alignment_version: $alignment_version}]->
                       (:CanonicalEntity)
                 RETURN count(DISTINCT m) AS mentions_in_aligned
                 """,
-                parameters_={"run_id": run_id},
+                parameters_={"run_id": run_id, "alignment_version": _ALIGNMENT_VERSION},
                 database_=config.neo4j_database,
                 routing_=neo4j.RoutingControl.READ,
             )
