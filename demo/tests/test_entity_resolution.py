@@ -267,6 +267,19 @@ class TestBuildLookupTables(unittest.TestCase):
         self.assertEqual(by_qid["Q10"]["run_id"], "run-a")
         self.assertEqual(by_qid["Q10"]["name"], "Duplicate QID A")
 
+    def test_accented_alias_normalised(self):
+        """Aliases with diacritics are stored under their normalised (diacritic-free) key."""
+        nodes = [
+            {"entity_id": "Q99", "run_id": "run-s1", "name": "Muller GmbH", "aliases": "Müller|Müller AG"},
+        ]
+        _, _, by_alias = _build_lookup_tables(nodes)
+        # "Müller" → "muller" and "Müller AG" → "muller ag" after _normalize
+        self.assertIn("muller", by_alias)
+        self.assertIn("muller ag", by_alias)
+        # The raw accented form should NOT be a key
+        self.assertNotIn("müller", by_alias)
+        self.assertNotIn("müller ag", by_alias)
+
 
 class TestResolveMention(unittest.TestCase):
     def setUp(self):
@@ -338,6 +351,38 @@ class TestResolveMention(unittest.TestCase):
         self.assertFalse(result["resolved"])
         self.assertIn("entity_type", result)
         self.assertEqual(result["entity_type"], "concept")
+
+    def test_alias_exact_accented_variant(self):
+        """A mention with diacritics should resolve via alias_exact when the canonical
+        entity lists the same accented form as an alias — both normalize to the same
+        diacritic-free key."""
+        canonical_nodes = [
+            {"entity_id": "Q99", "run_id": "run-s1", "name": "Muller GmbH", "aliases": "Müller|Müller AG"},
+        ]
+        by_qid, by_label, by_alias = _build_lookup_tables(canonical_nodes)
+        # Mention "Müller AG" (accented) should resolve to Q99 via alias_exact
+        mention = {"mention_id": "m9", "name": "Müller AG"}
+        result = _resolve_mention(mention, by_qid, by_label, by_alias)
+        self.assertTrue(result["resolved"])
+        self.assertEqual(result["resolution_method"], "alias_exact")
+        self.assertEqual(result["canonical_entity_id"], "Q99")
+        self.assertEqual(result["resolution_confidence"], 0.8)
+
+    def test_alias_exact_compatibility_variant(self):
+        """Full-width/compatibility Unicode characters in an alias normalize to the
+        same ASCII form and resolve via alias_exact."""
+        canonical_nodes = [
+            # "\uff2f\uff2d\uff27" is full-width "OMG"; use a distinct canonical name
+            # so the mention does not match via label_exact first.
+            {"entity_id": "Q50", "run_id": "run-s1", "name": "OMG Corporation", "aliases": "\uff2f\uff2d\uff27 Corp"},
+        ]
+        by_qid, by_label, by_alias = _build_lookup_tables(canonical_nodes)
+        # "omg corp" matches the normalised alias ("\uff2f\uff2d\uff27 Corp" → "omg corp")
+        mention = {"mention_id": "m10", "name": "omg corp"}
+        result = _resolve_mention(mention, by_qid, by_label, by_alias)
+        self.assertTrue(result["resolved"])
+        self.assertEqual(result["resolution_method"], "alias_exact")
+        self.assertEqual(result["canonical_entity_id"], "Q50")
 
 
 class TestRunEntityResolutionDryRun(unittest.TestCase):

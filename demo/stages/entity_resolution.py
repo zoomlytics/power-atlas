@@ -244,11 +244,18 @@ def _make_cluster_id(
 
 
 def _split_aliases(raw: Any) -> list[str]:
-    """Parse a pipe- or comma-separated alias string into individual tokens."""
+    """Parse a pipe- or comma-separated alias string into normalised tokens.
+
+    Each token is processed through :func:`_normalize` so that alias lookup
+    keys are consistent with the normalisation applied to mention text.  This
+    ensures that aliases containing diacritics, Unicode dashes, curly
+    apostrophes, or non-ASCII casing (e.g. ``"Müller"``, ``"naïve"``,
+    ``"state\u2013of"``) resolve correctly against normalised mention names.
+    """
     if not raw or not isinstance(raw, str):
         return []
     sep = "|" if "|" in raw else ","
-    return [tok.strip().lower() for tok in raw.split(sep) if tok.strip()]
+    return [n for tok in raw.split(sep) if (n := _normalize(tok))]
 
 
 def _build_lookup_tables(
