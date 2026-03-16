@@ -98,6 +98,62 @@ running multiple passes for the same *run_id*:
   ``cluster_id``, and ``source_uri``.  ``source_uri`` is the per-mention origin URI
   read from the :EntityMention node in Neo4j; it is included here as provenance
   metadata only and does **not** affect which cluster a mention belongs to.
+
+Summary JSON metrics
+---------------------
+The main resolution routine writes ``entity_resolution_summary.json`` which is
+also returned to callers as a plain ``dict``. It always contains the following
+keys (regardless of resolution mode):
+
+* ``status``: ``"ok"`` on success, or ``"dry_run"`` when resolution was skipped.
+* ``run_id``: The run identifier used to scope :EntityMention nodes.
+* ``source_uri``: URI of the ingested source whose mentions were resolved.
+* ``resolution_mode``: One of ``"canonical_only"``, ``"unstructured_only"``,
+  or ``"hybrid"``.
+* ``resolver_method``: Human-readable label for the resolver strategy used.
+* ``resolver_version``: Version string for the resolver implementation.
+* ``cluster_version``: Version string for the clustering strategy.
+* ``mentions_total``: Total number of :EntityMention nodes considered.
+* ``resolved``: Count of mentions that have been assigned to a cluster
+  (i.e. have an outgoing ``RESOLVES_TO`` edge), regardless of how that cluster
+  was produced.
+* ``unresolved``: Count of mentions that were **not** assigned to any cluster
+  (typically because they failed all matching heuristics).
+* ``clusters_created``: Number of clusters that were created or reused.
+* ``resolution_breakdown``: Mapping from resolution strategy name to the
+  number of mentions whose cluster assignment was decided by that strategy.
+* ``warnings``: List of non-fatal issues encountered during resolution.
+
+In modes that perform text-based clustering
+(``resolution_mode`` is ``"unstructured_only"`` or ``"hybrid"``), the summary
+also includes:
+
+* ``mentions_clustered``: Number of mentions that participated in the
+  unstructured clustering step (i.e. were grouped into some cluster, whether or
+  not that cluster was later aligned to a canonical entity).
+* ``mentions_unclustered``: Number of mentions that were considered by the
+  clustering logic but left as singletons or otherwise not placed into any
+  cluster. These are a subset of ``unresolved`` when clustering runs without
+  producing a final ``RESOLVES_TO`` edge.
+
+In ``"hybrid"`` mode, canonical alignment metrics are also present:
+
+* ``alignment_version``: Version string for the canonical alignment algorithm.
+* ``aligned_clusters``: Number of text clusters that were successfully aligned
+  to some canonical entity.
+* ``alignment_breakdown``: Mapping from alignment strategy name to the number
+  of clusters aligned by that strategy.
+* ``distinct_canonical_entities_aligned``: Count of unique canonical entities
+  that have at least one aligned cluster.
+* ``mentions_in_aligned_clusters``: Number of mentions that are members of
+  clusters which have been aligned to a canonical entity.
+* ``clusters_pending_alignment``: Number of clusters produced by the
+  unstructured step that were **not** aligned to any canonical entity.
+
+In summary, ``resolved``/``unresolved`` report whether a mention ended up with
+any cluster assignment at all, while ``mentions_clustered``/``mentions_unclustered``
+and the alignment metrics provide more fine-grained insight into how those
+assignments were produced in clustering and hybrid modes.
 """
 from __future__ import annotations
 
