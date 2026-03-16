@@ -105,7 +105,7 @@ The main resolution routine writes ``entity_resolution_summary.json`` which is
 also returned to callers as a plain ``dict``. It always contains the following
 keys (regardless of resolution mode):
 
-* ``status``: ``"ok"`` on success, or ``"dry_run"`` when resolution was skipped.
+* ``status``: ``"live"`` on success, or ``"dry_run"`` when resolution was skipped.
 * ``run_id``: The run identifier used to scope :EntityMention nodes.
 * ``source_uri``: URI of the ingested source whose mentions were resolved.
 * ``resolution_mode``: One of ``"structured_anchor"``, ``"unstructured_only"``,
