@@ -88,7 +88,6 @@ def resolution_layer_schema() -> GraphSchema:
                     PropertyType(name="normalized_text", type="STRING"),
                     PropertyType(name="entity_type", type="STRING"),
                     PropertyType(name="run_id", type="STRING"),
-                    PropertyType(name="source_uri", type="STRING"),
                     PropertyType(name="resolver_version", type="STRING"),
                     PropertyType(name="created_at", type="STRING"),
                 ],
