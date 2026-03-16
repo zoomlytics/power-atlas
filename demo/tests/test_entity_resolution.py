@@ -74,6 +74,14 @@ def _make_neo4j_test_driver(
     ]
 
     def execute_query(query, parameters_=None, database_=None, routing_=None):
+        # Post-write MEMBER_OF coverage count query (distinguished by the
+        # "mentions_clustered" alias in the RETURN clause).
+        if "mentions_clustered" in query:
+            return (
+                [_Record(mentions_clustered=len(mention_records), mentions_unclustered=0)],
+                None,
+                None,
+            )
         if "EntityMention" in query and "RETURN" in query:
             return (mention_records, None, None)
         if "CanonicalEntity" in query and "RETURN" in query:
@@ -1628,6 +1636,25 @@ class TestRunEntityResolutionUnstructuredOnly(unittest.TestCase):
             self.assertEqual(result["mentions_clustered"], result["mentions_total"])
             self.assertEqual(result["mentions_unclustered"], 0)
 
+    def test_live_clustering_invariant(self):
+        """mentions_clustered + mentions_unclustered == mentions_total (graph-backed invariant)."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config(Path(tmpdir))
+            mentions = [
+                {"mention_id": "m1", "name": "Alice", "entity_type": "person"},
+                {"mention_id": "m2", "name": "Bob", "entity_type": "person"},
+                {"mention_id": "m3", "name": "Charlie", "entity_type": "person"},
+            ]
+            driver = self._make_driver(mentions)
+
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                result = run_entity_resolution(config, run_id="run-uo-invariant-001", source_uri=None)
+
+            self.assertEqual(
+                result["mentions_clustered"] + result["mentions_unclustered"],
+                result["mentions_total"],
+            )
+
     def test_dry_run_includes_mentions_clustered_zero(self):
         """dry_run summary must include mentions_clustered and mentions_unclustered (both 0)."""
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -2218,6 +2245,22 @@ class TestRunEntityResolutionHybrid(unittest.TestCase):
                 result = run_entity_resolution(config, run_id="hybrid-live-mc-001", source_uri=None)
             self.assertEqual(result["mentions_clustered"], result["mentions_total"])
             self.assertEqual(result["mentions_unclustered"], 0)
+
+    def test_live_clustering_invariant(self):
+        """mentions_clustered + mentions_unclustered == mentions_total (graph-backed invariant)."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config(Path(tmpdir))
+            mentions = [
+                {"mention_id": "m1", "name": "Alice", "entity_type": "person"},
+                {"mention_id": "m2", "name": "Bob", "entity_type": "person"},
+            ]
+            driver = self._make_driver(mentions, [])
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                result = run_entity_resolution(config, run_id="hybrid-live-invariant-001", source_uri=None)
+            self.assertEqual(
+                result["mentions_clustered"] + result["mentions_unclustered"],
+                result["mentions_total"],
+            )
 
     def test_live_distinct_canonical_entities_aligned(self):
         """distinct_canonical_entities_aligned counts unique canonical entity IDs."""

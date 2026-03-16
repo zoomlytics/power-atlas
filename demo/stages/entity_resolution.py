@@ -134,16 +134,17 @@ In modes that perform text-based clustering
 (``resolution_mode`` is ``"unstructured_only"`` or ``"hybrid"``), the summary
 also includes:
 
-* ``mentions_clustered``: Number of mentions that were placed into a
-  :ResolvedEntityCluster node via a ``MEMBER_OF`` edge.  In current
-  unstructured-first behaviour the ``label_cluster`` fallback ensures every
-  mention receives a ``MEMBER_OF`` edge, so this always equals
-  ``mentions_total`` when the stage succeeds.
-* ``mentions_unclustered``: Number of mentions that were processed by the
-  clustering logic but ended up with **no** ``MEMBER_OF`` edge to any cluster.
-  Under the current ``label_cluster`` fallback this is always ``0``; it is
-  included as an explicit health signal (non-zero values indicate a bug or
-  unexpected data condition).
+* ``mentions_clustered``: Number of :EntityMention nodes for this run_id that
+  have a persisted ``MEMBER_OF`` edge to a :ResolvedEntityCluster node (verified
+  by a post-write graph query).  In current unstructured-first behaviour the
+  ``label_cluster`` fallback ensures every mention receives a ``MEMBER_OF`` edge,
+  so this always equals ``mentions_total`` when the stage succeeds.
+* ``mentions_unclustered``: Number of :EntityMention nodes for this run_id that
+  have **no** ``MEMBER_OF`` edge after the write step, as reported by the same
+  post-write graph query.  Under the current ``label_cluster`` fallback this is
+  always ``0``; a non-zero value indicates a write failure or unexpected data
+  condition and is also surfaced as a warning in the summary.
+  Invariant: ``mentions_clustered + mentions_unclustered == mentions_total``.
 
 In ``"hybrid"`` mode, canonical alignment metrics are also present:
 
@@ -1222,6 +1223,12 @@ def run_entity_resolution(
 
     import neo4j
 
+    # Initialised here so they are always defined when building the summary below,
+    # regardless of resolution_mode.  Set to graph-queried values inside the
+    # driver context for unstructured-first modes.
+    _graph_mentions_clustered: int = 0
+    _graph_mentions_unclustered: int = 0
+
     driver = neo4j.GraphDatabase.driver(
         config.neo4j_uri,
         auth=(config.neo4j_username, config.neo4j_password),
@@ -1381,6 +1388,26 @@ def run_entity_resolution(
                 neo4j_database=config.neo4j_database,
             )
 
+        # 3c. Query the graph for actual MEMBER_OF coverage after all writes so
+        #     mentions_clustered/mentions_unclustered reflect persisted state rather
+        #     than in-memory row counts.  This catches write errors or partial
+        #     failures that in-memory counts would silently mask.
+        if resolution_mode in (_RESOLUTION_MODE_UNSTRUCTURED_ONLY, _RESOLUTION_MODE_HYBRID):
+            count_result, _, _ = driver.execute_query(
+                """
+                MATCH (m:EntityMention {run_id: $run_id})
+                OPTIONAL MATCH (m)-[:MEMBER_OF]->(c:ResolvedEntityCluster {run_id: $run_id})
+                RETURN count(CASE WHEN c IS NOT NULL THEN 1 END) AS mentions_clustered,
+                       count(CASE WHEN c IS NULL THEN 1 END)     AS mentions_unclustered
+                """,
+                parameters_={"run_id": run_id},
+                database_=config.neo4j_database,
+                routing_=neo4j.RoutingControl.READ,
+            )
+            if count_result:
+                _graph_mentions_clustered = int(count_result[0]["mentions_clustered"])
+                _graph_mentions_unclustered = int(count_result[0]["mentions_unclustered"])
+
     # 4. Write artifacts.
     unresolved_list = [
         {
@@ -1428,17 +1455,13 @@ def run_entity_resolution(
         "warnings": [],
     }
     if resolution_mode in (_RESOLUTION_MODE_UNSTRUCTURED_ONLY, _RESOLUTION_MODE_HYBRID):
-        # In unstructured-first modes every mention is placed in a cluster
-        # (the label_cluster fallback ensures no mention is left without one).
-        # These fields make it explicit that clustering succeeded even though
-        # resolved=0 — which reflects the absence of canonical entity matches,
-        # not a failure of the clustering/alignment stage.
-        summary["mentions_clustered"] = len(unresolved_rows)
-        mentions_unclustered = summary["mentions_total"] - summary["mentions_clustered"]
-        summary["mentions_unclustered"] = mentions_unclustered
-        if mentions_unclustered:
+        # Use graph-queried counts (set above) so the metrics reflect actual
+        # MEMBER_OF edges that were persisted, not just in-memory row counts.
+        summary["mentions_clustered"] = _graph_mentions_clustered
+        summary["mentions_unclustered"] = _graph_mentions_unclustered
+        if _graph_mentions_unclustered:
             summary["warnings"].append(
-                f"{mentions_unclustered} mentions were not assigned to any cluster"
+                f"{_graph_mentions_unclustered} mentions were not assigned to any cluster"
             )
     if resolution_mode == _RESOLUTION_MODE_HYBRID:
         alignment_breakdown: dict[str, int] = {}
