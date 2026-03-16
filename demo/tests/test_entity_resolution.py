@@ -848,6 +848,62 @@ class TestResolvedEntityCluster(unittest.TestCase):
             # clusters_created must be 1 — both mentions belong to the same cluster.
             self.assertEqual(result["clusters_created"], 1)
 
+    def test_per_mention_source_uri_retained_on_member_of_edges(self):
+        """Per-mention source_uri from different source documents is preserved as provenance
+        on MEMBER_OF edge rows even when both mentions map to the same cluster_id.
+
+        This verifies the provenance retention guarantee: source_uri is NOT part of
+        cluster identity but IS carried per-mention on MEMBER_OF edges so that origin
+        tracking is preserved without forcing source-partitioned cluster identity.
+        """
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = Config(
+                dry_run=False,
+                output_dir=Path(tmpdir),
+                neo4j_uri="bolt://example.invalid",
+                neo4j_username="neo4j",
+                neo4j_password="secret",
+                neo4j_database="neo4j",
+                openai_model="test-model",
+            )
+            mentions = [
+                {"mention_id": "m1", "name": "IBM", "entity_type": "ORG", "source_uri": "https://example.com/doc1.pdf"},
+                {"mention_id": "m2", "name": "IBM", "entity_type": "ORG", "source_uri": "https://example.com/doc2.pdf"},
+            ]
+            driver = _make_neo4j_test_driver(mentions, [])
+
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                run_entity_resolution(
+                    config, run_id="run-provenance-001", source_uri=None,
+                    resolution_mode="unstructured_only",
+                )
+
+            # Extract the rows written to the MEMBER_OF Cypher call.
+            member_of_rows = []
+            for call in driver.execute_query.call_args_list:
+                query = call.args[0] if call.args else ""
+                params = call.kwargs.get("parameters_", {})
+                if "MEMBER_OF" in query and "rows" in params:
+                    member_of_rows = params["rows"]
+                    break
+
+            self.assertEqual(len(member_of_rows), 2, "Expected two MEMBER_OF rows")
+
+            # Both rows must target the same cluster_id (source_uri is NOT identity).
+            cluster_ids = {r["cluster_id"] for r in member_of_rows}
+            self.assertEqual(len(cluster_ids), 1, "Both mentions must map to the same cluster_id")
+
+            # Per-mention source_uri must be retained as provenance on each edge row.
+            source_uris_by_mention = {r["mention_id"]: r.get("source_uri") for r in member_of_rows}
+            self.assertEqual(
+                source_uris_by_mention.get("m1"), "https://example.com/doc1.pdf",
+                "m1 MEMBER_OF edge must carry its source_uri as provenance",
+            )
+            self.assertEqual(
+                source_uris_by_mention.get("m2"), "https://example.com/doc2.pdf",
+                "m2 MEMBER_OF edge must carry its source_uri as provenance",
+            )
+
     def test_cross_type_same_text_produces_distinct_cluster_ids(self):
         """Same normalized text with different entity types must yield different cluster_ids."""
         cid_org = _make_cluster_id("run-A", "ORG", "ibm")

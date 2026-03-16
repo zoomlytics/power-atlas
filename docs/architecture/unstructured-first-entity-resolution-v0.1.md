@@ -581,6 +581,7 @@ Phase 1 has been implemented in the following modules:
   - `status` — `"accepted"` for deterministic assignments (`label_cluster`, `normalized_exact`); `"provisional"` for probabilistic assignments (`abbreviation`, `fuzzy`) to distinguish high-confidence memberships from those warranting downstream review.
   - `resolver_version` — value of `_CLUSTER_VERSION` constant.
   - `run_id` — the run that created the membership link.
+  - `source_uri` — the per-mention origin URI read from the `:EntityMention` node; provenance metadata only, **not** part of cluster identity.
 - `hybrid` resolution mode (Phase 3):
   - runs the full `unstructured_only` clustering pass first
   - after clustering, optionally queries `CanonicalEntity` nodes; if any exist, attempts label-exact then alias-exact alignment for each unique cluster
@@ -594,3 +595,65 @@ Phase 1 has been implemented in the following modules:
 
 - Cluster-aware retrieval and Q&A traversal (Phase 4).
 - Review-required threshold bands and audit workflow (Phase 5).
+
+---
+
+## 15) Cluster identity scope vs. provenance scope
+
+This section resolves the ambiguity discussed in the implementation review about whether
+`source_uri` should participate in cluster identity or remain provenance-only metadata.
+
+### 15.1 Decision
+
+**`source_uri` is provenance, not identity.**
+
+The default cluster identity key is `(run_id, entity_type, normalized_text)`.
+`source_uri` is **not** a component of cluster identity and does not affect which
+`:ResolvedEntityCluster` node a mention is assigned to.
+
+### 15.2 Identity scope
+
+The following three dimensions uniquely identify a `:ResolvedEntityCluster` node:
+
+| Dimension | Role |
+|---|---|
+| `run_id` | Prevents cross-run collision when the same text appears in multiple independent processing runs. |
+| `entity_type` | Prevents merging semantically distinct clusters that share normalized text but belong to different entity types (e.g. "IBM" as ORG vs. "IBM" as PRODUCT). |
+| `normalized_text` | The canonical text of the cluster representative. |
+
+`cluster_id` format: `cluster::<run_id_enc>::<entity_type_enc>::<normalized_text_enc>`
+(each component percent-encoded via RFC 3986, `safe=''`).
+
+### 15.3 Provenance scope
+
+`source_uri` is propagated as per-mention origin metadata on **edges**, not as a cluster
+identity dimension.  This means:
+
+- `MEMBER_OF` edge — carries the per-mention `source_uri` from the `:EntityMention` node.
+- `RESOLVES_TO` edge — carries `coalesce(mention.source_uri, run-level source_uri)`.
+- `ALIGNED_WITH` edge — carries the function-level `source_uri` (run-scoped provenance).
+
+All three edge types preserve `source_uri` for traceability, but none of them use it to
+determine cluster assignment.
+
+### 15.4 Cross-document clustering (default behaviour)
+
+Two mentions that share the same `(run_id, entity_type, normalized_text)` are assigned
+to the **same** `:ResolvedEntityCluster` node regardless of which source document they
+originated from.  Cross-document clustering within a run is intentional and is the
+default behaviour.
+
+Example: mentions of "IBM" (ORG) from `doc1.pdf` and `doc2.pdf` within `run-A` both
+receive `MEMBER_OF` edges to the same cluster node.  Their individual `source_uri` values
+are preserved on those edges as provenance.
+
+### 15.5 Source-partitioned clustering (opt-in, not yet implemented)
+
+If a workflow requires source-isolated clustering — where mentions from different
+source documents within the same run must never merge — this should be expressed as an
+explicit mode or policy parameter rather than baked into the default cluster key.  A
+future `cluster_scope` parameter (e.g. `cluster_scope="per_source"`) could be added to
+`run_entity_resolution()` to opt into source-partitioned behaviour.
+
+**This mode is not implemented in v0.1.**  It is documented here as a future extension
+point so that callers with strict source-isolation requirements have a clear upgrade path.
