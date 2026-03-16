@@ -168,7 +168,8 @@ def _normalize(text: str) -> str:
        from their combining marks ready for step 3.
     3. Diacritic removal — drops Unicode combining marks (category ``Mn``) so
        accented forms cluster with their unaccented equivalents
-       (e.g. ``"naïve"`` → ``"naive"``, ``"Müller"`` → ``"Muller"``).
+       (e.g. ``"naïve"`` → ``"naive"``, and with later case-folding
+       ``"Müller"`` → ``"muller"``).
     4. Apostrophe normalisation — collapses typographic/curly apostrophe
        variants (U+2018 LEFT SINGLE QUOTATION MARK ``‘``, U+2019 RIGHT SINGLE
        QUOTATION MARK ``’``, U+02BC MODIFIER LETTER APOSTROPHE ``ʼ``, etc.) to
