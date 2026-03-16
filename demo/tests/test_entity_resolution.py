@@ -2559,28 +2559,14 @@ class TestManifestGraphConsistency(unittest.TestCase):
     """
 
     def _live_hybrid_config(self, tmp_path: Path) -> Config:
-        return Config(
-            dry_run=False,
-            output_dir=tmp_path,
-            neo4j_uri="bolt://example.invalid",
-            neo4j_username="neo4j",
-            neo4j_password="secret",
-            neo4j_database="neo4j",
-            openai_model="test-model",
-            resolution_mode=_RESOLUTION_MODE_HYBRID,
-        )
+        cfg = _live_config(tmp_path)
+        cfg.resolution_mode = _RESOLUTION_MODE_HYBRID
+        return cfg
 
     def _live_unstructured_config(self, tmp_path: Path) -> Config:
-        return Config(
-            dry_run=False,
-            output_dir=tmp_path,
-            neo4j_uri="bolt://example.invalid",
-            neo4j_username="neo4j",
-            neo4j_password="secret",
-            neo4j_database="neo4j",
-            openai_model="test-model",
-            resolution_mode=_RESOLUTION_MODE_UNSTRUCTURED_ONLY,
-        )
+        cfg = _live_config(tmp_path)
+        cfg.resolution_mode = _RESOLUTION_MODE_UNSTRUCTURED_ONLY
+        return cfg
 
     @staticmethod
     def _make_mentions(count: int, prefix: str = "Entity") -> list[dict[str, Any]]:
