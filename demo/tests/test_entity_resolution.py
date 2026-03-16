@@ -2610,7 +2610,7 @@ class TestManifestGraphConsistency(unittest.TestCase):
     # ------------------------------------------------------------------
 
     def test_unstructured_only_all_mentions_clustered_at_scale(self):
-        """262 mentions must all appear in MEMBER_OF clusters (mentions_clustered == 262)."""
+        """262 mentions must all appear in MEMBER_OF clusters and partition invariants must hold."""
         n = 262
         with tempfile.TemporaryDirectory() as tmpdir:
             config = self._live_unstructured_config(Path(tmpdir))
@@ -2620,6 +2620,7 @@ class TestManifestGraphConsistency(unittest.TestCase):
                 result = run_entity_resolution(
                     config, run_id="consistency-uo-scale-001", source_uri=None
                 )
+        # All mentions must be clustered.
         self.assertEqual(
             result["mentions_clustered"],
             n,
@@ -2634,18 +2635,7 @@ class TestManifestGraphConsistency(unittest.TestCase):
             "if this fails, the post-write MEMBER_OF coverage query is incorrect "
             "(manifest summarization failure).",
         )
-
-    def test_unstructured_only_clustering_partition_at_scale(self):
-        """mentions_clustered + mentions_unclustered == mentions_total at 262-mention scale."""
-        n = 262
-        with tempfile.TemporaryDirectory() as tmpdir:
-            config = self._live_unstructured_config(Path(tmpdir))
-            mentions = self._make_mentions(n)
-            driver = _make_neo4j_test_driver(mentions, [])
-            with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                result = run_entity_resolution(
-                    config, run_id="consistency-uo-partition-001", source_uri=None
-                )
+        # Partition invariant: clustered + unclustered == total.
         self.assertEqual(
             result["mentions_clustered"] + result["mentions_unclustered"],
             result["mentions_total"],
