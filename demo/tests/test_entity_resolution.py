@@ -1611,6 +1611,42 @@ class TestRunEntityResolutionUnstructuredOnly(unittest.TestCase):
             self.assertEqual(result["unresolved"], 2)
             self.assertEqual(result["mentions_total"], 2)
 
+    def test_live_mentions_clustered_equals_mentions_total(self):
+        """In unstructured_only mode mentions_clustered == mentions_total and mentions_unclustered == 0."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config(Path(tmpdir))
+            mentions = [
+                {"mention_id": "m1", "name": "Alice", "entity_type": "person"},
+                {"mention_id": "m2", "name": "Bob", "entity_type": "person"},
+                {"mention_id": "m3", "name": "Charlie", "entity_type": "person"},
+            ]
+            driver = self._make_driver(mentions)
+
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                result = run_entity_resolution(config, run_id="run-uo-clustered-001", source_uri=None)
+
+            self.assertEqual(result["mentions_clustered"], result["mentions_total"])
+            self.assertEqual(result["mentions_unclustered"], 0)
+
+    def test_dry_run_includes_mentions_clustered_zero(self):
+        """dry_run summary must include mentions_clustered and mentions_unclustered (both 0)."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = Config(
+                dry_run=True,
+                output_dir=Path(tmpdir),
+                neo4j_uri="bolt://example.invalid",
+                neo4j_username="neo4j",
+                neo4j_password="not-used",
+                neo4j_database="neo4j",
+                openai_model="test-model",
+                resolution_mode=_RESOLUTION_MODE_UNSTRUCTURED_ONLY,
+            )
+            result = run_entity_resolution(config, run_id="run-uo-dry-clustered", source_uri=None)
+            self.assertIn("mentions_clustered", result)
+            self.assertIn("mentions_unclustered", result)
+            self.assertEqual(result["mentions_clustered"], 0)
+            self.assertEqual(result["mentions_unclustered"], 0)
+
     def test_live_normalized_exact_reduces_clusters(self):
         """Two mentions with the same normalized text -> one cluster."""
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -2168,6 +2204,112 @@ class TestRunEntityResolutionHybrid(unittest.TestCase):
             self.assertEqual(result["unresolved"], 2)
             self.assertEqual(result["clusters_created"], 2)
             self.assertEqual(result["aligned_clusters"], 1)
+
+    def test_live_mentions_clustered_equals_mentions_total(self):
+        """In hybrid mode mentions_clustered == mentions_total and mentions_unclustered == 0."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config(Path(tmpdir))
+            mentions = [
+                {"mention_id": "m1", "name": "Alice", "entity_type": "person"},
+                {"mention_id": "m2", "name": "Bob", "entity_type": "person"},
+            ]
+            driver = self._make_driver(mentions, [])
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                result = run_entity_resolution(config, run_id="hybrid-live-mc-001", source_uri=None)
+            self.assertEqual(result["mentions_clustered"], result["mentions_total"])
+            self.assertEqual(result["mentions_unclustered"], 0)
+
+    def test_live_distinct_canonical_entities_aligned(self):
+        """distinct_canonical_entities_aligned counts unique canonical entity IDs."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config(Path(tmpdir))
+            # Two mentions both align to the same canonical entity Q1
+            mentions = [
+                {"mention_id": "m1", "name": "Alice", "entity_type": "person"},
+                {"mention_id": "m2", "name": "Ali", "entity_type": "person"},
+            ]
+            canonicals = [
+                {"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": "Ali"},
+            ]
+            driver = self._make_driver(mentions, canonicals)
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                result = run_entity_resolution(config, run_id="hybrid-live-dce-001", source_uri=None)
+            # Both clusters align to the same canonical entity Q1,
+            # so distinct_canonical_entities_aligned == 1 regardless of cluster count.
+            self.assertGreaterEqual(result["aligned_clusters"], 1)
+            self.assertEqual(result["distinct_canonical_entities_aligned"], 1)
+
+    def test_live_distinct_canonical_entities_aligned_multiple(self):
+        """distinct_canonical_entities_aligned counts multiple distinct canonical IDs."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config(Path(tmpdir))
+            mentions = [
+                {"mention_id": "m1", "name": "Alice", "entity_type": "person"},
+                {"mention_id": "m2", "name": "Bob Corp", "entity_type": "org"},
+            ]
+            canonicals = [
+                {"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": None},
+                {"entity_id": "Q2", "run_id": "run-s1", "name": "Bob Corp", "aliases": None},
+            ]
+            driver = self._make_driver(mentions, canonicals)
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                result = run_entity_resolution(config, run_id="hybrid-live-dce-002", source_uri=None)
+            self.assertEqual(result["distinct_canonical_entities_aligned"], 2)
+
+    def test_live_mentions_in_aligned_clusters(self):
+        """mentions_in_aligned_clusters counts mentions in clusters with ALIGNED_WITH edges."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config(Path(tmpdir))
+            # "alice" and "ALICE" normalize to the same cluster, aligned to Q1
+            # "Unknown" forms a separate unaligned cluster
+            mentions = [
+                {"mention_id": "m1", "name": "Alice", "entity_type": "person"},
+                {"mention_id": "m2", "name": "ALICE", "entity_type": "person"},
+                {"mention_id": "m3", "name": "Unknown", "entity_type": "person"},
+            ]
+            canonicals = [
+                {"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": None},
+            ]
+            driver = self._make_driver(mentions, canonicals)
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                result = run_entity_resolution(config, run_id="hybrid-live-miac-001", source_uri=None)
+            # 2 mentions are in the "alice" cluster which aligns to Q1
+            self.assertEqual(result["mentions_in_aligned_clusters"], 2)
+            # "Unknown" is in an unaligned cluster
+            self.assertEqual(result["clusters_pending_alignment"], 1)
+
+    def test_live_clusters_pending_alignment_zero_when_all_align(self):
+        """clusters_pending_alignment == 0 when every cluster aligns to a canonical."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config(Path(tmpdir))
+            mentions = [
+                {"mention_id": "m1", "name": "Alice", "entity_type": "person"},
+                {"mention_id": "m2", "name": "Bob Corp", "entity_type": "org"},
+            ]
+            canonicals = [
+                {"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": None},
+                {"entity_id": "Q2", "run_id": "run-s1", "name": "Bob Corp", "aliases": None},
+            ]
+            driver = self._make_driver(mentions, canonicals)
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                result = run_entity_resolution(config, run_id="hybrid-live-cpa-001", source_uri=None)
+            self.assertEqual(result["clusters_pending_alignment"], 0)
+            self.assertEqual(result["aligned_clusters"], result["clusters_created"])
+
+    def test_dry_run_includes_clustering_and_alignment_metrics(self):
+        """dry_run summary must include all new clustering/alignment metric fields."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._dry_config(Path(tmpdir))
+            result = run_entity_resolution(config, run_id="hybrid-dry-metrics", source_uri=None)
+            for field in (
+                "mentions_clustered",
+                "mentions_unclustered",
+                "distinct_canonical_entities_aligned",
+                "mentions_in_aligned_clusters",
+                "clusters_pending_alignment",
+            ):
+                self.assertIn(field, result, f"dry_run summary missing field: {field}")
+                self.assertEqual(result[field], 0, f"dry_run {field} should be 0")
 
     def test_live_resolution_mode_in_summary(self):
         with tempfile.TemporaryDirectory() as tmpdir:

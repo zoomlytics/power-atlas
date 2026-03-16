@@ -1128,10 +1128,16 @@ def run_entity_resolution(
             "resolution_breakdown": {},
             "warnings": ["entity resolution skipped in dry_run mode"],
         }
+        if resolution_mode in (_RESOLUTION_MODE_UNSTRUCTURED_ONLY, _RESOLUTION_MODE_HYBRID):
+            summary["mentions_clustered"] = 0
+            summary["mentions_unclustered"] = 0
         if resolution_mode == _RESOLUTION_MODE_HYBRID:
             summary["alignment_version"] = _ALIGNMENT_VERSION
             summary["aligned_clusters"] = 0
             summary["alignment_breakdown"] = {}
+            summary["distinct_canonical_entities_aligned"] = 0
+            summary["mentions_in_aligned_clusters"] = 0
+            summary["clusters_pending_alignment"] = 0
         summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
         unresolved_path.write_text(json.dumps([], indent=2), encoding="utf-8")
         return summary
@@ -1343,14 +1349,33 @@ def run_entity_resolution(
         "unresolved_mentions_path": str(unresolved_path),
         "warnings": [],
     }
+    if resolution_mode in (_RESOLUTION_MODE_UNSTRUCTURED_ONLY, _RESOLUTION_MODE_HYBRID):
+        # In unstructured-first modes every mention is placed in a cluster
+        # (the label_cluster fallback ensures no mention is left without one).
+        # These fields make it explicit that clustering succeeded even though
+        # resolved=0 — which reflects the absence of canonical entity matches,
+        # not a failure of the clustering/alignment stage.
+        summary["mentions_clustered"] = len(unresolved_rows)
+        summary["mentions_unclustered"] = 0
     if resolution_mode == _RESOLUTION_MODE_HYBRID:
         alignment_breakdown: dict[str, int] = {}
         for row in alignment_rows:
             m = row["alignment_method"]
             alignment_breakdown[m] = alignment_breakdown.get(m, 0) + 1
+        aligned_cluster_ids = {row["cluster_id"] for row in alignment_rows}
+        mentions_in_aligned = sum(
+            1 for row in unresolved_rows
+            if _make_cluster_id(run_id, row.get("entity_type"), row["normalized_text"])
+            in aligned_cluster_ids
+        )
         summary["alignment_version"] = _ALIGNMENT_VERSION
         summary["aligned_clusters"] = len(alignment_rows)
         summary["alignment_breakdown"] = alignment_breakdown
+        summary["distinct_canonical_entities_aligned"] = len(
+            {row["canonical_entity_id"] for row in alignment_rows}
+        )
+        summary["mentions_in_aligned_clusters"] = mentions_in_aligned
+        summary["clusters_pending_alignment"] = clusters_created - len(alignment_rows)
     summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
     return summary
 
