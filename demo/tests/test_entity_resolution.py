@@ -116,46 +116,89 @@ def _make_neo4j_test_driver(
         _method = _arow.get("alignment_method") or "unknown"
         _alignment_breakdown[_method] = _alignment_breakdown.get(_method, 0) + 1
 
+    # Track whether the expected write queries have actually been executed.
+    member_of_written = False
+    aligned_with_written = False
+
     def execute_query(query, parameters_=None, database_=None, routing_=None):
+        nonlocal member_of_written, aligned_with_written
+
+        # Detect MERGE write queries that create MEMBER_OF or ALIGNED_WITH relationships.
+        if "MERGE" in query and "MEMBER_OF" in query:
+            member_of_written = True
+        if "MERGE" in query and "ALIGNED_WITH" in query:
+            aligned_with_written = True
+
         # Post-write MEMBER_OF coverage count query (distinguished by the
         # "mentions_clustered" alias in the RETURN clause).
         if "mentions_clustered" in query:
+            if member_of_written:
+                return (
+                    [_Record(mentions_clustered=len(mention_records), mentions_unclustered=0)],
+                    None,
+                    None,
+                )
+            # If no MEMBER_OF writes have occurred, report zero clustered mentions.
             return (
-                [_Record(mentions_clustered=len(mention_records), mentions_unclustered=0)],
+                [_Record(mentions_clustered=0, mentions_unclustered=len(mention_records))],
                 None,
                 None,
             )
         # Post-write total cluster count query.
         if "total_clusters" in query:
+            if member_of_written:
+                return (
+                    [_Record(total_clusters=_total_cluster_count)],
+                    None,
+                    None,
+                )
             return (
-                [_Record(total_clusters=_total_cluster_count)],
+                [_Record(total_clusters=0)],
                 None,
                 None,
             )
         # Post-write ALIGNED_WITH cluster/canonical count query.
         if "aligned_clusters" in query:
+            if aligned_with_written:
+                return (
+                    [_Record(
+                        aligned_clusters=_aligned_cluster_count,
+                        distinct_canonical_entities_aligned=_distinct_canonical_count,
+                    )],
+                    None,
+                    None,
+                )
             return (
                 [_Record(
-                    aligned_clusters=_aligned_cluster_count,
-                    distinct_canonical_entities_aligned=_distinct_canonical_count,
+                    aligned_clusters=0,
+                    distinct_canonical_entities_aligned=0,
                 )],
                 None,
                 None,
             )
         # Post-write alignment_method breakdown query on ALIGNED_WITH edges.
         if "alignment_method" in query and "ALIGNED_WITH" in query:
-            return (
-                [
-                    _Record(alignment_method=method, method_count=count)
-                    for method, count in _alignment_breakdown.items()
-                ],
-                None,
-                None,
-            )
+            if aligned_with_written:
+                return (
+                    [
+                        _Record(alignment_method=method, method_count=count)
+                        for method, count in _alignment_breakdown.items()
+                    ],
+                    None,
+                    None,
+                )
+            # No aligned edges written: no breakdown to report.
+            return ([], None, None)
         # Post-write mentions-in-aligned-clusters count query.
         if "mentions_in_aligned" in query:
+            if aligned_with_written:
+                return (
+                    [_Record(mentions_in_aligned=_mentions_in_aligned)],
+                    None,
+                    None,
+                )
             return (
-                [_Record(mentions_in_aligned=_mentions_in_aligned)],
+                [_Record(mentions_in_aligned=0)],
                 None,
                 None,
             )
