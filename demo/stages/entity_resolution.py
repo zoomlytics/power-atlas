@@ -1455,7 +1455,7 @@ def run_entity_resolution(
         summary["aligned_clusters"] = len(alignment_rows)
         summary["alignment_breakdown"] = alignment_breakdown
         summary["distinct_canonical_entities_aligned"] = len(
-            {row["canonical_entity_id"] for row in alignment_rows}
+            {(row["canonical_entity_id"], row["canonical_run_id"]) for row in alignment_rows}
         )
         summary["mentions_in_aligned_clusters"] = mentions_in_aligned
         summary["clusters_pending_alignment"] = clusters_created - len(alignment_rows)
