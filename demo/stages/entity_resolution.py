@@ -152,16 +152,18 @@ In ``"hybrid"`` mode, canonical alignment metrics are also present:
 * ``aligned_clusters``: Number of :ResolvedEntityCluster nodes that received an
   ``ALIGNED_WITH`` edge pointing to a :CanonicalEntity node in this run.
 * ``alignment_breakdown``: Mapping from alignment strategy name to the number
-  of clusters aligned by that strategy.
+  of ``ALIGNED_WITH`` edges written by that strategy, derived from persisted
+  graph state.
 * ``distinct_canonical_entities_aligned``: Count of unique :CanonicalEntity
   nodes that are the target of at least one ``ALIGNED_WITH`` edge created in
   this run.
 * ``mentions_in_aligned_clusters``: Number of :EntityMention nodes (via
   ``MEMBER_OF``) that belong to a :ResolvedEntityCluster which has an
   ``ALIGNED_WITH`` edge to some :CanonicalEntity.
-* ``clusters_pending_alignment``: Number of :ResolvedEntityCluster nodes
-  produced by the unstructured clustering step that did **not** receive an
-  ``ALIGNED_WITH`` edge in this run (i.e. ``clusters_created - aligned_clusters``).
+* ``clusters_pending_alignment``: Number of run-scoped :ResolvedEntityCluster
+  nodes that did **not** receive an ``ALIGNED_WITH`` edge in this run.
+  Computed as ``total_graph_clusters - aligned_clusters``, clamped at 0 to
+  guard against stale edges on a reused ``run_id``.
 
 Recommended metrics per mode
 ------------------------------
@@ -1231,9 +1233,11 @@ def run_entity_resolution(
     _graph_mentions_clustered: int = 0
     _graph_mentions_unclustered: int = 0
     # Hybrid-only alignment metrics — computed from post-write graph queries.
+    _graph_total_clusters: int = 0
     _graph_aligned_clusters: int = 0
     _graph_distinct_canonical_entities: int = 0
     _graph_mentions_in_aligned: int = 0
+    _graph_alignment_breakdown: dict[str, int] = {}
 
     driver = neo4j.GraphDatabase.driver(
         config.neo4j_uri,
@@ -1417,6 +1421,20 @@ def run_entity_resolution(
         # 3d. In hybrid mode, query the graph for post-write ALIGNED_WITH coverage.
         #     Using driver.execute_query() for consistency with all other queries.
         if resolution_mode == _RESOLUTION_MODE_HYBRID:
+            # Count total run-scoped clusters so that clusters_pending_alignment is
+            # consistent with the graph (not a mix of in-memory and graph values).
+            total_clusters_q, _, _ = driver.execute_query(
+                """
+                MATCH (c:ResolvedEntityCluster {run_id: $run_id})
+                RETURN count(c) AS total_clusters
+                """,
+                parameters_={"run_id": run_id},
+                database_=config.neo4j_database,
+                routing_=neo4j.RoutingControl.READ,
+            )
+            if total_clusters_q:
+                _graph_total_clusters = int(total_clusters_q[0]["total_clusters"] or 0)
+            # Count aligned clusters and distinct canonical entities.
             aligned_q, _, _ = driver.execute_query(
                 """
                 MATCH (c:ResolvedEntityCluster {run_id: $run_id})
@@ -1433,6 +1451,26 @@ def run_entity_resolution(
                 _graph_aligned_clusters = int(aligned_q[0]["aligned_clusters"] or 0)
                 _graph_distinct_canonical_entities = int(
                     aligned_q[0]["distinct_canonical_entities_aligned"] or 0
+                )
+            # Count ALIGNED_WITH edges grouped by alignment_method to build
+            # the breakdown.  Grouped by method so we count edges not clusters.
+            breakdown_q, _, _ = driver.execute_query(
+                """
+                MATCH (:ResolvedEntityCluster {run_id: $run_id})
+                      -[r:ALIGNED_WITH {run_id: $run_id}]->
+                      (:CanonicalEntity)
+                RETURN r.alignment_method AS alignment_method,
+                       count(r)           AS method_count
+                """,
+                parameters_={"run_id": run_id},
+                database_=config.neo4j_database,
+                routing_=neo4j.RoutingControl.READ,
+            )
+            for record in breakdown_q:
+                method = record.get("alignment_method") or "unknown"
+                count = int(record.get("method_count") or 0)
+                _graph_alignment_breakdown[method] = (
+                    _graph_alignment_breakdown.get(method, 0) + count
                 )
             mentions_in_q, _, _ = driver.execute_query(
                 """
@@ -1506,16 +1544,16 @@ def run_entity_resolution(
                 f"{_graph_mentions_unclustered} mentions were not assigned to any cluster"
             )
     if resolution_mode == _RESOLUTION_MODE_HYBRID:
-        alignment_breakdown: dict[str, int] = {}
-        for row in alignment_rows:
-            m = row["alignment_method"]
-            alignment_breakdown[m] = alignment_breakdown.get(m, 0) + 1
         summary["alignment_version"] = _ALIGNMENT_VERSION
         summary["aligned_clusters"] = _graph_aligned_clusters
-        summary["alignment_breakdown"] = alignment_breakdown
+        summary["alignment_breakdown"] = _graph_alignment_breakdown
         summary["distinct_canonical_entities_aligned"] = _graph_distinct_canonical_entities
         summary["mentions_in_aligned_clusters"] = _graph_mentions_in_aligned
-        summary["clusters_pending_alignment"] = clusters_created - _graph_aligned_clusters
+        # Derive pending count from graph totals so the subtraction is consistent.
+        # Clamp at 0 to guard against stale edges on a reused run_id.
+        summary["clusters_pending_alignment"] = max(
+            0, _graph_total_clusters - _graph_aligned_clusters
+        )
     summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
     return summary
 

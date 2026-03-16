@@ -81,7 +81,7 @@ def _make_neo4j_test_driver(
          "entity_type": m.get("entity_type"), "source_uri": m.get("source_uri")}
         for m in mentions
     ])
-    _cluster_entries: dict[str, dict[str, Any]] = {}
+    _cluster_entries: dict[tuple[str, str], dict[str, Any]] = {}
     for row in _cluster_rows:
         # Use a placeholder run_id consistent with what the live path would use.
         # The cluster_id is computed in the real code with the actual run_id, but
@@ -93,6 +93,7 @@ def _make_neo4j_test_driver(
                 "normalized_text": row["normalized_text"],
             }
     _unique_clusters = list(_cluster_entries.values())
+    _total_cluster_count = len(_unique_clusters)
     _, _by_label, _by_alias = _build_lookup_tables([
         {"entity_id": c["entity_id"], "run_id": c.get("run_id", ""),
          "name": c["name"], "aliases": c.get("aliases")}
@@ -108,6 +109,12 @@ def _make_neo4j_test_driver(
         1 for row in _cluster_rows
         if (row.get("entity_type") or "", row["normalized_text"]) in _aligned_cluster_keys
     )
+    # Compute breakdown from in-memory alignment rows (mirrors how the real graph
+    # would aggregate alignment_method on ALIGNED_WITH edges per cluster).
+    _alignment_breakdown: dict[str, int] = {}
+    for _arow in _alignment_rows:
+        _method = _arow.get("alignment_method") or "unknown"
+        _alignment_breakdown[_method] = _alignment_breakdown.get(_method, 0) + 1
 
     def execute_query(query, parameters_=None, database_=None, routing_=None):
         # Post-write MEMBER_OF coverage count query (distinguished by the
@@ -118,6 +125,13 @@ def _make_neo4j_test_driver(
                 None,
                 None,
             )
+        # Post-write total cluster count query.
+        if "total_clusters" in query:
+            return (
+                [_Record(total_clusters=_total_cluster_count)],
+                None,
+                None,
+            )
         # Post-write ALIGNED_WITH cluster/canonical count query.
         if "aligned_clusters" in query:
             return (
@@ -125,6 +139,16 @@ def _make_neo4j_test_driver(
                     aligned_clusters=_aligned_cluster_count,
                     distinct_canonical_entities_aligned=_distinct_canonical_count,
                 )],
+                None,
+                None,
+            )
+        # Post-write alignment_method breakdown query on ALIGNED_WITH edges.
+        if "alignment_method" in query and "ALIGNED_WITH" in query:
+            return (
+                [
+                    _Record(alignment_method=method, method_count=count)
+                    for method, count in _alignment_breakdown.items()
+                ],
                 None,
                 None,
             )
