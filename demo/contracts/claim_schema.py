@@ -64,12 +64,30 @@ def resolution_layer_schema() -> GraphSchema:
                     "Provisional cluster of EntityMention nodes believed to refer to the same "
                     "underlying entity. Sits between the extracted-assertion layer (EntityMention) "
                     "and the optional curated layer (CanonicalEntity). Created non-destructively "
-                    "by the entity resolution stage; raw mentions are never modified."
+                    "by the entity resolution stage; raw mentions are never modified.\n\n"
+                    "**Identity scoping**: ``cluster_id`` encodes ``run_id``, "
+                    "``entity_type``, and ``normalized_text`` so that clusters are never "
+                    "unintentionally merged across processing runs or entity types.  "
+                    "``source_uri`` is intentionally **not** part of cluster identity — "
+                    "mentions from different source documents within the same run that refer "
+                    "to the same entity type and normalized text are considered the same "
+                    "cluster, enabling cross-document clustering within a run.  "
+                    "``source_uri`` is preserved as provenance on ``MEMBER_OF``, "
+                    "``RESOLVES_TO``, and ``ALIGNED_WITH`` edges.  "
+                    "Each component is percent-encoded (RFC 3986) before joining so that "
+                    "a component containing the ``::`` delimiter cannot collide with a "
+                    "legitimately different tuple.  Format: "
+                    "``cluster::<run_id_enc>::<entity_type_enc>::<normalized_text_enc>``. "
+                    "``entity_type=None`` is treated as an empty string before encoding, "
+                    "producing an empty segment "
+                    "(e.g. ``cluster::run1::::ibm`` when ``entity_type=None``)."
                 ),
                 properties=[
                     PropertyType(name="cluster_id", type="STRING", required=True),
                     PropertyType(name="canonical_name", type="STRING"),
                     PropertyType(name="normalized_text", type="STRING"),
+                    PropertyType(name="entity_type", type="STRING"),
+                    PropertyType(name="run_id", type="STRING"),
                     PropertyType(name="resolver_version", type="STRING"),
                     PropertyType(name="created_at", type="STRING"),
                 ],
