@@ -219,7 +219,16 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
     if saw_dry_run_flag and saw_live_flag:
         parser.error("argument --dry-run: not allowed with argument --live")
-    return parser.parse_args(raw_argv)
+    namespace = parser.parse_args(raw_argv)
+    # Argparse subparsers re-apply set_defaults(dry_run=True) from common_parser,
+    # which overwrites the top-level parser's parsed value when a flag like --live
+    # appears before the subcommand.  Apply the pre-scanned result to guarantee
+    # the flag is honoured regardless of its position relative to the subcommand.
+    if saw_live_flag:
+        namespace.dry_run = False
+    elif saw_dry_run_flag:
+        namespace.dry_run = True
+    return namespace
 
 
 def _fetch_latest_unstructured_run_id(config: Config) -> str | None:
