@@ -79,10 +79,11 @@ export UNSTRUCTURED_RUN_ID=<run_id from ingest-pdf output>
 python -m demo.run_demo --live extract-claims
 
 # Cluster entity mentions (unstructured_only mode is the default)
+# Expected: resolved=0 (correct — no canonical entities needed), mentions_clustered=<count>
 python -m demo.run_demo --live resolve-entities
 
 # Ask questions — meaningful answers are available before structured ingest
-python -m demo.run_demo --live ask --latest --question "What does the document say about Endeavor and MercadoLibre?"
+python -m demo.run_demo --live ask --run-id $UNSTRUCTURED_RUN_ID --question "What does the document say about Endeavor and MercadoLibre?"
 ```
 
 **Phase 2 — Structured enrichment pass** (optional, additive):
@@ -92,10 +93,12 @@ python -m demo.run_demo --live ask --latest --question "What does the document s
 python -m demo.run_demo --live ingest-structured
 
 # Re-resolve entities in hybrid mode to align clusters with canonical entities
+# Expected: resolved=0 (still correct), aligned_clusters=<count>, clusters_pending_alignment=<count>
 python -m demo.run_demo --live resolve-entities --resolution-mode hybrid
 
-# Ask with cluster-aware retrieval to validate post-hybrid graph enrichment
-python -m demo.run_demo --live ask --latest --cluster-aware --question "What does the document say about Endeavor and MercadoLibre?"
+# Validate post-hybrid enrichment with explicit run-id and cluster-aware retrieval
+# Using --run-id ensures validation targets the exact run just enriched
+python -m demo.run_demo --live ask --run-id $UNSTRUCTURED_RUN_ID --cluster-aware --question "What does the document say about Endeavor and MercadoLibre?"
 ```
 
 You can also ask across the whole database (all runs and all source documents):
@@ -428,6 +431,14 @@ To diagnose which retrieval scope was actually applied (useful when debugging `-
 
 ## Troubleshooting
 
+### `resolved: 0` in the entity resolution manifest
+
+If the entity resolution manifest shows `resolved: 0`, this is **expected and correct** when running in `unstructured_only` or `hybrid` mode.
+
+The `resolved` field counts `RESOLVES_TO` edges (direct mention-to-canonical-entity links), which are only created in `structured_anchor` mode. In `unstructured_only` mode, mentions are grouped into clusters via `MEMBER_OF` edges — not `RESOLVES_TO`.
+
+To confirm clustering worked, check `mentions_clustered` (should equal `mentions_total`) and `mentions_unclustered` (should be `0`). See [Resolution and retrieval semantics](#resolution-and-retrieval-semantics) for the full manifest field reference.
+
 ### `ask` returned something unexpected
 
 Check the printed retrieval scope first.
@@ -512,6 +523,82 @@ Every `Chunk` node includes ingest metadata fields such as `run_id`, `source_uri
 
 ---
 
+## Resolution and retrieval semantics
+
+This section explains the exact meaning of each processing phase and the manifest fields that track it. Understanding these semantics prevents common misinterpretations — in particular, interpreting `resolved: 0` as a failure or assuming that the default `ask` command uses hybrid enrichment when it does not.
+
+### Mention extraction
+
+`extract-claims` reads `Chunk` nodes for the active `run_id` and creates `EntityMention` nodes linked back to their source chunk. No clustering or alignment occurs at this stage. Each mention is an independent assertion tied to a specific chunk, with full provenance.
+
+### Unstructured clustering (`resolve-entities` — default mode)
+
+`resolve-entities` in `unstructured_only` mode (the default) groups `EntityMention` nodes into `ResolvedEntityCluster` nodes via `MEMBER_OF` edges. Clustering is driven entirely by the extracted text — normalization, abbreviation detection, and fuzzy matching — with no canonical entity catalog required.
+
+**Understanding `resolved: 0` in unstructured mode:**
+
+The manifest field `resolved` counts `RESOLVES_TO` edges (direct mention-to-canonical-entity links). `RESOLVES_TO` edges are only created in `structured_anchor` mode. In `unstructured_only` mode **no `RESOLVES_TO` edges are created by design**, so `resolved: 0` is the **expected and correct value** — it is not an error or partial failure.
+
+To confirm that clustering succeeded, check:
+
+| Manifest field | What it means | Expected after a successful unstructured run |
+| --- | --- | --- |
+| `resolved` | Mentions linked directly to a `CanonicalEntity` via `RESOLVES_TO` | `0` (correct in unstructured mode) |
+| `mentions_clustered` | Mentions assigned to a `ResolvedEntityCluster` via `MEMBER_OF` | Should equal `mentions_total` |
+| `mentions_unclustered` | Mentions with no cluster assignment | Should be `0` |
+| `clusters_created` | Number of distinct clusters formed | One per unique `(entity_type, normalized_text)` pair |
+
+### Structured ingest (optional, additive)
+
+`ingest-structured` creates `CanonicalEntity` nodes from CSV fixtures. These nodes are independent of any unstructured run and carry their own `run_id`. Structured ingest is entirely optional — the graph is meaningful and Q&A is available without it.
+
+### Hybrid alignment (`resolve-entities --resolution-mode hybrid`)
+
+Hybrid alignment is a two-stage process. First, it runs the full unstructured clustering pass (identical to `unstructured_only`). Second, it enriches each resulting `ResolvedEntityCluster` with an `ALIGNED_WITH` edge to a matching `CanonicalEntity` node where a label-exact or alias-exact match exists.
+
+**What changes after hybrid alignment:**
+
+| Manifest field | What it means |
+| --- | --- |
+| `aligned_clusters` | Clusters that received an `ALIGNED_WITH` edge to a canonical entity |
+| `clusters_pending_alignment` | Clusters with no canonical match — not an error; means those cluster texts had no equivalent in the structured data |
+| `mentions_in_aligned_clusters` | Mentions that belong to an aligned cluster (reachable via `MEMBER_OF → ALIGNED_WITH`) |
+| `alignment_breakdown` | Count of `ALIGNED_WITH` edges grouped by alignment strategy (`label_exact`, `alias_exact`) |
+
+**What does not change after hybrid alignment:**
+
+- `resolved` remains `0` — hybrid mode still uses `MEMBER_OF` + `ALIGNED_WITH`, not `RESOLVES_TO`
+- The original `MEMBER_OF` edges from the unstructured pass are not modified
+- `Chunk` and `EntityMention` nodes from the unstructured run are not modified
+- Plain vector retrieval (without `--cluster-aware`) does **not** traverse `ALIGNED_WITH` edges — see below
+
+### Evidence-grounded retrieval and final Q&A mode
+
+The default `ask` command uses **plain run-scoped vector retrieval** over `Chunk` text. It does **not** automatically use cluster membership or hybrid enrichment, even after hybrid alignment has run.
+
+| `ask` flag | Retrieval mode | Graph layers consulted |
+| --- | --- | --- |
+| *(none)* | Plain vector retrieval | `Chunk` text only |
+| `--expand-graph` | Graph-expanded | `Chunk` + `ExtractedClaim`, `EntityMention`, canonical entity context |
+| `--cluster-aware` | Cluster-aware (implies `--expand-graph`) | All of the above + `ResolvedEntityCluster` membership and `ALIGNED_WITH` edges to canonical entities |
+
+To confirm that hybrid alignment is surfaced during retrieval, pass `--cluster-aware`. The manifest records `cluster_aware: true` and `expand_graph: true` when this flag is active, confirming that cluster and alignment context was consulted.
+
+**Recommended validation flow:**
+
+```bash
+# 1. Run hybrid alignment
+python -m demo.run_demo --live resolve-entities --resolution-mode hybrid --run-id <UNSTRUCTURED_RUN_ID>
+
+# 2. Validate with explicit run id and cluster-aware retrieval
+python -m demo.run_demo --live ask --run-id <UNSTRUCTURED_RUN_ID> --cluster-aware \
+    --question "What does the document say about Endeavor and MercadoLibre?"
+```
+
+Using `--run-id` explicitly ensures the validation targets the exact run you just enriched rather than relying on implicit latest-run selection.
+
+---
+
 ## Run scopes and manifests
 
 ### Run ID provenance
@@ -520,6 +607,16 @@ Every `Chunk` node includes ingest metadata fields such as `run_id`, `source_uri
 - Vendor pipelines also emit an orchestration `run_id` (`PipelineResult.run_id` / `RunContext.run_id`) for callbacks; the demo does **not** inject that vendor-orchestration id into graph nodes.
 - Entity resolution uses the same `run_id` as the unstructured/PDF ingest stages — it is part of the unstructured run scope, not a separate run boundary. Conceptually, it is **run-scoped post-ingest normalization** over the previously ingested PDF-derived nodes: it adds resolved entities and links while preserving the original lexical layer and its provenance.
 - **Retrieval is run-scoped by default**: vector search is constrained to `Chunk` nodes matching the active `run_id`. The `ask` command defaults to using `UNSTRUCTURED_RUN_ID` when set and otherwise queries the latest run (or when `--latest` is specified); you can also pass `--run-id <RUN_ID>` or `--all-runs` to override the scope.
+
+#### Why structured ingest uses a separate run_id
+
+`ingest-structured` creates `CanonicalEntity` nodes (and related structured nodes) from CSV fixtures. These entities are not derived from a specific unstructured document — they represent a standalone curated dataset that can be aligned to *any* unstructured run. Scoping them to a separate `run_id` preserves this independence: the structured catalog can be ingested once and then aligned to multiple unstructured runs over time without re-ingesting.
+
+**Why hybrid alignment still targets the unstructured run_id:**
+
+Hybrid alignment enriches `ResolvedEntityCluster` nodes that were created by a specific unstructured run. The `ALIGNED_WITH` edges it creates are scoped by the unstructured `run_id` (plus an `alignment_version` property), so alignment results remain traceable to the exact unstructured run they enrich. Targeting the unstructured `run_id` also means that validation steps (e.g. `ask --run-id <UNSTRUCTURED_RUN_ID> --cluster-aware`) consistently scope both retrieval and cluster expansion to the same run.
+
+> **Recommendation:** Always pass `--run-id <UNSTRUCTURED_RUN_ID>` explicitly when running validation steps after hybrid alignment. This avoids any ambiguity from implicit latest-run selection and ensures you are validating the exact run that was enriched.
 
 ### Manifest layout
 
