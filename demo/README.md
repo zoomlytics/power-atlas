@@ -76,29 +76,29 @@ python -m demo.run_demo ingest-pdf --live
 
 # Extract claims and entity mentions
 export UNSTRUCTURED_RUN_ID=<run_id from ingest-pdf output>
-python -m demo.run_demo --live extract-claims
+python -m demo.run_demo extract-claims --live
 
 # Cluster entity mentions (unstructured_only mode is the default)
 # Expected: resolved=0 (correct — no canonical entities needed), mentions_clustered=<count>
-python -m demo.run_demo --live resolve-entities
+python -m demo.run_demo resolve-entities --live
 
 # Ask questions — meaningful answers are available before structured ingest
-python -m demo.run_demo --live ask --run-id $UNSTRUCTURED_RUN_ID --question "What does the document say about Endeavor and MercadoLibre?"
+python -m demo.run_demo ask --live --run-id $UNSTRUCTURED_RUN_ID --question "What does the document say about Endeavor and MercadoLibre?"
 ```
 
 **Phase 2 — Structured enrichment pass** (optional, additive):
 
 ```bash
 # Ingest structured CSV data as optional enrichment/verification
-python -m demo.run_demo --live ingest-structured
+python -m demo.run_demo ingest-structured --live
 
 # Re-resolve entities in hybrid mode to align clusters with canonical entities
 # Expected: resolved=0 (still correct), aligned_clusters=<count>, clusters_pending_alignment=<count>
-python -m demo.run_demo --live resolve-entities --resolution-mode hybrid
+python -m demo.run_demo resolve-entities --live --resolution-mode hybrid
 
 # Validate post-hybrid enrichment with explicit run-id and cluster-aware retrieval
 # Using --run-id ensures validation targets the exact run just enriched
-python -m demo.run_demo --live ask --run-id $UNSTRUCTURED_RUN_ID --cluster-aware --question "What does the document say about Endeavor and MercadoLibre?"
+python -m demo.run_demo ask --live --run-id $UNSTRUCTURED_RUN_ID --cluster-aware --question "What does the document say about Endeavor and MercadoLibre?"
 ```
 
 You can also ask across the whole database (all runs and all source documents):
