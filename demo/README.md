@@ -508,8 +508,9 @@ python -m demo.run_demo --live ask --run-id $UNSTRUCTURED_RUN_ID --cluster-aware
 
 Use this checklist to confirm that hybrid enrichment is working correctly end-to-end:
 
-- [ ] `resolve-entities --resolution-mode hybrid` completes with `aligned_clusters > 0`
-- [ ] `aligned_clusters` in the entity resolution manifest is greater than `0`; `clusters_pending_alignment` is `0` or a small number (unmatched entity texts have no canonical counterpart — this is expected)
+- [ ] If you expect canonical alignment, you have already run structured ingest (e.g., `ingest-structured`) and canonical `CanonicalEntity` nodes exist.
+- [ ] `resolve-entities --resolution-mode hybrid` completes successfully; when canonical entities are present, `aligned_clusters > 0` is expected.
+- [ ] `aligned_clusters` in the entity resolution manifest is greater than `0` **when canonical entities are present**; `clusters_pending_alignment` is `0` or a small number (unmatched entity texts have no canonical counterpart — this is expected)
 - [ ] `ask --cluster-aware` manifest records `cluster_aware: true` and `expand_graph: true`
 - [ ] `citation_quality.evidence_level` is `"full"` for all three comparison queries above
 - [ ] `all_answers_cited` is `true` for all three comparison queries
@@ -517,7 +518,6 @@ Use this checklist to confirm that hybrid enrichment is working correctly end-to
 - [ ] Comparison query 1 (bridging) mentions at least two of the four entities in a single coherent answer
 - [ ] Comparison query 2 (person/network) names Marcos Galperin unambiguously with Endeavor Argentina context
 - [ ] Comparison query 3 (cross-company) returns distinct claims for at least two of the four companies, each with its own citation
-
 ### CLI walkthrough reference
 
 For the complete step-by-step CLI walkthrough, see [Recommended workflow](#recommended-workflow) and [Post-hybrid cluster-aware Q&A](#post-hybrid-cluster-aware-qa-recommended-final-validation-step).
