@@ -617,7 +617,7 @@ Using `--run-id` explicitly ensures the validation targets the exact run you jus
 
 Hybrid alignment enriches `ResolvedEntityCluster` nodes that were created by a specific unstructured run. The `ALIGNED_WITH` edges it creates are scoped by the unstructured `run_id` (plus an `alignment_version` property), so alignment results remain traceable to the exact unstructured run they enrich. Targeting the unstructured `run_id` also means that validation steps (e.g. `ask --run-id <UNSTRUCTURED_RUN_ID> --cluster-aware`) consistently scope both retrieval and cluster expansion to the same run.
 
-> **Recommendation:** Always pass `--run-id <UNSTRUCTURED_RUN_ID>` explicitly when running validation steps after hybrid alignment. This avoids any ambiguity from implicit latest-run selection and ensures you are validating the exact run that was enriched.
+> **Recommendation:** Prefer passing `--run-id <UNSTRUCTURED_RUN_ID>` explicitly when running validation steps after hybrid alignment. This avoids ambiguity from implicit latest-run selection and helps ensure you are validating the exact run that was enriched, while still allowing `--latest` in workflows where implicit latest-run selection is desired.
 
 ### Manifest layout
 
