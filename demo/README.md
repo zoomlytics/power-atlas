@@ -455,7 +455,7 @@ Compare `stages.retrieval_and_qa.citation_quality` and `stages.retrieval_and_qa.
 
 ### Comparison query 1 — Canonical-entity bridging
 
-Tests whether the hybrid pass surfaces canonical-entity connections across co-occurrent mentions.
+Tests whether the hybrid pass surfaces canonical-entity connections across co-occurring mentions.
 
 ```bash
 python -m demo.run_demo --live ask --run-id $UNSTRUCTURED_RUN_ID --cluster-aware \
