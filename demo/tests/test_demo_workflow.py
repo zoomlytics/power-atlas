@@ -162,6 +162,12 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(module.parse_args([]).command, "ingest")
         self.assertTrue(module.parse_args(["ingest", "--dry-run"]).dry_run)
         self.assertTrue(module.parse_args(["--dry-run", "ingest"]).dry_run)
+        # --live after subcommand must set dry_run=False
+        self.assertFalse(module.parse_args(["ingest", "--live"]).dry_run)
+        # --live before subcommand must also set dry_run=False (regression for flag-order bug)
+        self.assertFalse(module.parse_args(["--live", "ingest"]).dry_run)
+        for subcmd in ("extract-claims", "ingest-pdf", "resolve-entities"):
+            self.assertFalse(module.parse_args(["--live", subcmd]).dry_run)
         with self.assertRaises(SystemExit):
             module.parse_args(["--dry-run", "ingest", "--live"])
         with self.assertRaises(SystemExit):
