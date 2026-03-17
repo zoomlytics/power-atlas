@@ -568,8 +568,8 @@ Hybrid alignment is a two-stage process. First, it runs the full unstructured cl
 **What does not change after hybrid alignment:**
 
 - `resolved` remains `0` — hybrid mode still uses `MEMBER_OF` + `ALIGNED_WITH`, not `RESOLVES_TO`
-- The original `MEMBER_OF` edges from the unstructured pass are not modified
-- `Chunk` and `EntityMention` nodes from the unstructured run are not modified
+- Clustering semantics are unchanged and **non-destructive**: hybrid reruns the same unstructured clustering and upserts `MEMBER_OF` edges, but does not delete any existing `MEMBER_OF` relationships
+- `Chunk` and `EntityMention` nodes from the unstructured run are not deleted or remapped — their text and identifiers remain stable across `unstructured_only` and `hybrid` runs for the same `run_id`
 - Plain vector retrieval (without `--cluster-aware`) does **not** traverse `ALIGNED_WITH` edges — see below
 
 ### Evidence-grounded retrieval and final Q&A mode
