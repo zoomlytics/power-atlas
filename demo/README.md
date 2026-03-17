@@ -587,8 +587,9 @@ To confirm that hybrid alignment is surfaced during retrieval, pass `--cluster-a
 **Recommended validation flow:**
 
 ```bash
-# 1. Run hybrid alignment
-python -m demo.run_demo --live resolve-entities --resolution-mode hybrid --run-id <UNSTRUCTURED_RUN_ID>
+# 1. Run hybrid alignment against the unstructured-only run
+UNSTRUCTURED_RUN_ID=<UNSTRUCTURED_RUN_ID> \
+  python -m demo.run_demo --live resolve-entities --resolution-mode hybrid
 
 # 2. Validate with explicit run id and cluster-aware retrieval
 python -m demo.run_demo --live ask --run-id <UNSTRUCTURED_RUN_ID> --cluster-aware \
