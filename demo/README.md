@@ -579,8 +579,8 @@ The default `ask` command uses **plain run-scoped vector retrieval** over `Chunk
 | `ask` flag | Retrieval mode | Graph layers consulted |
 | --- | --- | --- |
 | *(none)* | Plain vector retrieval | `Chunk` text only |
-| `--expand-graph` | Graph-expanded | `Chunk` + `ExtractedClaim`, `EntityMention`, canonical entity context |
-| `--cluster-aware` | Cluster-aware (implies `--expand-graph`) | All of the above + `ResolvedEntityCluster` membership and `ALIGNED_WITH` edges to canonical entities |
+| `--expand-graph` | Graph-expanded | `Chunk` + `ExtractedClaim`, `EntityMention`, canonical entity context (when `RESOLVES_TO` edges exist) |
+| `--cluster-aware` | Cluster-aware (implies `--expand-graph`) | All of the above + `ResolvedEntityCluster` membership and canonical entities via `ALIGNED_WITH` edges (no `RESOLVES_TO` in unstructured/hybrid flows) |
 
 To confirm that hybrid alignment is surfaced during retrieval, pass `--cluster-aware`. The manifest records `cluster_aware: true` and `expand_graph: true` when this flag is active, confirming that cluster and alignment context was consulted.
 
