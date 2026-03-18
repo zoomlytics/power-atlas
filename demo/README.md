@@ -429,6 +429,129 @@ To diagnose which retrieval scope was actually applied (useful when debugging `-
 
 ---
 
+## Hybrid enrichment comparison tests
+
+This section provides targeted comparison queries and a QA checklist to help you evaluate post-enrichment retrieval quality and confirm the value of the hybrid alignment pass.
+
+### Before you start: capture a baseline
+
+Run the same question **before** hybrid alignment (plain or graph-expanded mode) and again **after** hybrid alignment (cluster-aware mode). The two manifests let you compare citation quality, entity clustering, and answer focus side-by-side.
+
+```bash
+# Baseline — pre-hybrid (non-cluster-aware), graph-expanded (no hybrid alignment yet)
+export UNSTRUCTURED_RUN_ID=<your_unstructured_run_id>
+python -m demo.run_demo --live ask --run-id $UNSTRUCTURED_RUN_ID --expand-graph \
+    --question "What does the document say about Endeavor and MercadoLibre?"
+
+# Run hybrid alignment (reuses the same UNSTRUCTURED_RUN_ID as above)
+python -m demo.run_demo --live resolve-entities --resolution-mode hybrid
+
+# Post-hybrid — cluster-aware retrieval traverses ALIGNED_WITH edges
+python -m demo.run_demo --live ask --run-id $UNSTRUCTURED_RUN_ID --cluster-aware \
+    --question "What does the document say about Endeavor and MercadoLibre?"
+```
+
+**Important:** The `ask` command writes its Q&A manifest to  
+`<output-dir>/runs/<run_id>/retrieval_and_qa/manifest.json` and will overwrite any existing
+file at that path. To compare **baseline** vs **post-hybrid** Q&A manifests side-by-side, either:
+
+- Copy the baseline manifest to a different location or filename immediately after running the
+  baseline `ask`, for example:
+
+  ```bash
+  cp <output-dir>/runs/$UNSTRUCTURED_RUN_ID/retrieval_and_qa/manifest.json \
+     <output-dir>/runs/$UNSTRUCTURED_RUN_ID/retrieval_and_qa/manifest.baseline.json
+  ```
+
+- **Or** run the post-hybrid `ask` with a different `--output-dir` so its manifest is written to a
+  separate directory.
+
+Once you have both files saved, compare
+`stages.retrieval_and_qa.citation_quality` and `stages.retrieval_and_qa.retrieval_results`
+across the two manifests to measure the impact of hybrid enrichment.
+
+### Comparison query 1 — Canonical-entity bridging
+
+Tests whether the hybrid pass surfaces canonical-entity connections across co-occurring mentions.
+
+```bash
+python -m demo.run_demo --live ask --run-id $UNSTRUCTURED_RUN_ID --cluster-aware \
+    --question "How is MercadoLibre connected to Endeavor, MercadoPago, and Marcos Galperin?"
+```
+
+**What to look for after hybrid alignment:**
+- Answer sentences reference relationships among all four entities rather than treating each mention in isolation.
+- Citations span multiple chunks, showing that cluster-aware retrieval aggregated evidence across the document.
+- `citation_quality.evidence_level` is `"full"` and `all_answers_cited` is `true`.
+
+### Comparison query 2 — Ambiguous person / network context
+
+Tests whether hybrid alignment resolves ambiguous person mentions and surfaces their network role.
+
+```bash
+python -m demo.run_demo --live ask --run-id $UNSTRUCTURED_RUN_ID --cluster-aware \
+    --question "Who is Marcos Galperin, and what role does he play in the Endeavor Argentina network?"
+```
+
+**What to look for after hybrid alignment:**
+- The answer identifies Marcos Galperin unambiguously (via the canonical entity) rather than returning fragmented or hedged results.
+- The Endeavor Argentina network context is drawn from `ALIGNED_WITH` edges connecting the `ResolvedEntityCluster` for "Marcos Galperin" to its `CanonicalEntity` counterpart.
+- Compare with the same query run without `--cluster-aware` to see whether the network context is absent or degraded in non-cluster-aware mode.
+
+### Comparison query 3 — Cross-company relationship mapping
+
+Tests whether hybrid alignment improves coherence when the question spans multiple canonical entities.
+
+```bash
+python -m demo.run_demo --live ask --run-id $UNSTRUCTURED_RUN_ID --cluster-aware \
+    --question "What relationships does the document describe among MercadoLibre, Globant, Ripio, and Xapo?"
+```
+
+**What to look for after hybrid alignment:**
+- Distinct, non-overlapping answers for each company rather than a single merged or hallucinated summary.
+- Each company's claim is independently cited; `citation_quality.citation_warnings` should be empty.
+- Run the same question without `--cluster-aware` to observe whether answer focus and citation density differ.
+
+### What improvements to look for
+
+| Dimension | Before hybrid alignment | After hybrid alignment (`--cluster-aware`) |
+| --- | --- | --- |
+| **Citation quality** | Citations may reference isolated chunk snippets | Citations span richer multi-chunk evidence via cluster membership |
+| **Entity clustering** | Mentions of "Marcos Galperin" and "Galperin" may surface as separate entities | Same surface forms are grouped under one `ResolvedEntityCluster` aligned to the canonical entity |
+| **Answer focus** | Answers may mix unrelated entities present in the same chunks | Cluster-aware expansion scopes graph context to the queried entity's cluster, reducing topic bleed |
+| **Canonical bridging** | Co-occurrence associations may be implicit | `ALIGNED_WITH` edges surface explicit canonical-entity connections as graph context |
+
+### QA checklist
+
+Use this checklist to confirm that hybrid enrichment is working correctly end-to-end:
+
+- [ ] If you expect canonical alignment, you have already run structured ingest (e.g., `ingest-structured`) and canonical `CanonicalEntity` nodes exist.
+- [ ] `resolve-entities --resolution-mode hybrid` completes successfully; when canonical entities are present, `aligned_clusters > 0` is expected.
+- [ ] `aligned_clusters` in the entity resolution manifest is greater than `0` **when canonical entities are present**; `clusters_pending_alignment` is `0` or a small number (unmatched entity texts have no canonical counterpart — this is expected)
+- [ ] `ask --cluster-aware` manifest records `cluster_aware: true` and `expand_graph: true`
+- [ ] `citation_quality.evidence_level` is `"full"` for all three comparison queries above
+- [ ] `all_answers_cited` is `true` for all three comparison queries
+- [ ] `citation_fallback_applied` is `false` for all three comparison queries
+- [ ] Comparison query 1 (bridging) mentions at least two of the four entities in a single coherent answer
+- [ ] Comparison query 2 (person/network) names Marcos Galperin unambiguously with Endeavor Argentina context
+- [ ] Comparison query 3 (cross-company) returns distinct claims for at least two of the four companies, each with its own citation
+### CLI walkthrough reference
+
+For the complete step-by-step CLI walkthrough, see [Recommended workflow](#recommended-workflow) and [Post-hybrid cluster-aware Q&A](#post-hybrid-cluster-aware-qa-recommended-final-validation-step).
+
+Key flags for hybrid enrichment validation:
+
+| Flag | Stage | Purpose |
+| --- | --- | --- |
+| `--resolution-mode hybrid` | `resolve-entities` | Run clustering plus ALIGNED_WITH edge creation to canonical entities |
+| `--cluster-aware` | `ask` | Include `ResolvedEntityCluster` membership and `ALIGNED_WITH` edges during retrieval (implies `--expand-graph`) |
+| `--run-id <RUN_ID>` | `ask` | Scope retrieval to the exact run that was enriched (recommended for validation) |
+| `--expand-graph` | `ask` | Add graph context without cluster awareness — use as the pre-hybrid baseline |
+
+> **Recommendation:** always pass `--run-id <UNSTRUCTURED_RUN_ID>` when running validation queries after hybrid alignment. This ensures retrieval targets the exact run that was enriched and avoids ambiguity from implicit latest-run selection.
+
+---
+
 ## Troubleshooting
 
 ### `resolved: 0` in the entity resolution manifest
