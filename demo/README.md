@@ -439,11 +439,11 @@ Run the same question **before** hybrid alignment (plain or graph-expanded mode)
 
 ```bash
 # Baseline — unstructured-only, graph-expanded (no hybrid alignment yet)
+export UNSTRUCTURED_RUN_ID=<your_unstructured_run_id>
 python -m demo.run_demo --live ask --run-id $UNSTRUCTURED_RUN_ID --expand-graph \
     --question "What does the document say about Endeavor and MercadoLibre?"
 
-# Run hybrid alignment (UNSTRUCTURED_RUN_ID must match the run id used above)
-export UNSTRUCTURED_RUN_ID=<your_unstructured_run_id>
+# Run hybrid alignment (reuses the same UNSTRUCTURED_RUN_ID as above)
 python -m demo.run_demo --live resolve-entities --resolution-mode hybrid
 
 # Post-hybrid — cluster-aware retrieval traverses ALIGNED_WITH edges
