@@ -57,7 +57,7 @@ RETURN c.text AS chunk_text,
        score AS similarityScore,
        [(c)<-[:SUPPORTED_BY]-(claim:ExtractedClaim) WHERE claim.run_id = $run_id | claim.claim_text] AS claims,
        [(c)<-[:MENTIONED_IN]-(mention:EntityMention) WHERE mention.run_id = $run_id | mention.name] AS mentions,
-       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:RESOLVES_TO]->(canonical) WHERE mention.run_id = $run_id | coalesce(canonical.name, canonical.label)] AS canonical_entities
+       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:RESOLVES_TO]->(canonical) WHERE mention.run_id = $run_id | canonical.name] AS canonical_entities
 """
 
 # All-runs retrieval query: no run_id filter; queries across the whole database.
@@ -92,7 +92,7 @@ RETURN c.text AS chunk_text,
        score AS similarityScore,
        [(c)<-[:SUPPORTED_BY]-(claim:ExtractedClaim) | claim.claim_text] AS claims,
        [(c)<-[:MENTIONED_IN]-(mention:EntityMention) | mention.name] AS mentions,
-       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:RESOLVES_TO]->(canonical) | coalesce(canonical.name, canonical.label)] AS canonical_entities
+       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:RESOLVES_TO]->(canonical) | canonical.name] AS canonical_entities
 """
 
 # Cluster-aware retrieval (run-scoped): extends graph expansion with provisional
@@ -117,9 +117,9 @@ RETURN c.text AS chunk_text,
        score AS similarityScore,
        [(c)<-[:SUPPORTED_BY]-(claim:ExtractedClaim) WHERE claim.run_id = $run_id | claim.claim_text] AS claims,
        [(c)<-[:MENTIONED_IN]-(mention:EntityMention) WHERE mention.run_id = $run_id | mention.name] AS mentions,
-       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:RESOLVES_TO]->(canonical) WHERE mention.run_id = $run_id | coalesce(canonical.name, canonical.label)] AS canonical_entities,
+       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:RESOLVES_TO]->(canonical) WHERE mention.run_id = $run_id | canonical.name] AS canonical_entities,
        [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[r:MEMBER_OF]->(cluster:ResolvedEntityCluster) WHERE mention.run_id = $run_id | {cluster_id: cluster.cluster_id, cluster_name: cluster.canonical_name, membership_status: r.status, membership_method: r.method}] AS cluster_memberships,
-       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:MEMBER_OF]->(cluster:ResolvedEntityCluster)-[a:ALIGNED_WITH]->(aligned_canonical) WHERE mention.run_id = $run_id AND a.run_id = $run_id AND a.alignment_version = $alignment_version | {canonical_name: coalesce(aligned_canonical.name, aligned_canonical.label), alignment_method: a.alignment_method, alignment_status: a.alignment_status}] AS cluster_canonical_alignments
+       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:MEMBER_OF]->(cluster:ResolvedEntityCluster)-[a:ALIGNED_WITH]->(aligned_canonical) WHERE mention.run_id = $run_id AND a.run_id = $run_id AND a.alignment_version = $alignment_version | {canonical_name: aligned_canonical.name, alignment_method: a.alignment_method, alignment_status: a.alignment_status}] AS cluster_canonical_alignments
 """
 _RETRIEVAL_QUERY_WITH_CLUSTER_ALL_RUNS = """
 WITH node AS c, score
@@ -135,9 +135,9 @@ RETURN c.text AS chunk_text,
        score AS similarityScore,
        [(c)<-[:SUPPORTED_BY]-(claim:ExtractedClaim) | claim.claim_text] AS claims,
        [(c)<-[:MENTIONED_IN]-(mention:EntityMention) | mention.name] AS mentions,
-       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:RESOLVES_TO]->(canonical) | coalesce(canonical.name, canonical.label)] AS canonical_entities,
+       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:RESOLVES_TO]->(canonical) | canonical.name] AS canonical_entities,
        [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[r:MEMBER_OF]->(cluster:ResolvedEntityCluster) | {cluster_id: cluster.cluster_id, cluster_name: cluster.canonical_name, membership_status: r.status, membership_method: r.method}] AS cluster_memberships,
-       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:MEMBER_OF]->(cluster:ResolvedEntityCluster)-[a:ALIGNED_WITH]->(aligned_canonical) WHERE a.run_id = mention.run_id AND a.alignment_version = $alignment_version | {canonical_name: coalesce(aligned_canonical.name, aligned_canonical.label), alignment_method: a.alignment_method, alignment_status: a.alignment_status}] AS cluster_canonical_alignments
+       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:MEMBER_OF]->(cluster:ResolvedEntityCluster)-[a:ALIGNED_WITH]->(aligned_canonical) WHERE a.run_id = mention.run_id AND a.alignment_version = $alignment_version | {canonical_name: aligned_canonical.name, alignment_method: a.alignment_method, alignment_status: a.alignment_status}] AS cluster_canonical_alignments
 """
 
 # Optional citation-relevant fields that should be surfaced as warnings when absent.
