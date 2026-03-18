@@ -438,7 +438,7 @@ This section provides targeted comparison queries and a QA checklist to help you
 Run the same question **before** hybrid alignment (plain or graph-expanded mode) and again **after** hybrid alignment (cluster-aware mode). The two manifests let you compare citation quality, entity clustering, and answer focus side-by-side.
 
 ```bash
-# Baseline — unstructured-only, graph-expanded (no hybrid alignment yet)
+# Baseline — pre-hybrid (non-cluster-aware), graph-expanded (no hybrid alignment yet)
 export UNSTRUCTURED_RUN_ID=<your_unstructured_run_id>
 python -m demo.run_demo --live ask --run-id $UNSTRUCTURED_RUN_ID --expand-graph \
     --question "What does the document say about Endeavor and MercadoLibre?"
