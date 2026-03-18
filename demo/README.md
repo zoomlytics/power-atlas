@@ -451,7 +451,24 @@ python -m demo.run_demo --live ask --run-id $UNSTRUCTURED_RUN_ID --cluster-aware
     --question "What does the document say about Endeavor and MercadoLibre?"
 ```
 
-Compare `stages.retrieval_and_qa.citation_quality` and `stages.retrieval_and_qa.retrieval_results` across both manifests to measure the impact of hybrid enrichment.
+**Important:** The `ask` command writes its Q&A manifest to  
+`<output-dir>/runs/<run_id>/retrieval_and_qa/manifest.json` and will overwrite any existing
+file at that path. To compare **baseline** vs **post-hybrid** Q&A manifests side-by-side, either:
+
+- Copy the baseline manifest to a different location or filename immediately after running the
+  baseline `ask`, for example:
+
+  ```bash
+  cp demo_output/runs/$UNSTRUCTURED_RUN_ID/retrieval_and_qa/manifest.json \
+     demo_output/runs/$UNSTRUCTURED_RUN_ID/retrieval_and_qa/manifest.baseline.json
+  ```
+
+- **Or** run the post-hybrid `ask` with a different `--output-dir` so its manifest is written to a
+  separate directory.
+
+Once you have both files saved, compare
+`stages.retrieval_and_qa.citation_quality` and `stages.retrieval_and_qa.retrieval_results`
+across the two manifests to measure the impact of hybrid enrichment.
 
 ### Comparison query 1 — Canonical-entity bridging
 
