@@ -459,8 +459,8 @@ file at that path. To compare **baseline** vs **post-hybrid** Q&A manifests side
   baseline `ask`, for example:
 
   ```bash
-  cp demo_output/runs/$UNSTRUCTURED_RUN_ID/retrieval_and_qa/manifest.json \
-     demo_output/runs/$UNSTRUCTURED_RUN_ID/retrieval_and_qa/manifest.baseline.json
+  cp <output-dir>/runs/$UNSTRUCTURED_RUN_ID/retrieval_and_qa/manifest.json \
+     <output-dir>/runs/$UNSTRUCTURED_RUN_ID/retrieval_and_qa/manifest.baseline.json
   ```
 
 - **Or** run the post-hybrid `ask` with a different `--output-dir` so its manifest is written to a
