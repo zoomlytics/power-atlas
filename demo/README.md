@@ -406,6 +406,60 @@ Adds `ExtractedClaim`, `EntityMention`, and canonical entity context from the gr
 | Graph-expanded | `--expand-graph` | `cluster_aware: false`, `expand_graph: true` | After `unstructured_only` entity resolution |
 | Cluster-aware | `--cluster-aware` | `cluster_aware: true`, `expand_graph: true` | After `hybrid` entity resolution — recommended final validation |
 
+#### Example: comparing all three modes on a cross-entity relationship question
+
+The following question is a strong test case for cluster-aware retrieval because it asks the model
+to surface **direct and indirect relationships** among four distinct companies. Evidence for these
+relationships may be spread across many document chunks with no direct co-occurrence.
+Plain vector retrieval cannot aggregate graph-level co-occurrence; graph-expanded retrieval adds
+claim and mention context; only cluster-aware retrieval additionally traverses `ALIGNED_WITH` edges
+and `ResolvedEntityCluster` membership, which is where multi-entity relationship coherence lives.
+
+```bash
+export UNSTRUCTURED_RUN_ID=<run_id from ingest-pdf output>
+
+# Mode 1 — plain vector retrieval (no graph context)
+python -m demo.run_demo --live ask \
+    --run-id "$UNSTRUCTURED_RUN_ID" \
+    --output-dir demo/artifacts_compare/q3/plain \
+    --question "What relationships does the document describe among MercadoLibre, Globant, Ripio, and Xapo?"
+
+# Mode 2 — graph-expanded (claim + mention context, no cluster awareness)
+python -m demo.run_demo --live ask \
+    --run-id "$UNSTRUCTURED_RUN_ID" \
+    --expand-graph \
+    --output-dir demo/artifacts_compare/q3/expand_graph \
+    --question "What relationships does the document describe among MercadoLibre, Globant, Ripio, and Xapo?"
+
+# Mode 3 — cluster-aware (full hybrid enrichment; run after hybrid entity resolution)
+python -m demo.run_demo --live ask \
+    --run-id "$UNSTRUCTURED_RUN_ID" \
+    --cluster-aware \
+    --output-dir demo/artifacts_compare/q3/cluster_aware \
+    --question "What relationships does the document describe among MercadoLibre, Globant, Ripio, and Xapo?"
+```
+
+**Why this question tests cluster-aware retrieval:** A four-company relationship question requires
+aggregating evidence spread across many chunks where the companies may not co-occur directly.
+Cluster-aware retrieval traverses `ALIGNED_WITH` edges linking each company's
+`ResolvedEntityCluster` to its `CanonicalEntity`, surfacing indirect connections that plain or
+graph-expanded retrieval cannot reach.
+
+**What to look for in the output manifests**
+(`demo/artifacts_compare/q3/<mode>/runs/<run_id>/retrieval_and_qa/manifest.json`):
+
+| Field | Plain | Graph-expanded | Cluster-aware |
+| --- | --- | --- | --- |
+| `cluster_aware` | `false` | `false` | `true` |
+| `expand_graph` | `false` | `true` | `true` |
+| `citation_quality.evidence_level` | may be `"partial"` | `"partial"` or `"full"` | expect `"full"` |
+| `all_answers_cited` | may be `false` | may be `false` | expect `true` |
+| Network structure in answer | likely absent or fragmented | present but isolated per chunk | direct **and** indirect links across entities |
+
+Focus on `stages.retrieval_and_qa.hits` (chunk count) and `stages.retrieval_and_qa.retrieval_results`
+(content) to compare how many chunks were retrieved and whether the same companies appear together
+in a single coherent answer across all three modes.
+
 ### Inspect the output manifest
 
 ```text
@@ -501,16 +555,36 @@ python -m demo.run_demo --live ask --run-id $UNSTRUCTURED_RUN_ID --cluster-aware
 ### Comparison query 3 — Cross-company relationship mapping
 
 Tests whether hybrid alignment improves coherence when the question spans multiple canonical entities.
+Run all three modes so you can compare manifests side-by-side (each `--output-dir` is distinct to
+prevent overwriting):
 
 ```bash
-python -m demo.run_demo --live ask --run-id $UNSTRUCTURED_RUN_ID --cluster-aware \
+# Mode 1 — plain vector retrieval (baseline, no graph context)
+python -m demo.run_demo --live ask \
+    --run-id "$UNSTRUCTURED_RUN_ID" \
+    --output-dir demo/artifacts_compare/q3/plain \
+    --question "What relationships does the document describe among MercadoLibre, Globant, Ripio, and Xapo?"
+
+# Mode 2 — graph-expanded (claim + mention context, no cluster awareness)
+python -m demo.run_demo --live ask \
+    --run-id "$UNSTRUCTURED_RUN_ID" \
+    --expand-graph \
+    --output-dir demo/artifacts_compare/q3/expand_graph \
+    --question "What relationships does the document describe among MercadoLibre, Globant, Ripio, and Xapo?"
+
+# Mode 3 — cluster-aware (full hybrid enrichment; run after hybrid entity resolution)
+python -m demo.run_demo --live ask \
+    --run-id "$UNSTRUCTURED_RUN_ID" \
+    --cluster-aware \
+    --output-dir demo/artifacts_compare/q3/cluster_aware \
     --question "What relationships does the document describe among MercadoLibre, Globant, Ripio, and Xapo?"
 ```
 
 **What to look for after hybrid alignment:**
 - Distinct, non-overlapping answers for each company rather than a single merged or hallucinated summary.
 - Each company's claim is independently cited; `citation_quality.citation_warnings` should be empty.
-- Run the same question without `--cluster-aware` to observe whether answer focus and citation density differ.
+- Compare `stages.retrieval_and_qa.citation_quality` and `retrieval_results` across all three manifests
+  to observe how answer focus and citation density improve with each mode.
 
 ### What improvements to look for
 
