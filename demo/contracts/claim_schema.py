@@ -52,8 +52,8 @@ def claim_extraction_schema() -> GraphSchema:
             # written) and also available via the standalone claim-participation stage.
             # Properties: run_id, source_uri, match_method
             #   (raw_exact | casefold_exact | normalized_exact).
-            RelationshipType(label="HAS_SUBJECT"),
-            RelationshipType(label="HAS_OBJECT"),
+            RelationshipType(label="HAS_SUBJECT_MENTION"),
+            RelationshipType(label="HAS_OBJECT_MENTION"),
         ],
     )
 

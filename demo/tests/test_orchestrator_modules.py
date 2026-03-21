@@ -499,8 +499,8 @@ def test_claim_extraction_live_writes_participation_edges_when_mention_matches(t
     assert summary["subject_edges"] + summary["object_edges"] == len(edge_rows)
 
     edge_types = {e["edge_type"] for e in edge_rows}
-    assert "HAS_SUBJECT" in edge_types
-    assert "HAS_OBJECT" in edge_types
+    assert "HAS_SUBJECT_MENTION" in edge_types
+    assert "HAS_OBJECT_MENTION" in edge_types
 
     # Each edge must record run_id and match_method provenance.
     for edge in edge_rows:

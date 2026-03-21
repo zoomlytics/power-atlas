@@ -17,6 +17,23 @@ Demo-owned labels (nodes + all their relationships are removed):
   - UnresolvedEntity        (resolution layer written by resolve-entities; fallback for unresolved mentions)
   - ResolvedEntityCluster   (resolution layer written by resolve-entities; resolved entity clusters)
 
+Stale participation edges (v0.1 graphs only, non-migratable):
+  Because the DETACH DELETE above removes all ExtractedClaim and EntityMention
+  nodes, any v0.2 :HAS_SUBJECT_MENTION / :HAS_OBJECT_MENTION edges attached to
+  those nodes are automatically removed.
+
+  Old demo graphs produced before v0.2 may contain :HAS_SUBJECT and :HAS_OBJECT
+  edges.  These relationship types were retired in v0.2 and replaced by
+  :HAS_SUBJECT_MENTION and :HAS_OBJECT_MENTION.  The DETACH DELETE of
+  ExtractedClaim/EntityMention nodes removes these stale edges as a side-effect.
+  However, if any such edges somehow survive between non-deleted endpoints, this
+  script issues an explicit DELETE to remove them and records the count in the
+  reset report under ``stale_participation_edges_deleted``.
+
+  **Old demo graphs (pre-v0.2) are not migratable.**  A full reset followed by
+  a fresh pipeline run (ingest-pdf → extract-claims → resolve-entities) is the
+  only supported path to a clean v0.2 graph.
+
 Demo-owned indexes (dropped by name):
   - demo_chunk_embedding_index  (vector index on Chunk.embedding, created by
     ingest-pdf or run_demo.py setup; name pinned in
@@ -98,7 +115,12 @@ def run_reset(
     """Reset demo-owned graph content and indexes in *database*.
 
     Deletes all nodes with demo-owned labels (and their relationships) using
-    ``DETACH DELETE``.  Drops each demo-owned index by issuing a direct Cypher
+    ``DETACH DELETE``.  Also explicitly removes any surviving stale
+    :HAS_SUBJECT / :HAS_OBJECT edges left by pre-v0.2 demo runs (these
+    relationship types were retired in v0.2 and replaced by
+    :HAS_SUBJECT_MENTION / :HAS_OBJECT_MENTION; old graphs are
+    **non-migratable** — a full reset + fresh pipeline run is required).
+    Drops each demo-owned index by issuing a direct Cypher
     ``DROP INDEX <name> IF EXISTS`` statement scoped to *database*
     (idempotent: safe if the index is absent).
 
@@ -121,6 +143,9 @@ def run_reset(
         - ``demo_labels_deleted``: List of node labels targeted by the delete.
         - ``deleted_nodes``: Number of nodes actually removed.
         - ``deleted_relationships``: Number of relationships actually removed.
+        - ``stale_participation_edges_deleted``: Number of surviving pre-v0.2
+          :HAS_SUBJECT / :HAS_OBJECT edges removed (normally 0; non-zero only
+          when a pre-v0.2 graph was not fully cleaned up by the DETACH DELETE).
         - ``indexes_dropped``: Names of indexes that existed and were dropped.
         - ``indexes_not_found``: Names of indexes that were absent (no-op).
         - ``warnings``: Human-readable strings for idempotent no-ops or other
@@ -163,6 +188,40 @@ def run_reset(
         deleted_relationships,
     )
 
+    # ── Remove any surviving stale pre-v0.2 participation edges ─────────────
+    # v0.2 renamed HAS_SUBJECT → HAS_SUBJECT_MENTION and HAS_OBJECT →
+    # HAS_OBJECT_MENTION.  The DETACH DELETE above removes stale edges as a
+    # side-effect when their endpoint nodes are deleted.  This explicit pass
+    # removes any stragglers that survived because their endpoints were not
+    # among the demo-owned labels deleted above.  Old demo graphs are
+    # non-migratable; the only supported path is a full reset + fresh run.
+    _stale_delete_query = (
+        "MATCH ()-[r:HAS_SUBJECT|HAS_OBJECT]->() DELETE r"
+    )
+    with driver.session(database=database) as _stale_session:
+        _stale_result = _stale_session.run(_stale_delete_query)
+        _stale_counters = _stale_result.consume().counters
+        stale_participation_edges_deleted: int = _stale_counters.relationships_deleted
+
+    if stale_participation_edges_deleted > 0:
+        warnings_list.append(
+            f"Deleted {stale_participation_edges_deleted} stale pre-v0.2 "
+            ":HAS_SUBJECT/:HAS_OBJECT edge(s). These relationship types were retired "
+            "in v0.2 and replaced by :HAS_SUBJECT_MENTION/:HAS_OBJECT_MENTION. "
+            "Old demo graphs are non-migratable — run a full reset and re-run the "
+            "pipeline (ingest-pdf → extract-claims → resolve-entities) to produce a "
+            "clean v0.2 graph."
+        )
+        logger.warning(
+            "Stale pre-v0.2 participation edges deleted: %d "
+            "(HAS_SUBJECT/HAS_OBJECT → replaced by HAS_SUBJECT_MENTION/HAS_OBJECT_MENTION)",
+            stale_participation_edges_deleted,
+        )
+    logger.info(
+        "Stale pre-v0.2 participation edge cleanup: stale_deleted=%d",
+        stale_participation_edges_deleted,
+    )
+
     # ── Drop demo-owned indexes ───────────────────────────────────────────────
     # Keep this reset contract aligned with demo/config/pdf_simple_kg_pipeline.yaml
     # and demo.contracts.pipeline (CHUNK_EMBEDDING_INDEX_NAME).
@@ -184,7 +243,7 @@ def run_reset(
             )
             logger.info("Demo index not found (already absent): %s", index_name)
 
-    idempotent = deleted_nodes == 0 and not indexes_dropped
+    idempotent = deleted_nodes == 0 and not indexes_dropped and stale_participation_edges_deleted == 0
 
     report: dict[str, Any] = {
         "created_at": created_at,
@@ -193,6 +252,7 @@ def run_reset(
         "demo_labels_deleted": list(DEMO_NODE_LABELS),
         "deleted_nodes": deleted_nodes,
         "deleted_relationships": deleted_relationships,
+        "stale_participation_edges_deleted": stale_participation_edges_deleted,
         "indexes_dropped": indexes_dropped,
         "indexes_not_found": indexes_not_found,
         "warnings": warnings_list,

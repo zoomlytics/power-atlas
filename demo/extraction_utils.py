@@ -306,7 +306,7 @@ def write_all_extraction_data(
     Uses ``session.execute_write`` so that all four write operations (claims,
     mentions, subject edges, object edges) either all succeed or all roll back.
     This prevents the partial-write state where claims/mentions exist in the
-    graph but their ``HAS_SUBJECT``/``HAS_OBJECT`` edges are missing.
+    graph but their ``HAS_SUBJECT_MENTION``/``HAS_OBJECT_MENTION`` edges are missing.
 
     Prefer this function over calling :func:`write_extracted_rows` and
     :func:`~demo.stages.claim_participation.write_participation_edges`
@@ -344,8 +344,8 @@ def write_all_extraction_data(
 
     claim_query = _claim_write_query(chunk_label, chunk_id_property)
     mention_query = _mention_write_query(chunk_label, chunk_id_property)
-    subject_query = _edge_write_query("HAS_SUBJECT")
-    object_query = _edge_write_query("HAS_OBJECT")
+    subject_query = _edge_write_query("HAS_SUBJECT_MENTION")
+    object_query = _edge_write_query("HAS_OBJECT_MENTION")
 
     def _write_all(tx: neo4j.ManagedTransaction) -> None:
         if claim_rows:
