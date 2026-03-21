@@ -194,12 +194,7 @@ from pathlib import Path
 from urllib.parse import quote as _pct_encode
 
 from demo.contracts.resolution import ALIGNMENT_VERSION as _ALIGNMENT_VERSION
-from demo.text_utils import (
-    _RE_APOSTROPHE_VARIANTS,
-    _RE_HYPHEN_VARIANTS,
-    _RE_WHITESPACE,
-    normalize_mention_text,
-)
+from demo.text_utils import normalize_mention_text
 
 # Bump this constant whenever the resolution strategies or scoring logic change
 # so that RESOLVES_TO edges in the graph can be distinguished by the version that
