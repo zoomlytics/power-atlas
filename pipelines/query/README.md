@@ -15,7 +15,8 @@ see [Architecture reference queries](#architecture-reference-queries-chunk-co-lo
 ```cypher
 // Count nodes by label
 MATCH (n)
-RETURN labels(n) AS label, count(n) AS total
+UNWIND labels(n) AS label
+RETURN label, count(*) AS total
 ORDER BY total DESC;
 ```
 
