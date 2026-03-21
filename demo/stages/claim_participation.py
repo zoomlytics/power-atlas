@@ -408,7 +408,7 @@ def run_claim_participation(
         claim_rows = [
             {
                 "claim_id": r["claim_id"],
-                "chunk_ids": r["chunk_ids"] or [],
+                "chunk_ids": [cid for cid in (r["chunk_ids"] or []) if cid is not None],
                 "run_id": run_id,
                 "source_uri": r["source_uri"] if r["source_uri"] not in (None, "") else source_uri,
                 "properties": {
@@ -438,7 +438,7 @@ def run_claim_participation(
         mention_rows = [
             {
                 "mention_id": r["mention_id"],
-                "chunk_ids": r["chunk_ids"] or [],
+                "chunk_ids": [cid for cid in (r["chunk_ids"] or []) if cid is not None],
                 "run_id": run_id,
                 "source_uri": r["source_uri"] if r["source_uri"] not in (None, "") else source_uri,
                 "properties": {"name": r["name"] or ""},
