@@ -327,7 +327,8 @@ LIMIT 25;
 
 - `match_method` on each participation edge records how the slot text was matched to its mention:
   `raw_exact` (identical text, highest confidence) → `casefold_exact` (case-insensitive) →
-  `normalized_exact` (Unicode normalization: diacritics, apostrophes, hyphens collapsed).
+  `normalized_exact` (Unicode normalization plus collapsed whitespace and `casefold()`; diacritics,
+  apostrophes, hyphens, and spacing differences are ignored).
 - A claim may have a subject edge, an object edge, both, or neither — only slots that resolved
   to a unique matching mention in the same chunk produce an edge.
 - Pairwise queries require *both* participation edges; use the entity-centric queries above for
