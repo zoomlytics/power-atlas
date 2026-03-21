@@ -192,38 +192,6 @@ def run_reset(
         deleted_relationships,
     )
 
-    # ── Remove any surviving stale pre-v0.2 participation edges ─────────────
-    # v0.2 renamed HAS_SUBJECT → HAS_SUBJECT_MENTION and HAS_OBJECT →
-    # HAS_OBJECT_MENTION.  The DETACH DELETE above removes stale edges as a
-    # side-effect when their endpoint nodes are deleted.  This explicit pass
-    # removes any stragglers that survived because their endpoints were not
-    # among the demo-owned labels deleted above.  Old demo graphs are
-    # non-migratable; the only supported path is a full reset + fresh run.
-    # Scope to demo-owned endpoints (ExtractedClaim → EntityMention) so we
-    # never touch non-demo relationships that happen to share those type names.
-    _stale_delete_query = (
-        "MATCH (c:ExtractedClaim)-[r:HAS_SUBJECT|HAS_OBJECT]->(m:EntityMention)"
-        " DELETE r"
-    )
-    with driver.session(database=database) as _stale_session:
-        _stale_result = _stale_session.run(_stale_delete_query)
-        _stale_counters = _stale_result.consume().counters
-        stale_participation_edges_deleted: int = _stale_counters.relationships_deleted
-
-    if stale_participation_edges_deleted > 0:
-        warnings_list.append(
-            f"Deleted {stale_participation_edges_deleted} stale pre-v0.2 "
-            ":HAS_SUBJECT/:HAS_OBJECT edge(s). These relationship types were retired "
-            "in v0.2 and replaced by :HAS_SUBJECT_MENTION/:HAS_OBJECT_MENTION. "
-            "Old demo graphs are non-migratable — run a full reset and re-run the "
-            "pipeline (ingest-pdf → extract-claims → resolve-entities) to produce a "
-            "clean v0.2 graph."
-        )
-        logger.warning(
-            "Stale pre-v0.2 participation edges deleted: %d "
-            "(HAS_SUBJECT/HAS_OBJECT → replaced by HAS_SUBJECT_MENTION/HAS_OBJECT_MENTION)",
-            stale_participation_edges_deleted,
-        )
     logger.info(
         "Stale pre-v0.2 participation edge cleanup: stale_deleted=%d",
         stale_participation_edges_deleted,
