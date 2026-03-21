@@ -30,6 +30,7 @@ from demo.contracts.manifest import write_manifest, write_manifest_md  # noqa: E
 from demo.stages import (  # noqa: E402
     lint_and_clean_structured_csvs,
     run_claim_and_mention_extraction,
+    run_claim_participation,
     run_entity_resolution,
     run_interactive_qa,
     run_pdf_ingest,
@@ -376,6 +377,14 @@ def _run_orchestrated(config: Config) -> Path:
         run_id=unstructured_run_id,
         source_uri=pdf_source_uri,
     )
+    # Link ExtractedClaim subject/object slots to EntityMention nodes in the same
+    # chunk/run via deterministic text matching (raw_exact → casefold_exact →
+    # normalized_exact).  Runs after extraction so all nodes are already in the graph.
+    claim_participation_stage = run_claim_participation(
+        config,
+        run_id=unstructured_run_id,
+        source_uri=pdf_source_uri,
+    )
     # Cluster extracted mentions against each other; no CanonicalEntity lookup required.
     # Use a mode-specific artifact subdirectory so the hybrid pass does not overwrite
     # the unstructured-only artifacts when both passes share the same run_id.
@@ -425,6 +434,7 @@ def _run_orchestrated(config: Config) -> Path:
         structured_stage=structured_stage,
         pdf_stage=pdf_stage,
         claim_stage=claim_stage,
+        claim_participation_stage=claim_participation_stage,
         entity_resolution_unstructured_stage=entity_resolution_unstructured_stage,
         retrieval_unstructured_stage=retrieval_unstructured_stage,
         entity_resolution_hybrid_stage=entity_resolution_hybrid_stage,

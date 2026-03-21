@@ -23,6 +23,7 @@ def build_batch_manifest(
     entity_resolution_unstructured_stage: dict[str, Any] | None = None,
     retrieval_unstructured_stage: dict[str, Any] | None = None,
     entity_resolution_hybrid_stage: dict[str, Any] | None = None,
+    claim_participation_stage: dict[str, Any] | None = None,
     started_at: str | None = None,
     finished_at: str | None = None,
 ) -> dict[str, Any]:
@@ -34,6 +35,8 @@ def build_batch_manifest(
 
     * ``pdf_ingest`` — lexical graph written from the PDF
     * ``claim_and_mention_extraction`` — extracted claims and entity mentions
+    * ``claim_participation`` — HAS_SUBJECT / HAS_OBJECT edges linking claim
+      slots to entity mentions; present when *claim_participation_stage* is given
     * ``entity_resolution_unstructured_only`` — mention clustering pass (no structured
       ingest required); present when *entity_resolution_unstructured_stage* is given
     * ``retrieval_and_qa_unstructured_only`` — Q&A pass *before* structured ingest,
@@ -53,6 +56,11 @@ def build_batch_manifest(
         "pdf_ingest": {**pdf_stage, "run_id": unstructured_run_id},
         "claim_and_mention_extraction": {**claim_stage, "run_id": unstructured_run_id},
     }
+    if claim_participation_stage is not None:
+        stages["claim_participation"] = {
+            **claim_participation_stage,
+            "run_id": unstructured_run_id,
+        }
     if entity_resolution_unstructured_stage is not None:
         stages["entity_resolution_unstructured_only"] = {
             **entity_resolution_unstructured_stage,
