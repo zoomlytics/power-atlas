@@ -50,7 +50,7 @@ def claim_extraction_schema() -> GraphSchema:
             # Participation edges: claim → mention for subject/object slots.
             # Created by the claim participation stage after extraction.
             # Properties: run_id, source_uri, match_method
-            #   (normalized_exact | raw_exact | casefold_exact).
+            #   (raw_exact | casefold_exact | normalized_exact).
             RelationshipType(label="HAS_SUBJECT"),
             RelationshipType(label="HAS_OBJECT"),
         ],

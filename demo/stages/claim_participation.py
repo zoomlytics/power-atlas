@@ -36,6 +36,7 @@ evidence is absent or contradictory.
 """
 from __future__ import annotations
 
+import json
 from typing import Any
 
 import neo4j
@@ -104,7 +105,8 @@ def match_slot_to_mention(
     # across the three matching strategies.
     mention_forms: list[tuple[dict[str, Any], str, str, str]] = []
     for m in mentions:
-        raw = str(m.get("name", "")).strip()
+        name = m.get("name")
+        raw = "" if name is None else str(name).strip()
         mention_forms.append((m, raw, raw.casefold(), normalize_mention_text(raw)))
 
     # Strategy 1: raw_exact — most restrictive, highest confidence
@@ -203,20 +205,21 @@ def build_participation_edges(
         if not candidate_mentions:
             continue
 
+        # Flatten candidate mentions into dicts with a "name" key for the
+        # matching function, carrying mention_id for result identification.
+        # Computed once per claim (shared across subject and object slots).
+        flat_mentions = [
+            {
+                "mention_id": m.get("mention_id", ""),
+                "name": m.get("properties", {}).get("name", ""),
+            }
+            for m in candidate_mentions
+        ]
+
         for slot in ("subject", "object"):
             slot_text = props.get(slot)
             if not slot_text:
                 continue
-
-            # Flatten candidate mentions into dicts with a "name" key for the
-            # matching function, carrying mention_id for result identification.
-            flat_mentions = [
-                {
-                    "mention_id": m.get("mention_id", ""),
-                    "name": m.get("properties", {}).get("name", ""),
-                }
-                for m in candidate_mentions
-            ]
 
             matched, method = match_slot_to_mention(str(slot_text), flat_mentions)
             if matched is None:
@@ -307,5 +310,141 @@ __all__ = [
     "match_slot_to_mention",
     "build_participation_edges",
     "write_participation_edges",
+    "run_claim_participation",
 ]
+
+
+# ---------------------------------------------------------------------------
+# Pipeline stage entry point
+# ---------------------------------------------------------------------------
+
+
+def run_claim_participation(
+    config: Any,
+    *,
+    run_id: str,
+    source_uri: str | None,
+) -> dict[str, Any]:
+    """Build and persist :HAS_SUBJECT / :HAS_OBJECT edges for a claim extraction run.
+
+    Reads :ExtractedClaim and :EntityMention nodes for *run_id* from Neo4j,
+    runs the slot→mention matching logic, and writes the resulting participation
+    edges back to the graph via MERGE (idempotent).
+
+    Parameters
+    ----------
+    config:
+        :class:`~demo.contracts.runtime.Config` instance with ``neo4j_uri``,
+        ``neo4j_username``, ``neo4j_password``, ``neo4j_database``,
+        ``output_dir``, and ``dry_run`` attributes.
+    run_id:
+        The run whose claims and mentions should be linked.  Must match the
+        ``run_id`` used during the preceding claim extraction stage.
+    source_uri:
+        Provenance URI for the source document.
+
+    Returns
+    -------
+    A summary dict with ``status``, ``run_id``, ``edges_written``,
+    ``subject_edges``, ``object_edges``, and ``warnings``.
+    """
+    run_root = config.output_dir / "runs" / run_id
+    participation_dir = run_root / "claim_participation"
+    participation_dir.mkdir(parents=True, exist_ok=True)
+    summary_path = participation_dir / "claim_participation_summary.json"
+
+    if config.dry_run:
+        summary: dict[str, Any] = {
+            "status": "dry_run",
+            "run_id": run_id,
+            "source_uri": source_uri,
+            "edges_written": 0,
+            "subject_edges": 0,
+            "object_edges": 0,
+            "warnings": ["claim participation skipped in dry_run mode"],
+        }
+        summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+        return summary
+
+    driver = neo4j.GraphDatabase.driver(
+        config.neo4j_uri,
+        auth=(config.neo4j_username, config.neo4j_password),
+    )
+    with driver:
+        # 1. Read ExtractedClaim rows for this run.
+        claim_result, _, _ = driver.execute_query(
+            """
+            MATCH (claim:ExtractedClaim {run_id: $run_id})
+            OPTIONAL MATCH (claim)-[:SUPPORTED_BY]->(chunk)
+            RETURN claim.claim_id AS claim_id,
+                   claim.subject   AS subject,
+                   claim.object    AS object,
+                   claim.source_uri AS source_uri,
+                   collect(DISTINCT chunk.chunk_id) AS chunk_ids
+            ORDER BY claim.claim_id
+            """,
+            parameters_={"run_id": run_id},
+            database_=config.neo4j_database,
+            routing_=neo4j.RoutingControl.READ,
+        )
+        claim_rows = [
+            {
+                "claim_id": r["claim_id"],
+                "chunk_ids": r["chunk_ids"] or [],
+                "run_id": run_id,
+                "source_uri": r["source_uri"] if r["source_uri"] not in (None, "") else source_uri,
+                "properties": {
+                    k: v
+                    for k, v in (("subject", r["subject"]), ("object", r["object"]))
+                    if v is not None
+                },
+            }
+            for r in claim_result
+        ]
+
+        # 2. Read EntityMention rows for this run.
+        mention_result, _, _ = driver.execute_query(
+            """
+            MATCH (mention:EntityMention {run_id: $run_id})
+            OPTIONAL MATCH (mention)-[:MENTIONED_IN]->(chunk)
+            RETURN mention.mention_id AS mention_id,
+                   mention.name       AS name,
+                   mention.source_uri AS source_uri,
+                   collect(DISTINCT chunk.chunk_id) AS chunk_ids
+            ORDER BY mention.mention_id
+            """,
+            parameters_={"run_id": run_id},
+            database_=config.neo4j_database,
+            routing_=neo4j.RoutingControl.READ,
+        )
+        mention_rows = [
+            {
+                "mention_id": r["mention_id"],
+                "chunk_ids": r["chunk_ids"] or [],
+                "run_id": run_id,
+                "source_uri": r["source_uri"] if r["source_uri"] not in (None, "") else source_uri,
+                "properties": {"name": r["name"] or ""},
+            }
+            for r in mention_result
+        ]
+
+        # 3. Build and persist participation edges.
+        edge_rows = build_participation_edges(claim_rows, mention_rows)
+        write_participation_edges(driver, neo4j_database=config.neo4j_database, edge_rows=edge_rows)
+
+    subject_edges = sum(1 for e in edge_rows if e["edge_type"] == EDGE_TYPE_HAS_SUBJECT)
+    object_edges = sum(1 for e in edge_rows if e["edge_type"] == EDGE_TYPE_HAS_OBJECT)
+    summary = {
+        "status": "live",
+        "run_id": run_id,
+        "source_uri": source_uri,
+        "claims_read": len(claim_rows),
+        "mentions_read": len(mention_rows),
+        "edges_written": len(edge_rows),
+        "subject_edges": subject_edges,
+        "object_edges": object_edges,
+        "warnings": [],
+    }
+    summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    return summary
 

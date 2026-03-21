@@ -229,6 +229,7 @@ class WorkflowTests(unittest.TestCase):
                 {
                     "pdf_ingest",
                     "claim_and_mention_extraction",
+                    "claim_participation",
                     "entity_resolution_unstructured_only",
                     "retrieval_and_qa_unstructured_only",
                     "structured_ingest",
