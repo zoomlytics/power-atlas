@@ -538,5 +538,430 @@ class TestWriteParticipationEdges(unittest.TestCase):
         self.assertEqual(passed_rows[0]["match_method"], MATCH_METHOD_RAW_EXACT)
 
 
+# ---------------------------------------------------------------------------
+# Normalization edge cases for match_slot_to_mention
+# ---------------------------------------------------------------------------
+
+
+class TestMatchSlotNormalizationEdgeCases(unittest.TestCase):
+    """Additional normalization edge cases — spacing, apostrophes, dashes."""
+
+    def test_multiple_internal_spaces_collapsed_by_normalized_exact(self):
+        # Extra whitespace in slot text is collapsed to a single space by
+        # normalize_mention_text, so "Apple  Inc" matches mention "Apple Inc".
+        mentions = [_flat("Apple Inc", "m1")]
+        result, method = match_slot_to_mention("Apple  Inc", mentions)
+        self.assertIsNotNone(result)
+        self.assertEqual(result["mention_id"], "m1")
+        self.assertEqual(method, MATCH_METHOD_NORMALIZED_EXACT)
+
+    def test_curly_right_apostrophe_normalized_to_ascii(self):
+        # RIGHT SINGLE QUOTATION MARK (U+2019) in slot text → ASCII apostrophe
+        # via normalize_mention_text; mention uses plain apostrophe.
+        mentions = [_flat("O'Brien", "m1")]
+        result, method = match_slot_to_mention("O\u2019Brien", mentions)  # curly '
+        self.assertIsNotNone(result)
+        self.assertEqual(result["mention_id"], "m1")
+        self.assertEqual(method, MATCH_METHOD_NORMALIZED_EXACT)
+
+    def test_curly_left_apostrophe_normalized_to_ascii(self):
+        # LEFT SINGLE QUOTATION MARK (U+2018) in mention → ASCII apostrophe in slot
+        mentions = [_flat("O\u2018Brien", "m1")]  # curly ' in mention
+        result, method = match_slot_to_mention("O'Brien", mentions)
+        self.assertIsNotNone(result)
+        self.assertEqual(result["mention_id"], "m1")
+        self.assertEqual(method, MATCH_METHOD_NORMALIZED_EXACT)
+
+    def test_en_dash_in_slot_normalizes_to_hyphen(self):
+        # EN DASH (U+2013) in slot text is normalized to hyphen-minus.
+        mentions = [_flat("well-known", "m1")]
+        result, method = match_slot_to_mention("well\u2013known", mentions)
+        self.assertIsNotNone(result)
+        self.assertEqual(result["mention_id"], "m1")
+        self.assertEqual(method, MATCH_METHOD_NORMALIZED_EXACT)
+
+    def test_em_dash_in_mention_normalizes_to_hyphen(self):
+        # EM DASH (U+2014) in mention; slot uses hyphen-minus.
+        mentions = [_flat("well\u2014known", "m1")]
+        result, method = match_slot_to_mention("well-known", mentions)
+        self.assertIsNotNone(result)
+        self.assertEqual(result["mention_id"], "m1")
+        self.assertEqual(method, MATCH_METHOD_NORMALIZED_EXACT)
+
+    def test_non_breaking_space_in_slot_normalized(self):
+        # NO-BREAK SPACE (U+00A0) in slot text is collapsed to regular space.
+        mentions = [_flat("New York", "m1")]
+        result, method = match_slot_to_mention("New\u00A0York", mentions)
+        self.assertIsNotNone(result)
+        self.assertEqual(result["mention_id"], "m1")
+        self.assertEqual(method, MATCH_METHOD_NORMALIZED_EXACT)
+
+    def test_non_breaking_space_in_mention_normalized(self):
+        # NO-BREAK SPACE in mention name; slot uses regular space.
+        mentions = [_flat("New\u00A0York", "m1")]
+        result, method = match_slot_to_mention("New York", mentions)
+        self.assertIsNotNone(result)
+        self.assertEqual(result["mention_id"], "m1")
+        self.assertEqual(method, MATCH_METHOD_NORMALIZED_EXACT)
+
+    def test_normalized_whitespace_does_not_fire_on_raw_match(self):
+        # Slot and mention are identical including a double space → raw_exact wins.
+        mentions = [_flat("Apple  Inc", "m1")]
+        result, method = match_slot_to_mention("Apple  Inc", mentions)
+        self.assertEqual(method, MATCH_METHOD_RAW_EXACT)
+
+    def test_no_match_when_normalization_still_differs(self):
+        # Even after full normalization the strings do not match.
+        mentions = [_flat("Google", "m1")]
+        result, method = match_slot_to_mention("Alphabet", mentions)
+        self.assertIsNone(result)
+        self.assertIsNone(method)
+
+
+# ---------------------------------------------------------------------------
+# Multiple similar mentions in the same chunk
+# ---------------------------------------------------------------------------
+
+
+class TestMultipleSimilarMentions(unittest.TestCase):
+    """Tests involving multiple similar mentions within the same chunk."""
+
+    def test_two_identical_raw_names_ambiguous(self):
+        # Two mentions with the same exact name → ambiguous at raw_exact.
+        mentions = [_mention("Apple", "m1"), _mention("Apple", "m2")]
+        claims = [_claim("c1", subject="Apple")]
+        edges = build_participation_edges(claims, mentions)
+        self.assertEqual(edges, [])
+
+    def test_two_case_variants_slot_lowercase_casefold_ambiguous(self):
+        # "Apple" and "APPLE" in same chunk, slot "apple" →
+        # raw_exact: no match; casefold: both match → ambiguous, no edge.
+        mentions = [_mention("Apple", "m1"), _mention("APPLE", "m2")]
+        claims = [_claim("c1", subject="apple")]
+        edges = build_participation_edges(claims, mentions)
+        self.assertEqual(edges, [])
+
+    def test_two_case_variants_slot_matches_one_raw(self):
+        # "Apple" (m1) and "APPLE" (m2) in same chunk, slot "Apple" →
+        # raw_exact finds exactly "Apple" → unique match, no ambiguity.
+        mentions = [_mention("Apple", "m1"), _mention("APPLE", "m2")]
+        claims = [_claim("c1", subject="Apple")]
+        edges = build_participation_edges(claims, mentions)
+        self.assertEqual(len(edges), 1)
+        self.assertEqual(edges[0]["mention_id"], "m1")
+        self.assertEqual(edges[0]["match_method"], MATCH_METHOD_RAW_EXACT)
+
+    def test_raw_exact_match_among_casefold_duplicates(self):
+        # Mentions: "apple" (m1) and "Apple" (m2); slot "apple" →
+        # raw_exact finds exactly "apple" → m1 matched, not ambiguous.
+        mentions = [_mention("apple", "m1"), _mention("Apple", "m2")]
+        claims = [_claim("c1", subject="apple")]
+        edges = build_participation_edges(claims, mentions)
+        self.assertEqual(len(edges), 1)
+        self.assertEqual(edges[0]["mention_id"], "m1")
+        self.assertEqual(edges[0]["match_method"], MATCH_METHOD_RAW_EXACT)
+
+    def test_prefix_mention_does_not_match_longer_slot(self):
+        # Mention "App" in chunk, slot "Apple" → strings differ → no match.
+        mentions = [_mention("App", "m1")]
+        claims = [_claim("c1", subject="Apple")]
+        edges = build_participation_edges(claims, mentions)
+        self.assertEqual(edges, [])
+
+    def test_multiple_mentions_only_one_matches_slot(self):
+        # Three mentions; slot uniquely matches one via raw_exact.
+        mentions = [
+            _mention("Google", "m-google"),
+            _mention("Apple", "m-apple"),
+            _mention("Microsoft", "m-ms"),
+        ]
+        claims = [_claim("c1", subject="Apple")]
+        edges = build_participation_edges(claims, mentions)
+        self.assertEqual(len(edges), 1)
+        self.assertEqual(edges[0]["mention_id"], "m-apple")
+
+    def test_two_normalized_duplicates_ambiguous(self):
+        # "Café" and "CAFÉ" both normalize to "cafe";
+        # slot "cafe" → normalized_exact sees 2 → ambiguous.
+        mentions = [_mention("Café", "m1"), _mention("CAFÉ", "m2")]
+        claims = [_claim("c1", subject="cafe")]
+        edges = build_participation_edges(claims, mentions)
+        self.assertEqual(edges, [])
+
+    def test_subject_ambiguous_object_unique(self):
+        # Subject slot is ambiguous → no subject edge;
+        # object slot is uniquely matched → one object edge.
+        mentions = [
+            _mention("Hello", "m1"),
+            _mention("HELLO", "m2"),
+            _mention("profit", "m-profit"),
+        ]
+        claims = [_claim("c1", subject="hello", obj="profit")]
+        edges = build_participation_edges(claims, mentions)
+        self.assertEqual(len(edges), 1)
+        self.assertEqual(edges[0]["slot"], "object")
+        self.assertEqual(edges[0]["mention_id"], "m-profit")
+
+
+# ---------------------------------------------------------------------------
+# Idempotency of build_participation_edges (repeated calls)
+# ---------------------------------------------------------------------------
+
+
+class TestBuildParticipationEdgesIdempotency(unittest.TestCase):
+    """Repeated calls to build_participation_edges with the same data
+    must always return equal, deterministic results."""
+
+    def test_raw_exact_match_idempotent(self):
+        mentions = [_mention("Google", "m-google"), _mention("revenue", "m-revenue")]
+        claims = [_claim("c1", subject="Google", obj="revenue")]
+        self.assertEqual(
+            build_participation_edges(claims, mentions),
+            build_participation_edges(claims, mentions),
+        )
+
+    def test_casefold_match_idempotent(self):
+        mentions = [_mention("United Nations", "m-un")]
+        claims = [_claim("c1", subject="united nations")]
+        self.assertEqual(
+            build_participation_edges(claims, mentions),
+            build_participation_edges(claims, mentions),
+        )
+
+    def test_normalized_match_idempotent(self):
+        mentions = [_mention("Müller", "m1")]
+        claims = [_claim("c1", subject="Muller")]
+        self.assertEqual(
+            build_participation_edges(claims, mentions),
+            build_participation_edges(claims, mentions),
+        )
+
+    def test_no_match_idempotent(self):
+        mentions = [_mention("OpenAI", "m1")]
+        claims = [_claim("c1", subject="Google")]
+        result = build_participation_edges(claims, mentions)
+        self.assertEqual(result, [])
+        self.assertEqual(result, build_participation_edges(claims, mentions))
+
+    def test_ambiguous_no_edge_idempotent(self):
+        mentions = [_mention("Hello", "m1"), _mention("HELLO", "m2")]
+        claims = [_claim("c1", subject="hello")]
+        result = build_participation_edges(claims, mentions)
+        self.assertEqual(result, [])
+        self.assertEqual(result, build_participation_edges(claims, mentions))
+
+    def test_empty_inputs_idempotent(self):
+        self.assertEqual(build_participation_edges([], []), [])
+        self.assertEqual(build_participation_edges([], []), build_participation_edges([], []))
+
+
+# ---------------------------------------------------------------------------
+# Orphan edge prevention
+# ---------------------------------------------------------------------------
+
+
+class TestOrphanEdgePrevention(unittest.TestCase):
+    """No edges are emitted when the evidence is absent, ambiguous, or mismatched."""
+
+    def test_no_edge_when_claim_has_no_candidates_in_its_chunk(self):
+        mentions = [_mention("Google", "m1", chunk_ids=["chunk-99"])]
+        claims = [_claim("c1", subject="Google", chunk_ids=["chunk-1"])]
+        self.assertEqual(build_participation_edges(claims, mentions), [])
+
+    def test_no_edge_when_mention_belongs_to_different_run(self):
+        mentions = [_mention("Apple", "m1", run_id="run-2")]
+        claims = [_claim("c1", subject="Apple", run_id="run-1")]
+        self.assertEqual(build_participation_edges(claims, mentions), [])
+
+    def test_subject_edge_not_created_when_subject_absent_from_chunk(self):
+        # Mention in chunk-2 only; claim in chunk-1 only → no edge
+        mentions = [_mention("Tesla", "m1", chunk_ids=["chunk-2"])]
+        claims = [_claim("c1", subject="Tesla", chunk_ids=["chunk-1"])]
+        self.assertEqual(build_participation_edges(claims, mentions), [])
+
+    def test_object_match_but_subject_absent_produces_one_edge(self):
+        # Subject slot text is not in any mention; object slot matches uniquely.
+        mentions = [_mention("revenue", "m-revenue")]
+        claims = [_claim("c1", subject="Totally-Absent", obj="revenue")]
+        edges = build_participation_edges(claims, mentions)
+        self.assertEqual(len(edges), 1)
+        self.assertEqual(edges[0]["slot"], "object")
+        self.assertEqual(edges[0]["mention_id"], "m-revenue")
+
+    def test_no_edge_when_both_slots_absent_from_mentions(self):
+        mentions = [_mention("Irrelevant", "m1")]
+        claims = [_claim("c1", subject="Nobody", obj="Nothing")]
+        self.assertEqual(build_participation_edges(claims, mentions), [])
+
+    def test_no_cross_run_contamination_with_shared_chunk_id(self):
+        # Two runs share the same chunk_id string, but edges must never cross runs.
+        mentions = [
+            _mention("Tesla", "m-a", chunk_ids=["chunk-1"], run_id="run-A"),
+            _mention("Tesla", "m-b", chunk_ids=["chunk-1"], run_id="run-B"),
+        ]
+        claims = [
+            _claim("c-a", subject="Tesla", chunk_ids=["chunk-1"], run_id="run-A"),
+            _claim("c-b", subject="Tesla", chunk_ids=["chunk-1"], run_id="run-B"),
+        ]
+        edges = build_participation_edges(claims, mentions)
+        self.assertEqual(len(edges), 2)
+        edges_by_claim = {e["claim_id"]: e for e in edges}
+        self.assertEqual(edges_by_claim["c-a"]["mention_id"], "m-a")
+        self.assertEqual(edges_by_claim["c-b"]["mention_id"], "m-b")
+
+
+# ---------------------------------------------------------------------------
+# Demo-reset + rerun cycle
+# ---------------------------------------------------------------------------
+
+
+class TestDemoResetRerunCycle(unittest.TestCase):
+    """Simulate a demo-reset followed by a re-extraction run.
+
+    Since build_participation_edges is a pure function, the same inputs always
+    produce the same outputs.  These tests verify that:
+    - a second call to build_participation_edges is deterministic,
+    - fresh run_id data is fully isolated from old run_id data,
+    - no stale edges from a previous run bleed into the new run.
+    """
+
+    def test_rerun_with_same_data_produces_identical_edges(self):
+        mentions = [_mention("Google", "m-google"), _mention("revenue", "m-revenue")]
+        claims = [_claim("c1", subject="Google", obj="revenue")]
+        edges_first = build_participation_edges(claims, mentions)
+        edges_second = build_participation_edges(claims, mentions)
+        self.assertEqual(edges_first, edges_second)
+        self.assertEqual(len(edges_first), 2)
+
+    def test_new_run_id_isolated_from_old_run_id(self):
+        # "run-v1" mentions must not link to "run-v2" claims.
+        mentions_v1 = [_mention("Tesla", "m-v1", run_id="run-v1")]
+        claims_v2 = [_claim("c1", subject="Tesla", run_id="run-v2")]
+        edges = build_participation_edges(claims_v2, mentions_v1)
+        self.assertEqual(edges, [])
+
+    def test_fresh_run_produces_clean_edges_without_stale_data(self):
+        # Old mentions (run-v1) and new mentions (run-v2) both present;
+        # new claims (run-v2) must only link to run-v2 mentions.
+        old_mentions = [_mention("Apple", "m-old", run_id="run-v1")]
+        new_mentions = [_mention("Apple", "m-new", run_id="run-v2")]
+        new_claims = [_claim("c1", subject="Apple", run_id="run-v2")]
+
+        all_mentions = old_mentions + new_mentions
+        edges = build_participation_edges(new_claims, all_mentions)
+        self.assertEqual(len(edges), 1)
+        self.assertEqual(edges[0]["mention_id"], "m-new")
+        self.assertEqual(edges[0]["run_id"], "run-v2")
+
+    def test_reset_then_rerun_same_run_id_returns_same_edges(self):
+        # Simulate: run stage → reset memory → run stage again with same run_id.
+        # Both calls are isolated pure-function calls; results must be equal.
+        mentions = [_mention("IBM", "m-ibm", run_id="run-demo")]
+        claims = [_claim("claim-1", subject="IBM", run_id="run-demo")]
+
+        edges_before_reset = build_participation_edges(claims, mentions)
+        # "Reset": rebuild from scratch (pure function, no side effects)
+        edges_after_reset = build_participation_edges(claims, mentions)
+
+        self.assertEqual(edges_before_reset, edges_after_reset)
+        self.assertEqual(len(edges_before_reset), 1)
+        self.assertEqual(edges_before_reset[0]["mention_id"], "m-ibm")
+
+    def test_casefold_match_stable_across_reruns(self):
+        mentions = [_mention("United Nations", "m-un", run_id="run-demo")]
+        claims = [_claim("c1", subject="united nations", run_id="run-demo")]
+        first = build_participation_edges(claims, mentions)
+        second = build_participation_edges(claims, mentions)
+        self.assertEqual(first, second)
+        self.assertEqual(first[0]["match_method"], MATCH_METHOD_CASEFOLD_EXACT)
+
+    def test_normalized_match_stable_across_reruns(self):
+        mentions = [_mention("Müller", "m1", run_id="run-demo")]
+        claims = [_claim("c1", subject="Muller", run_id="run-demo")]
+        first = build_participation_edges(claims, mentions)
+        second = build_participation_edges(claims, mentions)
+        self.assertEqual(first, second)
+        self.assertEqual(first[0]["match_method"], MATCH_METHOD_NORMALIZED_EXACT)
+
+
+# ---------------------------------------------------------------------------
+# Idempotency of write_participation_edges (MERGE semantics)
+# ---------------------------------------------------------------------------
+
+
+class TestWriteParticipationEdgesIdempotency(unittest.TestCase):
+    """write_participation_edges uses MERGE, so calling it twice with the same
+    data must issue the same number of queries with identical parameters."""
+
+    def _make_driver(self) -> MagicMock:
+        driver = MagicMock(spec=neo4j.Driver)
+        driver.execute_query = MagicMock(return_value=MagicMock())
+        return driver
+
+    def _subject_row(self, claim_id: str = "c1", mention_id: str = "m1") -> dict:
+        return {
+            "claim_id": claim_id,
+            "mention_id": mention_id,
+            "run_id": "run-1",
+            "source_uri": "uri://test",
+            "slot": "subject",
+            "match_method": MATCH_METHOD_RAW_EXACT,
+            "edge_type": EDGE_TYPE_HAS_SUBJECT,
+        }
+
+    def _object_row(self, claim_id: str = "c1", mention_id: str = "m2") -> dict:
+        return {
+            "claim_id": claim_id,
+            "mention_id": mention_id,
+            "run_id": "run-1",
+            "source_uri": "uri://test",
+            "slot": "object",
+            "match_method": MATCH_METHOD_CASEFOLD_EXACT,
+            "edge_type": EDGE_TYPE_HAS_OBJECT,
+        }
+
+    def test_calling_twice_issues_same_number_of_queries(self):
+        # Each call with [subject] issues 1 query; two calls → 2 total.
+        driver = self._make_driver()
+        edge_rows = [self._subject_row()]
+        write_participation_edges(driver, neo4j_database="neo4j", edge_rows=edge_rows)
+        first_count = driver.execute_query.call_count
+        write_participation_edges(driver, neo4j_database="neo4j", edge_rows=edge_rows)
+        self.assertEqual(driver.execute_query.call_count, first_count * 2)
+
+    def test_calling_twice_passes_identical_rows_to_driver(self):
+        # MERGE semantics: both calls must supply the same row payloads.
+        driver = self._make_driver()
+        edge_rows = [self._object_row()]
+        write_participation_edges(driver, neo4j_database="neo4j", edge_rows=edge_rows)
+        first_rows = driver.execute_query.call_args_list[0][1].get("parameters_", {}).get("rows")
+        write_participation_edges(driver, neo4j_database="neo4j", edge_rows=edge_rows)
+        second_rows = driver.execute_query.call_args_list[1][1].get("parameters_", {}).get("rows")
+        self.assertEqual(first_rows, second_rows)
+
+    def test_subject_and_object_idempotent_together(self):
+        # Two calls with both subject and object rows → 4 total execute_query calls.
+        driver = self._make_driver()
+        edge_rows = [self._subject_row(), self._object_row()]
+        write_participation_edges(driver, neo4j_database="neo4j", edge_rows=edge_rows)
+        self.assertEqual(driver.execute_query.call_count, 2)
+        write_participation_edges(driver, neo4j_database="neo4j", edge_rows=edge_rows)
+        self.assertEqual(driver.execute_query.call_count, 4)
+
+    def test_empty_edge_rows_no_queries_on_rerun(self):
+        driver = self._make_driver()
+        write_participation_edges(driver, neo4j_database="neo4j", edge_rows=[])
+        write_participation_edges(driver, neo4j_database="neo4j", edge_rows=[])
+        driver.execute_query.assert_not_called()
+
+    def test_database_name_unchanged_across_reruns(self):
+        driver = self._make_driver()
+        edge_rows = [self._subject_row()]
+        write_participation_edges(driver, neo4j_database="mydb", edge_rows=edge_rows)
+        write_participation_edges(driver, neo4j_database="mydb", edge_rows=edge_rows)
+        for call in driver.execute_query.call_args_list:
+            self.assertEqual(call[1].get("database_"), "mydb")
+
+
 if __name__ == "__main__":
     unittest.main()
