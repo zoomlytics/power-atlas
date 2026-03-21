@@ -255,7 +255,7 @@ LIMIT 25;
 // Entity mentions that co-occur in the same chunk (chunk co-location, v0.1 style)
 MATCH (a:EntityMention)-[:MENTIONED_IN]->(chunk:Chunk)<-[:MENTIONED_IN]-(b:EntityMention)
 WHERE a.name < b.name
-RETURN a.name AS entity_a, b.name AS entity_b, chunk.chunk_id, count(*) AS co_occurrences
+RETURN a.name AS entity_a, b.name AS entity_b, count(DISTINCT chunk.chunk_id) AS co_occurrences
 ORDER BY co_occurrences DESC
 LIMIT 25;
 ```
