@@ -259,7 +259,7 @@ def _edge_write_query(relationship_type: str) -> str:
             MATCH (mention:EntityMention {{mention_id: row.mention_id, run_id: row.run_id}})
             MERGE (claim)-[r:{relationship_type}]->(mention)
             SET r.run_id = row.run_id,
-                r.source_uri = COALESCE(row.source_uri, r.source_uri),
+                r.source_uri = coalesce(row.source_uri, r.source_uri),
                 r.match_method = row.match_method
             """
 
