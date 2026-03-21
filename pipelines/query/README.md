@@ -76,7 +76,7 @@ LIMIT 25;
 
 - `match_method` records how the slot text was resolved to a mention:
   `raw_exact` → identical text (highest confidence), `casefold_exact` → case-insensitive match,
-  `normalized_exact` → Unicode-normalized match (diacritics, apostrophes, hyphens collapsed).
+  `normalized_exact` → Unicode-normalized match (NFKD + diacritic removal, apostrophe/hyphen normalization, runs of whitespace collapsed, and case-folded).
 - A claim may have a subject edge, an object edge, both, or neither, depending on whether the
   extraction LLM populated those slots and whether a unique matching mention was found.
 - Claims with no participation edges are still valid assertion nodes; they simply lacked a
