@@ -64,6 +64,13 @@ def _claim(
     }
 
 
+def _make_driver() -> MagicMock:
+    """Return a MagicMock neo4j.Driver with a pre-configured execute_query stub."""
+    driver = MagicMock(spec=neo4j.Driver)
+    driver.execute_query = MagicMock(return_value=MagicMock())
+    return driver
+
+
 # ---------------------------------------------------------------------------
 # Tests for match_slot_to_mention
 # ---------------------------------------------------------------------------
@@ -449,13 +456,8 @@ class TestBuildParticipationEdges(unittest.TestCase):
 class TestWriteParticipationEdges(unittest.TestCase):
     """Unit tests for write_participation_edges (Neo4j interaction mocked)."""
 
-    def _make_driver(self) -> MagicMock:
-        driver = MagicMock(spec=neo4j.Driver)
-        driver.execute_query = MagicMock(return_value=MagicMock())
-        return driver
-
     def test_write_subject_and_object_edges(self):
-        driver = self._make_driver()
+        driver = _make_driver()
         edge_rows = [
             {
                 "claim_id": "c1",
@@ -480,7 +482,7 @@ class TestWriteParticipationEdges(unittest.TestCase):
         self.assertEqual(driver.execute_query.call_count, 2)
 
     def test_write_only_subject_edges(self):
-        driver = self._make_driver()
+        driver = _make_driver()
         edge_rows = [
             {
                 "claim_id": "c1",
@@ -496,7 +498,7 @@ class TestWriteParticipationEdges(unittest.TestCase):
         self.assertEqual(driver.execute_query.call_count, 1)
 
     def test_write_only_object_edges(self):
-        driver = self._make_driver()
+        driver = _make_driver()
         edge_rows = [
             {
                 "claim_id": "c1",
@@ -512,12 +514,12 @@ class TestWriteParticipationEdges(unittest.TestCase):
         self.assertEqual(driver.execute_query.call_count, 1)
 
     def test_write_empty_edge_rows_no_queries(self):
-        driver = self._make_driver()
+        driver = _make_driver()
         write_participation_edges(driver, neo4j_database="neo4j", edge_rows=[])
         driver.execute_query.assert_not_called()
 
     def test_parameters_passed_to_driver(self):
-        driver = self._make_driver()
+        driver = _make_driver()
         edge_rows = [
             {
                 "claim_id": "c1",
@@ -893,11 +895,6 @@ class TestWriteParticipationEdgesIdempotency(unittest.TestCase):
     """write_participation_edges uses MERGE, so calling it twice with the same
     data must issue the same number of queries with identical parameters."""
 
-    def _make_driver(self) -> MagicMock:
-        driver = MagicMock(spec=neo4j.Driver)
-        driver.execute_query = MagicMock(return_value=MagicMock())
-        return driver
-
     def _subject_row(self, claim_id: str = "c1", mention_id: str = "m1") -> dict:
         return {
             "claim_id": claim_id,
@@ -922,7 +919,7 @@ class TestWriteParticipationEdgesIdempotency(unittest.TestCase):
 
     def test_calling_twice_issues_same_number_of_queries(self):
         # Each call with [subject] issues 1 query; two calls → 2 total.
-        driver = self._make_driver()
+        driver = _make_driver()
         edge_rows = [self._subject_row()]
         write_participation_edges(driver, neo4j_database="neo4j", edge_rows=edge_rows)
         first_count = driver.execute_query.call_count
@@ -931,7 +928,7 @@ class TestWriteParticipationEdgesIdempotency(unittest.TestCase):
 
     def test_calling_twice_passes_identical_rows_to_driver(self):
         # MERGE semantics: both calls must supply the same row payloads.
-        driver = self._make_driver()
+        driver = _make_driver()
         edge_rows = [self._object_row()]
         write_participation_edges(driver, neo4j_database="neo4j", edge_rows=edge_rows)
         first_rows = driver.execute_query.call_args_list[0][1].get("parameters_", {}).get("rows")
@@ -941,7 +938,7 @@ class TestWriteParticipationEdgesIdempotency(unittest.TestCase):
 
     def test_subject_and_object_idempotent_together(self):
         # Two calls with both subject and object rows → 4 total execute_query calls.
-        driver = self._make_driver()
+        driver = _make_driver()
         edge_rows = [self._subject_row(), self._object_row()]
         write_participation_edges(driver, neo4j_database="neo4j", edge_rows=edge_rows)
         self.assertEqual(driver.execute_query.call_count, 2)
@@ -949,13 +946,13 @@ class TestWriteParticipationEdgesIdempotency(unittest.TestCase):
         self.assertEqual(driver.execute_query.call_count, 4)
 
     def test_empty_edge_rows_no_queries_on_rerun(self):
-        driver = self._make_driver()
+        driver = _make_driver()
         write_participation_edges(driver, neo4j_database="neo4j", edge_rows=[])
         write_participation_edges(driver, neo4j_database="neo4j", edge_rows=[])
         driver.execute_query.assert_not_called()
 
     def test_database_name_unchanged_across_reruns(self):
-        driver = self._make_driver()
+        driver = _make_driver()
         edge_rows = [self._subject_row()]
         write_participation_edges(driver, neo4j_database="mydb", edge_rows=edge_rows)
         write_participation_edges(driver, neo4j_database="mydb", edge_rows=edge_rows)
