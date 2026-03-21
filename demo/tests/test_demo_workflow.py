@@ -1825,8 +1825,16 @@ class ResetDemoDbTests(unittest.TestCase):
                 if _drop_match:
                     _captured_drop_calls.append(_drop_match.group(1))
                 # Stale participation-edge cleanup query returns only stale
-                # relationship counts (no node deletions).
-                if "HAS_SUBJECT" in query and "HAS_OBJECT" in query and "DELETE" in query:
+                # relationship counts (no node deletions).  Match on the
+                # scoped pattern (ExtractedClaim → EntityMention) so the mock
+                # stays consistent with the scoped Cypher in reset_demo_db.py.
+                if (
+                    "ExtractedClaim" in query
+                    and "EntityMention" in query
+                    and "HAS_SUBJECT" in query
+                    and "HAS_OBJECT" in query
+                    and "DELETE" in query
+                ):
                     return _FakeResult(0, _stale_edges_deleted)
                 return _FakeResult(self._nodes, self._rels)
 

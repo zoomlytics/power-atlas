@@ -27,8 +27,12 @@ Stale participation edges (v0.1 graphs only, non-migratable):
   :HAS_SUBJECT_MENTION and :HAS_OBJECT_MENTION.  The DETACH DELETE of
   ExtractedClaim/EntityMention nodes removes these stale edges as a side-effect.
   However, if any such edges somehow survive between non-deleted endpoints, this
-  script issues an explicit DELETE to remove them and records the count in the
-  reset report under ``stale_participation_edges_deleted``.
+  script issues an explicit DELETE scoped to demo-owned endpoints
+  (``MATCH (c:ExtractedClaim)-[r:HAS_SUBJECT|HAS_OBJECT]->(m:EntityMention) DELETE r``)
+  to remove them and records the count in the
+  reset report under ``stale_participation_edges_deleted``.  This scope
+  ensures the cleanup never touches non-demo relationships that happen to share
+  those type names.
 
   **Old demo graphs (pre-v0.2) are not migratable.**  A full reset followed by
   a fresh pipeline run (ingest-pdf → extract-claims → resolve-entities) is the
@@ -195,8 +199,11 @@ def run_reset(
     # removes any stragglers that survived because their endpoints were not
     # among the demo-owned labels deleted above.  Old demo graphs are
     # non-migratable; the only supported path is a full reset + fresh run.
+    # Scope to demo-owned endpoints (ExtractedClaim → EntityMention) so we
+    # never touch non-demo relationships that happen to share those type names.
     _stale_delete_query = (
-        "MATCH ()-[r:HAS_SUBJECT|HAS_OBJECT]->() DELETE r"
+        "MATCH (c:ExtractedClaim)-[r:HAS_SUBJECT|HAS_OBJECT]->(m:EntityMention)"
+        " DELETE r"
     )
     with driver.session(database=database) as _stale_session:
         _stale_result = _stale_session.run(_stale_delete_query)
