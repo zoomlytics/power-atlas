@@ -7,6 +7,43 @@ import neo4j
 from demo.io import RunScopedNeo4jChunkReader
 from neo4j_graphrag.experimental.components.types import LexicalGraphConfig, Neo4jGraph, TextChunk
 
+# ---------------------------------------------------------------------------
+# Private Cypher query builders
+# ---------------------------------------------------------------------------
+# Extracted so that both write_extracted_rows (driver-level) and
+# write_all_extraction_data (session/transaction-level) can share the same
+# query strings without duplication.
+
+
+def _claim_write_query(chunk_label: str, chunk_id_property: str) -> str:
+    return f"""
+            UNWIND $rows AS row
+            MERGE (claim:ExtractedClaim {{claim_id: row.claim_id, run_id: row.run_id}})
+            SET claim += row.properties
+            WITH row, claim
+            UNWIND row.chunk_ids AS chunk_id
+            MATCH (chunk:`{chunk_label}` {{{chunk_id_property}: chunk_id, run_id: row.run_id}})
+            MERGE (claim)-[supported_by:SUPPORTED_BY]->(chunk)
+            SET supported_by.run_id = row.run_id,
+                supported_by.source_uri = row.source_uri,
+                supported_by.chunk_id = chunk_id
+            """
+
+
+def _mention_write_query(chunk_label: str, chunk_id_property: str) -> str:
+    return f"""
+            UNWIND $rows AS row
+            MERGE (mention:EntityMention {{mention_id: row.mention_id, run_id: row.run_id}})
+            SET mention += row.properties
+            WITH row, mention
+            UNWIND row.chunk_ids AS chunk_id
+            MATCH (chunk:`{chunk_label}` {{{chunk_id_property}: chunk_id, run_id: row.run_id}})
+            MERGE (mention)-[mentioned_in:MENTIONED_IN]->(chunk)
+            SET mentioned_in.run_id = row.run_id,
+                mentioned_in.source_uri = row.source_uri,
+                mentioned_in.chunk_id = chunk_id
+            """
+
 
 def coerce_confidence(value: Any) -> float | None:
     if value is None:
@@ -231,35 +268,102 @@ def write_extracted_rows(
     )
     if claim_rows:
         driver.execute_query(
-            f"""
-            UNWIND $rows AS row
-            MERGE (claim:ExtractedClaim {{claim_id: row.claim_id, run_id: row.run_id}})
-            SET claim += row.properties
-            WITH row, claim
-            UNWIND row.chunk_ids AS chunk_id
-            MATCH (chunk:`{chunk_label}` {{{chunk_id_property}: chunk_id, run_id: row.run_id}})
-            MERGE (claim)-[supported_by:SUPPORTED_BY]->(chunk)
-            SET supported_by.run_id = row.run_id,
-                supported_by.source_uri = row.source_uri,
-                supported_by.chunk_id = chunk_id
-            """,
+            _claim_write_query(chunk_label, chunk_id_property),
             parameters_={"rows": claim_rows},
             database_=neo4j_database,
         )
     if mention_rows:
         driver.execute_query(
-            f"""
-            UNWIND $rows AS row
-            MERGE (mention:EntityMention {{mention_id: row.mention_id, run_id: row.run_id}})
-            SET mention += row.properties
-            WITH row, mention
-            UNWIND row.chunk_ids AS chunk_id
-            MATCH (chunk:`{chunk_label}` {{{chunk_id_property}: chunk_id, run_id: row.run_id}})
-            MERGE (mention)-[mentioned_in:MENTIONED_IN]->(chunk)
-            SET mentioned_in.run_id = row.run_id,
-                mentioned_in.source_uri = row.source_uri,
-                mentioned_in.chunk_id = chunk_id
-            """,
+            _mention_write_query(chunk_label, chunk_id_property),
             parameters_={"rows": mention_rows},
             database_=neo4j_database,
         )
+
+
+def write_all_extraction_data(
+    driver: neo4j.Driver,
+    *,
+    neo4j_database: str,
+    lexical_graph_config: LexicalGraphConfig,
+    claim_rows: list[dict[str, Any]],
+    mention_rows: list[dict[str, Any]],
+    edge_rows: list[dict[str, Any]],
+) -> None:
+    """Write claims, mentions, and participation edges in a single transaction.
+
+    Uses ``session.execute_write`` so that all four write operations (claims,
+    mentions, subject edges, object edges) either all succeed or all roll back.
+    This prevents the partial-write state where claims/mentions exist in the
+    graph but their ``HAS_SUBJECT``/``HAS_OBJECT`` edges are missing.
+
+    Prefer this function over calling :func:`write_extracted_rows` and
+    :func:`~demo.stages.claim_participation.write_participation_edges`
+    separately whenever you hold both in-memory row lists at the same time.
+
+    Parameters
+    ----------
+    driver:
+        An open :class:`neo4j.Driver` instance.
+    neo4j_database:
+        Neo4j database name (e.g. ``"neo4j"``).
+    lexical_graph_config:
+        Lexical graph configuration used to validate and resolve the chunk
+        node label and chunk-id property name.
+    claim_rows:
+        Rows produced by :func:`prepare_extracted_rows` for ``ExtractedClaim``
+        nodes.
+    mention_rows:
+        Rows produced by :func:`prepare_extracted_rows` for ``EntityMention``
+        nodes.
+    edge_rows:
+        Edge rows produced by
+        :func:`~demo.stages.claim_participation.build_participation_edges`.
+    """
+    from demo.stages.claim_participation import EDGE_TYPE_HAS_OBJECT, EDGE_TYPE_HAS_SUBJECT
+
+    chunk_label = RunScopedNeo4jChunkReader.validate_identifier(
+        lexical_graph_config.chunk_node_label, "chunk label"
+    )
+    chunk_id_property = RunScopedNeo4jChunkReader.validate_identifier(
+        lexical_graph_config.chunk_id_property, "chunk_id property"
+    )
+    subject_rows = [r for r in edge_rows if r["edge_type"] == EDGE_TYPE_HAS_SUBJECT]
+    object_rows = [r for r in edge_rows if r["edge_type"] == EDGE_TYPE_HAS_OBJECT]
+
+    claim_query = _claim_write_query(chunk_label, chunk_id_property)
+    mention_query = _mention_write_query(chunk_label, chunk_id_property)
+
+    def _write_all(tx: neo4j.ManagedTransaction) -> None:
+        if claim_rows:
+            tx.run(claim_query, rows=claim_rows)
+        if mention_rows:
+            tx.run(mention_query, rows=mention_rows)
+        if subject_rows:
+            tx.run(
+                """
+                UNWIND $rows AS row
+                MATCH (claim:ExtractedClaim {claim_id: row.claim_id, run_id: row.run_id})
+                MATCH (mention:EntityMention {mention_id: row.mention_id, run_id: row.run_id})
+                MERGE (claim)-[r:HAS_SUBJECT]->(mention)
+                SET r.run_id = row.run_id,
+                    r.source_uri = COALESCE(row.source_uri, r.source_uri),
+                    r.match_method = row.match_method
+                """,
+                rows=subject_rows,
+            )
+        if object_rows:
+            tx.run(
+                """
+                UNWIND $rows AS row
+                MATCH (claim:ExtractedClaim {claim_id: row.claim_id, run_id: row.run_id})
+                MATCH (mention:EntityMention {mention_id: row.mention_id, run_id: row.run_id})
+                MERGE (claim)-[r:HAS_OBJECT]->(mention)
+                SET r.run_id = row.run_id,
+                    r.source_uri = COALESCE(row.source_uri, r.source_uri),
+                    r.match_method = row.match_method
+                """,
+                rows=object_rows,
+            )
+
+    with driver.session(database=neo4j_database) as session:
+        session.execute_write(_write_all)

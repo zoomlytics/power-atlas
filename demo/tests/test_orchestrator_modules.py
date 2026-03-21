@@ -339,16 +339,17 @@ def test_claim_extraction_live_path_uses_create_lexical_graph_false(tmp_path: Pa
         async def run(self, **kwargs):
             return fake_chunks
 
-    captured_write_rows: dict = {"claim_rows": [], "mention_rows": []}
+    captured_write_all: dict = {"call_kwargs": None}
 
-    def _fake_write_extracted_rows(driver, *, neo4j_database, lexical_graph_config, claim_rows, mention_rows):
-        captured_write_rows["claim_rows"] = claim_rows
-        captured_write_rows["mention_rows"] = mention_rows
-
-    captured_participation: dict = {"edge_rows": []}
-
-    def _fake_write_participation_edges(driver, *, neo4j_database, edge_rows):
-        captured_participation["edge_rows"] = list(edge_rows)
+    def _fake_write_all_extraction_data(
+        driver, *, neo4j_database, lexical_graph_config, claim_rows, mention_rows, edge_rows
+    ):
+        captured_write_all["call_kwargs"] = {
+            "neo4j_database": neo4j_database,
+            "claim_rows": list(claim_rows),
+            "mention_rows": list(mention_rows),
+            "edge_rows": list(edge_rows),
+        }
 
     config = Config(
         dry_run=False,
@@ -370,11 +371,8 @@ def test_claim_extraction_live_path_uses_create_lexical_graph_false(tmp_path: Pa
         "demo.io.RunScopedNeo4jChunkReader",
         _FakeChunkReader,
     ), mock.patch(
-        "demo.extraction_utils.write_extracted_rows",
-        side_effect=_fake_write_extracted_rows,
-    ), mock.patch(
-        "demo.stages.claim_participation.write_participation_edges",
-        side_effect=_fake_write_participation_edges,
+        "demo.extraction_utils.write_all_extraction_data",
+        side_effect=_fake_write_all_extraction_data,
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
         summary = run_claim_and_mention_extraction(config, run_id="live-run", source_uri="file:///doc.pdf")
 
@@ -386,17 +384,21 @@ def test_claim_extraction_live_path_uses_create_lexical_graph_false(tmp_path: Pa
     assert summary["claims"] == 1
     assert summary["mentions"] == 1
 
-    # Verify chunk-linked provenance: every extracted row must reference the source chunk_id
-    assert captured_write_rows["claim_rows"][0]["chunk_ids"] == [chunk_id]
-    assert captured_write_rows["mention_rows"][0]["chunk_ids"] == [chunk_id]
-    assert captured_write_rows["claim_rows"][0]["run_id"] == "live-run"
-    assert captured_write_rows["mention_rows"][0]["run_id"] == "live-run"
+    # write_all_extraction_data must have been called exactly once with all row data.
+    assert captured_write_all["call_kwargs"] is not None, "write_all_extraction_data was never called"
+    kw = captured_write_all["call_kwargs"]
 
-    # Verify that participation edge writing was invoked as part of the extraction stage.
+    # Verify chunk-linked provenance: every extracted row must reference the source chunk_id
+    assert kw["claim_rows"][0]["chunk_ids"] == [chunk_id]
+    assert kw["mention_rows"][0]["chunk_ids"] == [chunk_id]
+    assert kw["claim_rows"][0]["run_id"] == "live-run"
+    assert kw["mention_rows"][0]["run_id"] == "live-run"
+
+    # Verify participation edge counts in the summary.
     # The claim subject is "s" and the mention name is "Live Entity" — no raw match,
-    # so no edges are expected, but write_participation_edges must still have been called.
-    assert "subject_edges" in summary
-    assert "object_edges" in summary
+    # so no edges are expected; but write_all_extraction_data must still have been invoked.
+    assert summary["subject_edges"] == 0
+    assert summary["object_edges"] == 0
 
 
 def test_claim_extraction_live_writes_participation_edges_when_mention_matches(tmp_path: Path):
@@ -452,10 +454,14 @@ def test_claim_extraction_live_writes_participation_edges_when_mention_matches(t
         async def run(self, **kwargs):
             return fake_chunks
 
-    captured_participation: dict = {"edge_rows": []}
+    captured_write_all: dict = {"call_kwargs": None}
 
-    def _fake_write_participation_edges(driver, *, neo4j_database, edge_rows):
-        captured_participation["edge_rows"] = list(edge_rows)
+    def _fake_write_all_extraction_data(
+        driver, *, neo4j_database, lexical_graph_config, claim_rows, mention_rows, edge_rows
+    ):
+        captured_write_all["call_kwargs"] = {
+            "edge_rows": list(edge_rows),
+        }
 
     config = Config(
         dry_run=False,
@@ -477,24 +483,27 @@ def test_claim_extraction_live_writes_participation_edges_when_mention_matches(t
         "demo.io.RunScopedNeo4jChunkReader",
         _FakeChunkReader,
     ), mock.patch(
-        "demo.extraction_utils.write_extracted_rows",
-    ), mock.patch(
-        "demo.stages.claim_participation.write_participation_edges",
-        side_effect=_fake_write_participation_edges,
+        "demo.extraction_utils.write_all_extraction_data",
+        side_effect=_fake_write_all_extraction_data,
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
         summary = run_claim_and_mention_extraction(config, run_id="match-run", source_uri="file:///doc.pdf")
+
+    # write_all_extraction_data must have been called.
+    assert captured_write_all["call_kwargs"] is not None, "write_all_extraction_data was never called"
 
     # Both subject ("Google") and object ("revenue") should have matched a mention.
     assert summary["subject_edges"] == 1
     assert summary["object_edges"] == 1
-    assert summary["subject_edges"] + summary["object_edges"] == len(captured_participation["edge_rows"])
 
-    edge_types = {e["edge_type"] for e in captured_participation["edge_rows"]}
+    edge_rows = captured_write_all["call_kwargs"]["edge_rows"]
+    assert summary["subject_edges"] + summary["object_edges"] == len(edge_rows)
+
+    edge_types = {e["edge_type"] for e in edge_rows}
     assert "HAS_SUBJECT" in edge_types
     assert "HAS_OBJECT" in edge_types
 
     # Each edge must record run_id and match_method provenance.
-    for edge in captured_participation["edge_rows"]:
+    for edge in edge_rows:
         assert edge["run_id"] == "match-run"
         assert edge["match_method"] in ("raw_exact", "casefold_exact", "normalized_exact")
 
