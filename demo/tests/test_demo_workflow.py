@@ -1766,6 +1766,7 @@ class ResetDemoDbTests(unittest.TestCase):
         index_exists: bool = True,
         drop_calls: list | None = None,
         execute_query_calls: list | None = None,
+        stale_edges_deleted: int = 0,
     ) -> types.ModuleType:
         """Return fake_neo4j module for reset tests.
 
@@ -1773,6 +1774,11 @@ class ResetDemoDbTests(unittest.TestCase):
         queries issued via session.run().  Matching index names are appended to
         *drop_calls* so tests can assert on them without relying on the
         (removed) vendor ``drop_index_if_exists`` helper.
+
+        *stale_edges_deleted* controls how many relationships the stale pre-v0.2
+        participation-edge cleanup query (e.g.
+        ``MATCH (c:ExtractedClaim)-[r:HAS_SUBJECT|HAS_OBJECT]->(m:EntityMention) DELETE r``)
+        reports as deleted.  Defaults to 0 (clean v0.2 graph).
         """
         if drop_calls is None:
             drop_calls = []
@@ -1797,6 +1803,7 @@ class ResetDemoDbTests(unittest.TestCase):
                 return _FakeConsumeResult(self._nodes, self._rels)
 
         _captured_drop_calls = drop_calls
+        _stale_edges_deleted = stale_edges_deleted
 
         class _FakeSession:
             def __init__(self, nodes: int, rels: int) -> None:
@@ -1818,6 +1825,18 @@ class ResetDemoDbTests(unittest.TestCase):
                 )
                 if _drop_match:
                     _captured_drop_calls.append(_drop_match.group(1))
+                # Stale participation-edge cleanup query returns only stale
+                # relationship counts (no node deletions).  Match on the
+                # scoped pattern (ExtractedClaim → EntityMention) so the mock
+                # stays consistent with the scoped Cypher in reset_demo_db.py.
+                if (
+                    "ExtractedClaim" in query
+                    and "EntityMention" in query
+                    and "HAS_SUBJECT" in query
+                    and "HAS_OBJECT" in query
+                    and "DELETE" in query
+                ):
+                    return _FakeResult(0, _stale_edges_deleted)
                 return _FakeResult(self._nodes, self._rels)
 
         _index_exists_value = index_exists
@@ -1885,6 +1904,7 @@ class ResetDemoDbTests(unittest.TestCase):
             "demo_labels_deleted",
             "deleted_nodes",
             "deleted_relationships",
+            "stale_participation_edges_deleted",
             "indexes_dropped",
             "indexes_not_found",
             "warnings",
@@ -1988,6 +2008,41 @@ class ResetDemoDbTests(unittest.TestCase):
 
         self.assertFalse(report["idempotent"])
         self.assertIn("demo_chunk_embedding_index", report["indexes_dropped"])
+
+    def test_run_reset_idempotent_flag_false_when_stale_edges_deleted(self):
+        """idempotent must be False when stale pre-v0.2 participation edges are removed."""
+        fake_neo4j = self._make_fake_modules(
+            nodes_deleted=0, relationships_deleted=0, index_exists=False, stale_edges_deleted=3
+        )
+        with self._inject_reset_modules(fake_neo4j):
+            module = self._load_reset_module("reset_idempotent_stale_test")
+            report = module.run_reset(
+                driver=fake_neo4j.GraphDatabase.driver("neo4j://localhost:7687"),
+                database="neo4j",
+                output_dir=None,
+            )
+
+        self.assertFalse(report["idempotent"])
+        self.assertEqual(report["stale_participation_edges_deleted"], 3)
+        self.assertTrue(
+            any("stale" in w.lower() or "HAS_SUBJECT" in w for w in report["warnings"]),
+            "Expected a non-migratability warning for stale participation edges",
+        )
+
+    def test_run_reset_stale_participation_edges_zero_on_clean_v02_graph(self):
+        """stale_participation_edges_deleted is 0 for a clean v0.2 graph."""
+        fake_neo4j = self._make_fake_modules(
+            nodes_deleted=5, relationships_deleted=3, index_exists=True, stale_edges_deleted=0
+        )
+        with self._inject_reset_modules(fake_neo4j):
+            module = self._load_reset_module("reset_stale_zero_test")
+            report = module.run_reset(
+                driver=fake_neo4j.GraphDatabase.driver("neo4j://localhost:7687"),
+                database="neo4j",
+                output_dir=None,
+            )
+
+        self.assertEqual(report["stale_participation_edges_deleted"], 0)
 
     # ── report file output ────────────────────────────────────────────────────
 

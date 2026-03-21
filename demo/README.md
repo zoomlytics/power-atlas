@@ -196,6 +196,15 @@ Without `--confirm`, the standalone script exits with an error and the CLI reset
 
 Both reset paths write a JSON reset report to `<output-dir>/reset_report_<timestamp>.json`, with `demo/artifacts` used as the default `--output-dir`.
 
+> **⚠ v0.2 graph model — old graphs are non-migratable.**
+> v0.2 renamed participation edges from `:HAS_SUBJECT`/`:HAS_OBJECT` to
+> `:HAS_SUBJECT_MENTION`/`:HAS_OBJECT_MENTION`.  Graphs produced by a
+> pre-v0.2 run **cannot be migrated in place**.  The reset script automatically
+> removes any surviving stale `:HAS_SUBJECT`/`:HAS_OBJECT` edges and records
+> the count in the report under `stale_participation_edges_deleted`.
+> After reset, re-run the full pipeline (Steps 2–5 below) to produce a clean
+> v0.2 graph with the correct edge types.
+
 ### Step 2 — Run the unstructured-only pass (no structured data required)
 
 ```bash
@@ -232,6 +241,31 @@ python -m demo.run_demo --dry-run extract-claims
 `extract-claims` runs within the existing unstructured ingest run scope established by `ingest-pdf`. It does not create a separate producer run.
 
 In live mode, `extract-claims` reads `Chunk` nodes for the selected `run_id`. In `--dry-run` mode it returns a stub summary.
+
+After a live `extract-claims` run, validate the v0.2 participation edges in Neo4j Browser or the CLI:
+
+```cypher
+// Neo4j Browser — check HAS_SUBJECT_MENTION edges
+MATCH (c:ExtractedClaim)-[r:HAS_SUBJECT_MENTION]->(m:EntityMention)
+RETURN c.claim_id, r.match_method, m.name
+LIMIT 25;
+
+// Neo4j Browser — check HAS_OBJECT_MENTION edges
+MATCH (c:ExtractedClaim)-[r:HAS_OBJECT_MENTION]->(m:EntityMention)
+RETURN c.claim_id, r.match_method, m.name
+LIMIT 25;
+
+// Neo4j Browser — combined summary count
+MATCH ()-[r:HAS_SUBJECT_MENTION|HAS_OBJECT_MENTION]->()
+RETURN type(r) AS edge_type, count(r) AS total
+ORDER BY edge_type;
+```
+
+```bash
+# CLI — count participation edges via cypher-shell (if available)
+cypher-shell -u neo4j -p "$NEO4J_PASSWORD" \
+  "MATCH ()-[r:HAS_SUBJECT_MENTION|HAS_OBJECT_MENTION]->() RETURN type(r) AS edge_type, count(r) AS total ORDER BY edge_type;"
+```
 
 ### Step 4 — Entity resolution and Q&A (unstructured-only)
 
@@ -886,6 +920,18 @@ All nodes with the following labels and **all their relationships** (`DETACH DEL
 
 The index `demo_chunk_embedding_index` (vector, `Chunk.embedding`, 1536 dims) is also dropped if present.
 
+In addition to the node-level `DETACH DELETE`, the reset explicitly removes any
+surviving stale `:HAS_SUBJECT` / `:HAS_OBJECT` edges left from pre-v0.2 demo
+runs.  These relationship types were retired in v0.2 (replaced by
+`:HAS_SUBJECT_MENTION` / `:HAS_OBJECT_MENTION`).  The count of removed stale
+edges is reported under `stale_participation_edges_deleted` in the reset report.
+
+> **⚠ Non-migratability of pre-v0.2 graphs.**  If your graph was produced
+> before v0.2, it contains `:HAS_SUBJECT`/`:HAS_OBJECT` edges that cannot be
+> automatically migrated.  Run a full reset and re-run the pipeline
+> (ingest-pdf → extract-claims → resolve-entities) to produce a clean v0.2
+> graph with `:HAS_SUBJECT_MENTION`/`:HAS_OBJECT_MENTION` edges.
+
 ### What is preserved
 
 - nodes with labels not in the list above
@@ -894,7 +940,7 @@ The index `demo_chunk_embedding_index` (vector, `Chunk.embedding`, 1536 dims) is
 
 ### Idempotency
 
-Reset is safe to run repeatedly. If the graph is already empty or the index is absent, the script completes without error and records warnings in the reset report.
+Reset is safe to run repeatedly. If the graph is already empty or the index is absent, the script completes without error and records warnings in the reset report.  The `idempotent` flag in the report is `true` only when no nodes, no stale participation edges, and no indexes were changed.
 
 ---
 

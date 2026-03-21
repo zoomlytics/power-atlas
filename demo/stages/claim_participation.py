@@ -1,7 +1,7 @@
 """Claim participation edge matching.
 
 Matches :ExtractedClaim subject/object text to :EntityMention nodes
-from the same chunk/run and writes :HAS_SUBJECT / :HAS_OBJECT edges.
+from the same chunk/run and writes :HAS_SUBJECT_MENTION / :HAS_OBJECT_MENTION edges.
 
 Matching strategy (tried in priority order for each slot — most restrictive
 first so that the recorded ``match_method`` reflects the minimum transformation
@@ -54,9 +54,9 @@ MATCH_METHOD_CASEFOLD_EXACT = "casefold_exact"
 MATCH_METHOD_NORMALIZED_EXACT = "normalized_exact"
 
 #: Neo4j relationship type for subject slot edges.
-EDGE_TYPE_HAS_SUBJECT = "HAS_SUBJECT"
+EDGE_TYPE_HAS_SUBJECT = "HAS_SUBJECT_MENTION"
 #: Neo4j relationship type for object slot edges.
-EDGE_TYPE_HAS_OBJECT = "HAS_OBJECT"
+EDGE_TYPE_HAS_OBJECT = "HAS_OBJECT_MENTION"
 
 # Slot name → edge type
 _SLOT_EDGE_TYPE: dict[str, str] = {
@@ -256,7 +256,7 @@ def write_participation_edges(
     neo4j_database: str,
     edge_rows: list[dict[str, Any]],
 ) -> None:
-    """Write :HAS_SUBJECT and :HAS_OBJECT edges to Neo4j.
+    """Write :HAS_SUBJECT_MENTION and :HAS_OBJECT_MENTION edges to Neo4j.
 
     Uses MERGE so that re-running the stage is idempotent.  Only edges that
     already have ``claim_id``/``mention_id`` nodes in the graph will be
@@ -281,7 +281,7 @@ def write_participation_edges(
             UNWIND $rows AS row
             MATCH (claim:ExtractedClaim {claim_id: row.claim_id, run_id: row.run_id})
             MATCH (mention:EntityMention {mention_id: row.mention_id, run_id: row.run_id})
-            MERGE (claim)-[r:HAS_SUBJECT]->(mention)
+            MERGE (claim)-[r:HAS_SUBJECT_MENTION]->(mention)
             SET r.run_id = row.run_id,
                 r.source_uri = coalesce(row.source_uri, r.source_uri),
                 r.match_method = row.match_method
@@ -296,7 +296,7 @@ def write_participation_edges(
             UNWIND $rows AS row
             MATCH (claim:ExtractedClaim {claim_id: row.claim_id, run_id: row.run_id})
             MATCH (mention:EntityMention {mention_id: row.mention_id, run_id: row.run_id})
-            MERGE (claim)-[r:HAS_OBJECT]->(mention)
+            MERGE (claim)-[r:HAS_OBJECT_MENTION]->(mention)
             SET r.run_id = row.run_id,
                 r.source_uri = coalesce(row.source_uri, r.source_uri),
                 r.match_method = row.match_method
@@ -330,7 +330,7 @@ def run_claim_participation(
     run_id: str,
     source_uri: str | None,
 ) -> dict[str, Any]:
-    """Build and persist :HAS_SUBJECT / :HAS_OBJECT edges for a claim extraction run.
+    """Build and persist :HAS_SUBJECT_MENTION / :HAS_OBJECT_MENTION edges for a claim extraction run.
 
     Reads :ExtractedClaim and :EntityMention nodes for *run_id* from Neo4j,
     runs the slot→mention matching logic, and writes the resulting participation
