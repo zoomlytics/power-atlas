@@ -344,8 +344,8 @@ def write_all_extraction_data(
 
     claim_query = _claim_write_query(chunk_label, chunk_id_property)
     mention_query = _mention_write_query(chunk_label, chunk_id_property)
-    subject_query = _edge_write_query("HAS_SUBJECT_MENTION")
-    object_query = _edge_write_query("HAS_OBJECT_MENTION")
+    subject_query = _edge_write_query(EDGE_TYPE_HAS_SUBJECT)
+    object_query = _edge_write_query(EDGE_TYPE_HAS_OBJECT)
 
     def _write_all(tx: neo4j.ManagedTransaction) -> None:
         if claim_rows:
