@@ -139,9 +139,9 @@ After running the full demo with the default unstructured PDF fixture, the signa
 for `galperin` and `mercadolibre` should each return at least one row.  If they return no
 results, verify that:
 
-1. `extract-claims` completed successfully (check the manifest for `claims_written > 0`).
-2. The claim-participation stage ran (check for `edges_written > 0` in the participation
-   manifest, or re-run `extract-claims` which includes participation in the same pass).
+1. `extract-claims` completed successfully (check the manifest for `extracted_claim_count > 0`).
+2. The claim-participation stage ran (check for `subject_edges > 0` or `object_edges > 0` in the
+   participation manifest, or re-run `extract-claims` which includes participation in the same pass).
 3. The graph has not been reset since the last `extract-claims` run.
 
 ---
@@ -261,14 +261,14 @@ LIMIT 25;
 
 ```cypher
 // Claims and their source chunk (via ExtractedClaim → Chunk traversal)
-MATCH (c:ExtractedClaim)-[:MENTIONED_IN]->(chunk:Chunk)
+MATCH (c:ExtractedClaim)-[:SUPPORTED_BY]->(chunk:Chunk)
 RETURN c.claim_id, c.claim_text, chunk.chunk_id, chunk.run_id
 LIMIT 25;
 ```
 
 ```cypher
 // All mentions and claims co-located in the same chunk
-MATCH (m:EntityMention)-[:MENTIONED_IN]->(chunk:Chunk)<-[:MENTIONED_IN]-(c:ExtractedClaim)
+MATCH (m:EntityMention)-[:MENTIONED_IN]->(chunk:Chunk)<-[:SUPPORTED_BY]-(c:ExtractedClaim)
 RETURN chunk.chunk_id, m.name AS mention, c.claim_text
 ORDER BY chunk.chunk_id
 LIMIT 25;
@@ -276,8 +276,8 @@ LIMIT 25;
 
 **When to use chunk co-location queries:**
 
-- Debugging: verify that `MENTIONED_IN` edges are present for both `EntityMention` and
-  `ExtractedClaim` nodes after `extract-claims`.
+- Debugging: verify that `MENTIONED_IN` edges are present for `EntityMention` nodes and that
+  `SUPPORTED_BY` edges connect `ExtractedClaim` nodes to their `Chunk` nodes after `extract-claims`.
 - Architecture inspection: confirm the lexical layer is intact before running downstream stages.
 - Do *not* use co-location as a proxy for claim participation — use the `HAS_SUBJECT_MENTION` /
   `HAS_OBJECT_MENTION` edges instead.

@@ -249,7 +249,7 @@ After a live `extract-claims` run, validate the v0.2 participation edges in Neo4
 > model directly — each edge records which `EntityMention` fills the subject or object slot of
 > a specific `ExtractedClaim`, along with the `match_method` that resolved the slot.  Use chunk
 > co-location (`MENTIONED_IN`) only for architecture-level inspection; see the
-> [Architecture reference queries](#architecture-reference-queries-chunk-co-location) in the
+> [Architecture reference queries](../pipelines/query/README.md#architecture-reference-queries-chunk-co-location) in the
 > workbook for details.
 
 > **Neo4j Browser workbook:** a full set of copy-paste queries (participation validation,
@@ -302,8 +302,8 @@ ORDER BY c.claim_id;
 
 **Validation guidance:** after running the demo with the default PDF fixture, the queries above
 should each return at least one row.  If they return no results, check that `extract-claims`
-completed successfully (`claims_written > 0` in the manifest) and that the claim-participation
-edges were created (`edges_written > 0`).
+completed successfully (`extracted_claim_count > 0` in the manifest) and that subject/object
+edges were created (`subject_edges > 0` or `object_edges > 0`).
 
 #### Pairwise claim analysis (v0.2)
 
@@ -813,7 +813,7 @@ demo/artifacts/runs/<run_id>/retrieval_and_qa/manifest.json
 | Layer | Nodes / edges | Written by | Mutable? |
 | --- | --- | --- | --- |
 | Lexical | `Document`, `Chunk` | `ingest-pdf` | Stable for the run — never overwritten by downstream stages |
-| Extraction | `ExtractedClaim`, `EntityMention`; `MENTIONED_IN` edges (mention→chunk, claim→chunk) | `extract-claims` | Non-destructive additions only |
+| Extraction | `ExtractedClaim`, `EntityMention`; `MENTIONED_IN` edges (mention→chunk), `SUPPORTED_BY` edges (claim→chunk) | `extract-claims` | Non-destructive additions only |
 | Participation (v0.2) | `HAS_SUBJECT_MENTION`, `HAS_OBJECT_MENTION` edges (claim→mention) | `extract-claims` (inline) | Non-destructive additions only; each edge carries `match_method` and `run_id` |
 | Resolution | `ResolvedEntityCluster` (provisional), `UnresolvedEntity` (legacy/unused fallback; kept for cleanup/back-compat) | `resolve-entities` | Non-destructive additions only; creates `MEMBER_OF` edges (all modes) and optionally `ALIGNED_WITH` edges to `CanonicalEntity` nodes (hybrid mode) |
 | Structured (optional) | `Claim`, `Fact`, `Relationship`, `Source`, `CanonicalEntity` | `ingest-structured` | Non-destructive additions only; structured ingest is optional enrichment |
