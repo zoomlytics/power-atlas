@@ -37,6 +37,7 @@ evidence is absent or contradictory.
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Any
 
 import neo4j
@@ -101,33 +102,37 @@ def match_slot_to_mention(
     if not slot_stripped:
         return None, None
 
-    # Pre-compute all derived forms for each mention once to avoid redundant work
-    # across the three matching strategies.
-    mention_forms: list[tuple[dict[str, Any], str, str, str]] = []
+    # Build (mention, stripped_name) pairs once; used by all three strategies.
+    # None names are treated as empty string to avoid surprising "None" string matches.
+    raw_forms: list[tuple[dict[str, Any], str]] = []
     for m in mentions:
         name = m.get("name")
-        raw = "" if name is None else str(name).strip()
-        mention_forms.append((m, raw, raw.casefold(), normalize_mention_text(raw)))
+        raw_forms.append((m, "" if name is None else str(name).strip()))
 
-    # Strategy 1: raw_exact — most restrictive, highest confidence
-    raw_matches = [m for m, raw, _cf, _norm in mention_forms if raw == slot_stripped]
+    # Strategy 1: raw_exact — most restrictive, highest confidence.
+    # Only strip whitespace; no other transformation.
+    raw_matches = [m for m, raw in raw_forms if raw == slot_stripped]
     if len(raw_matches) == 1:
         return raw_matches[0], MATCH_METHOD_RAW_EXACT
     if len(raw_matches) > 1:
         # Ambiguous — do not create an edge
         return None, None
 
-    # Strategy 2: casefold_exact — catches purely case-different variants
+    # Strategy 2: casefold_exact — computed lazily only when raw_exact finds 0 matches.
     slot_cf = slot_stripped.casefold()
-    cf_matches = [m for m, _raw, cf, _norm in mention_forms if cf == slot_cf]
+    cf_matches = [m for m, raw in raw_forms if raw.casefold() == slot_cf]
     if len(cf_matches) == 1:
         return cf_matches[0], MATCH_METHOD_CASEFOLD_EXACT
     if len(cf_matches) > 1:
         return None, None
 
-    # Strategy 3: normalized_exact — catches Unicode variant forms
+    # Strategy 3: normalized_exact — normalize_mention_text called lazily only when both
+    # raw_exact and casefold_exact find 0 matches.  Pre-compute all mention normal forms
+    # here (rather than inside the list comprehension) so the function is called once per
+    # mention rather than once per mention per iteration.
     slot_norm = normalize_mention_text(slot_stripped)
-    norm_matches = [m for m, _raw, _cf, norm in mention_forms if norm == slot_norm]
+    norm_forms = [(m, normalize_mention_text(raw)) for m, raw in raw_forms]
+    norm_matches = [m for m, norm in norm_forms if norm == slot_norm]
     if len(norm_matches) == 1:
         return norm_matches[0], MATCH_METHOD_NORMALIZED_EXACT
     # Zero or >1 matches — no edge
@@ -175,14 +180,14 @@ def build_participation_edges(
     mentions_by_run_chunk: dict[tuple[str, str], list[dict[str, Any]]] = {}
     for mention_row in mention_rows:
         m_run_id = mention_row.get("run_id", "")
-        for cid in mention_row.get("chunk_ids", []):
+        for cid in (mention_row.get("chunk_ids") or []):
             key = (m_run_id, cid)
             mentions_by_run_chunk.setdefault(key, []).append(mention_row)
 
     edge_rows: list[dict[str, Any]] = []
 
     for claim_row in claim_rows:
-        claim_chunk_ids: list[str] = claim_row.get("chunk_ids", [])
+        claim_chunk_ids: list[str] = claim_row.get("chunk_ids") or []
         if not claim_chunk_ids:
             continue
 
@@ -348,7 +353,20 @@ def run_claim_participation(
     A summary dict with ``status``, ``run_id``, ``edges_written``,
     ``subject_edges``, ``object_edges``, and ``warnings``.
     """
-    run_root = config.output_dir / "runs" / run_id
+    # Validate run_id to prevent path traversal outside the runs directory.
+    # Mirrors the same check used in run_entity_resolution.
+    runs_root = (config.output_dir / "runs").resolve()
+    run_id_path = Path(run_id)
+    if run_id_path.is_absolute() or ".." in run_id_path.parts or run_id_path.name != run_id:
+        raise ValueError(
+            f"Invalid run_id {run_id!r}: must be a simple relative name without path separators or '..'."
+        )
+    run_root = (runs_root / run_id_path).resolve()
+    if run_root == runs_root or runs_root not in run_root.parents:
+        raise ValueError(
+            f"Invalid run_id {run_id!r}: must resolve to a subdirectory of the runs directory."
+        )
+
     participation_dir = run_root / "claim_participation"
     participation_dir.mkdir(parents=True, exist_ok=True)
     summary_path = participation_dir / "claim_participation_summary.json"
@@ -375,12 +393,12 @@ def run_claim_participation(
         claim_result, _, _ = driver.execute_query(
             """
             MATCH (claim:ExtractedClaim {run_id: $run_id})
-            OPTIONAL MATCH (claim)-[:SUPPORTED_BY]->(chunk)
+            OPTIONAL MATCH (claim)-[supported_by:SUPPORTED_BY]->()
             RETURN claim.claim_id AS claim_id,
                    claim.subject   AS subject,
                    claim.object    AS object,
                    claim.source_uri AS source_uri,
-                   collect(DISTINCT chunk.chunk_id) AS chunk_ids
+                   collect(DISTINCT supported_by.chunk_id) AS chunk_ids
             ORDER BY claim.claim_id
             """,
             parameters_={"run_id": run_id},
@@ -406,11 +424,11 @@ def run_claim_participation(
         mention_result, _, _ = driver.execute_query(
             """
             MATCH (mention:EntityMention {run_id: $run_id})
-            OPTIONAL MATCH (mention)-[:MENTIONED_IN]->(chunk)
+            OPTIONAL MATCH (mention)-[mentioned_in:MENTIONED_IN]->()
             RETURN mention.mention_id AS mention_id,
                    mention.name       AS name,
                    mention.source_uri AS source_uri,
-                   collect(DISTINCT chunk.chunk_id) AS chunk_ids
+                   collect(DISTINCT mentioned_in.chunk_id) AS chunk_ids
             ORDER BY mention.mention_id
             """,
             parameters_={"run_id": run_id},
