@@ -1776,8 +1776,9 @@ class ResetDemoDbTests(unittest.TestCase):
         (removed) vendor ``drop_index_if_exists`` helper.
 
         *stale_edges_deleted* controls how many relationships the stale pre-v0.2
-        participation-edge cleanup query (`MATCH ()-[r:HAS_SUBJECT|HAS_OBJECT]->()
-        DELETE r`) reports as deleted.  Defaults to 0 (clean v0.2 graph).
+        participation-edge cleanup query (e.g.
+        ``MATCH (c:ExtractedClaim)-[r:HAS_SUBJECT|HAS_OBJECT]->(m:EntityMention) DELETE r``)
+        reports as deleted.  Defaults to 0 (clean v0.2 graph).
         """
         if drop_calls is None:
             drop_calls = []
