@@ -384,7 +384,7 @@ def test_claim_extraction_live_path_uses_create_lexical_graph_false(tmp_path: Pa
     assert summary["claims"] == 1
     assert summary["mentions"] == 1
 
-    # write_all_extraction_data must have been called exactly once with all row data.
+    # write_all_extraction_data must have been called with all row data.
     assert captured_write_all["call_kwargs"] is not None, "write_all_extraction_data was never called"
     kw = captured_write_all["call_kwargs"]
 

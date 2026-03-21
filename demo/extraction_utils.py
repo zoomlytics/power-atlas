@@ -252,6 +252,18 @@ def prepare_extracted_rows(
     return claim_rows, mention_rows, warnings
 
 
+def _edge_write_query(relationship_type: str) -> str:
+    return f"""
+            UNWIND $rows AS row
+            MATCH (claim:ExtractedClaim {{claim_id: row.claim_id, run_id: row.run_id}})
+            MATCH (mention:EntityMention {{mention_id: row.mention_id, run_id: row.run_id}})
+            MERGE (claim)-[r:{relationship_type}]->(mention)
+            SET r.run_id = row.run_id,
+                r.source_uri = COALESCE(row.source_uri, r.source_uri),
+                r.match_method = row.match_method
+            """
+
+
 def write_extracted_rows(
     driver: neo4j.Driver,
     *,
@@ -332,38 +344,18 @@ def write_all_extraction_data(
 
     claim_query = _claim_write_query(chunk_label, chunk_id_property)
     mention_query = _mention_write_query(chunk_label, chunk_id_property)
+    subject_query = _edge_write_query("HAS_SUBJECT")
+    object_query = _edge_write_query("HAS_OBJECT")
 
     def _write_all(tx: neo4j.ManagedTransaction) -> None:
         if claim_rows:
-            tx.run(claim_query, rows=claim_rows)
+            tx.run(claim_query, rows=claim_rows).consume()
         if mention_rows:
-            tx.run(mention_query, rows=mention_rows)
+            tx.run(mention_query, rows=mention_rows).consume()
         if subject_rows:
-            tx.run(
-                """
-                UNWIND $rows AS row
-                MATCH (claim:ExtractedClaim {claim_id: row.claim_id, run_id: row.run_id})
-                MATCH (mention:EntityMention {mention_id: row.mention_id, run_id: row.run_id})
-                MERGE (claim)-[r:HAS_SUBJECT]->(mention)
-                SET r.run_id = row.run_id,
-                    r.source_uri = COALESCE(row.source_uri, r.source_uri),
-                    r.match_method = row.match_method
-                """,
-                rows=subject_rows,
-            )
+            tx.run(subject_query, rows=subject_rows).consume()
         if object_rows:
-            tx.run(
-                """
-                UNWIND $rows AS row
-                MATCH (claim:ExtractedClaim {claim_id: row.claim_id, run_id: row.run_id})
-                MATCH (mention:EntityMention {mention_id: row.mention_id, run_id: row.run_id})
-                MERGE (claim)-[r:HAS_OBJECT]->(mention)
-                SET r.run_id = row.run_id,
-                    r.source_uri = COALESCE(row.source_uri, r.source_uri),
-                    r.match_method = row.match_method
-                """,
-                rows=object_rows,
-            )
+            tx.run(object_query, rows=object_rows).consume()
 
     with driver.session(database=neo4j_database) as session:
         session.execute_write(_write_all)
