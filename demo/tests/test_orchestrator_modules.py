@@ -278,6 +278,15 @@ def test_claim_extraction_dry_run_includes_chunks_with_extractions(tmp_path: Pat
     assert summary["chunks_with_extractions"] == 0
 
 
+def test_claim_extraction_dry_run_includes_participation_edge_counts(tmp_path: Path):
+    from demo.stages import run_claim_and_mention_extraction
+
+    config = _dry_run_config(tmp_path)
+    summary = run_claim_and_mention_extraction(config, run_id="claim-run-dry", source_uri=None)
+    assert summary["subject_edges"] == 0
+    assert summary["object_edges"] == 0
+
+
 def test_claim_extraction_live_path_uses_create_lexical_graph_false(tmp_path: Path):
     """Verify that _async_read_chunks_and_extract instantiates LLMEntityRelationExtractor
     with create_lexical_graph=False, keeping extraction non-destructive:
@@ -330,11 +339,17 @@ def test_claim_extraction_live_path_uses_create_lexical_graph_false(tmp_path: Pa
         async def run(self, **kwargs):
             return fake_chunks
 
-    captured_write_rows: dict = {"claim_rows": [], "mention_rows": []}
+    captured_write_all: dict = {"call_kwargs": None}
 
-    def _fake_write_extracted_rows(driver, *, neo4j_database, lexical_graph_config, claim_rows, mention_rows):
-        captured_write_rows["claim_rows"] = claim_rows
-        captured_write_rows["mention_rows"] = mention_rows
+    def _fake_write_all_extraction_data(
+        driver, *, neo4j_database, lexical_graph_config, claim_rows, mention_rows, edge_rows
+    ):
+        captured_write_all["call_kwargs"] = {
+            "neo4j_database": neo4j_database,
+            "claim_rows": list(claim_rows),
+            "mention_rows": list(mention_rows),
+            "edge_rows": list(edge_rows),
+        }
 
     config = Config(
         dry_run=False,
@@ -356,8 +371,8 @@ def test_claim_extraction_live_path_uses_create_lexical_graph_false(tmp_path: Pa
         "demo.io.RunScopedNeo4jChunkReader",
         _FakeChunkReader,
     ), mock.patch(
-        "demo.extraction_utils.write_extracted_rows",
-        side_effect=_fake_write_extracted_rows,
+        "demo.extraction_utils.write_all_extraction_data",
+        side_effect=_fake_write_all_extraction_data,
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
         summary = run_claim_and_mention_extraction(config, run_id="live-run", source_uri="file:///doc.pdf")
 
@@ -369,11 +384,128 @@ def test_claim_extraction_live_path_uses_create_lexical_graph_false(tmp_path: Pa
     assert summary["claims"] == 1
     assert summary["mentions"] == 1
 
+    # write_all_extraction_data must have been called with all row data.
+    assert captured_write_all["call_kwargs"] is not None, "write_all_extraction_data was never called"
+    kw = captured_write_all["call_kwargs"]
+
     # Verify chunk-linked provenance: every extracted row must reference the source chunk_id
-    assert captured_write_rows["claim_rows"][0]["chunk_ids"] == [chunk_id]
-    assert captured_write_rows["mention_rows"][0]["chunk_ids"] == [chunk_id]
-    assert captured_write_rows["claim_rows"][0]["run_id"] == "live-run"
-    assert captured_write_rows["mention_rows"][0]["run_id"] == "live-run"
+    assert kw["claim_rows"][0]["chunk_ids"] == [chunk_id]
+    assert kw["mention_rows"][0]["chunk_ids"] == [chunk_id]
+    assert kw["claim_rows"][0]["run_id"] == "live-run"
+    assert kw["mention_rows"][0]["run_id"] == "live-run"
+
+    # Verify participation edge counts in the summary.
+    # The claim subject is "s" and the mention name is "Live Entity" — no raw match,
+    # so no edges are expected; but write_all_extraction_data must still have been invoked.
+    assert summary["subject_edges"] == 0
+    assert summary["object_edges"] == 0
+
+
+def test_claim_extraction_live_writes_participation_edges_when_mention_matches(tmp_path: Path):
+    """Participation edges must be written inline when claim slot text matches a mention name."""
+    from demo.stages import run_claim_and_mention_extraction
+
+    chunk_id = "chunk-match-1"
+    # Claim subject matches the mention name exactly.
+    fake_graph = Neo4jGraph(
+        nodes=[
+            Neo4jNode(
+                id="claim-match-1",
+                label="ExtractedClaim",
+                properties={"claim_text": "Google earns revenue", "subject": "Google", "object": "revenue"},
+            ),
+            Neo4jNode(
+                id="mention-match-google",
+                label="EntityMention",
+                properties={"name": "Google", "entity_type": "ORG"},
+            ),
+            Neo4jNode(
+                id="mention-match-revenue",
+                label="EntityMention",
+                properties={"name": "revenue", "entity_type": "CONCEPT"},
+            ),
+        ],
+        relationships=[
+            Neo4jRelationship(start_node_id=chunk_id, end_node_id="claim-match-1", type="MENTIONED_IN"),
+            Neo4jRelationship(start_node_id=chunk_id, end_node_id="mention-match-google", type="MENTIONED_IN"),
+            Neo4jRelationship(start_node_id=chunk_id, end_node_id="mention-match-revenue", type="MENTIONED_IN"),
+        ],
+    )
+    fake_chunks = TextChunks(
+        chunks=[TextChunk(uid=chunk_id, text="Google earns revenue", index=0, metadata={"run_id": "match-run"})]
+    )
+
+    class _FakeExtractor:
+        def __init__(self, **kwargs):
+            pass
+
+        async def run(self, **kwargs):
+            return fake_graph
+
+    class _FakeLLM:
+        def __init__(self, *args, **kwargs):
+            self.async_client = mock.MagicMock()
+            self.async_client.close = mock.AsyncMock()
+
+    class _FakeChunkReader:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def run(self, **kwargs):
+            return fake_chunks
+
+    captured_write_all: dict = {"call_kwargs": None}
+
+    def _fake_write_all_extraction_data(
+        driver, *, neo4j_database, lexical_graph_config, claim_rows, mention_rows, edge_rows
+    ):
+        captured_write_all["call_kwargs"] = {
+            "edge_rows": list(edge_rows),
+        }
+
+    config = Config(
+        dry_run=False,
+        output_dir=tmp_path,
+        neo4j_uri="bolt://example.invalid",
+        neo4j_username="neo4j",
+        neo4j_password="not-used",
+        neo4j_database="neo4j",
+        openai_model="gpt-4o-mini",
+    )
+
+    with mock.patch(
+        "neo4j_graphrag.experimental.components.entity_relation_extractor.LLMEntityRelationExtractor",
+        _FakeExtractor,
+    ), mock.patch(
+        "neo4j_graphrag.llm.OpenAILLM",
+        _FakeLLM,
+    ), mock.patch(
+        "demo.io.RunScopedNeo4jChunkReader",
+        _FakeChunkReader,
+    ), mock.patch(
+        "demo.extraction_utils.write_all_extraction_data",
+        side_effect=_fake_write_all_extraction_data,
+    ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+        summary = run_claim_and_mention_extraction(config, run_id="match-run", source_uri="file:///doc.pdf")
+
+    # write_all_extraction_data must have been called.
+    assert captured_write_all["call_kwargs"] is not None, "write_all_extraction_data was never called"
+
+    # Both subject ("Google") and object ("revenue") should have matched a mention.
+    assert summary["subject_edges"] == 1
+    assert summary["object_edges"] == 1
+
+    edge_rows = captured_write_all["call_kwargs"]["edge_rows"]
+    assert summary["subject_edges"] + summary["object_edges"] == len(edge_rows)
+
+    edge_types = {e["edge_type"] for e in edge_rows}
+    assert "HAS_SUBJECT" in edge_types
+    assert "HAS_OBJECT" in edge_types
+
+    # Each edge must record run_id and match_method provenance.
+    for edge in edge_rows:
+        assert edge["run_id"] == "match-run"
+        assert edge["match_method"] in ("raw_exact", "casefold_exact", "normalized_exact")
 
 
 def test_retrieval_and_qa_question_recorded_in_manifest(tmp_path: Path):

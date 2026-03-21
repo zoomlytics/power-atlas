@@ -77,6 +77,8 @@ def run_claim_and_mention_extraction(config: Any, *, run_id: str, source_uri: st
             "claims": 0,
             "mentions": 0,
             "chunk_ids": [],
+            "subject_edges": 0,
+            "object_edges": 0,
             "warnings": ["claim extraction skipped in dry_run mode"],
         }
         summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
@@ -86,9 +88,15 @@ def run_claim_and_mention_extraction(config: Any, *, run_id: str, source_uri: st
         raise ValueError("OPENAI_API_KEY environment variable is required for live claim extraction.")
 
     import neo4j
-    from demo.extraction_utils import prepare_extracted_rows, write_extracted_rows
+    from demo.extraction_utils import prepare_extracted_rows, write_all_extraction_data
+    from demo.stages.claim_participation import (
+        EDGE_TYPE_HAS_OBJECT,
+        EDGE_TYPE_HAS_SUBJECT,
+        build_participation_edges,
+    )
 
     driver = neo4j.GraphDatabase.driver(config.neo4j_uri, auth=(config.neo4j_username, config.neo4j_password))
+    edge_rows: list[dict] = []
     with driver:
         graph, text_chunks, lexical_config = asyncio.run(
             _async_read_chunks_and_extract(
@@ -106,16 +114,20 @@ def run_claim_and_mention_extraction(config: Any, *, run_id: str, source_uri: st
             source_uri=source_uri,
             lexical_graph_config=lexical_config,
         )
-        write_extracted_rows(
+        edge_rows = build_participation_edges(claim_rows, mention_rows)
+        write_all_extraction_data(
             driver,
             neo4j_database=config.neo4j_database,
             lexical_graph_config=lexical_config,
             claim_rows=claim_rows,
             mention_rows=mention_rows,
+            edge_rows=edge_rows,
         )
 
     all_extracted_rows = claim_rows + mention_rows
     unique_chunk_ids = {chunk_id for row in all_extracted_rows for chunk_id in row["chunk_ids"]}
+    subject_edges = sum(1 for e in edge_rows if e["edge_type"] == EDGE_TYPE_HAS_SUBJECT)
+    object_edges = sum(1 for e in edge_rows if e["edge_type"] == EDGE_TYPE_HAS_OBJECT)
     summary = {
         "status": "live",
         "run_id": run_id,
@@ -131,6 +143,8 @@ def run_claim_and_mention_extraction(config: Any, *, run_id: str, source_uri: st
         "claims": len(claim_rows),
         "mentions": len(mention_rows),
         "chunk_ids": sorted(unique_chunk_ids),
+        "subject_edges": subject_edges,
+        "object_edges": object_edges,
         "warnings": warnings,
     }
     summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
