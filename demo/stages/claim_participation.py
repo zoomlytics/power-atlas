@@ -283,7 +283,7 @@ def write_participation_edges(
             MATCH (mention:EntityMention {mention_id: row.mention_id, run_id: row.run_id})
             MERGE (claim)-[r:HAS_SUBJECT]->(mention)
             SET r.run_id = row.run_id,
-                r.source_uri = row.source_uri,
+                r.source_uri = coalesce(row.source_uri, r.source_uri),
                 r.match_method = row.match_method
             """,
             parameters_={"rows": subject_rows},
@@ -298,7 +298,7 @@ def write_participation_edges(
             MATCH (mention:EntityMention {mention_id: row.mention_id, run_id: row.run_id})
             MERGE (claim)-[r:HAS_OBJECT]->(mention)
             SET r.run_id = row.run_id,
-                r.source_uri = row.source_uri,
+                r.source_uri = coalesce(row.source_uri, r.source_uri),
                 r.match_method = row.match_method
             """,
             parameters_={"rows": object_rows},
