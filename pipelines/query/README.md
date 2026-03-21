@@ -61,14 +61,14 @@ ORDER BY edge_type;
 
 ```cypher
 // Full claim view — subject AND object mentions together
-MATCH (subj:EntityMention)<-[sr:HAS_SUBJECT_MENTION]-(c:ExtractedClaim)-[or:HAS_OBJECT_MENTION]->(obj:EntityMention)
+MATCH (subj:EntityMention)<-[sr:HAS_SUBJECT_MENTION]-(c:ExtractedClaim)-[obj_r:HAS_OBJECT_MENTION]->(obj:EntityMention)
 RETURN c.claim_id,
        subj.name       AS subject_mention,
        c.predicate     AS predicate,
        obj.name        AS object_mention,
        c.claim_text,
        sr.match_method AS subject_match,
-       or.match_method AS object_match
+       obj_r.match_method AS object_match
 LIMIT 25;
 ```
 
