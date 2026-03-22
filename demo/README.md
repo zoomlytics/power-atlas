@@ -242,20 +242,34 @@ python -m demo.run_demo --dry-run extract-claims
 
 In live mode, `extract-claims` reads `Chunk` nodes for the selected `run_id`. In `--dry-run` mode it returns a stub summary.
 
-After a live `extract-claims` run, validate the v0.2 participation edges in Neo4j Browser or the CLI:
+After a live `extract-claims` run, validate the v0.2 participation edges in Neo4j Browser or the CLI.
+
+> **v0.2 recommended traversal pattern:** always traverse via `HAS_SUBJECT_MENTION` /
+> `HAS_OBJECT_MENTION` edges when querying claims.  These edges encode the claim-participation
+> model directly — each edge records which `EntityMention` fills the subject or object slot of
+> a specific `ExtractedClaim`, along with the `match_method` that resolved the slot.  Use chunk
+> co-location (`MENTIONED_IN`) only for architecture-level inspection; see the
+> [Architecture reference queries](../pipelines/query/README.md#architecture-reference-queries-chunk-co-location) in the
+> workbook for details.
+
+> **Neo4j Browser workbook:** a full set of copy-paste queries (participation validation,
+> entity-centric search, pairwise analysis, chunk co-location reference) is available at
+> [`pipelines/query/README.md`](../pipelines/query/README.md).
+
+#### Basic participation edge validation
 
 ```cypher
-// Neo4j Browser — check HAS_SUBJECT_MENTION edges
+// Neo4j Browser — check HAS_SUBJECT_MENTION edges (v0.2)
 MATCH (c:ExtractedClaim)-[r:HAS_SUBJECT_MENTION]->(m:EntityMention)
-RETURN c.claim_id, r.match_method, m.name
+RETURN c.run_id, c.claim_id, c.claim_text, r.match_method, m.name
 LIMIT 25;
 
-// Neo4j Browser — check HAS_OBJECT_MENTION edges
+// Neo4j Browser — check HAS_OBJECT_MENTION edges (v0.2)
 MATCH (c:ExtractedClaim)-[r:HAS_OBJECT_MENTION]->(m:EntityMention)
-RETURN c.claim_id, r.match_method, m.name
+RETURN c.run_id, c.claim_id, c.claim_text, r.match_method, m.name
 LIMIT 25;
 
-// Neo4j Browser — combined summary count
+// Neo4j Browser — combined edge summary count
 MATCH ()-[r:HAS_SUBJECT_MENTION|HAS_OBJECT_MENTION]->()
 RETURN type(r) AS edge_type, count(r) AS total
 ORDER BY edge_type;
@@ -266,6 +280,59 @@ ORDER BY edge_type;
 cypher-shell -u neo4j -p "$NEO4J_PASSWORD" \
   "MATCH ()-[r:HAS_SUBJECT_MENTION|HAS_OBJECT_MENTION]->() RETURN type(r) AS edge_type, count(r) AS total ORDER BY edge_type;"
 ```
+
+#### Entity-centric claim search (v0.2)
+
+Use these queries to find all claims in which a specific entity appears as subject or object.
+Replace the `CONTAINS` value with any entity name from your dataset.
+
+```cypher
+// All claims where Marcos Galperin appears (subject or object)
+MATCH (c:ExtractedClaim)-[r:HAS_SUBJECT_MENTION|HAS_OBJECT_MENTION]->(m:EntityMention)
+WHERE toLower(m.name) CONTAINS 'galperin'
+RETURN c.claim_text, type(r) AS role, m.name AS matched_mention, r.match_method
+ORDER BY c.claim_id;
+
+// All claims where MercadoLibre appears (subject or object)
+MATCH (c:ExtractedClaim)-[r:HAS_SUBJECT_MENTION|HAS_OBJECT_MENTION]->(m:EntityMention)
+WHERE toLower(m.name) CONTAINS 'mercadolibre'
+RETURN c.claim_text, type(r) AS role, m.name AS matched_mention, r.match_method
+ORDER BY c.claim_id;
+```
+
+**Validation guidance:** after running the demo with the default PDF fixture, the queries above
+should each return at least one row.  If they return no results, check that `extract-claims`
+completed successfully (`extracted_claim_count > 0` in the manifest) and that subject/object
+edges were created (`subject_edges > 0` or `object_edges > 0`).
+
+#### Pairwise claim analysis (v0.2)
+
+Use these queries to find claims that directly connect two specific entities.
+
+```cypher
+// Claims connecting Marcos Galperin and MercadoLibre (either direction)
+MATCH (a:EntityMention)<-[:HAS_SUBJECT_MENTION]-(c:ExtractedClaim)-[:HAS_OBJECT_MENTION]->(b:EntityMention)
+WHERE (toLower(a.name) CONTAINS 'galperin'     AND toLower(b.name) CONTAINS 'mercadolibre')
+   OR (toLower(a.name) CONTAINS 'mercadolibre' AND toLower(b.name) CONTAINS 'galperin')
+RETURN c.claim_text, c.predicate, a.name AS subject, b.name AS object
+ORDER BY c.claim_id;
+
+// All claims with both subject and object resolved — full pairwise sample
+MATCH (a:EntityMention)<-[:HAS_SUBJECT_MENTION]-(c:ExtractedClaim)-[:HAS_OBJECT_MENTION]->(b:EntityMention)
+RETURN a.name AS subject_entity, c.predicate, b.name AS object_entity, c.claim_text
+LIMIT 25;
+```
+
+**Interpretation notes (v0.2):**
+
+- `match_method` on each participation edge records how the slot text was matched to its mention:
+  `raw_exact` (identical text, highest confidence) → `casefold_exact` (case-insensitive) →
+  `normalized_exact` (Unicode normalization plus collapsed whitespace and `casefold()`; diacritics,
+  apostrophes, hyphens, and spacing differences are ignored).
+- A claim may have a subject edge, an object edge, both, or neither — only slots that resolved
+  to a unique matching mention in the same chunk produce an edge.
+- Pairwise queries require *both* participation edges; use the entity-centric queries above for
+  claims where only one slot was resolved.
 
 ### Step 4 — Entity resolution and Q&A (unstructured-only)
 
@@ -733,6 +800,7 @@ demo/artifacts/runs/<run_id>/retrieval_and_qa/manifest.json
 
 ## Conceptual model
 
+- **Claim-participation model (v0.2)**: `HAS_SUBJECT_MENTION` / `HAS_OBJECT_MENTION` edges are the recommended traversal entry point for claim-focused queries; they link each `ExtractedClaim` directly to the `EntityMention` nodes that fill its subject and object slots.  Chunk co-location (`MENTIONED_IN`) is preserved for architecture-level inspection but should not be used as a proxy for claim participation.
 - **Unstructured-first posture**: unstructured PDF ingest, claim extraction, entity resolution, and Q&A form a complete standalone workflow. Structured ingest is optional and additive.
 - **Independent ingestion runs**: structured ingest and unstructured/PDF ingest are separate producer runs with separate `run_id` boundaries; neither implies the other must also run.
 - **Two-pipeline unstructured flow**: `extract-claims` runs within the same `run_id` scope established by `ingest-pdf` — it is not a separate run.
@@ -743,14 +811,39 @@ demo/artifacts/runs/<run_id>/retrieval_and_qa/manifest.json
 
 ### Graph layers
 
-| Layer | Nodes | Written by | Mutable? |
+| Layer | Nodes / edges | Written by | Mutable? |
 | --- | --- | --- | --- |
 | Lexical | `Document`, `Chunk` | `ingest-pdf` | Stable for the run — never overwritten by downstream stages |
-| Extraction | `ExtractedClaim`, `EntityMention` | `extract-claims` | Non-destructive additions only |
+| Extraction | `ExtractedClaim`, `EntityMention`; `MENTIONED_IN` edges (mention→chunk), `SUPPORTED_BY` edges (claim→chunk) | `extract-claims` | Non-destructive additions only |
+| Participation (v0.2) | `HAS_SUBJECT_MENTION`, `HAS_OBJECT_MENTION` edges (claim→mention) | `extract-claims` (inline) and `claim-participation` (idempotent rebuild) | Non-destructive additions only; each edge carries `match_method` and `run_id` |
 | Resolution | `ResolvedEntityCluster` (provisional), `UnresolvedEntity` (legacy/unused fallback; kept for cleanup/back-compat) | `resolve-entities` | Non-destructive additions only; creates `MEMBER_OF` edges (all modes) and optionally `ALIGNED_WITH` edges to `CanonicalEntity` nodes (hybrid mode) |
 | Structured (optional) | `Claim`, `Fact`, `Relationship`, `Source`, `CanonicalEntity` | `ingest-structured` | Non-destructive additions only; structured ingest is optional enrichment |
 
 Every `Chunk` node includes ingest metadata fields such as `run_id`, `source_uri`, `dataset_id`, and positional provenance fields. `Document` nodes include the same ingest metadata.
+
+#### Architecture reference queries: chunk co-location
+
+> These are lower-level inspection queries.  For claim-focused analysis, prefer the
+> `HAS_SUBJECT_MENTION` / `HAS_OBJECT_MENTION` traversal patterns above.
+
+```cypher
+// Entity mentions and their source chunk
+MATCH (m:EntityMention)-[:MENTIONED_IN]->(chunk:Chunk)
+RETURN m.name, m.entity_type, chunk.chunk_id, chunk.run_id
+LIMIT 25;
+
+// Entity mentions that co-occur in the same chunk (chunk co-location)
+MATCH (a:EntityMention)-[:MENTIONED_IN]->(chunk:Chunk)<-[:MENTIONED_IN]-(b:EntityMention)
+WHERE a.name < b.name
+RETURN a.name AS entity_a, b.name AS entity_b, count(DISTINCT chunk) AS co_occurrences
+ORDER BY co_occurrences DESC
+LIMIT 25;
+```
+
+Chunk co-location shows which mentions appear together in the same text window, but it does **not**
+encode claim semantics — two mentions may co-occur without being connected by any extracted claim,
+or be connected by a claim that spans a different chunk.  Use `HAS_SUBJECT_MENTION` /
+`HAS_OBJECT_MENTION` edges for claim-level analysis.
 
 ---
 
@@ -760,7 +853,9 @@ This section explains the exact meaning of each processing phase and the manifes
 
 ### Mention extraction
 
-`extract-claims` reads `Chunk` nodes for the active `run_id` and creates `EntityMention` nodes linked back to their source chunk. No clustering or alignment occurs at this stage. Each mention is an independent assertion tied to a specific chunk, with full provenance.
+`extract-claims` reads `Chunk` nodes for the active `run_id` and creates `EntityMention` nodes linked back to their source chunk via `MENTIONED_IN` edges. No clustering or alignment occurs at this stage. Each mention is an independent assertion tied to a specific chunk, with full provenance.
+
+In the same pass, `extract-claims` also builds **v0.2 participation edges** (`HAS_SUBJECT_MENTION` / `HAS_OBJECT_MENTION`) by matching each claim's subject and object slot text against the `EntityMention` nodes from the same chunk. These edges are the recommended starting point for claim-focused graph traversal.
 
 ### Unstructured clustering (`resolve-entities` — default mode)
 
