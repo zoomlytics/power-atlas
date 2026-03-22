@@ -977,9 +977,10 @@ Two derived relationship types could be pre-computed:
   multi-hop resolution model.
 
 **Arguments against materialization (current recommendation):**
-- The 2–3 hop traversal is manageable with standard Neo4j indexes on `run_id`, `cluster_id`, and
-  `entity_id`.  For the data volumes targeted by v0.1, these queries run well within interactive
-  latency budgets.
+- The 2–3 hop traversal is typically manageable when standard Neo4j indexes on `run_id`,
+  `cluster_id`, and `entity_id` are created. For the data volumes targeted by v0.1, and with
+  these indexes in place (recommended for interactive analytics workloads), these queries run
+  well within interactive latency budgets.
 - Materialized edges duplicate information already encoded in participation edges
   (`HAS_SUBJECT_MENTION` / `HAS_OBJECT_MENTION`) and resolution edges (`MEMBER_OF` /
   `ALIGNED_WITH`), increasing write cost and introducing a consistency surface.
