@@ -156,7 +156,7 @@ results, verify that:
      `subject_edges > 0` or `object_edges > 0` in `claim_participation_summary.json` (or in
      the top-level `manifest.json` in batch mode).
    - If you ran claim-participation as an independent stage, check for `subject_edges > 0` or
-     `object_edges > 0` in `runs/<run_id>/claim-participation/manifest.json`.
+     `object_edges > 0` in `runs/<run_id>/claim_participation/claim_participation_summary.json`.
    - Alternatively, re-run `extract-claims`, which includes participation in the same pass.
 3. The graph has not been reset since the last `extract-claims` run.
 
@@ -222,27 +222,43 @@ LIMIT 25;
 
 These queries apply after `resolve-entities --resolution-mode hybrid` has run.
 
+> **Tip:** Set parameters in Neo4j Browser before running these queries:
+>
+> ```cypher
+> :param run_id => 'your-run-id-here'
+> :param alignment_version => 'v1'
+> ```
+>
+> Then add `WHERE a.run_id = $run_id AND a.alignment_version = $alignment_version` to scope
+> results to a specific run; without these filters the queries may return alignments from
+> multiple runs or alignment versions.
+
 ```cypher
-// Clusters aligned to a canonical entity — confirm hybrid enrichment
+// Clusters aligned to a canonical entity — confirm hybrid enrichment (scoped to run)
 MATCH (cluster:ResolvedEntityCluster)-[a:ALIGNED_WITH]->(canonical:CanonicalEntity)
+WHERE a.run_id = $run_id AND a.alignment_version = $alignment_version
 RETURN cluster.canonical_name, canonical.name, a.alignment_method, a.alignment_status
 ORDER BY canonical.name;
 ```
 
 ```cypher
-// Claims reachable from a canonical entity via cluster membership
-MATCH (canonical:CanonicalEntity)<-[:ALIGNED_WITH]-(cluster:ResolvedEntityCluster)<-[:MEMBER_OF]-(m:EntityMention)
+// Claims reachable from a canonical entity via cluster membership (scoped to run)
+MATCH (canonical:CanonicalEntity)<-[a:ALIGNED_WITH]-(cluster:ResolvedEntityCluster)<-[:MEMBER_OF]-(m:EntityMention)
 WHERE toLower(canonical.name) CONTAINS 'mercadolibre'
+  AND a.run_id = $run_id AND a.alignment_version = $alignment_version
 MATCH (c:ExtractedClaim)-[:HAS_SUBJECT_MENTION|HAS_OBJECT_MENTION]->(m)
+WHERE c.run_id = $run_id
 RETURN c.claim_text, c.predicate, m.name AS mention, canonical.name AS canonical
 ORDER BY c.claim_id;
 ```
 
 ```cypher
-// Full cluster → mention → claim chain for Marcos Galperin (post-hybrid)
-MATCH (canonical:CanonicalEntity)<-[:ALIGNED_WITH]-(cluster:ResolvedEntityCluster)<-[:MEMBER_OF]-(m:EntityMention)
+// Full cluster → mention → claim chain for Marcos Galperin (post-hybrid, scoped to run)
+MATCH (canonical:CanonicalEntity)<-[a:ALIGNED_WITH]-(cluster:ResolvedEntityCluster)<-[:MEMBER_OF]-(m:EntityMention)
 WHERE toLower(canonical.name) CONTAINS 'galperin'
+  AND a.run_id = $run_id AND a.alignment_version = $alignment_version
 MATCH (c:ExtractedClaim)-[:HAS_SUBJECT_MENTION|HAS_OBJECT_MENTION]->(m)
+WHERE c.run_id = $run_id
 RETURN canonical.name AS canonical_entity,
        cluster.canonical_name AS cluster_name,
        m.name AS mention,
