@@ -877,7 +877,7 @@ After running `ingest-structured` and `resolve-entities --resolution-mode hybrid
 // Confirm ALIGNED_WITH edges exist for MercadoLibre
 MATCH (canonical:CanonicalEntity)<-[a:ALIGNED_WITH]-(cluster:ResolvedEntityCluster)<-[:MEMBER_OF]-(m:EntityMention)
 WHERE toLower(canonical.name) CONTAINS 'mercadolibre'
-  AND a.run_id = $run_id
+  AND a.run_id = $run_id AND a.alignment_version = $alignment_version
   AND m.run_id = $run_id
 RETURN canonical.name        AS canonical_entity,
        canonical.entity_id,
