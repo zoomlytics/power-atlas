@@ -544,12 +544,16 @@ def _format_claim_details(claim_details: list[dict[str, object]]) -> str:
         role_parts: list[str] = []
         if subject:
             subj_name = subject.get("name") or ""
-            subj_method = subject.get("match_method") or ""
-            role_parts.append(f"subject='{subj_name}' (match: {subj_method})")
+            subj_method_raw = subject.get("match_method")
+            subj_method = str(subj_method_raw).strip() if subj_method_raw is not None else ""
+            subj_method_display = subj_method if subj_method else "unknown"
+            role_parts.append(f"subject='{subj_name}' (match: {subj_method_display})")
         if obj:
             obj_name = obj.get("name") or ""
-            obj_method = obj.get("match_method") or ""
-            role_parts.append(f"object='{obj_name}' (match: {obj_method})")
+            obj_method_raw = obj.get("match_method")
+            obj_method = str(obj_method_raw).strip() if obj_method_raw is not None else ""
+            obj_method_display = obj_method if obj_method else "unknown"
+            role_parts.append(f"object='{obj_name}' (match: {obj_method_display})")
         if role_parts:
             lines.append(f"  • {claim_text} [{', '.join(role_parts)}]")
         else:
