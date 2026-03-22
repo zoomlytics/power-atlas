@@ -424,8 +424,10 @@ LIMIT 25;
 ## 6. Resolved-entity traversal (post-clustering)
 
 These queries traverse from a `ResolvedEntityCluster` through its member `EntityMention` nodes to
-the `ExtractedClaim` nodes where those mentions appear.  Available after `resolve-entities` in any
-mode (`unstructured_only`, `hybrid`, or `structured_anchor`).
+the `ExtractedClaim` nodes where those mentions appear.  This cluster-based traversal is available
+after `resolve-entities` and is primarily intended for `unstructured_only` / `hybrid` runs; in
+`structured_anchor` mode, only *unresolved* mentions are clustered via `MEMBER_OF` (resolved
+mentions use `RESOLVES_TO` and are not reachable via this pattern).
 
 > **Traversal path:**
 > ```
