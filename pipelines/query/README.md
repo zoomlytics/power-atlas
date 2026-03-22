@@ -36,24 +36,33 @@ participation model that directly links each `ExtractedClaim` to the `EntityMent
 filling its subject and object slots.  Prefer these over chunk co-location for all
 claim-focused analysis.
 
+> **Tip:** If multiple pipeline runs exist in the database, scope queries to a single run by
+> setting a parameter in Neo4j Browser before running the queries below:
+>
+> ```cypher
+> :param run_id => 'your-run-id-here'
+> ```
+>
+> Then add `WHERE c.run_id = $run_id` (or `WHERE m.run_id = $run_id`) to any query as needed.
+
 ### 1a. Basic participation edge validation
 
 ```cypher
 // Subject edges — check that HAS_SUBJECT_MENTION edges are present
 MATCH (c:ExtractedClaim)-[r:HAS_SUBJECT_MENTION]->(m:EntityMention)
-RETURN c.claim_id, c.claim_text, r.match_method, m.name
+RETURN c.run_id, c.claim_id, c.claim_text, r.match_method, m.name
 LIMIT 25;
 ```
 
 ```cypher
 // Object edges — check that HAS_OBJECT_MENTION edges are present
 MATCH (c:ExtractedClaim)-[r:HAS_OBJECT_MENTION]->(m:EntityMention)
-RETURN c.claim_id, c.claim_text, r.match_method, m.name
+RETURN c.run_id, c.claim_id, c.claim_text, r.match_method, m.name
 LIMIT 25;
 ```
 
 ```cypher
-// Combined edge summary — one row per edge type
+// Combined edge summary — one row per edge type (all runs)
 MATCH ()-[r:HAS_SUBJECT_MENTION|HAS_OBJECT_MENTION]->()
 RETURN type(r) AS edge_type, count(r) AS total
 ORDER BY edge_type;
@@ -62,7 +71,8 @@ ORDER BY edge_type;
 ```cypher
 // Full claim view — subject AND object mentions together
 MATCH (subj:EntityMention)<-[sr:HAS_SUBJECT_MENTION]-(c:ExtractedClaim)-[obj_r:HAS_OBJECT_MENTION]->(obj:EntityMention)
-RETURN c.claim_id,
+RETURN c.run_id,
+       c.claim_id,
        subj.name       AS subject_mention,
        c.predicate     AS predicate,
        obj.name        AS object_mention,
@@ -141,8 +151,13 @@ for `galperin` and `mercadolibre` should each return at least one row.  If they 
 results, verify that:
 
 1. `extract-claims` completed successfully (check the manifest for `extracted_claim_count > 0`).
-2. The claim-participation stage ran (check for `subject_edges > 0` or `object_edges > 0` in the
-   participation manifest, or re-run `extract-claims` which includes participation in the same pass).
+2. The claim-participation stage ran:
+   - If you ran the full demo or `extract-claims` as part of the batch pipeline, check for
+     `subject_edges > 0` or `object_edges > 0` in `claim_participation_summary.json` (or in
+     the top-level `manifest.json` in batch mode).
+   - If you ran claim-participation as an independent stage, check for `subject_edges > 0` or
+     `object_edges > 0` in `runs/<run_id>/claim-participation/manifest.json`.
+   - Alternatively, re-run `extract-claims`, which includes participation in the same pass.
 3. The graph has not been reset since the last `extract-claims` run.
 
 ---

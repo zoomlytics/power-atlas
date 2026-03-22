@@ -261,12 +261,12 @@ After a live `extract-claims` run, validate the v0.2 participation edges in Neo4
 ```cypher
 // Neo4j Browser — check HAS_SUBJECT_MENTION edges (v0.2)
 MATCH (c:ExtractedClaim)-[r:HAS_SUBJECT_MENTION]->(m:EntityMention)
-RETURN c.claim_id, c.claim_text, r.match_method, m.name
+RETURN c.run_id, c.claim_id, c.claim_text, r.match_method, m.name
 LIMIT 25;
 
 // Neo4j Browser — check HAS_OBJECT_MENTION edges (v0.2)
 MATCH (c:ExtractedClaim)-[r:HAS_OBJECT_MENTION]->(m:EntityMention)
-RETURN c.claim_id, c.claim_text, r.match_method, m.name
+RETURN c.run_id, c.claim_id, c.claim_text, r.match_method, m.name
 LIMIT 25;
 
 // Neo4j Browser — combined edge summary count
@@ -815,7 +815,7 @@ demo/artifacts/runs/<run_id>/retrieval_and_qa/manifest.json
 | --- | --- | --- | --- |
 | Lexical | `Document`, `Chunk` | `ingest-pdf` | Stable for the run — never overwritten by downstream stages |
 | Extraction | `ExtractedClaim`, `EntityMention`; `MENTIONED_IN` edges (mention→chunk), `SUPPORTED_BY` edges (claim→chunk) | `extract-claims` | Non-destructive additions only |
-| Participation (v0.2) | `HAS_SUBJECT_MENTION`, `HAS_OBJECT_MENTION` edges (claim→mention) | `extract-claims` (inline) | Non-destructive additions only; each edge carries `match_method` and `run_id` |
+| Participation (v0.2) | `HAS_SUBJECT_MENTION`, `HAS_OBJECT_MENTION` edges (claim→mention) | `extract-claims` (inline) and `claim-participation` (idempotent rebuild) | Non-destructive additions only; each edge carries `match_method` and `run_id` |
 | Resolution | `ResolvedEntityCluster` (provisional), `UnresolvedEntity` (legacy/unused fallback; kept for cleanup/back-compat) | `resolve-entities` | Non-destructive additions only; creates `MEMBER_OF` edges (all modes) and optionally `ALIGNED_WITH` edges to `CanonicalEntity` nodes (hybrid mode) |
 | Structured (optional) | `Claim`, `Fact`, `Relationship`, `Source`, `CanonicalEntity` | `ingest-structured` | Non-destructive additions only; structured ingest is optional enrichment |
 
