@@ -276,7 +276,7 @@ now include a `claim_details` field for each retrieved chunk.  Unlike the flat `
 `HAS_OBJECT_MENTION` edges so each claim map carries:
 
 | Field | Description |
-|---|---|
+| --- | --- |
 | `claim_text` | The full claim text |
 | `subject_mention.name` | Name of the subject `EntityMention` (via `HAS_SUBJECT_MENTION`) |
 | `subject_mention.match_method` | How the slot text was resolved (`raw_exact`, `casefold_exact`, `normalized_exact`) |
