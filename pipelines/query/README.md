@@ -748,7 +748,7 @@ WHERE c.run_id = $run_id
 RETURN cluster.canonical_name AS cluster,
        cluster.entity_type,
        count(DISTINCT c) AS claim_count,
-       count(DISTINCT m) AS mention_count
+       count(DISTINCT m) AS participating_mention_count
 ORDER BY claim_count DESC
 LIMIT 20;
 ```
