@@ -779,7 +779,7 @@ WHERE c.run_id = $run_id
 RETURN canonical.name       AS canonical_entity,
        canonical.entity_id,
        count(DISTINCT c)    AS claim_count,
-       count(DISTINCT m)    AS mention_count,
+       count(DISTINCT m)    AS participating_mention_count,
        count(DISTINCT cluster) AS cluster_count
 ORDER BY claim_count DESC
 LIMIT 20;
