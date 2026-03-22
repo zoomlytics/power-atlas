@@ -426,8 +426,11 @@ LIMIT 25;
 These queries traverse from a `ResolvedEntityCluster` through its member `EntityMention` nodes to
 the `ExtractedClaim` nodes where those mentions appear.  This cluster-based traversal is available
 after `resolve-entities` and is primarily intended for `unstructured_only` / `hybrid` runs; in
-`structured_anchor` mode, only *unresolved* mentions are clustered via `MEMBER_OF` (resolved
-mentions use `RESOLVES_TO` and are not reachable via this pattern).
+`structured_anchor` mode, only *unresolved* mentions are newly clustered via `MEMBER_OF` (resolved
+mentions use `RESOLVES_TO` and, in a clean DB / first-pass `structured_anchor` run, are not
+reachable via this pattern). If you previously ran `unstructured_only` / `hybrid` with the same
+`run_id`, some resolved mentions may still be reachable via pre-existing `MEMBER_OF` edges; to
+avoid mixing behaviors, use a fresh `run_id` when switching modes.
 
 > **Traversal path:**
 > ```
@@ -440,8 +443,9 @@ mentions use `RESOLVES_TO` and are not reachable via this pattern).
 > :param run_id => 'your-run-id-here'
 > ```
 >
-> Then add `AND cluster.run_id = $run_id` and `AND c.run_id = $run_id` to scope results to a
-> single run.
+> Then add run scoping for all relevant nodes to avoid mixing mentions across runs, for example:
+> `AND cluster.run_id = $run_id`, `AND m.run_id = $run_id`, and `AND c.run_id = $run_id`, as
+> shown in the `WHERE` clauses in the queries below.
 
 ### 6a. All claims for a cluster (subject or object)
 
@@ -505,17 +509,23 @@ ORDER BY c.claim_id;
 
 ```cypher
 // Claims where a Galperin cluster member is subject and a MercadoLibre cluster member is object
-MATCH (clusterA:ResolvedEntityCluster)<-[:MEMBER_OF]-(mA:EntityMention)
+// Pattern traversal avoids an mA × mB cross product by following claim edges in a single path
+MATCH (clusterA:ResolvedEntityCluster)
 WHERE toLower(clusterA.canonical_name) CONTAINS 'galperin'
   AND clusterA.run_id = $run_id
-  AND mA.run_id = $run_id
-MATCH (clusterB:ResolvedEntityCluster)<-[:MEMBER_OF]-(mB:EntityMention)
+MATCH (clusterB:ResolvedEntityCluster)
 WHERE toLower(clusterB.canonical_name) CONTAINS 'mercadolibre'
   AND clusterB.run_id = $run_id
+WITH DISTINCT clusterA, clusterB
+MATCH (clusterA)<-[:MEMBER_OF]-(mA:EntityMention)
+      <-[:HAS_SUBJECT_MENTION]-(c:ExtractedClaim)
+      -[:HAS_OBJECT_MENTION]->(mB:EntityMention)
+      -[:MEMBER_OF]->(clusterB)
+WHERE mA.run_id = $run_id
   AND mB.run_id = $run_id
-MATCH (mA)<-[:HAS_SUBJECT_MENTION]-(c:ExtractedClaim)-[:HAS_OBJECT_MENTION]->(mB)
-WHERE c.run_id = $run_id
-RETURN c.claim_text,
+  AND c.run_id  = $run_id
+RETURN c.claim_id,
+       c.claim_text,
        c.predicate,
        mA.name AS subject_mention,
        mB.name AS object_mention,
@@ -526,26 +536,31 @@ ORDER BY c.claim_id;
 
 ```cypher
 // Bidirectional pairwise — either cluster in either role
-MATCH (clusterA:ResolvedEntityCluster)<-[:MEMBER_OF]-(mA:EntityMention)
-WHERE toLower(clusterA.canonical_name) CONTAINS 'galperin'
-  AND clusterA.run_id = $run_id
-  AND mA.run_id = $run_id
-MATCH (clusterB:ResolvedEntityCluster)<-[:MEMBER_OF]-(mB:EntityMention)
-WHERE toLower(clusterB.canonical_name) CONTAINS 'mercadolibre'
-  AND clusterB.run_id = $run_id
-  AND mB.run_id = $run_id
-OPTIONAL MATCH (mA)<-[:HAS_SUBJECT_MENTION]-(cAB:ExtractedClaim)-[:HAS_OBJECT_MENTION]->(mB)
-WHERE cAB.run_id = $run_id
-OPTIONAL MATCH (mB)<-[:HAS_SUBJECT_MENTION]-(cBA:ExtractedClaim)-[:HAS_OBJECT_MENTION]->(mA)
-WHERE cBA.run_id = $run_id
-WITH collect(DISTINCT {claim_id: cAB.claim_id, claim_text: cAB.claim_text, predicate: cAB.predicate,
-                        subject: mA.name, object: mB.name, direction: 'A→B'}) +
-     collect(DISTINCT {claim_id: cBA.claim_id, claim_text: cBA.claim_text, predicate: cBA.predicate,
-                        subject: mB.name, object: mA.name, direction: 'B→A'}) AS all_claims
-UNWIND all_claims AS claim
-WITH claim WHERE claim.claim_text IS NOT NULL
-RETURN claim.claim_id, claim.claim_text, claim.predicate, claim.subject, claim.object, claim.direction
-ORDER BY claim.direction, claim.claim_text;
+// Claim-centric rewrite: start from claims and join to clusters to avoid mA × mB expansion
+MATCH (c:ExtractedClaim)
+WHERE c.run_id = $run_id
+MATCH (c)-[:HAS_SUBJECT_MENTION]->(mSub:EntityMention)-[:MEMBER_OF]->(clSub:ResolvedEntityCluster)
+WHERE mSub.run_id = $run_id
+  AND clSub.run_id = $run_id
+MATCH (c)-[:HAS_OBJECT_MENTION]->(mObj:EntityMention)-[:MEMBER_OF]->(clObj:ResolvedEntityCluster)
+WHERE mObj.run_id = $run_id
+  AND clObj.run_id = $run_id
+  AND (
+    (toLower(clSub.canonical_name) CONTAINS 'galperin'    AND toLower(clObj.canonical_name) CONTAINS 'mercadolibre') OR
+    (toLower(clSub.canonical_name) CONTAINS 'mercadolibre' AND toLower(clObj.canonical_name) CONTAINS 'galperin')
+  )
+WITH DISTINCT c,
+     mSub, mObj, clSub, clObj,
+     CASE WHEN toLower(clSub.canonical_name) CONTAINS 'galperin' THEN 'A→B' ELSE 'B→A' END AS direction
+RETURN c.claim_id,
+       c.claim_text,
+       c.predicate,
+       mSub.name AS subject_mention,
+       mObj.name AS object_mention,
+       clSub.canonical_name AS subject_cluster,
+       clObj.canonical_name AS object_cluster,
+       direction
+ORDER BY direction, c.claim_text, c.claim_id;
 ```
 
 **Validation note (unstructured_only):** After running `resolve-entities` in `unstructured_only`
@@ -649,49 +664,58 @@ ORDER BY c.claim_id;
 
 ```cypher
 // Claims where Marcos Galperin (canonical) is subject and MercadoLibre (canonical) is object
-MATCH (canonA:CanonicalEntity)<-[aA:ALIGNED_WITH]-(clA:ResolvedEntityCluster)<-[:MEMBER_OF]-(mA:EntityMention)
+// Single-path traversal avoids an mA × mB cross product
+MATCH (canonA:CanonicalEntity)<-[aA:ALIGNED_WITH]-(clA:ResolvedEntityCluster)<-[:MEMBER_OF]-
+      (mA:EntityMention)<-[:HAS_SUBJECT_MENTION]-
+      (c:ExtractedClaim)-[:HAS_OBJECT_MENTION]->
+      (mB:EntityMention)-[:MEMBER_OF]->
+      (clB:ResolvedEntityCluster)-[aB:ALIGNED_WITH]->(canonB:CanonicalEntity)
 WHERE toLower(canonA.name) CONTAINS 'galperin'
+  AND toLower(canonB.name) CONTAINS 'mercadolibre'
   AND aA.run_id = $run_id AND aA.alignment_version = $alignment_version
-  AND mA.run_id = $run_id
-MATCH (canonB:CanonicalEntity)<-[aB:ALIGNED_WITH]-(clB:ResolvedEntityCluster)<-[:MEMBER_OF]-(mB:EntityMention)
-WHERE toLower(canonB.name) CONTAINS 'mercadolibre'
   AND aB.run_id = $run_id AND aB.alignment_version = $alignment_version
+  AND mA.run_id = $run_id
   AND mB.run_id = $run_id
-MATCH (mA)<-[:HAS_SUBJECT_MENTION]-(c:ExtractedClaim)-[:HAS_OBJECT_MENTION]->(mB)
-WHERE c.run_id = $run_id
-RETURN c.claim_text,
+  AND c.run_id  = $run_id
+WITH DISTINCT c, canonA, canonB, mA, mB
+RETURN c.claim_id,
+       c.claim_text,
        c.predicate,
-       mA.name       AS subject_mention,
-       mB.name       AS object_mention,
-       canonA.name   AS subject_canonical,
-       canonB.name   AS object_canonical
+       mA.name     AS subject_mention,
+       mB.name     AS object_mention,
+       canonA.name AS subject_canonical,
+       canonB.name AS object_canonical
 ORDER BY c.claim_id;
 ```
 
 ```cypher
 // Bidirectional pairwise — either canonical entity in either role (hybrid mode)
-MATCH (canonA:CanonicalEntity)<-[aA:ALIGNED_WITH]-(clA:ResolvedEntityCluster)<-[:MEMBER_OF]-(mA:EntityMention)
-WHERE toLower(canonA.name) CONTAINS 'galperin'
-  AND aA.run_id = $run_id
-  AND aA.alignment_version = $alignment_version
-  AND mA.run_id = $run_id
-MATCH (canonB:CanonicalEntity)<-[aB:ALIGNED_WITH]-(clB:ResolvedEntityCluster)<-[:MEMBER_OF]-(mB:EntityMention)
-WHERE toLower(canonB.name) CONTAINS 'mercadolibre'
-  AND aB.run_id = $run_id
-  AND aB.alignment_version = $alignment_version
-  AND mB.run_id = $run_id
-OPTIONAL MATCH (mA)<-[:HAS_SUBJECT_MENTION]-(cAB:ExtractedClaim)-[:HAS_OBJECT_MENTION]->(mB)
-WHERE cAB.run_id = $run_id
-OPTIONAL MATCH (mB)<-[:HAS_SUBJECT_MENTION]-(cBA:ExtractedClaim)-[:HAS_OBJECT_MENTION]->(mA)
-WHERE cBA.run_id = $run_id
-WITH collect(DISTINCT {claim_id: cAB.claim_id, claim_text: cAB.claim_text, predicate: cAB.predicate,
-                        subject: mA.name, object: mB.name, direction: 'A→B'}) +
-     collect(DISTINCT {claim_id: cBA.claim_id, claim_text: cBA.claim_text, predicate: cBA.predicate,
-                        subject: mB.name, object: mA.name, direction: 'B→A'}) AS all_claims
-UNWIND all_claims AS claim
-WITH claim WHERE claim.claim_text IS NOT NULL
-RETURN claim.claim_id, claim.claim_text, claim.predicate, claim.subject, claim.object, claim.direction
-ORDER BY claim.direction, claim.claim_text, claim.claim_id;
+// Claim-centric rewrite: start from claims to avoid mA × mB expansion
+MATCH (c:ExtractedClaim)
+WHERE c.run_id = $run_id
+MATCH (c)-[:HAS_SUBJECT_MENTION]->(mSub:EntityMention)
+WHERE mSub.run_id = $run_id
+MATCH (c)-[:HAS_OBJECT_MENTION]->(mObj:EntityMention)
+WHERE mObj.run_id = $run_id
+MATCH (mSub)-[:MEMBER_OF]->(clSub:ResolvedEntityCluster)<-[aSub:ALIGNED_WITH]-(canonSub:CanonicalEntity)
+WHERE aSub.run_id = $run_id
+  AND aSub.alignment_version = $alignment_version
+MATCH (mObj)-[:MEMBER_OF]->(clObj:ResolvedEntityCluster)<-[aObj:ALIGNED_WITH]-(canonObj:CanonicalEntity)
+WHERE aObj.run_id = $run_id
+  AND aObj.alignment_version = $alignment_version
+  AND (
+    (toLower(canonSub.name) CONTAINS 'galperin'    AND toLower(canonObj.name) CONTAINS 'mercadolibre') OR
+    (toLower(canonSub.name) CONTAINS 'mercadolibre' AND toLower(canonObj.name) CONTAINS 'galperin')
+  )
+WITH DISTINCT c, mSub, mObj, canonSub, canonObj,
+     CASE WHEN toLower(canonSub.name) CONTAINS 'galperin' THEN 'A→B' ELSE 'B→A' END AS direction
+RETURN c.claim_id    AS claim_id,
+       c.claim_text  AS claim_text,
+       c.predicate   AS predicate,
+       mSub.name     AS subject,
+       mObj.name     AS object,
+       direction
+ORDER BY direction, claim_text, claim_id;
 ```
 
 **Validation note (hybrid):** After running `resolve-entities --resolution-mode hybrid` and
