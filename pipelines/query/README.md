@@ -292,16 +292,20 @@ The following queries mirror what the retrieval stage now materialises for each 
 // Simulate what --expand-graph returns for a given chunk
 // (replace $chunk_id and $run_id with real values)
 MATCH (c:Chunk {chunk_id: $chunk_id, run_id: $run_id})
+WITH
+  c,
+  [(c)<-[:SUPPORTED_BY]-(claim:ExtractedClaim) WHERE claim.run_id = $run_id |
+      {
+        claim_text: claim.claim_text,
+        subject_mention: [(claim)-[sr:HAS_SUBJECT_MENTION]->(sm:EntityMention) | {name: sm.name, match_method: sr.match_method}][0],
+        object_mention: [(claim)-[or_:HAS_OBJECT_MENTION]->(om:EntityMention) | {name: om.name, match_method: or_.match_method}][0]
+      }
+  ] AS claim_details,
+  [(c)<-[:MENTIONED_IN]-(m:EntityMention) WHERE m.run_id = $run_id | m.name] AS mentions
 RETURN c.text AS chunk_text,
-       [(c)<-[:SUPPORTED_BY]-(claim:ExtractedClaim) WHERE claim.run_id = $run_id | claim.claim_text] AS claims,
-       [(c)<-[:SUPPORTED_BY]-(claim:ExtractedClaim) WHERE claim.run_id = $run_id |
-           {
-             claim_text: claim.claim_text,
-             subject_mention: [(claim)-[sr:HAS_SUBJECT_MENTION]->(sm:EntityMention) | {name: sm.name, match_method: sr.match_method}][0],
-             object_mention: [(claim)-[or_:HAS_OBJECT_MENTION]->(om:EntityMention) | {name: om.name, match_method: or_.match_method}][0]
-           }
-       ] AS claim_details,
-       [(c)<-[:MENTIONED_IN]-(m:EntityMention) WHERE m.run_id = $run_id | m.name] AS mentions;
+       [cd IN claim_details | cd.claim_text] AS claims,
+       claim_details,
+       mentions;
 ```
 
 ### 5b. Find chunks retrieved for a specific subject entity
