@@ -268,6 +268,111 @@ ORDER BY c.claim_id;
 
 ---
 
+## 5. Graph-expanded retrieval — claim participation in retrieved context (v0.2)
+
+When using `ask --expand-graph` or `ask --cluster-aware`, the graph-expanded retrieval queries
+now include a `claim_details` field for each retrieved chunk.  Unlike the flat `claims` list
+(which contains only claim text), `claim_details` traverses `HAS_SUBJECT_MENTION` and
+`HAS_OBJECT_MENTION` edges so each claim map carries:
+
+| Field | Description |
+| --- | --- |
+| `claim_text` | The full claim text |
+| `subject_mention.name` | Name of the subject `EntityMention` (via `HAS_SUBJECT_MENTION`) |
+| `subject_mention.match_method` | How the slot text was resolved (`raw_exact`, `casefold_exact`, `normalized_exact`) |
+| `object_mention.name` | Name of the object `EntityMention` (via `HAS_OBJECT_MENTION`) |
+| `object_mention.match_method` | How the slot text was resolved |
+
+Slots without a participation edge are `null` — **no chunk co-location fallback is applied**.
+The following queries mirror what the retrieval stage now materialises for each chunk.
+
+### 5a. Reproduce the expanded retrieval context for a single chunk
+
+```cypher
+// Simulate what --expand-graph returns for a given chunk
+// (replace $chunk_id and $run_id with real values)
+MATCH (c:Chunk {chunk_id: $chunk_id, run_id: $run_id})
+WITH
+  c,
+  [(c)<-[:SUPPORTED_BY]-(claim:ExtractedClaim) WHERE claim.run_id = $run_id |
+      {
+        claim_text: claim.claim_text,
+        subject_mention: [(claim)-[sr:HAS_SUBJECT_MENTION]->(sm:EntityMention) | {name: sm.name, match_method: sr.match_method}][0],
+        object_mention: [(claim)-[or_:HAS_OBJECT_MENTION]->(om:EntityMention) | {name: om.name, match_method: or_.match_method}][0]
+      }
+  ] AS claim_details,
+  [(c)<-[:MENTIONED_IN]-(m:EntityMention) WHERE m.run_id = $run_id | m.name] AS mentions
+RETURN c.text AS chunk_text,
+       [cd IN claim_details | cd.claim_text] AS claims,
+       claim_details,
+       mentions;
+```
+
+### 5b. Find chunks retrieved for a specific subject entity
+
+This query shows which chunks would surface claims where a named entity appears **as subject**
+in the retrieved context — the precision improvement delivered by participation edges.
+
+```cypher
+// Chunks whose claims have Marcos Galperin as subject (via participation edges)
+MATCH (claim:ExtractedClaim)-[:HAS_SUBJECT_MENTION]->(m:EntityMention)
+WHERE toLower(m.name) CONTAINS 'galperin'
+  AND claim.run_id = $run_id
+MATCH (claim)-[:SUPPORTED_BY]->(chunk:Chunk)
+RETURN DISTINCT chunk.chunk_id,
+       chunk.chunk_index,
+       claim.claim_text,
+       m.name AS subject_mention
+ORDER BY chunk.chunk_index;
+```
+
+### 5c. Find chunks retrieved for a specific object entity
+
+```cypher
+// Chunks whose claims have MercadoLibre as object (via participation edges)
+MATCH (claim:ExtractedClaim)-[:HAS_OBJECT_MENTION]->(m:EntityMention)
+WHERE toLower(m.name) CONTAINS 'mercadolibre'
+  AND claim.run_id = $run_id
+MATCH (claim)-[:SUPPORTED_BY]->(chunk:Chunk)
+RETURN DISTINCT chunk.chunk_id,
+       chunk.chunk_index,
+       claim.claim_text,
+       m.name AS object_mention
+ORDER BY chunk.chunk_index;
+```
+
+### 5d. Compare explicit participation vs chunk co-location
+
+This query illustrates the precision gain from participation edges over naive co-location:
+it returns claims where the subject/object mention is confirmed via a participation edge
+(explicit), alongside any additional mentions that merely co-occur in the same chunk
+(implicit).  A claim that has an explicit participation edge will always be preferred for
+retrieval grounding.
+
+```cypher
+// For each claim with explicit subject/object edges, show co-located mentions for comparison
+MATCH (claim:ExtractedClaim)-[:SUPPORTED_BY]->(chunk:Chunk)
+WHERE claim.run_id = $run_id
+OPTIONAL MATCH (claim)-[sr:HAS_SUBJECT_MENTION]->(subj:EntityMention)
+OPTIONAL MATCH (claim)-[or_:HAS_OBJECT_MENTION]->(obj:EntityMention)
+RETURN claim.claim_text,
+       subj.name  AS explicit_subject,
+       sr.match_method AS subject_match,
+       obj.name   AS explicit_object,
+       or_.match_method AS object_match,
+       [(chunk)<-[:MENTIONED_IN]-(m:EntityMention) | m.name] AS all_chunk_mentions
+ORDER BY claim.claim_id
+LIMIT 25;
+```
+
+**Interpretation:** `explicit_subject` / `explicit_object` are populated only when a
+`HAS_SUBJECT_MENTION` / `HAS_OBJECT_MENTION` edge exists.  `all_chunk_mentions` shows
+every mention in the chunk — a superset that includes mentions unrelated to this claim.
+The retrieval stage uses participation edges exclusively; it does **not** fall back to
+`all_chunk_mentions` for claims that lack participation edges.
+
+---
+
 ## Architecture reference queries: chunk co-location
 
 > **Note:** These are lower-level architecture queries that show how entity mentions relate to
