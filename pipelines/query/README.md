@@ -697,10 +697,10 @@ MATCH (c)-[:HAS_SUBJECT_MENTION]->(mSub:EntityMention)
 WHERE mSub.run_id = $run_id
 MATCH (c)-[:HAS_OBJECT_MENTION]->(mObj:EntityMention)
 WHERE mObj.run_id = $run_id
-MATCH (mSub)-[:MEMBER_OF]->(clSub:ResolvedEntityCluster)<-[aSub:ALIGNED_WITH]-(canonSub:CanonicalEntity)
+MATCH (mSub)-[:MEMBER_OF]->(clSub:ResolvedEntityCluster)-[aSub:ALIGNED_WITH]->(canonSub:CanonicalEntity)
 WHERE aSub.run_id = $run_id
   AND aSub.alignment_version = $alignment_version
-MATCH (mObj)-[:MEMBER_OF]->(clObj:ResolvedEntityCluster)<-[aObj:ALIGNED_WITH]-(canonObj:CanonicalEntity)
+MATCH (mObj)-[:MEMBER_OF]->(clObj:ResolvedEntityCluster)-[aObj:ALIGNED_WITH]->(canonObj:CanonicalEntity)
 WHERE aObj.run_id = $run_id
   AND aObj.alignment_version = $alignment_version
   AND (
