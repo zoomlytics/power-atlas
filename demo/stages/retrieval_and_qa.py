@@ -572,9 +572,9 @@ def _chunk_citation_formatter(record: neo4j.Record) -> RetrieverResultItem:
     When the graph-expanded retrieval query was used, structured claim details (including
     explicit subject/object mention names and match methods via HAS_SUBJECT_MENTION /
     HAS_OBJECT_MENTION participation edges) are appended to the content so the LLM can
-    reason about claim roles precisely.  The claim context section only appears when
-    claim_details are present; when no participation edges exist the section is omitted
-    rather than falling back to chunk co-location heuristics.
+    reason about claim roles precisely. The claim context section appears when claim_details
+    include claim text; explicit subject/object role annotations are only shown for slots
+    that have participation edges (no fallback to chunk co-location heuristics).
 
     When the cluster-aware retrieval query was used, provisional cluster membership and
     alignment context is appended to the content string so the LLM can distinguish between
