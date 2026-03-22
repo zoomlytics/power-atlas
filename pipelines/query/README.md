@@ -748,6 +748,7 @@ ORDER BY cluster, role;
 // Canonical entities ranked by number of associated claims via ALIGNED_WITH (hybrid mode)
 MATCH (canonical:CanonicalEntity)<-[a:ALIGNED_WITH]-(cluster:ResolvedEntityCluster)<-[:MEMBER_OF]-(m:EntityMention)
 WHERE a.run_id = $run_id
+  AND a.alignment_version = $alignment_version
   AND m.run_id = $run_id
 MATCH (c:ExtractedClaim)-[:HAS_SUBJECT_MENTION|HAS_OBJECT_MENTION]->(m)
 WHERE c.run_id = $run_id
