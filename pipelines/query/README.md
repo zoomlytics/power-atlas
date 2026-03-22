@@ -673,10 +673,12 @@ ORDER BY c.claim_id;
 MATCH (canonA:CanonicalEntity)<-[aA:ALIGNED_WITH]-(clA:ResolvedEntityCluster)<-[:MEMBER_OF]-(mA:EntityMention)
 WHERE toLower(canonA.name) CONTAINS 'galperin'
   AND aA.run_id = $run_id
+  AND aA.alignment_version = $alignment_version
   AND mA.run_id = $run_id
 MATCH (canonB:CanonicalEntity)<-[aB:ALIGNED_WITH]-(clB:ResolvedEntityCluster)<-[:MEMBER_OF]-(mB:EntityMention)
 WHERE toLower(canonB.name) CONTAINS 'mercadolibre'
   AND aB.run_id = $run_id
+  AND aB.alignment_version = $alignment_version
   AND mB.run_id = $run_id
 OPTIONAL MATCH (mA)<-[:HAS_SUBJECT_MENTION]-(cAB:ExtractedClaim)-[:HAS_OBJECT_MENTION]->(mB)
 WHERE cAB.run_id = $run_id
