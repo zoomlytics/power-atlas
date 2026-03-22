@@ -42,6 +42,11 @@ RETURN c.text AS chunk_text,
 # context via optional graph traversal from the retrieved Chunk node.
 # Pattern comprehensions are used for each expansion target to avoid row multiplication
 # (cartesian products) that would result from chained OPTIONAL MATCH clauses.
+# claim_details extends the flat claims list by traversing HAS_SUBJECT_MENTION and
+# HAS_OBJECT_MENTION edges so each claim map carries explicit subject/object mention
+# name and match_method (raw_exact | casefold_exact | normalized_exact).  The [0]
+# index picks the first (and typically unique) participation edge per slot; null is
+# returned when no participation edge exists for that slot.
 _RETRIEVAL_QUERY_WITH_EXPANSION = """
 WITH node AS c, score
 WHERE c.run_id = $run_id
@@ -57,7 +62,8 @@ RETURN c.text AS chunk_text,
        score AS similarityScore,
        [(c)<-[:SUPPORTED_BY]-(claim:ExtractedClaim) WHERE claim.run_id = $run_id | claim.claim_text] AS claims,
        [(c)<-[:MENTIONED_IN]-(mention:EntityMention) WHERE mention.run_id = $run_id | mention.name] AS mentions,
-       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:RESOLVES_TO]->(canonical) WHERE mention.run_id = $run_id | canonical.name] AS canonical_entities
+       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:RESOLVES_TO]->(canonical) WHERE mention.run_id = $run_id | canonical.name] AS canonical_entities,
+       [(c)<-[:SUPPORTED_BY]-(claim:ExtractedClaim) WHERE claim.run_id = $run_id | {claim_text: claim.claim_text, subject_mention: [(claim)-[sr:HAS_SUBJECT_MENTION]->(sm:EntityMention) | {name: sm.name, match_method: sr.match_method}][0], object_mention: [(claim)-[or_:HAS_OBJECT_MENTION]->(om:EntityMention) | {name: om.name, match_method: or_.match_method}][0]}] AS claim_details
 """
 
 # All-runs retrieval query: no run_id filter; queries across the whole database.
@@ -92,7 +98,8 @@ RETURN c.text AS chunk_text,
        score AS similarityScore,
        [(c)<-[:SUPPORTED_BY]-(claim:ExtractedClaim) | claim.claim_text] AS claims,
        [(c)<-[:MENTIONED_IN]-(mention:EntityMention) | mention.name] AS mentions,
-       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:RESOLVES_TO]->(canonical) | canonical.name] AS canonical_entities
+       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:RESOLVES_TO]->(canonical) | canonical.name] AS canonical_entities,
+       [(c)<-[:SUPPORTED_BY]-(claim:ExtractedClaim) | {claim_text: claim.claim_text, subject_mention: [(claim)-[sr:HAS_SUBJECT_MENTION]->(sm:EntityMention) | {name: sm.name, match_method: sr.match_method}][0], object_mention: [(claim)-[or_:HAS_OBJECT_MENTION]->(om:EntityMention) | {name: om.name, match_method: or_.match_method}][0]}] AS claim_details
 """
 
 # Cluster-aware retrieval (run-scoped): extends graph expansion with provisional
@@ -118,6 +125,7 @@ RETURN c.text AS chunk_text,
        [(c)<-[:SUPPORTED_BY]-(claim:ExtractedClaim) WHERE claim.run_id = $run_id | claim.claim_text] AS claims,
        [(c)<-[:MENTIONED_IN]-(mention:EntityMention) WHERE mention.run_id = $run_id | mention.name] AS mentions,
        [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:RESOLVES_TO]->(canonical) WHERE mention.run_id = $run_id | canonical.name] AS canonical_entities,
+       [(c)<-[:SUPPORTED_BY]-(claim:ExtractedClaim) WHERE claim.run_id = $run_id | {claim_text: claim.claim_text, subject_mention: [(claim)-[sr:HAS_SUBJECT_MENTION]->(sm:EntityMention) | {name: sm.name, match_method: sr.match_method}][0], object_mention: [(claim)-[or_:HAS_OBJECT_MENTION]->(om:EntityMention) | {name: om.name, match_method: or_.match_method}][0]}] AS claim_details,
        [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[r:MEMBER_OF]->(cluster:ResolvedEntityCluster) WHERE mention.run_id = $run_id | {cluster_id: cluster.cluster_id, cluster_name: cluster.canonical_name, membership_status: r.status, membership_method: r.method}] AS cluster_memberships,
        [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:MEMBER_OF]->(cluster:ResolvedEntityCluster)-[a:ALIGNED_WITH]->(aligned_canonical) WHERE mention.run_id = $run_id AND a.run_id = $run_id AND a.alignment_version = $alignment_version | {canonical_name: aligned_canonical.name, alignment_method: a.alignment_method, alignment_status: a.alignment_status}] AS cluster_canonical_alignments
 """
@@ -136,6 +144,7 @@ RETURN c.text AS chunk_text,
        [(c)<-[:SUPPORTED_BY]-(claim:ExtractedClaim) | claim.claim_text] AS claims,
        [(c)<-[:MENTIONED_IN]-(mention:EntityMention) | mention.name] AS mentions,
        [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:RESOLVES_TO]->(canonical) | canonical.name] AS canonical_entities,
+       [(c)<-[:SUPPORTED_BY]-(claim:ExtractedClaim) | {claim_text: claim.claim_text, subject_mention: [(claim)-[sr:HAS_SUBJECT_MENTION]->(sm:EntityMention) | {name: sm.name, match_method: sr.match_method}][0], object_mention: [(claim)-[or_:HAS_OBJECT_MENTION]->(om:EntityMention) | {name: om.name, match_method: or_.match_method}][0]}] AS claim_details,
        [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[r:MEMBER_OF]->(cluster:ResolvedEntityCluster) | {cluster_id: cluster.cluster_id, cluster_name: cluster.canonical_name, membership_status: r.status, membership_method: r.method}] AS cluster_memberships,
        [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:MEMBER_OF]->(cluster:ResolvedEntityCluster)-[a:ALIGNED_WITH]->(aligned_canonical) WHERE a.run_id = mention.run_id AND a.alignment_version = $alignment_version | {canonical_name: aligned_canonical.name, alignment_method: a.alignment_method, alignment_status: a.alignment_status}] AS cluster_canonical_alignments
 """
@@ -494,6 +503,47 @@ def _format_cluster_context(
     return header + "\n" + "\n".join(lines)
 
 
+def _format_claim_details(claim_details: list[dict[str, object]]) -> str:
+    """Format structured claim details (with explicit subject/object mentions) for LLM context.
+
+    For each claim, renders the claim text together with the explicitly matched subject
+    and object mentions reached via ``HAS_SUBJECT_MENTION`` / ``HAS_OBJECT_MENTION``
+    participation edges.  When a slot has no participation edge the slot is omitted from
+    the rendered line rather than falling back to chunk co-location heuristics.
+
+    The section is labelled so the LLM can treat the explicit role assignments as
+    first-class evidence rather than positional guesses.
+
+    Returns an empty string when *claim_details* is empty or contains no claim text.
+    """
+    if not claim_details:
+        return ""
+    lines: list[str] = []
+    for detail in claim_details:
+        claim_text = (detail.get("claim_text") or "").strip()
+        if not claim_text:
+            continue
+        subject = detail.get("subject_mention")
+        obj = detail.get("object_mention")
+        role_parts: list[str] = []
+        if subject:
+            subj_name = subject.get("name") or ""
+            subj_method = subject.get("match_method") or ""
+            role_parts.append(f"subject='{subj_name}' (match: {subj_method})")
+        if obj:
+            obj_name = obj.get("name") or ""
+            obj_method = obj.get("match_method") or ""
+            role_parts.append(f"object='{obj_name}' (match: {obj_method})")
+        if role_parts:
+            lines.append(f"  • {claim_text} [{', '.join(role_parts)}]")
+        else:
+            lines.append(f"  • {claim_text}")
+    if not lines:
+        return ""
+    header = "[Claim context — explicit subject/object roles via participation edges]"
+    return header + "\n" + "\n".join(lines)
+
+
 def _chunk_citation_formatter(record: neo4j.Record) -> RetrieverResultItem:
     """Format a retrieved Chunk record into a RetrieverResultItem with a stable citation token.
 
@@ -502,6 +552,13 @@ def _chunk_citation_formatter(record: neo4j.Record) -> RetrieverResultItem:
 
     The returned item embeds the citation token in the content string (for prompt context)
     and preserves all citation-relevant fields in metadata (for downstream citation mapping).
+
+    When the graph-expanded retrieval query was used, structured claim details (including
+    explicit subject/object mention names and match methods via HAS_SUBJECT_MENTION /
+    HAS_OBJECT_MENTION participation edges) are appended to the content so the LLM can
+    reason about claim roles precisely.  The claim context section only appears when
+    claim_details are present; when no participation edges exist the section is omitted
+    rather than falling back to chunk co-location heuristics.
 
     When the cluster-aware retrieval query was used, provisional cluster membership and
     alignment context is appended to the content string so the LLM can distinguish between
@@ -547,6 +604,14 @@ def _chunk_citation_formatter(record: neo4j.Record) -> RetrieverResultItem:
         "end_char": end_char,
     }
 
+    # Build claim context section when the graph-expanded query returned claim_details.
+    # Explicit subject/object mentions (via HAS_SUBJECT_MENTION / HAS_OBJECT_MENTION) are
+    # surfaced so the LLM can reason about claim roles precisely.  When no participation
+    # edges exist for a claim the slot is simply omitted — no chunk co-location fallback.
+    claim_details_raw = record.get("claim_details")
+    claim_details: list[dict[str, object]] = list(claim_details_raw) if claim_details_raw is not None else []
+    claim_context = _format_claim_details(claim_details)
+
     # Build cluster context section when the cluster-aware query returned cluster fields.
     # Provisional cluster membership and alignment are appended to the content so the LLM
     # can reason about tentative identity inference without treating it as settled evidence.
@@ -554,12 +619,15 @@ def _chunk_citation_formatter(record: neo4j.Record) -> RetrieverResultItem:
     cluster_canonical_alignments: list[dict[str, object]] = list(record.get("cluster_canonical_alignments") or [])
     cluster_context = _format_cluster_context(cluster_memberships, cluster_canonical_alignments)
 
-    # Embed citation token (and optional cluster context) in content so prompt context
+    # Embed citation token (and optional claim/cluster context) in content so prompt context
     # is self-documenting.  The citation token always trails the content block.
+    content_parts = [chunk_text]
+    if claim_context:
+        content_parts.append(claim_context)
     if cluster_context:
-        content = f"{chunk_text}\n{cluster_context}\n{citation_token}"
-    else:
-        content = f"{chunk_text}\n{citation_token}"
+        content_parts.append(cluster_context)
+    content_parts.append(citation_token)
+    content = "\n".join(content_parts)
 
     metadata: dict[str, object] = {
         "chunk_id": chunk_id,
@@ -579,6 +647,9 @@ def _chunk_citation_formatter(record: neo4j.Record) -> RetrieverResultItem:
         value = record.get(field)
         if value is not None:
             metadata[field] = value
+    # Include claim_details when the expanded retrieval query was used (v0.2 participation edges).
+    if claim_details_raw is not None:
+        metadata["claim_details"] = claim_details
     # Include cluster fields when the cluster-aware retrieval query was used.
     for field in ("cluster_memberships", "cluster_canonical_alignments"):
         value = record.get(field)

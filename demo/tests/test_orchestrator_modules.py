@@ -4301,3 +4301,378 @@ def test_ask_run_scoped_manifest_unstructured_run_id_is_set(
     manifest = json.loads(manifests[0].read_text(encoding="utf-8"))
     run_scopes = manifest.get("run_scopes", {})
     assert run_scopes.get("unstructured_ingest_run_id") == "unstructured_ingest-20260101T000000000000Z-aabbccdd"
+
+
+# ---------------------------------------------------------------------------
+# Claim participation edge tests — _format_claim_details and _chunk_citation_formatter
+# ---------------------------------------------------------------------------
+
+def test_chunk_citation_formatter_includes_claim_details_in_content_with_subject_and_object():
+    """_chunk_citation_formatter must include claim details in content when claim_details
+    contains entries with explicit subject/object mention data (HAS_SUBJECT/HAS_OBJECT edges)."""
+    from demo.stages.retrieval_and_qa import _chunk_citation_formatter
+
+    record = _make_fake_neo4j_record(
+        chunk_id="c-cd-1",
+        run_id="r1",
+        source_uri="file:///doc.pdf",
+        chunk_index=0,
+        page=1,
+        start_char=0,
+        end_char=200,
+        chunk_text="Marcos Galperin founded MercadoLibre.",
+        similarityScore=0.95,
+        claims=["Marcos Galperin founded MercadoLibre."],
+        claim_details=[
+            {
+                "claim_text": "Marcos Galperin founded MercadoLibre.",
+                "subject_mention": {"name": "Marcos Galperin", "match_method": "raw_exact"},
+                "object_mention": {"name": "MercadoLibre", "match_method": "raw_exact"},
+            }
+        ],
+    )
+    item = _chunk_citation_formatter(record)
+    assert "Marcos Galperin founded MercadoLibre." in item.content
+    assert "[Claim context" in item.content
+    assert "subject='Marcos Galperin'" in item.content
+    assert "object='MercadoLibre'" in item.content
+    assert "raw_exact" in item.content
+    # Citation token must still be present at the end
+    assert "[CITATION|" in item.content
+
+
+def test_chunk_citation_formatter_claim_details_stored_in_metadata():
+    """_chunk_citation_formatter must store claim_details in metadata when present so
+    downstream consumers can inspect participation edge data programmatically."""
+    from demo.stages.retrieval_and_qa import _chunk_citation_formatter
+
+    claim_details_data = [
+        {
+            "claim_text": "Endeavor invested in MercadoLibre.",
+            "subject_mention": {"name": "Endeavor", "match_method": "casefold_exact"},
+            "object_mention": {"name": "MercadoLibre", "match_method": "raw_exact"},
+        }
+    ]
+    record = _make_fake_neo4j_record(
+        chunk_id="c-cd-2",
+        run_id="r2",
+        source_uri="file:///doc.pdf",
+        chunk_index=1,
+        page=2,
+        start_char=0,
+        end_char=100,
+        chunk_text="Endeavor invested in MercadoLibre.",
+        similarityScore=0.88,
+        claims=["Endeavor invested in MercadoLibre."],
+        claim_details=claim_details_data,
+    )
+    item = _chunk_citation_formatter(record)
+    assert "claim_details" in item.metadata, (
+        "claim_details must be stored in metadata when claim_details field is present in the record"
+    )
+    assert item.metadata["claim_details"] == claim_details_data, (
+        "claim_details in metadata must equal the structured participation edge data"
+    )
+
+
+def test_chunk_citation_formatter_claim_details_absent_when_field_missing():
+    """_chunk_citation_formatter must not include claim_details in metadata or content when
+    the record does not have a claim_details field (base or non-expanded retrieval query)."""
+    from demo.stages.retrieval_and_qa import _chunk_citation_formatter
+
+    record = _make_fake_neo4j_record(
+        chunk_id="c-cd-3",
+        run_id="r3",
+        source_uri="file:///doc.pdf",
+        chunk_index=2,
+        page=3,
+        start_char=0,
+        end_char=100,
+        chunk_text="Some text without claim details.",
+        similarityScore=0.75,
+        # No claim_details key — simulates base retrieval query
+    )
+    item = _chunk_citation_formatter(record)
+    assert "claim_details" not in item.metadata, (
+        "claim_details must not appear in metadata when the record has no claim_details field"
+    )
+    assert "[Claim context" not in item.content, (
+        "Claim context section must not appear in content when claim_details is absent"
+    )
+
+
+def test_chunk_citation_formatter_claim_details_no_participation_edges():
+    """_chunk_citation_formatter must handle claims with no participation edges gracefully.
+    When subject_mention and object_mention are both None, the claim text still appears
+    but without role annotations — no chunk co-location fallback is used."""
+    from demo.stages.retrieval_and_qa import _chunk_citation_formatter
+
+    record = _make_fake_neo4j_record(
+        chunk_id="c-cd-4",
+        run_id="r4",
+        source_uri="file:///doc.pdf",
+        chunk_index=0,
+        page=1,
+        start_char=0,
+        end_char=100,
+        chunk_text="An unresolved claim appeared here.",
+        similarityScore=0.70,
+        claims=["An unresolved claim appeared here."],
+        claim_details=[
+            {
+                "claim_text": "An unresolved claim appeared here.",
+                "subject_mention": None,
+                "object_mention": None,
+            }
+        ],
+    )
+    item = _chunk_citation_formatter(record)
+    # Claim text must appear in the claim context section
+    assert "An unresolved claim appeared here." in item.content
+    assert "[Claim context" in item.content
+    # But no subject/object role annotations
+    assert "subject=" not in item.content
+    assert "object=" not in item.content
+    # Citation token still present
+    assert "[CITATION|" in item.content
+
+
+def test_chunk_citation_formatter_claim_details_only_subject_mention():
+    """_chunk_citation_formatter must handle claims with only a subject participation edge
+    (no object edge) — only the subject role is annotated."""
+    from demo.stages.retrieval_and_qa import _chunk_citation_formatter
+
+    record = _make_fake_neo4j_record(
+        chunk_id="c-cd-5",
+        run_id="r5",
+        source_uri="file:///doc.pdf",
+        chunk_index=0,
+        page=1,
+        start_char=0,
+        end_char=150,
+        chunk_text="Galperin leads strategy.",
+        similarityScore=0.82,
+        claims=["Galperin leads strategy."],
+        claim_details=[
+            {
+                "claim_text": "Galperin leads strategy.",
+                "subject_mention": {"name": "Galperin", "match_method": "normalized_exact"},
+                "object_mention": None,
+            }
+        ],
+    )
+    item = _chunk_citation_formatter(record)
+    assert "subject='Galperin'" in item.content
+    assert "object=" not in item.content
+    assert "normalized_exact" in item.content
+
+
+def test_chunk_citation_formatter_claim_details_and_cluster_context_both_present():
+    """When both claim_details and cluster context are present, both sections must appear
+    in the content in the order: chunk text → claim context → cluster context → citation."""
+    from demo.stages.retrieval_and_qa import _chunk_citation_formatter
+
+    record = _make_fake_neo4j_record(
+        chunk_id="c-cd-6",
+        run_id="r6",
+        source_uri="file:///doc.pdf",
+        chunk_index=0,
+        page=1,
+        start_char=0,
+        end_char=200,
+        chunk_text="Entity X acquired Company Y.",
+        similarityScore=0.91,
+        claims=["Entity X acquired Company Y."],
+        claim_details=[
+            {
+                "claim_text": "Entity X acquired Company Y.",
+                "subject_mention": {"name": "Entity X", "match_method": "raw_exact"},
+                "object_mention": {"name": "Company Y", "match_method": "casefold_exact"},
+            }
+        ],
+        cluster_memberships=[
+            {"cluster_name": "Entity X Corp", "membership_status": "provisional", "membership_method": "fuzzy"},
+        ],
+        cluster_canonical_alignments=[],
+    )
+    item = _chunk_citation_formatter(record)
+    assert "Entity X acquired Company Y." in item.content
+    assert "[Claim context" in item.content
+    assert "subject='Entity X'" in item.content
+    assert "[Cluster context" in item.content
+    assert "PROVISIONAL CLUSTER" in item.content
+    # Claim context must appear before cluster context
+    claim_pos = item.content.index("[Claim context")
+    cluster_pos = item.content.index("[Cluster context")
+    assert claim_pos < cluster_pos, (
+        "Claim context section must appear before cluster context section in content"
+    )
+    assert "[CITATION|" in item.content
+
+
+def test_retrieval_query_with_expansion_includes_claim_details_field():
+    """_RETRIEVAL_QUERY_WITH_EXPANSION must contain claim_details as a pattern comprehension
+    that traverses HAS_SUBJECT_MENTION and HAS_OBJECT_MENTION edges."""
+    from demo.stages.retrieval_and_qa import _RETRIEVAL_QUERY_WITH_EXPANSION
+
+    assert "claim_details" in _RETRIEVAL_QUERY_WITH_EXPANSION, (
+        "_RETRIEVAL_QUERY_WITH_EXPANSION must return a claim_details field for participation edge data"
+    )
+    assert "HAS_SUBJECT_MENTION" in _RETRIEVAL_QUERY_WITH_EXPANSION, (
+        "_RETRIEVAL_QUERY_WITH_EXPANSION must traverse HAS_SUBJECT_MENTION edges"
+    )
+    assert "HAS_OBJECT_MENTION" in _RETRIEVAL_QUERY_WITH_EXPANSION, (
+        "_RETRIEVAL_QUERY_WITH_EXPANSION must traverse HAS_OBJECT_MENTION edges"
+    )
+    assert "match_method" in _RETRIEVAL_QUERY_WITH_EXPANSION, (
+        "_RETRIEVAL_QUERY_WITH_EXPANSION must include match_method in claim_details"
+    )
+
+
+def test_retrieval_query_with_cluster_includes_claim_details_field():
+    """_RETRIEVAL_QUERY_WITH_CLUSTER must contain claim_details with participation edges."""
+    from demo.stages.retrieval_and_qa import _RETRIEVAL_QUERY_WITH_CLUSTER
+
+    assert "claim_details" in _RETRIEVAL_QUERY_WITH_CLUSTER
+    assert "HAS_SUBJECT_MENTION" in _RETRIEVAL_QUERY_WITH_CLUSTER
+    assert "HAS_OBJECT_MENTION" in _RETRIEVAL_QUERY_WITH_CLUSTER
+
+
+def test_retrieval_query_all_runs_variants_include_claim_details_field():
+    """Both all-runs graph-expanded queries must include claim_details for participation edges."""
+    from demo.stages.retrieval_and_qa import (
+        _RETRIEVAL_QUERY_WITH_EXPANSION_ALL_RUNS,
+        _RETRIEVAL_QUERY_WITH_CLUSTER_ALL_RUNS,
+    )
+
+    for name, query in [
+        ("_RETRIEVAL_QUERY_WITH_EXPANSION_ALL_RUNS", _RETRIEVAL_QUERY_WITH_EXPANSION_ALL_RUNS),
+        ("_RETRIEVAL_QUERY_WITH_CLUSTER_ALL_RUNS", _RETRIEVAL_QUERY_WITH_CLUSTER_ALL_RUNS),
+    ]:
+        assert "claim_details" in query, f"{name} must return claim_details"
+        assert "HAS_SUBJECT_MENTION" in query, f"{name} must traverse HAS_SUBJECT_MENTION"
+        assert "HAS_OBJECT_MENTION" in query, f"{name} must traverse HAS_OBJECT_MENTION"
+
+
+def test_format_claim_details_empty_returns_empty_string():
+    """_format_claim_details must return an empty string for an empty list."""
+    from demo.stages.retrieval_and_qa import _format_claim_details
+
+    assert _format_claim_details([]) == ""
+
+
+def test_format_claim_details_renders_subject_and_object():
+    """_format_claim_details must render claim text with both subject and object annotations."""
+    from demo.stages.retrieval_and_qa import _format_claim_details
+
+    details = [
+        {
+            "claim_text": "Galperin co-founded MercadoLibre.",
+            "subject_mention": {"name": "Galperin", "match_method": "raw_exact"},
+            "object_mention": {"name": "MercadoLibre", "match_method": "raw_exact"},
+        }
+    ]
+    result = _format_claim_details(details)
+    assert "[Claim context" in result
+    assert "Galperin co-founded MercadoLibre." in result
+    assert "subject='Galperin'" in result
+    assert "object='MercadoLibre'" in result
+    assert "raw_exact" in result
+
+
+def test_format_claim_details_no_participation_edges_renders_claim_text_only():
+    """_format_claim_details must render the claim text without role annotations when
+    no participation edges exist (subject_mention and object_mention are both None)."""
+    from demo.stages.retrieval_and_qa import _format_claim_details
+
+    details = [
+        {
+            "claim_text": "Company Z expanded overseas.",
+            "subject_mention": None,
+            "object_mention": None,
+        }
+    ]
+    result = _format_claim_details(details)
+    assert "Company Z expanded overseas." in result
+    assert "subject=" not in result
+    assert "object=" not in result
+
+
+def test_retrieval_and_qa_expand_graph_surfaces_claim_details_in_metadata(tmp_path: Path):
+    """Expand-graph retrieval must surface claim_details (with subject/object mention data)
+    in retrieval_results metadata, confirming that participation edges are included in the
+    retrieved context layer so downstream consumers can inspect role assignments."""
+    from demo.stages import run_retrieval_and_qa
+    from demo.stages.retrieval_and_qa import _chunk_citation_formatter
+
+    claim_details_data = [
+        {
+            "claim_text": "Galperin founded MercadoLibre.",
+            "subject_mention": {"name": "Galperin", "match_method": "raw_exact"},
+            "object_mention": {"name": "MercadoLibre", "match_method": "raw_exact"},
+        }
+    ]
+    record = _make_fake_neo4j_record(
+        chunk_id="chunk-cd-e2e",
+        run_id="expand-run",
+        source_uri="file:///evidence.pdf",
+        chunk_index=0,
+        page=1,
+        start_char=0,
+        end_char=100,
+        chunk_text="Galperin founded MercadoLibre.",
+        similarityScore=0.93,
+        claims=["Galperin founded MercadoLibre."],
+        mentions=["Galperin", "MercadoLibre"],
+        canonical_entities=[],
+        claim_details=claim_details_data,
+    )
+    item = _chunk_citation_formatter(record)
+
+    class _FakeRetriever:
+        def __init__(self, **kwargs):
+            pass
+
+        def search(self, **kwargs):
+            return _make_fake_retriever_result([item])
+
+    live_config = Config(
+        dry_run=False,
+        output_dir=tmp_path,
+        neo4j_uri="bolt://example.invalid",
+        neo4j_username="neo4j",
+        neo4j_password="not-used",
+        neo4j_database="neo4j",
+        openai_model="gpt-4o-mini",
+    )
+
+    with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
+    ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class()), mock.patch(
+        "demo.stages.retrieval_and_qa.build_openai_llm"
+    ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+        result = run_retrieval_and_qa(
+            live_config,
+            run_id="expand-run",
+            source_uri=None,
+            question="Who founded MercadoLibre?",
+            expand_graph=True,
+        )
+
+    assert result["status"] == "live"
+    assert result["hits"] == 1
+    hit_meta = result["retrieval_results"][0]["metadata"]
+    assert "claim_details" in hit_meta, (
+        "expand_graph retrieval results must include claim_details in metadata"
+    )
+    assert hit_meta["claim_details"] == claim_details_data, (
+        "claim_details in metadata must contain subject/object mention data from participation edges"
+    )
+    # Content must include the claim context section
+    hit_content = result["retrieval_results"][0]["content"]
+    assert "subject='Galperin'" in hit_content, (
+        "claim subject mention must appear in retrieved content for expand_graph mode"
+    )
+    assert "object='MercadoLibre'" in hit_content, (
+        "claim object mention must appear in retrieved content for expand_graph mode"
+    )
