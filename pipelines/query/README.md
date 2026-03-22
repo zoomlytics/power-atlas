@@ -226,7 +226,7 @@ These queries apply after `resolve-entities --resolution-mode hybrid` has run.
 >
 > ```cypher
 > :param run_id => 'your-run-id-here'
-> :param alignment_version => 'v1'
+> :param alignment_version => 'v1.0'
 > ```
 >
 > Then add `WHERE a.run_id = $run_id AND a.alignment_version = $alignment_version` to scope
