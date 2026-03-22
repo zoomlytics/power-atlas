@@ -651,11 +651,11 @@ ORDER BY c.claim_id;
 // Claims where Marcos Galperin (canonical) is subject and MercadoLibre (canonical) is object
 MATCH (canonA:CanonicalEntity)<-[aA:ALIGNED_WITH]-(clA:ResolvedEntityCluster)<-[:MEMBER_OF]-(mA:EntityMention)
 WHERE toLower(canonA.name) CONTAINS 'galperin'
-  AND aA.run_id = $run_id
+  AND aA.run_id = $run_id AND aA.alignment_version = $alignment_version
   AND mA.run_id = $run_id
 MATCH (canonB:CanonicalEntity)<-[aB:ALIGNED_WITH]-(clB:ResolvedEntityCluster)<-[:MEMBER_OF]-(mB:EntityMention)
 WHERE toLower(canonB.name) CONTAINS 'mercadolibre'
-  AND aB.run_id = $run_id
+  AND aB.run_id = $run_id AND aB.alignment_version = $alignment_version
   AND mB.run_id = $run_id
 MATCH (mA)<-[:HAS_SUBJECT_MENTION]-(c:ExtractedClaim)-[:HAS_OBJECT_MENTION]->(mB)
 WHERE c.run_id = $run_id
