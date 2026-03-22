@@ -421,6 +421,561 @@ LIMIT 25;
 
 ---
 
+## 6. Resolved-entity traversal (post-clustering)
+
+These queries traverse from a `ResolvedEntityCluster` through its member `EntityMention` nodes to
+the `ExtractedClaim` nodes where those mentions appear.  Available after `resolve-entities` in any
+mode (`unstructured_only`, `hybrid`, or `structured_anchor`).
+
+> **Traversal path:**
+> ```
+> (:ResolvedEntityCluster)<-[:MEMBER_OF]-(:EntityMention)<-[:HAS_SUBJECT_MENTION|HAS_OBJECT_MENTION]-(:ExtractedClaim)
+> ```
+
+> **Tip:** Set a run parameter in Neo4j Browser before running these queries:
+>
+> ```cypher
+> :param run_id => 'your-run-id-here'
+> ```
+>
+> Then add `AND cluster.run_id = $run_id` and `AND c.run_id = $run_id` to scope results to a
+> single run.
+
+### 6a. All claims for a cluster (subject or object)
+
+```cypher
+// All claims where any member of the MercadoLibre cluster appears — subject or object
+// Replace 'mercadolibre' with any entity name fragment from your dataset
+MATCH (cluster:ResolvedEntityCluster)<-[:MEMBER_OF]-(m:EntityMention)
+WHERE toLower(cluster.canonical_name) CONTAINS 'mercadolibre'
+  AND cluster.run_id = $run_id
+  AND m.run_id = $run_id
+MATCH (c:ExtractedClaim)-[r:HAS_SUBJECT_MENTION|HAS_OBJECT_MENTION]->(m)
+WHERE c.run_id = $run_id
+RETURN cluster.canonical_name AS cluster,
+       m.name                 AS mention,
+       type(r)                AS role,
+       c.claim_text,
+       c.predicate,
+       r.match_method
+ORDER BY role, c.claim_id;
+```
+
+### 6b. Claims where a cluster member appears as subject
+
+```cypher
+// Claims where any Marcos Galperin cluster member is the subject
+MATCH (cluster:ResolvedEntityCluster)<-[:MEMBER_OF]-(m:EntityMention)
+WHERE toLower(cluster.canonical_name) CONTAINS 'galperin'
+  AND cluster.run_id = $run_id
+  AND m.run_id = $run_id
+MATCH (c:ExtractedClaim)-[r:HAS_SUBJECT_MENTION]->(m)
+WHERE c.run_id = $run_id
+RETURN cluster.canonical_name AS cluster,
+       m.name                 AS mention,
+       c.claim_text,
+       c.predicate,
+       c.object               AS object_slot,
+       r.match_method
+ORDER BY c.claim_id;
+```
+
+### 6c. Claims where a cluster member appears as object
+
+```cypher
+// Claims where any Endeavor cluster member is the object
+MATCH (cluster:ResolvedEntityCluster)<-[:MEMBER_OF]-(m:EntityMention)
+WHERE toLower(cluster.canonical_name) CONTAINS 'endeavor'
+  AND cluster.run_id = $run_id
+  AND m.run_id = $run_id
+MATCH (c:ExtractedClaim)-[r:HAS_OBJECT_MENTION]->(m)
+WHERE c.run_id = $run_id
+RETURN cluster.canonical_name AS cluster,
+       m.name                 AS mention,
+       c.claim_text,
+       c.predicate,
+       c.subject              AS subject_slot,
+       r.match_method
+ORDER BY c.claim_id;
+```
+
+### 6d. Pairwise claim lookup — two resolved-entity clusters
+
+```cypher
+// Claims where a Galperin cluster member is subject and a MercadoLibre cluster member is object
+MATCH (clusterA:ResolvedEntityCluster)<-[:MEMBER_OF]-(mA:EntityMention)
+WHERE toLower(clusterA.canonical_name) CONTAINS 'galperin'
+  AND clusterA.run_id = $run_id
+  AND mA.run_id = $run_id
+MATCH (clusterB:ResolvedEntityCluster)<-[:MEMBER_OF]-(mB:EntityMention)
+WHERE toLower(clusterB.canonical_name) CONTAINS 'mercadolibre'
+  AND clusterB.run_id = $run_id
+  AND mB.run_id = $run_id
+MATCH (mA)<-[:HAS_SUBJECT_MENTION]-(c:ExtractedClaim)-[:HAS_OBJECT_MENTION]->(mB)
+WHERE c.run_id = $run_id
+RETURN c.claim_text,
+       c.predicate,
+       mA.name AS subject_mention,
+       mB.name AS object_mention,
+       clusterA.canonical_name AS subject_cluster,
+       clusterB.canonical_name AS object_cluster
+ORDER BY c.claim_id;
+```
+
+```cypher
+// Bidirectional pairwise — either cluster in either role
+MATCH (clusterA:ResolvedEntityCluster)<-[:MEMBER_OF]-(mA:EntityMention)
+WHERE toLower(clusterA.canonical_name) CONTAINS 'galperin'
+  AND clusterA.run_id = $run_id
+  AND mA.run_id = $run_id
+MATCH (clusterB:ResolvedEntityCluster)<-[:MEMBER_OF]-(mB:EntityMention)
+WHERE toLower(clusterB.canonical_name) CONTAINS 'mercadolibre'
+  AND clusterB.run_id = $run_id
+  AND mB.run_id = $run_id
+OPTIONAL MATCH (mA)<-[:HAS_SUBJECT_MENTION]-(cAB:ExtractedClaim)-[:HAS_OBJECT_MENTION]->(mB)
+WHERE cAB.run_id = $run_id
+OPTIONAL MATCH (mB)<-[:HAS_SUBJECT_MENTION]-(cBA:ExtractedClaim)-[:HAS_OBJECT_MENTION]->(mA)
+WHERE cBA.run_id = $run_id
+WITH collect(DISTINCT {claim_text: cAB.claim_text, predicate: cAB.predicate,
+                        subject: mA.name, object: mB.name, direction: 'A→B'}) +
+     collect(DISTINCT {claim_text: cBA.claim_text, predicate: cBA.predicate,
+                        subject: mB.name, object: mA.name, direction: 'B→A'}) AS all_claims
+UNWIND all_claims AS claim
+WITH claim WHERE claim.claim_text IS NOT NULL
+RETURN claim.claim_text, claim.predicate, claim.subject, claim.object, claim.direction
+ORDER BY claim.direction, claim.claim_text;
+```
+
+**Validation note (unstructured_only):** After running `resolve-entities` in `unstructured_only`
+mode (the default), every `EntityMention` should have at least one `MEMBER_OF` edge to a
+`ResolvedEntityCluster`.  The cluster-level queries above should return the same results as (or a
+superset of) the raw mention-level queries in section 2, aggregating surface-form variants such
+as "MercadoLibre" and "Mercado Libre" under the same cluster.
+
+---
+
+## 7. Canonical-entity traversal
+
+These queries start from `CanonicalEntity` nodes.  Two traversal paths are available, depending
+on the resolution mode used:
+
+| Resolution mode | Traversal path | Edge used |
+| --- | --- | --- |
+| `structured_anchor` | `CanonicalEntity ← RESOLVES_TO ← EntityMention` | `RESOLVES_TO` |
+| `hybrid` | `CanonicalEntity ← ALIGNED_WITH ← ResolvedEntityCluster ← MEMBER_OF ← EntityMention` | `ALIGNED_WITH` + `MEMBER_OF` |
+
+> **Tip:** Set parameters in Neo4j Browser before running these queries:
+>
+> ```cypher
+> :param run_id           => 'your-run-id-here'
+> :param alignment_version => 'v1.0'
+> ```
+
+### 7a. Claims via RESOLVES_TO (structured_anchor mode)
+
+```cypher
+// All claims where any mention resolving directly to MercadoLibre appears — subject or object
+MATCH (canonical:CanonicalEntity)<-[:RESOLVES_TO]-(m:EntityMention)
+WHERE toLower(canonical.name) CONTAINS 'mercadolibre'
+  AND m.run_id = $run_id
+MATCH (c:ExtractedClaim)-[r:HAS_SUBJECT_MENTION|HAS_OBJECT_MENTION]->(m)
+WHERE c.run_id = $run_id
+RETURN canonical.name AS canonical_entity,
+       m.name         AS mention,
+       type(r)        AS role,
+       c.claim_text,
+       c.predicate,
+       r.match_method
+ORDER BY role, c.claim_id;
+```
+
+```cypher
+// Claims where MercadoLibre (canonical) appears as subject — structured_anchor mode
+MATCH (canonical:CanonicalEntity)<-[:RESOLVES_TO]-(m:EntityMention)
+WHERE toLower(canonical.name) CONTAINS 'mercadolibre'
+  AND m.run_id = $run_id
+MATCH (c:ExtractedClaim)-[r:HAS_SUBJECT_MENTION]->(m)
+WHERE c.run_id = $run_id
+RETURN canonical.name AS canonical_entity,
+       m.name         AS mention,
+       c.claim_text,
+       c.predicate,
+       c.object       AS object_slot,
+       r.match_method
+ORDER BY c.claim_id;
+```
+
+### 7b. Claims via ALIGNED_WITH (hybrid mode)
+
+```cypher
+// All claims reachable from MercadoLibre canonical entity via hybrid alignment
+MATCH (canonical:CanonicalEntity)<-[a:ALIGNED_WITH]-(cluster:ResolvedEntityCluster)<-[:MEMBER_OF]-(m:EntityMention)
+WHERE toLower(canonical.name) CONTAINS 'mercadolibre'
+  AND a.run_id = $run_id AND a.alignment_version = $alignment_version
+  AND m.run_id = $run_id
+MATCH (c:ExtractedClaim)-[r:HAS_SUBJECT_MENTION|HAS_OBJECT_MENTION]->(m)
+WHERE c.run_id = $run_id
+RETURN canonical.name        AS canonical_entity,
+       cluster.canonical_name AS cluster,
+       m.name                 AS mention,
+       type(r)                AS role,
+       c.claim_text,
+       c.predicate,
+       r.match_method
+ORDER BY role, c.claim_id;
+```
+
+```cypher
+// Full chain — Marcos Galperin canonical → cluster → mentions → claims as subject (hybrid mode)
+MATCH (canonical:CanonicalEntity)<-[a:ALIGNED_WITH]-(cluster:ResolvedEntityCluster)<-[:MEMBER_OF]-(m:EntityMention)
+WHERE toLower(canonical.name) CONTAINS 'galperin'
+  AND a.run_id = $run_id AND a.alignment_version = $alignment_version
+  AND m.run_id = $run_id
+MATCH (c:ExtractedClaim)-[r:HAS_SUBJECT_MENTION]->(m)
+WHERE c.run_id = $run_id
+RETURN canonical.name        AS canonical_entity,
+       cluster.canonical_name AS cluster,
+       m.name                 AS mention,
+       c.claim_text,
+       c.predicate,
+       c.object               AS object_slot,
+       r.match_method
+ORDER BY c.claim_id;
+```
+
+### 7c. Pairwise claim lookup — two canonical entities (hybrid mode)
+
+```cypher
+// Claims where Marcos Galperin (canonical) is subject and MercadoLibre (canonical) is object
+MATCH (canonA:CanonicalEntity)<-[aA:ALIGNED_WITH]-(clA:ResolvedEntityCluster)<-[:MEMBER_OF]-(mA:EntityMention)
+WHERE toLower(canonA.name) CONTAINS 'galperin'
+  AND aA.run_id = $run_id
+  AND mA.run_id = $run_id
+MATCH (canonB:CanonicalEntity)<-[aB:ALIGNED_WITH]-(clB:ResolvedEntityCluster)<-[:MEMBER_OF]-(mB:EntityMention)
+WHERE toLower(canonB.name) CONTAINS 'mercadolibre'
+  AND aB.run_id = $run_id
+  AND mB.run_id = $run_id
+MATCH (mA)<-[:HAS_SUBJECT_MENTION]-(c:ExtractedClaim)-[:HAS_OBJECT_MENTION]->(mB)
+WHERE c.run_id = $run_id
+RETURN c.claim_text,
+       c.predicate,
+       mA.name       AS subject_mention,
+       mB.name       AS object_mention,
+       canonA.name   AS subject_canonical,
+       canonB.name   AS object_canonical
+ORDER BY c.claim_id;
+```
+
+```cypher
+// Bidirectional pairwise — either canonical entity in either role (hybrid mode)
+MATCH (canonA:CanonicalEntity)<-[aA:ALIGNED_WITH]-(clA:ResolvedEntityCluster)<-[:MEMBER_OF]-(mA:EntityMention)
+WHERE toLower(canonA.name) CONTAINS 'galperin'
+  AND aA.run_id = $run_id
+  AND mA.run_id = $run_id
+MATCH (canonB:CanonicalEntity)<-[aB:ALIGNED_WITH]-(clB:ResolvedEntityCluster)<-[:MEMBER_OF]-(mB:EntityMention)
+WHERE toLower(canonB.name) CONTAINS 'mercadolibre'
+  AND aB.run_id = $run_id
+  AND mB.run_id = $run_id
+OPTIONAL MATCH (mA)<-[:HAS_SUBJECT_MENTION]-(cAB:ExtractedClaim)-[:HAS_OBJECT_MENTION]->(mB)
+WHERE cAB.run_id = $run_id
+OPTIONAL MATCH (mB)<-[:HAS_SUBJECT_MENTION]-(cBA:ExtractedClaim)-[:HAS_OBJECT_MENTION]->(mA)
+WHERE cBA.run_id = $run_id
+WITH collect(DISTINCT {claim_text: cAB.claim_text, predicate: cAB.predicate,
+                        subject: mA.name, object: mB.name, direction: 'A→B'}) +
+     collect(DISTINCT {claim_text: cBA.claim_text, predicate: cBA.predicate,
+                        subject: mB.name, object: mA.name, direction: 'B→A'}) AS all_claims
+UNWIND all_claims AS claim
+WITH claim WHERE claim.claim_text IS NOT NULL
+RETURN claim.claim_text, claim.predicate, claim.subject, claim.object, claim.direction
+ORDER BY claim.direction, claim.claim_text;
+```
+
+**Validation note (hybrid):** After running `resolve-entities --resolution-mode hybrid` and
+`ingest-structured`, the queries above should return at least one row for Galperin and MercadoLibre
+when those names appear in the structured CSV fixtures.  If the queries return no results, verify:
+
+1. `ingest-structured` completed successfully and `CanonicalEntity` nodes exist (quick check:
+   `MATCH (n:CanonicalEntity) RETURN count(n)`).
+2. `resolve-entities --resolution-mode hybrid` completed with `aligned_clusters > 0` in the
+   entity resolution manifest.
+3. The `$run_id` and `$alignment_version` parameter values match those in the entity resolution
+   summary artifact.
+
+---
+
+## 8. Aggregate analytics
+
+These queries answer *"How many claims involve each entity?"* — useful for identifying the most
+claim-active entities and exploring the overall claim landscape.
+
+### 8a. Claim count per ResolvedEntityCluster
+
+```cypher
+// Clusters ranked by number of associated claims (all roles) — scoped to a single run
+MATCH (cluster:ResolvedEntityCluster)<-[:MEMBER_OF]-(m:EntityMention)
+WHERE cluster.run_id = $run_id
+  AND m.run_id = $run_id
+MATCH (c:ExtractedClaim)-[:HAS_SUBJECT_MENTION|HAS_OBJECT_MENTION]->(m)
+WHERE c.run_id = $run_id
+RETURN cluster.canonical_name AS cluster,
+       cluster.entity_type,
+       count(DISTINCT c) AS claim_count,
+       count(DISTINCT m) AS mention_count
+ORDER BY claim_count DESC
+LIMIT 20;
+```
+
+```cypher
+// Claim count per cluster, broken down by subject vs. object role
+MATCH (cluster:ResolvedEntityCluster)<-[:MEMBER_OF]-(m:EntityMention)
+WHERE cluster.run_id = $run_id
+  AND m.run_id = $run_id
+MATCH (c:ExtractedClaim)-[r:HAS_SUBJECT_MENTION|HAS_OBJECT_MENTION]->(m)
+WHERE c.run_id = $run_id
+RETURN cluster.canonical_name AS cluster,
+       type(r)                AS role,
+       count(DISTINCT c)      AS claim_count
+ORDER BY cluster, role;
+```
+
+### 8b. Claim count per CanonicalEntity (hybrid mode)
+
+```cypher
+// Canonical entities ranked by number of associated claims via ALIGNED_WITH (hybrid mode)
+MATCH (canonical:CanonicalEntity)<-[a:ALIGNED_WITH]-(cluster:ResolvedEntityCluster)<-[:MEMBER_OF]-(m:EntityMention)
+WHERE a.run_id = $run_id
+  AND m.run_id = $run_id
+MATCH (c:ExtractedClaim)-[:HAS_SUBJECT_MENTION|HAS_OBJECT_MENTION]->(m)
+WHERE c.run_id = $run_id
+RETURN canonical.name       AS canonical_entity,
+       canonical.entity_id,
+       count(DISTINCT c)    AS claim_count,
+       count(DISTINCT m)    AS mention_count,
+       count(DISTINCT cluster) AS cluster_count
+ORDER BY claim_count DESC
+LIMIT 20;
+```
+
+### 8c. Cluster-to-claim coverage summary
+
+```cypher
+// How many clusters have at least one associated claim? How many are 'dark' (no claims)?
+MATCH (cluster:ResolvedEntityCluster)
+WHERE cluster.run_id = $run_id
+OPTIONAL MATCH (cluster)<-[:MEMBER_OF]-(m:EntityMention)<-[:HAS_SUBJECT_MENTION|HAS_OBJECT_MENTION]-(c:ExtractedClaim)
+WHERE m.run_id = $run_id AND c.run_id = $run_id
+WITH cluster, count(DISTINCT c) AS claim_count
+RETURN sum(CASE WHEN claim_count > 0 THEN 1 ELSE 0 END) AS clusters_with_claims,
+       sum(CASE WHEN claim_count = 0 THEN 1 ELSE 0 END) AS clusters_without_claims,
+       count(cluster)                                    AS total_clusters;
+```
+
+**Interpretation:** `clusters_without_claims` ("dark" clusters) are entity clusters for which no
+participation edges were resolved — either because the entity mentions appear in the graph but were
+never slot-matched to a claim, or because the claim-participation stage did not find a unique match
+for those mentions.  Dark clusters are not an error; they represent entities extracted from the
+document that happen not to appear in any claim's subject or object slots.
+
+---
+
+## 9. Demo scenario — entity-centric exploration
+
+This scenario demonstrates end-to-end exploration starting from a resolved entity and traversing
+to all associated claims.  It applies after completing Steps 2–4 (unstructured-only pass) or
+Steps 2–4b (with hybrid enrichment) in the demo workflow.
+
+> **Prerequisites:** complete the unstructured-only pass
+> (`ingest-pdf` → `extract-claims` → `resolve-entities`) and record the `UNSTRUCTURED_RUN_ID`.
+
+**Set your run parameter in Neo4j Browser once, then run the steps in order:**
+
+```cypher
+:param run_id           => '<your-UNSTRUCTURED_RUN_ID-here>'
+:param alignment_version => 'v1.0'
+```
+
+### Step 1 — Confirm clusters exist for your target entity
+
+```cypher
+// Inspect clusters for 'mercadolibre' — confirms entity resolution ran successfully
+MATCH (cluster:ResolvedEntityCluster)
+WHERE toLower(cluster.canonical_name) CONTAINS 'mercadolibre'
+  AND cluster.run_id = $run_id
+RETURN cluster.cluster_id, cluster.canonical_name, cluster.entity_type, cluster.normalized_text;
+```
+
+**Expected result:** One or more `ResolvedEntityCluster` rows for 'mercadolibre'.
+If no rows are returned, verify that `resolve-entities` completed with `mentions_clustered > 0` in
+the entity resolution summary.
+
+### Step 2 — List all member mentions for the cluster
+
+```cypher
+// All EntityMention nodes belonging to the MercadoLibre cluster
+MATCH (cluster:ResolvedEntityCluster)<-[r:MEMBER_OF]-(m:EntityMention)
+WHERE toLower(cluster.canonical_name) CONTAINS 'mercadolibre'
+  AND cluster.run_id = $run_id
+  AND m.run_id = $run_id
+RETURN m.name          AS mention_name,
+       m.entity_type,
+       r.method        AS resolution_method,
+       r.score
+ORDER BY r.method, m.name;
+```
+
+**Expected result:** All surface-form variants of "MercadoLibre" that appeared in the document
+(e.g., "MercadoLibre", "Mercado Libre", "ML") are listed as members of the same cluster.
+
+### Step 3 — Traverse to all claims for the cluster
+
+```cypher
+// All claims where any MercadoLibre cluster member appears — subject or object
+MATCH (cluster:ResolvedEntityCluster)<-[:MEMBER_OF]-(m:EntityMention)
+WHERE toLower(cluster.canonical_name) CONTAINS 'mercadolibre'
+  AND cluster.run_id = $run_id
+  AND m.run_id = $run_id
+MATCH (c:ExtractedClaim)-[r:HAS_SUBJECT_MENTION|HAS_OBJECT_MENTION]->(m)
+WHERE c.run_id = $run_id
+RETURN cluster.canonical_name AS cluster,
+       m.name                 AS mention,
+       type(r)                AS role,
+       c.claim_text,
+       c.predicate,
+       r.match_method
+ORDER BY role, c.claim_id;
+```
+
+**Expected result:** Claims where MercadoLibre (in any surface form) appears as either the subject
+or object of an extracted claim from the source document.
+
+### Step 4 — Find which entities make claims about MercadoLibre
+
+```cypher
+// Which entities appear as subject when MercadoLibre is the object?
+MATCH (cluster:ResolvedEntityCluster)<-[:MEMBER_OF]-(mObj:EntityMention)
+WHERE toLower(cluster.canonical_name) CONTAINS 'mercadolibre'
+  AND cluster.run_id = $run_id
+  AND mObj.run_id = $run_id
+MATCH (c:ExtractedClaim)-[:HAS_OBJECT_MENTION]->(mObj)
+WHERE c.run_id = $run_id
+MATCH (c)-[:HAS_SUBJECT_MENTION]->(mSubj:EntityMention)
+RETURN DISTINCT mSubj.name AS subject_entity,
+                count(c)   AS claim_count
+ORDER BY claim_count DESC;
+```
+
+### Step 5 — Extend to canonical entity (post-hybrid only)
+
+After running `ingest-structured` and `resolve-entities --resolution-mode hybrid`:
+
+```cypher
+// Confirm ALIGNED_WITH edges exist for MercadoLibre
+MATCH (canonical:CanonicalEntity)<-[a:ALIGNED_WITH]-(cluster:ResolvedEntityCluster)<-[:MEMBER_OF]-(m:EntityMention)
+WHERE toLower(canonical.name) CONTAINS 'mercadolibre'
+  AND a.run_id = $run_id
+  AND m.run_id = $run_id
+RETURN canonical.name        AS canonical_entity,
+       canonical.entity_id,
+       cluster.canonical_name AS cluster,
+       count(DISTINCT m)      AS mention_count,
+       a.alignment_method,
+       a.alignment_score
+ORDER BY cluster;
+```
+
+```cypher
+// Full canonical → cluster → mention → claim chain for MercadoLibre (hybrid mode)
+MATCH (canonical:CanonicalEntity)<-[a:ALIGNED_WITH]-(cluster:ResolvedEntityCluster)<-[:MEMBER_OF]-(m:EntityMention)
+WHERE toLower(canonical.name) CONTAINS 'mercadolibre'
+  AND a.run_id = $run_id AND a.alignment_version = $alignment_version
+  AND m.run_id = $run_id
+MATCH (c:ExtractedClaim)-[r:HAS_SUBJECT_MENTION|HAS_OBJECT_MENTION]->(m)
+WHERE c.run_id = $run_id
+RETURN canonical.name        AS canonical_entity,
+       cluster.canonical_name AS cluster,
+       m.name                 AS mention,
+       type(r)                AS role,
+       c.claim_text,
+       c.predicate,
+       r.match_method
+ORDER BY role, c.claim_id;
+```
+
+**Expected result:** Same claims as Step 3, now with a `canonical_entity` column confirming that
+the traversal bridged from the curated structured catalog to the extracted claims.
+
+### Validation checklist
+
+| Check | Expected |
+| --- | --- |
+| Step 1 returns rows | ✅ Entity resolution ran and clusters exist |
+| Step 2 shows multiple surface forms | ✅ Normalization/fuzzy matching collapsed variants |
+| Step 3 returns claims | ✅ Participation edges exist for this entity's mentions |
+| Step 5 `ALIGNED_WITH` query returns rows | ✅ Hybrid alignment linked the cluster to the curated entity |
+| Step 5 full chain returns same claims as Step 3 | ✅ Canonical traversal is consistent with cluster traversal |
+
+---
+
+## 10. Derived edge analysis — materializing claim→cluster and claim→canonical edges
+
+This section analyses whether derived shortcut edges from `ExtractedClaim` directly to
+`ResolvedEntityCluster` or `CanonicalEntity` would improve query ergonomics or performance, and
+documents the current recommendation.
+
+### Current traversal depth
+
+| Goal | Cypher path | Hops |
+| --- | --- | --- |
+| Cluster → associated claims | `(cluster)←[:MEMBER_OF]←(m)←[:HAS_SUBJECT/OBJECT_MENTION]←(claim)` | 2 |
+| Canonical → claims (hybrid) | `(canonical)←[:ALIGNED_WITH]←(cluster)←[:MEMBER_OF]←(m)←[:HAS_SUBJECT/OBJECT_MENTION]←(claim)` | 3 |
+| Canonical → claims (structured_anchor) | `(canonical)←[:RESOLVES_TO]←(m)←[:HAS_SUBJECT/OBJECT_MENTION]←(claim)` | 2 |
+
+### What materialized edges would look like
+
+Two derived relationship types could be pre-computed:
+
+- **`CLAIM_INVOLVES_CLUSTER`** (`ExtractedClaim → ResolvedEntityCluster`) — shortens
+  cluster → claims lookups to a single hop.
+- **`CLAIM_INVOLVES_CANONICAL`** (`ExtractedClaim → CanonicalEntity`) — shortens
+  canonical → claims lookups to a single hop.
+
+### Analysis
+
+**Arguments in favour of materialization:**
+- Reduces traversal cost for high-frequency analytics at large data volumes (e.g., computing
+  per-entity claim counts across millions of claims).
+- Simplifies Cypher for downstream consumers — callers no longer need to understand the full
+  multi-hop resolution model.
+
+**Arguments against materialization (current recommendation):**
+- The 2–3 hop traversal is manageable with standard Neo4j indexes on `run_id`, `cluster_id`, and
+  `entity_id`.  For the data volumes targeted by v0.1, these queries run well within interactive
+  latency budgets.
+- Materialized edges duplicate information already encoded in participation edges
+  (`HAS_SUBJECT_MENTION` / `HAS_OBJECT_MENTION`) and resolution edges (`MEMBER_OF` /
+  `ALIGNED_WITH`), increasing write cost and introducing a consistency surface.
+- Resolution results can change when `resolve-entities` is re-run (updated `MEMBER_OF` and
+  `ALIGNED_WITH` edges).  Materialized edges would need to be explicitly invalidated and rebuilt
+  on every re-resolution, adding operational complexity and a potential for stale data.
+- The existing graph model already fully supports all analytical and audit use cases without
+  derived edges.
+
+### Recommendation
+
+**Do not materialize `CLAIM_INVOLVES_CLUSTER` or `CLAIM_INVOLVES_CANONICAL` edges in v0.1.**
+
+The existing 2–3 hop traversal via `MEMBER_OF` and `ALIGNED_WITH` is the correct and sufficient
+approach.  If future benchmarking at production-scale data volumes demonstrates that analytics
+queries are a performance bottleneck, materialized edges should be considered as an explicit
+optimization — not pre-emptively.  Any such decision should be documented as a schema migration
+with explicit versioning and invalidation semantics.
+
+If the concern is query ergonomics rather than performance, consider wrapping the traversal in a
+named Neo4j stored procedure or an APOC virtual graph shortcut rather than adding a redundant
+edge type to the core schema.
+
+---
+
 ## How to use this workbook in Neo4j Browser
 
 1. Open Neo4j Browser at `http://localhost:7474`.

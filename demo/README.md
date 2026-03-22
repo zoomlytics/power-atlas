@@ -252,9 +252,16 @@ After a live `extract-claims` run, validate the v0.2 participation edges in Neo4
 > [Architecture reference queries](../pipelines/query/README.md#architecture-reference-queries-chunk-co-location) in the
 > workbook for details.
 
-> **Neo4j Browser workbook:** a full set of copy-paste queries (participation validation,
-> entity-centric search, pairwise analysis, chunk co-location reference) is available at
-> [`pipelines/query/README.md`](../pipelines/query/README.md).
+> **Neo4j Browser workbook:** a full set of copy-paste queries is available at
+> [`pipelines/query/README.md`](../pipelines/query/README.md), covering:
+> participation validation (§1), entity-centric search (§2), pairwise analysis (§3),
+> cluster-aware traversal (§4), graph-expanded retrieval (§5),
+> resolved-entity traversal starting from a `ResolvedEntityCluster` (§6),
+> canonical-entity traversal via `RESOLVES_TO` and `ALIGNED_WITH` (§7),
+> aggregate analytics per cluster and canonical entity (§8),
+> a step-by-step entity-centric exploration demo scenario (§9),
+> and a derived-edge analysis with a recommendation on materializing
+> claim→cluster / claim→canonical edges (§10).
 
 #### Basic participation edge validation
 
@@ -353,6 +360,12 @@ python -m demo.run_demo --dry-run ask
 ```
 
 At this point you have a working graph and citation-grounded Q&A from unstructured data alone.
+
+> **Resolved-entity traversal:** after `resolve-entities` completes, use the cluster-level
+> queries in the workbook to explore claims for any entity without requiring structured data.
+> See [§6 — Resolved-entity traversal](../pipelines/query/README.md#6-resolved-entity-traversal-post-clustering)
+> and the [§9 — Demo scenario](../pipelines/query/README.md#9-demo-scenario--entity-centric-exploration)
+> for copy-paste examples starting from a `ResolvedEntityCluster` node.
 
 ### Step 4b — Optional: structured enrichment pass
 
