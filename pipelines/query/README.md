@@ -680,14 +680,14 @@ OPTIONAL MATCH (mA)<-[:HAS_SUBJECT_MENTION]-(cAB:ExtractedClaim)-[:HAS_OBJECT_ME
 WHERE cAB.run_id = $run_id
 OPTIONAL MATCH (mB)<-[:HAS_SUBJECT_MENTION]-(cBA:ExtractedClaim)-[:HAS_OBJECT_MENTION]->(mA)
 WHERE cBA.run_id = $run_id
-WITH collect(DISTINCT {claim_text: cAB.claim_text, predicate: cAB.predicate,
+WITH collect(DISTINCT {claim_id: cAB.claim_id, claim_text: cAB.claim_text, predicate: cAB.predicate,
                         subject: mA.name, object: mB.name, direction: 'A→B'}) +
-     collect(DISTINCT {claim_text: cBA.claim_text, predicate: cBA.predicate,
+     collect(DISTINCT {claim_id: cBA.claim_id, claim_text: cBA.claim_text, predicate: cBA.predicate,
                         subject: mB.name, object: mA.name, direction: 'B→A'}) AS all_claims
 UNWIND all_claims AS claim
 WITH claim WHERE claim.claim_text IS NOT NULL
-RETURN claim.claim_text, claim.predicate, claim.subject, claim.object, claim.direction
-ORDER BY claim.direction, claim.claim_text;
+RETURN claim.claim_id, claim.claim_text, claim.predicate, claim.subject, claim.object, claim.direction
+ORDER BY claim.direction, claim.claim_text, claim.claim_id;
 ```
 
 **Validation note (hybrid):** After running `resolve-entities --resolution-mode hybrid` and
