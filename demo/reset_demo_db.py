@@ -192,6 +192,31 @@ def run_reset(
         deleted_relationships,
     )
 
+    # ── Stale pre-v0.2 participation edge cleanup ─────────────────────────────
+    # Old demo graphs (before v0.2) may contain :HAS_SUBJECT and :HAS_OBJECT
+    # edges between ExtractedClaim and EntityMention nodes.  Those relationship
+    # types were retired in v0.2 and replaced by :HAS_SUBJECT_MENTION and
+    # :HAS_OBJECT_MENTION.  The DETACH DELETE above removes them as a
+    # side-effect of deleting their endpoint nodes — but if any somehow survived
+    # (e.g. dangling edges between non-deleted endpoints) we explicitly clean
+    # them up here.  Old graphs are non-migratable; a full reset + fresh
+    # pipeline run is the only supported upgrade path.
+    _stale_query = (
+        "MATCH (c:ExtractedClaim)-[r:HAS_SUBJECT|HAS_OBJECT]->(m:EntityMention) DELETE r"
+    )
+    with driver.session(database=database) as _stale_session:
+        _stale_result = _stale_session.run(_stale_query)
+        _stale_counters = _stale_result.consume().counters
+        stale_participation_edges_deleted: int = _stale_counters.relationships_deleted
+
+    if stale_participation_edges_deleted > 0:
+        warnings_list.append(
+            f"Removed {stale_participation_edges_deleted} stale pre-v0.2 :HAS_SUBJECT/:HAS_OBJECT "
+            "participation edge(s).  These relationship types were retired in v0.2 and replaced by "
+            ":HAS_SUBJECT_MENTION/:HAS_OBJECT_MENTION.  Old demo graphs are non-migratable — "
+            "a full reset followed by a fresh pipeline run is required."
+        )
+
     logger.info(
         "Stale pre-v0.2 participation edge cleanup: stale_deleted=%d",
         stale_participation_edges_deleted,
