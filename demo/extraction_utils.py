@@ -261,8 +261,6 @@ def _edge_write_query() -> str:
     """
     return """
             UNWIND $rows AS row
-            WITH row
-            WHERE row.role IS NOT NULL AND trim(toString(row.role)) <> ''
             MATCH (claim:ExtractedClaim {claim_id: row.claim_id, run_id: row.run_id})
             MATCH (mention:EntityMention {mention_id: row.mention_id, run_id: row.run_id})
             MERGE (claim)-[r:HAS_PARTICIPANT {role: row.role}]->(mention)
@@ -349,6 +347,16 @@ def write_all_extraction_data(
     claim_query = _claim_write_query(chunk_label, chunk_id_property)
     mention_query = _mention_write_query(chunk_label, chunk_id_property)
     participant_query = _edge_write_query()
+
+    if edge_rows:
+        invalid = [i for i, r in enumerate(edge_rows) if not str(r.get("role") or "").strip()]
+        if invalid:
+            raise ValueError(
+                f"write_all_extraction_data: {len(invalid)} edge row(s) have a missing or "
+                f"empty 'role' field (row indices: {invalid}).  Each row must carry a "
+                f"non-empty role (e.g. ROLE_SUBJECT or ROLE_OBJECT) before the transaction "
+                f"is executed."
+            )
 
     def _write_all(tx: neo4j.ManagedTransaction) -> None:
         if claim_rows:

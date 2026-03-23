@@ -299,7 +299,7 @@ def write_participation_edges(
     if not edge_rows:
         return
 
-    invalid = [i for i, r in enumerate(edge_rows) if not r.get("role")]
+    invalid = [i for i, r in enumerate(edge_rows) if not str(r.get("role") or "").strip()]
     if invalid:
         raise ValueError(
             f"write_participation_edges: {len(invalid)} row(s) have a missing or empty "
