@@ -18,6 +18,7 @@ invariants at the *graph/transaction level*:
 """
 from __future__ import annotations
 
+import re
 import unittest
 from typing import Any
 
@@ -118,7 +119,7 @@ class InMemoryGraphDb:
 
     @staticmethod
     def _assert_query_has_run_id_predicates(query: str) -> None:
-        """Assert the Cypher MATCH clauses scope both claim and mention by run_id.
+        """Assert that both MATCH clauses in a participation MERGE query scope by run_id.
 
         The real ``write_participation_edges`` queries use patterns like::
 
@@ -129,16 +130,37 @@ class InMemoryGraphDb:
         either MATCH clause, cross-run edges could be written in Neo4j.  This
         check makes the integration tests fail immediately in that case, even
         though the in-memory graph always enforces run-scoping via node keys.
+
+        The check normalises whitespace before matching, so harmless query
+        reformatting (extra spaces, newlines, indentation) does not cause
+        false failures.
         """
-        # Count how many distinct MATCH lines (or MATCH blocks) reference
-        # both a labelled node and `run_id: row.run_id`.
-        run_id_predicate = "run_id: row.run_id"
-        predicate_count = query.count(run_id_predicate)
-        assert predicate_count >= 2, (
-            f"Expected at least 2 occurrences of 'run_id: row.run_id' in the "
-            f"participation MERGE query (one for the claim MATCH, one for the "
-            f"mention MATCH), but found {predicate_count}.\n\nQuery:\n{query}"
+        # Normalise whitespace so the check is insensitive to formatting.
+        normalised = re.sub(r"\s+", " ", query)
+
+        # Verify the ExtractedClaim MATCH scopes by run_id.
+        _claim_re = re.compile(
+            r"MATCH\s*\([^)]*:\s*ExtractedClaim\s*\{[^}]*\brun_id\b[^}]*\}",
+            re.IGNORECASE,
         )
+        if not _claim_re.search(normalised):
+            raise AssertionError(
+                "Participation MERGE query is missing 'run_id' in the "
+                "ExtractedClaim MATCH clause — cross-run edges could be "
+                "created in real Neo4j.\n\nQuery:\n" + query
+            )
+
+        # Verify the EntityMention MATCH scopes by run_id.
+        _mention_re = re.compile(
+            r"MATCH\s*\([^)]*:\s*EntityMention\s*\{[^}]*\brun_id\b[^}]*\}",
+            re.IGNORECASE,
+        )
+        if not _mention_re.search(normalised):
+            raise AssertionError(
+                "Participation MERGE query is missing 'run_id' in the "
+                "EntityMention MATCH clause — cross-run edges could be "
+                "created in real Neo4j.\n\nQuery:\n" + query
+            )
 
     def _apply_merge(self, rows: list[dict[str, Any]], rel_type: str) -> None:
         """Apply MERGE + SET semantics for one batch of edge rows."""
