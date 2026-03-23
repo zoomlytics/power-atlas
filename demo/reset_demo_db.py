@@ -17,26 +17,26 @@ Demo-owned labels (nodes + all their relationships are removed):
   - UnresolvedEntity        (resolution layer written by resolve-entities; fallback for unresolved mentions)
   - ResolvedEntityCluster   (resolution layer written by resolve-entities; resolved entity clusters)
 
-Stale participation edges (v0.1 graphs only, non-migratable):
+Stale participation edges (pre-v0.3 graphs only, non-migratable):
   Because the DETACH DELETE above removes all ExtractedClaim and EntityMention
-  nodes, any v0.2 :HAS_SUBJECT_MENTION / :HAS_OBJECT_MENTION edges attached to
-  those nodes are automatically removed.
+  nodes, any v0.3 :HAS_PARTICIPANT edges attached to those nodes are
+  automatically removed.
 
   Old demo graphs produced before v0.2 may contain :HAS_SUBJECT and :HAS_OBJECT
-  edges.  These relationship types were retired in v0.2 and replaced by
-  :HAS_SUBJECT_MENTION and :HAS_OBJECT_MENTION.  The DETACH DELETE of
-  ExtractedClaim/EntityMention nodes removes these stale edges as a side-effect.
-  However, if any such edges somehow survive between non-deleted endpoints, this
-  script issues an explicit DELETE scoped to demo-owned endpoints
-  (``MATCH (c:ExtractedClaim)-[r:HAS_SUBJECT|HAS_OBJECT]->(m:EntityMention) DELETE r``)
-  to remove them and records the count in the
-  reset report under ``stale_participation_edges_deleted``.  This scope
-  ensures the cleanup never touches non-demo relationships that happen to share
-  those type names.
+  edges (v0.1 types).  Old graphs produced before v0.3 may contain
+  :HAS_SUBJECT_MENTION and :HAS_OBJECT_MENTION edges (v0.2 types).
+  All of these relationship types are retired and replaced by :HAS_PARTICIPANT
+  (v0.3).  In a clean, demo-owned database the DETACH DELETE of
+  ExtractedClaim/EntityMention nodes is sufficient to remove these stale edges
+  as a side-effect.  The script also issues explicit, scoped DELETE statements
+  as a defense-in-depth / historic safety measure to clean up any such
+  relationships that might remain between non-deleted or non-demo endpoints,
+  and records the count in the reset report under
+  ``stale_participation_edges_deleted``.
 
-  **Old demo graphs (pre-v0.2) are not migratable.**  A full reset followed by
+  **Old demo graphs (pre-v0.3) are not migratable.**  A full reset followed by
   a fresh pipeline run (ingest-pdf → extract-claims → resolve-entities) is the
-  only supported path to a clean v0.2 graph.
+  only supported path to a clean v0.3 graph.
 
 Demo-owned indexes (dropped by name):
   - demo_chunk_embedding_index  (vector index on Chunk.embedding, created by
@@ -120,11 +120,14 @@ def run_reset(
 
     Deletes all nodes with demo-owned labels (and their relationships) using
     ``DETACH DELETE``.  Also explicitly removes any surviving stale
-    :HAS_SUBJECT / :HAS_OBJECT edges left by pre-v0.2 demo runs (these
-    relationship types were retired in v0.2 and replaced by
-    :HAS_SUBJECT_MENTION / :HAS_OBJECT_MENTION; old graphs are
-    **non-migratable** — a full reset + fresh pipeline run is required).
-    Drops each demo-owned index by issuing a direct Cypher
+    pre-v0.3 participation edges left by old demo runs:
+
+    - :HAS_SUBJECT / :HAS_OBJECT (v0.1, retired in v0.2)
+    - :HAS_SUBJECT_MENTION / :HAS_OBJECT_MENTION (v0.2, retired in v0.3)
+
+    These relationship types are all replaced by :HAS_PARTICIPANT (v0.3).
+    Old graphs are **non-migratable** — a full reset + fresh pipeline run is
+    required.  Drops each demo-owned index by issuing a direct Cypher
     ``DROP INDEX <name> IF EXISTS`` statement scoped to *database*
     (idempotent: safe if the index is absent).
 
@@ -147,9 +150,9 @@ def run_reset(
         - ``demo_labels_deleted``: List of node labels targeted by the delete.
         - ``deleted_nodes``: Number of nodes actually removed.
         - ``deleted_relationships``: Number of relationships actually removed.
-        - ``stale_participation_edges_deleted``: Number of surviving pre-v0.2
-          :HAS_SUBJECT / :HAS_OBJECT edges removed (normally 0; non-zero only
-          when a pre-v0.2 graph was not fully cleaned up by the DETACH DELETE).
+        - ``stale_participation_edges_deleted``: Number of surviving pre-v0.3
+          stale participation edges removed (normally 0; non-zero only when a
+          pre-v0.3 graph was not fully cleaned up by the DETACH DELETE).
         - ``indexes_dropped``: Names of indexes that existed and were dropped.
         - ``indexes_not_found``: Names of indexes that were absent (no-op).
         - ``warnings``: Human-readable strings for idempotent no-ops or other
@@ -192,20 +195,20 @@ def run_reset(
         deleted_relationships,
     )
 
-    # ── Stale pre-v0.2 participation edge cleanup ─────────────────────────────
-    # Old demo graphs (before v0.2) may contain :HAS_SUBJECT and :HAS_OBJECT
-    # relationships between ExtractedClaim and EntityMention nodes.  Those
-    # relationship types were retired in v0.2 and replaced by
-    # :HAS_SUBJECT_MENTION and :HAS_OBJECT_MENTION.  The DETACH DELETE above
-    # removes any such relationships attached to demo-owned nodes as a
-    # side-effect of deleting their endpoint nodes, but older graphs may still
-    # contain these obsolete relationships when their endpoints were not
-    # deleted by the label-based wipe. We explicitly clean up any remaining
-    # :HAS_SUBJECT/:HAS_OBJECT relationships here.  Old graphs are
-    # non-migratable; a full reset plus a fresh pipeline run is the only
-    # supported upgrade path.
+    # ── Stale pre-v0.3 participation edge cleanup ─────────────────────────────
+    # Old demo graphs may contain stale participation edges that were not
+    # removed by the DETACH DELETE above (e.g. when their endpoints were not
+    # among the deleted labels).  Two generations of stale types are covered:
+    #
+    #   v0.1 types: :HAS_SUBJECT / :HAS_OBJECT
+    #     Retired in v0.2 and replaced by :HAS_SUBJECT_MENTION/:HAS_OBJECT_MENTION.
+    #   v0.2 types: :HAS_SUBJECT_MENTION / :HAS_OBJECT_MENTION
+    #     Retired in v0.3 and replaced by :HAS_PARTICIPANT {role}.
+    #
+    # Both are cleaned up here.  Old graphs are non-migratable; a full reset
+    # plus a fresh pipeline run is the only supported upgrade path.
     _stale_query = (
-        "MATCH (c:ExtractedClaim)-[r:HAS_SUBJECT|HAS_OBJECT]->(m:EntityMention) DELETE r"
+        "MATCH (c:ExtractedClaim)-[r:HAS_SUBJECT|HAS_OBJECT|HAS_SUBJECT_MENTION|HAS_OBJECT_MENTION]->(m:EntityMention) DELETE r"
     )
     with driver.session(database=database) as _stale_session:
         _stale_result = _stale_session.run(_stale_query)
@@ -214,14 +217,15 @@ def run_reset(
 
     if stale_participation_edges_deleted > 0:
         warnings_list.append(
-            f"Removed {stale_participation_edges_deleted} stale pre-v0.2 :HAS_SUBJECT/:HAS_OBJECT "
-            "participation edge(s).  These relationship types were retired in v0.2 and replaced by "
-            ":HAS_SUBJECT_MENTION/:HAS_OBJECT_MENTION.  Old demo graphs are non-migratable — "
+            f"Removed {stale_participation_edges_deleted} stale pre-v0.3 participation "
+            "edge(s) (:HAS_SUBJECT, :HAS_OBJECT, :HAS_SUBJECT_MENTION, or "
+            ":HAS_OBJECT_MENTION).  These relationship types were retired prior to v0.3 and "
+            "replaced by :HAS_PARTICIPANT {role}.  Old demo graphs are non-migratable — "
             "a full reset followed by a fresh pipeline run is required."
         )
 
     logger.info(
-        "Stale pre-v0.2 participation edge cleanup: stale_deleted=%d",
+        "Stale pre-v0.3 participation edge cleanup: stale_deleted=%d",
         stale_participation_edges_deleted,
     )
 

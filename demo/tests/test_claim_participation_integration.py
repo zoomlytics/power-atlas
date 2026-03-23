@@ -23,11 +23,12 @@ import unittest
 from typing import Any
 
 from demo.stages.claim_participation import (
-    EDGE_TYPE_HAS_OBJECT,
-    EDGE_TYPE_HAS_SUBJECT,
+    EDGE_TYPE_HAS_PARTICIPANT,
     MATCH_METHOD_CASEFOLD_EXACT,
     MATCH_METHOD_NORMALIZED_EXACT,
     MATCH_METHOD_RAW_EXACT,
+    ROLE_OBJECT,
+    ROLE_SUBJECT,
     build_participation_edges,
     write_participation_edges,
 )
@@ -53,6 +54,10 @@ class InMemoryGraphDb:
 
     Edge properties follow the same ``coalesce`` rule as the real Cypher:
     ``source_uri`` keeps its existing value when the new value is ``None``.
+
+    v0.3 model: edges are keyed by ``(claim_id, run_id, rel_type, role, mention_id)``
+    where ``role`` is the ``role`` property on the :HAS_PARTICIPANT edge
+    (``"subject"``, ``"object"``, etc.).
     """
 
     def __init__(self) -> None:
@@ -60,9 +65,9 @@ class InMemoryGraphDb:
         self._claims: dict[tuple[str, str], dict[str, Any]] = {}
         # Mention nodes: key = (mention_id, run_id)
         self._mentions: dict[tuple[str, str], dict[str, Any]] = {}
-        # Edges: key = (claim_id, run_id, rel_type, mention_id)
-        # Value = {run_id, source_uri, match_method}
-        self._edges: dict[tuple[str, str, str, str], dict[str, Any]] = {}
+        # Edges: key = (claim_id, run_id, rel_type, role, mention_id)
+        # Value = {run_id, source_uri, match_method, role}
+        self._edges: dict[tuple[str, str, str, str, str], dict[str, Any]] = {}
 
     # ── node helpers ──────────────────────────────────────────────────────────
 
@@ -92,10 +97,11 @@ class InMemoryGraphDb:
     ) -> Any:
         """Execute a MERGE query and update the in-memory graph state.
 
-        Only the two query patterns emitted by ``write_participation_edges``
-        are recognised; all other queries are ignored (no-op).  The method
-        signature matches ``neo4j.Driver.execute_query`` so no patches are
-        needed in the calling code.
+        Recognises the single :HAS_PARTICIPANT MERGE pattern emitted by
+        ``write_participation_edges`` (v0.3 model).  All other queries are
+        ignored (no-op).  The method signature matches
+        ``neo4j.Driver.execute_query`` so no patches are needed in the
+        calling code.
 
         As a regression guard the method also asserts that every participation
         MERGE query scopes both the claim MATCH and the mention MATCH by
@@ -107,12 +113,9 @@ class InMemoryGraphDb:
         """
         rows: list[dict[str, Any]] = (parameters_ or {}).get("rows", [])
 
-        if "HAS_SUBJECT_MENTION" in query and "MERGE" in query:
+        if "HAS_PARTICIPANT" in query and "MERGE" in query:
             self._assert_query_has_run_id_predicates(query)
-            self._apply_merge(rows, EDGE_TYPE_HAS_SUBJECT)
-        elif "HAS_OBJECT_MENTION" in query and "MERGE" in query:
-            self._assert_query_has_run_id_predicates(query)
-            self._apply_merge(rows, EDGE_TYPE_HAS_OBJECT)
+            self._apply_merge(rows)
 
         # Return a no-op result tuple that matches the neo4j driver's API.
         return ([], None, None)
@@ -162,12 +165,18 @@ class InMemoryGraphDb:
                 "created in real Neo4j.\n\nQuery:\n" + query
             )
 
-    def _apply_merge(self, rows: list[dict[str, Any]], rel_type: str) -> None:
-        """Apply MERGE + SET semantics for one batch of edge rows."""
+    def _apply_merge(self, rows: list[dict[str, Any]]) -> None:
+        """Apply MERGE + SET semantics for a batch of :HAS_PARTICIPANT edge rows.
+
+        The MERGE key is ``(claim_id, run_id, "HAS_PARTICIPANT", role, mention_id)``
+        matching the Cypher ``MERGE (claim)-[r:HAS_PARTICIPANT {role: row.role}]->(mention)``
+        pattern.
+        """
         for row in rows:
             claim_id: str = row["claim_id"]
             mention_id: str = row["mention_id"]
             run_id: str = row["run_id"]
+            role: str = row["role"]
 
             # MATCH pre-condition: both nodes must exist in the graph.
             if (claim_id, run_id) not in self._claims:
@@ -175,7 +184,7 @@ class InMemoryGraphDb:
             if (mention_id, run_id) not in self._mentions:
                 continue
 
-            edge_key = (claim_id, run_id, rel_type, mention_id)
+            edge_key = (claim_id, run_id, EDGE_TYPE_HAS_PARTICIPANT, role, mention_id)
 
             # MERGE: create edge entry only if it does not already exist.
             if edge_key not in self._edges:
@@ -184,6 +193,7 @@ class InMemoryGraphDb:
             props = self._edges[edge_key]
             props["run_id"] = run_id
             props["match_method"] = row["match_method"]
+            props["role"] = role
             # coalesce(row.source_uri, r.source_uri): keep existing value when new is None.
             new_uri = row.get("source_uri")
             existing_uri = props.get("source_uri")
@@ -191,21 +201,52 @@ class InMemoryGraphDb:
 
     # ── query helpers ─────────────────────────────────────────────────────────
 
-    def count_edges(self, rel_type: str | None = None) -> int:
-        """Return the total number of edges, optionally filtered by *rel_type*."""
-        if rel_type is None:
-            return len(self._edges)
-        return sum(1 for (_, _, rt, _) in self._edges if rt == rel_type)
+    def count_edges(self, rel_type: str | None = None, role: str | None = None) -> int:
+        """Return the total number of edges, optionally filtered by *rel_type* and/or *role*."""
+        result = 0
+        for (_, _, rt, r, _) in self._edges:
+            if rel_type is not None and rt != rel_type:
+                continue
+            if role is not None and r != role:
+                continue
+            result += 1
+        return result
 
-    def has_edge(self, claim_id: str, rel_type: str, mention_id: str, run_id: str) -> bool:
-        """Return True if the specified edge exists in the graph."""
-        return (claim_id, run_id, rel_type, mention_id) in self._edges
+    def has_edge(
+        self,
+        claim_id: str,
+        rel_type: str,
+        mention_id: str,
+        run_id: str,
+        role: str = "",
+    ) -> bool:
+        """Return True if the specified edge exists in the graph.
+
+        For :HAS_PARTICIPANT edges, *role* is required to distinguish subject
+        from object edges.  Pass ``role=ROLE_SUBJECT`` or ``role=ROLE_OBJECT``.
+        """
+        if rel_type == EDGE_TYPE_HAS_PARTICIPANT and not role:
+            raise ValueError(
+                "role is required when querying HAS_PARTICIPANT edges; "
+                "pass ROLE_SUBJECT or ROLE_OBJECT explicitly."
+            )
+        return (claim_id, run_id, rel_type, role, mention_id) in self._edges
 
     def get_edge_properties(
-        self, claim_id: str, rel_type: str, mention_id: str, run_id: str
+        self,
+        claim_id: str,
+        rel_type: str,
+        mention_id: str,
+        run_id: str,
+        role: str = "",
     ) -> dict[str, Any] | None:
         """Return a shallow copy of the property dict for an edge, or None if it does not exist."""
-        props = self._edges.get((claim_id, run_id, rel_type, mention_id))
+        if rel_type == EDGE_TYPE_HAS_PARTICIPANT and not role:
+            raise ValueError(
+                "role is required when querying HAS_PARTICIPANT edges; "
+                "pass ROLE_SUBJECT or ROLE_OBJECT explicitly."
+            )
+        props = self._edges.get((claim_id, run_id, rel_type, role, mention_id))
         if props is None:
             return None
         # Return a shallow copy to avoid exposing internal mutable state.
@@ -299,7 +340,7 @@ class TestEdgeScopingIntegration(unittest.TestCase):
         _run_full(db, claims, mentions)
 
         self.assertEqual(db.count_edges(), 1)
-        self.assertTrue(db.has_edge("c1", EDGE_TYPE_HAS_SUBJECT, "m-google", "run-1"))
+        self.assertTrue(db.has_edge("c1", EDGE_TYPE_HAS_PARTICIPANT, "m-google", "run-1", role=ROLE_SUBJECT))
 
     def test_no_edge_when_mention_is_in_different_chunk(self):
         """Negative: mention exists in chunk-2 but claim is in chunk-1 → no edge."""
@@ -330,7 +371,7 @@ class TestEdgeScopingIntegration(unittest.TestCase):
         _run_full(db, claims, mentions)
 
         self.assertEqual(db.count_edges(), 1)
-        self.assertTrue(db.has_edge("c1", EDGE_TYPE_HAS_SUBJECT, "m-ibm", "run-1"))
+        self.assertTrue(db.has_edge("c1", EDGE_TYPE_HAS_PARTICIPANT, "m-ibm", "run-1", role=ROLE_SUBJECT))
 
     def test_subject_and_object_edges_for_same_chunk(self):
         """Both subject and object slots match mentions in the same chunk → 2 edges."""
@@ -346,10 +387,10 @@ class TestEdgeScopingIntegration(unittest.TestCase):
         ]
         _run_full(db, claims, mentions)
 
-        self.assertEqual(db.count_edges(EDGE_TYPE_HAS_SUBJECT), 1)
-        self.assertEqual(db.count_edges(EDGE_TYPE_HAS_OBJECT), 1)
-        self.assertTrue(db.has_edge("c1", EDGE_TYPE_HAS_SUBJECT, "m-google", "run-1"))
-        self.assertTrue(db.has_edge("c1", EDGE_TYPE_HAS_OBJECT, "m-revenue", "run-1"))
+        self.assertEqual(db.count_edges(EDGE_TYPE_HAS_PARTICIPANT, role=ROLE_SUBJECT), 1)
+        self.assertEqual(db.count_edges(EDGE_TYPE_HAS_PARTICIPANT, role=ROLE_OBJECT), 1)
+        self.assertTrue(db.has_edge("c1", EDGE_TYPE_HAS_PARTICIPANT, "m-google", "run-1", role=ROLE_SUBJECT))
+        self.assertTrue(db.has_edge("c1", EDGE_TYPE_HAS_PARTICIPANT, "m-revenue", "run-1", role=ROLE_OBJECT))
 
     def test_duplicate_text_in_other_chunk_does_not_create_edge(self):
         """Same mention name in a different chunk must not link to a claim in chunk-1."""
@@ -370,7 +411,7 @@ class TestEdgeScopingIntegration(unittest.TestCase):
 
         self.assertEqual(len(edge_rows), 1)
         self.assertEqual(edge_rows[0]["mention_id"], "m-chunk1")
-        self.assertFalse(db.has_edge("c1", EDGE_TYPE_HAS_SUBJECT, "m-chunk2", "run-1"))
+        self.assertFalse(db.has_edge("c1", EDGE_TYPE_HAS_PARTICIPANT, "m-chunk2", "run-1", role=ROLE_SUBJECT))
 
 
 # ---------------------------------------------------------------------------
@@ -413,7 +454,7 @@ class TestMergeIdempotencyIntegration(unittest.TestCase):
         for _ in range(10):
             write_participation_edges(db, neo4j_database="neo4j", edge_rows=edge_rows)
 
-        self.assertEqual(db.count_edges(EDGE_TYPE_HAS_SUBJECT), 1)
+        self.assertEqual(db.count_edges(EDGE_TYPE_HAS_PARTICIPANT, role=ROLE_SUBJECT), 1)
 
     def test_writing_empty_edge_rows_does_not_add_edges(self):
         """write_participation_edges with no rows must leave the graph unchanged."""
@@ -450,11 +491,11 @@ class TestPropertyStabilityIntegration(unittest.TestCase):
 
         edge_rows = build_participation_edges(claims, mentions)
         write_participation_edges(db, neo4j_database="neo4j", edge_rows=edge_rows)
-        props_first = db.get_edge_properties("c1", EDGE_TYPE_HAS_SUBJECT, "m1", "run-1")
+        props_first = db.get_edge_properties("c1", EDGE_TYPE_HAS_PARTICIPANT, "m1", "run-1", role=ROLE_SUBJECT)
         self.assertIsNotNone(props_first)
 
         write_participation_edges(db, neo4j_database="neo4j", edge_rows=edge_rows)
-        props_second = db.get_edge_properties("c1", EDGE_TYPE_HAS_SUBJECT, "m1", "run-1")
+        props_second = db.get_edge_properties("c1", EDGE_TYPE_HAS_PARTICIPANT, "m1", "run-1", role=ROLE_SUBJECT)
         self.assertIsNotNone(props_second)
 
         self.assertEqual(props_first["match_method"], props_second["match_method"])
@@ -473,8 +514,9 @@ class TestPropertyStabilityIntegration(unittest.TestCase):
                 "run_id": "run-1",
                 "source_uri": "uri://original",
                 "slot": "subject",
+                "role": ROLE_SUBJECT,
                 "match_method": MATCH_METHOD_RAW_EXACT,
-                "edge_type": EDGE_TYPE_HAS_SUBJECT,
+                "edge_type": EDGE_TYPE_HAS_PARTICIPANT,
             }
         ]
         second_row = [
@@ -484,15 +526,16 @@ class TestPropertyStabilityIntegration(unittest.TestCase):
                 "run_id": "run-1",
                 "source_uri": None,  # no new URI supplied on rerun
                 "slot": "subject",
+                "role": ROLE_SUBJECT,
                 "match_method": MATCH_METHOD_RAW_EXACT,
-                "edge_type": EDGE_TYPE_HAS_SUBJECT,
+                "edge_type": EDGE_TYPE_HAS_PARTICIPANT,
             }
         ]
 
         write_participation_edges(db, neo4j_database="neo4j", edge_rows=first_row)
         write_participation_edges(db, neo4j_database="neo4j", edge_rows=second_row)
 
-        props = db.get_edge_properties("c1", EDGE_TYPE_HAS_SUBJECT, "m1", "run-1")
+        props = db.get_edge_properties("c1", EDGE_TYPE_HAS_PARTICIPANT, "m1", "run-1", role=ROLE_SUBJECT)
         self.assertIsNotNone(props)
         self.assertEqual(props["source_uri"], "uri://original")
 
@@ -509,7 +552,7 @@ class TestPropertyStabilityIntegration(unittest.TestCase):
         for _ in range(3):
             write_participation_edges(db, neo4j_database="neo4j", edge_rows=edge_rows)
 
-        props = db.get_edge_properties("c1", EDGE_TYPE_HAS_SUBJECT, "m-un", "run-1")
+        props = db.get_edge_properties("c1", EDGE_TYPE_HAS_PARTICIPANT, "m-un", "run-1", role=ROLE_SUBJECT)
         self.assertIsNotNone(props)
         self.assertEqual(props["match_method"], MATCH_METHOD_CASEFOLD_EXACT)
 
@@ -526,7 +569,7 @@ class TestPropertyStabilityIntegration(unittest.TestCase):
         for _ in range(3):
             write_participation_edges(db, neo4j_database="neo4j", edge_rows=edge_rows)
 
-        props = db.get_edge_properties("c1", EDGE_TYPE_HAS_SUBJECT, "m1", "run-1")
+        props = db.get_edge_properties("c1", EDGE_TYPE_HAS_PARTICIPANT, "m1", "run-1", role=ROLE_SUBJECT)
         self.assertIsNotNone(props)
         self.assertEqual(props["match_method"], MATCH_METHOD_NORMALIZED_EXACT)
 
@@ -541,7 +584,7 @@ class TestPropertyStabilityIntegration(unittest.TestCase):
         edge_rows = build_participation_edges(claims, mentions)
         write_participation_edges(db, neo4j_database="neo4j", edge_rows=edge_rows)
 
-        props = db.get_edge_properties("c1", EDGE_TYPE_HAS_SUBJECT, "m1", "run-demo")
+        props = db.get_edge_properties("c1", EDGE_TYPE_HAS_PARTICIPANT, "m1", "run-demo", role=ROLE_SUBJECT)
         self.assertIsNotNone(props)
         self.assertEqual(props["run_id"], "run-demo")
 
@@ -596,8 +639,8 @@ class TestResetRerunCycleIntegration(unittest.TestCase):
 
         db.clear_all()
         self.assertEqual(db.count_edges(), 0)
-        self.assertFalse(db.has_edge("c1", EDGE_TYPE_HAS_SUBJECT, "m-google", "run-1"))
-        self.assertFalse(db.has_edge("c1", EDGE_TYPE_HAS_OBJECT, "m-revenue", "run-1"))
+        self.assertFalse(db.has_edge("c1", EDGE_TYPE_HAS_PARTICIPANT, "m-google", "run-1", role=ROLE_SUBJECT))
+        self.assertFalse(db.has_edge("c1", EDGE_TYPE_HAS_PARTICIPANT, "m-revenue", "run-1", role=ROLE_OBJECT))
 
     def test_rerun_after_reset_creates_correct_edges(self):
         """After reset + rerun, exactly the expected edges exist — no extras."""
@@ -608,8 +651,8 @@ class TestResetRerunCycleIntegration(unittest.TestCase):
         self._build_graph(db)
         _run_full(db, claims, mentions)
 
-        self.assertTrue(db.has_edge("c1", EDGE_TYPE_HAS_SUBJECT, "m-google", "run-1"))
-        self.assertTrue(db.has_edge("c1", EDGE_TYPE_HAS_OBJECT, "m-revenue", "run-1"))
+        self.assertTrue(db.has_edge("c1", EDGE_TYPE_HAS_PARTICIPANT, "m-google", "run-1", role=ROLE_SUBJECT))
+        self.assertTrue(db.has_edge("c1", EDGE_TYPE_HAS_PARTICIPANT, "m-revenue", "run-1", role=ROLE_OBJECT))
         self.assertEqual(db.count_edges(), 2)
 
     def test_second_rerun_without_reset_does_not_add_edges(self):
@@ -640,11 +683,11 @@ class TestResetRerunCycleIntegration(unittest.TestCase):
         _run_full(db, claims_v2, mentions_v2)
 
         # Each run produces its own isolated edge.
-        self.assertTrue(db.has_edge("c1", EDGE_TYPE_HAS_SUBJECT, "m-v1", "run-v1"))
-        self.assertTrue(db.has_edge("c1", EDGE_TYPE_HAS_SUBJECT, "m-v2", "run-v2"))
+        self.assertTrue(db.has_edge("c1", EDGE_TYPE_HAS_PARTICIPANT, "m-v1", "run-v1", role=ROLE_SUBJECT))
+        self.assertTrue(db.has_edge("c1", EDGE_TYPE_HAS_PARTICIPANT, "m-v2", "run-v2", role=ROLE_SUBJECT))
         # No cross-run contamination: run-v1 claim must not link run-v2 mention.
-        self.assertFalse(db.has_edge("c1", EDGE_TYPE_HAS_SUBJECT, "m-v2", "run-v1"))
-        self.assertFalse(db.has_edge("c1", EDGE_TYPE_HAS_SUBJECT, "m-v1", "run-v2"))
+        self.assertFalse(db.has_edge("c1", EDGE_TYPE_HAS_PARTICIPANT, "m-v2", "run-v1", role=ROLE_SUBJECT))
+        self.assertFalse(db.has_edge("c1", EDGE_TYPE_HAS_PARTICIPANT, "m-v1", "run-v2", role=ROLE_SUBJECT))
 
 
 # ---------------------------------------------------------------------------
@@ -668,8 +711,9 @@ class TestOrphanEdgePreventionIntegration(unittest.TestCase):
                 "run_id": "run-1",
                 "source_uri": "uri://test",
                 "slot": "subject",
+                "role": ROLE_SUBJECT,
                 "match_method": MATCH_METHOD_RAW_EXACT,
-                "edge_type": EDGE_TYPE_HAS_SUBJECT,
+                "edge_type": EDGE_TYPE_HAS_PARTICIPANT,
             }
         ]
         write_participation_edges(db, neo4j_database="neo4j", edge_rows=edge_rows)
@@ -687,8 +731,9 @@ class TestOrphanEdgePreventionIntegration(unittest.TestCase):
                 "run_id": "run-1",
                 "source_uri": "uri://test",
                 "slot": "object",
+                "role": ROLE_OBJECT,
                 "match_method": MATCH_METHOD_RAW_EXACT,
-                "edge_type": EDGE_TYPE_HAS_OBJECT,
+                "edge_type": EDGE_TYPE_HAS_PARTICIPANT,
             }
         ]
         write_participation_edges(db, neo4j_database="neo4j", edge_rows=edge_rows)
@@ -708,8 +753,9 @@ class TestOrphanEdgePreventionIntegration(unittest.TestCase):
                 "run_id": "run-B",
                 "source_uri": None,
                 "slot": "subject",
+                "role": ROLE_SUBJECT,
                 "match_method": MATCH_METHOD_RAW_EXACT,
-                "edge_type": EDGE_TYPE_HAS_SUBJECT,
+                "edge_type": EDGE_TYPE_HAS_PARTICIPANT,
             }
         ]
         write_participation_edges(db, neo4j_database="neo4j", edge_rows=edge_rows)
@@ -752,8 +798,9 @@ class TestCrossRunContaminationIntegration(unittest.TestCase):
                 "run_id": "run-A",
                 "source_uri": None,
                 "slot": "subject",
+                "role": ROLE_SUBJECT,
                 "match_method": MATCH_METHOD_RAW_EXACT,
-                "edge_type": EDGE_TYPE_HAS_SUBJECT,
+                "edge_type": EDGE_TYPE_HAS_PARTICIPANT,
             }
         ]
         write_participation_edges(db, neo4j_database="neo4j", edge_rows=edge_rows)
@@ -779,11 +826,11 @@ class TestCrossRunContaminationIntegration(unittest.TestCase):
         _run_full(db, claims, mentions)
 
         # Each run must have exactly one edge pointing to its own mention.
-        self.assertTrue(db.has_edge("c-A", EDGE_TYPE_HAS_SUBJECT, "m-A", "run-A"))
-        self.assertTrue(db.has_edge("c-B", EDGE_TYPE_HAS_SUBJECT, "m-B", "run-B"))
+        self.assertTrue(db.has_edge("c-A", EDGE_TYPE_HAS_PARTICIPANT, "m-A", "run-A", role=ROLE_SUBJECT))
+        self.assertTrue(db.has_edge("c-B", EDGE_TYPE_HAS_PARTICIPANT, "m-B", "run-B", role=ROLE_SUBJECT))
         # No cross-run edges.
-        self.assertFalse(db.has_edge("c-A", EDGE_TYPE_HAS_SUBJECT, "m-B", "run-A"))
-        self.assertFalse(db.has_edge("c-B", EDGE_TYPE_HAS_SUBJECT, "m-A", "run-B"))
+        self.assertFalse(db.has_edge("c-A", EDGE_TYPE_HAS_PARTICIPANT, "m-B", "run-A", role=ROLE_SUBJECT))
+        self.assertFalse(db.has_edge("c-B", EDGE_TYPE_HAS_PARTICIPANT, "m-A", "run-B", role=ROLE_SUBJECT))
         self.assertEqual(db.count_edges(), 2)
 
 

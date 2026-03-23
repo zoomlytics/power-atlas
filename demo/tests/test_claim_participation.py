@@ -8,11 +8,12 @@ from unittest.mock import MagicMock
 import neo4j
 
 from demo.stages.claim_participation import (
-    EDGE_TYPE_HAS_OBJECT,
-    EDGE_TYPE_HAS_SUBJECT,
+    EDGE_TYPE_HAS_PARTICIPANT,
     MATCH_METHOD_CASEFOLD_EXACT,
     MATCH_METHOD_NORMALIZED_EXACT,
     MATCH_METHOD_RAW_EXACT,
+    ROLE_OBJECT,
+    ROLE_SUBJECT,
     build_participation_edges,
     match_slot_to_mention,
     write_participation_edges,
@@ -301,10 +302,12 @@ class TestBuildParticipationEdges(unittest.TestCase):
         subj = next(e for e in edges if e["slot"] == "subject")
         obj_ = next(e for e in edges if e["slot"] == "object")
         self.assertEqual(subj["mention_id"], "m-google")
-        self.assertEqual(subj["edge_type"], EDGE_TYPE_HAS_SUBJECT)
+        self.assertEqual(subj["edge_type"], EDGE_TYPE_HAS_PARTICIPANT)
+        self.assertEqual(subj["role"], ROLE_SUBJECT)
         self.assertEqual(subj["match_method"], MATCH_METHOD_RAW_EXACT)
         self.assertEqual(obj_["mention_id"], "m-revenue")
-        self.assertEqual(obj_["edge_type"], EDGE_TYPE_HAS_OBJECT)
+        self.assertEqual(obj_["edge_type"], EDGE_TYPE_HAS_PARTICIPANT)
+        self.assertEqual(obj_["role"], ROLE_OBJECT)
 
     def test_no_subject_or_object_slot(self):
         mentions = [_mention("Google", "m1")]
@@ -465,8 +468,9 @@ class TestWriteParticipationEdges(unittest.TestCase):
                 "run_id": "run-1",
                 "source_uri": "uri://test",
                 "slot": "subject",
+                "role": ROLE_SUBJECT,
                 "match_method": MATCH_METHOD_RAW_EXACT,
-                "edge_type": EDGE_TYPE_HAS_SUBJECT,
+                "edge_type": EDGE_TYPE_HAS_PARTICIPANT,
             },
             {
                 "claim_id": "c1",
@@ -474,12 +478,14 @@ class TestWriteParticipationEdges(unittest.TestCase):
                 "run_id": "run-1",
                 "source_uri": "uri://test",
                 "slot": "object",
+                "role": ROLE_OBJECT,
                 "match_method": MATCH_METHOD_CASEFOLD_EXACT,
-                "edge_type": EDGE_TYPE_HAS_OBJECT,
+                "edge_type": EDGE_TYPE_HAS_PARTICIPANT,
             },
         ]
         write_participation_edges(driver, neo4j_database="neo4j", edge_rows=edge_rows)
-        self.assertEqual(driver.execute_query.call_count, 2)
+        # v0.3 model: single execute_query call for all rows regardless of role.
+        self.assertEqual(driver.execute_query.call_count, 1)
 
     def test_write_only_subject_edges(self):
         driver = _make_driver()
@@ -490,8 +496,9 @@ class TestWriteParticipationEdges(unittest.TestCase):
                 "run_id": "run-1",
                 "source_uri": None,
                 "slot": "subject",
+                "role": ROLE_SUBJECT,
                 "match_method": MATCH_METHOD_NORMALIZED_EXACT,
-                "edge_type": EDGE_TYPE_HAS_SUBJECT,
+                "edge_type": EDGE_TYPE_HAS_PARTICIPANT,
             }
         ]
         write_participation_edges(driver, neo4j_database="neo4j", edge_rows=edge_rows)
@@ -506,8 +513,9 @@ class TestWriteParticipationEdges(unittest.TestCase):
                 "run_id": "run-1",
                 "source_uri": None,
                 "slot": "object",
+                "role": ROLE_OBJECT,
                 "match_method": MATCH_METHOD_NORMALIZED_EXACT,
-                "edge_type": EDGE_TYPE_HAS_OBJECT,
+                "edge_type": EDGE_TYPE_HAS_PARTICIPANT,
             }
         ]
         write_participation_edges(driver, neo4j_database="neo4j", edge_rows=edge_rows)
@@ -527,8 +535,9 @@ class TestWriteParticipationEdges(unittest.TestCase):
                 "run_id": "run-1",
                 "source_uri": "uri://x",
                 "slot": "subject",
+                "role": ROLE_SUBJECT,
                 "match_method": MATCH_METHOD_RAW_EXACT,
-                "edge_type": EDGE_TYPE_HAS_SUBJECT,
+                "edge_type": EDGE_TYPE_HAS_PARTICIPANT,
             }
         ]
         write_participation_edges(driver, neo4j_database="neo4j", edge_rows=edge_rows)
@@ -902,8 +911,9 @@ class TestWriteParticipationEdgesIdempotency(unittest.TestCase):
             "run_id": "run-1",
             "source_uri": "uri://test",
             "slot": "subject",
+            "role": ROLE_SUBJECT,
             "match_method": MATCH_METHOD_RAW_EXACT,
-            "edge_type": EDGE_TYPE_HAS_SUBJECT,
+            "edge_type": EDGE_TYPE_HAS_PARTICIPANT,
         }
 
     def _object_row(self, claim_id: str = "c1", mention_id: str = "m2") -> dict:
@@ -913,8 +923,9 @@ class TestWriteParticipationEdgesIdempotency(unittest.TestCase):
             "run_id": "run-1",
             "source_uri": "uri://test",
             "slot": "object",
+            "role": ROLE_OBJECT,
             "match_method": MATCH_METHOD_CASEFOLD_EXACT,
-            "edge_type": EDGE_TYPE_HAS_OBJECT,
+            "edge_type": EDGE_TYPE_HAS_PARTICIPANT,
         }
 
     def test_calling_twice_issues_same_number_of_queries(self):
@@ -937,13 +948,14 @@ class TestWriteParticipationEdgesIdempotency(unittest.TestCase):
         self.assertEqual(first_rows, second_rows)
 
     def test_subject_and_object_idempotent_together(self):
-        # Two calls with both subject and object rows → 4 total execute_query calls.
+        # v0.3 model: a single execute_query call covers all rows.
+        # Two calls → 2 total execute_query calls.
         driver = _make_driver()
         edge_rows = [self._subject_row(), self._object_row()]
         write_participation_edges(driver, neo4j_database="neo4j", edge_rows=edge_rows)
-        self.assertEqual(driver.execute_query.call_count, 2)
+        self.assertEqual(driver.execute_query.call_count, 1)
         write_participation_edges(driver, neo4j_database="neo4j", edge_rows=edge_rows)
-        self.assertEqual(driver.execute_query.call_count, 4)
+        self.assertEqual(driver.execute_query.call_count, 2)
 
     def test_empty_edge_rows_no_queries_on_rerun(self):
         driver = _make_driver()

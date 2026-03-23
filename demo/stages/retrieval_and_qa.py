@@ -42,11 +42,11 @@ RETURN c.text AS chunk_text,
 # context via optional graph traversal from the retrieved Chunk node.
 # Pattern comprehensions are used for each expansion target to avoid row multiplication
 # (cartesian products) that would result from chained OPTIONAL MATCH clauses.
-# claim_details extends the flat claims list by traversing HAS_SUBJECT_MENTION and
-# HAS_OBJECT_MENTION edges so each claim map carries explicit subject/object mention
-# name and match_method (raw_exact | casefold_exact | normalized_exact).  The [0]
-# index picks the first (and typically unique) participation edge per slot; null is
-# returned when no participation edge exists for that slot.
+# claim_details extends the flat claims list by traversing HAS_PARTICIPANT edges so each
+# claim map carries explicit subject/object mention name and match_method
+# (raw_exact | casefold_exact | normalized_exact).  The [0] index picks the first (and
+# typically unique) participation edge per role; null is returned when no participation
+# edge exists for that role.
 _RETRIEVAL_QUERY_WITH_EXPANSION = """
 WITH node AS c, score
 WHERE c.run_id = $run_id
@@ -54,8 +54,8 @@ WHERE c.run_id = $run_id
 WITH c, score,
      [(c)<-[:SUPPORTED_BY]-(claim:ExtractedClaim) WHERE claim.run_id = $run_id |
          {claim_text: claim.claim_text,
-          subject_mention: [(claim)-[sr:HAS_SUBJECT_MENTION]->(sm:EntityMention) | {name: sm.name, match_method: sr.match_method}][0],
-          object_mention: [(claim)-[or_:HAS_OBJECT_MENTION]->(om:EntityMention) | {name: om.name, match_method: or_.match_method}][0]}
+          subject_mention: [(claim)-[sr:HAS_PARTICIPANT {role: 'subject'}]->(sm:EntityMention) | {name: sm.name, match_method: sr.match_method}][0],
+          object_mention: [(claim)-[or_:HAS_PARTICIPANT {role: 'object'}]->(om:EntityMention) | {name: om.name, match_method: or_.match_method}][0]}
      ] AS claim_details
 RETURN c.text AS chunk_text,
        c.chunk_id AS chunk_id,
@@ -96,8 +96,8 @@ WHERE ($source_uri IS NULL OR c.source_uri = $source_uri)
 WITH c, score,
      [(c)<-[:SUPPORTED_BY]-(claim:ExtractedClaim) |
          {claim_text: claim.claim_text,
-          subject_mention: [(claim)-[sr:HAS_SUBJECT_MENTION]->(sm:EntityMention) | {name: sm.name, match_method: sr.match_method}][0],
-          object_mention: [(claim)-[or_:HAS_OBJECT_MENTION]->(om:EntityMention) | {name: om.name, match_method: or_.match_method}][0]}
+          subject_mention: [(claim)-[sr:HAS_PARTICIPANT {role: 'subject'}]->(sm:EntityMention) | {name: sm.name, match_method: sr.match_method}][0],
+          object_mention: [(claim)-[or_:HAS_PARTICIPANT {role: 'object'}]->(om:EntityMention) | {name: om.name, match_method: or_.match_method}][0]}
      ] AS claim_details
 RETURN c.text AS chunk_text,
        c.chunk_id AS chunk_id,
@@ -128,8 +128,8 @@ WHERE c.run_id = $run_id
 WITH c, score,
      [(c)<-[:SUPPORTED_BY]-(claim:ExtractedClaim) WHERE claim.run_id = $run_id |
          {claim_text: claim.claim_text,
-          subject_mention: [(claim)-[sr:HAS_SUBJECT_MENTION]->(sm:EntityMention) | {name: sm.name, match_method: sr.match_method}][0],
-          object_mention: [(claim)-[or_:HAS_OBJECT_MENTION]->(om:EntityMention) | {name: om.name, match_method: or_.match_method}][0]}
+          subject_mention: [(claim)-[sr:HAS_PARTICIPANT {role: 'subject'}]->(sm:EntityMention) | {name: sm.name, match_method: sr.match_method}][0],
+          object_mention: [(claim)-[or_:HAS_PARTICIPANT {role: 'object'}]->(om:EntityMention) | {name: om.name, match_method: or_.match_method}][0]}
      ] AS claim_details
 RETURN c.text AS chunk_text,
        c.chunk_id AS chunk_id,
@@ -153,8 +153,8 @@ WHERE ($source_uri IS NULL OR c.source_uri = $source_uri)
 WITH c, score,
      [(c)<-[:SUPPORTED_BY]-(claim:ExtractedClaim) |
          {claim_text: claim.claim_text,
-          subject_mention: [(claim)-[sr:HAS_SUBJECT_MENTION]->(sm:EntityMention) | {name: sm.name, match_method: sr.match_method}][0],
-          object_mention: [(claim)-[or_:HAS_OBJECT_MENTION]->(om:EntityMention) | {name: om.name, match_method: or_.match_method}][0]}
+          subject_mention: [(claim)-[sr:HAS_PARTICIPANT {role: 'subject'}]->(sm:EntityMention) | {name: sm.name, match_method: sr.match_method}][0],
+          object_mention: [(claim)-[or_:HAS_PARTICIPANT {role: 'object'}]->(om:EntityMention) | {name: om.name, match_method: or_.match_method}][0]}
      ] AS claim_details
 RETURN c.text AS chunk_text,
        c.chunk_id AS chunk_id,
@@ -531,9 +531,10 @@ def _format_claim_details(claim_details: list[dict[str, object]]) -> str:
     """Format structured claim details (with explicit subject/object mentions) for LLM context.
 
     For each claim, renders the claim text together with the explicitly matched subject
-    and object mentions reached via ``HAS_SUBJECT_MENTION`` / ``HAS_OBJECT_MENTION``
-    participation edges.  When a slot has no participation edge the slot is omitted from
-    the rendered line rather than falling back to chunk co-location heuristics.
+    and object mentions reached via ``HAS_PARTICIPANT {role: 'subject' | 'object'}``
+    participation edges (v0.3 model).  When a slot has no participation edge the slot
+    is omitted from the rendered line rather than falling back to chunk co-location
+    heuristics.
 
     The section is labelled so the LLM can treat the explicit role assignments as
     first-class evidence rather than positional guesses.
@@ -582,8 +583,8 @@ def _chunk_citation_formatter(record: neo4j.Record) -> RetrieverResultItem:
     and preserves all citation-relevant fields in metadata (for downstream citation mapping).
 
     When the graph-expanded retrieval query was used, structured claim details (including
-    explicit subject/object mention names and match methods via HAS_SUBJECT_MENTION /
-    HAS_OBJECT_MENTION participation edges) are appended to the content so the LLM can
+    explicit subject/object mention names and match methods via HAS_PARTICIPANT {role}
+    participation edges) are appended to the content so the LLM can
     reason about claim roles precisely. The claim context section appears when claim_details
     include claim text; explicit subject/object role annotations are only shown for slots
     that have participation edges (no fallback to chunk co-location heuristics).
@@ -633,7 +634,7 @@ def _chunk_citation_formatter(record: neo4j.Record) -> RetrieverResultItem:
     }
 
     # Build claim context section when the graph-expanded query returned claim_details.
-    # Explicit subject/object mentions (via HAS_SUBJECT_MENTION / HAS_OBJECT_MENTION) are
+    # Explicit subject/object mentions (via HAS_PARTICIPANT {role} edges) are
     # surfaced so the LLM can reason about claim roles precisely.  When no participation
     # edges exist for a claim the slot is simply omitted — no chunk co-location fallback.
     claim_details_raw = record.get("claim_details")
@@ -675,7 +676,7 @@ def _chunk_citation_formatter(record: neo4j.Record) -> RetrieverResultItem:
         value = record.get(field)
         if value is not None:
             metadata[field] = value
-    # Include claim_details when the expanded retrieval query was used (v0.2 participation edges).
+    # Include claim_details when the expanded retrieval query was used (v0.3 participation edges).
     if claim_details_raw is not None:
         metadata["claim_details"] = claim_details
     # Include cluster fields when the cluster-aware retrieval query was used.

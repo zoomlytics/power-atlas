@@ -90,8 +90,8 @@ def run_claim_and_mention_extraction(config: Any, *, run_id: str, source_uri: st
     import neo4j
     from demo.extraction_utils import prepare_extracted_rows, write_all_extraction_data
     from demo.stages.claim_participation import (
-        EDGE_TYPE_HAS_OBJECT,
-        EDGE_TYPE_HAS_SUBJECT,
+        ROLE_OBJECT,
+        ROLE_SUBJECT,
         build_participation_edges,
     )
 
@@ -126,8 +126,8 @@ def run_claim_and_mention_extraction(config: Any, *, run_id: str, source_uri: st
 
     all_extracted_rows = claim_rows + mention_rows
     unique_chunk_ids = {chunk_id for row in all_extracted_rows for chunk_id in row["chunk_ids"]}
-    subject_edges = sum(1 for e in edge_rows if e["edge_type"] == EDGE_TYPE_HAS_SUBJECT)
-    object_edges = sum(1 for e in edge_rows if e["edge_type"] == EDGE_TYPE_HAS_OBJECT)
+    subject_edges = sum(1 for e in edge_rows if e["role"] == ROLE_SUBJECT)
+    object_edges = sum(1 for e in edge_rows if e["role"] == ROLE_OBJECT)
     summary = {
         "status": "live",
         "run_id": run_id,
