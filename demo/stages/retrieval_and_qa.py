@@ -791,9 +791,9 @@ def _format_retrieval_path_summary(hits: list[dict[str, object]]) -> str:
     - **Canonical via ALIGNED_WITH**: canonical entities reached transitively via
       ``cluster -[:ALIGNED_WITH]->``, including alignment method and status.
 
-    When a chunk's metadata does not contain ``retrieval_path_diagnostics`` (e.g. when
-    the base retrieval query was used without graph expansion), a note is shown in
-    place of the diagnostic block.
+    In base-retrieval mode (no graph expansion), ``retrieval_path_diagnostics`` is
+    still present in the metadata but contains empty lists; in that case a brief note
+    is shown in place of detailed graph-expansion diagnostics.
 
     Parameters
     ----------
