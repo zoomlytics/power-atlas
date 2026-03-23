@@ -217,7 +217,7 @@ def run_reset(
         warnings_list.append(
             f"Removed {stale_participation_edges_deleted} stale pre-v0.3 participation "
             "edge(s) (:HAS_SUBJECT, :HAS_OBJECT, :HAS_SUBJECT_MENTION, or "
-            ":HAS_OBJECT_MENTION).  These relationship types were retired in v0.3 and "
+            ":HAS_OBJECT_MENTION).  These relationship types were retired prior to v0.3 and "
             "replaced by :HAS_PARTICIPANT {role}.  Old demo graphs are non-migratable — "
             "a full reset followed by a fresh pipeline run is required."
         )

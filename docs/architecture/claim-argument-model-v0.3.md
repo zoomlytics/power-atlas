@@ -183,13 +183,16 @@ These relationship types are retired in v0.3. Old graphs are **not migratable**.
 2. Re-run the full pipeline: `ingest-pdf` → `extract-claims` → `resolve-entities`.
 
 The `demo-reset` command is updated to detect and remove any surviving stale
-`:HAS_SUBJECT_MENTION` / `:HAS_OBJECT_MENTION` edges and to report the count
-under `stale_participation_edges_deleted`.
+participation edges from earlier versions, including both
+`:HAS_SUBJECT_MENTION` / `:HAS_OBJECT_MENTION` (v0.2) and
+`:HAS_SUBJECT` / `:HAS_OBJECT` (pre-v0.2) edges, and to report the total
+count under `stale_participation_edges_deleted`.
 
 ### v0.1 → v0.2 cleanup (unchanged)
 
 Stale `:HAS_SUBJECT` / `:HAS_OBJECT` edges (pre-v0.2) continue to be cleaned
-up by the same `demo-reset` path. No additional changes are required.
+up by this same `demo-reset` path and are included in
+`stale_participation_edges_deleted`. No additional changes are required.
 
 ---
 

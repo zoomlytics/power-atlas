@@ -66,7 +66,7 @@ class InMemoryGraphDb:
         # Mention nodes: key = (mention_id, run_id)
         self._mentions: dict[tuple[str, str], dict[str, Any]] = {}
         # Edges: key = (claim_id, run_id, rel_type, role, mention_id)
-        # Value = {run_id, source_uri, match_method}
+        # Value = {run_id, source_uri, match_method, role}
         self._edges: dict[tuple[str, str, str, str, str], dict[str, Any]] = {}
 
     # ── node helpers ──────────────────────────────────────────────────────────
@@ -225,6 +225,11 @@ class InMemoryGraphDb:
         For :HAS_PARTICIPANT edges, *role* is required to distinguish subject
         from object edges.  Pass ``role=ROLE_SUBJECT`` or ``role=ROLE_OBJECT``.
         """
+        if rel_type == EDGE_TYPE_HAS_PARTICIPANT and not role:
+            raise ValueError(
+                "role is required when querying HAS_PARTICIPANT edges; "
+                "pass ROLE_SUBJECT or ROLE_OBJECT explicitly."
+            )
         return (claim_id, run_id, rel_type, role, mention_id) in self._edges
 
     def get_edge_properties(
@@ -236,6 +241,11 @@ class InMemoryGraphDb:
         role: str = "",
     ) -> dict[str, Any] | None:
         """Return a shallow copy of the property dict for an edge, or None if it does not exist."""
+        if rel_type == EDGE_TYPE_HAS_PARTICIPANT and not role:
+            raise ValueError(
+                "role is required when querying HAS_PARTICIPANT edges; "
+                "pass ROLE_SUBJECT or ROLE_OBJECT explicitly."
+            )
         props = self._edges.get((claim_id, run_id, rel_type, role, mention_id))
         if props is None:
             return None
