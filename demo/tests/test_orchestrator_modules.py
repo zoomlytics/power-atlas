@@ -4690,6 +4690,16 @@ def test_retrieval_and_qa_expand_graph_surfaces_claim_details_in_metadata(tmp_pa
 # ---------------------------------------------------------------------------
 
 
+def _normalize_query(query: str) -> str:
+    """Collapse all whitespace sequences in a Cypher query to a single space.
+
+    Structural tests use substring assertions against query constants.  Normalizing
+    whitespace first makes those assertions resilient to harmless formatting changes
+    (re-indentation, line wrapping) so a test only fails on a genuine semantic regression.
+    """
+    return " ".join(query.split())
+
+
 def test_retrieval_query_with_expansion_run_scopes_chunk_claim_and_mention():
     """_RETRIEVAL_QUERY_WITH_EXPANSION must filter chunk, claim, and mention nodes by run_id.
 
@@ -4700,13 +4710,14 @@ def test_retrieval_query_with_expansion_run_scopes_chunk_claim_and_mention():
     """
     from demo.stages.retrieval_and_qa import _RETRIEVAL_QUERY_WITH_EXPANSION
 
-    assert "c.run_id = $run_id" in _RETRIEVAL_QUERY_WITH_EXPANSION, (
+    q = _normalize_query(_RETRIEVAL_QUERY_WITH_EXPANSION)
+    assert "c.run_id = $run_id" in q, (
         "_RETRIEVAL_QUERY_WITH_EXPANSION must filter the chunk node by c.run_id = $run_id"
     )
-    assert "claim.run_id = $run_id" in _RETRIEVAL_QUERY_WITH_EXPANSION, (
+    assert "claim.run_id = $run_id" in q, (
         "_RETRIEVAL_QUERY_WITH_EXPANSION must filter ExtractedClaim nodes by claim.run_id = $run_id"
     )
-    assert "mention.run_id = $run_id" in _RETRIEVAL_QUERY_WITH_EXPANSION, (
+    assert "mention.run_id = $run_id" in q, (
         "_RETRIEVAL_QUERY_WITH_EXPANSION must filter EntityMention nodes by mention.run_id = $run_id"
     )
 
@@ -4720,19 +4731,20 @@ def test_retrieval_query_with_cluster_run_scopes_chunk_claim_mention_and_alignme
     """
     from demo.stages.retrieval_and_qa import _RETRIEVAL_QUERY_WITH_CLUSTER
 
-    assert "c.run_id = $run_id" in _RETRIEVAL_QUERY_WITH_CLUSTER, (
+    q = _normalize_query(_RETRIEVAL_QUERY_WITH_CLUSTER)
+    assert "c.run_id = $run_id" in q, (
         "_RETRIEVAL_QUERY_WITH_CLUSTER must filter the chunk node by c.run_id = $run_id"
     )
-    assert "claim.run_id = $run_id" in _RETRIEVAL_QUERY_WITH_CLUSTER, (
+    assert "claim.run_id = $run_id" in q, (
         "_RETRIEVAL_QUERY_WITH_CLUSTER must filter ExtractedClaim nodes by claim.run_id = $run_id"
     )
-    assert "mention.run_id = $run_id" in _RETRIEVAL_QUERY_WITH_CLUSTER, (
+    assert "mention.run_id = $run_id" in q, (
         "_RETRIEVAL_QUERY_WITH_CLUSTER must filter EntityMention nodes by mention.run_id = $run_id"
     )
-    assert "a.run_id = $run_id" in _RETRIEVAL_QUERY_WITH_CLUSTER, (
+    assert "a.run_id = $run_id" in q, (
         "_RETRIEVAL_QUERY_WITH_CLUSTER must filter ALIGNED_WITH edges by a.run_id = $run_id"
     )
-    assert "a.alignment_version = $alignment_version" in _RETRIEVAL_QUERY_WITH_CLUSTER, (
+    assert "a.alignment_version = $alignment_version" in q, (
         "_RETRIEVAL_QUERY_WITH_CLUSTER must filter ALIGNED_WITH by a.alignment_version = $alignment_version"
     )
 
@@ -4753,7 +4765,7 @@ def test_retrieval_query_all_runs_variants_omit_run_id_filter():
         ("_RETRIEVAL_QUERY_BASE_ALL_RUNS", _RETRIEVAL_QUERY_BASE_ALL_RUNS),
         ("_RETRIEVAL_QUERY_WITH_EXPANSION_ALL_RUNS", _RETRIEVAL_QUERY_WITH_EXPANSION_ALL_RUNS),
     ]:
-        assert "$run_id" not in query, (
+        assert "$run_id" not in _normalize_query(query), (
             f"{name} must not reference $run_id — all-runs queries must not filter by run"
         )
 
@@ -4768,14 +4780,15 @@ def test_retrieval_query_with_cluster_all_runs_uses_per_chunk_run_id_for_alignme
     """
     from demo.stages.retrieval_and_qa import _RETRIEVAL_QUERY_WITH_CLUSTER_ALL_RUNS
 
-    assert "$run_id" not in _RETRIEVAL_QUERY_WITH_CLUSTER_ALL_RUNS, (
+    q = _normalize_query(_RETRIEVAL_QUERY_WITH_CLUSTER_ALL_RUNS)
+    assert "$run_id" not in q, (
         "_RETRIEVAL_QUERY_WITH_CLUSTER_ALL_RUNS must not use global $run_id filter"
     )
-    assert "mention.run_id" in _RETRIEVAL_QUERY_WITH_CLUSTER_ALL_RUNS, (
-        "_RETRIEVAL_QUERY_WITH_CLUSTER_ALL_RUNS must scope ALIGNED_WITH via mention.run_id "
+    assert "a.run_id = mention.run_id" in q, (
+        "_RETRIEVAL_QUERY_WITH_CLUSTER_ALL_RUNS must scope ALIGNED_WITH via a.run_id = mention.run_id "
         "so each hit uses its own run provenance"
     )
-    assert "a.alignment_version = $alignment_version" in _RETRIEVAL_QUERY_WITH_CLUSTER_ALL_RUNS, (
+    assert "a.alignment_version = $alignment_version" in q, (
         "_RETRIEVAL_QUERY_WITH_CLUSTER_ALL_RUNS must still filter ALIGNED_WITH by $alignment_version"
     )
 
