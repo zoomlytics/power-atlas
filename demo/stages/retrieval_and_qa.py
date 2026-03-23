@@ -701,6 +701,182 @@ def _format_claim_details(claim_details: list[dict[str, object]]) -> str:
     return header + "\n" + "\n".join(lines)
 
 
+def _build_retrieval_path_diagnostics(
+    *,
+    claim_details: list[dict[str, object]],
+    canonical_entities: list[str],
+    cluster_memberships: list[dict[str, object]],
+    cluster_canonical_alignments: list[dict[str, object]],
+) -> dict[str, object]:
+    """Build structured retrieval-path diagnostics from already-available metadata fields.
+
+    Consolidates all graph-traversal provenance for a single retrieved Chunk into a
+    single, inspectable dict so callers can audit the exact paths that contributed to
+    the retrieved context without re-querying the graph.  This function is a pure
+    transformation of data already present in the formatter input; it does **not**
+    alter semantics, content, or citation tokens.
+
+    Parameters
+    ----------
+    claim_details:
+        Structured claim records from the ``claim_details`` query column.  Each entry
+        carries ``claim_text``, ``subject_mention``, and ``object_mention`` dicts (the
+        latter two may be ``None`` when no participation edge exists for that role).
+    canonical_entities:
+        List of canonical entity names reached via
+        ``EntityMention -[:RESOLVES_TO]-> CanonicalEntity``.
+    cluster_memberships:
+        Per-membership provenance records from the ``cluster_memberships`` query column.
+        Each entry has ``cluster_id``, ``cluster_name``, ``membership_status``, and
+        ``membership_method``.
+    cluster_canonical_alignments:
+        Per-alignment provenance records from the ``cluster_canonical_alignments`` query
+        column.  Each entry has ``canonical_name``, ``alignment_method``, and
+        ``alignment_status`` (reached via ``cluster -[:ALIGNED_WITH]-> CanonicalEntity``).
+
+    Returns
+    -------
+    dict
+        Keys:
+
+        - ``has_participant_edges``: list of ``{claim_text, roles}`` dicts.  Each
+          ``roles`` entry is ``{role, mention_name, match_method}`` for a resolved
+          ``HAS_PARTICIPANT`` edge.  Claims with no participation edges have an empty
+          ``roles`` list.
+        - ``canonical_via_resolves_to``: list of canonical entity name strings reached
+          via the ``RESOLVES_TO`` relationship.
+        - ``cluster_memberships``: copy of the input membership records.
+        - ``cluster_canonical_via_aligned_with``: copy of the alignment records (path
+          via ``MEMBER_OF`` → ``ALIGNED_WITH``).
+    """
+    has_participant_edges: list[dict[str, object]] = []
+    for detail in claim_details:
+        claim_text = (detail.get("claim_text") or "").strip()
+        if not claim_text:
+            continue
+        roles: list[dict[str, object]] = []
+        for role_key, role_name in (("subject_mention", "subject"), ("object_mention", "object")):
+            slot = detail.get(role_key)
+            if slot:
+                roles.append({
+                    "role": role_name,
+                    "mention_name": slot.get("name"),
+                    "match_method": slot.get("match_method"),
+                })
+        has_participant_edges.append({"claim_text": claim_text, "roles": roles})
+    return {
+        "has_participant_edges": has_participant_edges,
+        "canonical_via_resolves_to": list(canonical_entities),
+        "cluster_memberships": list(cluster_memberships),
+        "cluster_canonical_via_aligned_with": list(cluster_canonical_alignments),
+    }
+
+
+def _format_retrieval_path_summary(hits: list[dict[str, object]]) -> str:
+    """Format a human-readable retrieval-path summary across all retrieved hits.
+
+    Iterates over *hits* (as produced by ``run_retrieval_and_qa``) and renders each
+    chunk's ``retrieval_path_diagnostics`` metadata into a structured text block
+    suitable for debug output, logging, or evaluation inspection.
+
+    Each hit section shows:
+
+    - Chunk identity (``chunk_id``) and similarity ``score``.
+    - **HAS_PARTICIPANT edges**: per-claim role assignments resolved via participation
+      edges.  Claims without any resolved participation edges are listed as
+      ``[no resolved roles]``.
+    - **RESOLVES_TO canonical entities**: entity names reached directly from an
+      ``EntityMention`` via ``RESOLVES_TO``.
+    - **Cluster memberships (MEMBER_OF)**: cluster identity and membership provenance.
+    - **Canonical via ALIGNED_WITH**: canonical entities reached transitively via
+      ``cluster -[:ALIGNED_WITH]->``, including alignment method and status.
+
+    In base-retrieval mode (no graph expansion), ``retrieval_path_diagnostics`` is
+    still present in the metadata but contains empty lists; in that case a brief note
+    is shown in place of detailed graph-expansion diagnostics.
+
+    Parameters
+    ----------
+    hits:
+        List of hit dicts as stored in the ``retrieval_results`` field of the
+        ``run_retrieval_and_qa`` return value.  Each dict must have a ``"metadata"``
+        key containing the chunk metadata produced by ``_chunk_citation_formatter``.
+
+    Returns
+    -------
+    str
+        Multi-line summary string, or an empty string when *hits* is empty.
+    """
+    if not hits:
+        return ""
+    lines: list[str] = ["=== Retrieval Path Summary ==="]
+    for i, hit in enumerate(hits, 1):
+        meta = hit.get("metadata") or {}
+        chunk_id = meta.get("chunk_id") or "(unknown)"
+        score = meta.get("score")
+        try:
+            score_str = f"{float(score):.4f}"
+        except (TypeError, ValueError):
+            score_str = str(score)
+        lines.append(f"\nHit {i}: chunk_id={chunk_id!r}  score={score_str}")
+
+        diag = meta.get("retrieval_path_diagnostics")
+        if "retrieval_path_diagnostics" not in meta or diag is None:
+            lines.append("  (no retrieval-path diagnostics available — older result format)")
+            continue
+
+        # HAS_PARTICIPANT edges (from claim_details)
+        hp_edges = diag.get("has_participant_edges") or []
+        if hp_edges:
+            lines.append("  HAS_PARTICIPANT edges (claims with participation):")
+            for entry in hp_edges:
+                claim_text = str(entry.get("claim_text") or "")
+                roles = entry.get("roles") or []
+                role_parts = ", ".join(
+                    f"{r['role']}={r['mention_name']!r} (match: {r['match_method']})"
+                    for r in roles
+                )
+                preview = claim_text[:80] + ("..." if len(claim_text) > 80 else "")
+                if role_parts:
+                    lines.append(f"    • \"{preview}\" [{role_parts}]")
+                else:
+                    lines.append(f"    • \"{preview}\" [no resolved roles]")
+        else:
+            lines.append("  HAS_PARTICIPANT edges: (none)")
+
+        # RESOLVES_TO canonical entities
+        resolves_to = diag.get("canonical_via_resolves_to") or []
+        if resolves_to:
+            lines.append(f"  RESOLVES_TO canonical entities: {resolves_to!r}")
+        else:
+            lines.append("  RESOLVES_TO canonical entities: (none)")
+
+        # Cluster memberships (MEMBER_OF)
+        memberships = diag.get("cluster_memberships") or []
+        if memberships:
+            lines.append("  Cluster memberships (MEMBER_OF):")
+            for m in memberships:
+                c_name = m.get("cluster_name") or m.get("cluster_id") or ""
+                c_status = m.get("membership_status") or "unknown"
+                c_method = m.get("membership_method") or ""
+                lines.append(f"    • cluster={c_name!r}  status={c_status}  method={c_method}")
+        else:
+            lines.append("  Cluster memberships (MEMBER_OF): (none)")
+
+        # Canonical alignments (ALIGNED_WITH)
+        alignments = diag.get("cluster_canonical_via_aligned_with") or []
+        if alignments:
+            lines.append("  Canonical via ALIGNED_WITH:")
+            for a in alignments:
+                canon_name = a.get("canonical_name") or ""
+                a_method = a.get("alignment_method") or ""
+                a_status = a.get("alignment_status") or ""
+                lines.append(f"    • canonical={canon_name!r}  method={a_method}  status={a_status}")
+        else:
+            lines.append("  Canonical via ALIGNED_WITH: (none)")
+    return "\n".join(lines)
+
+
 def _chunk_citation_formatter(record: neo4j.Record) -> RetrieverResultItem:
     """Format a retrieved Chunk record into a RetrieverResultItem with a stable citation token.
 
@@ -812,6 +988,21 @@ def _chunk_citation_formatter(record: neo4j.Record) -> RetrieverResultItem:
         value = record.get(field)
         if value is not None:
             metadata[field] = value
+    # Build structured retrieval-path diagnostics so callers can audit graph-traversal
+    # provenance per chunk without re-querying.  Purely additive — does not alter
+    # content, semantics, or citation tokens.
+    canonical_entities_raw = record.get("canonical_entities")
+    canonical_entities_list: list[str] = (
+        [str(v) for v in canonical_entities_raw]
+        if canonical_entities_raw is not None
+        else []
+    )
+    metadata["retrieval_path_diagnostics"] = _build_retrieval_path_diagnostics(
+        claim_details=claim_details,
+        canonical_entities=canonical_entities_list,
+        cluster_memberships=cluster_memberships,
+        cluster_canonical_alignments=cluster_canonical_alignments,
+    )
 
     return RetrieverResultItem(content=content, metadata=metadata)
 
@@ -961,6 +1152,10 @@ def run_retrieval_and_qa(
         "retrieval_query_contract": retrieval_query_contract.strip(),
         "interactive_mode": interactive,
         "message_history_enabled": message_history is not None,
+        # retrieval_path_summary is populated with the formatted path diagnostics after
+        # retrieval completes; the empty-string default is used for dry-run and
+        # no-question paths where no retrieval actually ran.
+        "retrieval_path_summary": "",
     }
     if getattr(config, "dry_run", False):
         dry_run_retrievers: list[str] = ["VectorCypherRetriever"]
@@ -1185,6 +1380,7 @@ def run_retrieval_and_qa(
         "citation_fallback_applied": uncited,
         "all_answers_cited": all_cited,
         "citation_quality": live_citation_quality,
+        "retrieval_path_summary": _format_retrieval_path_summary(hits),
     }
 
 
@@ -1350,5 +1546,6 @@ __all__ = [
     "run_interactive_qa",
     "_CITATION_FALLBACK_PREFIX",
     "_format_scope_label",
+    "_format_retrieval_path_summary",
 ]
 

@@ -374,6 +374,60 @@ The retrieval stage uses participation edges exclusively; it does **not** fall b
 
 ---
 
+## 5e. Retrieval-path metadata fields — observability and debugging
+
+Every retrieved chunk's metadata now includes a `retrieval_path_diagnostics` field that
+consolidates all graph-traversal provenance in a single, inspectable dict.  It is **read-only
+observability**: it does not alter LLM context, citation tokens, or answer semantics.
+
+### Per-chunk `retrieval_path_diagnostics`
+
+Accessible via `result["retrieval_results"][i]["metadata"]["retrieval_path_diagnostics"]`
+(where `result` is the dict returned by `run_retrieval_and_qa`).
+
+| Key | Type | Description |
+| --- | --- | --- |
+| `has_participant_edges` | list of dicts | Per-claim role assignments. Each entry has `claim_text` (str) and `roles` (list of `{role, mention_name, match_method}`). Claims with no resolved participation edges have an empty `roles` list. |
+| `canonical_via_resolves_to` | list of str | Canonical entity names reached via `EntityMention -[:RESOLVES_TO]-> CanonicalEntity`. Present when `--expand-graph` or `--cluster-aware` is active. |
+| `cluster_memberships` | list of dicts | Cluster membership provenance from `MEMBER_OF` edges: `{cluster_id, cluster_name, membership_status, membership_method}`. Present when `--cluster-aware` is active. |
+| `cluster_canonical_via_aligned_with` | list of dicts | Canonical entities reached transitively via `cluster -[:ALIGNED_WITH]-> CanonicalEntity`: `{canonical_name, alignment_method, alignment_status}`. Present when `--cluster-aware` is active. |
+
+When the base retrieval query is used (no `--expand-graph`, no `--cluster-aware`), all four lists
+are empty.  The key is always present so consumers can unconditionally inspect it.
+
+### Top-level `retrieval_path_summary`
+
+`result["retrieval_path_summary"]` contains a formatted, human-readable text summary of all
+retrieved chunks and their path diagnostics. It is produced internally by the retrieval
+pipeline and is useful for quick debug inspection:
+
+```python
+from demo.stages.retrieval_and_qa import run_retrieval_and_qa
+
+result = run_retrieval_and_qa(config, run_id=run_id, question="...", cluster_aware=True)
+print(result["retrieval_path_summary"])
+```
+
+Example output:
+```
+=== Retrieval Path Summary ===
+
+Hit 1: chunk_id='chunk_abc'  score=0.9123
+  HAS_PARTICIPANT edges (claims with participation):
+    • "Marcos Galperin founded MercadoLibre." [subject='Marcos Galperin' (match: raw_exact), object='MercadoLibre' (match: casefold_exact)]
+  RESOLVES_TO canonical entities: ['MercadoLibre Inc.']
+  Cluster memberships (MEMBER_OF):
+    • cluster='MercadoLibre'  status=accepted  method=exact
+  Canonical via ALIGNED_WITH:
+    • canonical='MercadoLibre Inc.'  method=embedding_similarity  status=aligned
+```
+
+`retrieval_path_summary` is always present in the result dict (empty string for dry-run and
+no-question code paths).  It is purely for human inspection and must not be used for
+citation or evidence evaluation.
+
+---
+
 ## Architecture reference queries: chunk co-location
 
 > **Note:** These are lower-level architecture queries that show how entity mentions relate to
