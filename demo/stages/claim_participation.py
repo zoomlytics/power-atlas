@@ -299,6 +299,14 @@ def write_participation_edges(
     if not edge_rows:
         return
 
+    invalid = [i for i, r in enumerate(edge_rows) if not r.get("role")]
+    if invalid:
+        raise ValueError(
+            f"write_participation_edges: {len(invalid)} row(s) have a missing or empty "
+            f"'role' field (row indices: {invalid}).  Each row must carry a non-empty "
+            f"role (e.g. ROLE_SUBJECT or ROLE_OBJECT) before the MERGE is executed."
+        )
+
     driver.execute_query(
         """
         UNWIND $rows AS row

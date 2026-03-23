@@ -261,6 +261,8 @@ def _edge_write_query() -> str:
     """
     return """
             UNWIND $rows AS row
+            WITH row
+            WHERE row.role IS NOT NULL AND trim(toString(row.role)) <> ''
             MATCH (claim:ExtractedClaim {claim_id: row.claim_id, run_id: row.run_id})
             MATCH (mention:EntityMention {mention_id: row.mention_id, run_id: row.run_id})
             MERGE (claim)-[r:HAS_PARTICIPANT {role: row.role}]->(mention)
