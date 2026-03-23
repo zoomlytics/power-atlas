@@ -722,7 +722,7 @@ def _format_claim_details(claim_details: list[dict[str, object]]) -> str:
             lines.append(f"  • {claim_text}")
     if not lines:
         return ""
-    header = "[Claim context — explicit subject/object roles via participation edges]"
+    header = "[Claim context — explicit roles via participation edges]"
     return header + "\n" + "\n".join(lines)
 
 
