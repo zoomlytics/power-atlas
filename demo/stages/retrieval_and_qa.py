@@ -19,24 +19,258 @@ from demo.contracts.prompts import POWER_ATLAS_RAG_TEMPLATE
 _DEFAULT_TOP_K = 10
 _logger = logging.getLogger(__name__)
 
+# ---------------------------------------------------------------------------
+# Private query sub-expression builders.
+#
+# Each function returns a Cypher fragment that is shared across multiple query
+# variants.  The *run_scoped* flag controls whether run_id WHERE filters are
+# included (run-scoped mode) or omitted (all-runs mode).
+# ---------------------------------------------------------------------------
+
+# Shared RETURN projection for chunk provenance fields — identical in all variants.
+_RETURN_BASE_COLUMNS = (
+    "RETURN c.text AS chunk_text,\n"
+    "       c.chunk_id AS chunk_id,\n"
+    "       c.run_id AS run_id,\n"
+    "       c.source_uri AS source_uri,\n"
+    "       c.chunk_index AS chunk_index,\n"
+    "       coalesce(c.page_number, c.page) AS page,\n"
+    "       c.start_char AS start_char,\n"
+    "       c.end_char AS end_char,\n"
+    "       score AS similarityScore"
+)
+
+
+def _build_claim_details_with_clause(run_scoped: bool) -> str:
+    """Return the WITH clause that adds claim_details via HAS_PARTICIPANT traversal.
+
+    Traverses ``SUPPORTED_BY`` edges from the Chunk to ``ExtractedClaim`` nodes,
+    then projects subject and object ``EntityMention`` slots via
+    ``HAS_PARTICIPANT {role}`` edges (v0.3 participation model).  The ``[0]``
+    index picks the first participation edge per role; ``null`` is returned when
+    no edge exists for that role.
+
+    When *run_scoped* is ``True``, a ``WHERE`` filter restricts
+    ``ExtractedClaim`` nodes to the current ``$run_id``.  In all-runs mode the
+    filter is omitted so claims from all runs are included.
+    """
+    claim_filter = " WHERE claim.run_id = $run_id" if run_scoped else ""
+    return (
+        "WITH c, score,\n"
+        "     [(c)<-[:SUPPORTED_BY]-(claim:ExtractedClaim)" + claim_filter + " |\n"
+        "         {claim_text: claim.claim_text,\n"
+        "          subject_mention: [(claim)-[sr:HAS_PARTICIPANT {role: 'subject'}]->(sm:EntityMention) | {name: sm.name, match_method: sr.match_method}][0],\n"
+        "          object_mention: [(claim)-[or_:HAS_PARTICIPANT {role: 'object'}]->(om:EntityMention) | {name: om.name, match_method: or_.match_method}][0]}\n"
+        "     ] AS claim_details"
+    )
+
+
+def _build_mention_names_expr(run_scoped: bool) -> str:
+    """Return the pattern comprehension that projects mention names from a Chunk.
+
+    Traverses ``MENTIONED_IN`` edges to ``EntityMention`` nodes and collects
+    their ``name`` properties.  When *run_scoped* is ``True``, a ``WHERE``
+    filter restricts ``EntityMention`` nodes to the current ``$run_id``.
+    """
+    run_filter = " WHERE mention.run_id = $run_id" if run_scoped else ""
+    return (
+        "[(c)<-[:MENTIONED_IN]-(mention:EntityMention)" + run_filter
+        + " | mention.name] AS mentions"
+    )
+
+
+def _build_canonical_names_expr(run_scoped: bool) -> str:
+    """Return the pattern comprehension that projects canonical entity names.
+
+    Traverses ``MENTIONED_IN`` → ``RESOLVES_TO`` to reach ``CanonicalEntity``
+    nodes and collects their ``name`` properties.  When *run_scoped* is
+    ``True``, a ``WHERE`` filter restricts ``EntityMention`` nodes to the
+    current ``$run_id``.
+    """
+    run_filter = " WHERE mention.run_id = $run_id" if run_scoped else ""
+    return (
+        "[(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:RESOLVES_TO]->(canonical)"
+        + run_filter + " | canonical.name] AS canonical_entities"
+    )
+
+
+def _build_cluster_memberships_expr(run_scoped: bool) -> str:
+    """Return the pattern comprehension that projects ResolvedEntityCluster memberships.
+
+    For each ``EntityMention`` reachable from the Chunk, follows ``MEMBER_OF``
+    edges to ``ResolvedEntityCluster`` nodes and collects per-membership
+    provenance (``cluster_id``, ``cluster_name``, ``membership_status``,
+    ``membership_method``).  When *run_scoped* is ``True``, a ``WHERE`` filter
+    restricts ``EntityMention`` nodes to the current ``$run_id``.
+    """
+    run_filter = " WHERE mention.run_id = $run_id" if run_scoped else ""
+    return (
+        "[(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[r:MEMBER_OF]->(cluster:ResolvedEntityCluster)"
+        + run_filter
+        + " | {cluster_id: cluster.cluster_id, cluster_name: cluster.canonical_name, membership_status: r.status, membership_method: r.method}] AS cluster_memberships"
+    )
+
+
+def _build_cluster_canonical_alignments_expr(run_scoped: bool) -> str:
+    """Return the pattern comprehension that projects ALIGNED_WITH canonical entities.
+
+    Follows ``MEMBER_OF`` → ``ALIGNED_WITH`` from each ``EntityMention`` to
+    reach ``CanonicalEntity`` nodes and collects alignment provenance
+    (``canonical_name``, ``alignment_method``, ``alignment_status``).
+
+    In run-scoped mode, filters by ``$run_id`` on both the ``EntityMention``
+    and the ``ALIGNED_WITH`` edge, and by ``$alignment_version`` to restrict to
+    the current alignment generation.  In all-runs mode, the self-scoping
+    filter ``a.run_id = mention.run_id`` is used instead so each mention's
+    alignment edges stay paired with their own run.
+    """
+    if run_scoped:
+        where_clause = (
+            " WHERE mention.run_id = $run_id AND a.run_id = $run_id"
+            " AND a.alignment_version = $alignment_version"
+        )
+    else:
+        where_clause = (
+            " WHERE a.run_id = mention.run_id AND a.alignment_version = $alignment_version"
+        )
+    return (
+        "[(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:MEMBER_OF]"
+        "->(cluster:ResolvedEntityCluster)-[a:ALIGNED_WITH]->(aligned_canonical)"
+        + where_clause
+        + " | {canonical_name: aligned_canonical.name, alignment_method: a.alignment_method,"
+        " alignment_status: a.alignment_status}] AS cluster_canonical_alignments"
+    )
+
+
+def _build_retrieval_query(
+    *,
+    expand_graph: bool = False,
+    cluster_aware: bool = False,
+    all_runs: bool = False,
+) -> str:
+    """Assemble a retrieval Cypher query for the specified combination of modes.
+
+    Delegates sub-expression construction to the individual builder functions
+    so each expansion fragment is defined once and reused across all query
+    variants.
+
+    Parameters
+    ----------
+    expand_graph:
+        When ``True``, adds ``claim_details``, ``mentions``, and
+        ``canonical_entities`` expansions to the query.
+    cluster_aware:
+        When ``True``, extends graph expansion with ``cluster_memberships`` and
+        ``cluster_canonical_alignments`` expansions.  Implies *expand_graph*.
+    all_runs:
+        When ``True``, omits run-scoped ``WHERE`` filters so the query spans
+        all runs in the database.
+    """
+    run_scoped = not all_runs
+    # cluster_aware always includes expansion
+    expand_graph = expand_graph or cluster_aware
+
+    # Preamble: scope the Chunk node (and optionally the source_uri).
+    if run_scoped:
+        preamble = (
+            "WITH node AS c, score\n"
+            "WHERE c.run_id = $run_id\n"
+            "  AND ($source_uri IS NULL OR c.source_uri = $source_uri)"
+        )
+    else:
+        preamble = (
+            "WITH node AS c, score\n"
+            "WHERE ($source_uri IS NULL OR c.source_uri = $source_uri)"
+        )
+
+    if not expand_graph:
+        return "\n" + preamble + "\n" + _RETURN_BASE_COLUMNS + "\n"
+
+    with_claim = _build_claim_details_with_clause(run_scoped)
+    mention_expr = _build_mention_names_expr(run_scoped)
+    canonical_expr = _build_canonical_names_expr(run_scoped)
+    expansion_return = (
+        "       [cd IN claim_details | cd.claim_text] AS claims,\n"
+        "       " + mention_expr + ",\n"
+        "       " + canonical_expr + ",\n"
+        "       claim_details"
+    )
+
+    if not cluster_aware:
+        return (
+            "\n" + preamble + "\n"
+            + with_claim + "\n"
+            + _RETURN_BASE_COLUMNS + ",\n"
+            + expansion_return + "\n"
+        )
+
+    cluster_memberships_expr = _build_cluster_memberships_expr(run_scoped)
+    cluster_canonical_expr = _build_cluster_canonical_alignments_expr(run_scoped)
+    cluster_return = (
+        "       " + cluster_memberships_expr + ",\n"
+        "       " + cluster_canonical_expr
+    )
+    return (
+        "\n" + preamble + "\n"
+        + with_claim + "\n"
+        + _RETURN_BASE_COLUMNS + ",\n"
+        + expansion_return + ",\n"
+        + cluster_return + "\n"
+    )
+
+
+def _select_retrieval_query(
+    *,
+    expand_graph: bool = False,
+    cluster_aware: bool = False,
+    all_runs: bool = False,
+) -> str:
+    """Return the pre-built retrieval Cypher query for the given mode combination.
+
+    Encapsulates the query-selection priority so callers do not repeat the
+    same conditional chain:
+
+    - ``cluster_aware`` takes precedence over ``expand_graph``.
+    - ``all_runs`` selects the scope-widened variant of any expansion level.
+    - When neither flag is set, the base run-scoped query is returned.
+
+    Parameters
+    ----------
+    expand_graph:
+        When ``True``, selects a graph-expanded query variant.
+    cluster_aware:
+        When ``True``, selects the cluster-aware variant (implies expansion).
+    all_runs:
+        When ``True``, selects the all-runs (scope-widened) variant.
+    """
+    if cluster_aware and all_runs:
+        return _RETRIEVAL_QUERY_WITH_CLUSTER_ALL_RUNS
+    if cluster_aware:
+        return _RETRIEVAL_QUERY_WITH_CLUSTER
+    if expand_graph and all_runs:
+        return _RETRIEVAL_QUERY_WITH_EXPANSION_ALL_RUNS
+    if all_runs:
+        return _RETRIEVAL_QUERY_BASE_ALL_RUNS
+    if expand_graph:
+        return _RETRIEVAL_QUERY_WITH_EXPANSION
+    return _RETRIEVAL_QUERY_BASE
+
+
+# ---------------------------------------------------------------------------
+# Pre-built query constants (assembled once at module load from the builders).
+#
+# These constants are the authoritative query strings used for retrieval and
+# for the ``retrieval_query_contract`` manifest field.  Building them from the
+# sub-expression builders ensures that shared fragments (claim participation,
+# mention expansion, etc.) stay consistent across all variants without
+# duplication.
+# ---------------------------------------------------------------------------
+
 # Retrieval query: run-scoped by default. `node` is the Chunk matched by the vector index;
 # `score` is the similarity score from the index search. The null-conditional on $source_uri
 # means the filter is skipped when source_uri is passed as None.
 # Aligned with vendor pattern from vendor-resources/examples/retrieve/vector_cypher_retriever.py.
-_RETRIEVAL_QUERY_BASE = """
-WITH node AS c, score
-WHERE c.run_id = $run_id
-  AND ($source_uri IS NULL OR c.source_uri = $source_uri)
-RETURN c.text AS chunk_text,
-       c.chunk_id AS chunk_id,
-       c.run_id AS run_id,
-       c.source_uri AS source_uri,
-       c.chunk_index AS chunk_index,
-       coalesce(c.page_number, c.page) AS page,
-       c.start_char AS start_char,
-       c.end_char AS end_char,
-       score AS similarityScore
-"""
+_RETRIEVAL_QUERY_BASE = _build_retrieval_query()
 
 # Graph-expanded retrieval: adds related ExtractedClaim, EntityMention, and canonical entity
 # context via optional graph traversal from the retrieved Chunk node.
@@ -47,72 +281,15 @@ RETURN c.text AS chunk_text,
 # (raw_exact | casefold_exact | normalized_exact).  The [0] index picks the first (and
 # typically unique) participation edge per role; null is returned when no participation
 # edge exists for that role.
-_RETRIEVAL_QUERY_WITH_EXPANSION = """
-WITH node AS c, score
-WHERE c.run_id = $run_id
-  AND ($source_uri IS NULL OR c.source_uri = $source_uri)
-WITH c, score,
-     [(c)<-[:SUPPORTED_BY]-(claim:ExtractedClaim) WHERE claim.run_id = $run_id |
-         {claim_text: claim.claim_text,
-          subject_mention: [(claim)-[sr:HAS_PARTICIPANT {role: 'subject'}]->(sm:EntityMention) | {name: sm.name, match_method: sr.match_method}][0],
-          object_mention: [(claim)-[or_:HAS_PARTICIPANT {role: 'object'}]->(om:EntityMention) | {name: om.name, match_method: or_.match_method}][0]}
-     ] AS claim_details
-RETURN c.text AS chunk_text,
-       c.chunk_id AS chunk_id,
-       c.run_id AS run_id,
-       c.source_uri AS source_uri,
-       c.chunk_index AS chunk_index,
-       coalesce(c.page_number, c.page) AS page,
-       c.start_char AS start_char,
-       c.end_char AS end_char,
-       score AS similarityScore,
-       [cd IN claim_details | cd.claim_text] AS claims,
-       [(c)<-[:MENTIONED_IN]-(mention:EntityMention) WHERE mention.run_id = $run_id | mention.name] AS mentions,
-       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:RESOLVES_TO]->(canonical) WHERE mention.run_id = $run_id | canonical.name] AS canonical_entities,
-       claim_details
-"""
+_RETRIEVAL_QUERY_WITH_EXPANSION = _build_retrieval_query(expand_graph=True)
 
 # All-runs retrieval query: no run_id filter; queries across the whole database.
 # Used when --all-runs flag is set. Citations may span multiple runs/files so provenance
 # should be interpreted with care — each citation includes its own run_id field.
-_RETRIEVAL_QUERY_BASE_ALL_RUNS = """
-WITH node AS c, score
-WHERE ($source_uri IS NULL OR c.source_uri = $source_uri)
-RETURN c.text AS chunk_text,
-       c.chunk_id AS chunk_id,
-       c.run_id AS run_id,
-       c.source_uri AS source_uri,
-       c.chunk_index AS chunk_index,
-       coalesce(c.page_number, c.page) AS page,
-       c.start_char AS start_char,
-       c.end_char AS end_char,
-       score AS similarityScore
-"""
+_RETRIEVAL_QUERY_BASE_ALL_RUNS = _build_retrieval_query(all_runs=True)
 
 # All-runs graph-expanded retrieval: no run_id filter on chunks or derived nodes.
-_RETRIEVAL_QUERY_WITH_EXPANSION_ALL_RUNS = """
-WITH node AS c, score
-WHERE ($source_uri IS NULL OR c.source_uri = $source_uri)
-WITH c, score,
-     [(c)<-[:SUPPORTED_BY]-(claim:ExtractedClaim) |
-         {claim_text: claim.claim_text,
-          subject_mention: [(claim)-[sr:HAS_PARTICIPANT {role: 'subject'}]->(sm:EntityMention) | {name: sm.name, match_method: sr.match_method}][0],
-          object_mention: [(claim)-[or_:HAS_PARTICIPANT {role: 'object'}]->(om:EntityMention) | {name: om.name, match_method: or_.match_method}][0]}
-     ] AS claim_details
-RETURN c.text AS chunk_text,
-       c.chunk_id AS chunk_id,
-       c.run_id AS run_id,
-       c.source_uri AS source_uri,
-       c.chunk_index AS chunk_index,
-       coalesce(c.page_number, c.page) AS page,
-       c.start_char AS start_char,
-       c.end_char AS end_char,
-       score AS similarityScore,
-       [cd IN claim_details | cd.claim_text] AS claims,
-       [(c)<-[:MENTIONED_IN]-(mention:EntityMention) | mention.name] AS mentions,
-       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:RESOLVES_TO]->(canonical) | canonical.name] AS canonical_entities,
-       claim_details
-"""
+_RETRIEVAL_QUERY_WITH_EXPANSION_ALL_RUNS = _build_retrieval_query(expand_graph=True, all_runs=True)
 
 # Cluster-aware retrieval (run-scoped): extends graph expansion with provisional
 # ResolvedEntityCluster membership and optional ALIGNED_WITH canonical enrichment.
@@ -121,57 +298,8 @@ RETURN c.text AS chunk_text,
 # cluster_canonical_alignments surfaces canonical entity identities reached via
 # the cluster's ALIGNED_WITH edge, including alignment method and status so
 # provisional (non-confirmed) alignments are explicitly labelled.
-_RETRIEVAL_QUERY_WITH_CLUSTER = """
-WITH node AS c, score
-WHERE c.run_id = $run_id
-  AND ($source_uri IS NULL OR c.source_uri = $source_uri)
-WITH c, score,
-     [(c)<-[:SUPPORTED_BY]-(claim:ExtractedClaim) WHERE claim.run_id = $run_id |
-         {claim_text: claim.claim_text,
-          subject_mention: [(claim)-[sr:HAS_PARTICIPANT {role: 'subject'}]->(sm:EntityMention) | {name: sm.name, match_method: sr.match_method}][0],
-          object_mention: [(claim)-[or_:HAS_PARTICIPANT {role: 'object'}]->(om:EntityMention) | {name: om.name, match_method: or_.match_method}][0]}
-     ] AS claim_details
-RETURN c.text AS chunk_text,
-       c.chunk_id AS chunk_id,
-       c.run_id AS run_id,
-       c.source_uri AS source_uri,
-       c.chunk_index AS chunk_index,
-       coalesce(c.page_number, c.page) AS page,
-       c.start_char AS start_char,
-       c.end_char AS end_char,
-       score AS similarityScore,
-       [cd IN claim_details | cd.claim_text] AS claims,
-       [(c)<-[:MENTIONED_IN]-(mention:EntityMention) WHERE mention.run_id = $run_id | mention.name] AS mentions,
-       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:RESOLVES_TO]->(canonical) WHERE mention.run_id = $run_id | canonical.name] AS canonical_entities,
-       claim_details,
-       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[r:MEMBER_OF]->(cluster:ResolvedEntityCluster) WHERE mention.run_id = $run_id | {cluster_id: cluster.cluster_id, cluster_name: cluster.canonical_name, membership_status: r.status, membership_method: r.method}] AS cluster_memberships,
-       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:MEMBER_OF]->(cluster:ResolvedEntityCluster)-[a:ALIGNED_WITH]->(aligned_canonical) WHERE mention.run_id = $run_id AND a.run_id = $run_id AND a.alignment_version = $alignment_version | {canonical_name: aligned_canonical.name, alignment_method: a.alignment_method, alignment_status: a.alignment_status}] AS cluster_canonical_alignments
-"""
-_RETRIEVAL_QUERY_WITH_CLUSTER_ALL_RUNS = """
-WITH node AS c, score
-WHERE ($source_uri IS NULL OR c.source_uri = $source_uri)
-WITH c, score,
-     [(c)<-[:SUPPORTED_BY]-(claim:ExtractedClaim) |
-         {claim_text: claim.claim_text,
-          subject_mention: [(claim)-[sr:HAS_PARTICIPANT {role: 'subject'}]->(sm:EntityMention) | {name: sm.name, match_method: sr.match_method}][0],
-          object_mention: [(claim)-[or_:HAS_PARTICIPANT {role: 'object'}]->(om:EntityMention) | {name: om.name, match_method: or_.match_method}][0]}
-     ] AS claim_details
-RETURN c.text AS chunk_text,
-       c.chunk_id AS chunk_id,
-       c.run_id AS run_id,
-       c.source_uri AS source_uri,
-       c.chunk_index AS chunk_index,
-       coalesce(c.page_number, c.page) AS page,
-       c.start_char AS start_char,
-       c.end_char AS end_char,
-       score AS similarityScore,
-       [cd IN claim_details | cd.claim_text] AS claims,
-       [(c)<-[:MENTIONED_IN]-(mention:EntityMention) | mention.name] AS mentions,
-       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:RESOLVES_TO]->(canonical) | canonical.name] AS canonical_entities,
-       claim_details,
-       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[r:MEMBER_OF]->(cluster:ResolvedEntityCluster) | {cluster_id: cluster.cluster_id, cluster_name: cluster.canonical_name, membership_status: r.status, membership_method: r.method}] AS cluster_memberships,
-       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:MEMBER_OF]->(cluster:ResolvedEntityCluster)-[a:ALIGNED_WITH]->(aligned_canonical) WHERE a.run_id = mention.run_id AND a.alignment_version = $alignment_version | {canonical_name: aligned_canonical.name, alignment_method: a.alignment_method, alignment_status: a.alignment_status}] AS cluster_canonical_alignments
-"""
+_RETRIEVAL_QUERY_WITH_CLUSTER = _build_retrieval_query(cluster_aware=True)
+_RETRIEVAL_QUERY_WITH_CLUSTER_ALL_RUNS = _build_retrieval_query(cluster_aware=True, all_runs=True)
 
 # Optional citation-relevant fields that should be surfaced as warnings when absent.
 _CITATION_OPTIONAL_FIELDS = ("page", "start_char", "end_char")
@@ -775,13 +903,8 @@ def run_retrieval_and_qa(
     # effective_expand_graph records whether any form of graph expansion is active so
     # manifests accurately describe the retrieval context used.
     effective_expand_graph = expand_graph or cluster_aware
-    retrieval_query_contract = (
-        _RETRIEVAL_QUERY_WITH_CLUSTER_ALL_RUNS if (cluster_aware and all_runs)
-        else _RETRIEVAL_QUERY_WITH_CLUSTER if cluster_aware
-        else _RETRIEVAL_QUERY_WITH_EXPANSION_ALL_RUNS if (expand_graph and all_runs)
-        else _RETRIEVAL_QUERY_BASE_ALL_RUNS if all_runs
-        else _RETRIEVAL_QUERY_WITH_EXPANSION if expand_graph
-        else _RETRIEVAL_QUERY_BASE
+    retrieval_query_contract = _select_retrieval_query(
+        expand_graph=expand_graph, cluster_aware=cluster_aware, all_runs=all_runs
     )
     citation_object_example: dict[str, object] = {
         "chunk_id": "example_chunk",
@@ -861,13 +984,8 @@ def run_retrieval_and_qa(
             "Pass --run-id, --latest, or use --all-runs to query across all data."
         )
 
-    retrieval_query = (
-        _RETRIEVAL_QUERY_WITH_CLUSTER_ALL_RUNS if (cluster_aware and all_runs)
-        else _RETRIEVAL_QUERY_WITH_CLUSTER if cluster_aware
-        else _RETRIEVAL_QUERY_WITH_EXPANSION_ALL_RUNS if (expand_graph and all_runs)
-        else _RETRIEVAL_QUERY_BASE_ALL_RUNS if all_runs
-        else _RETRIEVAL_QUERY_WITH_EXPANSION if expand_graph
-        else _RETRIEVAL_QUERY_BASE
+    retrieval_query = _select_retrieval_query(
+        expand_graph=expand_graph, cluster_aware=cluster_aware, all_runs=all_runs
     )
 
     # Query params for filtering. source_uri=None is valid: the null-conditional
@@ -1144,13 +1262,8 @@ def run_interactive_qa(
 
     resolved_index_name = index_name if index_name is not None else CHUNK_EMBEDDING_INDEX_NAME
     effective_qa_model = getattr(config, "openai_model", None) or "gpt-4o-mini"
-    retrieval_query = (
-        _RETRIEVAL_QUERY_WITH_CLUSTER_ALL_RUNS if (cluster_aware and all_runs)
-        else _RETRIEVAL_QUERY_WITH_CLUSTER if cluster_aware
-        else _RETRIEVAL_QUERY_WITH_EXPANSION_ALL_RUNS if (expand_graph and all_runs)
-        else _RETRIEVAL_QUERY_BASE_ALL_RUNS if all_runs
-        else _RETRIEVAL_QUERY_WITH_EXPANSION if expand_graph
-        else _RETRIEVAL_QUERY_BASE
+    retrieval_query = _select_retrieval_query(
+        expand_graph=expand_graph, cluster_aware=cluster_aware, all_runs=all_runs
     )
     query_params: dict[str, object] = {"source_uri": source_uri}
     if not all_runs:
