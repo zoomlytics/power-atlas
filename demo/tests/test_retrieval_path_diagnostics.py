@@ -227,10 +227,98 @@ class TestBuildRetrievalPathDiagnostics:
         assert len(result["cluster_memberships"]) == 2
         assert len(result["cluster_canonical_via_aligned_with"]) == 1
 
+    # ------------------------------------------------------------------
+    # New-format (roles list) and arbitrary-role tests
+    # ------------------------------------------------------------------
 
-# ---------------------------------------------------------------------------
-# _format_retrieval_path_summary tests
-# ---------------------------------------------------------------------------
+    def test_new_format_roles_list_subject_and_object(self) -> None:
+        """New ``roles`` list format must be mapped to has_participant_edges correctly."""
+        claim_details = [
+            {
+                "claim_text": "A acquired B.",
+                "roles": [
+                    {"role": "subject", "name": "A", "match_method": "raw_exact"},
+                    {"role": "object", "name": "B", "match_method": "casefold_exact"},
+                ],
+            }
+        ]
+        result = _build_retrieval_path_diagnostics(
+            claim_details=claim_details,
+            canonical_entities=[],
+            cluster_memberships=[],
+            cluster_canonical_alignments=[],
+        )
+        edges = result["has_participant_edges"]
+        assert len(edges) == 1
+        assert edges[0]["claim_text"] == "A acquired B."
+        roles = edges[0]["roles"]
+        assert len(roles) == 2
+        assert any(r["role"] == "subject" and r["mention_name"] == "A" for r in roles)
+        assert any(r["role"] == "object" and r["mention_name"] == "B" for r in roles)
+
+    def test_new_format_arbitrary_roles(self) -> None:
+        """Arbitrary roles (e.g. agent, target) in the new ``roles`` list must be
+        passed through to has_participant_edges without being filtered or renamed."""
+        claim_details = [
+            {
+                "claim_text": "The board approved the merger.",
+                "roles": [
+                    {"role": "agent", "name": "The board", "match_method": "casefold_exact"},
+                    {"role": "target", "name": "the merger", "match_method": "normalized_exact"},
+                ],
+            }
+        ]
+        result = _build_retrieval_path_diagnostics(
+            claim_details=claim_details,
+            canonical_entities=[],
+            cluster_memberships=[],
+            cluster_canonical_alignments=[],
+        )
+        edges = result["has_participant_edges"]
+        assert len(edges) == 1
+        roles = edges[0]["roles"]
+        assert any(r["role"] == "agent" and r["mention_name"] == "The board" for r in roles)
+        assert any(r["role"] == "target" and r["mention_name"] == "the merger" for r in roles)
+
+    def test_new_format_empty_roles_list(self) -> None:
+        """New format with an empty ``roles`` list must produce an entry with empty roles."""
+        claim_details = [
+            {"claim_text": "Unresolved claim.", "roles": []}
+        ]
+        result = _build_retrieval_path_diagnostics(
+            claim_details=claim_details,
+            canonical_entities=[],
+            cluster_memberships=[],
+            cluster_canonical_alignments=[],
+        )
+        edges = result["has_participant_edges"]
+        assert len(edges) == 1
+        assert edges[0]["roles"] == []
+
+    def test_new_format_mixed_subject_object_and_extra_role(self) -> None:
+        """New format with subject, object, and an extra role must preserve all three."""
+        claim_details = [
+            {
+                "claim_text": "Smith transferred assets to Corp.",
+                "roles": [
+                    {"role": "subject", "name": "assets", "match_method": "raw_exact"},
+                    {"role": "object", "name": "Corp", "match_method": "raw_exact"},
+                    {"role": "agent", "name": "Smith", "match_method": "casefold_exact"},
+                ],
+            }
+        ]
+        result = _build_retrieval_path_diagnostics(
+            claim_details=claim_details,
+            canonical_entities=[],
+            cluster_memberships=[],
+            cluster_canonical_alignments=[],
+        )
+        roles = result["has_participant_edges"][0]["roles"]
+        assert len(roles) == 3
+        role_names = {r["role"] for r in roles}
+        assert role_names == {"subject", "object", "agent"}
+
+
 
 
 def _make_hit(

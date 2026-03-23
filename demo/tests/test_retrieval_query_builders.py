@@ -57,12 +57,14 @@ class TestBuildClaimDetailsWithClause:
     def test_both_modes_include_has_participant_subject(self) -> None:
         for run_scoped in (True, False):
             result = _build_claim_details_with_clause(run_scoped=run_scoped)
-            assert "HAS_PARTICIPANT {role: 'subject'}" in result
+            assert "HAS_PARTICIPANT" in result
+            assert "r.role" in result
 
     def test_both_modes_include_has_participant_object(self) -> None:
         for run_scoped in (True, False):
             result = _build_claim_details_with_clause(run_scoped=run_scoped)
-            assert "HAS_PARTICIPANT {role: 'object'}" in result
+            assert "HAS_PARTICIPANT" in result
+            assert "r.role" in result
 
     def test_result_ends_with_claim_details_alias(self) -> None:
         for run_scoped in (True, False):
@@ -310,8 +312,7 @@ _SNAPSHOT_WITH_EXPANSION = (
     "WITH c, score,\n"
     "     [(c)<-[:SUPPORTED_BY]-(claim:ExtractedClaim) WHERE claim.run_id = $run_id |\n"
     "         {claim_text: claim.claim_text,\n"
-    "          subject_mention: [(claim)-[sr:HAS_PARTICIPANT {role: 'subject'}]->(sm:EntityMention) | {name: sm.name, match_method: sr.match_method}][0],\n"
-    "          object_mention: [(claim)-[or_:HAS_PARTICIPANT {role: 'object'}]->(om:EntityMention) | {name: om.name, match_method: or_.match_method}][0]}\n"
+    "          roles: [(claim)-[r:HAS_PARTICIPANT]->(m:EntityMention) | {role: r.role, name: m.name, match_method: r.match_method}]}\n"
     "     ] AS claim_details\n"
     "RETURN c.text AS chunk_text,\n"
     "       c.chunk_id AS chunk_id,\n"
@@ -336,8 +337,7 @@ _SNAPSHOT_WITH_EXPANSION_ALL_RUNS = (
     "WITH c, score,\n"
     "     [(c)<-[:SUPPORTED_BY]-(claim:ExtractedClaim) |\n"
     "         {claim_text: claim.claim_text,\n"
-    "          subject_mention: [(claim)-[sr:HAS_PARTICIPANT {role: 'subject'}]->(sm:EntityMention) | {name: sm.name, match_method: sr.match_method}][0],\n"
-    "          object_mention: [(claim)-[or_:HAS_PARTICIPANT {role: 'object'}]->(om:EntityMention) | {name: om.name, match_method: or_.match_method}][0]}\n"
+    "          roles: [(claim)-[r:HAS_PARTICIPANT]->(m:EntityMention) | {role: r.role, name: m.name, match_method: r.match_method}]}\n"
     "     ] AS claim_details\n"
     "RETURN c.text AS chunk_text,\n"
     "       c.chunk_id AS chunk_id,\n"
@@ -363,8 +363,7 @@ _SNAPSHOT_WITH_CLUSTER = (
     "WITH c, score,\n"
     "     [(c)<-[:SUPPORTED_BY]-(claim:ExtractedClaim) WHERE claim.run_id = $run_id |\n"
     "         {claim_text: claim.claim_text,\n"
-    "          subject_mention: [(claim)-[sr:HAS_PARTICIPANT {role: 'subject'}]->(sm:EntityMention) | {name: sm.name, match_method: sr.match_method}][0],\n"
-    "          object_mention: [(claim)-[or_:HAS_PARTICIPANT {role: 'object'}]->(om:EntityMention) | {name: om.name, match_method: or_.match_method}][0]}\n"
+    "          roles: [(claim)-[r:HAS_PARTICIPANT]->(m:EntityMention) | {role: r.role, name: m.name, match_method: r.match_method}]}\n"
     "     ] AS claim_details\n"
     "RETURN c.text AS chunk_text,\n"
     "       c.chunk_id AS chunk_id,\n"
@@ -391,8 +390,7 @@ _SNAPSHOT_WITH_CLUSTER_ALL_RUNS = (
     "WITH c, score,\n"
     "     [(c)<-[:SUPPORTED_BY]-(claim:ExtractedClaim) |\n"
     "         {claim_text: claim.claim_text,\n"
-    "          subject_mention: [(claim)-[sr:HAS_PARTICIPANT {role: 'subject'}]->(sm:EntityMention) | {name: sm.name, match_method: sr.match_method}][0],\n"
-    "          object_mention: [(claim)-[or_:HAS_PARTICIPANT {role: 'object'}]->(om:EntityMention) | {name: om.name, match_method: or_.match_method}][0]}\n"
+    "          roles: [(claim)-[r:HAS_PARTICIPANT]->(m:EntityMention) | {role: r.role, name: m.name, match_method: r.match_method}]}\n"
     "     ] AS claim_details\n"
     "RETURN c.text AS chunk_text,\n"
     "       c.chunk_id AS chunk_id,\n"
