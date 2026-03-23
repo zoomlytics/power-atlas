@@ -417,8 +417,8 @@ LIMIT 25;
 - Debugging: verify that `MENTIONED_IN` edges are present for `EntityMention` nodes and that
   `SUPPORTED_BY` edges connect `ExtractedClaim` nodes to their `Chunk` nodes after `extract-claims`.
 - Architecture inspection: confirm the lexical layer is intact before running downstream stages.
-- Do *not* use co-location as a proxy for claim participation — use the `HAS_PARTICIPANT {role: subject}` /
-  `HAS_PARTICIPANT {role: object}` edges instead.
+- Do *not* use co-location as a proxy for claim participation — use the `HAS_PARTICIPANT {role: 'subject'}` /
+  `HAS_PARTICIPANT {role: 'object'}` edges instead.
 
 ---
 
@@ -476,7 +476,7 @@ MATCH (cluster:ResolvedEntityCluster)<-[:MEMBER_OF]-(m:EntityMention)
 WHERE toLower(cluster.canonical_name) CONTAINS 'galperin'
   AND cluster.run_id = $run_id
   AND m.run_id = $run_id
-MATCH (c:ExtractedClaim)-[r-[:HAS_PARTICIPANT {role: 'subject'}]->(m)
+MATCH (c:ExtractedClaim)-[r:HAS_PARTICIPANT {role: 'subject'}]->(m)
 WHERE c.run_id = $run_id
 RETURN cluster.canonical_name AS cluster,
        m.name                 AS mention,
@@ -495,7 +495,7 @@ MATCH (cluster:ResolvedEntityCluster)<-[:MEMBER_OF]-(m:EntityMention)
 WHERE toLower(cluster.canonical_name) CONTAINS 'endeavor'
   AND cluster.run_id = $run_id
   AND m.run_id = $run_id
-MATCH (c:ExtractedClaim)-[r-[:HAS_PARTICIPANT {role: 'object'}]->(m)
+MATCH (c:ExtractedClaim)-[r:HAS_PARTICIPANT {role: 'object'}]->(m)
 WHERE c.run_id = $run_id
 RETURN cluster.canonical_name AS cluster,
        m.name                 AS mention,
@@ -520,7 +520,7 @@ WHERE toLower(clusterB.canonical_name) CONTAINS 'mercadolibre'
 WITH DISTINCT clusterA, clusterB
 MATCH (clusterA)<-[:MEMBER_OF]-(mA:EntityMention)
       <-[:HAS_PARTICIPANT {role: 'subject'}]-(c:ExtractedClaim)
-      -[-[:HAS_PARTICIPANT {role: 'object'}]->(mB:EntityMention)
+      -[:HAS_PARTICIPANT {role: 'object'}]->(mB:EntityMention)
       -[:MEMBER_OF]->(clusterB)
 WHERE mA.run_id = $run_id
   AND mB.run_id = $run_id
@@ -540,10 +540,10 @@ ORDER BY c.claim_id;
 // Claim-centric rewrite: start from claims and join to clusters to avoid mA × mB expansion
 MATCH (c:ExtractedClaim)
 WHERE c.run_id = $run_id
-MATCH (c)-[-[:HAS_PARTICIPANT {role: 'subject'}]->(mSub:EntityMention)-[:MEMBER_OF]->(clSub:ResolvedEntityCluster)
+MATCH (c)-[:HAS_PARTICIPANT {role: 'subject'}]->(mSub:EntityMention)-[:MEMBER_OF]->(clSub:ResolvedEntityCluster)
 WHERE mSub.run_id = $run_id
   AND clSub.run_id = $run_id
-MATCH (c)-[-[:HAS_PARTICIPANT {role: 'object'}]->(mObj:EntityMention)-[:MEMBER_OF]->(clObj:ResolvedEntityCluster)
+MATCH (c)-[:HAS_PARTICIPANT {role: 'object'}]->(mObj:EntityMention)-[:MEMBER_OF]->(clObj:ResolvedEntityCluster)
 WHERE mObj.run_id = $run_id
   AND clObj.run_id = $run_id
   AND (
@@ -612,7 +612,7 @@ ORDER BY role, c.claim_id;
 MATCH (canonical:CanonicalEntity)<-[:RESOLVES_TO]-(m:EntityMention)
 WHERE toLower(canonical.name) CONTAINS 'mercadolibre'
   AND m.run_id = $run_id
-MATCH (c:ExtractedClaim)-[r-[:HAS_PARTICIPANT {role: 'subject'}]->(m)
+MATCH (c:ExtractedClaim)-[r:HAS_PARTICIPANT {role: 'subject'}]->(m)
 WHERE c.run_id = $run_id
 RETURN canonical.name AS canonical_entity,
        m.name         AS mention,
@@ -649,7 +649,7 @@ MATCH (canonical:CanonicalEntity)<-[a:ALIGNED_WITH]-(cluster:ResolvedEntityClust
 WHERE toLower(canonical.name) CONTAINS 'galperin'
   AND a.run_id = $run_id AND a.alignment_version = $alignment_version
   AND m.run_id = $run_id
-MATCH (c:ExtractedClaim)-[r-[:HAS_PARTICIPANT {role: 'subject'}]->(m)
+MATCH (c:ExtractedClaim)-[r:HAS_PARTICIPANT {role: 'subject'}]->(m)
 WHERE c.run_id = $run_id
 RETURN canonical.name        AS canonical_entity,
        cluster.canonical_name AS cluster,
@@ -668,7 +668,7 @@ ORDER BY c.claim_id;
 // Single-path traversal avoids an mA × mB cross product
 MATCH (canonA:CanonicalEntity)<-[aA:ALIGNED_WITH]-(clA:ResolvedEntityCluster)<-[:MEMBER_OF]-
       (mA:EntityMention)<-[:HAS_PARTICIPANT {role: 'subject'}]-
-      (c:ExtractedClaim)-[-[:HAS_PARTICIPANT {role: 'object'}]->
+      (c:ExtractedClaim)-[:HAS_PARTICIPANT {role: 'object'}]->
       (mB:EntityMention)-[:MEMBER_OF]->
       (clB:ResolvedEntityCluster)-[aB:ALIGNED_WITH]->(canonB:CanonicalEntity)
 WHERE toLower(canonA.name) CONTAINS 'galperin'
@@ -694,9 +694,9 @@ ORDER BY c.claim_id;
 // Claim-centric rewrite: start from claims to avoid mA × mB expansion
 MATCH (c:ExtractedClaim)
 WHERE c.run_id = $run_id
-MATCH (c)-[-[:HAS_PARTICIPANT {role: 'subject'}]->(mSub:EntityMention)
+MATCH (c)-[:HAS_PARTICIPANT {role: 'subject'}]->(mSub:EntityMention)
 WHERE mSub.run_id = $run_id
-MATCH (c)-[-[:HAS_PARTICIPANT {role: 'object'}]->(mObj:EntityMention)
+MATCH (c)-[:HAS_PARTICIPANT {role: 'object'}]->(mObj:EntityMention)
 WHERE mObj.run_id = $run_id
 MATCH (mSub)-[:MEMBER_OF]->(clSub:ResolvedEntityCluster)-[aSub:ALIGNED_WITH]->(canonSub:CanonicalEntity)
 WHERE aSub.run_id = $run_id
@@ -886,9 +886,9 @@ MATCH (cluster:ResolvedEntityCluster)<-[:MEMBER_OF]-(mObj:EntityMention)
 WHERE toLower(cluster.canonical_name) CONTAINS 'mercadolibre'
   AND cluster.run_id = $run_id
   AND mObj.run_id = $run_id
-MATCH (c:ExtractedClaim)-[-[:HAS_PARTICIPANT {role: 'object'}]->(mObj)
+MATCH (c:ExtractedClaim)-[:HAS_PARTICIPANT {role: 'object'}]->(mObj)
 WHERE c.run_id = $run_id
-MATCH (c)-[-[:HAS_PARTICIPANT {role: 'subject'}]->(mSubj:EntityMention)
+MATCH (c)-[:HAS_PARTICIPANT {role: 'subject'}]->(mSubj:EntityMention)
 RETURN DISTINCT mSubj.name AS subject_entity,
                 count(c)   AS claim_count
 ORDER BY claim_count DESC;
@@ -983,7 +983,7 @@ Two derived relationship types could be pre-computed:
   these indexes in place (recommended for interactive analytics workloads), these queries run
   well within interactive latency budgets.
 - Materialized edges duplicate information already encoded in participation edges
-  (`HAS_PARTICIPANT {role: subject}` / `HAS_PARTICIPANT {role: object}`) and resolution edges (`MEMBER_OF` /
+  (`HAS_PARTICIPANT {role: 'subject'}` / `HAS_PARTICIPANT {role: 'object'}`) and resolution edges (`MEMBER_OF` /
   `ALIGNED_WITH`), increasing write cost and introducing a consistency surface.
 - Resolution results can change when `resolve-entities` is re-run (updated `MEMBER_OF` and
   `ALIGNED_WITH` edges).  Materialized edges would need to be explicitly invalidated and rebuilt
