@@ -4512,9 +4512,43 @@ def test_chunk_citation_formatter_claim_details_and_cluster_context_both_present
     assert "[CITATION|" in item.content
 
 
+def test_chunk_citation_formatter_arbitrary_roles_in_content():
+    """_chunk_citation_formatter must render arbitrary roles (e.g. agent, target) from the
+    new ``roles`` list format in content so the LLM sees all participation edges."""
+    from demo.stages.retrieval_and_qa import _chunk_citation_formatter
+
+    record = _make_fake_neo4j_record(
+        chunk_id="c-cd-7",
+        run_id="r7",
+        source_uri="file:///doc.pdf",
+        chunk_index=0,
+        page=1,
+        start_char=0,
+        end_char=200,
+        chunk_text="The board authorised the acquisition.",
+        similarityScore=0.87,
+        claims=["The board authorised the acquisition."],
+        claim_details=[
+            {
+                "claim_text": "The board authorised the acquisition.",
+                "roles": [
+                    {"role": "agent", "name": "The board", "match_method": "casefold_exact"},
+                    {"role": "target", "name": "the acquisition", "match_method": "normalized_exact"},
+                ],
+            }
+        ],
+    )
+    item = _chunk_citation_formatter(record)
+    assert "[Claim context" in item.content
+    assert "agent='The board'" in item.content
+    assert "target='the acquisition'" in item.content
+    assert "[CITATION|" in item.content
+
+
+
 def test_retrieval_query_with_expansion_includes_claim_details_field():
     """_RETRIEVAL_QUERY_WITH_EXPANSION must contain claim_details as a pattern comprehension
-    that traverses HAS_PARTICIPANT edges with role filtering."""
+    that traverses all HAS_PARTICIPANT edges and collects roles generically."""
     from demo.stages.retrieval_and_qa import _RETRIEVAL_QUERY_WITH_EXPANSION
 
     assert "claim_details" in _RETRIEVAL_QUERY_WITH_EXPANSION, (
@@ -4523,11 +4557,8 @@ def test_retrieval_query_with_expansion_includes_claim_details_field():
     assert "HAS_PARTICIPANT" in _RETRIEVAL_QUERY_WITH_EXPANSION, (
         "_RETRIEVAL_QUERY_WITH_EXPANSION must traverse HAS_PARTICIPANT edges"
     )
-    assert "role: 'subject'" in _RETRIEVAL_QUERY_WITH_EXPANSION, (
-        "_RETRIEVAL_QUERY_WITH_EXPANSION must filter by role: 'subject' for subject_mention"
-    )
-    assert "role: 'object'" in _RETRIEVAL_QUERY_WITH_EXPANSION, (
-        "_RETRIEVAL_QUERY_WITH_EXPANSION must filter by role: 'object' for object_mention"
+    assert "r.role" in _RETRIEVAL_QUERY_WITH_EXPANSION, (
+        "_RETRIEVAL_QUERY_WITH_EXPANSION must collect r.role generically for all participation edges"
     )
     assert "match_method" in _RETRIEVAL_QUERY_WITH_EXPANSION, (
         "_RETRIEVAL_QUERY_WITH_EXPANSION must include match_method in claim_details"
@@ -4540,8 +4571,7 @@ def test_retrieval_query_with_cluster_includes_claim_details_field():
 
     assert "claim_details" in _RETRIEVAL_QUERY_WITH_CLUSTER
     assert "HAS_PARTICIPANT" in _RETRIEVAL_QUERY_WITH_CLUSTER
-    assert "role: 'subject'" in _RETRIEVAL_QUERY_WITH_CLUSTER
-    assert "role: 'object'" in _RETRIEVAL_QUERY_WITH_CLUSTER
+    assert "r.role" in _RETRIEVAL_QUERY_WITH_CLUSTER
 
 
 def test_retrieval_query_all_runs_variants_include_claim_details_field():
@@ -4557,8 +4587,7 @@ def test_retrieval_query_all_runs_variants_include_claim_details_field():
     ]:
         assert "claim_details" in query, f"{name} must return claim_details"
         assert "HAS_PARTICIPANT" in query, f"{name} must traverse HAS_PARTICIPANT edges"
-        assert "role: 'subject'" in query, f"{name} must filter by role: 'subject'"
-        assert "role: 'object'" in query, f"{name} must filter by role: 'object'"
+        assert "r.role" in query, f"{name} must collect r.role generically"
 
 
 def test_format_claim_details_empty_returns_empty_string():
@@ -4603,6 +4632,89 @@ def test_format_claim_details_no_participation_edges_renders_claim_text_only():
     assert "Company Z expanded overseas." in result
     assert "subject=" not in result
     assert "object=" not in result
+
+
+def test_format_claim_details_new_format_subject_and_object():
+    """_format_claim_details must render subject and object annotations from the new
+    ``roles`` list format (generic HAS_PARTICIPANT collection), preserving current output."""
+    from demo.stages.retrieval_and_qa import _format_claim_details
+
+    details = [
+        {
+            "claim_text": "Galperin co-founded MercadoLibre.",
+            "roles": [
+                {"role": "subject", "name": "Galperin", "match_method": "raw_exact"},
+                {"role": "object", "name": "MercadoLibre", "match_method": "raw_exact"},
+            ],
+        }
+    ]
+    result = _format_claim_details(details)
+    assert "[Claim context" in result
+    assert "Galperin co-founded MercadoLibre." in result
+    assert "subject='Galperin'" in result
+    assert "object='MercadoLibre'" in result
+    assert "raw_exact" in result
+
+
+def test_format_claim_details_new_format_arbitrary_roles():
+    """_format_claim_details must render arbitrary roles (e.g. agent, target) from the
+    new ``roles`` list format without requiring code changes for each new role."""
+    from demo.stages.retrieval_and_qa import _format_claim_details
+
+    details = [
+        {
+            "claim_text": "The board authorised the acquisition.",
+            "roles": [
+                {"role": "agent", "name": "The board", "match_method": "casefold_exact"},
+                {"role": "target", "name": "the acquisition", "match_method": "normalized_exact"},
+            ],
+        }
+    ]
+    result = _format_claim_details(details)
+    assert "[Claim context" in result
+    assert "The board authorised the acquisition." in result
+    assert "agent='The board'" in result
+    assert "target='the acquisition'" in result
+    assert "casefold_exact" in result
+    assert "normalized_exact" in result
+
+
+def test_format_claim_details_new_format_mixed_roles():
+    """_format_claim_details must render a mix of subject/object and additional roles
+    (e.g. agent) correctly when they appear together in the roles list."""
+    from demo.stages.retrieval_and_qa import _format_claim_details
+
+    details = [
+        {
+            "claim_text": "Smith, acting as agent, transferred assets to Corp.",
+            "roles": [
+                {"role": "subject", "name": "assets", "match_method": "raw_exact"},
+                {"role": "object", "name": "Corp", "match_method": "raw_exact"},
+                {"role": "agent", "name": "Smith", "match_method": "casefold_exact"},
+            ],
+        }
+    ]
+    result = _format_claim_details(details)
+    assert "subject='assets'" in result
+    assert "object='Corp'" in result
+    assert "agent='Smith'" in result
+
+
+def test_format_claim_details_new_format_empty_roles_list():
+    """_format_claim_details must render claim text without role annotations when the
+    new ``roles`` list is present but empty (no resolved participation edges)."""
+    from demo.stages.retrieval_and_qa import _format_claim_details
+
+    details = [
+        {
+            "claim_text": "An unresolved claim.",
+            "roles": [],
+        }
+    ]
+    result = _format_claim_details(details)
+    assert "An unresolved claim." in result
+    assert "[Claim context" in result
+    assert "=" not in result.split("An unresolved claim.")[1].split("\n")[0]
 
 
 def test_retrieval_and_qa_expand_graph_surfaces_claim_details_in_metadata(tmp_path: Path):

@@ -45,10 +45,10 @@ def _build_claim_details_with_clause(run_scoped: bool) -> str:
     """Return the WITH clause that adds claim_details via HAS_PARTICIPANT traversal.
 
     Traverses ``SUPPORTED_BY`` edges from the Chunk to ``ExtractedClaim`` nodes,
-    then projects subject and object ``EntityMention`` slots via
-    ``HAS_PARTICIPANT {role}`` edges (v0.3 participation model).  The ``[0]``
-    index picks the first participation edge per role; ``null`` is returned when
-    no edge exists for that role.
+    then collects **all** ``HAS_PARTICIPANT`` participation edges (v0.3 model) as a
+    ``roles`` list.  Each entry in the list carries the ``role`` property, the
+    mention ``name``, and the ``match_method`` — covering subject, object, and any
+    future roles (agent, target, location, …) without requiring schema changes.
 
     When *run_scoped* is ``True``, a ``WHERE`` filter restricts
     ``ExtractedClaim`` nodes to the current ``$run_id``.  In all-runs mode the
@@ -59,8 +59,7 @@ def _build_claim_details_with_clause(run_scoped: bool) -> str:
         "WITH c, score,\n"
         "     [(c)<-[:SUPPORTED_BY]-(claim:ExtractedClaim)" + claim_filter + " |\n"
         "         {claim_text: claim.claim_text,\n"
-        "          subject_mention: [(claim)-[sr:HAS_PARTICIPANT {role: 'subject'}]->(sm:EntityMention) | {name: sm.name, match_method: sr.match_method}][0],\n"
-        "          object_mention: [(claim)-[or_:HAS_PARTICIPANT {role: 'object'}]->(om:EntityMention) | {name: om.name, match_method: or_.match_method}][0]}\n"
+        "          roles: [(claim)-[r:HAS_PARTICIPANT]->(m:EntityMention) | {role: r.role, name: m.name, match_method: r.match_method}]}\n"
         "     ] AS claim_details"
     )
 
@@ -656,13 +655,14 @@ def _format_cluster_context(
 
 
 def _format_claim_details(claim_details: list[dict[str, object]]) -> str:
-    """Format structured claim details (with explicit subject/object mentions) for LLM context.
+    """Format structured claim details (with explicit role mentions) for LLM context.
 
-    For each claim, renders the claim text together with the explicitly matched subject
-    and object mentions reached via ``HAS_PARTICIPANT {role: 'subject' | 'object'}``
-    participation edges (v0.3 model).  When a slot has no participation edge the slot
-    is omitted from the rendered line rather than falling back to chunk co-location
-    heuristics.
+    For each claim, renders the claim text together with all explicitly matched
+    participant mentions reached via ``HAS_PARTICIPANT {role}`` participation edges
+    (v0.3 model).  Roles are taken from the ``roles`` list in each claim detail;
+    the legacy ``subject_mention`` / ``object_mention`` keys are also supported for
+    backward compatibility with older stored metadata.  When a claim has no
+    participation edges the claim text is still included without role annotations.
 
     The section is labelled so the LLM can treat the explicit role assignments as
     first-class evidence rather than positional guesses.
@@ -676,28 +676,53 @@ def _format_claim_details(claim_details: list[dict[str, object]]) -> str:
         claim_text = (detail.get("claim_text") or "").strip()
         if not claim_text:
             continue
-        subject = detail.get("subject_mention")
-        obj = detail.get("object_mention")
+        # New format: a generic ``roles`` list produced by the updated Cypher query.
+        roles_raw = detail.get("roles")
+        if roles_raw is not None:
+            roles_list = list(roles_raw)
+        else:
+            # Backward compat: legacy ``subject_mention`` / ``object_mention`` keys.
+            roles_list = []
+            subject = detail.get("subject_mention")
+            obj = detail.get("object_mention")
+            if subject:
+                roles_list.append({
+                    "role": "subject",
+                    "name": subject.get("name"),
+                    "match_method": subject.get("match_method"),
+                })
+            if obj:
+                roles_list.append({
+                    "role": "object",
+                    "name": obj.get("name"),
+                    "match_method": obj.get("match_method"),
+                })
+        # Sort for deterministic output: subject first, object second, rest alphabetically,
+        # with name and match_method as tie-breakers for stable ordering within the same role.
+        roles_list.sort(
+            key=lambda e: (
+                0 if e.get("role") == "subject" else 1 if e.get("role") == "object" else 2,
+                str(e.get("role") or ""),
+                str(e.get("name") or ""),
+                str(e.get("match_method") or ""),
+            )
+        )
         role_parts: list[str] = []
-        if subject:
-            subj_name = subject.get("name") or ""
-            subj_method_raw = subject.get("match_method")
-            subj_method = str(subj_method_raw).strip() if subj_method_raw is not None else ""
-            subj_method_display = subj_method if subj_method else "unknown"
-            role_parts.append(f"subject='{subj_name}' (match: {subj_method_display})")
-        if obj:
-            obj_name = obj.get("name") or ""
-            obj_method_raw = obj.get("match_method")
-            obj_method = str(obj_method_raw).strip() if obj_method_raw is not None else ""
-            obj_method_display = obj_method if obj_method else "unknown"
-            role_parts.append(f"object='{obj_name}' (match: {obj_method_display})")
+        for entry in roles_list:
+            role_name = str(entry.get("role") or "").strip()
+            mention_name = str(entry.get("name") or "").strip()
+            method_raw = entry.get("match_method")
+            method = str(method_raw).strip() if method_raw is not None else ""
+            method_display = method if method else "unknown"
+            if role_name and mention_name:
+                role_parts.append(f"{role_name}='{mention_name}' (match: {method_display})")
         if role_parts:
             lines.append(f"  • {claim_text} [{', '.join(role_parts)}]")
         else:
             lines.append(f"  • {claim_text}")
     if not lines:
         return ""
-    header = "[Claim context — explicit subject/object roles via participation edges]"
+    header = "[Claim context — explicit roles via participation edges]"
     return header + "\n" + "\n".join(lines)
 
 
@@ -720,8 +745,9 @@ def _build_retrieval_path_diagnostics(
     ----------
     claim_details:
         Structured claim records from the ``claim_details`` query column.  Each entry
-        carries ``claim_text``, ``subject_mention``, and ``object_mention`` dicts (the
-        latter two may be ``None`` when no participation edge exists for that role).
+        carries ``claim_text`` and either a ``roles`` list (new generic format, each
+        entry is ``{role, name, match_method}``) or legacy ``subject_mention`` /
+        ``object_mention`` dicts (backward-compatible fallback).
     canonical_entities:
         List of canonical entity names reached via
         ``EntityMention -[:RESOLVES_TO]-> CanonicalEntity``.
@@ -754,15 +780,39 @@ def _build_retrieval_path_diagnostics(
         claim_text = (detail.get("claim_text") or "").strip()
         if not claim_text:
             continue
-        roles: list[dict[str, object]] = []
-        for role_key, role_name in (("subject_mention", "subject"), ("object_mention", "object")):
-            slot = detail.get(role_key)
-            if slot:
-                roles.append({
-                    "role": role_name,
-                    "mention_name": slot.get("name"),
-                    "match_method": slot.get("match_method"),
-                })
+        # New format: generic ``roles`` list from the updated Cypher query.
+        roles_raw = detail.get("roles")
+        if roles_raw is not None:
+            roles: list[dict[str, object]] = [
+                {
+                    "role": entry.get("role"),
+                    "mention_name": entry.get("name"),
+                    "match_method": entry.get("match_method"),
+                }
+                for entry in roles_raw
+                if entry
+            ]
+        else:
+            # Backward compat: legacy ``subject_mention`` / ``object_mention`` keys.
+            roles = []
+            for role_key, role_name in (("subject_mention", "subject"), ("object_mention", "object")):
+                slot = detail.get(role_key)
+                if slot:
+                    roles.append({
+                        "role": role_name,
+                        "mention_name": slot.get("name"),
+                        "match_method": slot.get("match_method"),
+                    })
+        # Sort for deterministic output: subject first, object second, rest alphabetically,
+        # with mention_name and match_method as tie-breakers for stable ordering within the same role.
+        roles.sort(
+            key=lambda e: (
+                0 if e.get("role") == "subject" else 1 if e.get("role") == "object" else 2,
+                str(e.get("role") or ""),
+                str(e.get("mention_name") or ""),
+                str(e.get("match_method") or ""),
+            )
+        )
         has_participant_edges.append({"claim_text": claim_text, "roles": roles})
     return {
         "has_participant_edges": has_participant_edges,
@@ -887,11 +937,11 @@ def _chunk_citation_formatter(record: neo4j.Record) -> RetrieverResultItem:
     and preserves all citation-relevant fields in metadata (for downstream citation mapping).
 
     When the graph-expanded retrieval query was used, structured claim details (including
-    explicit subject/object mention names and match methods via HAS_PARTICIPANT {role}
-    participation edges) are appended to the content so the LLM can
-    reason about claim roles precisely. The claim context section appears when claim_details
-    include claim text; explicit subject/object role annotations are only shown for slots
-    that have participation edges (no fallback to chunk co-location heuristics).
+    explicit participant mention names and match methods via HAS_PARTICIPANT {role}
+    participation edges) are appended to the content so the LLM can reason about claim
+    roles precisely. The claim context section appears when claim_details include claim
+    text; role annotations are shown for every resolved participation edge (subject, object,
+    or any future role); no fallback to chunk co-location heuristics is used.
 
     When the cluster-aware retrieval query was used, provisional cluster membership and
     alignment context is appended to the content string so the LLM can distinguish between
