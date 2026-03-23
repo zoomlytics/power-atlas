@@ -26,8 +26,8 @@ retrieval query then optionally expands each chunk using one or more graph layer
 | Layer | Enabled by | Graph edges consulted |
 |---|---|---|
 | Base | *(default)* | None — chunk text and metadata only |
-| Graph-expanded | `--expand-graph` | `SUPPORTED_BY` (claim→chunk), `HAS_PARTICIPANT` (claim→mention), `RESOLVES_TO` (mention→canonical) |
-| Cluster-aware | `--cluster-aware` | All of the above + `MEMBER_OF` (mention→cluster), `ALIGNED_WITH` (cluster→canonical) |
+| Graph-expanded | `--expand-graph` | `SUPPORTED_BY` (claim→chunk), `HAS_PARTICIPANT` (claim→mention), `RESOLVES_TO` (mention→canonical), `MENTIONED_IN` (mention↔chunk co-location) |
+| Cluster-aware | `--cluster-aware` | `SUPPORTED_BY` (claim→chunk), `HAS_PARTICIPANT` (claim→mention), `RESOLVES_TO` (mention→canonical), `MENTIONED_IN` (mention↔chunk co-location), `MEMBER_OF` (mention→cluster), `ALIGNED_WITH` (cluster→canonical) |
 
 Graph expansion enriches the LLM context window but does **not** re-rank or replace chunks.
 The chunk returned by vector search is always the primary retrieval result.
