@@ -697,6 +697,8 @@ def _format_claim_details(claim_details: list[dict[str, object]]) -> str:
                     "name": obj.get("name"),
                     "match_method": obj.get("match_method"),
                 })
+        # Sort for deterministic output: subject first, object second, rest alphabetically.
+        roles_list.sort(key=lambda e: (0 if e.get("role") == "subject" else 1 if e.get("role") == "object" else 2, str(e.get("role") or "")))
         role_parts: list[str] = []
         for entry in roles_list:
             role_name = str(entry.get("role") or "").strip()
@@ -793,6 +795,8 @@ def _build_retrieval_path_diagnostics(
                         "mention_name": slot.get("name"),
                         "match_method": slot.get("match_method"),
                     })
+        # Sort for deterministic output: subject first, object second, rest alphabetically.
+        roles.sort(key=lambda e: (0 if e.get("role") == "subject" else 1 if e.get("role") == "object" else 2, str(e.get("role") or "")))
         has_participant_edges.append({"claim_text": claim_text, "roles": roles})
     return {
         "has_participant_edges": has_participant_edges,

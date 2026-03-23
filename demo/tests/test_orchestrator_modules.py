@@ -4546,6 +4546,7 @@ def test_chunk_citation_formatter_arbitrary_roles_in_content():
 
 
 
+def test_retrieval_query_with_expansion_includes_claim_details_field():
     """_RETRIEVAL_QUERY_WITH_EXPANSION must contain claim_details as a pattern comprehension
     that traverses all HAS_PARTICIPANT edges and collects roles generically."""
     from demo.stages.retrieval_and_qa import _RETRIEVAL_QUERY_WITH_EXPANSION
