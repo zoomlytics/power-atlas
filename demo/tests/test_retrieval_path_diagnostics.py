@@ -18,6 +18,7 @@ import pytest
 from demo.stages.retrieval_and_qa import (
     _build_retrieval_path_diagnostics,
     _format_retrieval_path_summary,
+    _normalize_claim_roles,
 )
 
 
@@ -708,3 +709,167 @@ class TestRunRetrievalAndQaIncludesRetrievalPathSummary:
         )
         assert "retrieval_path_summary" in result
         assert result["retrieval_path_summary"] == ""
+
+
+# ---------------------------------------------------------------------------
+# _normalize_claim_roles: canonical normalization and malformed-payload safety
+# ---------------------------------------------------------------------------
+
+
+class TestNormalizeClaimRoles:
+    """_normalize_claim_roles produces a canonical sorted list and handles bad input."""
+
+    # --- new ``roles`` format -----------------------------------------------
+
+    def test_new_format_returns_canonical_entries(self) -> None:
+        detail = {
+            "roles": [
+                {"role": "subject", "name": "Alice", "match_method": "raw_exact"},
+                {"role": "object", "name": "Bob", "match_method": "casefold_exact"},
+            ]
+        }
+        result = _normalize_claim_roles(detail)
+        assert len(result) == 2
+        assert result[0] == {"role": "subject", "mention_name": "Alice", "match_method": "raw_exact"}
+        assert result[1] == {"role": "object", "mention_name": "Bob", "match_method": "casefold_exact"}
+
+    def test_new_format_sorts_subject_first(self) -> None:
+        detail = {
+            "roles": [
+                {"role": "object", "name": "Corp", "match_method": "raw_exact"},
+                {"role": "subject", "name": "Alice", "match_method": "raw_exact"},
+            ]
+        }
+        result = _normalize_claim_roles(detail)
+        assert result[0]["role"] == "subject"
+        assert result[1]["role"] == "object"
+
+    def test_new_format_empty_list_returns_empty(self) -> None:
+        assert _normalize_claim_roles({"roles": []}) == []
+
+    # --- legacy format ------------------------------------------------------
+
+    def test_legacy_format_subject_and_object(self) -> None:
+        detail = {
+            "subject_mention": {"name": "Galperin", "match_method": "raw_exact"},
+            "object_mention": {"name": "MercadoLibre", "match_method": "casefold_exact"},
+        }
+        result = _normalize_claim_roles(detail)
+        assert len(result) == 2
+        assert result[0]["role"] == "subject"
+        assert result[0]["mention_name"] == "Galperin"
+        assert result[1]["role"] == "object"
+        assert result[1]["mention_name"] == "MercadoLibre"
+
+    def test_legacy_format_only_subject(self) -> None:
+        detail = {
+            "subject_mention": {"name": "Galperin", "match_method": "raw_exact"},
+            "object_mention": None,
+        }
+        result = _normalize_claim_roles(detail)
+        assert len(result) == 1
+        assert result[0]["role"] == "subject"
+
+    def test_no_roles_key_and_no_legacy_keys_returns_empty(self) -> None:
+        assert _normalize_claim_roles({"claim_text": "Some claim."}) == []
+
+    # --- malformed / partial payload safety ---------------------------------
+
+    def test_none_entry_in_roles_list_is_filtered(self) -> None:
+        """None entries inside the ``roles`` list must be silently dropped."""
+        detail = {
+            "roles": [
+                None,
+                {"role": "subject", "name": "Alice", "match_method": "raw_exact"},
+            ]
+        }
+        result = _normalize_claim_roles(detail)
+        assert len(result) == 1
+        assert result[0]["role"] == "subject"
+
+    def test_non_dict_entry_in_roles_list_is_filtered(self) -> None:
+        """Non-dict entries (e.g. strings) inside ``roles`` must be silently dropped."""
+        detail = {
+            "roles": [
+                "bad-entry",
+                {"role": "object", "name": "Corp", "match_method": "raw_exact"},
+            ]
+        }
+        result = _normalize_claim_roles(detail)
+        assert len(result) == 1
+        assert result[0]["role"] == "object"
+
+    def test_non_list_roles_value_returns_empty(self) -> None:
+        """If ``roles`` is present but not a list (e.g. a plain string), return empty."""
+        assert _normalize_claim_roles({"roles": "not-a-list"}) == []
+        assert _normalize_claim_roles({"roles": 42}) == []
+        assert _normalize_claim_roles({"roles": {"role": "subject"}}) == []
+
+    def test_entry_missing_role_key_is_filtered(self) -> None:
+        """Entries without a ``role`` key (or with a falsy role) must be dropped."""
+        detail = {
+            "roles": [
+                {"name": "Unknown", "match_method": "raw_exact"},  # no role key
+                {"role": "", "name": "Empty", "match_method": "raw_exact"},  # empty role
+                {"role": "subject", "name": "Alice", "match_method": "raw_exact"},
+            ]
+        }
+        result = _normalize_claim_roles(detail)
+        assert len(result) == 1
+        assert result[0]["role"] == "subject"
+
+    def test_partially_populated_entry_preserved(self) -> None:
+        """An entry with a valid role but missing name/match_method should survive."""
+        detail = {
+            "roles": [
+                {"role": "subject"},  # name and match_method absent
+            ]
+        }
+        result = _normalize_claim_roles(detail)
+        assert len(result) == 1
+        assert result[0]["role"] == "subject"
+        assert result[0]["mention_name"] is None
+        assert result[0]["match_method"] is None
+
+    def test_mixed_valid_and_malformed_entries(self) -> None:
+        """A mix of valid entries and malformed ones returns only the valid entries."""
+        detail = {
+            "roles": [
+                None,
+                "garbage",
+                {"name": "no-role"},
+                {"role": "subject", "name": "Alice", "match_method": "raw_exact"},
+                {"role": "object", "name": "Corp", "match_method": "casefold_exact"},
+            ]
+        }
+        result = _normalize_claim_roles(detail)
+        assert len(result) == 2
+        assert result[0]["role"] == "subject"
+        assert result[1]["role"] == "object"
+
+    def test_build_retrieval_path_diagnostics_tolerates_malformed_roles(self) -> None:
+        """_build_retrieval_path_diagnostics must not crash when roles contains
+        None/non-dict entries — it should produce a clean roles list via the helper."""
+        claim_details = [
+            {
+                "claim_text": "Claim with bad roles.",
+                "roles": [
+                    None,
+                    "garbage",
+                    {"role": "subject", "name": "Alice", "match_method": "raw_exact"},
+                ],
+            }
+        ]
+        result = _build_retrieval_path_diagnostics(
+            claim_details=claim_details,
+            canonical_entities=[],
+            cluster_memberships=[],
+            cluster_canonical_alignments=[],
+        )
+        edges = result["has_participant_edges"]
+        assert len(edges) == 1
+        assert edges[0]["claim_text"] == "Claim with bad roles."
+        roles = edges[0]["roles"]
+        assert len(roles) == 1
+        assert roles[0]["role"] == "subject"
+        assert roles[0]["mention_name"] == "Alice"
