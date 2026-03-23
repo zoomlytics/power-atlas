@@ -8,6 +8,11 @@ Paste any query block directly into the Neo4j Browser editor and run it.
 Chunk co-location queries are still available for architecture-level inspection;
 see [Architecture reference queries](#architecture-reference-queries-chunk-co-location) below.
 
+For the design invariants that govern retrieval (chunk-first anchoring, participation-edge
+precedence, provisional cluster/canonical enrichment, and citation anchoring at the chunk
+level), see
+[docs/architecture/retrieval-semantics-v0.1.md](../../docs/architecture/retrieval-semantics-v0.1.md).
+
 ---
 
 ## Quick-start: validate the graph is populated
@@ -286,6 +291,8 @@ filtering so each claim map carries:
 
 Slots without a participation edge are `null` — **no chunk co-location fallback is applied**.
 The following queries mirror what the retrieval stage now materialises for each chunk.
+For the design rationale behind these semantics see
+[docs/architecture/retrieval-semantics-v0.1.md](../../docs/architecture/retrieval-semantics-v0.1.md).
 
 ### 5a. Reproduce the expanded retrieval context for a single chunk
 
