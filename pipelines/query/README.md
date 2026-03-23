@@ -398,11 +398,11 @@ are empty.  The key is always present so consumers can unconditionally inspect i
 ### Top-level `retrieval_path_summary`
 
 `result["retrieval_path_summary"]` contains a formatted, human-readable text summary of all
-retrieved chunks and their path diagnostics.  It is produced by
-`_format_retrieval_path_summary(hits)` and is useful for quick debug inspection:
+retrieved chunks and their path diagnostics. It is produced internally by the retrieval
+pipeline and is useful for quick debug inspection:
 
 ```python
-from demo.stages.retrieval_and_qa import run_retrieval_and_qa, _format_retrieval_path_summary
+from demo.stages.retrieval_and_qa import run_retrieval_and_qa
 
 result = run_retrieval_and_qa(config, run_id=run_id, question="...", cluster_aware=True)
 print(result["retrieval_path_summary"])
