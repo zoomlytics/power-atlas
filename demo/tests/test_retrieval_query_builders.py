@@ -54,13 +54,7 @@ class TestBuildClaimDetailsWithClause:
             result = _build_claim_details_with_clause(run_scoped=run_scoped)
             assert "SUPPORTED_BY" in result
 
-    def test_both_modes_include_has_participant_subject(self) -> None:
-        for run_scoped in (True, False):
-            result = _build_claim_details_with_clause(run_scoped=run_scoped)
-            assert "HAS_PARTICIPANT" in result
-            assert "r.role" in result
-
-    def test_both_modes_include_has_participant_object(self) -> None:
+    def test_both_modes_include_has_participant_with_generic_role_projection(self) -> None:
         for run_scoped in (True, False):
             result = _build_claim_details_with_clause(run_scoped=run_scoped)
             assert "HAS_PARTICIPANT" in result
