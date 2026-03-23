@@ -5,6 +5,7 @@ from typing import Any
 import neo4j
 
 from demo.io import RunScopedNeo4jChunkReader
+from demo.stages.claim_participation import EDGE_TYPE_HAS_PARTICIPANT
 from neo4j_graphrag.experimental.components.types import LexicalGraphConfig, Neo4jGraph, TextChunk
 
 # ---------------------------------------------------------------------------
@@ -356,6 +357,18 @@ def write_all_extraction_data(
                 f"empty 'role' field (row indices: {invalid}).  Each row must carry a "
                 f"non-empty role (e.g. ROLE_SUBJECT or ROLE_OBJECT) before the transaction "
                 f"is executed."
+            )
+
+        invalid_type = [
+            i
+            for i, r in enumerate(edge_rows)
+            if "edge_type" in r and r["edge_type"] != EDGE_TYPE_HAS_PARTICIPANT
+        ]
+        if invalid_type:
+            raise ValueError(
+                f"write_all_extraction_data: {len(invalid_type)} edge row(s) have an "
+                f"unexpected 'edge_type' value; expected {EDGE_TYPE_HAS_PARTICIPANT!r} "
+                f"(row indices: {invalid_type})."
             )
 
     def _write_all(tx: neo4j.ManagedTransaction) -> None:

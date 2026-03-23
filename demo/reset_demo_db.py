@@ -26,11 +26,13 @@ Stale participation edges (pre-v0.3 graphs only, non-migratable):
   edges (v0.1 types).  Old graphs produced before v0.3 may contain
   :HAS_SUBJECT_MENTION and :HAS_OBJECT_MENTION edges (v0.2 types).
   All of these relationship types are retired and replaced by :HAS_PARTICIPANT
-  (v0.3).  The DETACH DELETE of ExtractedClaim/EntityMention nodes removes
-  these stale edges as a side-effect.  However, if any such edges somehow
-  survive between non-deleted endpoints, this script issues explicit DELETE
-  statements scoped to demo-owned endpoints to remove them and records the
-  count in the reset report under ``stale_participation_edges_deleted``.
+  (v0.3).  In a clean, demo-owned database the DETACH DELETE of
+  ExtractedClaim/EntityMention nodes is sufficient to remove these stale edges
+  as a side-effect.  The script also issues explicit, scoped DELETE statements
+  as a defense-in-depth / historic safety measure to clean up any such
+  relationships that might remain between non-deleted or non-demo endpoints,
+  and records the count in the reset report under
+  ``stale_participation_edges_deleted``.
 
   **Old demo graphs (pre-v0.3) are not migratable.**  A full reset followed by
   a fresh pipeline run (ingest-pdf → extract-claims → resolve-entities) is the

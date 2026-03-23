@@ -307,6 +307,18 @@ def write_participation_edges(
             f"role (e.g. ROLE_SUBJECT or ROLE_OBJECT) before the MERGE is executed."
         )
 
+    invalid_type = [
+        i
+        for i, r in enumerate(edge_rows)
+        if "edge_type" in r and r["edge_type"] != EDGE_TYPE_HAS_PARTICIPANT
+    ]
+    if invalid_type:
+        raise ValueError(
+            f"write_participation_edges: {len(invalid_type)} row(s) have an unexpected "
+            f"'edge_type' value; expected {EDGE_TYPE_HAS_PARTICIPANT!r} "
+            f"(row indices: {invalid_type})."
+        )
+
     driver.execute_query(
         """
         UNWIND $rows AS row
