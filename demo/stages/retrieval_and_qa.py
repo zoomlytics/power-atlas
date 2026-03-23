@@ -760,8 +760,8 @@ def _build_retrieval_path_diagnostics(
             if slot:
                 roles.append({
                     "role": role_name,
-                    "mention_name": slot.get("name") or "",
-                    "match_method": slot.get("match_method") or "",
+                    "mention_name": slot.get("name"),
+                    "match_method": slot.get("match_method"),
                 })
         has_participant_edges.append({"claim_text": claim_text, "roles": roles})
     return {
