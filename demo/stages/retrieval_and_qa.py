@@ -697,8 +697,16 @@ def _format_claim_details(claim_details: list[dict[str, object]]) -> str:
                     "name": obj.get("name"),
                     "match_method": obj.get("match_method"),
                 })
-        # Sort for deterministic output: subject first, object second, rest alphabetically.
-        roles_list.sort(key=lambda e: (0 if e.get("role") == "subject" else 1 if e.get("role") == "object" else 2, str(e.get("role") or "")))
+        # Sort for deterministic output: subject first, object second, rest alphabetically,
+        # with name and match_method as tie-breakers for stable ordering within the same role.
+        roles_list.sort(
+            key=lambda e: (
+                0 if e.get("role") == "subject" else 1 if e.get("role") == "object" else 2,
+                str(e.get("role") or ""),
+                str(e.get("name") or ""),
+                str(e.get("match_method") or ""),
+            )
+        )
         role_parts: list[str] = []
         for entry in roles_list:
             role_name = str(entry.get("role") or "").strip()
@@ -714,7 +722,7 @@ def _format_claim_details(claim_details: list[dict[str, object]]) -> str:
             lines.append(f"  • {claim_text}")
     if not lines:
         return ""
-    header = "[Claim context — explicit roles via participation edges]"
+    header = "[Claim context — explicit subject/object roles via participation edges]"
     return header + "\n" + "\n".join(lines)
 
 
@@ -795,8 +803,16 @@ def _build_retrieval_path_diagnostics(
                         "mention_name": slot.get("name"),
                         "match_method": slot.get("match_method"),
                     })
-        # Sort for deterministic output: subject first, object second, rest alphabetically.
-        roles.sort(key=lambda e: (0 if e.get("role") == "subject" else 1 if e.get("role") == "object" else 2, str(e.get("role") or "")))
+        # Sort for deterministic output: subject first, object second, rest alphabetically,
+        # with mention_name and match_method as tie-breakers for stable ordering within the same role.
+        roles.sort(
+            key=lambda e: (
+                0 if e.get("role") == "subject" else 1 if e.get("role") == "object" else 2,
+                str(e.get("role") or ""),
+                str(e.get("mention_name") or ""),
+                str(e.get("match_method") or ""),
+            )
+        )
         has_participant_edges.append({"claim_text": claim_text, "roles": roles})
     return {
         "has_participant_edges": has_participant_edges,
