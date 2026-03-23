@@ -95,16 +95,50 @@ class InMemoryGraphDb:
         are recognised; all other queries are ignored (no-op).  The method
         signature matches ``neo4j.Driver.execute_query`` so no patches are
         needed in the calling code.
+
+        As a regression guard the method also asserts that every participation
+        MERGE query scopes both the claim MATCH and the mention MATCH by
+        ``run_id``.  This catches the class of regression where the ``run_id``
+        predicate is accidentally removed from one of the MATCH clauses — a
+        bug that would allow cross-run edge creation in real Neo4j but would
+        otherwise pass these tests silently (because the in-memory sim enforces
+        run-scoping independently of the query text).
         """
         rows: list[dict[str, Any]] = (parameters_ or {}).get("rows", [])
 
         if "HAS_SUBJECT_MENTION" in query and "MERGE" in query:
+            self._assert_query_has_run_id_predicates(query)
             self._apply_merge(rows, EDGE_TYPE_HAS_SUBJECT)
         elif "HAS_OBJECT_MENTION" in query and "MERGE" in query:
+            self._assert_query_has_run_id_predicates(query)
             self._apply_merge(rows, EDGE_TYPE_HAS_OBJECT)
 
         # Return a no-op result tuple that matches the neo4j driver's API.
         return ([], None, None)
+
+    @staticmethod
+    def _assert_query_has_run_id_predicates(query: str) -> None:
+        """Assert the Cypher MATCH clauses scope both claim and mention by run_id.
+
+        The real ``write_participation_edges`` queries use patterns like::
+
+            MATCH (claim:ExtractedClaim {claim_id: row.claim_id, run_id: row.run_id})
+            MATCH (mention:EntityMention {mention_id: row.mention_id, run_id: row.run_id})
+
+        If a future refactor accidentally removes a ``run_id`` predicate from
+        either MATCH clause, cross-run edges could be written in Neo4j.  This
+        check makes the integration tests fail immediately in that case, even
+        though the in-memory graph always enforces run-scoping via node keys.
+        """
+        # Count how many distinct MATCH lines (or MATCH blocks) reference
+        # both a labelled node and `run_id: row.run_id`.
+        run_id_predicate = "run_id: row.run_id"
+        predicate_count = query.count(run_id_predicate)
+        assert predicate_count >= 2, (
+            f"Expected at least 2 occurrences of 'run_id: row.run_id' in the "
+            f"participation MERGE query (one for the claim MATCH, one for the "
+            f"mention MATCH), but found {predicate_count}.\n\nQuery:\n{query}"
+        )
 
     def _apply_merge(self, rows: list[dict[str, Any]], rel_type: str) -> None:
         """Apply MERGE + SET semantics for one batch of edge rows."""
@@ -391,11 +425,11 @@ class TestPropertyStabilityIntegration(unittest.TestCase):
         edge_rows = build_participation_edges(claims, mentions)
         write_participation_edges(db, neo4j_database="neo4j", edge_rows=edge_rows)
         props_first = db.get_edge_properties("c1", EDGE_TYPE_HAS_SUBJECT, "m1", "run-1")
-        assert props_first is not None
+        self.assertIsNotNone(props_first)
 
         write_participation_edges(db, neo4j_database="neo4j", edge_rows=edge_rows)
         props_second = db.get_edge_properties("c1", EDGE_TYPE_HAS_SUBJECT, "m1", "run-1")
-        assert props_second is not None
+        self.assertIsNotNone(props_second)
 
         self.assertEqual(props_first["match_method"], props_second["match_method"])
         self.assertEqual(props_first["match_method"], MATCH_METHOD_RAW_EXACT)
@@ -433,7 +467,7 @@ class TestPropertyStabilityIntegration(unittest.TestCase):
         write_participation_edges(db, neo4j_database="neo4j", edge_rows=second_row)
 
         props = db.get_edge_properties("c1", EDGE_TYPE_HAS_SUBJECT, "m1", "run-1")
-        assert props is not None
+        self.assertIsNotNone(props)
         self.assertEqual(props["source_uri"], "uri://original")
 
     def test_match_method_stable_for_casefold_across_reruns(self):
@@ -450,7 +484,7 @@ class TestPropertyStabilityIntegration(unittest.TestCase):
             write_participation_edges(db, neo4j_database="neo4j", edge_rows=edge_rows)
 
         props = db.get_edge_properties("c1", EDGE_TYPE_HAS_SUBJECT, "m-un", "run-1")
-        assert props is not None
+        self.assertIsNotNone(props)
         self.assertEqual(props["match_method"], MATCH_METHOD_CASEFOLD_EXACT)
 
     def test_match_method_stable_for_normalized_across_reruns(self):
@@ -467,7 +501,7 @@ class TestPropertyStabilityIntegration(unittest.TestCase):
             write_participation_edges(db, neo4j_database="neo4j", edge_rows=edge_rows)
 
         props = db.get_edge_properties("c1", EDGE_TYPE_HAS_SUBJECT, "m1", "run-1")
-        assert props is not None
+        self.assertIsNotNone(props)
         self.assertEqual(props["match_method"], MATCH_METHOD_NORMALIZED_EXACT)
 
     def test_run_id_on_edge_matches_input_run_id(self):
@@ -482,7 +516,7 @@ class TestPropertyStabilityIntegration(unittest.TestCase):
         write_participation_edges(db, neo4j_database="neo4j", edge_rows=edge_rows)
 
         props = db.get_edge_properties("c1", EDGE_TYPE_HAS_SUBJECT, "m1", "run-demo")
-        assert props is not None
+        self.assertIsNotNone(props)
         self.assertEqual(props["run_id"], "run-demo")
 
 
