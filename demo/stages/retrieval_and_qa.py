@@ -275,11 +275,11 @@ _RETRIEVAL_QUERY_BASE = _build_retrieval_query()
 # context via optional graph traversal from the retrieved Chunk node.
 # Pattern comprehensions are used for each expansion target to avoid row multiplication
 # (cartesian products) that would result from chained OPTIONAL MATCH clauses.
-# claim_details extends the flat claims list by traversing HAS_PARTICIPANT edges so each
-# claim map carries explicit subject/object mention name and match_method
-# (raw_exact | casefold_exact | normalized_exact).  The [0] index picks the first (and
-# typically unique) participation edge per role; null is returned when no participation
-# edge exists for that role.
+# claim_details extends the flat claims list by traversing all HAS_PARTICIPANT edges so
+# each claim map carries a generic ``roles`` list — one entry per participation edge —
+# where each entry is ``{role, name, match_method}``.  All roles (subject, object, and
+# any future roles) are collected without [0]-index assumptions; an empty list is
+# returned when no participation edges exist for a claim.
 _RETRIEVAL_QUERY_WITH_EXPANSION = _build_retrieval_query(expand_graph=True)
 
 # All-runs retrieval query: no run_id filter; queries across the whole database.
@@ -988,9 +988,9 @@ def _chunk_citation_formatter(record: neo4j.Record) -> RetrieverResultItem:
     }
 
     # Build claim context section when the graph-expanded query returned claim_details.
-    # Explicit subject/object mentions (via HAS_PARTICIPANT {role} edges) are
-    # surfaced so the LLM can reason about claim roles precisely.  When no participation
-    # edges exist for a claim the slot is simply omitted — no chunk co-location fallback.
+    # Explicit role mentions (via HAS_PARTICIPANT {role} edges) are surfaced so the LLM
+    # can reason about claim roles precisely.  When no participation edges exist for a
+    # claim the slot is simply omitted — no chunk co-location fallback.
     claim_details_raw = record.get("claim_details")
     claim_details: list[dict[str, object]] = list(claim_details_raw) if claim_details_raw is not None else []
     claim_context = _format_claim_details(claim_details)
