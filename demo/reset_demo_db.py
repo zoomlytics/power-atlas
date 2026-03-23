@@ -194,13 +194,16 @@ def run_reset(
 
     # ── Stale pre-v0.2 participation edge cleanup ─────────────────────────────
     # Old demo graphs (before v0.2) may contain :HAS_SUBJECT and :HAS_OBJECT
-    # edges between ExtractedClaim and EntityMention nodes.  Those relationship
-    # types were retired in v0.2 and replaced by :HAS_SUBJECT_MENTION and
-    # :HAS_OBJECT_MENTION.  The DETACH DELETE above removes them as a
-    # side-effect of deleting their endpoint nodes — but if any somehow survived
-    # (e.g. dangling edges between non-deleted endpoints) we explicitly clean
-    # them up here.  Old graphs are non-migratable; a full reset + fresh
-    # pipeline run is the only supported upgrade path.
+    # relationships between ExtractedClaim and EntityMention nodes.  Those
+    # relationship types were retired in v0.2 and replaced by
+    # :HAS_SUBJECT_MENTION and :HAS_OBJECT_MENTION.  The DETACH DELETE above
+    # removes any such relationships attached to demo-owned nodes as a
+    # side-effect of deleting their endpoint nodes, but older graphs may still
+    # contain these obsolete relationships when their endpoints were not
+    # deleted by the label-based wipe. We explicitly clean up any remaining
+    # :HAS_SUBJECT/:HAS_OBJECT relationships here.  Old graphs are
+    # non-migratable; a full reset plus a fresh pipeline run is the only
+    # supported upgrade path.
     _stale_query = (
         "MATCH (c:ExtractedClaim)-[r:HAS_SUBJECT|HAS_OBJECT]->(m:EntityMention) DELETE r"
     )
