@@ -283,6 +283,19 @@ class TestFormatRetrievalPathSummary:
         result = _format_retrieval_path_summary([hit])
         assert "0.8765" in result
 
+    def test_score_formatted_to_4dp_for_int_like_values(self) -> None:
+        """Integer-like scores (e.g., from Neo4j or numpy) should still render as 4dp."""
+        hit = _make_hit("chunk_42", score=1)
+        result = _format_retrieval_path_summary([hit])
+        assert "1.0000" in result
+
+    def test_score_falls_back_to_str_for_non_numeric(self) -> None:
+        """Non-numeric score values must not raise; fallback to str() representation."""
+        hit = _make_hit("chunk_42")
+        hit["metadata"]["score"] = None
+        result = _format_retrieval_path_summary([hit])
+        assert "score=None" in result
+
     def test_hit_without_diagnostics_shows_note(self) -> None:
         hit = _make_hit("chunk_x", include_diagnostics=False)
         result = _format_retrieval_path_summary([hit])

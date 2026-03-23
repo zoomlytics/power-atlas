@@ -814,15 +814,15 @@ def _format_retrieval_path_summary(hits: list[dict[str, object]]) -> str:
         meta = hit.get("metadata") or {}
         chunk_id = meta.get("chunk_id") or "(unknown)"
         score = meta.get("score")
-        score_str = f"{score:.4f}" if isinstance(score, float) else str(score)
+        try:
+            score_str = f"{float(score):.4f}"
+        except (TypeError, ValueError):
+            score_str = str(score)
         lines.append(f"\nHit {i}: chunk_id={chunk_id!r}  score={score_str}")
 
         diag = meta.get("retrieval_path_diagnostics")
         if "retrieval_path_diagnostics" not in meta or diag is None:
             lines.append("  (no retrieval-path diagnostics available — older result format)")
-            continue
-        if not diag:
-            lines.append("  (no retrieval-path diagnostics — base query mode)")
             continue
 
         # HAS_PARTICIPANT edges (from claim_details)
