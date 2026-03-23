@@ -868,6 +868,9 @@ for claim-level analysis.
 
 This section explains the exact meaning of each processing phase and the manifest fields that track it. Understanding these semantics prevents common misinterpretations — in particular, interpreting `resolved: 0` as a failure or assuming that the default `ask` command uses hybrid enrichment when it does not.
 
+> **Implementation note:** for the design invariants that govern retrieval (chunk-first anchoring, participation-edge precedence, provisional cluster/canonical enrichment, and citation anchoring), see the architecture document  
+> [docs/architecture/retrieval-semantics-v0.1.md](../docs/architecture/retrieval-semantics-v0.1.md).
+
 ### Mention extraction
 
 `extract-claims` reads `Chunk` nodes for the active `run_id` and creates `EntityMention` nodes linked back to their source chunk via `MENTIONED_IN` edges. No clustering or alignment occurs at this stage. Each mention is an independent assertion tied to a specific chunk, with full provenance.

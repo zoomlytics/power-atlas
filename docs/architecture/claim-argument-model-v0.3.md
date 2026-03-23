@@ -239,3 +239,8 @@ Any downstream code that reads or writes participation edges should reference
 the `:HAS_PARTICIPANT {role}` pattern as authoritative. The v0.2 edge types
 (`HAS_SUBJECT_MENTION`, `HAS_OBJECT_MENTION`) are retired and should be
 treated as stale in any graph written before this version.
+
+For the retrieval semantics that build on this model — including how participation
+edges outrank chunk co-location and how cluster/canonical enrichments are treated
+as provisional evidence — see
+[retrieval-semantics-v0.1.md](retrieval-semantics-v0.1.md).
