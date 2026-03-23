@@ -204,8 +204,12 @@ class InMemoryGraphDb:
     def get_edge_properties(
         self, claim_id: str, rel_type: str, mention_id: str, run_id: str
     ) -> dict[str, Any] | None:
-        """Return the property dict for an edge, or None if it does not exist."""
-        return self._edges.get((claim_id, run_id, rel_type, mention_id))
+        """Return a shallow copy of the property dict for an edge, or None if it does not exist."""
+        props = self._edges.get((claim_id, run_id, rel_type, mention_id))
+        if props is None:
+            return None
+        # Return a shallow copy to avoid exposing internal mutable state.
+        return dict(props)
 
 
 # ---------------------------------------------------------------------------
