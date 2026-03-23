@@ -157,15 +157,15 @@ both a subject and an object mention will have two distinct
 
 ```cypher
 // All arguments of a claim (any role)
-MATCH (c:ExtractedClaim {claim_id: $id})-[r:HAS_PARTICIPANT]->(m:EntityMention)
+MATCH (c:ExtractedClaim {claim_id: $id, run_id: $run_id})-[r:HAS_PARTICIPANT]->(m:EntityMention)
 RETURN r.role, m.name, r.match_method
 
 // Subject only
-MATCH (c:ExtractedClaim {claim_id: $id})-[r:HAS_PARTICIPANT {role: 'subject'}]->(m:EntityMention)
+MATCH (c:ExtractedClaim {claim_id: $id, run_id: $run_id})-[r:HAS_PARTICIPANT {role: 'subject'}]->(m:EntityMention)
 RETURN m.name
 
 // Future: agent role (no schema change needed)
-MATCH (c:ExtractedClaim {claim_id: $id})-[r:HAS_PARTICIPANT {role: 'agent'}]->(m:EntityMention)
+MATCH (c:ExtractedClaim {claim_id: $id, run_id: $run_id})-[r:HAS_PARTICIPANT {role: 'agent'}]->(m:EntityMention)
 RETURN m.name
 ```
 
