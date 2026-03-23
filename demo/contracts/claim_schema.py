@@ -47,13 +47,13 @@ def claim_extraction_schema() -> GraphSchema:
             RelationshipType(label="MENTIONS"),
             RelationshipType(label="SUPPORTED_BY"),
             RelationshipType(label="MENTIONED_IN"),
-            # Participation edges: claim → mention for subject/object slots.
+            # Participation edges: claim → mention for any argument role (v0.3 model).
             # Created by the extraction stage (inline, after claims and mentions are
             # written) and also available via the standalone claim-participation stage.
-            # Properties: run_id, source_uri, match_method
+            # Properties: role (subject | object | …), run_id, source_uri, match_method
             #   (raw_exact | casefold_exact | normalized_exact).
-            RelationshipType(label="HAS_SUBJECT_MENTION"),
-            RelationshipType(label="HAS_OBJECT_MENTION"),
+            # See docs/architecture/claim-argument-model-v0.3.md for the decision record.
+            RelationshipType(label="HAS_PARTICIPANT"),
         ],
     )
 

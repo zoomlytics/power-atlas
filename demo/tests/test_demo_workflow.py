@@ -1775,10 +1775,10 @@ class ResetDemoDbTests(unittest.TestCase):
         *drop_calls* so tests can assert on them without relying on the
         (removed) vendor ``drop_index_if_exists`` helper.
 
-        *stale_edges_deleted* controls how many relationships the stale pre-v0.2
+        *stale_edges_deleted* controls how many relationships the stale pre-v0.3
         participation-edge cleanup query (e.g.
-        ``MATCH (c:ExtractedClaim)-[r:HAS_SUBJECT|HAS_OBJECT]->(m:EntityMention) DELETE r``)
-        reports as deleted.  Defaults to 0 (clean v0.2 graph).
+        ``MATCH (c:ExtractedClaim)-[r:HAS_SUBJECT|HAS_OBJECT|HAS_SUBJECT_MENTION|HAS_OBJECT_MENTION]->(m:EntityMention) DELETE r``)
+        reports as deleted.  Defaults to 0 (clean v0.3 graph).
         """
         if drop_calls is None:
             drop_calls = []
@@ -1833,7 +1833,6 @@ class ResetDemoDbTests(unittest.TestCase):
                     "ExtractedClaim" in query
                     and "EntityMention" in query
                     and "HAS_SUBJECT" in query
-                    and "HAS_OBJECT" in query
                     and "DELETE" in query
                 ):
                     return _FakeResult(0, _stale_edges_deleted)
@@ -2010,7 +2009,7 @@ class ResetDemoDbTests(unittest.TestCase):
         self.assertIn("demo_chunk_embedding_index", report["indexes_dropped"])
 
     def test_run_reset_idempotent_flag_false_when_stale_edges_deleted(self):
-        """idempotent must be False when stale pre-v0.2 participation edges are removed."""
+        """idempotent must be False when stale pre-v0.3 participation edges are removed."""
         fake_neo4j = self._make_fake_modules(
             nodes_deleted=0, relationships_deleted=0, index_exists=False, stale_edges_deleted=3
         )
@@ -2025,12 +2024,12 @@ class ResetDemoDbTests(unittest.TestCase):
         self.assertFalse(report["idempotent"])
         self.assertEqual(report["stale_participation_edges_deleted"], 3)
         self.assertTrue(
-            any("stale" in w.lower() or "HAS_SUBJECT" in w for w in report["warnings"]),
+            any("stale" in w.lower() or "HAS_PARTICIPANT" in w or "HAS_SUBJECT" in w for w in report["warnings"]),
             "Expected a non-migratability warning for stale participation edges",
         )
 
-    def test_run_reset_stale_participation_edges_zero_on_clean_v02_graph(self):
-        """stale_participation_edges_deleted is 0 for a clean v0.2 graph."""
+    def test_run_reset_stale_participation_edges_zero_on_clean_v03_graph(self):
+        """stale_participation_edges_deleted is 0 for a clean v0.3 graph."""
         fake_neo4j = self._make_fake_modules(
             nodes_deleted=5, relationships_deleted=3, index_exists=True, stale_edges_deleted=0
         )

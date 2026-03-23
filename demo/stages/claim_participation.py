@@ -1,7 +1,15 @@
 """Claim participation edge matching.
 
 Matches :ExtractedClaim subject/object text to :EntityMention nodes
-from the same chunk/run and writes :HAS_SUBJECT_MENTION / :HAS_OBJECT_MENTION edges.
+from the same chunk/run and writes :HAS_PARTICIPANT edges with a ``role``
+property (v0.3 model).
+
+**v0.3 edge model** — a single :HAS_PARTICIPANT relationship type replaces
+the v0.2 :HAS_SUBJECT_MENTION / :HAS_OBJECT_MENTION dual-edge model.  The
+semantic role of each argument is stored as a ``role`` property on the edge
+(e.g. ``"subject"``, ``"object"``), allowing future roles (agent, location,
+value, etc.) to be introduced without schema changes.  See
+``docs/architecture/claim-argument-model-v0.3.md`` for the full decision record.
 
 Matching strategy (tried in priority order for each slot — most restrictive
 first so that the recorded ``match_method`` reflects the minimum transformation
@@ -53,15 +61,19 @@ MATCH_METHOD_RAW_EXACT = "raw_exact"
 MATCH_METHOD_CASEFOLD_EXACT = "casefold_exact"
 MATCH_METHOD_NORMALIZED_EXACT = "normalized_exact"
 
-#: Neo4j relationship type for subject slot edges.
-EDGE_TYPE_HAS_SUBJECT = "HAS_SUBJECT_MENTION"
-#: Neo4j relationship type for object slot edges.
-EDGE_TYPE_HAS_OBJECT = "HAS_OBJECT_MENTION"
+#: v0.3 Neo4j relationship type for all claim argument edges.
+#: Role is stored as the ``role`` property on the edge.
+EDGE_TYPE_HAS_PARTICIPANT = "HAS_PARTICIPANT"
 
-# Slot name → edge type
-_SLOT_EDGE_TYPE: dict[str, str] = {
-    "subject": EDGE_TYPE_HAS_SUBJECT,
-    "object": EDGE_TYPE_HAS_OBJECT,
+#: Role label for the subject argument slot.
+ROLE_SUBJECT = "subject"
+#: Role label for the object argument slot.
+ROLE_OBJECT = "object"
+
+# Slot name → role label (used to populate the ``role`` property on participation edges).
+_SLOT_ROLE: dict[str, str] = {
+    "subject": ROLE_SUBJECT,
+    "object": ROLE_OBJECT,
 }
 
 # ---------------------------------------------------------------------------
@@ -155,6 +167,11 @@ def build_participation_edges(
     attempts to match the claim's ``subject`` and ``object`` property texts.
     Edges are emitted only when matching is unambiguous.
 
+    The resulting rows use the v0.3 :HAS_PARTICIPANT model: every edge row
+    has ``edge_type = EDGE_TYPE_HAS_PARTICIPANT`` and a ``role`` field
+    (``"subject"`` or ``"object"``).  See
+    ``docs/architecture/claim-argument-model-v0.3.md`` for the decision record.
+
     Parameters
     ----------
     claim_rows:
@@ -172,7 +189,8 @@ def build_participation_edges(
     -------
     A list of edge row dicts, each with keys:
     ``claim_id``, ``mention_id``, ``run_id``, ``source_uri``, ``slot``,
-    ``match_method``, and ``edge_type``.
+    ``role``, ``match_method``, and ``edge_type``
+    (always ``EDGE_TYPE_HAS_PARTICIPANT``).
     """
     # Index mentions by (run_id, chunk_id) for O(1) scoped lookup.
     # Scoping by run_id prevents cross-run contamination: chunk_id values are
@@ -237,8 +255,9 @@ def build_participation_edges(
                     "run_id": run_id,
                     "source_uri": source_uri,
                     "slot": slot,
+                    "role": _SLOT_ROLE[slot],
                     "match_method": method,
-                    "edge_type": _SLOT_EDGE_TYPE[slot],
+                    "edge_type": EDGE_TYPE_HAS_PARTICIPANT,
                 }
             )
 
@@ -256,12 +275,17 @@ def write_participation_edges(
     neo4j_database: str,
     edge_rows: list[dict[str, Any]],
 ) -> None:
-    """Write :HAS_SUBJECT_MENTION and :HAS_OBJECT_MENTION edges to Neo4j.
+    """Write :HAS_PARTICIPANT edges to Neo4j (v0.3 model).
 
-    Uses MERGE so that re-running the stage is idempotent.  Only edges that
-    already have ``claim_id``/``mention_id`` nodes in the graph will be
-    written (the MATCH clauses ensure this without raising an error for
+    Uses MERGE so that re-running the stage is idempotent.  The ``role``
+    property (``"subject"``, ``"object"``, etc.) is part of the MERGE key,
+    so a claim with both a subject and an object argument gets two distinct
+    edges.  Only edges whose claim/mention nodes already exist in the graph
+    are written (the MATCH clauses ensure this without raising an error for
     missing nodes).
+
+    See ``docs/architecture/claim-argument-model-v0.3.md`` for the decision
+    record explaining the migration from v0.2 dual-edge types.
 
     Parameters
     ----------
@@ -272,46 +296,31 @@ def write_participation_edges(
     edge_rows:
         Edge rows returned by :func:`build_participation_edges`.
     """
-    subject_rows = [r for r in edge_rows if r["edge_type"] == EDGE_TYPE_HAS_SUBJECT]
-    object_rows = [r for r in edge_rows if r["edge_type"] == EDGE_TYPE_HAS_OBJECT]
+    if not edge_rows:
+        return
 
-    if subject_rows:
-        driver.execute_query(
-            """
-            UNWIND $rows AS row
-            MATCH (claim:ExtractedClaim {claim_id: row.claim_id, run_id: row.run_id})
-            MATCH (mention:EntityMention {mention_id: row.mention_id, run_id: row.run_id})
-            MERGE (claim)-[r:HAS_SUBJECT_MENTION]->(mention)
-            SET r.run_id = row.run_id,
-                r.source_uri = coalesce(row.source_uri, r.source_uri),
-                r.match_method = row.match_method
-            """,
-            parameters_={"rows": subject_rows},
-            database_=neo4j_database,
-        )
-
-    if object_rows:
-        driver.execute_query(
-            """
-            UNWIND $rows AS row
-            MATCH (claim:ExtractedClaim {claim_id: row.claim_id, run_id: row.run_id})
-            MATCH (mention:EntityMention {mention_id: row.mention_id, run_id: row.run_id})
-            MERGE (claim)-[r:HAS_OBJECT_MENTION]->(mention)
-            SET r.run_id = row.run_id,
-                r.source_uri = coalesce(row.source_uri, r.source_uri),
-                r.match_method = row.match_method
-            """,
-            parameters_={"rows": object_rows},
-            database_=neo4j_database,
-        )
+    driver.execute_query(
+        """
+        UNWIND $rows AS row
+        MATCH (claim:ExtractedClaim {claim_id: row.claim_id, run_id: row.run_id})
+        MATCH (mention:EntityMention {mention_id: row.mention_id, run_id: row.run_id})
+        MERGE (claim)-[r:HAS_PARTICIPANT {role: row.role}]->(mention)
+        SET r.run_id = row.run_id,
+            r.source_uri = coalesce(row.source_uri, r.source_uri),
+            r.match_method = row.match_method
+        """,
+        parameters_={"rows": edge_rows},
+        database_=neo4j_database,
+    )
 
 
 __all__ = [
     "MATCH_METHOD_RAW_EXACT",
     "MATCH_METHOD_CASEFOLD_EXACT",
     "MATCH_METHOD_NORMALIZED_EXACT",
-    "EDGE_TYPE_HAS_SUBJECT",
-    "EDGE_TYPE_HAS_OBJECT",
+    "EDGE_TYPE_HAS_PARTICIPANT",
+    "ROLE_SUBJECT",
+    "ROLE_OBJECT",
     "match_slot_to_mention",
     "build_participation_edges",
     "write_participation_edges",
@@ -330,11 +339,13 @@ def run_claim_participation(
     run_id: str,
     source_uri: str | None,
 ) -> dict[str, Any]:
-    """Build and persist :HAS_SUBJECT_MENTION / :HAS_OBJECT_MENTION edges for a claim extraction run.
+    """Build and persist :HAS_PARTICIPANT edges for a claim extraction run (v0.3 model).
 
     Reads :ExtractedClaim and :EntityMention nodes for *run_id* from Neo4j,
     runs the slot→mention matching logic, and writes the resulting participation
-    edges back to the graph via MERGE (idempotent).
+    edges back to the graph via MERGE (idempotent).  Each edge carries a
+    ``role`` property (``"subject"``, ``"object"``, etc.) identifying the
+    argument slot.
 
     Parameters
     ----------
@@ -450,8 +461,8 @@ def run_claim_participation(
         edge_rows = build_participation_edges(claim_rows, mention_rows)
         write_participation_edges(driver, neo4j_database=config.neo4j_database, edge_rows=edge_rows)
 
-    subject_edges = sum(1 for e in edge_rows if e["edge_type"] == EDGE_TYPE_HAS_SUBJECT)
-    object_edges = sum(1 for e in edge_rows if e["edge_type"] == EDGE_TYPE_HAS_OBJECT)
+    subject_edges = sum(1 for e in edge_rows if e["role"] == ROLE_SUBJECT)
+    object_edges = sum(1 for e in edge_rows if e["role"] == ROLE_OBJECT)
     summary = {
         "status": "live",
         "run_id": run_id,

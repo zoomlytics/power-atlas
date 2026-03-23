@@ -35,7 +35,7 @@ def build_batch_manifest(
 
     * ``pdf_ingest`` — lexical graph written from the PDF
     * ``claim_and_mention_extraction`` — extracted claims and entity mentions
-    * ``claim_participation`` — HAS_SUBJECT_MENTION / HAS_OBJECT_MENTION edges linking claim
+    * ``claim_participation`` — HAS_PARTICIPANT edges (with ``role`` property) linking claim
       slots to entity mentions; present when *claim_participation_stage* is given
     * ``entity_resolution_unstructured_only`` — mention clustering pass (no structured
       ingest required); present when *entity_resolution_unstructured_stage* is given

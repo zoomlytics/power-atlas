@@ -499,8 +499,10 @@ def test_claim_extraction_live_writes_participation_edges_when_mention_matches(t
     assert summary["subject_edges"] + summary["object_edges"] == len(edge_rows)
 
     edge_types = {e["edge_type"] for e in edge_rows}
-    assert "HAS_SUBJECT_MENTION" in edge_types
-    assert "HAS_OBJECT_MENTION" in edge_types
+    assert "HAS_PARTICIPANT" in edge_types
+    roles = {e["role"] for e in edge_rows}
+    assert "subject" in roles
+    assert "object" in roles
 
     # Each edge must record run_id and match_method provenance.
     for edge in edge_rows:
@@ -4512,17 +4514,20 @@ def test_chunk_citation_formatter_claim_details_and_cluster_context_both_present
 
 def test_retrieval_query_with_expansion_includes_claim_details_field():
     """_RETRIEVAL_QUERY_WITH_EXPANSION must contain claim_details as a pattern comprehension
-    that traverses HAS_SUBJECT_MENTION and HAS_OBJECT_MENTION edges."""
+    that traverses HAS_PARTICIPANT edges with role filtering."""
     from demo.stages.retrieval_and_qa import _RETRIEVAL_QUERY_WITH_EXPANSION
 
     assert "claim_details" in _RETRIEVAL_QUERY_WITH_EXPANSION, (
         "_RETRIEVAL_QUERY_WITH_EXPANSION must return a claim_details field for participation edge data"
     )
-    assert "HAS_SUBJECT_MENTION" in _RETRIEVAL_QUERY_WITH_EXPANSION, (
-        "_RETRIEVAL_QUERY_WITH_EXPANSION must traverse HAS_SUBJECT_MENTION edges"
+    assert "HAS_PARTICIPANT" in _RETRIEVAL_QUERY_WITH_EXPANSION, (
+        "_RETRIEVAL_QUERY_WITH_EXPANSION must traverse HAS_PARTICIPANT edges"
     )
-    assert "HAS_OBJECT_MENTION" in _RETRIEVAL_QUERY_WITH_EXPANSION, (
-        "_RETRIEVAL_QUERY_WITH_EXPANSION must traverse HAS_OBJECT_MENTION edges"
+    assert "role: 'subject'" in _RETRIEVAL_QUERY_WITH_EXPANSION, (
+        "_RETRIEVAL_QUERY_WITH_EXPANSION must filter by role: 'subject' for subject_mention"
+    )
+    assert "role: 'object'" in _RETRIEVAL_QUERY_WITH_EXPANSION, (
+        "_RETRIEVAL_QUERY_WITH_EXPANSION must filter by role: 'object' for object_mention"
     )
     assert "match_method" in _RETRIEVAL_QUERY_WITH_EXPANSION, (
         "_RETRIEVAL_QUERY_WITH_EXPANSION must include match_method in claim_details"
@@ -4530,12 +4535,13 @@ def test_retrieval_query_with_expansion_includes_claim_details_field():
 
 
 def test_retrieval_query_with_cluster_includes_claim_details_field():
-    """_RETRIEVAL_QUERY_WITH_CLUSTER must contain claim_details with participation edges."""
+    """_RETRIEVAL_QUERY_WITH_CLUSTER must contain claim_details with HAS_PARTICIPANT edges."""
     from demo.stages.retrieval_and_qa import _RETRIEVAL_QUERY_WITH_CLUSTER
 
     assert "claim_details" in _RETRIEVAL_QUERY_WITH_CLUSTER
-    assert "HAS_SUBJECT_MENTION" in _RETRIEVAL_QUERY_WITH_CLUSTER
-    assert "HAS_OBJECT_MENTION" in _RETRIEVAL_QUERY_WITH_CLUSTER
+    assert "HAS_PARTICIPANT" in _RETRIEVAL_QUERY_WITH_CLUSTER
+    assert "role: 'subject'" in _RETRIEVAL_QUERY_WITH_CLUSTER
+    assert "role: 'object'" in _RETRIEVAL_QUERY_WITH_CLUSTER
 
 
 def test_retrieval_query_all_runs_variants_include_claim_details_field():
@@ -4550,8 +4556,9 @@ def test_retrieval_query_all_runs_variants_include_claim_details_field():
         ("_RETRIEVAL_QUERY_WITH_CLUSTER_ALL_RUNS", _RETRIEVAL_QUERY_WITH_CLUSTER_ALL_RUNS),
     ]:
         assert "claim_details" in query, f"{name} must return claim_details"
-        assert "HAS_SUBJECT_MENTION" in query, f"{name} must traverse HAS_SUBJECT_MENTION"
-        assert "HAS_OBJECT_MENTION" in query, f"{name} must traverse HAS_OBJECT_MENTION"
+        assert "HAS_PARTICIPANT" in query, f"{name} must traverse HAS_PARTICIPANT edges"
+        assert "role: 'subject'" in query, f"{name} must filter by role: 'subject'"
+        assert "role: 'object'" in query, f"{name} must filter by role: 'object'"
 
 
 def test_format_claim_details_empty_returns_empty_string():

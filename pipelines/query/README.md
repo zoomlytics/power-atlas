@@ -1,10 +1,10 @@
-# Neo4j Browser Query Workbook — Power Atlas v0.2
+# Neo4j Browser Query Workbook — Power Atlas v0.3
 
 This workbook contains ready-to-run Cypher queries for exploring the Power Atlas graph in Neo4j Browser.
 Paste any query block directly into the Neo4j Browser editor and run it.
 
-**Recommended traversal patterns for v0.2:** start from claim-participation edges
-(`HAS_SUBJECT_MENTION` / `HAS_OBJECT_MENTION`), not chunk co-location.
+**Recommended traversal patterns for v0.3:** start from claim-participation edges
+(`HAS_PARTICIPANT` with `role` property), not chunk co-location.
 Chunk co-location queries are still available for architecture-level inspection;
 see [Architecture reference queries](#architecture-reference-queries-chunk-co-location) below.
 
@@ -29,12 +29,11 @@ ORDER BY total DESC;
 
 ---
 
-## 1. Claim-participation queries (v0.2 — recommended)
+## 1. Claim-participation queries (v0.3 — recommended)
 
-These queries traverse `HAS_SUBJECT_MENTION` and `HAS_OBJECT_MENTION` edges — the v0.2
+These queries traverse `HAS_PARTICIPANT` edges with `role` property filtering — the v0.3
 participation model that directly links each `ExtractedClaim` to the `EntityMention` nodes
-filling its subject and object slots.  Prefer these over chunk co-location for all
-claim-focused analysis.
+filling its argument slots.  Prefer these over chunk co-location for all claim-focused analysis.
 
 > **Tip:** If multiple pipeline runs exist in the database, scope queries to a single run by
 > setting a parameter in Neo4j Browser before running the queries below:
@@ -48,29 +47,29 @@ claim-focused analysis.
 ### 1a. Basic participation edge validation
 
 ```cypher
-// Subject edges — check that HAS_SUBJECT_MENTION edges are present
-MATCH (c:ExtractedClaim)-[r:HAS_SUBJECT_MENTION]->(m:EntityMention)
+// Subject edges — check that HAS_PARTICIPANT {role: 'subject'} edges are present
+MATCH (c:ExtractedClaim)-[r:HAS_PARTICIPANT {role: 'subject'}]->(m:EntityMention)
 RETURN c.run_id, c.claim_id, c.claim_text, r.match_method, m.name
 LIMIT 25;
 ```
 
 ```cypher
-// Object edges — check that HAS_OBJECT_MENTION edges are present
-MATCH (c:ExtractedClaim)-[r:HAS_OBJECT_MENTION]->(m:EntityMention)
+// Object edges — check that HAS_PARTICIPANT {role: 'object'} edges are present
+MATCH (c:ExtractedClaim)-[r:HAS_PARTICIPANT {role: 'object'}]->(m:EntityMention)
 RETURN c.run_id, c.claim_id, c.claim_text, r.match_method, m.name
 LIMIT 25;
 ```
 
 ```cypher
-// Combined edge summary — one row per edge type (all runs)
-MATCH ()-[r:HAS_SUBJECT_MENTION|HAS_OBJECT_MENTION]->()
-RETURN type(r) AS edge_type, count(r) AS total
-ORDER BY edge_type;
+// Combined edge summary — one row per role (all runs)
+MATCH ()-[r:HAS_PARTICIPANT]->()
+RETURN r.role AS role, count(r) AS total
+ORDER BY role;
 ```
 
 ```cypher
 // Full claim view — subject AND object mentions together
-MATCH (subj:EntityMention)<-[sr:HAS_SUBJECT_MENTION]-(c:ExtractedClaim)-[obj_r:HAS_OBJECT_MENTION]->(obj:EntityMention)
+MATCH (subj:EntityMention)<-[sr:HAS_PARTICIPANT {role: 'subject'}]-(c:ExtractedClaim)-[obj_r:HAS_PARTICIPANT {role: 'object'}]->(obj:EntityMention)
 RETURN c.run_id,
        c.claim_id,
        subj.name       AS subject_mention,
@@ -82,8 +81,10 @@ RETURN c.run_id,
 LIMIT 25;
 ```
 
-**Interpretation notes (v0.2):**
+**Interpretation notes (v0.3):**
 
+- `role` records which argument slot the mention fills: `"subject"`, `"object"`, or a future
+  role value like `"agent"`, `"location"`, etc.
 - `match_method` records how the slot text was resolved to a mention:
   `raw_exact` → identical text (highest confidence), `casefold_exact` → case-insensitive match,
   `normalized_exact` → Unicode-normalized match (NFKD + diacritic removal, apostrophe/hyphen normalization, runs of whitespace collapsed, and case-folded).
@@ -102,7 +103,7 @@ These queries answer: *"Which claims involve this entity as subject or object?"*
 
 ```cypher
 // All claims where Marcos Galperin appears as subject
-MATCH (c:ExtractedClaim)-[r:HAS_SUBJECT_MENTION]->(m:EntityMention)
+MATCH (c:ExtractedClaim)-[r:HAS_PARTICIPANT {role: 'subject'}]->(m:EntityMention)
 WHERE toLower(m.name) CONTAINS 'galperin'
 RETURN c.claim_text, c.predicate, c.object, m.name AS matched_mention, r.match_method
 ORDER BY c.claim_id;
@@ -110,9 +111,9 @@ ORDER BY c.claim_id;
 
 ```cypher
 // All claims where Marcos Galperin appears as subject OR object
-MATCH (c:ExtractedClaim)-[r:HAS_SUBJECT_MENTION|HAS_OBJECT_MENTION]->(m:EntityMention)
+MATCH (c:ExtractedClaim)-[r:HAS_PARTICIPANT]->(m:EntityMention)
 WHERE toLower(m.name) CONTAINS 'galperin'
-RETURN c.claim_text, type(r) AS role, m.name AS matched_mention, r.match_method
+RETURN c.claim_text, r.role AS role, m.name AS matched_mention, r.match_method
 ORDER BY c.claim_id;
 ```
 
@@ -120,7 +121,7 @@ ORDER BY c.claim_id;
 
 ```cypher
 // All claims where MercadoLibre appears as subject
-MATCH (c:ExtractedClaim)-[r:HAS_SUBJECT_MENTION]->(m:EntityMention)
+MATCH (c:ExtractedClaim)-[r:HAS_PARTICIPANT {role: 'subject'}]->(m:EntityMention)
 WHERE toLower(m.name) CONTAINS 'mercadolibre'
 RETURN c.claim_text, c.predicate, c.object, m.name AS matched_mention, r.match_method
 ORDER BY c.claim_id;
@@ -128,9 +129,9 @@ ORDER BY c.claim_id;
 
 ```cypher
 // All claims where MercadoLibre appears in any role
-MATCH (c:ExtractedClaim)-[r:HAS_SUBJECT_MENTION|HAS_OBJECT_MENTION]->(m:EntityMention)
+MATCH (c:ExtractedClaim)-[r:HAS_PARTICIPANT]->(m:EntityMention)
 WHERE toLower(m.name) CONTAINS 'mercadolibre'
-RETURN c.claim_text, type(r) AS role, m.name AS matched_mention, r.match_method
+RETURN c.claim_text, r.role AS role, m.name AS matched_mention, r.match_method
 ORDER BY c.claim_id;
 ```
 
@@ -138,9 +139,9 @@ ORDER BY c.claim_id;
 
 ```cypher
 // Replace 'endeavor' with any entity name fragment you want to search
-MATCH (c:ExtractedClaim)-[r:HAS_SUBJECT_MENTION|HAS_OBJECT_MENTION]->(m:EntityMention)
+MATCH (c:ExtractedClaim)-[r:HAS_PARTICIPANT]->(m:EntityMention)
 WHERE toLower(m.name) CONTAINS 'endeavor'
-RETURN c.claim_text, type(r) AS role, m.name AS matched_mention, r.match_method
+RETURN c.claim_text, r.role AS role, m.name AS matched_mention, r.match_method
 ORDER BY c.claim_id;
 ```
 
@@ -170,7 +171,7 @@ These queries answer: *"Which claims connect entity A to entity B?"*
 
 ```cypher
 // Claims where Marcos Galperin is subject and MercadoLibre is object
-MATCH (subj:EntityMention)<-[:HAS_SUBJECT_MENTION]-(c:ExtractedClaim)-[:HAS_OBJECT_MENTION]->(obj:EntityMention)
+MATCH (subj:EntityMention)<-[:HAS_PARTICIPANT {role: 'subject'}]-(c:ExtractedClaim)-[:HAS_PARTICIPANT {role: 'object'}]->(obj:EntityMention)
 WHERE toLower(subj.name) CONTAINS 'galperin'
   AND toLower(obj.name)  CONTAINS 'mercadolibre'
 RETURN c.claim_text, c.predicate, subj.name AS subject, obj.name AS object;
@@ -178,7 +179,7 @@ RETURN c.claim_text, c.predicate, subj.name AS subject, obj.name AS object;
 
 ```cypher
 // Claims connecting Galperin and MercadoLibre in either direction
-MATCH (a:EntityMention)<-[:HAS_SUBJECT_MENTION]-(c:ExtractedClaim)-[:HAS_OBJECT_MENTION]->(b:EntityMention)
+MATCH (a:EntityMention)<-[:HAS_PARTICIPANT {role: 'subject'}]-(c:ExtractedClaim)-[:HAS_PARTICIPANT {role: 'object'}]->(b:EntityMention)
 WHERE (toLower(a.name) CONTAINS 'galperin'    AND toLower(b.name) CONTAINS 'mercadolibre')
    OR (toLower(a.name) CONTAINS 'mercadolibre' AND toLower(b.name) CONTAINS 'galperin')
 RETURN c.claim_text, c.predicate, a.name AS subject, b.name AS object
@@ -189,7 +190,7 @@ ORDER BY c.claim_id;
 
 ```cypher
 // Replace the two CONTAINS filters with the entity names you want to compare
-MATCH (a:EntityMention)<-[:HAS_SUBJECT_MENTION]-(c:ExtractedClaim)-[:HAS_OBJECT_MENTION]->(b:EntityMention)
+MATCH (a:EntityMention)<-[:HAS_PARTICIPANT {role: 'subject'}]-(c:ExtractedClaim)-[:HAS_PARTICIPANT {role: 'object'}]->(b:EntityMention)
 WHERE (toLower(a.name) CONTAINS 'endeavor' AND toLower(b.name) CONTAINS 'mercadolibre')
    OR (toLower(a.name) CONTAINS 'mercadolibre' AND toLower(b.name) CONTAINS 'endeavor')
 RETURN c.claim_text, c.predicate, a.name AS subject, b.name AS object
@@ -200,7 +201,7 @@ ORDER BY c.claim_id;
 
 ```cypher
 // All claims that have both subject and object mentions — shows the full pairwise graph
-MATCH (a:EntityMention)<-[:HAS_SUBJECT_MENTION]-(c:ExtractedClaim)-[:HAS_OBJECT_MENTION]->(b:EntityMention)
+MATCH (a:EntityMention)<-[:HAS_PARTICIPANT {role: 'subject'}]-(c:ExtractedClaim)-[:HAS_PARTICIPANT {role: 'object'}]->(b:EntityMention)
 RETURN a.name AS subject_entity,
        c.predicate,
        b.name AS object_entity,
@@ -210,11 +211,11 @@ LIMIT 25;
 
 **Interpretation notes:**
 
-- Pairwise queries require *both* `HAS_SUBJECT_MENTION` and `HAS_OBJECT_MENTION` to be present on
+- Pairwise queries require *both* a subject and an object `HAS_PARTICIPANT` edge to be present on
   the same claim.  If one slot is missing (no unique mention match found), the claim will not
   appear in the result.
 - To include claims where only one slot was resolved, use the entity-centric queries in section 2
-  which match either edge type independently.
+  which match any role independently.
 
 ---
 
@@ -246,7 +247,7 @@ ORDER BY canonical.name;
 MATCH (canonical:CanonicalEntity)<-[a:ALIGNED_WITH]-(cluster:ResolvedEntityCluster)<-[:MEMBER_OF]-(m:EntityMention)
 WHERE toLower(canonical.name) CONTAINS 'mercadolibre'
   AND a.run_id = $run_id AND a.alignment_version = $alignment_version
-MATCH (c:ExtractedClaim)-[:HAS_SUBJECT_MENTION|HAS_OBJECT_MENTION]->(m)
+MATCH (c:ExtractedClaim)-[:HAS_PARTICIPANT]->(m)
 WHERE c.run_id = $run_id
 RETURN c.claim_text, c.predicate, m.name AS mention, canonical.name AS canonical
 ORDER BY c.claim_id;
@@ -257,7 +258,7 @@ ORDER BY c.claim_id;
 MATCH (canonical:CanonicalEntity)<-[a:ALIGNED_WITH]-(cluster:ResolvedEntityCluster)<-[:MEMBER_OF]-(m:EntityMention)
 WHERE toLower(canonical.name) CONTAINS 'galperin'
   AND a.run_id = $run_id AND a.alignment_version = $alignment_version
-MATCH (c:ExtractedClaim)-[:HAS_SUBJECT_MENTION|HAS_OBJECT_MENTION]->(m)
+MATCH (c:ExtractedClaim)-[:HAS_PARTICIPANT]->(m)
 WHERE c.run_id = $run_id
 RETURN canonical.name AS canonical_entity,
        cluster.canonical_name AS cluster_name,
@@ -268,19 +269,19 @@ ORDER BY c.claim_id;
 
 ---
 
-## 5. Graph-expanded retrieval — claim participation in retrieved context (v0.2)
+## 5. Graph-expanded retrieval — claim participation in retrieved context (v0.3)
 
 When using `ask --expand-graph` or `ask --cluster-aware`, the graph-expanded retrieval queries
 now include a `claim_details` field for each retrieved chunk.  Unlike the flat `claims` list
-(which contains only claim text), `claim_details` traverses `HAS_SUBJECT_MENTION` and
-`HAS_OBJECT_MENTION` edges so each claim map carries:
+(which contains only claim text), `claim_details` traverses `HAS_PARTICIPANT` edges with role
+filtering so each claim map carries:
 
 | Field | Description |
 | --- | --- |
 | `claim_text` | The full claim text |
-| `subject_mention.name` | Name of the subject `EntityMention` (via `HAS_SUBJECT_MENTION`) |
+| `subject_mention.name` | Name of the subject `EntityMention` (via `HAS_PARTICIPANT {role: 'subject'}`) |
 | `subject_mention.match_method` | How the slot text was resolved (`raw_exact`, `casefold_exact`, `normalized_exact`) |
-| `object_mention.name` | Name of the object `EntityMention` (via `HAS_OBJECT_MENTION`) |
+| `object_mention.name` | Name of the object `EntityMention` (via `HAS_PARTICIPANT {role: 'object'}`) |
 | `object_mention.match_method` | How the slot text was resolved |
 
 Slots without a participation edge are `null` — **no chunk co-location fallback is applied**.
@@ -297,8 +298,8 @@ WITH
   [(c)<-[:SUPPORTED_BY]-(claim:ExtractedClaim) WHERE claim.run_id = $run_id |
       {
         claim_text: claim.claim_text,
-        subject_mention: [(claim)-[sr:HAS_SUBJECT_MENTION]->(sm:EntityMention) | {name: sm.name, match_method: sr.match_method}][0],
-        object_mention: [(claim)-[or_:HAS_OBJECT_MENTION]->(om:EntityMention) | {name: om.name, match_method: or_.match_method}][0]
+        subject_mention: [(claim)-[sr:HAS_PARTICIPANT {role: 'subject'}]->(sm:EntityMention) | {name: sm.name, match_method: sr.match_method}][0],
+        object_mention: [(claim)-[or_:HAS_PARTICIPANT {role: 'object'}]->(om:EntityMention) | {name: om.name, match_method: or_.match_method}][0]
       }
   ] AS claim_details,
   [(c)<-[:MENTIONED_IN]-(m:EntityMention) WHERE m.run_id = $run_id | m.name] AS mentions
@@ -315,7 +316,7 @@ in the retrieved context — the precision improvement delivered by participatio
 
 ```cypher
 // Chunks whose claims have Marcos Galperin as subject (via participation edges)
-MATCH (claim:ExtractedClaim)-[:HAS_SUBJECT_MENTION]->(m:EntityMention)
+MATCH (claim:ExtractedClaim)-[:HAS_PARTICIPANT {role: 'subject'}]->(m:EntityMention)
 WHERE toLower(m.name) CONTAINS 'galperin'
   AND claim.run_id = $run_id
 MATCH (claim)-[:SUPPORTED_BY]->(chunk:Chunk)
@@ -330,7 +331,7 @@ ORDER BY chunk.chunk_index;
 
 ```cypher
 // Chunks whose claims have MercadoLibre as object (via participation edges)
-MATCH (claim:ExtractedClaim)-[:HAS_OBJECT_MENTION]->(m:EntityMention)
+MATCH (claim:ExtractedClaim)-[:HAS_PARTICIPANT {role: 'object'}]->(m:EntityMention)
 WHERE toLower(m.name) CONTAINS 'mercadolibre'
   AND claim.run_id = $run_id
 MATCH (claim)-[:SUPPORTED_BY]->(chunk:Chunk)
@@ -353,8 +354,8 @@ retrieval grounding.
 // For each claim with explicit subject/object edges, show co-located mentions for comparison
 MATCH (claim:ExtractedClaim)-[:SUPPORTED_BY]->(chunk:Chunk)
 WHERE claim.run_id = $run_id
-OPTIONAL MATCH (claim)-[sr:HAS_SUBJECT_MENTION]->(subj:EntityMention)
-OPTIONAL MATCH (claim)-[or_:HAS_OBJECT_MENTION]->(obj:EntityMention)
+OPTIONAL MATCH (claim)-[sr:HAS_PARTICIPANT {role: 'subject'}]->(subj:EntityMention)
+OPTIONAL MATCH (claim)-[or_:HAS_PARTICIPANT {role: 'object'}]->(obj:EntityMention)
 RETURN claim.claim_text,
        subj.name  AS explicit_subject,
        sr.match_method AS subject_match,
@@ -366,7 +367,7 @@ LIMIT 25;
 ```
 
 **Interpretation:** `explicit_subject` / `explicit_object` are populated only when a
-`HAS_SUBJECT_MENTION` / `HAS_OBJECT_MENTION` edge exists.  `all_chunk_mentions` shows
+`HAS_PARTICIPANT {role: 'subject'}` / `{role: 'object'}` edge exists.  `all_chunk_mentions` shows
 every mention in the chunk — a superset that includes mentions unrelated to this claim.
 The retrieval stage uses participation edges exclusively; it does **not** fall back to
 `all_chunk_mentions` for claims that lack participation edges.
@@ -416,8 +417,8 @@ LIMIT 25;
 - Debugging: verify that `MENTIONED_IN` edges are present for `EntityMention` nodes and that
   `SUPPORTED_BY` edges connect `ExtractedClaim` nodes to their `Chunk` nodes after `extract-claims`.
 - Architecture inspection: confirm the lexical layer is intact before running downstream stages.
-- Do *not* use co-location as a proxy for claim participation — use the `HAS_SUBJECT_MENTION` /
-  `HAS_OBJECT_MENTION` edges instead.
+- Do *not* use co-location as a proxy for claim participation — use the `HAS_PARTICIPANT {role: subject}` /
+  `HAS_PARTICIPANT {role: object}` edges instead.
 
 ---
 
@@ -434,7 +435,7 @@ avoid mixing behaviors, use a fresh `run_id` when switching modes.
 
 > **Traversal path:**
 > ```
-> (:ResolvedEntityCluster)<-[:MEMBER_OF]-(:EntityMention)<-[:HAS_SUBJECT_MENTION|HAS_OBJECT_MENTION]-(:ExtractedClaim)
+> (:ResolvedEntityCluster)<-[:MEMBER_OF]-(:EntityMention)<-[:HAS_PARTICIPANT]-(:ExtractedClaim)
 > ```
 
 > **Tip:** Set a run parameter in Neo4j Browser before running these queries:
@@ -456,7 +457,7 @@ MATCH (cluster:ResolvedEntityCluster)<-[:MEMBER_OF]-(m:EntityMention)
 WHERE toLower(cluster.canonical_name) CONTAINS 'mercadolibre'
   AND cluster.run_id = $run_id
   AND m.run_id = $run_id
-MATCH (c:ExtractedClaim)-[r:HAS_SUBJECT_MENTION|HAS_OBJECT_MENTION]->(m)
+MATCH (c:ExtractedClaim)-[r:HAS_PARTICIPANT]->(m)
 WHERE c.run_id = $run_id
 RETURN cluster.canonical_name AS cluster,
        m.name                 AS mention,
@@ -475,7 +476,7 @@ MATCH (cluster:ResolvedEntityCluster)<-[:MEMBER_OF]-(m:EntityMention)
 WHERE toLower(cluster.canonical_name) CONTAINS 'galperin'
   AND cluster.run_id = $run_id
   AND m.run_id = $run_id
-MATCH (c:ExtractedClaim)-[r:HAS_SUBJECT_MENTION]->(m)
+MATCH (c:ExtractedClaim)-[r-[:HAS_PARTICIPANT {role: 'subject'}]->(m)
 WHERE c.run_id = $run_id
 RETURN cluster.canonical_name AS cluster,
        m.name                 AS mention,
@@ -494,7 +495,7 @@ MATCH (cluster:ResolvedEntityCluster)<-[:MEMBER_OF]-(m:EntityMention)
 WHERE toLower(cluster.canonical_name) CONTAINS 'endeavor'
   AND cluster.run_id = $run_id
   AND m.run_id = $run_id
-MATCH (c:ExtractedClaim)-[r:HAS_OBJECT_MENTION]->(m)
+MATCH (c:ExtractedClaim)-[r-[:HAS_PARTICIPANT {role: 'object'}]->(m)
 WHERE c.run_id = $run_id
 RETURN cluster.canonical_name AS cluster,
        m.name                 AS mention,
@@ -518,8 +519,8 @@ WHERE toLower(clusterB.canonical_name) CONTAINS 'mercadolibre'
   AND clusterB.run_id = $run_id
 WITH DISTINCT clusterA, clusterB
 MATCH (clusterA)<-[:MEMBER_OF]-(mA:EntityMention)
-      <-[:HAS_SUBJECT_MENTION]-(c:ExtractedClaim)
-      -[:HAS_OBJECT_MENTION]->(mB:EntityMention)
+      <-[:HAS_PARTICIPANT {role: 'subject'}]-(c:ExtractedClaim)
+      -[-[:HAS_PARTICIPANT {role: 'object'}]->(mB:EntityMention)
       -[:MEMBER_OF]->(clusterB)
 WHERE mA.run_id = $run_id
   AND mB.run_id = $run_id
@@ -539,10 +540,10 @@ ORDER BY c.claim_id;
 // Claim-centric rewrite: start from claims and join to clusters to avoid mA × mB expansion
 MATCH (c:ExtractedClaim)
 WHERE c.run_id = $run_id
-MATCH (c)-[:HAS_SUBJECT_MENTION]->(mSub:EntityMention)-[:MEMBER_OF]->(clSub:ResolvedEntityCluster)
+MATCH (c)-[-[:HAS_PARTICIPANT {role: 'subject'}]->(mSub:EntityMention)-[:MEMBER_OF]->(clSub:ResolvedEntityCluster)
 WHERE mSub.run_id = $run_id
   AND clSub.run_id = $run_id
-MATCH (c)-[:HAS_OBJECT_MENTION]->(mObj:EntityMention)-[:MEMBER_OF]->(clObj:ResolvedEntityCluster)
+MATCH (c)-[-[:HAS_PARTICIPANT {role: 'object'}]->(mObj:EntityMention)-[:MEMBER_OF]->(clObj:ResolvedEntityCluster)
 WHERE mObj.run_id = $run_id
   AND clObj.run_id = $run_id
   AND (
@@ -595,7 +596,7 @@ on the resolution mode used:
 MATCH (canonical:CanonicalEntity)<-[:RESOLVES_TO]-(m:EntityMention)
 WHERE toLower(canonical.name) CONTAINS 'mercadolibre'
   AND m.run_id = $run_id
-MATCH (c:ExtractedClaim)-[r:HAS_SUBJECT_MENTION|HAS_OBJECT_MENTION]->(m)
+MATCH (c:ExtractedClaim)-[r:HAS_PARTICIPANT]->(m)
 WHERE c.run_id = $run_id
 RETURN canonical.name AS canonical_entity,
        m.name         AS mention,
@@ -611,7 +612,7 @@ ORDER BY role, c.claim_id;
 MATCH (canonical:CanonicalEntity)<-[:RESOLVES_TO]-(m:EntityMention)
 WHERE toLower(canonical.name) CONTAINS 'mercadolibre'
   AND m.run_id = $run_id
-MATCH (c:ExtractedClaim)-[r:HAS_SUBJECT_MENTION]->(m)
+MATCH (c:ExtractedClaim)-[r-[:HAS_PARTICIPANT {role: 'subject'}]->(m)
 WHERE c.run_id = $run_id
 RETURN canonical.name AS canonical_entity,
        m.name         AS mention,
@@ -630,7 +631,7 @@ MATCH (canonical:CanonicalEntity)<-[a:ALIGNED_WITH]-(cluster:ResolvedEntityClust
 WHERE toLower(canonical.name) CONTAINS 'mercadolibre'
   AND a.run_id = $run_id AND a.alignment_version = $alignment_version
   AND m.run_id = $run_id
-MATCH (c:ExtractedClaim)-[r:HAS_SUBJECT_MENTION|HAS_OBJECT_MENTION]->(m)
+MATCH (c:ExtractedClaim)-[r:HAS_PARTICIPANT]->(m)
 WHERE c.run_id = $run_id
 RETURN canonical.name        AS canonical_entity,
        cluster.canonical_name AS cluster,
@@ -648,7 +649,7 @@ MATCH (canonical:CanonicalEntity)<-[a:ALIGNED_WITH]-(cluster:ResolvedEntityClust
 WHERE toLower(canonical.name) CONTAINS 'galperin'
   AND a.run_id = $run_id AND a.alignment_version = $alignment_version
   AND m.run_id = $run_id
-MATCH (c:ExtractedClaim)-[r:HAS_SUBJECT_MENTION]->(m)
+MATCH (c:ExtractedClaim)-[r-[:HAS_PARTICIPANT {role: 'subject'}]->(m)
 WHERE c.run_id = $run_id
 RETURN canonical.name        AS canonical_entity,
        cluster.canonical_name AS cluster,
@@ -666,8 +667,8 @@ ORDER BY c.claim_id;
 // Claims where Marcos Galperin (canonical) is subject and MercadoLibre (canonical) is object
 // Single-path traversal avoids an mA × mB cross product
 MATCH (canonA:CanonicalEntity)<-[aA:ALIGNED_WITH]-(clA:ResolvedEntityCluster)<-[:MEMBER_OF]-
-      (mA:EntityMention)<-[:HAS_SUBJECT_MENTION]-
-      (c:ExtractedClaim)-[:HAS_OBJECT_MENTION]->
+      (mA:EntityMention)<-[:HAS_PARTICIPANT {role: 'subject'}]-
+      (c:ExtractedClaim)-[-[:HAS_PARTICIPANT {role: 'object'}]->
       (mB:EntityMention)-[:MEMBER_OF]->
       (clB:ResolvedEntityCluster)-[aB:ALIGNED_WITH]->(canonB:CanonicalEntity)
 WHERE toLower(canonA.name) CONTAINS 'galperin'
@@ -693,9 +694,9 @@ ORDER BY c.claim_id;
 // Claim-centric rewrite: start from claims to avoid mA × mB expansion
 MATCH (c:ExtractedClaim)
 WHERE c.run_id = $run_id
-MATCH (c)-[:HAS_SUBJECT_MENTION]->(mSub:EntityMention)
+MATCH (c)-[-[:HAS_PARTICIPANT {role: 'subject'}]->(mSub:EntityMention)
 WHERE mSub.run_id = $run_id
-MATCH (c)-[:HAS_OBJECT_MENTION]->(mObj:EntityMention)
+MATCH (c)-[-[:HAS_PARTICIPANT {role: 'object'}]->(mObj:EntityMention)
 WHERE mObj.run_id = $run_id
 MATCH (mSub)-[:MEMBER_OF]->(clSub:ResolvedEntityCluster)-[aSub:ALIGNED_WITH]->(canonSub:CanonicalEntity)
 WHERE aSub.run_id = $run_id
@@ -743,7 +744,7 @@ claim-active entities and exploring the overall claim landscape.
 MATCH (cluster:ResolvedEntityCluster)<-[:MEMBER_OF]-(m:EntityMention)
 WHERE cluster.run_id = $run_id
   AND m.run_id = $run_id
-MATCH (c:ExtractedClaim)-[:HAS_SUBJECT_MENTION|HAS_OBJECT_MENTION]->(m)
+MATCH (c:ExtractedClaim)-[:HAS_PARTICIPANT]->(m)
 WHERE c.run_id = $run_id
 RETURN cluster.canonical_name AS cluster,
        cluster.entity_type,
@@ -758,7 +759,7 @@ LIMIT 20;
 MATCH (cluster:ResolvedEntityCluster)<-[:MEMBER_OF]-(m:EntityMention)
 WHERE cluster.run_id = $run_id
   AND m.run_id = $run_id
-MATCH (c:ExtractedClaim)-[r:HAS_SUBJECT_MENTION|HAS_OBJECT_MENTION]->(m)
+MATCH (c:ExtractedClaim)-[r:HAS_PARTICIPANT]->(m)
 WHERE c.run_id = $run_id
 RETURN cluster.canonical_name AS cluster,
        type(r)                AS role,
@@ -774,7 +775,7 @@ MATCH (canonical:CanonicalEntity)<-[a:ALIGNED_WITH]-(cluster:ResolvedEntityClust
 WHERE a.run_id = $run_id
   AND a.alignment_version = $alignment_version
   AND m.run_id = $run_id
-MATCH (c:ExtractedClaim)-[:HAS_SUBJECT_MENTION|HAS_OBJECT_MENTION]->(m)
+MATCH (c:ExtractedClaim)-[:HAS_PARTICIPANT]->(m)
 WHERE c.run_id = $run_id
 RETURN canonical.name       AS canonical_entity,
        canonical.entity_id,
@@ -791,7 +792,7 @@ LIMIT 20;
 // How many clusters have at least one associated claim? How many are 'dark' (no claims)?
 MATCH (cluster:ResolvedEntityCluster)
 WHERE cluster.run_id = $run_id
-OPTIONAL MATCH (cluster)<-[:MEMBER_OF]-(m:EntityMention)<-[:HAS_SUBJECT_MENTION|HAS_OBJECT_MENTION]-(c:ExtractedClaim)
+OPTIONAL MATCH (cluster)<-[:MEMBER_OF]-(m:EntityMention)<-[:HAS_PARTICIPANT]-(c:ExtractedClaim)
 WHERE m.run_id = $run_id AND c.run_id = $run_id
 WITH cluster, count(DISTINCT c) AS claim_count
 RETURN sum(CASE WHEN claim_count > 0 THEN 1 ELSE 0 END) AS clusters_with_claims,
@@ -863,7 +864,7 @@ MATCH (cluster:ResolvedEntityCluster)<-[:MEMBER_OF]-(m:EntityMention)
 WHERE toLower(cluster.canonical_name) CONTAINS 'mercadolibre'
   AND cluster.run_id = $run_id
   AND m.run_id = $run_id
-MATCH (c:ExtractedClaim)-[r:HAS_SUBJECT_MENTION|HAS_OBJECT_MENTION]->(m)
+MATCH (c:ExtractedClaim)-[r:HAS_PARTICIPANT]->(m)
 WHERE c.run_id = $run_id
 RETURN cluster.canonical_name AS cluster,
        m.name                 AS mention,
@@ -885,9 +886,9 @@ MATCH (cluster:ResolvedEntityCluster)<-[:MEMBER_OF]-(mObj:EntityMention)
 WHERE toLower(cluster.canonical_name) CONTAINS 'mercadolibre'
   AND cluster.run_id = $run_id
   AND mObj.run_id = $run_id
-MATCH (c:ExtractedClaim)-[:HAS_OBJECT_MENTION]->(mObj)
+MATCH (c:ExtractedClaim)-[-[:HAS_PARTICIPANT {role: 'object'}]->(mObj)
 WHERE c.run_id = $run_id
-MATCH (c)-[:HAS_SUBJECT_MENTION]->(mSubj:EntityMention)
+MATCH (c)-[-[:HAS_PARTICIPANT {role: 'subject'}]->(mSubj:EntityMention)
 RETURN DISTINCT mSubj.name AS subject_entity,
                 count(c)   AS claim_count
 ORDER BY claim_count DESC;
@@ -918,7 +919,7 @@ MATCH (canonical:CanonicalEntity)<-[a:ALIGNED_WITH]-(cluster:ResolvedEntityClust
 WHERE toLower(canonical.name) CONTAINS 'mercadolibre'
   AND a.run_id = $run_id AND a.alignment_version = $alignment_version
   AND m.run_id = $run_id
-MATCH (c:ExtractedClaim)-[r:HAS_SUBJECT_MENTION|HAS_OBJECT_MENTION]->(m)
+MATCH (c:ExtractedClaim)-[r:HAS_PARTICIPANT]->(m)
 WHERE c.run_id = $run_id
 RETURN canonical.name        AS canonical_entity,
        cluster.canonical_name AS cluster,
@@ -982,7 +983,7 @@ Two derived relationship types could be pre-computed:
   these indexes in place (recommended for interactive analytics workloads), these queries run
   well within interactive latency budgets.
 - Materialized edges duplicate information already encoded in participation edges
-  (`HAS_SUBJECT_MENTION` / `HAS_OBJECT_MENTION`) and resolution edges (`MEMBER_OF` /
+  (`HAS_PARTICIPANT {role: subject}` / `HAS_PARTICIPANT {role: object}`) and resolution edges (`MEMBER_OF` /
   `ALIGNED_WITH`), increasing write cost and introducing a consistency surface.
 - Resolution results can change when `resolve-entities` is re-run (updated `MEMBER_OF` and
   `ALIGNED_WITH` edges).  Materialized edges would need to be explicitly invalidated and rebuilt

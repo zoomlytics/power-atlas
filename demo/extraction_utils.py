@@ -252,12 +252,18 @@ def prepare_extracted_rows(
     return claim_rows, mention_rows, warnings
 
 
-def _edge_write_query(relationship_type: str) -> str:
-    return f"""
+def _edge_write_query() -> str:
+    """Return the Cypher query for writing :HAS_PARTICIPANT edges (v0.3 model).
+
+    The ``role`` property is included in the MERGE key so that subject and
+    object edges are distinct relationships even when they point to the same
+    mention node.
+    """
+    return """
             UNWIND $rows AS row
-            MATCH (claim:ExtractedClaim {{claim_id: row.claim_id, run_id: row.run_id}})
-            MATCH (mention:EntityMention {{mention_id: row.mention_id, run_id: row.run_id}})
-            MERGE (claim)-[r:{relationship_type}]->(mention)
+            MATCH (claim:ExtractedClaim {claim_id: row.claim_id, run_id: row.run_id})
+            MATCH (mention:EntityMention {mention_id: row.mention_id, run_id: row.run_id})
+            MERGE (claim)-[r:HAS_PARTICIPANT {role: row.role}]->(mention)
             SET r.run_id = row.run_id,
                 r.source_uri = coalesce(row.source_uri, r.source_uri),
                 r.match_method = row.match_method
@@ -303,10 +309,10 @@ def write_all_extraction_data(
 ) -> None:
     """Write claims, mentions, and participation edges in a single transaction.
 
-    Uses ``session.execute_write`` so that all four write operations (claims,
-    mentions, subject edges, object edges) either all succeed or all roll back.
+    Uses ``session.execute_write`` so that all three write operations (claims,
+    mentions, participation edges) either all succeed or all roll back.
     This prevents the partial-write state where claims/mentions exist in the
-    graph but their ``HAS_SUBJECT_MENTION``/``HAS_OBJECT_MENTION`` edges are missing.
+    graph but their ``HAS_PARTICIPANT`` edges are missing (v0.3 model).
 
     Prefer this function over calling :func:`write_extracted_rows` and
     :func:`~demo.stages.claim_participation.write_participation_edges`
@@ -331,31 +337,24 @@ def write_all_extraction_data(
         Edge rows produced by
         :func:`~demo.stages.claim_participation.build_participation_edges`.
     """
-    from demo.stages.claim_participation import EDGE_TYPE_HAS_OBJECT, EDGE_TYPE_HAS_SUBJECT
-
     chunk_label = RunScopedNeo4jChunkReader.validate_identifier(
         lexical_graph_config.chunk_node_label, "chunk label"
     )
     chunk_id_property = RunScopedNeo4jChunkReader.validate_identifier(
         lexical_graph_config.chunk_id_property, "chunk_id property"
     )
-    subject_rows = [r for r in edge_rows if r["edge_type"] == EDGE_TYPE_HAS_SUBJECT]
-    object_rows = [r for r in edge_rows if r["edge_type"] == EDGE_TYPE_HAS_OBJECT]
 
     claim_query = _claim_write_query(chunk_label, chunk_id_property)
     mention_query = _mention_write_query(chunk_label, chunk_id_property)
-    subject_query = _edge_write_query(EDGE_TYPE_HAS_SUBJECT)
-    object_query = _edge_write_query(EDGE_TYPE_HAS_OBJECT)
+    participant_query = _edge_write_query()
 
     def _write_all(tx: neo4j.ManagedTransaction) -> None:
         if claim_rows:
             tx.run(claim_query, rows=claim_rows).consume()
         if mention_rows:
             tx.run(mention_query, rows=mention_rows).consume()
-        if subject_rows:
-            tx.run(subject_query, rows=subject_rows).consume()
-        if object_rows:
-            tx.run(object_query, rows=object_rows).consume()
+        if edge_rows:
+            tx.run(participant_query, rows=edge_rows).consume()
 
     with driver.session(database=neo4j_database) as session:
         session.execute_write(_write_all)
