@@ -598,10 +598,10 @@ def _postprocess_answer(
     display_answer, history_answer, citation_fallback_applied = _build_citation_fallback(
         repaired.strip()
     )
-    # all_cited is computed directly from the repaired answer text so it remains
-    # self-contained and does not depend on the fallback flag for correctness.
+    # Derive all_cited from the fallback flag to avoid recomputing citation
+    # completeness on the repaired answer text.
     repaired_stripped = repaired.strip()
-    all_cited = _check_all_answers_cited(repaired_stripped) if repaired_stripped else False
+    all_cited = bool(repaired_stripped) and not citation_fallback_applied
 
     citation_warnings: list[str] = list(existing_citation_warnings or [])
     if repaired_stripped and not all_cited:
