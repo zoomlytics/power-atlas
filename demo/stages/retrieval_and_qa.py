@@ -47,8 +47,9 @@ def _build_claim_details_with_clause(run_scoped: bool) -> str:
     Traverses ``SUPPORTED_BY`` edges from the Chunk to ``ExtractedClaim`` nodes,
     then collects **all** ``HAS_PARTICIPANT`` participation edges (v0.3 model) as a
     ``roles`` list.  Each entry in the list carries the ``role`` property, the
-    mention ``name``, and the ``match_method`` — covering subject, object, and any
-    future roles (agent, target, location, …) without requiring schema changes.
+    mention ``mention_name``, and the ``match_method`` — covering subject, object,
+    and any future roles (agent, target, location, …) without requiring schema
+    changes.
 
     When *run_scoped* is ``True``, a ``WHERE`` filter restricts
     ``ExtractedClaim`` nodes to the current ``$run_id``.  In all-runs mode the
@@ -59,7 +60,7 @@ def _build_claim_details_with_clause(run_scoped: bool) -> str:
         "WITH c, score,\n"
         "     [(c)<-[:SUPPORTED_BY]-(claim:ExtractedClaim)" + claim_filter + " |\n"
         "         {claim_text: claim.claim_text,\n"
-        "          roles: [(claim)-[r:HAS_PARTICIPANT]->(m:EntityMention) | {role: r.role, name: m.name, match_method: r.match_method}]}\n"
+        "          roles: [(claim)-[r:HAS_PARTICIPANT]->(m:EntityMention) | {role: r.role, mention_name: m.name, match_method: r.match_method}]}\n"
         "     ] AS claim_details"
     )
 
@@ -658,7 +659,7 @@ def _normalize_claim_roles(detail: dict[str, object]) -> list[dict[str, object]]
     """Normalize claim role data from one detail record into a canonical list.
 
     Accepts both the current generic ``roles`` shape (each entry is
-    ``{role, name, match_method}``) and the legacy ``subject_mention`` /
+    ``{role, mention_name, match_method}``) and the legacy ``subject_mention`` /
     ``object_mention`` fallback keys.  Malformed entries (``None``, non-dict,
     or missing ``role``) are silently filtered out so that downstream
     formatting and diagnostic code never crashes on partial payloads.
@@ -690,7 +691,7 @@ def _normalize_claim_roles(detail: dict[str, object]) -> list[dict[str, object]]
                     continue
                 roles.append({
                     "role": role,
-                    "mention_name": entry.get("name"),
+                    "mention_name": entry.get("mention_name", entry.get("name")),
                     "match_method": entry.get("match_method"),
                 })
     else:
@@ -779,7 +780,7 @@ def _build_retrieval_path_diagnostics(
     claim_details:
         Structured claim records from the ``claim_details`` query column.  Each entry
         carries ``claim_text`` and either a ``roles`` list (new generic format, each
-        entry is ``{role, name, match_method}``) or legacy ``subject_mention`` /
+        entry is ``{role, mention_name, match_method}``) or legacy ``subject_mention`` /
         ``object_mention`` dicts (backward-compatible fallback).
     canonical_entities:
         List of canonical entity names reached via

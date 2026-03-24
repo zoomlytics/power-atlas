@@ -238,8 +238,8 @@ class TestBuildRetrievalPathDiagnostics:
             {
                 "claim_text": "A acquired B.",
                 "roles": [
-                    {"role": "subject", "name": "A", "match_method": "raw_exact"},
-                    {"role": "object", "name": "B", "match_method": "casefold_exact"},
+                    {"role": "subject", "mention_name": "A", "match_method": "raw_exact"},
+                    {"role": "object", "mention_name": "B", "match_method": "casefold_exact"},
                 ],
             }
         ]
@@ -264,8 +264,8 @@ class TestBuildRetrievalPathDiagnostics:
             {
                 "claim_text": "The board approved the merger.",
                 "roles": [
-                    {"role": "agent", "name": "The board", "match_method": "casefold_exact"},
-                    {"role": "target", "name": "the merger", "match_method": "normalized_exact"},
+                    {"role": "agent", "mention_name": "The board", "match_method": "casefold_exact"},
+                    {"role": "target", "mention_name": "the merger", "match_method": "normalized_exact"},
                 ],
             }
         ]
@@ -302,9 +302,9 @@ class TestBuildRetrievalPathDiagnostics:
             {
                 "claim_text": "Smith transferred assets to Corp.",
                 "roles": [
-                    {"role": "subject", "name": "assets", "match_method": "raw_exact"},
-                    {"role": "object", "name": "Corp", "match_method": "raw_exact"},
-                    {"role": "agent", "name": "Smith", "match_method": "casefold_exact"},
+                    {"role": "subject", "mention_name": "assets", "match_method": "raw_exact"},
+                    {"role": "object", "mention_name": "Corp", "match_method": "raw_exact"},
+                    {"role": "agent", "mention_name": "Smith", "match_method": "casefold_exact"},
                 ],
             }
         ]
@@ -724,8 +724,8 @@ class TestNormalizeClaimRoles:
     def test_new_format_returns_canonical_entries(self) -> None:
         detail = {
             "roles": [
-                {"role": "subject", "name": "Alice", "match_method": "raw_exact"},
-                {"role": "object", "name": "Bob", "match_method": "casefold_exact"},
+                {"role": "subject", "mention_name": "Alice", "match_method": "raw_exact"},
+                {"role": "object", "mention_name": "Bob", "match_method": "casefold_exact"},
             ]
         }
         result = _normalize_claim_roles(detail)
@@ -736,8 +736,8 @@ class TestNormalizeClaimRoles:
     def test_new_format_sorts_subject_first(self) -> None:
         detail = {
             "roles": [
-                {"role": "object", "name": "Corp", "match_method": "raw_exact"},
-                {"role": "subject", "name": "Alice", "match_method": "raw_exact"},
+                {"role": "object", "mention_name": "Corp", "match_method": "raw_exact"},
+                {"role": "subject", "mention_name": "Alice", "match_method": "raw_exact"},
             ]
         }
         result = _normalize_claim_roles(detail)
@@ -780,7 +780,7 @@ class TestNormalizeClaimRoles:
         detail = {
             "roles": [
                 None,
-                {"role": "subject", "name": "Alice", "match_method": "raw_exact"},
+                {"role": "subject", "mention_name": "Alice", "match_method": "raw_exact"},
             ]
         }
         result = _normalize_claim_roles(detail)
@@ -792,7 +792,7 @@ class TestNormalizeClaimRoles:
         detail = {
             "roles": [
                 "bad-entry",
-                {"role": "object", "name": "Corp", "match_method": "raw_exact"},
+                {"role": "object", "mention_name": "Corp", "match_method": "raw_exact"},
             ]
         }
         result = _normalize_claim_roles(detail)
@@ -809,9 +809,9 @@ class TestNormalizeClaimRoles:
         """Entries without a ``role`` key (or with a falsy role) must be dropped."""
         detail = {
             "roles": [
-                {"name": "Unknown", "match_method": "raw_exact"},  # no role key
-                {"role": "", "name": "Empty", "match_method": "raw_exact"},  # empty role
-                {"role": "subject", "name": "Alice", "match_method": "raw_exact"},
+                {"mention_name": "Unknown", "match_method": "raw_exact"},  # no role key
+                {"role": "", "mention_name": "Empty", "match_method": "raw_exact"},  # empty role
+                {"role": "subject", "mention_name": "Alice", "match_method": "raw_exact"},
             ]
         }
         result = _normalize_claim_roles(detail)
@@ -819,10 +819,10 @@ class TestNormalizeClaimRoles:
         assert result[0]["role"] == "subject"
 
     def test_partially_populated_entry_preserved(self) -> None:
-        """An entry with a valid role but missing name/match_method should survive."""
+        """An entry with a valid role but missing mention_name/match_method should survive."""
         detail = {
             "roles": [
-                {"role": "subject"},  # name and match_method absent
+                {"role": "subject"},  # mention_name and match_method absent
             ]
         }
         result = _normalize_claim_roles(detail)
@@ -837,9 +837,9 @@ class TestNormalizeClaimRoles:
             "roles": [
                 None,
                 "garbage",
-                {"name": "no-role"},
-                {"role": "subject", "name": "Alice", "match_method": "raw_exact"},
-                {"role": "object", "name": "Corp", "match_method": "casefold_exact"},
+                {"mention_name": "no-role"},
+                {"role": "subject", "mention_name": "Alice", "match_method": "raw_exact"},
+                {"role": "object", "mention_name": "Corp", "match_method": "casefold_exact"},
             ]
         }
         result = _normalize_claim_roles(detail)
@@ -856,7 +856,7 @@ class TestNormalizeClaimRoles:
                 "roles": [
                     None,
                     "garbage",
-                    {"role": "subject", "name": "Alice", "match_method": "raw_exact"},
+                    {"role": "subject", "mention_name": "Alice", "match_method": "raw_exact"},
                 ],
             }
         ]
