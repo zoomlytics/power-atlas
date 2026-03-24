@@ -23,11 +23,13 @@ from demo.stages.retrieval_and_qa import (
     _RETRIEVAL_QUERY_WITH_CLUSTER_ALL_RUNS,
     _RETRIEVAL_QUERY_WITH_EXPANSION,
     _RETRIEVAL_QUERY_WITH_EXPANSION_ALL_RUNS,
+    _apply_citation_repair,
     _build_canonical_names_expr,
     _build_claim_details_with_clause,
     _build_cluster_canonical_alignments_expr,
     _build_cluster_memberships_expr,
     _build_mention_names_expr,
+    _build_query_params,
     _build_retrieval_query,
     _select_retrieval_query,
 )
@@ -530,3 +532,142 @@ class TestSelectRetrievalQuery:
         self, kwargs: dict[str, bool], expected: str
     ) -> None:
         assert _select_retrieval_query(**kwargs) is expected
+
+
+# ---------------------------------------------------------------------------
+# _build_query_params tests
+# ---------------------------------------------------------------------------
+
+
+class TestBuildQueryParams:
+    """_build_query_params builds the correct Cypher parameter dict."""
+
+    def test_run_scoped_includes_run_id(self) -> None:
+        params = _build_query_params(
+            run_id="run123", source_uri=None, all_runs=False, cluster_aware=False
+        )
+        assert params["run_id"] == "run123"
+
+    def test_all_runs_omits_run_id(self) -> None:
+        params = _build_query_params(
+            run_id="run123", source_uri=None, all_runs=True, cluster_aware=False
+        )
+        assert "run_id" not in params
+
+    def test_source_uri_always_included(self) -> None:
+        for all_runs in (True, False):
+            params = _build_query_params(
+                run_id="r", source_uri="file:///doc.pdf", all_runs=all_runs, cluster_aware=False
+            )
+            assert params["source_uri"] == "file:///doc.pdf"
+
+    def test_source_uri_none_is_valid(self) -> None:
+        params = _build_query_params(
+            run_id="r", source_uri=None, all_runs=False, cluster_aware=False
+        )
+        assert params["source_uri"] is None
+
+    def test_cluster_aware_adds_alignment_version(self) -> None:
+        from demo.contracts import ALIGNMENT_VERSION
+        params = _build_query_params(
+            run_id="r", source_uri=None, all_runs=False, cluster_aware=True
+        )
+        assert params["alignment_version"] == ALIGNMENT_VERSION
+
+    def test_not_cluster_aware_omits_alignment_version(self) -> None:
+        params = _build_query_params(
+            run_id="r", source_uri=None, all_runs=False, cluster_aware=False
+        )
+        assert "alignment_version" not in params
+
+    def test_all_runs_cluster_aware_has_no_run_id_but_has_alignment_version(self) -> None:
+        from demo.contracts import ALIGNMENT_VERSION
+        params = _build_query_params(
+            run_id="r", source_uri=None, all_runs=True, cluster_aware=True
+        )
+        assert "run_id" not in params
+        assert params["alignment_version"] == ALIGNMENT_VERSION
+
+
+# ---------------------------------------------------------------------------
+# _apply_citation_repair tests
+# ---------------------------------------------------------------------------
+
+def _make_hit(token: str, chunk_id: str) -> dict:
+    return {"metadata": {"citation_token": token, "chunk_id": chunk_id}}
+
+
+class TestApplyCitationRepair:
+    """_apply_citation_repair returns (repaired, applied, strategy, chunk_id)."""
+
+    _TOKEN = "[CITATION|chunk_id=abc|run_id=r|source_uri=file%3A%2F%2F%2Ff|chunk_index=0|page=1|start_char=0|end_char=99]"
+
+    def test_no_repair_when_not_all_runs(self) -> None:
+        answer = "Uncited sentence."
+        hits = [_make_hit(self._TOKEN, "abc")]
+        result, applied, strategy, chunk_id = _apply_citation_repair(
+            answer, hits, all_runs=False, raw_answer_all_cited=False
+        )
+        assert result == answer
+        assert applied is False
+        assert strategy is None
+        assert chunk_id is None
+
+    def test_no_repair_when_already_cited(self) -> None:
+        answer = f"Already cited {self._TOKEN}"
+        hits = [_make_hit(self._TOKEN, "abc")]
+        result, applied, _, _ = _apply_citation_repair(
+            answer, hits, all_runs=True, raw_answer_all_cited=True
+        )
+        assert result == answer
+        assert applied is False
+
+    def test_no_repair_when_empty_answer(self) -> None:
+        result, applied, _, _ = _apply_citation_repair(
+            "", [_make_hit(self._TOKEN, "abc")], all_runs=True, raw_answer_all_cited=False
+        )
+        assert result == ""
+        assert applied is False
+
+    def test_no_repair_when_no_hits(self) -> None:
+        result, applied, _, _ = _apply_citation_repair(
+            "Uncited.", [], all_runs=True, raw_answer_all_cited=False
+        )
+        assert result == "Uncited."
+        assert applied is False
+
+    def test_repair_applied_in_all_runs_mode(self) -> None:
+        answer = "Uncited sentence."
+        hits = [_make_hit(self._TOKEN, "abc")]
+        result, applied, strategy, chunk_id = _apply_citation_repair(
+            answer, hits, all_runs=True, raw_answer_all_cited=False
+        )
+        assert applied is True
+        assert strategy == "append_first_retrieved_token"
+        assert chunk_id == "abc"
+        assert self._TOKEN in result
+
+    def test_repair_uses_first_available_token(self) -> None:
+        token_a = self._TOKEN
+        token_b = self._TOKEN.replace("chunk_id=abc", "chunk_id=xyz")
+        hits = [_make_hit(token_a, "abc"), _make_hit(token_b, "xyz")]
+        _, _, _, chunk_id = _apply_citation_repair(
+            "Uncited.", hits, all_runs=True, raw_answer_all_cited=False
+        )
+        assert chunk_id == "abc"
+
+    def test_no_repair_when_hits_have_no_token(self) -> None:
+        hits = [{"metadata": {"citation_token": None, "chunk_id": "abc"}}]
+        result, applied, _, _ = _apply_citation_repair(
+            "Uncited.", hits, all_runs=True, raw_answer_all_cited=False
+        )
+        assert result == "Uncited."
+        assert applied is False
+
+    def test_source_chunk_id_is_none_when_chunk_id_missing(self) -> None:
+        hits = [{"metadata": {"citation_token": self._TOKEN, "chunk_id": ""}}]
+        _, applied, _, chunk_id = _apply_citation_repair(
+            "Uncited.", hits, all_runs=True, raw_answer_all_cited=False
+        )
+        assert applied is True
+        assert chunk_id is None
