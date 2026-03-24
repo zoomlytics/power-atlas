@@ -1395,7 +1395,7 @@ def run_retrieval_and_qa(
             metadata = hit.get("metadata") or {}
             token = metadata.get("citation_token")
             if token:
-                first_token = token
+                first_token = str(token)
                 citation_repair_source_chunk_id = (
                     str(metadata.get("chunk_id") or "") or None
                 )
