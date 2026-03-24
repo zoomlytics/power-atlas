@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+from typing import Literal, TypedDict
 
 import neo4j
 from neo4j_graphrag.embeddings.openai import OpenAIEmbeddings
@@ -339,6 +340,10 @@ _BULLET_PREFIX_RE = re.compile(r"^([-*•]\s+|\d+\.\s+)")
 # not by matching this prefix against the answer text.
 _CITATION_FALLBACK_PREFIX = "Insufficient citations detected"
 
+# Maximum number of characters of the final answer text included in the
+# "Answer replaced with citation fallback" diagnostic log message.
+_FALLBACK_PREVIEW_MAX_LEN = 200
+
 
 def _format_scope_label(run_id: str | None, all_runs: bool) -> str:
     """Return a human-readable retrieval scope label for CLI output.
@@ -487,6 +492,169 @@ def _build_citation_fallback(answer: str) -> tuple[str, str, bool]:
     display_answer = f"{_CITATION_FALLBACK_PREFIX}: {answer}" if is_uncited else answer
     history_answer = _CITATION_FALLBACK_PREFIX if is_uncited else answer
     return display_answer, history_answer, is_uncited
+
+
+class _CitationQualityBundle(TypedDict):
+    """Structured citation-quality summary nested inside :class:`_AnswerPostprocessResult`."""
+
+    all_cited: bool
+    raw_answer_all_cited: bool
+    evidence_level: Literal["no_answer", "full", "degraded"]
+    warning_count: int
+    citation_warnings: list[str]
+
+
+class _AnswerPostprocessResult(TypedDict):
+    """Structured result returned by :func:`_postprocess_answer`.
+
+    All keys are always present regardless of which postprocessing path was
+    taken.  Callers can index into the dict without ``# type: ignore``
+    annotations.
+    """
+
+    raw_answer: str
+    raw_answer_all_cited: bool
+    repaired_answer: str
+    citation_repair_applied: bool
+    citation_repair_strategy: str | None
+    citation_repair_source_chunk_id: str | None
+    display_answer: str
+    history_answer: str
+    citation_fallback_applied: bool
+    all_cited: bool
+    evidence_level: Literal["no_answer", "full", "degraded"]
+    citation_warnings: list[str]
+    warning_count: int
+    citation_quality: _CitationQualityBundle
+
+
+def _postprocess_answer(
+    answer_text: str,
+    hits: list[dict[str, object]],
+    *,
+    all_runs: bool,
+    existing_citation_warnings: list[str] | None = None,
+) -> _AnswerPostprocessResult:
+    """Unified answer postprocessing lifecycle shared by both retrieval entry points.
+
+    Centralises the full postprocessing contract so that
+    :func:`run_retrieval_and_qa` and :func:`run_interactive_qa` cannot drift
+    silently:
+
+    1. Preserve *raw_answer* and compute *raw_answer_all_cited*.
+    2. Attempt citation repair via :func:`_apply_citation_repair`.
+    3. Apply the citation fallback via :func:`_build_citation_fallback`.
+    4. Derive *all_cited* for the final delivered answer.
+    5. Collect citation warnings (including the uncited-answer warning when
+       applicable) and log the canonical warning message once.
+    6. Derive *evidence_level* from *all_cited* and the combined warning list.
+    7. Build the structured *citation_quality* bundle.
+
+    Parameters
+    ----------
+    answer_text:
+        Raw LLM answer text to postprocess.
+    hits:
+        Retrieved chunk hit dicts (each with a ``"metadata"`` key) as produced
+        by the retrieval loop in both entry points.
+    all_runs:
+        When ``True``, citation repair is attempted via the all-runs heuristic.
+    existing_citation_warnings:
+        Citation-quality warnings already collected before postprocessing (e.g.
+        empty-chunk-text warnings from the retrieval loop).  The returned
+        ``citation_warnings`` list always begins with all elements of this list
+        (in the same order), followed by any new warnings added during
+        postprocessing.  The caller's list is never mutated.  May be ``None`` or
+        empty.
+
+    Returns
+    -------
+    _AnswerPostprocessResult
+        A structured result with the following keys:
+
+        - ``raw_answer`` — original LLM output before any repair or fallback.
+        - ``raw_answer_all_cited`` — whether the raw answer was fully cited.
+        - ``repaired_answer`` — answer text after citation repair (equals
+          *raw_answer* when no repair was applied).
+        - ``citation_repair_applied`` — ``True`` when repair was applied.
+        - ``citation_repair_strategy`` — repair algorithm name, or ``None``.
+        - ``citation_repair_source_chunk_id`` — ``chunk_id`` used for repair,
+          or ``None``.
+        - ``display_answer`` — final answer for display/return (includes the
+          fallback prefix when not fully cited).
+        - ``history_answer`` — sanitised answer for conversation history (bare
+          refusal prefix when not fully cited).
+        - ``citation_fallback_applied`` — ``True`` when the fallback prefix was
+          applied.
+        - ``all_cited`` — whether the *final delivered* answer is fully cited.
+        - ``evidence_level`` — ``"no_answer"``, ``"full"``, or ``"degraded"``.
+        - ``citation_warnings`` — combined list of citation-quality warnings
+          (existing + any new ones added here).
+        - ``warning_count`` — ``len(citation_warnings)``.
+        - ``citation_quality`` — structured citation quality bundle dict.
+    """
+    raw_answer = answer_text
+    raw_answer_all_cited = _check_all_answers_cited(raw_answer) if raw_answer.strip() else False
+
+    repaired, citation_repair_applied, citation_repair_strategy, citation_repair_source_chunk_id = (
+        _apply_citation_repair(
+            answer_text,
+            hits,
+            all_runs=all_runs,
+            raw_answer_all_cited=raw_answer_all_cited,
+        )
+    )
+
+    repaired_stripped = repaired.strip()
+    display_answer, history_answer, citation_fallback_applied = _build_citation_fallback(
+        repaired_stripped
+    )
+    # Derive all_cited directly from the repaired answer text so citation
+    # completeness semantics are independent of fallback behavior.
+    all_cited = bool(repaired_stripped) and _check_all_answers_cited(repaired_stripped)
+
+    citation_warnings: list[str] = list(existing_citation_warnings or [])
+    if repaired_stripped and not all_cited:
+        uncited_warning = "Not all answer sentences or bullets end with a citation token."
+        _logger.warning(uncited_warning)
+        citation_warnings.append(uncited_warning)
+
+    # evidence_level encodes the overall quality of the retrieved evidence:
+    #   "no_answer"  – no answer was generated (empty answer text)
+    #   "full"       – every answer sentence/bullet ends with a citation token AND
+    #                  no critical citation-quality warnings exist.
+    #   "degraded"   – any answer sentence/bullet is missing a citation token, OR a
+    #                  critical citation-quality warning exists (e.g. empty chunk text).
+    evidence_level = (
+        "no_answer"
+        if not repaired_stripped
+        else ("degraded" if (not all_cited or citation_warnings) else "full")
+    )
+
+    citation_quality: _CitationQualityBundle = {
+        "all_cited": all_cited,
+        "raw_answer_all_cited": raw_answer_all_cited,
+        "evidence_level": evidence_level,
+        "warning_count": len(citation_warnings),
+        "citation_warnings": citation_warnings,
+    }
+
+    return {
+        "raw_answer": raw_answer,
+        "raw_answer_all_cited": raw_answer_all_cited,
+        "repaired_answer": repaired,
+        "citation_repair_applied": citation_repair_applied,
+        "citation_repair_strategy": citation_repair_strategy,
+        "citation_repair_source_chunk_id": citation_repair_source_chunk_id,
+        "display_answer": display_answer,
+        "history_answer": history_answer,
+        "citation_fallback_applied": citation_fallback_applied,
+        "all_cited": all_cited,
+        "evidence_level": evidence_level,
+        "citation_warnings": citation_warnings,
+        "warning_count": len(citation_warnings),
+        "citation_quality": citation_quality,
+    }
 
 
 def _split_into_segments(answer: str) -> list[str]:
@@ -1505,70 +1673,34 @@ def run_retrieval_and_qa(
                     citation_warnings_list.append(empty_text_warning)
                 hits.append({"content": item.content, "metadata": meta})
 
-    # Check answer citation completeness; apply controlled fallback when not fully cited.
-    # raw_answer preserves the original LLM output for transparency/debugging regardless
-    # of whether a fallback replacement is applied.
-    raw_answer = answer_text
-    # raw_answer_all_cited reflects whether the original LLM output was fully cited,
-    # independently of any subsequent repair or fallback applied below.
-    raw_answer_all_cited = _check_all_answers_cited(raw_answer) if raw_answer.strip() else False
-    # In all-runs mode, attempt to repair uncited segments using retrieved citation tokens
-    # before falling back to the generic citation fallback.  This avoids the fallback
-    # when valid evidence was retrieved but the LLM omitted trailing citation tokens on
-    # some segments.  Repair is skipped when no hits were retrieved (truly insufficient
-    # evidence) — the fallback still applies in that case.
-    answer_text, citation_repair_applied, citation_repair_strategy, citation_repair_source_chunk_id = (
-        _apply_citation_repair(
-            answer_text,
-            hits,
-            all_runs=all_runs,
-            raw_answer_all_cited=raw_answer_all_cited,
-        )
+    # Unified answer postprocessing: raw citation check, repair, fallback, warnings, and
+    # evidence quality bundle — computed via the shared helper so single-shot and
+    # interactive paths cannot drift silently.
+    pp = _postprocess_answer(
+        answer_text,
+        hits,
+        all_runs=all_runs,
+        existing_citation_warnings=citation_warnings_list,
     )
-    answer_text, _, uncited = _build_citation_fallback(answer_text.strip())
-    # all_cited is False both when the answer is empty (nothing to cite) and when
-    # the helper finds uncited sentences; True only when the answer is non-empty
-    # and every segment carries a trailing citation token.
-    all_cited = bool(answer_text.strip()) and not uncited
-    if answer_text.strip() and not all_cited:
-        citation_warning = "Not all answer sentences or bullets end with a citation token."
-        _logger.warning(citation_warning)
-        warnings_list.append(citation_warning)
-        citation_warnings_list.append(citation_warning)
-        # Wrap the under-cited answer in a structured, clearly labeled fallback so that
-        # all consumers (UI, manifests, downstream stages) see an explicit citation
-        # warning instead of silently treating an under-cited response as fully reliable.
+    # Propagate any new citation warnings (e.g. uncited-answer warning added by the
+    # helper) to the general warnings list so callers see a unified warnings list.
+    # _postprocess_answer guarantees that the returned citation_warnings list always
+    # starts with the elements of existing_citation_warnings (in the same order),
+    # so slicing from len(citation_warnings_list) yields only the newly-added warnings.
+    for w in pp["citation_warnings"][len(citation_warnings_list):]:
+        warnings_list.append(w)
+    if pp["citation_fallback_applied"]:
+        display = pp["display_answer"]
         fallback_preview = (
-            answer_text[:200] + "..." if len(answer_text) > 200 else answer_text
+            display[:_FALLBACK_PREVIEW_MAX_LEN] + "..."
+            if len(display) > _FALLBACK_PREVIEW_MAX_LEN
+            else display
         )
         _logger.warning(
             "Answer replaced with citation fallback (length=%d, preview=%r)",
-            len(answer_text),
+            len(display),
             fallback_preview,
         )
-
-    # Build the structured per-answer citation quality signal bundle.
-    # evidence_level encodes the overall quality of the retrieved evidence:
-    #   "no_answer"  – no answer was generated (empty answer text)
-    #   "full"       – every answer sentence and bullet ends with a citation token AND
-    #                  no critical citation-quality warnings exist (e.g. no empty chunks)
-    #   "degraded"   – any answer sentence or bullet is missing a citation token, OR a
-    #                  critical citation-quality warning exists (e.g. empty chunk text).
-    #                  Missing OPTIONAL citation fields (page, start_char, end_char) do
-    #                  NOT degrade evidence_level per citation contract #159.
-    # all_cited reflects the FINAL delivered answer after repair+fallback;
-    # raw_answer_all_cited reflects the original LLM output before any repair.
-    evidence_level = (
-        "no_answer" if not answer_text
-        else ("degraded" if (not all_cited or citation_warnings_list) else "full")
-    )
-    live_citation_quality: dict[str, object] = {
-        "all_cited": all_cited,
-        "raw_answer_all_cited": raw_answer_all_cited,
-        "evidence_level": evidence_level,
-        "warning_count": len(citation_warnings_list),
-        "citation_warnings": citation_warnings_list,
-    }
 
     # Use first hit's citation data as example when hits are available so the manifest
     # reflects actual retrieved provenance rather than placeholder values.
@@ -1598,17 +1730,17 @@ def run_retrieval_and_qa(
         "citation_token_example": actual_citation_token,
         "citation_object_example": actual_citation_object,
         "citation_example": actual_citation_object,
-        "answer": answer_text,
-        "raw_answer": raw_answer or "",
-        "citation_fallback_applied": uncited,
+        "answer": pp["display_answer"],
+        "raw_answer": pp["raw_answer"],
+        "citation_fallback_applied": pp["citation_fallback_applied"],
         # all_answers_cited reflects the FINAL delivered answer citation state (after any
         # repair or fallback).  raw_answer_all_cited reflects the original LLM output.
-        "all_answers_cited": all_cited,
-        "raw_answer_all_cited": raw_answer_all_cited,
-        "citation_repair_applied": citation_repair_applied,
-        "citation_repair_strategy": citation_repair_strategy,
-        "citation_repair_source_chunk_id": citation_repair_source_chunk_id,
-        "citation_quality": live_citation_quality,
+        "all_answers_cited": pp["all_cited"],
+        "raw_answer_all_cited": pp["raw_answer_all_cited"],
+        "citation_repair_applied": pp["citation_repair_applied"],
+        "citation_repair_strategy": pp["citation_repair_strategy"],
+        "citation_repair_source_chunk_id": pp["citation_repair_source_chunk_id"],
+        "citation_quality": pp["citation_quality"],
         "retrieval_path_summary": _format_retrieval_path_summary(hits),
     }
 
@@ -1731,31 +1863,21 @@ def run_interactive_qa(
                     message_history=history,
                 )
                 answer = rag_result.answer if rag_result else ""
-                # In all-runs mode, attempt to repair uncited segments using retrieved
-                # citation tokens before falling back.  Uses the shared helper so that
-                # the repair heuristic stays consistent with run_retrieval_and_qa.
-                if all_runs and rag_result and rag_result.retriever_result:
+                # Build repair hits from retriever result items (empty list when no
+                # retriever result is available — _postprocess_answer handles this).
+                _repair_hits: list[dict[str, object]] = []
+                if rag_result and rag_result.retriever_result:
                     _repair_hits = [
                         {"metadata": item.metadata or {}}
                         for item in rag_result.retriever_result.items
                     ]
-                    # Treat an empty answer as already-cited so _apply_citation_repair
-                    # skips it (the helper's answer_text.strip() guard also catches this,
-                    # but being explicit here avoids calling _check_all_answers_cited on
-                    # an empty string where the result would be misleading).
-                    raw_cited = _check_all_answers_cited(answer) if answer else True
-                    answer, _, _, _ = _apply_citation_repair(
-                        answer,
-                        _repair_hits,
-                        all_runs=all_runs,
-                        raw_answer_all_cited=raw_cited,
-                    )
-                display_answer, history_answer, uncited = _build_citation_fallback(answer)
-                print(f"\nAnswer:\n{display_answer}\n")
-                if uncited:
-                    _logger.warning("Not all answer sentences or bullets end with a citation token.")
+                # Unified postprocessing: repair, fallback, warnings, and citation quality
+                # via the shared helper so this path stays aligned with run_retrieval_and_qa.
+                pp = _postprocess_answer(answer, _repair_hits, all_runs=all_runs)
+                print(f"\nAnswer:\n{pp['display_answer']}\n")
+                if pp["citation_fallback_applied"]:
                     print(
-                        "⚠ WARNING: Not all answer sentences or bullets are cited — evidence quality may be degraded."
+                        "WARNING: Not all answer sentences or bullets are cited - evidence quality may be degraded."
                     )
                 # Store only the refusal prefix (not the full uncited output) in history
                 # so that subsequent turns are not conditioned on under-cited content.
@@ -1763,7 +1885,7 @@ def run_interactive_qa(
                 history.add_messages(
                     [
                         LLMMessage(role="user", content=question),
-                        LLMMessage(role="assistant", content=history_answer),
+                        LLMMessage(role="assistant", content=pp["history_answer"]),
                     ]
                 )
         except KeyboardInterrupt:
@@ -1776,5 +1898,6 @@ __all__ = [
     "_CITATION_FALLBACK_PREFIX",
     "_format_scope_label",
     "_format_retrieval_path_summary",
+    "_postprocess_answer",
 ]
 
