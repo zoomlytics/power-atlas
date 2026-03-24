@@ -1377,7 +1377,7 @@ def run_retrieval_and_qa(
     raw_answer = answer_text
     # raw_answer_all_cited reflects whether the original LLM output was fully cited,
     # independently of any subsequent repair or fallback applied below.
-    raw_answer_all_cited = _check_all_answers_cited(raw_answer) if raw_answer else False
+    raw_answer_all_cited = _check_all_answers_cited(raw_answer) if raw_answer.strip() else False
     # Track citation repair state for explicit metadata exposure.
     citation_repair_applied = False
     citation_repair_strategy: str | None = None
@@ -1387,7 +1387,7 @@ def run_retrieval_and_qa(
     # when valid evidence was retrieved but the LLM omitted trailing citation tokens on
     # some segments.  Repair is skipped when no hits were retrieved (truly insufficient
     # evidence) — the fallback still applies in that case.
-    if all_runs and hits and answer_text and not raw_answer_all_cited:
+    if all_runs and hits and answer_text.strip() and not raw_answer_all_cited:
         # Use the shared helper to select the first citation token so token
         # selection/normalization stays consistent with other entrypoints.
         first_token = _first_citation_token_from_hits(hits)
@@ -1409,8 +1409,8 @@ def run_retrieval_and_qa(
     # all_cited is False both when the answer is empty (nothing to cite) and when
     # the helper finds uncited sentences; True only when the answer is non-empty
     # and every segment carries a trailing citation token.
-    all_cited = bool(raw_answer) and not uncited
-    if answer_text and not all_cited:
+    all_cited = bool(answer_text.strip()) and not uncited
+    if answer_text.strip() and not all_cited:
         citation_warning = "Not all answer sentences or bullets end with a citation token."
         _logger.warning(citation_warning)
         warnings_list.append(citation_warning)
