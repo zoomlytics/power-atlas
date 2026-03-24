@@ -590,9 +590,10 @@ def _postprocess_answer(
           ``False`` when repair was not attempted, was not needed, or produced no
           change.  This field reflects whether the *answer text changed*, not
           merely whether repair logic was invoked.
-        - ``citation_repair_strategy`` — repair algorithm name, or ``None``.
-        - ``citation_repair_source_chunk_id`` — ``chunk_id`` used for repair,
-          or ``None``.
+        - ``citation_repair_strategy`` — repair algorithm name when
+          ``citation_repair_applied`` is ``True``, otherwise ``None``.
+        - ``citation_repair_source_chunk_id`` — ``chunk_id`` used for repair
+          when ``citation_repair_applied`` is ``True``, otherwise ``None``.
         - ``display_answer`` — final answer for display/return (includes the
           fallback prefix when not fully cited).
         - ``history_answer`` — sanitised answer for conversation history (bare
