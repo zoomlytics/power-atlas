@@ -654,6 +654,69 @@ def _format_cluster_context(
     return header + "\n" + "\n".join(lines)
 
 
+def _normalize_claim_roles(detail: dict[str, object]) -> list[dict[str, object]]:
+    """Normalize claim role data from one detail record into a canonical list.
+
+    Accepts both the current generic ``roles`` shape (each entry is
+    ``{role, name, match_method}``) and the legacy ``subject_mention`` /
+    ``object_mention`` fallback keys.  Malformed entries (``None``, non-dict,
+    or missing ``role``) are silently filtered out so that downstream
+    formatting and diagnostic code never crashes on partial payloads.
+
+    Each entry in the returned list has the keys ``role``, ``mention_name``,
+    and ``match_method``.  The list is sorted for deterministic output:
+    ``subject`` first, ``object`` second, all other roles alphabetically, with
+    ``mention_name`` and ``match_method`` as secondary tie-breakers.
+
+    Parameters
+    ----------
+    detail:
+        A single claim-detail record as returned by the retrieval Cypher query.
+
+    Returns
+    -------
+    list[dict[str, object]]
+        Canonical, sorted role entries for this claim.
+    """
+    roles_raw = detail.get("roles")
+    if roles_raw is not None:
+        roles: list[dict[str, object]] = []
+        if isinstance(roles_raw, (list, tuple)):
+            for entry in roles_raw:
+                if not isinstance(entry, dict):
+                    continue
+                role = entry.get("role")
+                if not role:
+                    continue
+                roles.append({
+                    "role": role,
+                    "mention_name": entry.get("name"),
+                    "match_method": entry.get("match_method"),
+                })
+    else:
+        # Backward compat: legacy ``subject_mention`` / ``object_mention`` keys.
+        roles = []
+        for role_key, role_name in (("subject_mention", "subject"), ("object_mention", "object")):
+            slot = detail.get(role_key)
+            if slot is not None and isinstance(slot, dict):
+                roles.append({
+                    "role": role_name,
+                    "mention_name": slot.get("name"),
+                    "match_method": slot.get("match_method"),
+                })
+    # Sort for deterministic output: subject first, object second, rest alphabetically,
+    # with mention_name and match_method as tie-breakers for stable ordering within the same role.
+    roles.sort(
+        key=lambda e: (
+            0 if e.get("role") == "subject" else 1 if e.get("role") == "object" else 2,
+            str(e.get("role") or ""),
+            str(e.get("mention_name") or ""),
+            str(e.get("match_method") or ""),
+        )
+    )
+    return roles
+
+
 def _format_claim_details(claim_details: list[dict[str, object]]) -> str:
     """Format structured claim details (with explicit role mentions) for LLM context.
 
@@ -676,41 +739,11 @@ def _format_claim_details(claim_details: list[dict[str, object]]) -> str:
         claim_text = (detail.get("claim_text") or "").strip()
         if not claim_text:
             continue
-        # New format: a generic ``roles`` list produced by the updated Cypher query.
-        roles_raw = detail.get("roles")
-        if roles_raw is not None:
-            roles_list = list(roles_raw)
-        else:
-            # Backward compat: legacy ``subject_mention`` / ``object_mention`` keys.
-            roles_list = []
-            subject = detail.get("subject_mention")
-            obj = detail.get("object_mention")
-            if subject:
-                roles_list.append({
-                    "role": "subject",
-                    "name": subject.get("name"),
-                    "match_method": subject.get("match_method"),
-                })
-            if obj:
-                roles_list.append({
-                    "role": "object",
-                    "name": obj.get("name"),
-                    "match_method": obj.get("match_method"),
-                })
-        # Sort for deterministic output: subject first, object second, rest alphabetically,
-        # with name and match_method as tie-breakers for stable ordering within the same role.
-        roles_list.sort(
-            key=lambda e: (
-                0 if e.get("role") == "subject" else 1 if e.get("role") == "object" else 2,
-                str(e.get("role") or ""),
-                str(e.get("name") or ""),
-                str(e.get("match_method") or ""),
-            )
-        )
+        roles_list = _normalize_claim_roles(detail)
         role_parts: list[str] = []
         for entry in roles_list:
             role_name = str(entry.get("role") or "").strip()
-            mention_name = str(entry.get("name") or "").strip()
+            mention_name = str(entry.get("mention_name") or "").strip()
             method_raw = entry.get("match_method")
             method = str(method_raw).strip() if method_raw is not None else ""
             method_display = method if method else "unknown"
@@ -780,39 +813,7 @@ def _build_retrieval_path_diagnostics(
         claim_text = (detail.get("claim_text") or "").strip()
         if not claim_text:
             continue
-        # New format: generic ``roles`` list from the updated Cypher query.
-        roles_raw = detail.get("roles")
-        if roles_raw is not None:
-            roles: list[dict[str, object]] = [
-                {
-                    "role": entry.get("role"),
-                    "mention_name": entry.get("name"),
-                    "match_method": entry.get("match_method"),
-                }
-                for entry in roles_raw
-                if entry
-            ]
-        else:
-            # Backward compat: legacy ``subject_mention`` / ``object_mention`` keys.
-            roles = []
-            for role_key, role_name in (("subject_mention", "subject"), ("object_mention", "object")):
-                slot = detail.get(role_key)
-                if slot:
-                    roles.append({
-                        "role": role_name,
-                        "mention_name": slot.get("name"),
-                        "match_method": slot.get("match_method"),
-                    })
-        # Sort for deterministic output: subject first, object second, rest alphabetically,
-        # with mention_name and match_method as tie-breakers for stable ordering within the same role.
-        roles.sort(
-            key=lambda e: (
-                0 if e.get("role") == "subject" else 1 if e.get("role") == "object" else 2,
-                str(e.get("role") or ""),
-                str(e.get("mention_name") or ""),
-                str(e.get("match_method") or ""),
-            )
-        )
+        roles = _normalize_claim_roles(detail)
         has_participant_edges.append({"claim_text": claim_text, "roles": roles})
     return {
         "has_participant_edges": has_participant_edges,
