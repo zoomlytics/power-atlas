@@ -1183,8 +1183,11 @@ def run_retrieval_and_qa(
     # always consistent with the provenance fields in citation_object_example.
     # citation_quality provides a structured per-answer QA signal bundle that manifests and
     # downstream consumers can query without inspecting individual warning strings.
+    # raw_answer_all_cited reflects whether the raw LLM output (before any repair or fallback)
+    # was fully cited; all_cited reflects the final delivered answer after repair+fallback.
     _default_citation_quality: dict[str, object] = {
         "all_cited": False,
+        "raw_answer_all_cited": False,
         "evidence_level": "no_answer",
         "warning_count": 0,
         "citation_warnings": [],
@@ -1201,7 +1204,22 @@ def run_retrieval_and_qa(
         "answer": "",
         "raw_answer": "",
         "citation_fallback_applied": False,
+        # all_answers_cited reflects the FINAL delivered answer citation state (after any
+        # repair or fallback).  See raw_answer_all_cited for the raw LLM output state.
         "all_answers_cited": False,
+        # raw_answer_all_cited reflects whether the original LLM output (raw_answer) was
+        # fully cited before any repair or fallback was applied.  False when the LLM
+        # omitted citation tokens on some segments; True when all segments were already cited.
+        "raw_answer_all_cited": False,
+        # citation_repair_applied is True when the all-runs repair heuristic appended a
+        # retrieved citation token to one or more uncited answer segments.
+        "citation_repair_applied": False,
+        # citation_repair_strategy names the repair algorithm used, or None when no repair
+        # was applied.  Currently the only strategy is "append_first_retrieved_token".
+        "citation_repair_strategy": None,
+        # citation_repair_source_chunk_id is the chunk_id of the retrieved context chunk
+        # whose citation token was appended during repair, or None when no repair was applied.
+        "citation_repair_source_chunk_id": None,
         "citation_quality": _default_citation_quality,
         "expand_graph": effective_expand_graph,
         "cluster_aware": cluster_aware,
@@ -1357,21 +1375,42 @@ def run_retrieval_and_qa(
     # raw_answer preserves the original LLM output for transparency/debugging regardless
     # of whether a fallback replacement is applied.
     raw_answer = answer_text
+    # raw_answer_all_cited reflects whether the original LLM output was fully cited,
+    # independently of any subsequent repair or fallback applied below.
+    raw_answer_all_cited = _check_all_answers_cited(raw_answer) if raw_answer.strip() else False
+    # Track citation repair state for explicit metadata exposure.
+    citation_repair_applied = False
+    citation_repair_strategy: str | None = None
+    citation_repair_source_chunk_id: str | None = None
     # In all-runs mode, attempt to repair uncited segments using retrieved citation tokens
     # before falling back to the generic citation fallback.  This avoids the fallback
     # when valid evidence was retrieved but the LLM omitted trailing citation tokens on
     # some segments.  Repair is skipped when no hits were retrieved (truly insufficient
     # evidence) — the fallback still applies in that case.
-    if all_runs and hits and answer_text and not _check_all_answers_cited(answer_text):
+    if all_runs and hits and answer_text.strip() and not raw_answer_all_cited:
+        # Use the shared helper to select the first citation token so token
+        # selection/normalization stays consistent with other entrypoints.
         first_token = _first_citation_token_from_hits(hits)
+        # Record the chunk id associated with the selected token (if any),
+        # for explicit provenance of any repair we apply.
         if first_token:
+            for hit in hits:
+                metadata = hit.get("metadata") or {}
+                token = metadata.get("citation_token")
+                if token and str(token) == first_token:
+                    citation_repair_source_chunk_id = (
+                        str(metadata.get("chunk_id") or "") or None
+                    )
+                    break
             answer_text = _repair_uncited_answer(answer_text, first_token)
-    answer_text, _, uncited = _build_citation_fallback(answer_text)
+            citation_repair_applied = True
+            citation_repair_strategy = "append_first_retrieved_token"
+    answer_text, _, uncited = _build_citation_fallback(answer_text.strip())
     # all_cited is False both when the answer is empty (nothing to cite) and when
     # the helper finds uncited sentences; True only when the answer is non-empty
     # and every segment carries a trailing citation token.
-    all_cited = bool(raw_answer) and not uncited
-    if answer_text and not all_cited:
+    all_cited = bool(answer_text.strip()) and not uncited
+    if answer_text.strip() and not all_cited:
         citation_warning = "Not all answer sentences or bullets end with a citation token."
         _logger.warning(citation_warning)
         warnings_list.append(citation_warning)
@@ -1397,12 +1436,15 @@ def run_retrieval_and_qa(
     #                  critical citation-quality warning exists (e.g. empty chunk text).
     #                  Missing OPTIONAL citation fields (page, start_char, end_char) do
     #                  NOT degrade evidence_level per citation contract #159.
+    # all_cited reflects the FINAL delivered answer after repair+fallback;
+    # raw_answer_all_cited reflects the original LLM output before any repair.
     evidence_level = (
         "no_answer" if not answer_text
         else ("degraded" if (not all_cited or citation_warnings_list) else "full")
     )
     live_citation_quality: dict[str, object] = {
         "all_cited": all_cited,
+        "raw_answer_all_cited": raw_answer_all_cited,
         "evidence_level": evidence_level,
         "warning_count": len(citation_warnings_list),
         "citation_warnings": citation_warnings_list,
@@ -1439,7 +1481,13 @@ def run_retrieval_and_qa(
         "answer": answer_text,
         "raw_answer": raw_answer or "",
         "citation_fallback_applied": uncited,
+        # all_answers_cited reflects the FINAL delivered answer citation state (after any
+        # repair or fallback).  raw_answer_all_cited reflects the original LLM output.
         "all_answers_cited": all_cited,
+        "raw_answer_all_cited": raw_answer_all_cited,
+        "citation_repair_applied": citation_repair_applied,
+        "citation_repair_strategy": citation_repair_strategy,
+        "citation_repair_source_chunk_id": citation_repair_source_chunk_id,
         "citation_quality": live_citation_quality,
         "retrieval_path_summary": _format_retrieval_path_summary(hits),
     }

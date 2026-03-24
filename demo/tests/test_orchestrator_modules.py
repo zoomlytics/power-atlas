@@ -3765,6 +3765,28 @@ def test_retrieval_and_qa_live_all_runs_uncited_answer_repaired_when_hits_presen
     assert result["raw_answer"] == uncited_answer, (
         "raw_answer must preserve the original (pre-repair) LLM output"
     )
+    # citation_repair_applied must be True when repair fires
+    assert result["citation_repair_applied"] is True, (
+        "citation_repair_applied must be True when repair fires; "
+        f"got citation_repair_applied={result['citation_repair_applied']!r}"
+    )
+    assert result["citation_repair_strategy"] == "append_first_retrieved_token", (
+        "citation_repair_strategy must name the repair algorithm used; "
+        f"got {result['citation_repair_strategy']!r}"
+    )
+    assert result["citation_repair_source_chunk_id"] == "real-chunk-1", (
+        "citation_repair_source_chunk_id must be the chunk_id of the repaired hit; "
+        f"got {result['citation_repair_source_chunk_id']!r}"
+    )
+    # raw_answer_all_cited must be False: the original LLM output was NOT fully cited
+    assert result["raw_answer_all_cited"] is False, (
+        "raw_answer_all_cited must be False when the original LLM output was uncited; "
+        f"got raw_answer_all_cited={result['raw_answer_all_cited']!r}"
+    )
+    # citation_quality must expose raw_answer_all_cited for structured consumers
+    assert cq["raw_answer_all_cited"] is False, (
+        "citation_quality.raw_answer_all_cited must be False when the original LLM output was uncited"
+    )
 
 
 def test_retrieval_and_qa_live_all_runs_uncited_answer_fallback_when_no_hits(tmp_path: Path):
@@ -3816,6 +3838,20 @@ def test_retrieval_and_qa_live_all_runs_uncited_answer_fallback_when_no_hits(tmp
         f"got citation_fallback_applied={result['citation_fallback_applied']!r}"
     )
     assert result["all_answers_cited"] is False
+    # No repair was possible — citation_repair_applied must be False
+    assert result["citation_repair_applied"] is False, (
+        "citation_repair_applied must be False when no hits were retrieved; "
+        f"got citation_repair_applied={result['citation_repair_applied']!r}"
+    )
+    assert result["citation_repair_strategy"] is None, (
+        "citation_repair_strategy must be None when no repair occurred"
+    )
+    assert result["citation_repair_source_chunk_id"] is None, (
+        "citation_repair_source_chunk_id must be None when no repair occurred"
+    )
+    assert result["raw_answer_all_cited"] is False, (
+        "raw_answer_all_cited must be False when the LLM answer was uncited"
+    )
 
 
 def test_retrieval_and_qa_live_all_runs_fully_cited_answer_no_repair_needed(tmp_path: Path):
@@ -3895,6 +3931,19 @@ def test_retrieval_and_qa_live_all_runs_fully_cited_answer_no_repair_needed(tmp_
     assert result["citation_fallback_applied"] is False
     assert result["citation_quality"]["evidence_level"] == "full"
     assert result["raw_answer"] == cited_answer
+    # No repair was needed — citation_repair_applied must be False
+    assert result["citation_repair_applied"] is False, (
+        "citation_repair_applied must be False when the LLM answer was already fully cited"
+    )
+    assert result["citation_repair_strategy"] is None
+    assert result["citation_repair_source_chunk_id"] is None
+    # raw_answer was already fully cited — raw_answer_all_cited must be True
+    assert result["raw_answer_all_cited"] is True, (
+        "raw_answer_all_cited must be True when the original LLM output was fully cited"
+    )
+    assert result["citation_quality"]["raw_answer_all_cited"] is True, (
+        "citation_quality.raw_answer_all_cited must be True when the original LLM output was fully cited"
+    )
 
 
 def test_repair_uncited_answer_appends_token_to_each_uncited_segment():
@@ -3934,6 +3983,139 @@ def test_repair_uncited_answer_appends_token_to_each_uncited_segment():
     # Empty answer must be returned unchanged
     assert _repair_uncited_answer("", token) == ""
     assert _repair_uncited_answer("some text", "") == "some text"
+
+
+# ---------------------------------------------------------------------------
+# citation repair metadata: new fields added for issue observability
+# ---------------------------------------------------------------------------
+
+def test_retrieval_and_qa_dry_run_includes_citation_repair_fields(tmp_path: Path):
+    """Dry-run result must include citation_repair_applied, citation_repair_strategy, and
+    citation_repair_source_chunk_id with their default values (False/None/None)."""
+    from demo.stages import run_retrieval_and_qa
+
+    config = _dry_run_config(tmp_path)
+    result = run_retrieval_and_qa(config, run_id=None, source_uri=None, all_runs=True)
+
+    assert "citation_repair_applied" in result, (
+        "dry-run result must include citation_repair_applied key"
+    )
+    assert result["citation_repair_applied"] is False
+    assert "citation_repair_strategy" in result
+    assert result["citation_repair_strategy"] is None
+    assert "citation_repair_source_chunk_id" in result
+    assert result["citation_repair_source_chunk_id"] is None
+
+
+def test_retrieval_and_qa_dry_run_includes_raw_answer_all_cited(tmp_path: Path):
+    """Dry-run result must include raw_answer_all_cited (False by default) at both the
+    top level and inside citation_quality."""
+    from demo.stages import run_retrieval_and_qa
+
+    config = _dry_run_config(tmp_path)
+    result = run_retrieval_and_qa(config, run_id=None, source_uri=None)
+
+    assert "raw_answer_all_cited" in result, (
+        "dry-run result must include raw_answer_all_cited key"
+    )
+    assert result["raw_answer_all_cited"] is False
+    assert "raw_answer_all_cited" in result["citation_quality"], (
+        "citation_quality must include raw_answer_all_cited key"
+    )
+    assert result["citation_quality"]["raw_answer_all_cited"] is False
+
+
+def test_retrieval_and_qa_live_path_citation_quality_includes_raw_answer_all_cited(
+    tmp_path: Path,
+):
+    """Live path citation_quality must include raw_answer_all_cited when the answer is
+    fully cited (True), in addition to all_cited."""
+    from demo.stages import run_retrieval_and_qa
+    from demo.stages.retrieval_and_qa import _build_citation_token
+
+    real_token = _build_citation_token(
+        chunk_id="qa-cq-chunk",
+        run_id="qa-cq-run",
+        source_uri="file:///qa-cq.pdf",
+        chunk_index=0,
+        page=1,
+        start_char=0,
+        end_char=40,
+    )
+    cited_answer = f"Evidence supports the claim. {real_token}"
+
+    class _FakeRetrieverCQ:
+        def __init__(self, **kwargs):
+            pass
+
+        def search(self, **kwargs):
+            return _make_fake_retriever_result(
+                [
+                    _make_fake_retriever_result_item(
+                        f"Chunk text\n{real_token}",
+                        {
+                            "citation_token": real_token,
+                            "citation_object": {
+                                "chunk_id": "qa-cq-chunk",
+                                "run_id": "qa-cq-run",
+                                "source_uri": "file:///qa-cq.pdf",
+                                "chunk_index": 0,
+                                "page": 1,
+                                "start_char": 0,
+                                "end_char": 40,
+                            },
+                            "chunk_id": "qa-cq-chunk",
+                            "run_id": "qa-cq-run",
+                            "source_uri": "file:///qa-cq.pdf",
+                            "chunk_index": 0,
+                            "page": 1,
+                            "start_char": 0,
+                            "end_char": 40,
+                            "score": 0.92,
+                            "empty_chunk_text": False,
+                        },
+                    )
+                ]
+            )
+
+    live_config = Config(
+        dry_run=False,
+        output_dir=tmp_path,
+        neo4j_uri="bolt://example.invalid",
+        neo4j_username="neo4j",
+        neo4j_password="secret",
+        neo4j_database="neo4j",
+        openai_model="gpt-4o-mini",
+    )
+
+    with mock.patch(
+        "demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetrieverCQ
+    ), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
+    ), mock.patch(
+        "demo.stages.retrieval_and_qa.GraphRAG",
+        _make_stub_graphrag_class(answer=cited_answer),
+    ), mock.patch(
+        "demo.stages.retrieval_and_qa.build_openai_llm"
+    ), mock.patch(
+        "neo4j.GraphDatabase.driver"
+    ), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+        result = run_retrieval_and_qa(
+            live_config,
+            run_id="qa-cq-run",
+            source_uri=None,
+            question="What supports the claim?",
+        )
+
+    cq = result["citation_quality"]
+    assert "raw_answer_all_cited" in cq, (
+        "citation_quality must include raw_answer_all_cited key on the live path"
+    )
+    assert cq["raw_answer_all_cited"] is True, (
+        "citation_quality.raw_answer_all_cited must be True when the original LLM answer was fully cited"
+    )
+    assert cq["all_cited"] is True
+    assert result["raw_answer_all_cited"] is True
 
 
 def test_retrieval_and_qa_dry_run_all_runs_qa_label(tmp_path: Path):
