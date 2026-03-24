@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import os
 import re
-from typing import TypedDict
+from typing import Literal, TypedDict
 
 import neo4j
 from neo4j_graphrag.embeddings.openai import OpenAIEmbeddings
@@ -494,6 +494,16 @@ def _build_citation_fallback(answer: str) -> tuple[str, str, bool]:
     return display_answer, history_answer, is_uncited
 
 
+class _CitationQualityBundle(TypedDict):
+    """Structured citation-quality summary nested inside :class:`_AnswerPostprocessResult`."""
+
+    all_cited: bool
+    raw_answer_all_cited: bool
+    evidence_level: Literal["no_answer", "full", "degraded"]
+    warning_count: int
+    citation_warnings: list[str]
+
+
 class _AnswerPostprocessResult(TypedDict):
     """Structured result returned by :func:`_postprocess_answer`.
 
@@ -512,10 +522,10 @@ class _AnswerPostprocessResult(TypedDict):
     history_answer: str
     citation_fallback_applied: bool
     all_cited: bool
-    evidence_level: str
+    evidence_level: Literal["no_answer", "full", "degraded"]
     citation_warnings: list[str]
     warning_count: int
-    citation_quality: dict[str, object]
+    citation_quality: _CitationQualityBundle
 
 
 def _postprocess_answer(
@@ -621,7 +631,7 @@ def _postprocess_answer(
         else ("degraded" if (not all_cited or citation_warnings) else "full")
     )
 
-    citation_quality: dict[str, object] = {
+    citation_quality: _CitationQualityBundle = {
         "all_cited": all_cited,
         "raw_answer_all_cited": raw_answer_all_cited,
         "evidence_level": evidence_level,
