@@ -1405,7 +1405,7 @@ def run_retrieval_and_qa(
             answer_text = _repair_uncited_answer(answer_text, first_token)
             citation_repair_applied = True
             citation_repair_strategy = "append_first_retrieved_token"
-    answer_text, _, uncited = _build_citation_fallback(answer_text)
+    answer_text, _, uncited = _build_citation_fallback(answer_text.strip())
     # all_cited is False both when the answer is empty (nothing to cite) and when
     # the helper finds uncited sentences; True only when the answer is non-empty
     # and every segment carries a trailing citation token.
