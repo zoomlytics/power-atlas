@@ -284,9 +284,9 @@ generic `roles` list so each claim map carries:
 | Field | Description |
 | --- | --- |
 | `claim_text` | The full claim text |
-| `roles` | List of participation entries, one per `HAS_PARTICIPANT` edge.  Each entry is `{role, name, match_method}` and covers subject, object, and any future roles (agent, target, …). |
+| `roles` | List of participation entries, one per `HAS_PARTICIPANT` edge.  Each entry is `{role, mention_name, match_method}` and covers subject, object, and any future roles (agent, target, …). |
 | `roles[].role` | The participation role (`'subject'`, `'object'`, or any custom value) |
-| `roles[].name` | Name of the resolved `EntityMention` |
+| `roles[].mention_name` | Name of the resolved `EntityMention` |
 | `roles[].match_method` | How the slot text was resolved (`raw_exact`, `casefold_exact`, `normalized_exact`) |
 
 Claims with no participation edges have an empty `roles` list — **no chunk co-location fallback
@@ -307,7 +307,7 @@ WITH
   [(c)<-[:SUPPORTED_BY]-(claim:ExtractedClaim) WHERE claim.run_id = $run_id |
       {
         claim_text: claim.claim_text,
-        roles: [(claim)-[r:HAS_PARTICIPANT]->(m:EntityMention) | {role: r.role, name: m.name, match_method: r.match_method}]
+        roles: [(claim)-[r:HAS_PARTICIPANT]->(m:EntityMention) | {role: r.role, mention_name: m.name, match_method: r.match_method}]
       }
   ] AS claim_details,
   [(c)<-[:MENTIONED_IN]-(m:EntityMention) WHERE m.run_id = $run_id | m.name] AS mentions

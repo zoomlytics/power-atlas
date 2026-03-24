@@ -47,8 +47,9 @@ def _build_claim_details_with_clause(run_scoped: bool) -> str:
     Traverses ``SUPPORTED_BY`` edges from the Chunk to ``ExtractedClaim`` nodes,
     then collects **all** ``HAS_PARTICIPANT`` participation edges (v0.3 model) as a
     ``roles`` list.  Each entry in the list carries the ``role`` property, the
-    mention ``name``, and the ``match_method`` — covering subject, object, and any
-    future roles (agent, target, location, …) without requiring schema changes.
+    mention ``mention_name``, and the ``match_method`` — covering subject, object,
+    and any future roles (agent, target, location, …) without requiring schema
+    changes.
 
     When *run_scoped* is ``True``, a ``WHERE`` filter restricts
     ``ExtractedClaim`` nodes to the current ``$run_id``.  In all-runs mode the
@@ -59,7 +60,7 @@ def _build_claim_details_with_clause(run_scoped: bool) -> str:
         "WITH c, score,\n"
         "     [(c)<-[:SUPPORTED_BY]-(claim:ExtractedClaim)" + claim_filter + " |\n"
         "         {claim_text: claim.claim_text,\n"
-        "          roles: [(claim)-[r:HAS_PARTICIPANT]->(m:EntityMention) | {role: r.role, name: m.name, match_method: r.match_method}]}\n"
+        "          roles: [(claim)-[r:HAS_PARTICIPANT]->(m:EntityMention) | {role: r.role, mention_name: m.name, match_method: r.match_method}]}\n"
         "     ] AS claim_details"
     )
 
@@ -277,8 +278,8 @@ _RETRIEVAL_QUERY_BASE = _build_retrieval_query()
 # (cartesian products) that would result from chained OPTIONAL MATCH clauses.
 # claim_details extends the flat claims list by traversing all HAS_PARTICIPANT edges so
 # each claim map carries a generic ``roles`` list — one entry per participation edge —
-# where each entry is ``{role, name, match_method}``.  All roles (subject, object, and
-# any future roles) are collected without [0]-index assumptions; an empty list is
+# where each entry is ``{role, mention_name, match_method}``.  All roles (subject, object,
+# and any future roles) are collected without [0]-index assumptions; an empty list is
 # returned when no participation edges exist for a claim.
 _RETRIEVAL_QUERY_WITH_EXPANSION = _build_retrieval_query(expand_graph=True)
 
@@ -657,11 +658,20 @@ def _format_cluster_context(
 def _normalize_claim_roles(detail: dict[str, object]) -> list[dict[str, object]]:
     """Normalize claim role data from one detail record into a canonical list.
 
-    Accepts both the current generic ``roles`` shape (each entry is
-    ``{role, name, match_method}``) and the legacy ``subject_mention`` /
-    ``object_mention`` fallback keys.  Malformed entries (``None``, non-dict,
-    or missing ``role``) are silently filtered out so that downstream
-    formatting and diagnostic code never crashes on partial payloads.
+    Accepts the following input shapes for ``roles`` list entries:
+
+    - Current canonical shape: ``{role, mention_name, match_method}``
+    - Backward-compat shape: ``{role, name, match_method}`` — ``name`` is read
+      when ``mention_name`` is absent, so data produced by older code paths or
+      queries that project ``name`` instead of ``mention_name`` is handled
+      transparently.
+    - Legacy top-level keys: ``subject_mention`` / ``object_mention`` dicts
+      (each with their own ``name`` and ``match_method`` fields) — used when no
+      ``roles`` key is present at all.
+
+    Malformed entries (``None``, non-dict, or missing ``role``) are silently
+    filtered out so that downstream formatting and diagnostic code never crashes
+    on partial payloads.
 
     Each entry in the returned list has the keys ``role``, ``mention_name``,
     and ``match_method``.  The list is sorted for deterministic output:
@@ -690,7 +700,7 @@ def _normalize_claim_roles(detail: dict[str, object]) -> list[dict[str, object]]
                     continue
                 roles.append({
                     "role": role,
-                    "mention_name": entry.get("name"),
+                    "mention_name": entry.get("mention_name", entry.get("name")),
                     "match_method": entry.get("match_method"),
                 })
     else:
@@ -779,7 +789,7 @@ def _build_retrieval_path_diagnostics(
     claim_details:
         Structured claim records from the ``claim_details`` query column.  Each entry
         carries ``claim_text`` and either a ``roles`` list (new generic format, each
-        entry is ``{role, name, match_method}``) or legacy ``subject_mention`` /
+        entry is ``{role, mention_name, match_method}``) or legacy ``subject_mention`` /
         ``object_mention`` dicts (backward-compatible fallback).
     canonical_entities:
         List of canonical entity names reached via
