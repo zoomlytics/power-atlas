@@ -1388,14 +1388,22 @@ def run_retrieval_and_qa(
     # some segments.  Repair is skipped when no hits were retrieved (truly insufficient
     # evidence) — the fallback still applies in that case.
     if all_runs and hits and answer_text and not raw_answer_all_cited:
-        first_token = _first_citation_token_from_hits(hits)
+        first_token = None
+        # Find the first retrieved hit that carries a citation token and
+        # record its chunk id as the provenance for any repair we apply.
+        for hit in hits:
+            metadata = hit.get("metadata") or {}
+            token = metadata.get("citation_token")
+            if token:
+                first_token = token
+                citation_repair_source_chunk_id = (
+                    str(metadata.get("chunk_id") or "") or None
+                )
+                break
         if first_token:
             answer_text = _repair_uncited_answer(answer_text, first_token)
             citation_repair_applied = True
             citation_repair_strategy = "append_first_retrieved_token"
-            citation_repair_source_chunk_id = (
-                str(hits[0].get("metadata", {}).get("chunk_id") or "") or None
-            )
     answer_text, _, uncited = _build_citation_fallback(answer_text)
     # all_cited is False both when the answer is empty (nothing to cite) and when
     # the helper finds uncited sentences; True only when the answer is non-empty
