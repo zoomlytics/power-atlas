@@ -605,13 +605,13 @@ def _postprocess_answer(
         )
     )
 
-    display_answer, history_answer, citation_fallback_applied = _build_citation_fallback(
-        repaired.strip()
-    )
-    # Derive all_cited from the fallback flag to avoid recomputing citation
-    # completeness on the repaired answer text.
     repaired_stripped = repaired.strip()
-    all_cited = bool(repaired_stripped) and not citation_fallback_applied
+    display_answer, history_answer, citation_fallback_applied = _build_citation_fallback(
+        repaired_stripped
+    )
+    # Derive all_cited directly from the repaired answer text so citation
+    # completeness semantics are independent of fallback behavior.
+    all_cited = bool(repaired_stripped) and _check_all_answers_cited(repaired_stripped)
 
     citation_warnings: list[str] = list(existing_citation_warnings or [])
     if repaired_stripped and not all_cited:
