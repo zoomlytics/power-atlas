@@ -559,7 +559,7 @@ def _postprocess_answer(
 
     Returns
     -------
-    dict[str, object]
+    _AnswerPostprocessResult
         A structured result with the following keys:
 
         - ``raw_answer`` — original LLM output before any repair or fallback.
