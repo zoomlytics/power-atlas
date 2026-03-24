@@ -278,8 +278,8 @@ _RETRIEVAL_QUERY_BASE = _build_retrieval_query()
 # (cartesian products) that would result from chained OPTIONAL MATCH clauses.
 # claim_details extends the flat claims list by traversing all HAS_PARTICIPANT edges so
 # each claim map carries a generic ``roles`` list — one entry per participation edge —
-# where each entry is ``{role, name, match_method}``.  All roles (subject, object, and
-# any future roles) are collected without [0]-index assumptions; an empty list is
+# where each entry is ``{role, mention_name, match_method}``.  All roles (subject, object,
+# and any future roles) are collected without [0]-index assumptions; an empty list is
 # returned when no participation edges exist for a claim.
 _RETRIEVAL_QUERY_WITH_EXPANSION = _build_retrieval_query(expand_graph=True)
 
@@ -658,11 +658,20 @@ def _format_cluster_context(
 def _normalize_claim_roles(detail: dict[str, object]) -> list[dict[str, object]]:
     """Normalize claim role data from one detail record into a canonical list.
 
-    Accepts both the current generic ``roles`` shape (each entry is
-    ``{role, mention_name, match_method}``) and the legacy ``subject_mention`` /
-    ``object_mention`` fallback keys.  Malformed entries (``None``, non-dict,
-    or missing ``role``) are silently filtered out so that downstream
-    formatting and diagnostic code never crashes on partial payloads.
+    Accepts the following input shapes for ``roles`` list entries:
+
+    - Current canonical shape: ``{role, mention_name, match_method}``
+    - Backward-compat shape: ``{role, name, match_method}`` — ``name`` is read
+      when ``mention_name`` is absent, so data produced by older code paths or
+      queries that project ``name`` instead of ``mention_name`` is handled
+      transparently.
+    - Legacy top-level keys: ``subject_mention`` / ``object_mention`` dicts
+      (each with their own ``name`` and ``match_method`` fields) — used when no
+      ``roles`` key is present at all.
+
+    Malformed entries (``None``, non-dict, or missing ``role``) are silently
+    filtered out so that downstream formatting and diagnostic code never crashes
+    on partial payloads.
 
     Each entry in the returned list has the keys ``role``, ``mention_name``,
     and ``match_method``.  The list is sorted for deterministic output:
