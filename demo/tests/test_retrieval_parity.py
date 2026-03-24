@@ -77,7 +77,7 @@ _HIT: dict[str, object] = {"metadata": {"citation_token": _TOKEN, "chunk_id": "c
 # ---------------------------------------------------------------------------
 
 
-def _capture_single_shot_select_query(extra_flags: dict) -> dict:
+def _capture_single_shot_select_query(extra_flags: dict[str, object]) -> dict[str, object]:
     """Return the kwargs passed to ``_select_retrieval_query`` by the live path of
     ``run_retrieval_and_qa``.
 
@@ -86,14 +86,14 @@ def _capture_single_shot_select_query(extra_flags: dict) -> dict:
     check (the parity test supplies any caller-provided flag overrides via
     *extra_flags*).
     """
-    captured: list[dict] = []
+    captured: list[dict[str, object]] = []
     orig = _select_retrieval_query
 
     def spy(**kwargs: object) -> str:
         captured.append(dict(kwargs))
         return orig(**kwargs)  # type: ignore[arg-type]
 
-    flags = {"all_runs": True, **extra_flags}
+    flags: dict[str, object] = {"all_runs": True, **extra_flags}
     with patch("demo.stages.retrieval_and_qa._select_retrieval_query", side_effect=spy):
         run_retrieval_and_qa(_LIVE_CONFIG, question=None, **flags)
 
@@ -104,21 +104,21 @@ def _capture_single_shot_select_query(extra_flags: dict) -> dict:
     return captured[-1]
 
 
-def _capture_interactive_select_query(extra_flags: dict) -> dict:
+def _capture_interactive_select_query(extra_flags: dict[str, object]) -> dict[str, object]:
     """Return the kwargs passed to ``_select_retrieval_query`` by ``run_interactive_qa``.
 
     Mocks OPENAI_API_KEY, the Neo4j driver, ``_build_retriever_and_rag``, and
     ``input()`` so the function exits immediately after the helper calls without
     making any real network connections.
     """
-    captured: list[dict] = []
+    captured: list[dict[str, object]] = []
     orig = _select_retrieval_query
 
     def spy(**kwargs: object) -> str:
         captured.append(dict(kwargs))
         return orig(**kwargs)  # type: ignore[arg-type]
 
-    flags = {"all_runs": True, **extra_flags}
+    flags: dict[str, object] = {"all_runs": True, **extra_flags}
     with (
         patch.dict(os.environ, {"OPENAI_API_KEY": "fake-key"}),
         patch("demo.stages.retrieval_and_qa._select_retrieval_query", side_effect=spy),
@@ -134,20 +134,20 @@ def _capture_interactive_select_query(extra_flags: dict) -> dict:
     return captured[0]
 
 
-def _capture_single_shot_build_query_params(extra_flags: dict) -> dict:
+def _capture_single_shot_build_query_params(extra_flags: dict[str, object]) -> dict[str, object]:
     """Return the kwargs passed to ``_build_query_params`` by the live path of
     ``run_retrieval_and_qa``.
 
     Uses ``question=None`` for an early return before any Neo4j or OpenAI call.
     """
-    captured: list[dict] = []
+    captured: list[dict[str, object]] = []
     orig = _build_query_params
 
-    def spy(**kwargs: object) -> dict:
+    def spy(**kwargs: object) -> dict[str, object]:
         captured.append(dict(kwargs))
         return orig(**kwargs)  # type: ignore[arg-type]
 
-    flags = {"run_id": "r1", **extra_flags}
+    flags: dict[str, object] = {"run_id": "r1", **extra_flags}
     with patch("demo.stages.retrieval_and_qa._build_query_params", side_effect=spy):
         run_retrieval_and_qa(_LIVE_CONFIG, question=None, **flags)
 
@@ -155,19 +155,19 @@ def _capture_single_shot_build_query_params(extra_flags: dict) -> dict:
     return captured[0]
 
 
-def _capture_interactive_build_query_params(extra_flags: dict) -> dict:
+def _capture_interactive_build_query_params(extra_flags: dict[str, object]) -> dict[str, object]:
     """Return the kwargs passed to ``_build_query_params`` by ``run_interactive_qa``.
 
     Same mocking strategy as :func:`_capture_interactive_select_query`.
     """
-    captured: list[dict] = []
+    captured: list[dict[str, object]] = []
     orig = _build_query_params
 
-    def spy(**kwargs: object) -> dict:
+    def spy(**kwargs: object) -> dict[str, object]:
         captured.append(dict(kwargs))
         return orig(**kwargs)  # type: ignore[arg-type]
 
-    flags = {"run_id": "r1", **extra_flags}
+    flags: dict[str, object] = {"run_id": "r1", **extra_flags}
     with (
         patch.dict(os.environ, {"OPENAI_API_KEY": "fake-key"}),
         patch("demo.stages.retrieval_and_qa._build_query_params", side_effect=spy),
@@ -207,7 +207,7 @@ class TestRetrievalQueryParity:
         ],
         ids=["base_all_runs", "expand_graph", "cluster_aware"],
     )
-    def test_same_flags_produce_same_select_query_call(self, extra_flags: dict) -> None:
+    def test_same_flags_produce_same_select_query_call(self, extra_flags: dict[str, object]) -> None:
         single_shot_kwargs = _capture_single_shot_select_query(extra_flags)
         interactive_kwargs = _capture_interactive_select_query(extra_flags)
         assert single_shot_kwargs == interactive_kwargs, (
@@ -224,12 +224,12 @@ class TestRetrievalQueryParity:
         ],
         ids=["base_all_runs", "expand_graph", "cluster_aware"],
     )
-    def test_same_flags_produce_same_selected_query_string(self, extra_flags: dict) -> None:
+    def test_same_flags_produce_same_selected_query_string(self, extra_flags: dict[str, object]) -> None:
         """The selected query string itself is identical for both paths."""
-        flags = {"all_runs": True, **extra_flags}
+        flags: dict[str, object] = {"all_runs": True, **extra_flags}
         single_shot_query = _select_retrieval_query(**flags)
         interactive_query = _select_retrieval_query(**flags)
-        assert single_shot_query is interactive_query
+        assert single_shot_query == interactive_query
 
 
 # ---------------------------------------------------------------------------
@@ -255,7 +255,7 @@ class TestQueryParamParity:
         ],
         ids=["default", "with_source_uri", "cluster_aware", "all_runs"],
     )
-    def test_same_inputs_produce_same_build_query_params_call(self, extra_flags: dict) -> None:
+    def test_same_inputs_produce_same_build_query_params_call(self, extra_flags: dict[str, object]) -> None:
         single_shot_kwargs = _capture_single_shot_build_query_params(extra_flags)
         interactive_kwargs = _capture_interactive_build_query_params(extra_flags)
         assert single_shot_kwargs == interactive_kwargs, (
@@ -310,20 +310,27 @@ class TestCitationRepairParity:
     results, asserting repair is applied consistently by the shared helper.
     """
 
-    def test_all_runs_uncited_answer_repaired_identically_by_both_paths(self) -> None:
-        """Simulate what both paths would produce for the same uncited answer in all-runs mode."""
+    def test_all_runs_uncited_answer_repair_applied_consistently(self) -> None:
+        """Citation repair is applied consistently for an uncited answer in all-runs mode.
+
+        Both ``run_retrieval_and_qa`` and ``run_interactive_qa`` call
+        ``_postprocess_answer(answer, hits, all_runs=True)``; this test verifies the
+        shared helper produces the expected repair outcome so neither path can silently
+        omit repair by changing its call signature.
+        """
         answer = "An uncited claim that needs repair."
 
-        # Both paths call _postprocess_answer with all_runs=True.
-        single_shot_pp = _postprocess_answer(answer, [_HIT], all_runs=True)
-        interactive_pp = _postprocess_answer(answer, [_HIT], all_runs=True)
+        pp = _postprocess_answer(answer, [_HIT], all_runs=True)
 
-        assert single_shot_pp["display_answer"] == interactive_pp["display_answer"]
-        assert single_shot_pp["history_answer"] == interactive_pp["history_answer"]
-        assert single_shot_pp["citation_repair_applied"] == interactive_pp["citation_repair_applied"]
-        assert single_shot_pp["citation_repair_strategy"] == interactive_pp["citation_repair_strategy"]
-        assert single_shot_pp["all_cited"] == interactive_pp["all_cited"]
-        assert single_shot_pp["citation_fallback_applied"] == interactive_pp["citation_fallback_applied"]
+        # Repair must be applied for an uncited answer when hits are available.
+        assert pp["citation_repair_applied"] is True
+        assert pp["citation_repair_strategy"] == "append_first_retrieved_token"
+        # Display and history answers must both carry the repaired (cited) text.
+        assert _TOKEN in pp["display_answer"]
+        assert _TOKEN in pp["history_answer"]
+        # When repair produces a fully-cited answer, fallback must not be applied.
+        assert pp["citation_fallback_applied"] is False
+        assert pp["all_cited"] is True
 
     def test_all_runs_repair_produces_cited_answer_no_fallback(self) -> None:
         """When repair succeeds in all-runs mode, neither path should apply fallback."""
