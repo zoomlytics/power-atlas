@@ -367,6 +367,103 @@ def _first_citation_token_from_hits(hits: list[dict[str, object]]) -> str | None
     return None
 
 
+def _build_query_params(
+    *,
+    run_id: str | None,
+    source_uri: str | None,
+    all_runs: bool,
+    cluster_aware: bool,
+) -> dict[str, object]:
+    """Build Cypher query parameters for retrieval filtering.
+
+    Shared by both ``run_retrieval_and_qa`` and ``run_interactive_qa`` so that
+    parameter-construction logic stays in one place.
+
+    Parameters
+    ----------
+    run_id:
+        Scopes retrieval to a specific ingest run.  Included in the params dict
+        only when *all_runs* is False.
+    source_uri:
+        Optional source-level filter (``None`` is valid; the Cypher WHERE clause
+        skips source_uri filtering when the parameter is ``None``).
+    all_runs:
+        When True, ``run_id`` is omitted from the params so retrieval queries all
+        Chunk nodes regardless of run.
+    cluster_aware:
+        When True, ``alignment_version`` is added to the params to scope
+        ``ALIGNED_WITH`` edge traversal to the current alignment generation.
+    """
+    params: dict[str, object] = {"source_uri": source_uri}
+    if not all_runs:
+        params["run_id"] = run_id
+    if cluster_aware:
+        params["alignment_version"] = ALIGNMENT_VERSION
+    return params
+
+
+def _apply_citation_repair(
+    answer_text: str,
+    hits: list[dict[str, object]],
+    *,
+    all_runs: bool,
+    raw_answer_all_cited: bool,
+) -> tuple[str, bool, str | None, str | None]:
+    """Attempt to repair uncited answer segments using retrieved citation tokens.
+
+    Shared by both ``run_retrieval_and_qa`` and ``run_interactive_qa`` so that
+    the repair heuristic stays in one place and the two entry points remain aligned.
+
+    Repair is only attempted when *all_runs* is True, hits are available, the
+    answer is non-empty, and the raw answer was not already fully cited.  When
+    repair is not needed or no citation token is available this function returns
+    *answer_text* unchanged with ``applied=False``.
+
+    Parameters
+    ----------
+    answer_text:
+        Raw LLM answer text before any repair.
+    hits:
+        Retrieved chunk hit dicts (each with a ``"metadata"`` key) as produced by
+        the retrieval loop in both entry points.
+    all_runs:
+        Repair is only active in all-runs mode because that mode lacks a single
+        authoritative run_id citation token; the LLM sometimes omits trailing
+        tokens in this context.
+    raw_answer_all_cited:
+        Whether the raw answer was already fully cited.  Passed in to avoid
+        recomputing inside the helper.
+
+    Returns
+    -------
+    tuple[str, bool, str | None, str | None]
+        ``(repaired_answer, applied, strategy, source_chunk_id)`` where:
+
+        - *repaired_answer*: The answer after repair (or *answer_text* unchanged).
+        - *applied*: ``True`` when a repair was applied.
+        - *strategy*: The repair strategy name (currently
+          ``"append_first_retrieved_token"``), or ``None`` when no repair ran.
+        - *source_chunk_id*: The ``chunk_id`` of the first retrieved chunk whose
+          citation token was used for repair, or ``None`` when no repair ran.
+    """
+    if not (all_runs and hits and answer_text.strip() and not raw_answer_all_cited):
+        return answer_text, False, None, None
+    first_token = _first_citation_token_from_hits(hits)
+    if not first_token:
+        return answer_text, False, None, None
+    source_chunk_id: str | None = None
+    for hit in hits:
+        metadata = hit.get("metadata") or {}
+        token = metadata.get("citation_token")
+        if token and str(token) == first_token:
+            chunk_id_raw = metadata.get("chunk_id")
+            # Treat empty string the same as None: no chunk_id provenance to record.
+            source_chunk_id = str(chunk_id_raw) if chunk_id_raw else None
+            break
+    repaired = _repair_uncited_answer(answer_text, first_token)
+    return repaired, True, "append_first_retrieved_token", source_chunk_id
+
+
 def _build_citation_fallback(answer: str) -> tuple[str, str, bool]:
     """Compute citation-fallback display and history answers for a single LLM response.
 
@@ -1068,6 +1165,51 @@ def _chunk_citation_formatter(record: neo4j.Record) -> RetrieverResultItem:
     return RetrieverResultItem(content=content, metadata=metadata)
 
 
+def _build_retriever_and_rag(
+    driver: neo4j.Driver,
+    *,
+    index_name: str,
+    retrieval_query: str,
+    qa_model: str,
+    neo4j_database: str | None,
+) -> tuple[VectorCypherRetriever, GraphRAG]:
+    """Construct a VectorCypherRetriever and GraphRAG instance for a Neo4j session.
+
+    Shared by both ``run_retrieval_and_qa`` (single-turn) and
+    ``run_interactive_qa`` (multi-turn REPL) so that retriever/LLM construction
+    is defined in one place.
+
+    Parameters
+    ----------
+    driver:
+        An open Neo4j driver (must already be connected).
+    index_name:
+        Vector index name to use for similarity search.
+    retrieval_query:
+        The Cypher retrieval query string (produced by :func:`_select_retrieval_query`).
+    qa_model:
+        OpenAI model name to use for answer generation.
+    neo4j_database:
+        Optional Neo4j database name; ``None`` uses the driver's default database.
+    """
+    embedder = OpenAIEmbeddings(model=EMBEDDER_MODEL_NAME)
+    retriever = VectorCypherRetriever(
+        driver=driver,
+        index_name=index_name,
+        embedder=embedder,
+        retrieval_query=retrieval_query,
+        result_formatter=_chunk_citation_formatter,
+        neo4j_database=neo4j_database,
+    )
+    llm = build_openai_llm(qa_model)
+    rag = GraphRAG(
+        retriever=retriever,
+        llm=llm,
+        prompt_template=POWER_ATLAS_RAG_TEMPLATE,
+    )
+    return retriever, rag
+
+
 def run_retrieval_and_qa(
     config: object,
     *,
@@ -1267,11 +1409,12 @@ def run_retrieval_and_qa(
     # run_id is only included for run-scoped queries (not all-runs mode).
     # alignment_version is passed when cluster_aware=True to filter ALIGNED_WITH edges
     # to the current alignment generation only.
-    query_params: dict[str, object] = {"source_uri": source_uri}
-    if not all_runs:
-        query_params["run_id"] = run_id
-    if cluster_aware:
-        query_params["alignment_version"] = ALIGNMENT_VERSION
+    query_params = _build_query_params(
+        run_id=run_id,
+        source_uri=source_uri,
+        all_runs=all_runs,
+        cluster_aware=cluster_aware,
+    )
 
     warnings_list: list[str] = []
     citation_warnings_list: list[str] = []
@@ -1305,25 +1448,16 @@ def run_retrieval_and_qa(
         raise ValueError(f"Live retrieval requires config attributes: {', '.join(missing_cfg)}")
 
     with neo4j.GraphDatabase.driver(neo4j_uri, auth=(neo4j_username, neo4j_password)) as driver:
-        embedder = OpenAIEmbeddings(model=EMBEDDER_MODEL_NAME)
-        retriever = VectorCypherRetriever(
-            driver=driver,
-            index_name=resolved_index_name,
-            embedder=embedder,
-            retrieval_query=retrieval_query,
-            result_formatter=_chunk_citation_formatter,
-            neo4j_database=neo4j_database,
-        )
-
         # Build GraphRAG with the Power Atlas citation-enforcing prompt template and
         # capability-aware LLM for grounded, citation-enforced output.
         # Aligned with vendor pattern from vendor-resources/examples/customize/answer/custom_prompt.py
         # and vendor-resources/examples/question_answering/graphrag_with_neo4j_message_history.py.
-        llm = build_openai_llm(effective_qa_model)
-        rag = GraphRAG(
-            retriever=retriever,
-            llm=llm,
-            prompt_template=POWER_ATLAS_RAG_TEMPLATE,
+        _, rag = _build_retriever_and_rag(
+            driver,
+            index_name=resolved_index_name,
+            retrieval_query=retrieval_query,
+            qa_model=effective_qa_model,
+            neo4j_database=neo4j_database,
         )
 
         # Run the GraphRAG search with optional message history for interactive mode.
@@ -1378,33 +1512,19 @@ def run_retrieval_and_qa(
     # raw_answer_all_cited reflects whether the original LLM output was fully cited,
     # independently of any subsequent repair or fallback applied below.
     raw_answer_all_cited = _check_all_answers_cited(raw_answer) if raw_answer.strip() else False
-    # Track citation repair state for explicit metadata exposure.
-    citation_repair_applied = False
-    citation_repair_strategy: str | None = None
-    citation_repair_source_chunk_id: str | None = None
     # In all-runs mode, attempt to repair uncited segments using retrieved citation tokens
     # before falling back to the generic citation fallback.  This avoids the fallback
     # when valid evidence was retrieved but the LLM omitted trailing citation tokens on
     # some segments.  Repair is skipped when no hits were retrieved (truly insufficient
     # evidence) — the fallback still applies in that case.
-    if all_runs and hits and answer_text.strip() and not raw_answer_all_cited:
-        # Use the shared helper to select the first citation token so token
-        # selection/normalization stays consistent with other entrypoints.
-        first_token = _first_citation_token_from_hits(hits)
-        # Record the chunk id associated with the selected token (if any),
-        # for explicit provenance of any repair we apply.
-        if first_token:
-            for hit in hits:
-                metadata = hit.get("metadata") or {}
-                token = metadata.get("citation_token")
-                if token and str(token) == first_token:
-                    citation_repair_source_chunk_id = (
-                        str(metadata.get("chunk_id") or "") or None
-                    )
-                    break
-            answer_text = _repair_uncited_answer(answer_text, first_token)
-            citation_repair_applied = True
-            citation_repair_strategy = "append_first_retrieved_token"
+    answer_text, citation_repair_applied, citation_repair_strategy, citation_repair_source_chunk_id = (
+        _apply_citation_repair(
+            answer_text,
+            hits,
+            all_runs=all_runs,
+            raw_answer_all_cited=raw_answer_all_cited,
+        )
+    )
     answer_text, _, uncited = _build_citation_fallback(answer_text.strip())
     # all_cited is False both when the answer is empty (nothing to cite) and when
     # the helper finds uncited sentences; True only when the answer is non-empty
@@ -1570,11 +1690,12 @@ def run_interactive_qa(
     retrieval_query = _select_retrieval_query(
         expand_graph=expand_graph, cluster_aware=cluster_aware, all_runs=all_runs
     )
-    query_params: dict[str, object] = {"source_uri": source_uri}
-    if not all_runs:
-        query_params["run_id"] = run_id
-    if cluster_aware:
-        query_params["alignment_version"] = ALIGNMENT_VERSION
+    query_params = _build_query_params(
+        run_id=run_id,
+        source_uri=source_uri,
+        all_runs=all_runs,
+        cluster_aware=cluster_aware,
+    )
 
     history: MessageHistory = InMemoryMessageHistory()
     print(f"Using retrieval scope: {_format_scope_label(run_id, all_runs)}")
@@ -1583,20 +1704,12 @@ def run_interactive_qa(
     # Build driver, retriever, LLM, and GraphRAG once and reuse across all REPL turns
     # to avoid per-turn connection overhead and Neo4j driver churn.
     with neo4j.GraphDatabase.driver(neo4j_uri, auth=(neo4j_username, neo4j_password)) as driver:
-        embedder = OpenAIEmbeddings(model=EMBEDDER_MODEL_NAME)
-        retriever = VectorCypherRetriever(
-            driver=driver,
+        _, rag = _build_retriever_and_rag(
+            driver,
             index_name=resolved_index_name,
-            embedder=embedder,
             retrieval_query=retrieval_query,
-            result_formatter=_chunk_citation_formatter,
+            qa_model=effective_qa_model,
             neo4j_database=neo4j_database,
-        )
-        llm = build_openai_llm(effective_qa_model)
-        rag = GraphRAG(
-            retriever=retriever,
-            llm=llm,
-            prompt_template=POWER_ATLAS_RAG_TEMPLATE,
         )
         try:
             while True:
@@ -1619,17 +1732,24 @@ def run_interactive_qa(
                 )
                 answer = rag_result.answer if rag_result else ""
                 # In all-runs mode, attempt to repair uncited segments using retrieved
-                # citation tokens before falling back.  Mirrors the repair logic in
-                # run_retrieval_and_qa to keep citation-enforcement consistent.
-                if all_runs and answer and rag_result and rag_result.retriever_result:
+                # citation tokens before falling back.  Uses the shared helper so that
+                # the repair heuristic stays consistent with run_retrieval_and_qa.
+                if all_runs and rag_result and rag_result.retriever_result:
                     _repair_hits = [
                         {"metadata": item.metadata or {}}
                         for item in rag_result.retriever_result.items
                     ]
-                    if _repair_hits and not _check_all_answers_cited(answer):
-                        _first_token = _first_citation_token_from_hits(_repair_hits)
-                        if _first_token:
-                            answer = _repair_uncited_answer(answer, _first_token)
+                    # Treat an empty answer as already-cited so _apply_citation_repair
+                    # skips it (the helper's answer_text.strip() guard also catches this,
+                    # but being explicit here avoids calling _check_all_answers_cited on
+                    # an empty string where the result would be misleading).
+                    raw_cited = _check_all_answers_cited(answer) if answer else True
+                    answer, _, _, _ = _apply_citation_repair(
+                        answer,
+                        _repair_hits,
+                        all_runs=all_runs,
+                        raw_answer_all_cited=raw_cited,
+                    )
                 display_answer, history_answer, uncited = _build_citation_fallback(answer)
                 print(f"\nAnswer:\n{display_answer}\n")
                 if uncited:
