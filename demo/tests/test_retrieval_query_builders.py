@@ -17,6 +17,7 @@ from __future__ import annotations
 import pytest
 
 from demo.stages.retrieval_and_qa import (
+    _CITATION_FALLBACK_PREFIX,
     _RETRIEVAL_QUERY_BASE,
     _RETRIEVAL_QUERY_BASE_ALL_RUNS,
     _RETRIEVAL_QUERY_WITH_CLUSTER,
@@ -31,6 +32,7 @@ from demo.stages.retrieval_and_qa import (
     _build_mention_names_expr,
     _build_query_params,
     _build_retrieval_query,
+    _postprocess_answer,
     _select_retrieval_query,
 )
 
@@ -671,3 +673,134 @@ class TestApplyCitationRepair:
         )
         assert applied is True
         assert chunk_id is None
+
+
+# ---------------------------------------------------------------------------
+# _postprocess_answer tests
+# ---------------------------------------------------------------------------
+
+_TOKEN = "[CITATION|chunk_id=abc|run_id=r|source_uri=file%3A%2F%2F%2Ff|chunk_index=0|page=1|start_char=0|end_char=99]"
+_HIT = {"metadata": {"citation_token": _TOKEN, "chunk_id": "abc"}}
+
+
+class TestPostprocessAnswer:
+    """_postprocess_answer returns a fully-structured postprocessing result.
+
+    Tests verify that both the repaired-answer path and the fallback path
+    produce the same contract, ensuring run_retrieval_and_qa and
+    run_interactive_qa cannot drift silently.
+    """
+
+    def test_fully_cited_answer_returns_full_evidence_level(self) -> None:
+        answer = f"Fully cited sentence. {_TOKEN}"
+        result = _postprocess_answer(answer, [_HIT], all_runs=True)
+        assert result["raw_answer"] == answer
+        assert result["raw_answer_all_cited"] is True
+        assert result["citation_repair_applied"] is False
+        assert result["citation_fallback_applied"] is False
+        assert result["all_cited"] is True
+        assert result["evidence_level"] == "full"
+        assert result["citation_warnings"] == []
+        assert result["warning_count"] == 0
+        assert result["citation_quality"]["evidence_level"] == "full"
+        assert result["display_answer"] == answer
+        assert result["history_answer"] == answer
+
+    def test_repaired_answer_path_repair_applied_no_fallback(self) -> None:
+        """Repair case: all_runs=True with uncited answer and available hits → repair applied."""
+        answer = "Uncited sentence."
+        result = _postprocess_answer(answer, [_HIT], all_runs=True)
+        assert result["raw_answer"] == answer
+        assert result["raw_answer_all_cited"] is False
+        assert result["citation_repair_applied"] is True
+        assert result["citation_repair_strategy"] == "append_first_retrieved_token"
+        assert result["citation_repair_source_chunk_id"] == "abc"
+        # After repair the answer should include the citation token.
+        assert _TOKEN in result["repaired_answer"]
+        # Repair produced a fully-cited answer so no fallback should be applied.
+        assert result["citation_fallback_applied"] is False
+        assert result["all_cited"] is True
+        assert result["evidence_level"] == "full"
+        assert result["citation_warnings"] == []
+        # Both entry points get the same display_answer and history_answer.
+        assert _TOKEN in result["display_answer"]
+        assert _TOKEN in result["history_answer"]
+
+    def test_fallback_applied_when_no_repair_possible(self) -> None:
+        """Fallback case: all_runs=False (repair skipped) with uncited answer → fallback applied."""
+        answer = "Uncited sentence without any citation token."
+        result = _postprocess_answer(answer, [], all_runs=False)
+        assert result["raw_answer"] == answer
+        assert result["raw_answer_all_cited"] is False
+        assert result["citation_repair_applied"] is False
+        assert result["citation_fallback_applied"] is True
+        assert result["all_cited"] is False
+        assert result["evidence_level"] == "degraded"
+        assert len(result["citation_warnings"]) == 1
+        assert "Not all answer sentences" in result["citation_warnings"][0]
+        assert result["warning_count"] == 1
+        assert result["citation_quality"]["evidence_level"] == "degraded"
+        # display_answer includes the fallback prefix.
+        assert result["display_answer"].startswith(_CITATION_FALLBACK_PREFIX)
+        # history_answer is just the bare prefix (no uncited content).
+        assert result["history_answer"] == _CITATION_FALLBACK_PREFIX
+
+    def test_fallback_also_applied_when_all_runs_but_no_hits(self) -> None:
+        """Repair requires hits; with no hits and uncited answer fallback is applied."""
+        answer = "No evidence here."
+        result = _postprocess_answer(answer, [], all_runs=True)
+        assert result["citation_repair_applied"] is False
+        assert result["citation_fallback_applied"] is True
+        assert result["evidence_level"] == "degraded"
+
+    def test_empty_answer_returns_no_answer_evidence_level(self) -> None:
+        result = _postprocess_answer("", [], all_runs=False)
+        assert result["raw_answer"] == ""
+        assert result["raw_answer_all_cited"] is False
+        assert result["citation_repair_applied"] is False
+        assert result["citation_fallback_applied"] is False
+        assert result["all_cited"] is False
+        assert result["evidence_level"] == "no_answer"
+        assert result["citation_warnings"] == []
+        assert result["display_answer"] == ""
+        assert result["history_answer"] == ""
+
+    def test_existing_citation_warnings_propagated_and_degrade_evidence(self) -> None:
+        """Existing citation warnings (e.g. from empty-chunk detection) degrade evidence_level."""
+        answer = f"Cited sentence. {_TOKEN}"
+        existing = ["Chunk 'abc' has empty or whitespace-only text."]
+        result = _postprocess_answer(answer, [_HIT], all_runs=True, existing_citation_warnings=existing)
+        assert result["raw_answer_all_cited"] is True
+        assert result["citation_fallback_applied"] is False
+        assert result["all_cited"] is True
+        # Even though the answer is cited, the pre-existing chunk warning degrades evidence.
+        assert result["evidence_level"] == "degraded"
+        assert existing[0] in result["citation_warnings"]
+        assert result["warning_count"] == 1
+        assert result["citation_quality"]["evidence_level"] == "degraded"
+
+    def test_existing_citation_warnings_not_mutated(self) -> None:
+        """_postprocess_answer must not mutate the caller's existing_citation_warnings list."""
+        existing: list[str] = []
+        answer = "Uncited."
+        _postprocess_answer(answer, [], all_runs=False, existing_citation_warnings=existing)
+        assert existing == []
+
+    def test_citation_quality_bundle_keys_present(self) -> None:
+        """citation_quality bundle always contains all required keys.
+
+        The key list here is an explicit contract snapshot: if any key is
+        removed or renamed the test intentionally fails so the change is
+        reviewed.
+        """
+        result = _postprocess_answer("Some answer.", [], all_runs=False)
+        cq = result["citation_quality"]
+        assert isinstance(cq, dict)
+        for key in ("all_cited", "raw_answer_all_cited", "evidence_level", "warning_count", "citation_warnings"):
+            assert key in cq, f"citation_quality missing key: {key!r}"
+
+    def test_repair_and_fallback_paths_share_same_contract_keys(self) -> None:
+        """Both repair and fallback results expose identical top-level keys."""
+        repair_result = _postprocess_answer("Uncited.", [_HIT], all_runs=True)
+        fallback_result = _postprocess_answer("Uncited.", [], all_runs=False)
+        assert set(repair_result.keys()) == set(fallback_result.keys())
