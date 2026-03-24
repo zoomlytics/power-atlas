@@ -14,6 +14,8 @@ snapshot and the module together, so the test continues to serve as a guard.
 """
 from __future__ import annotations
 
+from unittest.mock import patch
+
 import pytest
 
 from demo.stages.retrieval_and_qa import (
@@ -672,6 +674,27 @@ class TestApplyCitationRepair:
             "Uncited.", hits, all_runs=True, raw_answer_all_cited=False
         )
         assert applied is True
+        assert chunk_id is None
+
+    def test_applied_false_when_repair_produces_no_change(self) -> None:
+        """applied is False when _repair_uncited_answer returns text identical to input.
+
+        citation_repair_applied means the answer text was actually modified, not
+        merely that repair logic was invoked.  This test uses a mock to simulate
+        the edge case where the repair function returns the original text unchanged.
+        """
+        answer = "Uncited sentence."
+        hits = [_make_hit(self._TOKEN, "abc")]
+        with patch(
+            "demo.stages.retrieval_and_qa._repair_uncited_answer",
+            return_value=answer,
+        ):
+            result, applied, strategy, chunk_id = _apply_citation_repair(
+                answer, hits, all_runs=True, raw_answer_all_cited=False
+            )
+        assert result == answer
+        assert applied is False
+        assert strategy is None
         assert chunk_id is None
 
 

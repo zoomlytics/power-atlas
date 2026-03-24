@@ -445,11 +445,15 @@ def _apply_citation_repair(
         ``(repaired_answer, applied, strategy, source_chunk_id)`` where:
 
         - *repaired_answer*: The answer after repair (or *answer_text* unchanged).
-        - *applied*: ``True`` when a repair was applied.
+        - *applied*: ``True`` when the repaired answer text differs from the
+          original *answer_text* (i.e. the answer was actually modified by repair).
+          ``False`` when no repair ran or when repair produced no change.
         - *strategy*: The repair strategy name (currently
-          ``"append_first_retrieved_token"``), or ``None`` when no repair ran.
+          ``"append_first_retrieved_token"``), or ``None`` when *applied* is
+          ``False``.
         - *source_chunk_id*: The ``chunk_id`` of the first retrieved chunk whose
-          citation token was used for repair, or ``None`` when no repair ran.
+          citation token was used for repair, or ``None`` when *applied* is
+          ``False``.
     """
     if not (all_runs and hits and answer_text.strip() and not raw_answer_all_cited):
         return answer_text, False, None, None
@@ -466,6 +470,11 @@ def _apply_citation_repair(
             source_chunk_id = str(chunk_id_raw) if chunk_id_raw else None
             break
     repaired = _repair_uncited_answer(answer_text, first_token)
+    # applied is True only when repair actually modified the answer text.
+    # This makes citation_repair_applied unambiguous: it means "the final
+    # answer text was changed by repair", not merely "repair logic executed".
+    if repaired == answer_text:
+        return answer_text, False, None, None
     return repaired, True, "append_first_retrieved_token", source_chunk_id
 
 
@@ -576,7 +585,11 @@ def _postprocess_answer(
         - ``raw_answer_all_cited`` — whether the raw answer was fully cited.
         - ``repaired_answer`` — answer text after citation repair (equals
           *raw_answer* when no repair was applied).
-        - ``citation_repair_applied`` — ``True`` when repair was applied.
+        - ``citation_repair_applied`` — ``True`` when repair actually modified
+          the answer text (i.e. the repaired answer differs from the raw answer).
+          ``False`` when repair was not attempted, was not needed, or produced no
+          change.  This field reflects whether the *answer text changed*, not
+          merely whether repair logic was invoked.
         - ``citation_repair_strategy`` — repair algorithm name, or ``None``.
         - ``citation_repair_source_chunk_id`` — ``chunk_id`` used for repair,
           or ``None``.
