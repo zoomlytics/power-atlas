@@ -680,7 +680,7 @@ class TestApplyCitationRepair:
 # ---------------------------------------------------------------------------
 
 _TOKEN = "[CITATION|chunk_id=abc|run_id=r|source_uri=file%3A%2F%2F%2Ff|chunk_index=0|page=1|start_char=0|end_char=99]"
-_HIT = {"metadata": {"citation_token": _TOKEN, "chunk_id": "abc"}}
+_HIT: dict[str, object] = {"metadata": {"citation_token": _TOKEN, "chunk_id": "abc"}}
 
 
 class TestPostprocessAnswer:
