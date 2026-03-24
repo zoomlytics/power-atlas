@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+from typing import TypedDict
 
 import neo4j
 from neo4j_graphrag.embeddings.openai import OpenAIEmbeddings
@@ -493,13 +494,37 @@ def _build_citation_fallback(answer: str) -> tuple[str, str, bool]:
     return display_answer, history_answer, is_uncited
 
 
+class _AnswerPostprocessResult(TypedDict):
+    """Structured result returned by :func:`_postprocess_answer`.
+
+    All keys are always present regardless of which postprocessing path was
+    taken.  Callers can index into the dict without ``# type: ignore``
+    annotations.
+    """
+
+    raw_answer: str
+    raw_answer_all_cited: bool
+    repaired_answer: str
+    citation_repair_applied: bool
+    citation_repair_strategy: str | None
+    citation_repair_source_chunk_id: str | None
+    display_answer: str
+    history_answer: str
+    citation_fallback_applied: bool
+    all_cited: bool
+    evidence_level: str
+    citation_warnings: list[str]
+    warning_count: int
+    citation_quality: dict[str, object]
+
+
 def _postprocess_answer(
     answer_text: str,
     hits: list[dict[str, object]],
     *,
     all_runs: bool,
     existing_citation_warnings: list[str] | None = None,
-) -> dict[str, object]:
+) -> _AnswerPostprocessResult:
     """Unified answer postprocessing lifecycle shared by both retrieval entry points.
 
     Centralises the full postprocessing contract so that
@@ -573,12 +598,13 @@ def _postprocess_answer(
     display_answer, history_answer, citation_fallback_applied = _build_citation_fallback(
         repaired.strip()
     )
-    # all_cited is True only when the final delivered answer is non-empty and every
-    # segment carries a trailing citation token (i.e. no fallback was applied).
-    all_cited = bool(display_answer.strip()) and not citation_fallback_applied
+    # all_cited is computed directly from the repaired answer text so it remains
+    # self-contained and does not depend on the fallback flag for correctness.
+    repaired_stripped = repaired.strip()
+    all_cited = _check_all_answers_cited(repaired_stripped) if repaired_stripped else False
 
     citation_warnings: list[str] = list(existing_citation_warnings or [])
-    if display_answer.strip() and not all_cited:
+    if repaired_stripped and not all_cited:
         uncited_warning = "Not all answer sentences or bullets end with a citation token."
         _logger.warning(uncited_warning)
         citation_warnings.append(uncited_warning)
@@ -591,7 +617,7 @@ def _postprocess_answer(
     #                  critical citation-quality warning exists (e.g. empty chunk text).
     evidence_level = (
         "no_answer"
-        if not display_answer
+        if not repaired_stripped
         else ("degraded" if (not all_cited or citation_warnings) else "full")
     )
 
@@ -1651,18 +1677,18 @@ def run_retrieval_and_qa(
     # _postprocess_answer guarantees that the returned citation_warnings list always
     # starts with the elements of existing_citation_warnings (in the same order),
     # so slicing from len(citation_warnings_list) yields only the newly-added warnings.
-    for w in pp["citation_warnings"][len(citation_warnings_list):]:  # type: ignore[arg-type]
+    for w in pp["citation_warnings"][len(citation_warnings_list):]:
         warnings_list.append(w)
     if pp["citation_fallback_applied"]:
-        display = pp["display_answer"]  # type: ignore[assignment]
+        display = pp["display_answer"]
         fallback_preview = (
             display[:_FALLBACK_PREVIEW_MAX_LEN] + "..."
-            if len(display) > _FALLBACK_PREVIEW_MAX_LEN  # type: ignore[arg-type]
+            if len(display) > _FALLBACK_PREVIEW_MAX_LEN
             else display
         )
         _logger.warning(
             "Answer replaced with citation fallback (length=%d, preview=%r)",
-            len(display),  # type: ignore[arg-type]
+            len(display),
             fallback_preview,
         )
 
@@ -1841,7 +1867,7 @@ def run_interactive_qa(
                 print(f"\nAnswer:\n{pp['display_answer']}\n")
                 if pp["citation_fallback_applied"]:
                     print(
-                        "⚠ WARNING: Not all answer sentences or bullets are cited — evidence quality may be degraded."
+                        "WARNING: Not all answer sentences or bullets are cited - evidence quality may be degraded."
                     )
                 # Store only the refusal prefix (not the full uncited output) in history
                 # so that subsequent turns are not conditioned on under-cited content.
