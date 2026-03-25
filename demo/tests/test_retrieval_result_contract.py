@@ -459,10 +459,10 @@ class TestPostprocessAnswerInvariants:
         assert pp_repair["citation_repair_strategy"] is not None
         assert pp_repair["citation_repair_source_chunk_id"] is not None
 
-    def test_repair_applied_false_when_no_change_to_text(self) -> None:
-        """When repair logic runs but the text would not change, ``citation_repair_applied``
-        is ``False`` (the flag reflects text change, not invocation)."""
-        # Answer is already cited; repair logic will detect no change is needed.
+    def test_repair_skipped_when_raw_answer_already_all_cited(self) -> None:
+        """When the raw answer is already fully cited, repair is skipped, but
+        ``citation_repair_applied`` remains ``False`` and ``raw_answer_all_cited`` is ``True``."""
+        # Answer is already fully cited; repair logic short-circuits and is not invoked.
         pp = _postprocess_answer(_CITED_ANSWER, [_HIT], all_runs=True)
         assert pp["citation_repair_applied"] is False
         assert pp["raw_answer_all_cited"] is True
