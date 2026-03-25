@@ -665,7 +665,7 @@ class TestApplyCitationRepair:
         )
         assert chunk_id == "abc"
 
-    def test_no_repair_when_hits_have_no_token(self) -> None:
+    def test_repair_attempted_but_not_applied_when_hits_have_no_token(self) -> None:
         """attempted is True when preconditions were met but no token was found in hits."""
         hits = [{"metadata": {"citation_token": None, "chunk_id": "abc"}}]
         result, attempted, applied, _, _ = _apply_citation_repair(

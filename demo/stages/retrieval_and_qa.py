@@ -459,7 +459,8 @@ def _apply_citation_repair(
           ``False``.
         - *source_chunk_id*: The ``chunk_id`` of the first retrieved chunk whose
           citation token was used for repair, or ``None`` when *applied* is
-          ``False``.
+          ``False`` **or when the winning hit had no ``chunk_id`` to
+          propagate** (empty/missing ``chunk_id`` in hit metadata).
     """
     if not (all_runs and hits and answer_text.strip() and not raw_answer_all_cited):
         return answer_text, False, False, None, None
