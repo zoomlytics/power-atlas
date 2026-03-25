@@ -3,6 +3,8 @@ from __future__ import annotations
 import logging
 import os
 import re
+import types
+from collections.abc import Mapping
 from typing import Literal, TypedDict, cast
 
 import neo4j
@@ -560,7 +562,10 @@ class _AnswerPostprocessResult(TypedDict):
 #:   - ``all_cited``       → ``all_answers_cited`` (public name is explicit)
 #:
 #: All other entries are identity mappings (internal key == public key).
-_POSTPROCESS_FIELD_MAP: dict[str, str] = {
+#:
+#: Wrapped in :func:`types.MappingProxyType` to prevent accidental mutation at
+#: runtime (the mapping is a true constant, not a mutable configuration object).
+_POSTPROCESS_FIELD_MAP: Mapping[str, str] = types.MappingProxyType({
     "display_answer": "answer",
     "raw_answer": "raw_answer",
     "citation_fallback_applied": "citation_fallback_applied",
@@ -571,7 +576,7 @@ _POSTPROCESS_FIELD_MAP: dict[str, str] = {
     "citation_repair_strategy": "citation_repair_strategy",
     "citation_repair_source_chunk_id": "citation_repair_source_chunk_id",
     "citation_quality": "citation_quality",
-}
+})
 
 
 class _PostprocessPublicFields(TypedDict):

@@ -1730,19 +1730,9 @@ class TestRunRetrievalAndQaDocumentedScenarios:
 # TestProjectPostprocessToPublic
 # ---------------------------------------------------------------------------
 
-#: Exact set of all keys in a ``_PostprocessPublicFields`` dict.
-_POSTPROCESS_PUBLIC_KEYS: frozenset[str] = frozenset({
-    "answer",
-    "raw_answer",
-    "citation_fallback_applied",
-    "all_answers_cited",
-    "raw_answer_all_cited",
-    "citation_repair_attempted",
-    "citation_repair_applied",
-    "citation_repair_strategy",
-    "citation_repair_source_chunk_id",
-    "citation_quality",
-})
+#: Exact set of all public keys in a ``_PostprocessPublicFields`` dict,
+#: derived from the values of :data:`_POSTPROCESS_FIELD_MAP` to avoid drift.
+_POSTPROCESS_PUBLIC_KEYS: frozenset[str] = frozenset(_POSTPROCESS_FIELD_MAP.values())
 
 
 class TestProjectPostprocessToPublic:
