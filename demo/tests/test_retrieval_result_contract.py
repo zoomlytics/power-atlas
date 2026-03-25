@@ -187,6 +187,8 @@ def _run_with_mocked_retrieval(
     run_id:
         Required when ``all_runs=False``.
     """
+    if not all_runs and run_id is None:
+        raise ValueError("run_id is required when all_runs is False")
     mock_rag = MagicMock()
     mock_rag.search.return_value = _make_rag_result(answer, items_metadata)
 
