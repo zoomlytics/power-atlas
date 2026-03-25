@@ -94,6 +94,15 @@ _CITED_ANSWER = f"This claim is well-supported. {_TOKEN}"
 #: A single uncited sentence with no citation token.
 _UNCITED_ANSWER = "An uncited claim that needs a citation."
 
+#: The repaired form of _UNCITED_ANSWER after the "append_first_retrieved_token" strategy.
+_REPAIRED_UNCITED_ANSWER = f"{_UNCITED_ANSWER} {_TOKEN}"
+
+#: The fallback display answer for an uncited _UNCITED_ANSWER (no repair possible).
+_FALLBACK_DISPLAY_UNCITED = f"{_CITATION_FALLBACK_PREFIX}: {_UNCITED_ANSWER}"
+
+#: The standard warning message appended when the final answer is not fully cited.
+_UNCITED_WARNING = "Not all answer sentences or bullets end with a citation token."
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -165,13 +174,18 @@ _POSTPROCESS_SCENARIOS: list[tuple[str, str, list, bool, list | None, dict]] = [
         True,
         None,
         {
+            "raw_answer": _CITED_ANSWER,
+            "raw_answer_all_cited": True,
+            "repaired_answer": _CITED_ANSWER,
             "citation_repair_applied": False,
             "citation_repair_strategy": None,
             "citation_repair_source_chunk_id": None,
+            "display_answer": _CITED_ANSWER,
+            "history_answer": _CITED_ANSWER,
             "citation_fallback_applied": False,
             "all_cited": True,
-            "raw_answer_all_cited": True,
             "evidence_level": "full",
+            "citation_warnings": [],
             "warning_count": 0,
         },
     ),
@@ -183,13 +197,18 @@ _POSTPROCESS_SCENARIOS: list[tuple[str, str, list, bool, list | None, dict]] = [
         True,
         None,
         {
+            "raw_answer": _UNCITED_ANSWER,
+            "raw_answer_all_cited": False,
+            "repaired_answer": _REPAIRED_UNCITED_ANSWER,
             "citation_repair_applied": True,
             "citation_repair_strategy": "append_first_retrieved_token",
             "citation_repair_source_chunk_id": "c1",
+            "display_answer": _REPAIRED_UNCITED_ANSWER,
+            "history_answer": _REPAIRED_UNCITED_ANSWER,
             "citation_fallback_applied": False,
             "all_cited": True,
-            "raw_answer_all_cited": False,
             "evidence_level": "full",
+            "citation_warnings": [],
             "warning_count": 0,
         },
     ),
@@ -201,13 +220,18 @@ _POSTPROCESS_SCENARIOS: list[tuple[str, str, list, bool, list | None, dict]] = [
         False,
         None,
         {
+            "raw_answer": _UNCITED_ANSWER,
+            "raw_answer_all_cited": False,
+            "repaired_answer": _UNCITED_ANSWER,
             "citation_repair_applied": False,
             "citation_repair_strategy": None,
             "citation_repair_source_chunk_id": None,
+            "display_answer": _FALLBACK_DISPLAY_UNCITED,
+            "history_answer": _CITATION_FALLBACK_PREFIX,
             "citation_fallback_applied": True,
             "all_cited": False,
-            "raw_answer_all_cited": False,
             "evidence_level": "degraded",
+            "citation_warnings": [_UNCITED_WARNING],
             "warning_count": 1,
         },
     ),
@@ -219,13 +243,18 @@ _POSTPROCESS_SCENARIOS: list[tuple[str, str, list, bool, list | None, dict]] = [
         True,
         None,
         {
+            "raw_answer": _UNCITED_ANSWER,
+            "raw_answer_all_cited": False,
+            "repaired_answer": _UNCITED_ANSWER,
             "citation_repair_applied": False,
             "citation_repair_strategy": None,
             "citation_repair_source_chunk_id": None,
+            "display_answer": _FALLBACK_DISPLAY_UNCITED,
+            "history_answer": _CITATION_FALLBACK_PREFIX,
             "citation_fallback_applied": True,
             "all_cited": False,
-            "raw_answer_all_cited": False,
             "evidence_level": "degraded",
+            "citation_warnings": [_UNCITED_WARNING],
             "warning_count": 1,
         },
     ),
@@ -237,13 +266,18 @@ _POSTPROCESS_SCENARIOS: list[tuple[str, str, list, bool, list | None, dict]] = [
         True,
         None,
         {
+            "raw_answer": "",
+            "raw_answer_all_cited": False,
+            "repaired_answer": "",
             "citation_repair_applied": False,
             "citation_repair_strategy": None,
             "citation_repair_source_chunk_id": None,
+            "display_answer": "",
+            "history_answer": "",
             "citation_fallback_applied": False,
             "all_cited": False,
-            "raw_answer_all_cited": False,
             "evidence_level": "no_answer",
+            "citation_warnings": [],
             "warning_count": 0,
         },
     ),
@@ -255,13 +289,18 @@ _POSTPROCESS_SCENARIOS: list[tuple[str, str, list, bool, list | None, dict]] = [
         True,
         None,
         {
+            "raw_answer": "   \n  ",
+            "raw_answer_all_cited": False,
+            "repaired_answer": "   \n  ",
             "citation_repair_applied": False,
             "citation_repair_strategy": None,
             "citation_repair_source_chunk_id": None,
+            "display_answer": "",
+            "history_answer": "",
             "citation_fallback_applied": False,
             "all_cited": False,
-            "raw_answer_all_cited": False,
             "evidence_level": "no_answer",
+            "citation_warnings": [],
             "warning_count": 0,
         },
     ),
@@ -273,11 +312,18 @@ _POSTPROCESS_SCENARIOS: list[tuple[str, str, list, bool, list | None, dict]] = [
         False,
         ["chunk 'c0' has empty text"],
         {
+            "raw_answer": _UNCITED_ANSWER,
+            "raw_answer_all_cited": False,
+            "repaired_answer": _UNCITED_ANSWER,
             "citation_repair_applied": False,
+            "citation_repair_strategy": None,
+            "citation_repair_source_chunk_id": None,
+            "display_answer": _FALLBACK_DISPLAY_UNCITED,
+            "history_answer": _CITATION_FALLBACK_PREFIX,
             "citation_fallback_applied": True,
             "all_cited": False,
-            "raw_answer_all_cited": False,
             "evidence_level": "degraded",
+            "citation_warnings": ["chunk 'c0' has empty text", _UNCITED_WARNING],
             "warning_count": 2,
         },
     ),
@@ -289,12 +335,19 @@ _POSTPROCESS_SCENARIOS: list[tuple[str, str, list, bool, list | None, dict]] = [
         True,
         ["pre-existing warning from retrieval loop"],
         {
+            "raw_answer": _CITED_ANSWER,
+            "raw_answer_all_cited": True,
+            "repaired_answer": _CITED_ANSWER,
             "citation_repair_applied": False,
+            "citation_repair_strategy": None,
+            "citation_repair_source_chunk_id": None,
+            "display_answer": _CITED_ANSWER,
+            "history_answer": _CITED_ANSWER,
             "citation_fallback_applied": False,
             "all_cited": True,
-            "raw_answer_all_cited": True,
             # Preexisting citation warning degrades evidence_level even when fully cited.
             "evidence_level": "degraded",
+            "citation_warnings": ["pre-existing warning from retrieval loop"],
             "warning_count": 1,
         },
     ),
@@ -660,8 +713,9 @@ class TestRunRetrievalAndQaResultContract:
         """An uncited answer in run-scoped mode (no repair) produces fallback fields."""
         result = _run_with_mocked_retrieval(
             answer=_UNCITED_ANSWER,
-            items_metadata=[],
-            all_runs=True,
+            items_metadata=[{"citation_token": _TOKEN, "chunk_id": "c1"}],
+            all_runs=False,
+            run_id="r1",
         )
 
         assert result["citation_fallback_applied"] is True
