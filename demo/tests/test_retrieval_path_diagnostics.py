@@ -503,6 +503,51 @@ class TestFormatRetrievalPathSummary:
         assert "Entity X" in result
         assert "MercadoLibre" in result
 
+    # ------------------------------------------------------------------
+    # Malformed / partial roles payload safety
+    # ------------------------------------------------------------------
+
+    def test_malformed_roles_payload_does_not_crash(self) -> None:
+        """Non-dict entries in a diagnostics roles list must not raise."""
+        hit = _make_hit("c_malformed")
+        # Inject a pre-built diagnostics dict with non-dict role entries directly,
+        # bypassing _build_retrieval_path_diagnostics which already normalizes.
+        hit["metadata"]["retrieval_path_diagnostics"] = {
+            "has_participant_edges": [
+                {
+                    "claim_text": "Claim with bad roles.",
+                    "roles": [None, "bad-entry", 42],
+                }
+            ],
+            "canonical_via_resolves_to": [],
+            "cluster_memberships": [],
+            "cluster_canonical_via_aligned_with": [],
+        }
+        result = _format_retrieval_path_summary([hit])
+        assert "Claim with bad roles." in result
+        assert "malformed" in result
+
+    def test_partial_role_entry_renders_gracefully(self) -> None:
+        """Dict role entries missing role/mention_name/match_method must not raise."""
+        hit = _make_hit("c_partial")
+        hit["metadata"]["retrieval_path_diagnostics"] = {
+            "has_participant_edges": [
+                {
+                    "claim_text": "Claim with partial role.",
+                    "roles": [
+                        {"role": "subject"},  # mention_name and match_method missing
+                        {"mention_name": "Bob"},  # role and match_method missing
+                    ],
+                }
+            ],
+            "canonical_via_resolves_to": [],
+            "cluster_memberships": [],
+            "cluster_canonical_via_aligned_with": [],
+        }
+        result = _format_retrieval_path_summary([hit])
+        assert "Claim with partial role." in result
+        assert "(unknown)" in result
+
 
 # ---------------------------------------------------------------------------
 # Integration: _chunk_citation_formatter injects retrieval_path_diagnostics

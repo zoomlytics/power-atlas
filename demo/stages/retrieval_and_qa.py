@@ -1172,10 +1172,16 @@ def _format_retrieval_path_summary(hits: list[dict[str, object]]) -> str:
             for entry in hp_edges:
                 claim_text = str(entry.get("claim_text") or "")
                 roles = entry.get("roles") or []
-                role_parts = ", ".join(
-                    f"{r['role']}={r['mention_name']!r} (match: {r['match_method']})"
-                    for r in roles
-                )
+                role_parts_list: list[str] = []
+                for r in roles:
+                    if not isinstance(r, dict):
+                        role_parts_list.append(f"(malformed: {r!r})")
+                        continue
+                    r_role = r.get("role") or "(unknown)"
+                    r_mention = r.get("mention_name") or "(unknown)"
+                    r_method = r.get("match_method") or "(unknown)"
+                    role_parts_list.append(f"{r_role}={r_mention!r} (match: {r_method})")
+                role_parts = ", ".join(role_parts_list)
                 preview = claim_text[:80] + ("..." if len(claim_text) > 80 else "")
                 if role_parts:
                     lines.append(f"    • \"{preview}\" [{role_parts}]")
