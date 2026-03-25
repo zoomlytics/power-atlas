@@ -158,6 +158,18 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                     "chunk. Use --cluster-aware for the full post-hybrid enrichment path."
                 ),
             )
+            subparsers.choices[command].add_argument(
+                "--debug",
+                action="store_true",
+                default=False,
+                dest="debug",
+                help=(
+                    "Enable debug output for interactive sessions: prints a compact "
+                    "postprocessing summary after each answer showing citation quality "
+                    "metadata (raw/final citation state, repair/fallback applied, evidence "
+                    "level, warning count).  Has no effect when --interactive is not set."
+                ),
+            )
         if command == "ingest":
             subparsers.choices[command].add_argument(
                 "--question",
@@ -663,6 +675,7 @@ def main() -> None:
                     index_name=CHUNK_EMBEDDING_INDEX_NAME,
                     cluster_aware=getattr(args, "cluster_aware", False),
                     expand_graph=getattr(args, "expand_graph", False),
+                    debug=getattr(args, "debug", False),
                 )
             elif args.command == "ask":
                 # Non-interactive ask: resolve scope, print it, then run and write manifest.
