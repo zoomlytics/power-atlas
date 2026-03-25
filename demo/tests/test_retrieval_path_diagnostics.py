@@ -17,6 +17,7 @@ import pytest
 
 from demo.stages.retrieval_and_qa import (
     _build_retrieval_path_diagnostics,
+    _format_claim_details,
     _format_retrieval_path_summary,
     _normalize_claim_roles,
 )
@@ -892,6 +893,35 @@ class TestNormalizeClaimRoles:
         assert result[0]["role"] == "subject"
         assert result[1]["role"] == "object"
 
+    def test_legacy_name_key_used_as_mention_name_fallback(self) -> None:
+        """Entries using the old ``name`` key (instead of ``mention_name``) must be
+        normalised: ``mention_name`` in the returned entry must be the value of ``name``."""
+        detail = {
+            "roles": [
+                {"role": "subject", "name": "Alice", "match_method": "raw_exact"},
+                {"role": "object", "name": "Corp", "match_method": "casefold_exact"},
+            ]
+        }
+        result = _normalize_claim_roles(detail)
+        assert len(result) == 2
+        assert result[0]["mention_name"] == "Alice"
+        assert result[1]["mention_name"] == "Corp"
+
+    def test_mention_name_takes_precedence_over_name(self) -> None:
+        """When both ``mention_name`` and ``name`` are present, ``mention_name`` wins."""
+        detail = {
+            "roles": [
+                {
+                    "role": "subject",
+                    "mention_name": "Alice",
+                    "name": "AliceLegacy",
+                    "match_method": "raw_exact",
+                },
+            ]
+        }
+        result = _normalize_claim_roles(detail)
+        assert result[0]["mention_name"] == "Alice"
+
     def test_build_retrieval_path_diagnostics_tolerates_malformed_roles(self) -> None:
         """_build_retrieval_path_diagnostics must not crash when roles contains
         None/non-dict entries — it should produce a clean roles list via the helper."""
@@ -918,3 +948,187 @@ class TestNormalizeClaimRoles:
         assert len(roles) == 1
         assert roles[0]["role"] == "subject"
         assert roles[0]["mention_name"] == "Alice"
+
+
+# ---------------------------------------------------------------------------
+# _format_claim_details: malformed and partial payload safety
+# ---------------------------------------------------------------------------
+
+
+class TestFormatClaimDetails:
+    """_format_claim_details must not crash on malformed/partial role payloads
+    and must render sensible output across all supported input shapes."""
+
+    def test_empty_claim_details_returns_empty_string(self) -> None:
+        assert _format_claim_details([]) == ""
+
+    def test_claim_with_no_roles_key_renders_claim_text(self) -> None:
+        """When the ``roles`` key is absent, the claim text is shown without role annotations."""
+        result = _format_claim_details([{"claim_text": "Some claim."}])
+        assert "Some claim." in result
+        assert "subject=" not in result  # no role annotation
+
+    def test_non_list_roles_value_does_not_crash(self) -> None:
+        """A non-list ``roles`` value must be silently ignored; claim text still appears."""
+        details = [{"claim_text": "Claim here.", "roles": "bad-roles-value"}]
+        result = _format_claim_details(details)
+        assert "Claim here." in result
+
+    def test_non_list_roles_integer_does_not_crash(self) -> None:
+        """An integer ``roles`` value must be silently ignored."""
+        details = [{"claim_text": "Claim here.", "roles": 99}]
+        result = _format_claim_details(details)
+        assert "Claim here." in result
+
+    def test_roles_with_none_entries_does_not_crash(self) -> None:
+        """None entries inside ``roles`` list must be filtered; valid roles still rendered."""
+        details = [
+            {
+                "claim_text": "Alice joined Corp.",
+                "roles": [
+                    None,
+                    {"role": "subject", "mention_name": "Alice", "match_method": "raw_exact"},
+                ],
+            }
+        ]
+        result = _format_claim_details(details)
+        assert "Alice joined Corp." in result
+        assert "subject='Alice'" in result
+
+    def test_roles_with_non_dict_entries_does_not_crash(self) -> None:
+        """Non-dict entries (e.g. strings) inside ``roles`` must be filtered."""
+        details = [
+            {
+                "claim_text": "Bob left Corp.",
+                "roles": [
+                    "garbage",
+                    {"role": "object", "mention_name": "Corp", "match_method": "casefold_exact"},
+                ],
+            }
+        ]
+        result = _format_claim_details(details)
+        assert "Bob left Corp." in result
+        assert "object='Corp'" in result
+
+    def test_entry_missing_role_key_is_filtered_in_output(self) -> None:
+        """Role entries missing the ``role`` key must be skipped; claim still rendered."""
+        details = [
+            {
+                "claim_text": "Claim with no-role entry.",
+                "roles": [
+                    {"mention_name": "Ghost", "match_method": "raw_exact"},  # no role key
+                    {"role": "subject", "mention_name": "Alice", "match_method": "raw_exact"},
+                ],
+            }
+        ]
+        result = _format_claim_details(details)
+        assert "Claim with no-role entry." in result
+        assert "subject='Alice'" in result
+        assert "Ghost" not in result
+
+    def test_mention_name_shown_in_output(self) -> None:
+        """The canonical ``mention_name`` field must appear in the formatted output."""
+        details = [
+            {
+                "claim_text": "Alice founded Corp.",
+                "roles": [
+                    {"role": "subject", "mention_name": "Alice", "match_method": "raw_exact"},
+                    {"role": "object", "mention_name": "Corp", "match_method": "casefold_exact"},
+                ],
+            }
+        ]
+        result = _format_claim_details(details)
+        assert "subject='Alice'" in result
+        assert "object='Corp'" in result
+
+    def test_legacy_name_key_rendered_as_mention_name(self) -> None:
+        """Entries using the old ``name`` key (instead of ``mention_name``) must still
+        appear correctly labelled in the output."""
+        details = [
+            {
+                "claim_text": "Alice founded Corp.",
+                "roles": [
+                    {"role": "subject", "name": "Alice", "match_method": "raw_exact"},
+                    {"role": "object", "name": "Corp", "match_method": "casefold_exact"},
+                ],
+            }
+        ]
+        result = _format_claim_details(details)
+        assert "subject='Alice'" in result
+        assert "object='Corp'" in result
+
+    def test_mixed_valid_and_malformed_roles_shows_only_valid(self) -> None:
+        """Mixed valid/malformed roles list: only the valid entries appear in output."""
+        details = [
+            {
+                "claim_text": "Mixed claim.",
+                "roles": [
+                    None,
+                    "bad-entry",
+                    {"mention_name": "no-role"},
+                    {"role": "subject", "mention_name": "Alice", "match_method": "raw_exact"},
+                ],
+            }
+        ]
+        result = _format_claim_details(details)
+        assert "Mixed claim." in result
+        assert "subject='Alice'" in result
+        assert "no-role" not in result
+
+    def test_partially_populated_role_with_no_mention_name_rendered_without_role_annotation(
+        self,
+    ) -> None:
+        """An entry with a valid ``role`` but no ``mention_name`` must not produce a
+        role annotation (role_name and mention_name are both required for annotation)."""
+        details = [
+            {
+                "claim_text": "Claim with sparse role.",
+                "roles": [{"role": "subject"}],  # mention_name absent
+            }
+        ]
+        result = _format_claim_details(details)
+        assert "Claim with sparse role." in result
+        # No role annotation because mention_name is absent
+        assert "subject=" not in result
+
+    def test_legacy_subject_and_object_mention_rendered(self) -> None:
+        """Legacy ``subject_mention``/``object_mention`` top-level keys produce role annotations."""
+        details = [
+            {
+                "claim_text": "Galperin founded MercadoLibre.",
+                "subject_mention": {"name": "Galperin", "match_method": "raw_exact"},
+                "object_mention": {"name": "MercadoLibre", "match_method": "casefold_exact"},
+            }
+        ]
+        result = _format_claim_details(details)
+        assert "Galperin founded MercadoLibre." in result
+        assert "subject='Galperin'" in result
+        assert "object='MercadoLibre'" in result
+
+    def test_multiple_claims_all_rendered(self) -> None:
+        """Multiple claims are all included in the formatted output."""
+        details = [
+            {
+                "claim_text": "Alice founded Corp.",
+                "roles": [
+                    {"role": "subject", "mention_name": "Alice", "match_method": "raw_exact"},
+                ],
+            },
+            {
+                "claim_text": "Corp operates globally.",
+                "roles": [],
+            },
+        ]
+        result = _format_claim_details(details)
+        assert "Alice founded Corp." in result
+        assert "Corp operates globally." in result
+
+    def test_claim_with_empty_claim_text_skipped(self) -> None:
+        """Claims whose ``claim_text`` is empty or whitespace-only must be skipped."""
+        details = [
+            {"claim_text": "   ", "roles": []},
+            {"claim_text": "Valid claim.", "roles": []},
+        ]
+        result = _format_claim_details(details)
+        assert "Valid claim." in result
+        assert result.count("•") == 1
