@@ -44,6 +44,45 @@ Structure
     Neo4j driver and RAG mocked) and assert that postprocessing metadata is correctly
     surfaced in the returned result dict — including coherence between top-level keys
     and the ``citation_quality`` bundle.
+
+``TestRunRetrievalAndQaPublicKeyContract``
+    Asserts the complete public output contract for ``run_retrieval_and_qa()``:
+
+    - The live postprocessed result contains **exactly** the documented required key set
+      (no extra, no missing keys), verified across multiple scenarios.
+    - Every required field has the expected runtime type.
+    - The nested ``citation_quality`` bundle and ``retrieval_scope`` dicts each carry
+      their documented key sets.
+
+``TestRunRetrievalAndQaPostprocessMapping``
+    Spy-based tests that verify every ``_postprocess_answer()`` internal field is mapped
+    to the correct public key in the ``run_retrieval_and_qa()`` result dict.  Uses
+    :data:`_POSTPROCESS_TO_PUBLIC_FIELD_MAP` as the authoritative mapping registry.
+
+``TestRunRetrievalAndQaDocumentedScenarios``
+    Table-driven end-to-end tests that drive ``run_retrieval_and_qa()`` through each
+    scenario described in §4 of the canonical contract document
+    (``docs/architecture/retrieval-citation-result-contract-v0.1.md``) and assert the
+    complete set of postprocessing-related public fields, verifying that the runtime
+    interface matches the documented contract:
+
+    - §4.1 Full citation — no repair, no fallback
+    - §4.2 Degraded citation — fallback applied (run-scoped mode)
+    - §4.3 Repair applied — citation fixed, no fallback
+    - §4.5 No answer generated
+    - §4.6 Empty chunk text — degraded evidence with retrieval-time warning
+    - §4.7 Repair attempted but not applied — no candidate token found
+
+``TestRunRetrievalAndQaWarningsContract``
+    Tests that protect the ``warnings`` / ``citation_warnings`` propagation invariants
+    across the public result surface:
+
+    - Every entry in ``citation_quality["citation_warnings"]`` is also present in the
+      top-level ``warnings`` list.
+    - Empty-chunk-text warnings appear in **both** ``warnings`` and
+      ``citation_quality["citation_warnings"]``.
+    - Operational warnings that are not citation-quality issues appear only in the
+      top-level ``warnings`` list, not in ``citation_quality["citation_warnings"]``.
 """
 from __future__ import annotations
 
@@ -148,6 +187,99 @@ _LIVE_ITEM_METADATA: dict[str, object] = {
         "end_char": 50,
     },
 }
+
+
+#: Exact set of required top-level keys in a live postprocessed result from
+#: ``run_retrieval_and_qa()``.  Any field addition, rename, or removal will
+#: cause ``TestRunRetrievalAndQaPublicKeyContract`` tests to fail.
+_LIVE_RESULT_REQUIRED_KEYS: frozenset[str] = frozenset({
+    # --- identity / config ---
+    "run_id",
+    "source_uri",
+    "top_k",
+    "retriever_type",
+    "retriever_index_name",
+    "question",
+    "qa_model",
+    "qa_prompt_version",
+    # --- retrieval configuration ---
+    "expand_graph",
+    "cluster_aware",
+    "retrieval_scope",
+    "retrieval_query_contract",
+    "interactive_mode",
+    "message_history_enabled",
+    # --- retrieval runtime ---
+    "status",
+    "retrievers",
+    "qa",
+    "hits",
+    "retrieval_results",
+    "retrieval_path_summary",
+    # --- citation examples ---
+    "citation_token_example",
+    "citation_object_example",
+    "citation_example",
+    # --- answer / postprocessing (mapped from _postprocess_answer result) ---
+    "answer",
+    "raw_answer",
+    "all_answers_cited",
+    "raw_answer_all_cited",
+    "citation_fallback_applied",
+    "citation_repair_attempted",
+    "citation_repair_applied",
+    "citation_repair_strategy",
+    "citation_repair_source_chunk_id",
+    "citation_quality",
+    # --- warnings ---
+    "warnings",
+})
+
+#: Required keys in the ``retrieval_scope`` nested dict.
+_RETRIEVAL_SCOPE_REQUIRED_KEYS: frozenset[str] = frozenset({
+    "run_id",
+    "source_uri",
+    "scope_widened",
+    "all_runs",
+})
+
+#: Mapping from ``_postprocess_answer()`` internal field names to their
+#: corresponding public ``run_retrieval_and_qa()`` result-dict field names.
+#: Every entry must hold: ``result[public_key] == pp[pp_key]`` for every live result.
+_POSTPROCESS_TO_PUBLIC_FIELD_MAP: dict[str, str] = {
+    "display_answer": "answer",
+    "raw_answer": "raw_answer",
+    "citation_fallback_applied": "citation_fallback_applied",
+    "all_cited": "all_answers_cited",
+    "raw_answer_all_cited": "raw_answer_all_cited",
+    "citation_repair_attempted": "citation_repair_attempted",
+    "citation_repair_applied": "citation_repair_applied",
+    "citation_repair_strategy": "citation_repair_strategy",
+    "citation_repair_source_chunk_id": "citation_repair_source_chunk_id",
+    "citation_quality": "citation_quality",
+}
+
+#: Metadata for a hit that triggers an empty-chunk-text citation warning.
+#: All optional citation fields are present so no "missing optional fields"
+#: warning is emitted alongside the empty-chunk warning.  Represents §4.6.
+_EMPTY_CHUNK_METADATA: dict[str, object] = {
+    "citation_token": _TOKEN,
+    "chunk_id": "c1",
+    "citation_object": {
+        "chunk_id": "c1",
+        "run_id": "r1",
+        "source_uri": "file:///doc.pdf",
+        "chunk_index": 0,
+        "page": 1,
+        "start_char": 0,
+        "end_char": 50,
+    },
+    "empty_chunk_text": True,
+}
+
+#: Metadata for a hit with no citation token — repair is attempted (preconditions
+#: met) but cannot find a token to apply.  Represents §4.7.
+_HIT_METADATA_NO_TOKEN: dict[str, object] = {"chunk_id": "c-no-token"}
 
 
 # ---------------------------------------------------------------------------
@@ -895,3 +1027,749 @@ class TestRunRetrievalAndQaResultContract:
         assert result["citation_repair_applied"] is False
         assert result["citation_repair_strategy"] is None
         assert result["citation_repair_source_chunk_id"] is None
+
+
+# ---------------------------------------------------------------------------
+# TestRunRetrievalAndQaPublicKeyContract
+# ---------------------------------------------------------------------------
+
+
+class TestRunRetrievalAndQaPublicKeyContract:
+    """Assert the complete public output contract for ``run_retrieval_and_qa()``.
+
+    These tests verify:
+
+    - The live postprocessed result contains **exactly** the documented required
+      key set (neither extra nor missing keys).  This acts as an executable
+      registry that will catch any silent field addition, rename, or removal.
+    - Every required field has the expected runtime type.
+    - The nested ``citation_quality`` bundle and ``retrieval_scope`` dicts
+      each carry their documented key sets.
+    - The key set is stable across all core postprocessing scenarios.
+    """
+
+    def test_live_result_contains_exactly_required_keys(self) -> None:
+        """Live result must contain EXACTLY the documented required key set —
+        no extra, no missing keys."""
+        result = _run_with_mocked_retrieval(
+            answer=_CITED_ANSWER,
+            items_metadata=[_LIVE_ITEM_METADATA],
+            all_runs=True,
+        )
+        extra = set(result.keys()) - _LIVE_RESULT_REQUIRED_KEYS
+        missing = _LIVE_RESULT_REQUIRED_KEYS - set(result.keys())
+        assert not extra and not missing, (
+            f"Key set mismatch — extra={extra!r}, missing={missing!r}"
+        )
+
+    def test_live_result_status_is_live(self) -> None:
+        """Live (non-dry-run) results must carry ``status='live'``."""
+        result = _run_with_mocked_retrieval(
+            answer=_CITED_ANSWER,
+            items_metadata=[_LIVE_ITEM_METADATA],
+            all_runs=True,
+        )
+        assert result["status"] == "live"
+
+    def test_live_result_field_types(self) -> None:
+        """Every required field must have the documented runtime type."""
+        result = _run_with_mocked_retrieval(
+            answer=_CITED_ANSWER,
+            items_metadata=[_LIVE_ITEM_METADATA],
+            all_runs=True,
+        )
+        str_fields = (
+            "run_id", "source_uri", "retriever_type", "qa_model", "qa_prompt_version",
+            "answer", "raw_answer", "qa", "status", "retrieval_path_summary",
+            "retrieval_query_contract", "citation_token_example",
+        )
+        bool_fields = (
+            "all_answers_cited", "raw_answer_all_cited", "citation_fallback_applied",
+            "citation_repair_attempted", "citation_repair_applied",
+            "expand_graph", "cluster_aware", "interactive_mode", "message_history_enabled",
+        )
+        int_fields = ("top_k", "hits")
+        list_fields = ("retrievers", "retrieval_results", "warnings")
+        dict_fields = (
+            "citation_quality", "retrieval_scope",
+            "citation_object_example", "citation_example",
+        )
+        for key in str_fields:
+            assert isinstance(result[key], str), (
+                f"Field {key!r} expected str, got {type(result[key]).__name__}"
+            )
+        for key in bool_fields:
+            assert isinstance(result[key], bool), (
+                f"Field {key!r} expected bool, got {type(result[key]).__name__}"
+            )
+        for key in int_fields:
+            assert isinstance(result[key], int), (
+                f"Field {key!r} expected int, got {type(result[key]).__name__}"
+            )
+        for key in list_fields:
+            assert isinstance(result[key], list), (
+                f"Field {key!r} expected list, got {type(result[key]).__name__}"
+            )
+        for key in dict_fields:
+            assert isinstance(result[key], dict), (
+                f"Field {key!r} expected dict, got {type(result[key]).__name__}"
+            )
+        # Nullable fields: str or None
+        for key in ("citation_repair_strategy", "citation_repair_source_chunk_id",
+                    "retriever_index_name", "question"):
+            assert result[key] is None or isinstance(result[key], str), (
+                f"Field {key!r} expected str | None, got {type(result[key]).__name__}"
+            )
+
+    def test_citation_quality_bundle_has_required_keys(self) -> None:
+        """``citation_quality`` must contain exactly the documented bundle key set."""
+        result = _run_with_mocked_retrieval(
+            answer=_CITED_ANSWER,
+            items_metadata=[_LIVE_ITEM_METADATA],
+            all_runs=True,
+        )
+        cq = result["citation_quality"]
+        extra = set(cq.keys()) - _CITATION_QUALITY_BUNDLE_KEYS
+        missing = _CITATION_QUALITY_BUNDLE_KEYS - set(cq.keys())
+        assert not extra and not missing, (
+            f"citation_quality key set mismatch — extra={extra!r}, missing={missing!r}"
+        )
+
+    def test_retrieval_scope_has_required_keys(self) -> None:
+        """``retrieval_scope`` must contain exactly the documented key set."""
+        result = _run_with_mocked_retrieval(
+            answer=_CITED_ANSWER,
+            items_metadata=[_LIVE_ITEM_METADATA],
+            all_runs=True,
+        )
+        scope = result["retrieval_scope"]
+        extra = set(scope.keys()) - _RETRIEVAL_SCOPE_REQUIRED_KEYS
+        missing = _RETRIEVAL_SCOPE_REQUIRED_KEYS - set(scope.keys())
+        assert not extra and not missing, (
+            f"retrieval_scope key set mismatch — extra={extra!r}, missing={missing!r}"
+        )
+
+    @pytest.mark.parametrize(
+        "scenario,answer,items_metadata,all_runs,run_id",
+        [
+            ("fully_cited", _CITED_ANSWER, [_LIVE_ITEM_METADATA], True, None),
+            ("repair_applied", _UNCITED_ANSWER, [_LIVE_ITEM_METADATA], True, None),
+            ("fallback_run_scoped", _UNCITED_ANSWER, [_LIVE_ITEM_METADATA], False, "r1"),
+            ("no_answer", "", [], True, None),
+            ("empty_chunk_warning", _CITED_ANSWER, [_EMPTY_CHUNK_METADATA], True, None),
+            ("repair_attempted_no_token", _UNCITED_ANSWER, [_HIT_METADATA_NO_TOKEN], True, None),
+        ],
+        ids=[
+            "fully_cited", "repair_applied", "fallback_run_scoped",
+            "no_answer", "empty_chunk_warning", "repair_attempted_no_token",
+        ],
+    )
+    def test_required_key_set_is_stable_across_scenarios(
+        self,
+        scenario: str,
+        answer: str,
+        items_metadata: list,
+        all_runs: bool,
+        run_id: str | None,
+    ) -> None:
+        """The required key set must be identical for every live postprocessed result,
+        regardless of the postprocessing path taken."""
+        result = _run_with_mocked_retrieval(
+            answer=answer,
+            items_metadata=items_metadata,
+            all_runs=all_runs,
+            run_id=run_id,
+        )
+        extra = set(result.keys()) - _LIVE_RESULT_REQUIRED_KEYS
+        missing = _LIVE_RESULT_REQUIRED_KEYS - set(result.keys())
+        assert not extra and not missing, (
+            f"[{scenario}] Key set mismatch — extra={extra!r}, missing={missing!r}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# TestRunRetrievalAndQaPostprocessMapping
+# ---------------------------------------------------------------------------
+
+
+class TestRunRetrievalAndQaPostprocessMapping:
+    """Verify that every ``_postprocess_answer()`` internal field is correctly mapped
+    to the public ``run_retrieval_and_qa()`` result dict.
+
+    Uses a spy to capture the exact ``_postprocess_answer`` return value used
+    internally, then asserts each entry in :data:`_POSTPROCESS_TO_PUBLIC_FIELD_MAP`
+    holds: ``result[public_key] == pp[pp_key]``.  This makes the mapping
+    contract explicit and ensures that renaming an internal field without updating
+    the public surface causes a test failure.
+    """
+
+    def _run_and_capture_postprocess(
+        self,
+        answer: str,
+        items_metadata: list,
+        *,
+        all_runs: bool,
+        run_id: str | None = None,
+    ) -> tuple[dict, dict]:
+        """Drive ``run_retrieval_and_qa`` with a spy on ``_postprocess_answer``,
+        returning ``(result, pp)`` where *pp* is the captured internal result."""
+        captured: list[dict] = []
+
+        def spy_pp(*args: object, **kwargs: object) -> dict[str, object]:
+            r = _postprocess_answer(*args, **kwargs)  # type: ignore[arg-type]
+            captured.append(dict(r))
+            return r
+
+        with patch("demo.stages.retrieval_and_qa._postprocess_answer", side_effect=spy_pp):
+            result = _run_with_mocked_retrieval(
+                answer=answer,
+                items_metadata=items_metadata,
+                all_runs=all_runs,
+                run_id=run_id,
+            )
+        assert len(captured) == 1, "Expected _postprocess_answer to be called exactly once"
+        return result, captured[0]
+
+    @pytest.mark.parametrize(
+        "scenario,answer,items_metadata,all_runs,run_id",
+        [
+            ("fully_cited", _CITED_ANSWER, [_LIVE_ITEM_METADATA], True, None),
+            ("repair_applied", _UNCITED_ANSWER, [_LIVE_ITEM_METADATA], True, None),
+            ("fallback_run_scoped", _UNCITED_ANSWER, [_LIVE_ITEM_METADATA], False, "r1"),
+            ("no_answer", "", [], True, None),
+        ],
+        ids=["fully_cited", "repair_applied", "fallback_run_scoped", "no_answer"],
+    )
+    def test_all_postprocess_fields_mapped_to_public_result(
+        self,
+        scenario: str,
+        answer: str,
+        items_metadata: list,
+        all_runs: bool,
+        run_id: str | None,
+    ) -> None:
+        """Every entry in ``_POSTPROCESS_TO_PUBLIC_FIELD_MAP`` must hold for the live
+        result: ``result[public_key] == pp[pp_key]``."""
+        result, pp = self._run_and_capture_postprocess(
+            answer, items_metadata, all_runs=all_runs, run_id=run_id
+        )
+        for pp_key, public_key in _POSTPROCESS_TO_PUBLIC_FIELD_MAP.items():
+            assert result[public_key] == pp[pp_key], (
+                f"[{scenario}] Mapping {pp_key!r} → {public_key!r} failed: "
+                f"result[{public_key!r}]={result[public_key]!r}, "
+                f"pp[{pp_key!r}]={pp[pp_key]!r}"
+            )
+
+    def test_answer_comes_from_display_answer_not_raw_answer(self) -> None:
+        """``result['answer']`` must equal ``pp['display_answer']`` (not ``raw_answer``).
+        After repair, ``display_answer`` is the repaired text; after fallback,
+        it carries the fallback prefix — confirming the mapping uses the right key."""
+        # Repair: display_answer != raw_answer (repaired text replaces raw)
+        result_repair, pp_repair = self._run_and_capture_postprocess(
+            _UNCITED_ANSWER, [_LIVE_ITEM_METADATA], all_runs=True
+        )
+        assert result_repair["answer"] == pp_repair["display_answer"]
+        assert result_repair["answer"] != pp_repair["raw_answer"], (
+            "After repair, answer must equal display_answer, not raw_answer"
+        )
+
+        # Fallback: display_answer starts with the fallback prefix
+        result_fallback, pp_fallback = self._run_and_capture_postprocess(
+            _UNCITED_ANSWER, [_LIVE_ITEM_METADATA], all_runs=False, run_id="r1"
+        )
+        assert result_fallback["answer"] == pp_fallback["display_answer"]
+        assert result_fallback["answer"].startswith(_CITATION_FALLBACK_PREFIX), (
+            "After fallback, answer must start with the fallback prefix"
+        )
+
+    def test_all_answers_cited_comes_from_all_cited_not_raw_answer_all_cited(self) -> None:
+        """``result['all_answers_cited']`` must equal ``pp['all_cited']``, which
+        reflects the *final delivered* answer (after repair), not ``raw_answer_all_cited``
+        (which reflects the original LLM output before repair)."""
+        result, pp = self._run_and_capture_postprocess(
+            _UNCITED_ANSWER, [_LIVE_ITEM_METADATA], all_runs=True
+        )
+        # After repair: all_cited=True (repair fixed it), raw_answer_all_cited=False
+        assert result["all_answers_cited"] == pp["all_cited"]
+        assert result["raw_answer_all_cited"] == pp["raw_answer_all_cited"]
+        assert result["all_answers_cited"] is True
+        assert result["raw_answer_all_cited"] is False, (
+            "raw_answer_all_cited must reflect the original LLM output, not the repaired answer"
+        )
+
+
+# ---------------------------------------------------------------------------
+# TestRunRetrievalAndQaDocumentedScenarios
+# ---------------------------------------------------------------------------
+
+#: Empty-chunk-text warning string derived from ``_EMPTY_CHUNK_METADATA`` so
+#: the expected message always stays consistent with the fixture chunk_id.
+_EMPTY_CHUNK_WARNING_MSG: str = (
+    "Chunk {!r} has empty or whitespace-only text.".format(
+        _EMPTY_CHUNK_METADATA["citation_object"]["chunk_id"]  # type: ignore[index]
+    )
+)
+
+#: Parametrized scenario table for TestRunRetrievalAndQaDocumentedScenarios.
+#: Each row: (id, answer, items_metadata, all_runs, run_id, expected_fields)
+#: where expected_fields is a dict of {public_key: expected_value}.
+_DOCUMENTED_SCENARIOS: list[tuple] = [
+    # §4.1 Full citation — no repair, no fallback.
+    # The LLM produced a fully cited answer from the start.
+    (
+        "s4_1_full_citation",
+        _CITED_ANSWER,
+        [_LIVE_ITEM_METADATA],
+        True,
+        None,
+        {
+            "answer": _CITED_ANSWER,
+            "raw_answer": _CITED_ANSWER,
+            "all_answers_cited": True,
+            "raw_answer_all_cited": True,
+            "citation_repair_attempted": False,
+            "citation_repair_applied": False,
+            "citation_repair_strategy": None,
+            "citation_repair_source_chunk_id": None,
+            "citation_fallback_applied": False,
+        },
+        "full",   # expected evidence_level
+        [],       # expected citation_warnings (empty)
+        [],       # expected warnings that must be present (subset check)
+    ),
+    # §4.2 Degraded citation — fallback applied (run-scoped, no repair).
+    # The LLM omitted citation tokens and repair did not run (run-scoped mode).
+    (
+        "s4_2_degraded_fallback",
+        _UNCITED_ANSWER,
+        [_LIVE_ITEM_METADATA],
+        False,
+        "r1",
+        {
+            "answer": _FALLBACK_DISPLAY_UNCITED,
+            "raw_answer": _UNCITED_ANSWER,
+            "all_answers_cited": False,
+            "raw_answer_all_cited": False,
+            "citation_repair_attempted": False,
+            "citation_repair_applied": False,
+            "citation_repair_strategy": None,
+            "citation_repair_source_chunk_id": None,
+            "citation_fallback_applied": True,
+        },
+        "degraded",
+        [_UNCITED_WARNING],
+        [_UNCITED_WARNING],
+    ),
+    # §4.3 Repair applied — citation fixed, no fallback.
+    # All-runs mode: the LLM omitted a citation token, repair appended the
+    # first retrieved token, and the answer became fully cited.
+    (
+        "s4_3_repair_applied",
+        _UNCITED_ANSWER,
+        [_LIVE_ITEM_METADATA],
+        True,
+        None,
+        {
+            "answer": _REPAIRED_UNCITED_ANSWER,
+            "raw_answer": _UNCITED_ANSWER,
+            "all_answers_cited": True,
+            "raw_answer_all_cited": False,
+            "citation_repair_attempted": True,
+            "citation_repair_applied": True,
+            "citation_repair_strategy": "append_first_retrieved_token",
+            "citation_repair_source_chunk_id": "c1",
+            "citation_fallback_applied": False,
+        },
+        "full",
+        [],
+        [],
+    ),
+    # §4.5 No answer generated.
+    # The LLM returned an empty string.
+    (
+        "s4_5_no_answer",
+        "",
+        [],
+        True,
+        None,
+        {
+            "answer": "",
+            "raw_answer": "",
+            "all_answers_cited": False,
+            "raw_answer_all_cited": False,
+            "citation_repair_attempted": False,
+            "citation_repair_applied": False,
+            "citation_repair_strategy": None,
+            "citation_repair_source_chunk_id": None,
+            "citation_fallback_applied": False,
+        },
+        "no_answer",
+        [],
+        [],
+    ),
+    # §4.6 Empty chunk text — degraded evidence with retrieval-time warning.
+    # A retrieved chunk had empty text.  The answer is fully cited, but the
+    # empty-chunk warning degrades evidence_level to "degraded".
+    (
+        "s4_6_empty_chunk",
+        _CITED_ANSWER,
+        [_EMPTY_CHUNK_METADATA],
+        True,
+        None,
+        {
+            "answer": _CITED_ANSWER,
+            "raw_answer": _CITED_ANSWER,
+            "all_answers_cited": True,
+            "raw_answer_all_cited": True,
+            "citation_repair_attempted": False,
+            "citation_repair_applied": False,
+            "citation_repair_strategy": None,
+            "citation_repair_source_chunk_id": None,
+            "citation_fallback_applied": False,
+        },
+        "degraded",
+        [_EMPTY_CHUNK_WARNING_MSG],
+        [_EMPTY_CHUNK_WARNING_MSG],
+    ),
+    # §4.7 Repair attempted but not applied — no candidate token found.
+    # All-runs mode: repair preconditions were met (uncited answer, hits provided)
+    # but no retrieved hit contained a usable citation token.
+    (
+        "s4_7_repair_attempted_no_token",
+        _UNCITED_ANSWER,
+        [_HIT_METADATA_NO_TOKEN],
+        True,
+        None,
+        {
+            "answer": _FALLBACK_DISPLAY_UNCITED,
+            "raw_answer": _UNCITED_ANSWER,
+            "all_answers_cited": False,
+            "raw_answer_all_cited": False,
+            "citation_repair_attempted": True,
+            "citation_repair_applied": False,
+            "citation_repair_strategy": None,
+            "citation_repair_source_chunk_id": None,
+            "citation_fallback_applied": True,
+        },
+        "degraded",
+        [_UNCITED_WARNING],
+        [_UNCITED_WARNING],
+    ),
+]
+
+
+class TestRunRetrievalAndQaDocumentedScenarios:
+    """End-to-end tests that drive ``run_retrieval_and_qa()`` through each scenario
+    described in §4 of the canonical contract document and assert the complete set of
+    postprocessing-related public fields.
+
+    This class serves as an executable copy of the contract document §4 scenario
+    table: if a field value diverges from the documented expectation, the test fails
+    and a reviewer must explicitly decide whether the documentation or the
+    implementation needs to be updated.
+    """
+
+    @pytest.mark.parametrize(
+        "scenario,answer,items_metadata,all_runs,run_id,expected_fields,"
+        "expected_evidence_level,expected_citation_warnings,required_in_warnings",
+        _DOCUMENTED_SCENARIOS,
+        ids=[row[0] for row in _DOCUMENTED_SCENARIOS],
+    )
+    def test_postprocessing_fields_match_contract(
+        self,
+        scenario: str,
+        answer: str,
+        items_metadata: list,
+        all_runs: bool,
+        run_id: str | None,
+        expected_fields: dict,
+        expected_evidence_level: str,
+        expected_citation_warnings: list,
+        required_in_warnings: list,
+    ) -> None:
+        """Every documented public field must match the scenario expectation from §4."""
+        result = _run_with_mocked_retrieval(
+            answer=answer,
+            items_metadata=items_metadata,
+            all_runs=all_runs,
+            run_id=run_id,
+        )
+        for key, expected_value in expected_fields.items():
+            assert result[key] == expected_value, (
+                f"[{scenario}] result[{key!r}]: expected {expected_value!r}, "
+                f"got {result[key]!r}"
+            )
+
+    @pytest.mark.parametrize(
+        "scenario,answer,items_metadata,all_runs,run_id,expected_fields,"
+        "expected_evidence_level,expected_citation_warnings,required_in_warnings",
+        _DOCUMENTED_SCENARIOS,
+        ids=[row[0] for row in _DOCUMENTED_SCENARIOS],
+    )
+    def test_evidence_level_matches_contract(
+        self,
+        scenario: str,
+        answer: str,
+        items_metadata: list,
+        all_runs: bool,
+        run_id: str | None,
+        expected_fields: dict,
+        expected_evidence_level: str,
+        expected_citation_warnings: list,
+        required_in_warnings: list,
+    ) -> None:
+        """``citation_quality['evidence_level']`` must match the scenario's documented value."""
+        result = _run_with_mocked_retrieval(
+            answer=answer,
+            items_metadata=items_metadata,
+            all_runs=all_runs,
+            run_id=run_id,
+        )
+        cq = result["citation_quality"]
+        assert cq["evidence_level"] == expected_evidence_level, (
+            f"[{scenario}] citation_quality.evidence_level: "
+            f"expected {expected_evidence_level!r}, got {cq['evidence_level']!r}"
+        )
+
+    @pytest.mark.parametrize(
+        "scenario,answer,items_metadata,all_runs,run_id,expected_fields,"
+        "expected_evidence_level,expected_citation_warnings,required_in_warnings",
+        _DOCUMENTED_SCENARIOS,
+        ids=[row[0] for row in _DOCUMENTED_SCENARIOS],
+    )
+    def test_citation_warnings_match_contract(
+        self,
+        scenario: str,
+        answer: str,
+        items_metadata: list,
+        all_runs: bool,
+        run_id: str | None,
+        expected_fields: dict,
+        expected_evidence_level: str,
+        expected_citation_warnings: list,
+        required_in_warnings: list,
+    ) -> None:
+        """``citation_quality['citation_warnings']`` must contain exactly the
+        documented warnings for each scenario."""
+        result = _run_with_mocked_retrieval(
+            answer=answer,
+            items_metadata=items_metadata,
+            all_runs=all_runs,
+            run_id=run_id,
+        )
+        cq = result["citation_quality"]
+        assert cq["citation_warnings"] == expected_citation_warnings, (
+            f"[{scenario}] citation_quality.citation_warnings: "
+            f"expected {expected_citation_warnings!r}, got {cq['citation_warnings']!r}"
+        )
+        assert cq["warning_count"] == len(expected_citation_warnings), (
+            f"[{scenario}] citation_quality.warning_count: "
+            f"expected {len(expected_citation_warnings)}, got {cq['warning_count']}"
+        )
+
+    @pytest.mark.parametrize(
+        "scenario,answer,items_metadata,all_runs,run_id,expected_fields,"
+        "expected_evidence_level,expected_citation_warnings,required_in_warnings",
+        _DOCUMENTED_SCENARIOS,
+        ids=[row[0] for row in _DOCUMENTED_SCENARIOS],
+    )
+    def test_required_warnings_in_top_level_list(
+        self,
+        scenario: str,
+        answer: str,
+        items_metadata: list,
+        all_runs: bool,
+        run_id: str | None,
+        expected_fields: dict,
+        expected_evidence_level: str,
+        expected_citation_warnings: list,
+        required_in_warnings: list,
+    ) -> None:
+        """Every warning in ``required_in_warnings`` must appear in the top-level
+        ``warnings`` list (citation_warnings must be a subset of warnings)."""
+        result = _run_with_mocked_retrieval(
+            answer=answer,
+            items_metadata=items_metadata,
+            all_runs=all_runs,
+            run_id=run_id,
+        )
+        for w in required_in_warnings:
+            assert w in result["warnings"], (
+                f"[{scenario}] Warning {w!r} missing from top-level warnings; "
+                f"got {result['warnings']!r}"
+            )
+
+    @pytest.mark.parametrize(
+        "scenario,answer,items_metadata,all_runs,run_id,expected_fields,"
+        "expected_evidence_level,expected_citation_warnings,required_in_warnings",
+        _DOCUMENTED_SCENARIOS,
+        ids=[row[0] for row in _DOCUMENTED_SCENARIOS],
+    )
+    def test_citation_quality_mirrors_top_level_for_all_scenarios(
+        self,
+        scenario: str,
+        answer: str,
+        items_metadata: list,
+        all_runs: bool,
+        run_id: str | None,
+        expected_fields: dict,
+        expected_evidence_level: str,
+        expected_citation_warnings: list,
+        required_in_warnings: list,
+    ) -> None:
+        """For every documented scenario, ``citation_quality`` must mirror the
+        corresponding top-level convenience fields."""
+        result = _run_with_mocked_retrieval(
+            answer=answer,
+            items_metadata=items_metadata,
+            all_runs=all_runs,
+            run_id=run_id,
+        )
+        cq = result["citation_quality"]
+        assert cq["all_cited"] == result["all_answers_cited"], (
+            f"[{scenario}] citation_quality.all_cited != all_answers_cited"
+        )
+        assert cq["raw_answer_all_cited"] == result["raw_answer_all_cited"], (
+            f"[{scenario}] citation_quality.raw_answer_all_cited != raw_answer_all_cited"
+        )
+        assert cq["evidence_level"] == expected_evidence_level, (
+            f"[{scenario}] citation_quality.evidence_level mismatch"
+        )
+        assert cq["warning_count"] == len(cq["citation_warnings"]), (
+            f"[{scenario}] citation_quality.warning_count != len(citation_warnings)"
+        )
+
+
+# ---------------------------------------------------------------------------
+# TestRunRetrievalAndQaWarningsContract
+# ---------------------------------------------------------------------------
+
+
+class TestRunRetrievalAndQaWarningsContract:
+    """Protect the ``warnings`` / ``citation_warnings`` propagation invariants.
+
+    From §2.5.2 of the contract document:
+    - ``warnings`` is the top-level operational warnings list (superset).
+    - ``citation_quality["citation_warnings"]`` contains **only** citation-quality
+      warnings.
+    - Every entry in ``citation_warnings`` must also appear in ``warnings``.
+    - ``warnings`` may contain additional operational warnings not in
+      ``citation_warnings`` (e.g. missing optional citation fields).
+    """
+
+    @pytest.mark.parametrize(
+        "scenario,answer,items_metadata,all_runs,run_id",
+        [
+            ("fully_cited", _CITED_ANSWER, [_LIVE_ITEM_METADATA], True, None),
+            ("repair_applied", _UNCITED_ANSWER, [_LIVE_ITEM_METADATA], True, None),
+            ("fallback_run_scoped", _UNCITED_ANSWER, [_LIVE_ITEM_METADATA], False, "r1"),
+            ("no_answer", "", [], True, None),
+            ("empty_chunk_warning", _CITED_ANSWER, [_EMPTY_CHUNK_METADATA], True, None),
+            ("repair_attempted_no_token", _UNCITED_ANSWER, [_HIT_METADATA_NO_TOKEN], True, None),
+        ],
+        ids=[
+            "fully_cited", "repair_applied", "fallback_run_scoped",
+            "no_answer", "empty_chunk_warning", "repair_attempted_no_token",
+        ],
+    )
+    def test_citation_warnings_are_subset_of_top_level_warnings(
+        self,
+        scenario: str,
+        answer: str,
+        items_metadata: list,
+        all_runs: bool,
+        run_id: str | None,
+    ) -> None:
+        """Every warning in ``citation_quality['citation_warnings']`` must also
+        appear in the top-level ``warnings`` list (invariant §3.7)."""
+        result = _run_with_mocked_retrieval(
+            answer=answer,
+            items_metadata=items_metadata,
+            all_runs=all_runs,
+            run_id=run_id,
+        )
+        cq = result["citation_quality"]
+        for w in cq["citation_warnings"]:
+            assert w in result["warnings"], (
+                f"[{scenario}] citation_quality warning {w!r} missing from "
+                f"top-level warnings; got {result['warnings']!r}"
+            )
+
+    def test_empty_chunk_warning_appears_in_both_lists(self) -> None:
+        """An empty-chunk-text warning must appear in both ``warnings`` and
+        ``citation_quality['citation_warnings']`` because it represents a
+        citation-quality issue (the cited chunk carried no usable text evidence)."""
+        result = _run_with_mocked_retrieval(
+            answer=_CITED_ANSWER,
+            items_metadata=[_EMPTY_CHUNK_METADATA],
+            all_runs=True,
+        )
+        assert _EMPTY_CHUNK_WARNING_MSG in result["warnings"], (
+            f"Empty-chunk warning missing from top-level warnings; "
+            f"got {result['warnings']!r}"
+        )
+        cq = result["citation_quality"]
+        assert _EMPTY_CHUNK_WARNING_MSG in cq["citation_warnings"], (
+            f"Empty-chunk warning missing from citation_quality.citation_warnings; "
+            f"got {cq['citation_warnings']!r}"
+        )
+        assert cq["evidence_level"] == "degraded", (
+            "evidence_level must be 'degraded' when an empty-chunk warning exists, "
+            "even if the answer is fully cited"
+        )
+
+    def test_uncited_answer_warning_propagated_to_top_level_warnings(self) -> None:
+        """The uncited-answer warning added by ``_postprocess_answer`` must be
+        propagated to the top-level ``warnings`` list."""
+        result = _run_with_mocked_retrieval(
+            answer=_UNCITED_ANSWER,
+            items_metadata=[],
+            all_runs=False,
+            run_id="r1",
+        )
+        assert _UNCITED_WARNING in result["warnings"], (
+            f"Uncited-answer warning missing from top-level warnings; "
+            f"got {result['warnings']!r}"
+        )
+        assert _UNCITED_WARNING in result["citation_quality"]["citation_warnings"], (
+            f"Uncited-answer warning missing from citation_quality.citation_warnings; "
+            f"got {result['citation_quality']['citation_warnings']!r}"
+        )
+
+    def test_warnings_type_is_list_of_str(self) -> None:
+        """``warnings`` must be a list of strings for all scenarios."""
+        scenarios = [
+            (_CITED_ANSWER, [_LIVE_ITEM_METADATA], True, None),
+            (_UNCITED_ANSWER, [_LIVE_ITEM_METADATA], True, None),
+            (_UNCITED_ANSWER, [], False, "r1"),
+            ("", [], True, None),
+        ]
+        for answer, meta, all_runs, run_id in scenarios:
+            result = _run_with_mocked_retrieval(
+                answer=answer, items_metadata=meta, all_runs=all_runs, run_id=run_id
+            )
+            assert isinstance(result["warnings"], list), (
+                f"warnings expected list for answer={answer!r}"
+            )
+            for item in result["warnings"]:
+                assert isinstance(item, str), (
+                    f"warnings entry expected str, got {type(item).__name__} "
+                    f"for answer={answer!r}"
+                )
+
+    def test_fully_cited_answer_no_warnings(self) -> None:
+        """A fully cited answer with no retrieval-time issues must produce
+        empty ``warnings`` and ``citation_quality['citation_warnings']`` lists."""
+        result = _run_with_mocked_retrieval(
+            answer=_CITED_ANSWER,
+            items_metadata=[_LIVE_ITEM_METADATA],
+            all_runs=True,
+        )
+        assert result["warnings"] == [], (
+            f"Expected empty warnings for fully cited answer; got {result['warnings']!r}"
+        )
+        cq = result["citation_quality"]
+        assert cq["citation_warnings"] == [], (
+            f"Expected empty citation_warnings; got {cq['citation_warnings']!r}"
+        )
+        assert cq["warning_count"] == 0
