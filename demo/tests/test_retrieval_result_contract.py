@@ -1746,7 +1746,7 @@ class TestProjectPostprocessToPublic:
     assertion cheaper and more explicit.
     """
 
-    def _pp(self, answer: str, hits: list, all_runs: bool) -> dict:
+    def _pp(self, answer: str, hits: list, all_runs: bool):
         """Return a ``_postprocess_answer`` result for the given inputs."""
         return _postprocess_answer(answer, hits, all_runs=all_runs)
 
