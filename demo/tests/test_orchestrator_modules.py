@@ -3765,6 +3765,28 @@ def test_retrieval_and_qa_live_all_runs_uncited_answer_repaired_when_hits_presen
     assert result["raw_answer"] == uncited_answer, (
         "raw_answer must preserve the original (pre-repair) LLM output"
     )
+    # citation_repair_applied must be True when repair fires
+    assert result["citation_repair_applied"] is True, (
+        "citation_repair_applied must be True when repair fires; "
+        f"got citation_repair_applied={result['citation_repair_applied']!r}"
+    )
+    assert result["citation_repair_strategy"] == "append_first_retrieved_token", (
+        "citation_repair_strategy must name the repair algorithm used; "
+        f"got {result['citation_repair_strategy']!r}"
+    )
+    assert result["citation_repair_source_chunk_id"] == "real-chunk-1", (
+        "citation_repair_source_chunk_id must be the chunk_id of the repaired hit; "
+        f"got {result['citation_repair_source_chunk_id']!r}"
+    )
+    # raw_answer_all_cited must be False: the original LLM output was NOT fully cited
+    assert result["raw_answer_all_cited"] is False, (
+        "raw_answer_all_cited must be False when the original LLM output was uncited; "
+        f"got raw_answer_all_cited={result['raw_answer_all_cited']!r}"
+    )
+    # citation_quality must expose raw_answer_all_cited for structured consumers
+    assert cq["raw_answer_all_cited"] is False, (
+        "citation_quality.raw_answer_all_cited must be False when the original LLM output was uncited"
+    )
 
 
 def test_retrieval_and_qa_live_all_runs_uncited_answer_fallback_when_no_hits(tmp_path: Path):
@@ -3816,6 +3838,20 @@ def test_retrieval_and_qa_live_all_runs_uncited_answer_fallback_when_no_hits(tmp
         f"got citation_fallback_applied={result['citation_fallback_applied']!r}"
     )
     assert result["all_answers_cited"] is False
+    # No repair was possible — citation_repair_applied must be False
+    assert result["citation_repair_applied"] is False, (
+        "citation_repair_applied must be False when no hits were retrieved; "
+        f"got citation_repair_applied={result['citation_repair_applied']!r}"
+    )
+    assert result["citation_repair_strategy"] is None, (
+        "citation_repair_strategy must be None when no repair occurred"
+    )
+    assert result["citation_repair_source_chunk_id"] is None, (
+        "citation_repair_source_chunk_id must be None when no repair occurred"
+    )
+    assert result["raw_answer_all_cited"] is False, (
+        "raw_answer_all_cited must be False when the LLM answer was uncited"
+    )
 
 
 def test_retrieval_and_qa_live_all_runs_fully_cited_answer_no_repair_needed(tmp_path: Path):
@@ -3895,6 +3931,19 @@ def test_retrieval_and_qa_live_all_runs_fully_cited_answer_no_repair_needed(tmp_
     assert result["citation_fallback_applied"] is False
     assert result["citation_quality"]["evidence_level"] == "full"
     assert result["raw_answer"] == cited_answer
+    # No repair was needed — citation_repair_applied must be False
+    assert result["citation_repair_applied"] is False, (
+        "citation_repair_applied must be False when the LLM answer was already fully cited"
+    )
+    assert result["citation_repair_strategy"] is None
+    assert result["citation_repair_source_chunk_id"] is None
+    # raw_answer was already fully cited — raw_answer_all_cited must be True
+    assert result["raw_answer_all_cited"] is True, (
+        "raw_answer_all_cited must be True when the original LLM output was fully cited"
+    )
+    assert result["citation_quality"]["raw_answer_all_cited"] is True, (
+        "citation_quality.raw_answer_all_cited must be True when the original LLM output was fully cited"
+    )
 
 
 def test_repair_uncited_answer_appends_token_to_each_uncited_segment():
@@ -3934,6 +3983,139 @@ def test_repair_uncited_answer_appends_token_to_each_uncited_segment():
     # Empty answer must be returned unchanged
     assert _repair_uncited_answer("", token) == ""
     assert _repair_uncited_answer("some text", "") == "some text"
+
+
+# ---------------------------------------------------------------------------
+# citation repair metadata: new fields added for issue observability
+# ---------------------------------------------------------------------------
+
+def test_retrieval_and_qa_dry_run_includes_citation_repair_fields(tmp_path: Path):
+    """Dry-run result must include citation_repair_applied, citation_repair_strategy, and
+    citation_repair_source_chunk_id with their default values (False/None/None)."""
+    from demo.stages import run_retrieval_and_qa
+
+    config = _dry_run_config(tmp_path)
+    result = run_retrieval_and_qa(config, run_id=None, source_uri=None, all_runs=True)
+
+    assert "citation_repair_applied" in result, (
+        "dry-run result must include citation_repair_applied key"
+    )
+    assert result["citation_repair_applied"] is False
+    assert "citation_repair_strategy" in result
+    assert result["citation_repair_strategy"] is None
+    assert "citation_repair_source_chunk_id" in result
+    assert result["citation_repair_source_chunk_id"] is None
+
+
+def test_retrieval_and_qa_dry_run_includes_raw_answer_all_cited(tmp_path: Path):
+    """Dry-run result must include raw_answer_all_cited (False by default) at both the
+    top level and inside citation_quality."""
+    from demo.stages import run_retrieval_and_qa
+
+    config = _dry_run_config(tmp_path)
+    result = run_retrieval_and_qa(config, run_id=None, source_uri=None)
+
+    assert "raw_answer_all_cited" in result, (
+        "dry-run result must include raw_answer_all_cited key"
+    )
+    assert result["raw_answer_all_cited"] is False
+    assert "raw_answer_all_cited" in result["citation_quality"], (
+        "citation_quality must include raw_answer_all_cited key"
+    )
+    assert result["citation_quality"]["raw_answer_all_cited"] is False
+
+
+def test_retrieval_and_qa_live_path_citation_quality_includes_raw_answer_all_cited(
+    tmp_path: Path,
+):
+    """Live path citation_quality must include raw_answer_all_cited when the answer is
+    fully cited (True), in addition to all_cited."""
+    from demo.stages import run_retrieval_and_qa
+    from demo.stages.retrieval_and_qa import _build_citation_token
+
+    real_token = _build_citation_token(
+        chunk_id="qa-cq-chunk",
+        run_id="qa-cq-run",
+        source_uri="file:///qa-cq.pdf",
+        chunk_index=0,
+        page=1,
+        start_char=0,
+        end_char=40,
+    )
+    cited_answer = f"Evidence supports the claim. {real_token}"
+
+    class _FakeRetrieverCQ:
+        def __init__(self, **kwargs):
+            pass
+
+        def search(self, **kwargs):
+            return _make_fake_retriever_result(
+                [
+                    _make_fake_retriever_result_item(
+                        f"Chunk text\n{real_token}",
+                        {
+                            "citation_token": real_token,
+                            "citation_object": {
+                                "chunk_id": "qa-cq-chunk",
+                                "run_id": "qa-cq-run",
+                                "source_uri": "file:///qa-cq.pdf",
+                                "chunk_index": 0,
+                                "page": 1,
+                                "start_char": 0,
+                                "end_char": 40,
+                            },
+                            "chunk_id": "qa-cq-chunk",
+                            "run_id": "qa-cq-run",
+                            "source_uri": "file:///qa-cq.pdf",
+                            "chunk_index": 0,
+                            "page": 1,
+                            "start_char": 0,
+                            "end_char": 40,
+                            "score": 0.92,
+                            "empty_chunk_text": False,
+                        },
+                    )
+                ]
+            )
+
+    live_config = Config(
+        dry_run=False,
+        output_dir=tmp_path,
+        neo4j_uri="bolt://example.invalid",
+        neo4j_username="neo4j",
+        neo4j_password="secret",
+        neo4j_database="neo4j",
+        openai_model="gpt-4o-mini",
+    )
+
+    with mock.patch(
+        "demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetrieverCQ
+    ), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
+    ), mock.patch(
+        "demo.stages.retrieval_and_qa.GraphRAG",
+        _make_stub_graphrag_class(answer=cited_answer),
+    ), mock.patch(
+        "demo.stages.retrieval_and_qa.build_openai_llm"
+    ), mock.patch(
+        "neo4j.GraphDatabase.driver"
+    ), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+        result = run_retrieval_and_qa(
+            live_config,
+            run_id="qa-cq-run",
+            source_uri=None,
+            question="What supports the claim?",
+        )
+
+    cq = result["citation_quality"]
+    assert "raw_answer_all_cited" in cq, (
+        "citation_quality must include raw_answer_all_cited key on the live path"
+    )
+    assert cq["raw_answer_all_cited"] is True, (
+        "citation_quality.raw_answer_all_cited must be True when the original LLM answer was fully cited"
+    )
+    assert cq["all_cited"] is True
+    assert result["raw_answer_all_cited"] is True
 
 
 def test_retrieval_and_qa_dry_run_all_runs_qa_label(tmp_path: Path):
@@ -4512,9 +4694,43 @@ def test_chunk_citation_formatter_claim_details_and_cluster_context_both_present
     assert "[CITATION|" in item.content
 
 
+def test_chunk_citation_formatter_arbitrary_roles_in_content():
+    """_chunk_citation_formatter must render arbitrary roles (e.g. agent, target) from the
+    new ``roles`` list format in content so the LLM sees all participation edges."""
+    from demo.stages.retrieval_and_qa import _chunk_citation_formatter
+
+    record = _make_fake_neo4j_record(
+        chunk_id="c-cd-7",
+        run_id="r7",
+        source_uri="file:///doc.pdf",
+        chunk_index=0,
+        page=1,
+        start_char=0,
+        end_char=200,
+        chunk_text="The board authorised the acquisition.",
+        similarityScore=0.87,
+        claims=["The board authorised the acquisition."],
+        claim_details=[
+            {
+                "claim_text": "The board authorised the acquisition.",
+                "roles": [
+                    {"role": "agent", "name": "The board", "match_method": "casefold_exact"},
+                    {"role": "target", "name": "the acquisition", "match_method": "normalized_exact"},
+                ],
+            }
+        ],
+    )
+    item = _chunk_citation_formatter(record)
+    assert "[Claim context" in item.content
+    assert "agent='The board'" in item.content
+    assert "target='the acquisition'" in item.content
+    assert "[CITATION|" in item.content
+
+
+
 def test_retrieval_query_with_expansion_includes_claim_details_field():
     """_RETRIEVAL_QUERY_WITH_EXPANSION must contain claim_details as a pattern comprehension
-    that traverses HAS_PARTICIPANT edges with role filtering."""
+    that traverses all HAS_PARTICIPANT edges and collects roles generically."""
     from demo.stages.retrieval_and_qa import _RETRIEVAL_QUERY_WITH_EXPANSION
 
     assert "claim_details" in _RETRIEVAL_QUERY_WITH_EXPANSION, (
@@ -4523,11 +4739,8 @@ def test_retrieval_query_with_expansion_includes_claim_details_field():
     assert "HAS_PARTICIPANT" in _RETRIEVAL_QUERY_WITH_EXPANSION, (
         "_RETRIEVAL_QUERY_WITH_EXPANSION must traverse HAS_PARTICIPANT edges"
     )
-    assert "role: 'subject'" in _RETRIEVAL_QUERY_WITH_EXPANSION, (
-        "_RETRIEVAL_QUERY_WITH_EXPANSION must filter by role: 'subject' for subject_mention"
-    )
-    assert "role: 'object'" in _RETRIEVAL_QUERY_WITH_EXPANSION, (
-        "_RETRIEVAL_QUERY_WITH_EXPANSION must filter by role: 'object' for object_mention"
+    assert "r.role" in _RETRIEVAL_QUERY_WITH_EXPANSION, (
+        "_RETRIEVAL_QUERY_WITH_EXPANSION must collect r.role generically for all participation edges"
     )
     assert "match_method" in _RETRIEVAL_QUERY_WITH_EXPANSION, (
         "_RETRIEVAL_QUERY_WITH_EXPANSION must include match_method in claim_details"
@@ -4540,8 +4753,7 @@ def test_retrieval_query_with_cluster_includes_claim_details_field():
 
     assert "claim_details" in _RETRIEVAL_QUERY_WITH_CLUSTER
     assert "HAS_PARTICIPANT" in _RETRIEVAL_QUERY_WITH_CLUSTER
-    assert "role: 'subject'" in _RETRIEVAL_QUERY_WITH_CLUSTER
-    assert "role: 'object'" in _RETRIEVAL_QUERY_WITH_CLUSTER
+    assert "r.role" in _RETRIEVAL_QUERY_WITH_CLUSTER
 
 
 def test_retrieval_query_all_runs_variants_include_claim_details_field():
@@ -4557,8 +4769,7 @@ def test_retrieval_query_all_runs_variants_include_claim_details_field():
     ]:
         assert "claim_details" in query, f"{name} must return claim_details"
         assert "HAS_PARTICIPANT" in query, f"{name} must traverse HAS_PARTICIPANT edges"
-        assert "role: 'subject'" in query, f"{name} must filter by role: 'subject'"
-        assert "role: 'object'" in query, f"{name} must filter by role: 'object'"
+        assert "r.role" in query, f"{name} must collect r.role generically"
 
 
 def test_format_claim_details_empty_returns_empty_string():
@@ -4603,6 +4814,89 @@ def test_format_claim_details_no_participation_edges_renders_claim_text_only():
     assert "Company Z expanded overseas." in result
     assert "subject=" not in result
     assert "object=" not in result
+
+
+def test_format_claim_details_new_format_subject_and_object():
+    """_format_claim_details must render subject and object annotations from the new
+    ``roles`` list format (generic HAS_PARTICIPANT collection), preserving current output."""
+    from demo.stages.retrieval_and_qa import _format_claim_details
+
+    details = [
+        {
+            "claim_text": "Galperin co-founded MercadoLibre.",
+            "roles": [
+                {"role": "subject", "name": "Galperin", "match_method": "raw_exact"},
+                {"role": "object", "name": "MercadoLibre", "match_method": "raw_exact"},
+            ],
+        }
+    ]
+    result = _format_claim_details(details)
+    assert "[Claim context" in result
+    assert "Galperin co-founded MercadoLibre." in result
+    assert "subject='Galperin'" in result
+    assert "object='MercadoLibre'" in result
+    assert "raw_exact" in result
+
+
+def test_format_claim_details_new_format_arbitrary_roles():
+    """_format_claim_details must render arbitrary roles (e.g. agent, target) from the
+    new ``roles`` list format without requiring code changes for each new role."""
+    from demo.stages.retrieval_and_qa import _format_claim_details
+
+    details = [
+        {
+            "claim_text": "The board authorised the acquisition.",
+            "roles": [
+                {"role": "agent", "name": "The board", "match_method": "casefold_exact"},
+                {"role": "target", "name": "the acquisition", "match_method": "normalized_exact"},
+            ],
+        }
+    ]
+    result = _format_claim_details(details)
+    assert "[Claim context" in result
+    assert "The board authorised the acquisition." in result
+    assert "agent='The board'" in result
+    assert "target='the acquisition'" in result
+    assert "casefold_exact" in result
+    assert "normalized_exact" in result
+
+
+def test_format_claim_details_new_format_mixed_roles():
+    """_format_claim_details must render a mix of subject/object and additional roles
+    (e.g. agent) correctly when they appear together in the roles list."""
+    from demo.stages.retrieval_and_qa import _format_claim_details
+
+    details = [
+        {
+            "claim_text": "Smith, acting as agent, transferred assets to Corp.",
+            "roles": [
+                {"role": "subject", "name": "assets", "match_method": "raw_exact"},
+                {"role": "object", "name": "Corp", "match_method": "raw_exact"},
+                {"role": "agent", "name": "Smith", "match_method": "casefold_exact"},
+            ],
+        }
+    ]
+    result = _format_claim_details(details)
+    assert "subject='assets'" in result
+    assert "object='Corp'" in result
+    assert "agent='Smith'" in result
+
+
+def test_format_claim_details_new_format_empty_roles_list():
+    """_format_claim_details must render claim text without role annotations when the
+    new ``roles`` list is present but empty (no resolved participation edges)."""
+    from demo.stages.retrieval_and_qa import _format_claim_details
+
+    details = [
+        {
+            "claim_text": "An unresolved claim.",
+            "roles": [],
+        }
+    ]
+    result = _format_claim_details(details)
+    assert "An unresolved claim." in result
+    assert "[Claim context" in result
+    assert "=" not in result.split("An unresolved claim.")[1].split("\n")[0]
 
 
 def test_retrieval_and_qa_expand_graph_surfaces_claim_details_in_metadata(tmp_path: Path):
@@ -4682,4 +4976,323 @@ def test_retrieval_and_qa_expand_graph_surfaces_claim_details_in_metadata(tmp_pa
     )
     assert "object='MercadoLibre'" in hit_content, (
         "claim object mention must appear in retrieved content for expand_graph mode"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Run-scoping: query string structural tests
+# ---------------------------------------------------------------------------
+
+
+def _normalize_query(query: str) -> str:
+    """Collapse all whitespace sequences in a Cypher query to a single space.
+
+    Structural tests use substring assertions against query constants.  Normalizing
+    whitespace first makes those assertions resilient to harmless formatting changes
+    (re-indentation, line wrapping) so a test only fails on a genuine semantic regression.
+    """
+    return " ".join(query.split())
+
+
+def test_retrieval_query_with_expansion_run_scopes_chunk_claim_and_mention():
+    """_RETRIEVAL_QUERY_WITH_EXPANSION must filter chunk, claim, and mention nodes by run_id.
+
+    Run scoping is preserved across all graph traversal targets: the chunk node itself
+    (c.run_id = $run_id), claims backed by SUPPORTED_BY (claim.run_id = $run_id), and
+    entity mentions reached via MENTIONED_IN (mention.run_id = $run_id).  Without these
+    guards a run-scoped query can surface data from neighbouring ingestion runs.
+    """
+    from demo.stages.retrieval_and_qa import _RETRIEVAL_QUERY_WITH_EXPANSION
+
+    q = _normalize_query(_RETRIEVAL_QUERY_WITH_EXPANSION)
+    assert "c.run_id = $run_id" in q, (
+        "_RETRIEVAL_QUERY_WITH_EXPANSION must filter the chunk node by c.run_id = $run_id"
+    )
+    assert "claim.run_id = $run_id" in q, (
+        "_RETRIEVAL_QUERY_WITH_EXPANSION must filter ExtractedClaim nodes by claim.run_id = $run_id"
+    )
+    assert "mention.run_id = $run_id" in q, (
+        "_RETRIEVAL_QUERY_WITH_EXPANSION must filter EntityMention nodes by mention.run_id = $run_id"
+    )
+
+
+def test_retrieval_query_with_cluster_run_scopes_chunk_claim_mention_and_alignment():
+    """_RETRIEVAL_QUERY_WITH_CLUSTER must filter chunk, claim, mention, and ALIGNED_WITH by run_id.
+
+    In addition to chunk/claim/mention scoping, the ALIGNED_WITH edge filter must include
+    both a.run_id = $run_id and a.alignment_version = $alignment_version to prevent
+    mixed-version or cross-run alignment contamination.
+    """
+    from demo.stages.retrieval_and_qa import _RETRIEVAL_QUERY_WITH_CLUSTER
+
+    q = _normalize_query(_RETRIEVAL_QUERY_WITH_CLUSTER)
+    assert "c.run_id = $run_id" in q, (
+        "_RETRIEVAL_QUERY_WITH_CLUSTER must filter the chunk node by c.run_id = $run_id"
+    )
+    assert "claim.run_id = $run_id" in q, (
+        "_RETRIEVAL_QUERY_WITH_CLUSTER must filter ExtractedClaim nodes by claim.run_id = $run_id"
+    )
+    assert "mention.run_id = $run_id" in q, (
+        "_RETRIEVAL_QUERY_WITH_CLUSTER must filter EntityMention nodes by mention.run_id = $run_id"
+    )
+    assert "a.run_id = $run_id" in q, (
+        "_RETRIEVAL_QUERY_WITH_CLUSTER must filter ALIGNED_WITH edges by a.run_id = $run_id"
+    )
+    assert "a.alignment_version = $alignment_version" in q, (
+        "_RETRIEVAL_QUERY_WITH_CLUSTER must filter ALIGNED_WITH by a.alignment_version = $alignment_version"
+    )
+
+
+def test_retrieval_query_all_runs_variants_omit_run_id_filter():
+    """All-runs query variants must NOT contain $run_id parameter references.
+
+    When all_runs=True the retriever intentionally queries across all ingestion runs.
+    Any accidental $run_id reference in the query body would silently scope results to
+    a single run (or fail at execution when run_id is None).
+    """
+    from demo.stages.retrieval_and_qa import (
+        _RETRIEVAL_QUERY_BASE_ALL_RUNS,
+        _RETRIEVAL_QUERY_WITH_EXPANSION_ALL_RUNS,
+    )
+
+    for name, query in [
+        ("_RETRIEVAL_QUERY_BASE_ALL_RUNS", _RETRIEVAL_QUERY_BASE_ALL_RUNS),
+        ("_RETRIEVAL_QUERY_WITH_EXPANSION_ALL_RUNS", _RETRIEVAL_QUERY_WITH_EXPANSION_ALL_RUNS),
+    ]:
+        assert "$run_id" not in _normalize_query(query), (
+            f"{name} must not reference $run_id — all-runs queries must not filter by run"
+        )
+
+
+def test_retrieval_query_with_cluster_all_runs_uses_per_chunk_run_id_for_alignment():
+    """_RETRIEVAL_QUERY_WITH_CLUSTER_ALL_RUNS must scope ALIGNED_WITH by the mention's own run_id.
+
+    In all-runs mode there is no global $run_id parameter.  The ALIGNED_WITH filter must
+    use a.run_id = mention.run_id (each chunk's local run) rather than $run_id so that
+    alignment edges are matched against the correct provenance for each individual hit.
+    The alignment_version parameter is still scoped globally via $alignment_version.
+    """
+    from demo.stages.retrieval_and_qa import _RETRIEVAL_QUERY_WITH_CLUSTER_ALL_RUNS
+
+    q = _normalize_query(_RETRIEVAL_QUERY_WITH_CLUSTER_ALL_RUNS)
+    assert "$run_id" not in q, (
+        "_RETRIEVAL_QUERY_WITH_CLUSTER_ALL_RUNS must not use global $run_id filter"
+    )
+    assert "a.run_id = mention.run_id" in q, (
+        "_RETRIEVAL_QUERY_WITH_CLUSTER_ALL_RUNS must scope ALIGNED_WITH via a.run_id = mention.run_id "
+        "so each hit uses its own run provenance"
+    )
+    assert "a.alignment_version = $alignment_version" in q, (
+        "_RETRIEVAL_QUERY_WITH_CLUSTER_ALL_RUNS must still filter ALIGNED_WITH by $alignment_version"
+    )
+
+
+# ---------------------------------------------------------------------------
+# All-runs mode: per-hit run_id provenance in citation metadata
+# ---------------------------------------------------------------------------
+
+
+def test_all_runs_retrieve_preserves_per_hit_run_id_in_metadata(tmp_path: Path):
+    """In all_runs mode, each hit's citation metadata must preserve the run_id from the
+    underlying chunk record so consumers can trace the provenance of individual results
+    across multiple ingestion runs.
+
+    Cross-run retrieval is only meaningful if each hit remains traceable to its source
+    run — a hit without a run_id in metadata cannot be attributed to a specific ingest.
+    """
+    from demo.stages import run_retrieval_and_qa
+    from demo.stages.retrieval_and_qa import _chunk_citation_formatter
+
+    run_a_record = _make_fake_neo4j_record(
+        chunk_id="chunk-run-a",
+        run_id="ingest-run-a",
+        source_uri="file:///doc-a.pdf",
+        chunk_index=0,
+        page=1,
+        start_char=0,
+        end_char=100,
+        chunk_text="Content from run A.",
+        similarityScore=0.92,
+    )
+    run_b_record = _make_fake_neo4j_record(
+        chunk_id="chunk-run-b",
+        run_id="ingest-run-b",
+        source_uri="file:///doc-b.pdf",
+        chunk_index=0,
+        page=1,
+        start_char=0,
+        end_char=100,
+        chunk_text="Content from run B.",
+        similarityScore=0.87,
+    )
+    item_a = _chunk_citation_formatter(run_a_record)
+    item_b = _chunk_citation_formatter(run_b_record)
+
+    class _FakeRetriever:
+        def __init__(self, **kwargs):
+            pass
+
+        def search(self, **kwargs):
+            return _make_fake_retriever_result([item_a, item_b])
+
+    live_config = Config(
+        dry_run=False,
+        output_dir=tmp_path,
+        neo4j_uri="bolt://example.invalid",
+        neo4j_username="neo4j",
+        neo4j_password="secret",
+        neo4j_database="neo4j",
+        openai_model="gpt-4o-mini",
+    )
+
+    with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
+    ), mock.patch(
+        "demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class()
+    ), mock.patch(
+        "demo.stages.retrieval_and_qa.build_openai_llm"
+    ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+        result = run_retrieval_and_qa(
+            live_config,
+            run_id=None,
+            source_uri=None,
+            question="What happened?",
+            all_runs=True,
+        )
+
+    assert result["hits"] == 2
+    run_ids_in_metadata = [
+        hit["metadata"].get("run_id") for hit in result["retrieval_results"]
+    ]
+    assert "ingest-run-a" in run_ids_in_metadata, (
+        "all-runs mode must preserve per-hit run_id='ingest-run-a' in citation metadata"
+    )
+    assert "ingest-run-b" in run_ids_in_metadata, (
+        "all-runs mode must preserve per-hit run_id='ingest-run-b' in citation metadata"
+    )
+    # The two hits must carry different run_ids — cross-run provenance is distinct
+    assert run_ids_in_metadata[0] != run_ids_in_metadata[1], (
+        "each hit must carry its own run_id so cross-run provenance is distinguishable"
+    )
+
+
+# ---------------------------------------------------------------------------
+# No co-location fallback: chunk mentions must not substitute for participation edges
+# ---------------------------------------------------------------------------
+
+
+def test_chunk_citation_formatter_no_role_fallback_to_collocated_mentions():
+    """_chunk_citation_formatter must NOT substitute co-located chunk mentions for missing
+    participation-edge roles.
+
+    When a claim has null subject_mention and null object_mention (no HAS_PARTICIPANT edges)
+    but the chunk record has a populated `mentions` list (co-located EntityMention nodes),
+    the formatter must not infer subject/object roles from those co-located mentions.
+    The claim text is still rendered but without any role= annotations.
+    """
+    from demo.stages.retrieval_and_qa import _chunk_citation_formatter
+
+    # Record with co-located mentions in chunk, but no participation edges on the claim
+    record = _make_fake_neo4j_record(
+        chunk_id="c-no-fallback",
+        run_id="r-no-fallback",
+        source_uri="file:///doc.pdf",
+        chunk_index=0,
+        page=1,
+        start_char=0,
+        end_char=150,
+        chunk_text="Galperin and MercadoLibre appeared in the same document.",
+        similarityScore=0.80,
+        # Co-located mentions present in the chunk (these must NOT be used for role slots)
+        mentions=["Galperin", "MercadoLibre"],
+        claims=["Some claim about the company."],
+        claim_details=[
+            {
+                "claim_text": "Some claim about the company.",
+                "subject_mention": None,  # no HAS_PARTICIPANT {role: 'subject'} edge
+                "object_mention": None,   # no HAS_PARTICIPANT {role: 'object'} edge
+            }
+        ],
+    )
+    item = _chunk_citation_formatter(record)
+
+    # Claim context section is rendered (claim text is present)
+    assert "[Claim context" in item.content, (
+        "Claim context section must still appear when claim_details is present"
+    )
+    assert "Some claim about the company." in item.content
+
+    # Co-located mentions must NOT appear as subject/object role assignments
+    assert "subject='Galperin'" not in item.content, (
+        "co-located mention 'Galperin' must not be inferred as subject role"
+    )
+    assert "object='MercadoLibre'" not in item.content, (
+        "co-located mention 'MercadoLibre' must not be inferred as object role"
+    )
+    assert "subject=" not in item.content, (
+        "no subject= annotation must appear when no HAS_PARTICIPANT subject edge exists"
+    )
+    assert "object=" not in item.content, (
+        "no object= annotation must appear when no HAS_PARTICIPANT object edge exists"
+    )
+
+    # Co-located mentions list preserved in metadata but not promoted to role slots
+    assert item.metadata.get("mentions") == ["Galperin", "MercadoLibre"], (
+        "co-located mentions must still be preserved in metadata unchanged"
+    )
+
+
+# ---------------------------------------------------------------------------
+# _format_claim_details: edge cases
+# ---------------------------------------------------------------------------
+
+
+def test_format_claim_details_skips_entries_with_empty_claim_text():
+    """_format_claim_details must skip claim entries whose claim_text is empty or whitespace.
+
+    A participation edge dataset may include claim rows with blank text due to extraction
+    gaps.  These must be silently filtered rather than rendering a blank bullet in context.
+    """
+    from demo.stages.retrieval_and_qa import _format_claim_details
+
+    details = [
+        {
+            "claim_text": "",
+            "subject_mention": {"name": "Entity A", "match_method": "raw_exact"},
+            "object_mention": None,
+        },
+        {
+            "claim_text": "   ",
+            "subject_mention": None,
+            "object_mention": None,
+        },
+        {
+            "claim_text": "Valid claim text.",
+            "subject_mention": {"name": "Entity B", "match_method": "casefold_exact"},
+            "object_mention": None,
+        },
+    ]
+    result = _format_claim_details(details)
+    # Only the valid entry should produce output
+    assert "Valid claim text." in result
+    assert "Entity B" in result
+    # Entries with empty/whitespace claim_text must be skipped entirely
+    assert "Entity A" not in result, (
+        "participation edge data for a blank claim_text entry must be silently dropped"
+    )
+    # The header should appear because there is one valid entry
+    assert "[Claim context" in result
+
+
+def test_format_claim_details_all_empty_claim_text_returns_empty_string():
+    """_format_claim_details must return empty string when all entries have empty claim_text."""
+    from demo.stages.retrieval_and_qa import _format_claim_details
+
+    details = [
+        {"claim_text": "", "subject_mention": None, "object_mention": None},
+        {"claim_text": "  ", "subject_mention": None, "object_mention": None},
+    ]
+    result = _format_claim_details(details)
+    assert result == "", (
+        "_format_claim_details must return '' when no entry has non-empty claim_text"
     )

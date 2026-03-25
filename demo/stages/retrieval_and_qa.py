@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+from typing import Literal, TypedDict
 
 import neo4j
 from neo4j_graphrag.embeddings.openai import OpenAIEmbeddings
@@ -19,100 +20,277 @@ from demo.contracts.prompts import POWER_ATLAS_RAG_TEMPLATE
 _DEFAULT_TOP_K = 10
 _logger = logging.getLogger(__name__)
 
+# ---------------------------------------------------------------------------
+# Private query sub-expression builders.
+#
+# Each function returns a Cypher fragment that is shared across multiple query
+# variants.  The *run_scoped* flag controls whether run_id WHERE filters are
+# included (run-scoped mode) or omitted (all-runs mode).
+# ---------------------------------------------------------------------------
+
+# Shared RETURN projection for chunk provenance fields — identical in all variants.
+_RETURN_BASE_COLUMNS = (
+    "RETURN c.text AS chunk_text,\n"
+    "       c.chunk_id AS chunk_id,\n"
+    "       c.run_id AS run_id,\n"
+    "       c.source_uri AS source_uri,\n"
+    "       c.chunk_index AS chunk_index,\n"
+    "       coalesce(c.page_number, c.page) AS page,\n"
+    "       c.start_char AS start_char,\n"
+    "       c.end_char AS end_char,\n"
+    "       score AS similarityScore"
+)
+
+
+def _build_claim_details_with_clause(run_scoped: bool) -> str:
+    """Return the WITH clause that adds claim_details via HAS_PARTICIPANT traversal.
+
+    Traverses ``SUPPORTED_BY`` edges from the Chunk to ``ExtractedClaim`` nodes,
+    then collects **all** ``HAS_PARTICIPANT`` participation edges (v0.3 model) as a
+    ``roles`` list.  Each entry in the list carries the ``role`` property, the
+    mention ``mention_name``, and the ``match_method`` — covering subject, object,
+    and any future roles (agent, target, location, …) without requiring schema
+    changes.
+
+    When *run_scoped* is ``True``, a ``WHERE`` filter restricts
+    ``ExtractedClaim`` nodes to the current ``$run_id``.  In all-runs mode the
+    filter is omitted so claims from all runs are included.
+    """
+    claim_filter = " WHERE claim.run_id = $run_id" if run_scoped else ""
+    return (
+        "WITH c, score,\n"
+        "     [(c)<-[:SUPPORTED_BY]-(claim:ExtractedClaim)" + claim_filter + " |\n"
+        "         {claim_text: claim.claim_text,\n"
+        "          roles: [(claim)-[r:HAS_PARTICIPANT]->(m:EntityMention) | {role: r.role, mention_name: m.name, match_method: r.match_method}]}\n"
+        "     ] AS claim_details"
+    )
+
+
+def _build_mention_names_expr(run_scoped: bool) -> str:
+    """Return the pattern comprehension that projects mention names from a Chunk.
+
+    Traverses ``MENTIONED_IN`` edges to ``EntityMention`` nodes and collects
+    their ``name`` properties.  When *run_scoped* is ``True``, a ``WHERE``
+    filter restricts ``EntityMention`` nodes to the current ``$run_id``.
+    """
+    run_filter = " WHERE mention.run_id = $run_id" if run_scoped else ""
+    return (
+        "[(c)<-[:MENTIONED_IN]-(mention:EntityMention)" + run_filter
+        + " | mention.name] AS mentions"
+    )
+
+
+def _build_canonical_names_expr(run_scoped: bool) -> str:
+    """Return the pattern comprehension that projects canonical entity names.
+
+    Traverses ``MENTIONED_IN`` → ``RESOLVES_TO`` to reach ``CanonicalEntity``
+    nodes and collects their ``name`` properties.  When *run_scoped* is
+    ``True``, a ``WHERE`` filter restricts ``EntityMention`` nodes to the
+    current ``$run_id``.
+    """
+    run_filter = " WHERE mention.run_id = $run_id" if run_scoped else ""
+    return (
+        "[(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:RESOLVES_TO]->(canonical)"
+        + run_filter + " | canonical.name] AS canonical_entities"
+    )
+
+
+def _build_cluster_memberships_expr(run_scoped: bool) -> str:
+    """Return the pattern comprehension that projects ResolvedEntityCluster memberships.
+
+    For each ``EntityMention`` reachable from the Chunk, follows ``MEMBER_OF``
+    edges to ``ResolvedEntityCluster`` nodes and collects per-membership
+    provenance (``cluster_id``, ``cluster_name``, ``membership_status``,
+    ``membership_method``).  When *run_scoped* is ``True``, a ``WHERE`` filter
+    restricts ``EntityMention`` nodes to the current ``$run_id``.
+    """
+    run_filter = " WHERE mention.run_id = $run_id" if run_scoped else ""
+    return (
+        "[(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[r:MEMBER_OF]->(cluster:ResolvedEntityCluster)"
+        + run_filter
+        + " | {cluster_id: cluster.cluster_id, cluster_name: cluster.canonical_name, membership_status: r.status, membership_method: r.method}] AS cluster_memberships"
+    )
+
+
+def _build_cluster_canonical_alignments_expr(run_scoped: bool) -> str:
+    """Return the pattern comprehension that projects ALIGNED_WITH canonical entities.
+
+    Follows ``MEMBER_OF`` → ``ALIGNED_WITH`` from each ``EntityMention`` to
+    reach ``CanonicalEntity`` nodes and collects alignment provenance
+    (``canonical_name``, ``alignment_method``, ``alignment_status``).
+
+    In run-scoped mode, filters by ``$run_id`` on both the ``EntityMention``
+    and the ``ALIGNED_WITH`` edge, and by ``$alignment_version`` to restrict to
+    the current alignment generation.  In all-runs mode, the self-scoping
+    filter ``a.run_id = mention.run_id`` is used instead so each mention's
+    alignment edges stay paired with their own run.
+    """
+    if run_scoped:
+        where_clause = (
+            " WHERE mention.run_id = $run_id AND a.run_id = $run_id"
+            " AND a.alignment_version = $alignment_version"
+        )
+    else:
+        where_clause = (
+            " WHERE a.run_id = mention.run_id AND a.alignment_version = $alignment_version"
+        )
+    return (
+        "[(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:MEMBER_OF]"
+        "->(cluster:ResolvedEntityCluster)-[a:ALIGNED_WITH]->(aligned_canonical)"
+        + where_clause
+        + " | {canonical_name: aligned_canonical.name, alignment_method: a.alignment_method,"
+        " alignment_status: a.alignment_status}] AS cluster_canonical_alignments"
+    )
+
+
+def _build_retrieval_query(
+    *,
+    expand_graph: bool = False,
+    cluster_aware: bool = False,
+    all_runs: bool = False,
+) -> str:
+    """Assemble a retrieval Cypher query for the specified combination of modes.
+
+    Delegates sub-expression construction to the individual builder functions
+    so each expansion fragment is defined once and reused across all query
+    variants.
+
+    Parameters
+    ----------
+    expand_graph:
+        When ``True``, adds ``claim_details``, ``mentions``, and
+        ``canonical_entities`` expansions to the query.
+    cluster_aware:
+        When ``True``, extends graph expansion with ``cluster_memberships`` and
+        ``cluster_canonical_alignments`` expansions.  Implies *expand_graph*.
+    all_runs:
+        When ``True``, omits run-scoped ``WHERE`` filters so the query spans
+        all runs in the database.
+    """
+    run_scoped = not all_runs
+    # cluster_aware always includes expansion
+    expand_graph = expand_graph or cluster_aware
+
+    # Preamble: scope the Chunk node (and optionally the source_uri).
+    if run_scoped:
+        preamble = (
+            "WITH node AS c, score\n"
+            "WHERE c.run_id = $run_id\n"
+            "  AND ($source_uri IS NULL OR c.source_uri = $source_uri)"
+        )
+    else:
+        preamble = (
+            "WITH node AS c, score\n"
+            "WHERE ($source_uri IS NULL OR c.source_uri = $source_uri)"
+        )
+
+    if not expand_graph:
+        return "\n" + preamble + "\n" + _RETURN_BASE_COLUMNS + "\n"
+
+    with_claim = _build_claim_details_with_clause(run_scoped)
+    mention_expr = _build_mention_names_expr(run_scoped)
+    canonical_expr = _build_canonical_names_expr(run_scoped)
+    expansion_return = (
+        "       [cd IN claim_details | cd.claim_text] AS claims,\n"
+        "       " + mention_expr + ",\n"
+        "       " + canonical_expr + ",\n"
+        "       claim_details"
+    )
+
+    if not cluster_aware:
+        return (
+            "\n" + preamble + "\n"
+            + with_claim + "\n"
+            + _RETURN_BASE_COLUMNS + ",\n"
+            + expansion_return + "\n"
+        )
+
+    cluster_memberships_expr = _build_cluster_memberships_expr(run_scoped)
+    cluster_canonical_expr = _build_cluster_canonical_alignments_expr(run_scoped)
+    cluster_return = (
+        "       " + cluster_memberships_expr + ",\n"
+        "       " + cluster_canonical_expr
+    )
+    return (
+        "\n" + preamble + "\n"
+        + with_claim + "\n"
+        + _RETURN_BASE_COLUMNS + ",\n"
+        + expansion_return + ",\n"
+        + cluster_return + "\n"
+    )
+
+
+def _select_retrieval_query(
+    *,
+    expand_graph: bool = False,
+    cluster_aware: bool = False,
+    all_runs: bool = False,
+) -> str:
+    """Return the pre-built retrieval Cypher query for the given mode combination.
+
+    Encapsulates the query-selection priority so callers do not repeat the
+    same conditional chain:
+
+    - ``cluster_aware`` takes precedence over ``expand_graph``.
+    - ``all_runs`` selects the scope-widened variant of any expansion level.
+    - When neither flag is set, the base run-scoped query is returned.
+
+    Parameters
+    ----------
+    expand_graph:
+        When ``True``, selects a graph-expanded query variant.
+    cluster_aware:
+        When ``True``, selects the cluster-aware variant (implies expansion).
+    all_runs:
+        When ``True``, selects the all-runs (scope-widened) variant.
+    """
+    if cluster_aware and all_runs:
+        return _RETRIEVAL_QUERY_WITH_CLUSTER_ALL_RUNS
+    if cluster_aware:
+        return _RETRIEVAL_QUERY_WITH_CLUSTER
+    if expand_graph and all_runs:
+        return _RETRIEVAL_QUERY_WITH_EXPANSION_ALL_RUNS
+    if all_runs:
+        return _RETRIEVAL_QUERY_BASE_ALL_RUNS
+    if expand_graph:
+        return _RETRIEVAL_QUERY_WITH_EXPANSION
+    return _RETRIEVAL_QUERY_BASE
+
+
+# ---------------------------------------------------------------------------
+# Pre-built query constants (assembled once at module load from the builders).
+#
+# These constants are the authoritative query strings used for retrieval and
+# for the ``retrieval_query_contract`` manifest field.  Building them from the
+# sub-expression builders ensures that shared fragments (claim participation,
+# mention expansion, etc.) stay consistent across all variants without
+# duplication.
+# ---------------------------------------------------------------------------
+
 # Retrieval query: run-scoped by default. `node` is the Chunk matched by the vector index;
 # `score` is the similarity score from the index search. The null-conditional on $source_uri
 # means the filter is skipped when source_uri is passed as None.
 # Aligned with vendor pattern from vendor-resources/examples/retrieve/vector_cypher_retriever.py.
-_RETRIEVAL_QUERY_BASE = """
-WITH node AS c, score
-WHERE c.run_id = $run_id
-  AND ($source_uri IS NULL OR c.source_uri = $source_uri)
-RETURN c.text AS chunk_text,
-       c.chunk_id AS chunk_id,
-       c.run_id AS run_id,
-       c.source_uri AS source_uri,
-       c.chunk_index AS chunk_index,
-       coalesce(c.page_number, c.page) AS page,
-       c.start_char AS start_char,
-       c.end_char AS end_char,
-       score AS similarityScore
-"""
+_RETRIEVAL_QUERY_BASE = _build_retrieval_query()
 
 # Graph-expanded retrieval: adds related ExtractedClaim, EntityMention, and canonical entity
 # context via optional graph traversal from the retrieved Chunk node.
 # Pattern comprehensions are used for each expansion target to avoid row multiplication
 # (cartesian products) that would result from chained OPTIONAL MATCH clauses.
-# claim_details extends the flat claims list by traversing HAS_PARTICIPANT edges so each
-# claim map carries explicit subject/object mention name and match_method
-# (raw_exact | casefold_exact | normalized_exact).  The [0] index picks the first (and
-# typically unique) participation edge per role; null is returned when no participation
-# edge exists for that role.
-_RETRIEVAL_QUERY_WITH_EXPANSION = """
-WITH node AS c, score
-WHERE c.run_id = $run_id
-  AND ($source_uri IS NULL OR c.source_uri = $source_uri)
-WITH c, score,
-     [(c)<-[:SUPPORTED_BY]-(claim:ExtractedClaim) WHERE claim.run_id = $run_id |
-         {claim_text: claim.claim_text,
-          subject_mention: [(claim)-[sr:HAS_PARTICIPANT {role: 'subject'}]->(sm:EntityMention) | {name: sm.name, match_method: sr.match_method}][0],
-          object_mention: [(claim)-[or_:HAS_PARTICIPANT {role: 'object'}]->(om:EntityMention) | {name: om.name, match_method: or_.match_method}][0]}
-     ] AS claim_details
-RETURN c.text AS chunk_text,
-       c.chunk_id AS chunk_id,
-       c.run_id AS run_id,
-       c.source_uri AS source_uri,
-       c.chunk_index AS chunk_index,
-       coalesce(c.page_number, c.page) AS page,
-       c.start_char AS start_char,
-       c.end_char AS end_char,
-       score AS similarityScore,
-       [cd IN claim_details | cd.claim_text] AS claims,
-       [(c)<-[:MENTIONED_IN]-(mention:EntityMention) WHERE mention.run_id = $run_id | mention.name] AS mentions,
-       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:RESOLVES_TO]->(canonical) WHERE mention.run_id = $run_id | canonical.name] AS canonical_entities,
-       claim_details
-"""
+# claim_details extends the flat claims list by traversing all HAS_PARTICIPANT edges so
+# each claim map carries a generic ``roles`` list — one entry per participation edge —
+# where each entry is ``{role, mention_name, match_method}``.  All roles (subject, object,
+# and any future roles) are collected without [0]-index assumptions; an empty list is
+# returned when no participation edges exist for a claim.
+_RETRIEVAL_QUERY_WITH_EXPANSION = _build_retrieval_query(expand_graph=True)
 
 # All-runs retrieval query: no run_id filter; queries across the whole database.
 # Used when --all-runs flag is set. Citations may span multiple runs/files so provenance
 # should be interpreted with care — each citation includes its own run_id field.
-_RETRIEVAL_QUERY_BASE_ALL_RUNS = """
-WITH node AS c, score
-WHERE ($source_uri IS NULL OR c.source_uri = $source_uri)
-RETURN c.text AS chunk_text,
-       c.chunk_id AS chunk_id,
-       c.run_id AS run_id,
-       c.source_uri AS source_uri,
-       c.chunk_index AS chunk_index,
-       coalesce(c.page_number, c.page) AS page,
-       c.start_char AS start_char,
-       c.end_char AS end_char,
-       score AS similarityScore
-"""
+_RETRIEVAL_QUERY_BASE_ALL_RUNS = _build_retrieval_query(all_runs=True)
 
 # All-runs graph-expanded retrieval: no run_id filter on chunks or derived nodes.
-_RETRIEVAL_QUERY_WITH_EXPANSION_ALL_RUNS = """
-WITH node AS c, score
-WHERE ($source_uri IS NULL OR c.source_uri = $source_uri)
-WITH c, score,
-     [(c)<-[:SUPPORTED_BY]-(claim:ExtractedClaim) |
-         {claim_text: claim.claim_text,
-          subject_mention: [(claim)-[sr:HAS_PARTICIPANT {role: 'subject'}]->(sm:EntityMention) | {name: sm.name, match_method: sr.match_method}][0],
-          object_mention: [(claim)-[or_:HAS_PARTICIPANT {role: 'object'}]->(om:EntityMention) | {name: om.name, match_method: or_.match_method}][0]}
-     ] AS claim_details
-RETURN c.text AS chunk_text,
-       c.chunk_id AS chunk_id,
-       c.run_id AS run_id,
-       c.source_uri AS source_uri,
-       c.chunk_index AS chunk_index,
-       coalesce(c.page_number, c.page) AS page,
-       c.start_char AS start_char,
-       c.end_char AS end_char,
-       score AS similarityScore,
-       [cd IN claim_details | cd.claim_text] AS claims,
-       [(c)<-[:MENTIONED_IN]-(mention:EntityMention) | mention.name] AS mentions,
-       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:RESOLVES_TO]->(canonical) | canonical.name] AS canonical_entities,
-       claim_details
-"""
+_RETRIEVAL_QUERY_WITH_EXPANSION_ALL_RUNS = _build_retrieval_query(expand_graph=True, all_runs=True)
 
 # Cluster-aware retrieval (run-scoped): extends graph expansion with provisional
 # ResolvedEntityCluster membership and optional ALIGNED_WITH canonical enrichment.
@@ -121,57 +299,8 @@ RETURN c.text AS chunk_text,
 # cluster_canonical_alignments surfaces canonical entity identities reached via
 # the cluster's ALIGNED_WITH edge, including alignment method and status so
 # provisional (non-confirmed) alignments are explicitly labelled.
-_RETRIEVAL_QUERY_WITH_CLUSTER = """
-WITH node AS c, score
-WHERE c.run_id = $run_id
-  AND ($source_uri IS NULL OR c.source_uri = $source_uri)
-WITH c, score,
-     [(c)<-[:SUPPORTED_BY]-(claim:ExtractedClaim) WHERE claim.run_id = $run_id |
-         {claim_text: claim.claim_text,
-          subject_mention: [(claim)-[sr:HAS_PARTICIPANT {role: 'subject'}]->(sm:EntityMention) | {name: sm.name, match_method: sr.match_method}][0],
-          object_mention: [(claim)-[or_:HAS_PARTICIPANT {role: 'object'}]->(om:EntityMention) | {name: om.name, match_method: or_.match_method}][0]}
-     ] AS claim_details
-RETURN c.text AS chunk_text,
-       c.chunk_id AS chunk_id,
-       c.run_id AS run_id,
-       c.source_uri AS source_uri,
-       c.chunk_index AS chunk_index,
-       coalesce(c.page_number, c.page) AS page,
-       c.start_char AS start_char,
-       c.end_char AS end_char,
-       score AS similarityScore,
-       [cd IN claim_details | cd.claim_text] AS claims,
-       [(c)<-[:MENTIONED_IN]-(mention:EntityMention) WHERE mention.run_id = $run_id | mention.name] AS mentions,
-       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:RESOLVES_TO]->(canonical) WHERE mention.run_id = $run_id | canonical.name] AS canonical_entities,
-       claim_details,
-       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[r:MEMBER_OF]->(cluster:ResolvedEntityCluster) WHERE mention.run_id = $run_id | {cluster_id: cluster.cluster_id, cluster_name: cluster.canonical_name, membership_status: r.status, membership_method: r.method}] AS cluster_memberships,
-       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:MEMBER_OF]->(cluster:ResolvedEntityCluster)-[a:ALIGNED_WITH]->(aligned_canonical) WHERE mention.run_id = $run_id AND a.run_id = $run_id AND a.alignment_version = $alignment_version | {canonical_name: aligned_canonical.name, alignment_method: a.alignment_method, alignment_status: a.alignment_status}] AS cluster_canonical_alignments
-"""
-_RETRIEVAL_QUERY_WITH_CLUSTER_ALL_RUNS = """
-WITH node AS c, score
-WHERE ($source_uri IS NULL OR c.source_uri = $source_uri)
-WITH c, score,
-     [(c)<-[:SUPPORTED_BY]-(claim:ExtractedClaim) |
-         {claim_text: claim.claim_text,
-          subject_mention: [(claim)-[sr:HAS_PARTICIPANT {role: 'subject'}]->(sm:EntityMention) | {name: sm.name, match_method: sr.match_method}][0],
-          object_mention: [(claim)-[or_:HAS_PARTICIPANT {role: 'object'}]->(om:EntityMention) | {name: om.name, match_method: or_.match_method}][0]}
-     ] AS claim_details
-RETURN c.text AS chunk_text,
-       c.chunk_id AS chunk_id,
-       c.run_id AS run_id,
-       c.source_uri AS source_uri,
-       c.chunk_index AS chunk_index,
-       coalesce(c.page_number, c.page) AS page,
-       c.start_char AS start_char,
-       c.end_char AS end_char,
-       score AS similarityScore,
-       [cd IN claim_details | cd.claim_text] AS claims,
-       [(c)<-[:MENTIONED_IN]-(mention:EntityMention) | mention.name] AS mentions,
-       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:RESOLVES_TO]->(canonical) | canonical.name] AS canonical_entities,
-       claim_details,
-       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[r:MEMBER_OF]->(cluster:ResolvedEntityCluster) | {cluster_id: cluster.cluster_id, cluster_name: cluster.canonical_name, membership_status: r.status, membership_method: r.method}] AS cluster_memberships,
-       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:MEMBER_OF]->(cluster:ResolvedEntityCluster)-[a:ALIGNED_WITH]->(aligned_canonical) WHERE a.run_id = mention.run_id AND a.alignment_version = $alignment_version | {canonical_name: aligned_canonical.name, alignment_method: a.alignment_method, alignment_status: a.alignment_status}] AS cluster_canonical_alignments
-"""
+_RETRIEVAL_QUERY_WITH_CLUSTER = _build_retrieval_query(cluster_aware=True)
+_RETRIEVAL_QUERY_WITH_CLUSTER_ALL_RUNS = _build_retrieval_query(cluster_aware=True, all_runs=True)
 
 # Optional citation-relevant fields that should be surfaced as warnings when absent.
 _CITATION_OPTIONAL_FIELDS = ("page", "start_char", "end_char")
@@ -211,6 +340,10 @@ _BULLET_PREFIX_RE = re.compile(r"^([-*•]\s+|\d+\.\s+)")
 # not by matching this prefix against the answer text.
 _CITATION_FALLBACK_PREFIX = "Insufficient citations detected"
 
+# Maximum number of characters of the final answer text included in the
+# "Answer replaced with citation fallback" diagnostic log message.
+_FALLBACK_PREVIEW_MAX_LEN = 200
+
 
 def _format_scope_label(run_id: str | None, all_runs: bool) -> str:
     """Return a human-readable retrieval scope label for CLI output.
@@ -239,6 +372,112 @@ def _first_citation_token_from_hits(hits: list[dict[str, object]]) -> str | None
     return None
 
 
+def _build_query_params(
+    *,
+    run_id: str | None,
+    source_uri: str | None,
+    all_runs: bool,
+    cluster_aware: bool,
+) -> dict[str, object]:
+    """Build Cypher query parameters for retrieval filtering.
+
+    Shared by both ``run_retrieval_and_qa`` and ``run_interactive_qa`` so that
+    parameter-construction logic stays in one place.
+
+    Parameters
+    ----------
+    run_id:
+        Scopes retrieval to a specific ingest run.  Included in the params dict
+        only when *all_runs* is False.
+    source_uri:
+        Optional source-level filter (``None`` is valid; the Cypher WHERE clause
+        skips source_uri filtering when the parameter is ``None``).
+    all_runs:
+        When True, ``run_id`` is omitted from the params so retrieval queries all
+        Chunk nodes regardless of run.
+    cluster_aware:
+        When True, ``alignment_version`` is added to the params to scope
+        ``ALIGNED_WITH`` edge traversal to the current alignment generation.
+    """
+    params: dict[str, object] = {"source_uri": source_uri}
+    if not all_runs:
+        params["run_id"] = run_id
+    if cluster_aware:
+        params["alignment_version"] = ALIGNMENT_VERSION
+    return params
+
+
+def _apply_citation_repair(
+    answer_text: str,
+    hits: list[dict[str, object]],
+    *,
+    all_runs: bool,
+    raw_answer_all_cited: bool,
+) -> tuple[str, bool, str | None, str | None]:
+    """Attempt to repair uncited answer segments using retrieved citation tokens.
+
+    Shared by both ``run_retrieval_and_qa`` and ``run_interactive_qa`` so that
+    the repair heuristic stays in one place and the two entry points remain aligned.
+
+    Repair is only attempted when *all_runs* is True, hits are available, the
+    answer is non-empty, and the raw answer was not already fully cited.  When
+    repair is not needed or no citation token is available this function returns
+    *answer_text* unchanged with ``applied=False``.
+
+    Parameters
+    ----------
+    answer_text:
+        Raw LLM answer text before any repair.
+    hits:
+        Retrieved chunk hit dicts (each with a ``"metadata"`` key) as produced by
+        the retrieval loop in both entry points.
+    all_runs:
+        Repair is only active in all-runs mode because that mode lacks a single
+        authoritative run_id citation token; the LLM sometimes omits trailing
+        tokens in this context.
+    raw_answer_all_cited:
+        Whether the raw answer was already fully cited.  Passed in to avoid
+        recomputing inside the helper.
+
+    Returns
+    -------
+    tuple[str, bool, str | None, str | None]
+        ``(repaired_answer, applied, strategy, source_chunk_id)`` where:
+
+        - *repaired_answer*: The answer after repair (or *answer_text* unchanged).
+        - *applied*: ``True`` when the repaired answer text differs from the
+          original *answer_text* (i.e. the answer was actually modified by repair).
+          ``False`` when no repair ran or when repair produced no change.
+        - *strategy*: The repair strategy name (currently
+          ``"append_first_retrieved_token"``), or ``None`` when *applied* is
+          ``False``.
+        - *source_chunk_id*: The ``chunk_id`` of the first retrieved chunk whose
+          citation token was used for repair, or ``None`` when *applied* is
+          ``False``.
+    """
+    if not (all_runs and hits and answer_text.strip() and not raw_answer_all_cited):
+        return answer_text, False, None, None
+    first_token = _first_citation_token_from_hits(hits)
+    if not first_token:
+        return answer_text, False, None, None
+    source_chunk_id: str | None = None
+    for hit in hits:
+        metadata = hit.get("metadata") or {}
+        token = metadata.get("citation_token")
+        if token and str(token) == first_token:
+            chunk_id_raw = metadata.get("chunk_id")
+            # Treat empty string the same as None: no chunk_id provenance to record.
+            source_chunk_id = str(chunk_id_raw) if chunk_id_raw else None
+            break
+    repaired = _repair_uncited_answer(answer_text, first_token)
+    # applied is True only when repair actually modified the answer text.
+    # This makes citation_repair_applied unambiguous: it means "the final
+    # answer text was changed by repair", not merely "repair logic executed".
+    if repaired == answer_text:
+        return answer_text, False, None, None
+    return repaired, True, "append_first_retrieved_token", source_chunk_id
+
+
 def _build_citation_fallback(answer: str) -> tuple[str, str, bool]:
     """Compute citation-fallback display and history answers for a single LLM response.
 
@@ -262,6 +501,174 @@ def _build_citation_fallback(answer: str) -> tuple[str, str, bool]:
     display_answer = f"{_CITATION_FALLBACK_PREFIX}: {answer}" if is_uncited else answer
     history_answer = _CITATION_FALLBACK_PREFIX if is_uncited else answer
     return display_answer, history_answer, is_uncited
+
+
+class _CitationQualityBundle(TypedDict):
+    """Structured citation-quality summary nested inside :class:`_AnswerPostprocessResult`."""
+
+    all_cited: bool
+    raw_answer_all_cited: bool
+    evidence_level: Literal["no_answer", "full", "degraded"]
+    warning_count: int
+    citation_warnings: list[str]
+
+
+class _AnswerPostprocessResult(TypedDict):
+    """Structured result returned by :func:`_postprocess_answer`.
+
+    All keys are always present regardless of which postprocessing path was
+    taken.  Callers can index into the dict without ``# type: ignore``
+    annotations.
+    """
+
+    raw_answer: str
+    raw_answer_all_cited: bool
+    repaired_answer: str
+    citation_repair_applied: bool
+    citation_repair_strategy: str | None
+    citation_repair_source_chunk_id: str | None
+    display_answer: str
+    history_answer: str
+    citation_fallback_applied: bool
+    all_cited: bool
+    evidence_level: Literal["no_answer", "full", "degraded"]
+    citation_warnings: list[str]
+    warning_count: int
+    citation_quality: _CitationQualityBundle
+
+
+def _postprocess_answer(
+    answer_text: str,
+    hits: list[dict[str, object]],
+    *,
+    all_runs: bool,
+    existing_citation_warnings: list[str] | None = None,
+) -> _AnswerPostprocessResult:
+    """Unified answer postprocessing lifecycle shared by both retrieval entry points.
+
+    Centralises the full postprocessing contract so that
+    :func:`run_retrieval_and_qa` and :func:`run_interactive_qa` cannot drift
+    silently:
+
+    1. Preserve *raw_answer* and compute *raw_answer_all_cited*.
+    2. Attempt citation repair via :func:`_apply_citation_repair`.
+    3. Apply the citation fallback via :func:`_build_citation_fallback`.
+    4. Derive *all_cited* for the final delivered answer.
+    5. Collect citation warnings (including the uncited-answer warning when
+       applicable) and log the canonical warning message once.
+    6. Derive *evidence_level* from *all_cited* and the combined warning list.
+    7. Build the structured *citation_quality* bundle.
+
+    Parameters
+    ----------
+    answer_text:
+        Raw LLM answer text to postprocess.
+    hits:
+        Retrieved chunk hit dicts (each with a ``"metadata"`` key) as produced
+        by the retrieval loop in both entry points.
+    all_runs:
+        When ``True``, citation repair is attempted via the all-runs heuristic.
+    existing_citation_warnings:
+        Citation-quality warnings already collected before postprocessing (e.g.
+        empty-chunk-text warnings from the retrieval loop).  The returned
+        ``citation_warnings`` list always begins with all elements of this list
+        (in the same order), followed by any new warnings added during
+        postprocessing.  The caller's list is never mutated.  May be ``None`` or
+        empty.
+
+    Returns
+    -------
+    _AnswerPostprocessResult
+        A structured result with the following keys:
+
+        - ``raw_answer`` — original LLM output before any repair or fallback.
+        - ``raw_answer_all_cited`` — whether the raw answer was fully cited.
+        - ``repaired_answer`` — answer text after citation repair (equals
+          *raw_answer* when no repair was applied).
+        - ``citation_repair_applied`` — ``True`` when repair actually modified
+          the answer text (i.e. the repaired answer differs from the raw answer).
+          ``False`` when repair was not attempted, was not needed, or produced no
+          change.  This field reflects whether the *answer text changed*, not
+          merely whether repair logic was invoked.
+        - ``citation_repair_strategy`` — repair algorithm name when
+          ``citation_repair_applied`` is ``True``, otherwise ``None``.
+        - ``citation_repair_source_chunk_id`` — ``chunk_id`` used for repair
+          when ``citation_repair_applied`` is ``True``, otherwise ``None``.
+        - ``display_answer`` — final answer for display/return (includes the
+          fallback prefix when not fully cited).
+        - ``history_answer`` — sanitised answer for conversation history (bare
+          refusal prefix when not fully cited).
+        - ``citation_fallback_applied`` — ``True`` when the fallback prefix was
+          applied.
+        - ``all_cited`` — whether the *final delivered* answer is fully cited.
+        - ``evidence_level`` — ``"no_answer"``, ``"full"``, or ``"degraded"``.
+        - ``citation_warnings`` — combined list of citation-quality warnings
+          (existing + any new ones added here).
+        - ``warning_count`` — ``len(citation_warnings)``.
+        - ``citation_quality`` — structured citation quality bundle dict.
+    """
+    raw_answer = answer_text
+    raw_answer_all_cited = _check_all_answers_cited(raw_answer) if raw_answer.strip() else False
+
+    repaired, citation_repair_applied, citation_repair_strategy, citation_repair_source_chunk_id = (
+        _apply_citation_repair(
+            answer_text,
+            hits,
+            all_runs=all_runs,
+            raw_answer_all_cited=raw_answer_all_cited,
+        )
+    )
+
+    repaired_stripped = repaired.strip()
+    display_answer, history_answer, citation_fallback_applied = _build_citation_fallback(
+        repaired_stripped
+    )
+    # Derive all_cited directly from the repaired answer text so citation
+    # completeness semantics are independent of fallback behavior.
+    all_cited = bool(repaired_stripped) and _check_all_answers_cited(repaired_stripped)
+
+    citation_warnings: list[str] = list(existing_citation_warnings or [])
+    if repaired_stripped and not all_cited:
+        uncited_warning = "Not all answer sentences or bullets end with a citation token."
+        _logger.warning(uncited_warning)
+        citation_warnings.append(uncited_warning)
+
+    # evidence_level encodes the overall quality of the retrieved evidence:
+    #   "no_answer"  – no answer was generated (empty answer text)
+    #   "full"       – every answer sentence/bullet ends with a citation token AND
+    #                  no critical citation-quality warnings exist.
+    #   "degraded"   – any answer sentence/bullet is missing a citation token, OR a
+    #                  critical citation-quality warning exists (e.g. empty chunk text).
+    evidence_level = (
+        "no_answer"
+        if not repaired_stripped
+        else ("degraded" if (not all_cited or citation_warnings) else "full")
+    )
+
+    citation_quality: _CitationQualityBundle = {
+        "all_cited": all_cited,
+        "raw_answer_all_cited": raw_answer_all_cited,
+        "evidence_level": evidence_level,
+        "warning_count": len(citation_warnings),
+        "citation_warnings": citation_warnings,
+    }
+
+    return {
+        "raw_answer": raw_answer,
+        "raw_answer_all_cited": raw_answer_all_cited,
+        "repaired_answer": repaired,
+        "citation_repair_applied": citation_repair_applied,
+        "citation_repair_strategy": citation_repair_strategy,
+        "citation_repair_source_chunk_id": citation_repair_source_chunk_id,
+        "display_answer": display_answer,
+        "history_answer": history_answer,
+        "citation_fallback_applied": citation_fallback_applied,
+        "all_cited": all_cited,
+        "evidence_level": evidence_level,
+        "citation_warnings": citation_warnings,
+        "warning_count": len(citation_warnings),
+        "citation_quality": citation_quality,
+    }
 
 
 def _split_into_segments(answer: str) -> list[str]:
@@ -527,14 +934,87 @@ def _format_cluster_context(
     return header + "\n" + "\n".join(lines)
 
 
-def _format_claim_details(claim_details: list[dict[str, object]]) -> str:
-    """Format structured claim details (with explicit subject/object mentions) for LLM context.
+def _normalize_claim_roles(detail: dict[str, object]) -> list[dict[str, object]]:
+    """Normalize claim role data from one detail record into a canonical list.
 
-    For each claim, renders the claim text together with the explicitly matched subject
-    and object mentions reached via ``HAS_PARTICIPANT {role: 'subject' | 'object'}``
-    participation edges (v0.3 model).  When a slot has no participation edge the slot
-    is omitted from the rendered line rather than falling back to chunk co-location
-    heuristics.
+    Accepts the following input shapes for ``roles`` list entries:
+
+    - Current canonical shape: ``{role, mention_name, match_method}``
+    - Backward-compat shape: ``{role, name, match_method}`` — ``name`` is read
+      when ``mention_name`` is absent, so data produced by older code paths or
+      queries that project ``name`` instead of ``mention_name`` is handled
+      transparently.
+    - Legacy top-level keys: ``subject_mention`` / ``object_mention`` dicts
+      (each with their own ``name`` and ``match_method`` fields) — used when no
+      ``roles`` key is present at all.
+
+    Malformed entries (``None``, non-dict, or missing ``role``) are silently
+    filtered out so that downstream formatting and diagnostic code never crashes
+    on partial payloads.
+
+    Each entry in the returned list has the keys ``role``, ``mention_name``,
+    and ``match_method``.  The list is sorted for deterministic output:
+    ``subject`` first, ``object`` second, all other roles alphabetically, with
+    ``mention_name`` and ``match_method`` as secondary tie-breakers.
+
+    Parameters
+    ----------
+    detail:
+        A single claim-detail record as returned by the retrieval Cypher query.
+
+    Returns
+    -------
+    list[dict[str, object]]
+        Canonical, sorted role entries for this claim.
+    """
+    roles_raw = detail.get("roles")
+    if roles_raw is not None:
+        roles: list[dict[str, object]] = []
+        if isinstance(roles_raw, (list, tuple)):
+            for entry in roles_raw:
+                if not isinstance(entry, dict):
+                    continue
+                role = entry.get("role")
+                if not role:
+                    continue
+                roles.append({
+                    "role": role,
+                    "mention_name": entry.get("mention_name", entry.get("name")),
+                    "match_method": entry.get("match_method"),
+                })
+    else:
+        # Backward compat: legacy ``subject_mention`` / ``object_mention`` keys.
+        roles = []
+        for role_key, role_name in (("subject_mention", "subject"), ("object_mention", "object")):
+            slot = detail.get(role_key)
+            if slot is not None and isinstance(slot, dict):
+                roles.append({
+                    "role": role_name,
+                    "mention_name": slot.get("name"),
+                    "match_method": slot.get("match_method"),
+                })
+    # Sort for deterministic output: subject first, object second, rest alphabetically,
+    # with mention_name and match_method as tie-breakers for stable ordering within the same role.
+    roles.sort(
+        key=lambda e: (
+            0 if e.get("role") == "subject" else 1 if e.get("role") == "object" else 2,
+            str(e.get("role") or ""),
+            str(e.get("mention_name") or ""),
+            str(e.get("match_method") or ""),
+        )
+    )
+    return roles
+
+
+def _format_claim_details(claim_details: list[dict[str, object]]) -> str:
+    """Format structured claim details (with explicit role mentions) for LLM context.
+
+    For each claim, renders the claim text together with all explicitly matched
+    participant mentions reached via ``HAS_PARTICIPANT {role}`` participation edges
+    (v0.3 model).  Roles are taken from the ``roles`` list in each claim detail;
+    the legacy ``subject_mention`` / ``object_mention`` keys are also supported for
+    backward compatibility with older stored metadata.  When a claim has no
+    participation edges the claim text is still included without role annotations.
 
     The section is labelled so the LLM can treat the explicit role assignments as
     first-class evidence rather than positional guesses.
@@ -548,29 +1028,199 @@ def _format_claim_details(claim_details: list[dict[str, object]]) -> str:
         claim_text = (detail.get("claim_text") or "").strip()
         if not claim_text:
             continue
-        subject = detail.get("subject_mention")
-        obj = detail.get("object_mention")
+        roles_list = _normalize_claim_roles(detail)
         role_parts: list[str] = []
-        if subject:
-            subj_name = subject.get("name") or ""
-            subj_method_raw = subject.get("match_method")
-            subj_method = str(subj_method_raw).strip() if subj_method_raw is not None else ""
-            subj_method_display = subj_method if subj_method else "unknown"
-            role_parts.append(f"subject='{subj_name}' (match: {subj_method_display})")
-        if obj:
-            obj_name = obj.get("name") or ""
-            obj_method_raw = obj.get("match_method")
-            obj_method = str(obj_method_raw).strip() if obj_method_raw is not None else ""
-            obj_method_display = obj_method if obj_method else "unknown"
-            role_parts.append(f"object='{obj_name}' (match: {obj_method_display})")
+        for entry in roles_list:
+            role_name = str(entry.get("role") or "").strip()
+            mention_name = str(entry.get("mention_name") or "").strip()
+            method_raw = entry.get("match_method")
+            method = str(method_raw).strip() if method_raw is not None else ""
+            method_display = method if method else "unknown"
+            if role_name and mention_name:
+                role_parts.append(f"{role_name}='{mention_name}' (match: {method_display})")
         if role_parts:
             lines.append(f"  • {claim_text} [{', '.join(role_parts)}]")
         else:
             lines.append(f"  • {claim_text}")
     if not lines:
         return ""
-    header = "[Claim context — explicit subject/object roles via participation edges]"
+    header = "[Claim context — explicit roles via participation edges]"
     return header + "\n" + "\n".join(lines)
+
+
+def _build_retrieval_path_diagnostics(
+    *,
+    claim_details: list[dict[str, object]],
+    canonical_entities: list[str],
+    cluster_memberships: list[dict[str, object]],
+    cluster_canonical_alignments: list[dict[str, object]],
+) -> dict[str, object]:
+    """Build structured retrieval-path diagnostics from already-available metadata fields.
+
+    Consolidates all graph-traversal provenance for a single retrieved Chunk into a
+    single, inspectable dict so callers can audit the exact paths that contributed to
+    the retrieved context without re-querying the graph.  This function is a pure
+    transformation of data already present in the formatter input; it does **not**
+    alter semantics, content, or citation tokens.
+
+    Parameters
+    ----------
+    claim_details:
+        Structured claim records from the ``claim_details`` query column.  Each entry
+        carries ``claim_text`` and either a ``roles`` list (new generic format, each
+        entry is ``{role, mention_name, match_method}``) or legacy ``subject_mention`` /
+        ``object_mention`` dicts (backward-compatible fallback).
+    canonical_entities:
+        List of canonical entity names reached via
+        ``EntityMention -[:RESOLVES_TO]-> CanonicalEntity``.
+    cluster_memberships:
+        Per-membership provenance records from the ``cluster_memberships`` query column.
+        Each entry has ``cluster_id``, ``cluster_name``, ``membership_status``, and
+        ``membership_method``.
+    cluster_canonical_alignments:
+        Per-alignment provenance records from the ``cluster_canonical_alignments`` query
+        column.  Each entry has ``canonical_name``, ``alignment_method``, and
+        ``alignment_status`` (reached via ``cluster -[:ALIGNED_WITH]-> CanonicalEntity``).
+
+    Returns
+    -------
+    dict
+        Keys:
+
+        - ``has_participant_edges``: list of ``{claim_text, roles}`` dicts.  Each
+          ``roles`` entry is ``{role, mention_name, match_method}`` for a resolved
+          ``HAS_PARTICIPANT`` edge.  Claims with no participation edges have an empty
+          ``roles`` list.
+        - ``canonical_via_resolves_to``: list of canonical entity name strings reached
+          via the ``RESOLVES_TO`` relationship.
+        - ``cluster_memberships``: copy of the input membership records.
+        - ``cluster_canonical_via_aligned_with``: copy of the alignment records (path
+          via ``MEMBER_OF`` → ``ALIGNED_WITH``).
+    """
+    has_participant_edges: list[dict[str, object]] = []
+    for detail in claim_details:
+        claim_text = (detail.get("claim_text") or "").strip()
+        if not claim_text:
+            continue
+        roles = _normalize_claim_roles(detail)
+        has_participant_edges.append({"claim_text": claim_text, "roles": roles})
+    return {
+        "has_participant_edges": has_participant_edges,
+        "canonical_via_resolves_to": list(canonical_entities),
+        "cluster_memberships": list(cluster_memberships),
+        "cluster_canonical_via_aligned_with": list(cluster_canonical_alignments),
+    }
+
+
+def _format_retrieval_path_summary(hits: list[dict[str, object]]) -> str:
+    """Format a human-readable retrieval-path summary across all retrieved hits.
+
+    Iterates over *hits* (as produced by ``run_retrieval_and_qa``) and renders each
+    chunk's ``retrieval_path_diagnostics`` metadata into a structured text block
+    suitable for debug output, logging, or evaluation inspection.
+
+    Each hit section shows:
+
+    - Chunk identity (``chunk_id``) and similarity ``score``.
+    - **HAS_PARTICIPANT edges**: per-claim role assignments resolved via participation
+      edges.  Claims without any resolved participation edges are listed as
+      ``[no resolved roles]``.
+    - **RESOLVES_TO canonical entities**: entity names reached directly from an
+      ``EntityMention`` via ``RESOLVES_TO``.
+    - **Cluster memberships (MEMBER_OF)**: cluster identity and membership provenance.
+    - **Canonical via ALIGNED_WITH**: canonical entities reached transitively via
+      ``cluster -[:ALIGNED_WITH]->``, including alignment method and status.
+
+    In base-retrieval mode (no graph expansion), ``retrieval_path_diagnostics`` is
+    still present in the metadata but contains empty lists; in that case a brief note
+    is shown in place of detailed graph-expansion diagnostics.
+
+    Parameters
+    ----------
+    hits:
+        List of hit dicts as stored in the ``retrieval_results`` field of the
+        ``run_retrieval_and_qa`` return value.  Each dict must have a ``"metadata"``
+        key containing the chunk metadata produced by ``_chunk_citation_formatter``.
+
+    Returns
+    -------
+    str
+        Multi-line summary string, or an empty string when *hits* is empty.
+    """
+    if not hits:
+        return ""
+    lines: list[str] = ["=== Retrieval Path Summary ==="]
+    for i, hit in enumerate(hits, 1):
+        meta = hit.get("metadata") or {}
+        chunk_id = meta.get("chunk_id") or "(unknown)"
+        score = meta.get("score")
+        try:
+            score_str = f"{float(score):.4f}"
+        except (TypeError, ValueError):
+            score_str = str(score)
+        lines.append(f"\nHit {i}: chunk_id={chunk_id!r}  score={score_str}")
+
+        diag = meta.get("retrieval_path_diagnostics")
+        if "retrieval_path_diagnostics" not in meta or diag is None:
+            lines.append("  (no retrieval-path diagnostics available — older result format)")
+            continue
+
+        # HAS_PARTICIPANT edges (from claim_details)
+        hp_edges = diag.get("has_participant_edges") or []
+        if hp_edges:
+            lines.append("  HAS_PARTICIPANT edges (claims with participation):")
+            for entry in hp_edges:
+                claim_text = str(entry.get("claim_text") or "")
+                roles = entry.get("roles") or []
+                role_parts_list: list[str] = []
+                for r in roles:
+                    if not isinstance(r, dict):
+                        role_parts_list.append(f"(malformed: {r!r})")
+                        continue
+                    r_role = r.get("role") or "(unknown)"
+                    r_mention = r.get("mention_name") or "(unknown)"
+                    r_method = r.get("match_method") or "(unknown)"
+                    role_parts_list.append(f"{r_role}={r_mention!r} (match: {r_method})")
+                role_parts = ", ".join(role_parts_list)
+                preview = claim_text[:80] + ("..." if len(claim_text) > 80 else "")
+                if role_parts:
+                    lines.append(f"    • \"{preview}\" [{role_parts}]")
+                else:
+                    lines.append(f"    • \"{preview}\" [no resolved roles]")
+        else:
+            lines.append("  HAS_PARTICIPANT edges: (none)")
+
+        # RESOLVES_TO canonical entities
+        resolves_to = diag.get("canonical_via_resolves_to") or []
+        if resolves_to:
+            lines.append(f"  RESOLVES_TO canonical entities: {resolves_to!r}")
+        else:
+            lines.append("  RESOLVES_TO canonical entities: (none)")
+
+        # Cluster memberships (MEMBER_OF)
+        memberships = diag.get("cluster_memberships") or []
+        if memberships:
+            lines.append("  Cluster memberships (MEMBER_OF):")
+            for m in memberships:
+                c_name = m.get("cluster_name") or m.get("cluster_id") or ""
+                c_status = m.get("membership_status") or "unknown"
+                c_method = m.get("membership_method") or ""
+                lines.append(f"    • cluster={c_name!r}  status={c_status}  method={c_method}")
+        else:
+            lines.append("  Cluster memberships (MEMBER_OF): (none)")
+
+        # Canonical alignments (ALIGNED_WITH)
+        alignments = diag.get("cluster_canonical_via_aligned_with") or []
+        if alignments:
+            lines.append("  Canonical via ALIGNED_WITH:")
+            for a in alignments:
+                canon_name = a.get("canonical_name") or ""
+                a_method = a.get("alignment_method") or ""
+                a_status = a.get("alignment_status") or ""
+                lines.append(f"    • canonical={canon_name!r}  method={a_method}  status={a_status}")
+        else:
+            lines.append("  Canonical via ALIGNED_WITH: (none)")
+    return "\n".join(lines)
 
 
 def _chunk_citation_formatter(record: neo4j.Record) -> RetrieverResultItem:
@@ -583,11 +1233,11 @@ def _chunk_citation_formatter(record: neo4j.Record) -> RetrieverResultItem:
     and preserves all citation-relevant fields in metadata (for downstream citation mapping).
 
     When the graph-expanded retrieval query was used, structured claim details (including
-    explicit subject/object mention names and match methods via HAS_PARTICIPANT {role}
-    participation edges) are appended to the content so the LLM can
-    reason about claim roles precisely. The claim context section appears when claim_details
-    include claim text; explicit subject/object role annotations are only shown for slots
-    that have participation edges (no fallback to chunk co-location heuristics).
+    explicit participant mention names and match methods via HAS_PARTICIPANT {role}
+    participation edges) are appended to the content so the LLM can reason about claim
+    roles precisely. The claim context section appears when claim_details include claim
+    text; role annotations are shown for every resolved participation edge (subject, object,
+    or any future role); no fallback to chunk co-location heuristics is used.
 
     When the cluster-aware retrieval query was used, provisional cluster membership and
     alignment context is appended to the content string so the LLM can distinguish between
@@ -634,9 +1284,9 @@ def _chunk_citation_formatter(record: neo4j.Record) -> RetrieverResultItem:
     }
 
     # Build claim context section when the graph-expanded query returned claim_details.
-    # Explicit subject/object mentions (via HAS_PARTICIPANT {role} edges) are
-    # surfaced so the LLM can reason about claim roles precisely.  When no participation
-    # edges exist for a claim the slot is simply omitted — no chunk co-location fallback.
+    # Explicit role mentions (via HAS_PARTICIPANT {role} edges) are surfaced so the LLM
+    # can reason about claim roles precisely.  When no participation edges exist for a
+    # claim the roles list is empty (roles: []) — no chunk co-location fallback is applied.
     claim_details_raw = record.get("claim_details")
     claim_details: list[dict[str, object]] = list(claim_details_raw) if claim_details_raw is not None else []
     claim_context = _format_claim_details(claim_details)
@@ -684,8 +1334,68 @@ def _chunk_citation_formatter(record: neo4j.Record) -> RetrieverResultItem:
         value = record.get(field)
         if value is not None:
             metadata[field] = value
+    # Build structured retrieval-path diagnostics so callers can audit graph-traversal
+    # provenance per chunk without re-querying.  Purely additive — does not alter
+    # content, semantics, or citation tokens.
+    canonical_entities_raw = record.get("canonical_entities")
+    canonical_entities_list: list[str] = (
+        [str(v) for v in canonical_entities_raw]
+        if canonical_entities_raw is not None
+        else []
+    )
+    metadata["retrieval_path_diagnostics"] = _build_retrieval_path_diagnostics(
+        claim_details=claim_details,
+        canonical_entities=canonical_entities_list,
+        cluster_memberships=cluster_memberships,
+        cluster_canonical_alignments=cluster_canonical_alignments,
+    )
 
     return RetrieverResultItem(content=content, metadata=metadata)
+
+
+def _build_retriever_and_rag(
+    driver: neo4j.Driver,
+    *,
+    index_name: str,
+    retrieval_query: str,
+    qa_model: str,
+    neo4j_database: str | None,
+) -> tuple[VectorCypherRetriever, GraphRAG]:
+    """Construct a VectorCypherRetriever and GraphRAG instance for a Neo4j session.
+
+    Shared by both ``run_retrieval_and_qa`` (single-turn) and
+    ``run_interactive_qa`` (multi-turn REPL) so that retriever/LLM construction
+    is defined in one place.
+
+    Parameters
+    ----------
+    driver:
+        An open Neo4j driver (must already be connected).
+    index_name:
+        Vector index name to use for similarity search.
+    retrieval_query:
+        The Cypher retrieval query string (produced by :func:`_select_retrieval_query`).
+    qa_model:
+        OpenAI model name to use for answer generation.
+    neo4j_database:
+        Optional Neo4j database name; ``None`` uses the driver's default database.
+    """
+    embedder = OpenAIEmbeddings(model=EMBEDDER_MODEL_NAME)
+    retriever = VectorCypherRetriever(
+        driver=driver,
+        index_name=index_name,
+        embedder=embedder,
+        retrieval_query=retrieval_query,
+        result_formatter=_chunk_citation_formatter,
+        neo4j_database=neo4j_database,
+    )
+    llm = build_openai_llm(qa_model)
+    rag = GraphRAG(
+        retriever=retriever,
+        llm=llm,
+        prompt_template=POWER_ATLAS_RAG_TEMPLATE,
+    )
+    return retriever, rag
 
 
 def run_retrieval_and_qa(
@@ -775,13 +1485,8 @@ def run_retrieval_and_qa(
     # effective_expand_graph records whether any form of graph expansion is active so
     # manifests accurately describe the retrieval context used.
     effective_expand_graph = expand_graph or cluster_aware
-    retrieval_query_contract = (
-        _RETRIEVAL_QUERY_WITH_CLUSTER_ALL_RUNS if (cluster_aware and all_runs)
-        else _RETRIEVAL_QUERY_WITH_CLUSTER if cluster_aware
-        else _RETRIEVAL_QUERY_WITH_EXPANSION_ALL_RUNS if (expand_graph and all_runs)
-        else _RETRIEVAL_QUERY_BASE_ALL_RUNS if all_runs
-        else _RETRIEVAL_QUERY_WITH_EXPANSION if expand_graph
-        else _RETRIEVAL_QUERY_BASE
+    retrieval_query_contract = _select_retrieval_query(
+        expand_graph=expand_graph, cluster_aware=cluster_aware, all_runs=all_runs
     )
     citation_object_example: dict[str, object] = {
         "chunk_id": "example_chunk",
@@ -808,8 +1513,11 @@ def run_retrieval_and_qa(
     # always consistent with the provenance fields in citation_object_example.
     # citation_quality provides a structured per-answer QA signal bundle that manifests and
     # downstream consumers can query without inspecting individual warning strings.
+    # raw_answer_all_cited reflects whether the raw LLM output (before any repair or fallback)
+    # was fully cited; all_cited reflects the final delivered answer after repair+fallback.
     _default_citation_quality: dict[str, object] = {
         "all_cited": False,
+        "raw_answer_all_cited": False,
         "evidence_level": "no_answer",
         "warning_count": 0,
         "citation_warnings": [],
@@ -826,7 +1534,22 @@ def run_retrieval_and_qa(
         "answer": "",
         "raw_answer": "",
         "citation_fallback_applied": False,
+        # all_answers_cited reflects the FINAL delivered answer citation state (after any
+        # repair or fallback).  See raw_answer_all_cited for the raw LLM output state.
         "all_answers_cited": False,
+        # raw_answer_all_cited reflects whether the original LLM output (raw_answer) was
+        # fully cited before any repair or fallback was applied.  False when the LLM
+        # omitted citation tokens on some segments; True when all segments were already cited.
+        "raw_answer_all_cited": False,
+        # citation_repair_applied is True when the all-runs repair heuristic appended a
+        # retrieved citation token to one or more uncited answer segments.
+        "citation_repair_applied": False,
+        # citation_repair_strategy names the repair algorithm used, or None when no repair
+        # was applied.  Currently the only strategy is "append_first_retrieved_token".
+        "citation_repair_strategy": None,
+        # citation_repair_source_chunk_id is the chunk_id of the retrieved context chunk
+        # whose citation token was appended during repair, or None when no repair was applied.
+        "citation_repair_source_chunk_id": None,
         "citation_quality": _default_citation_quality,
         "expand_graph": effective_expand_graph,
         "cluster_aware": cluster_aware,
@@ -838,6 +1561,10 @@ def run_retrieval_and_qa(
         "retrieval_query_contract": retrieval_query_contract.strip(),
         "interactive_mode": interactive,
         "message_history_enabled": message_history is not None,
+        # retrieval_path_summary is populated with the formatted path diagnostics after
+        # retrieval completes; the empty-string default is used for dry-run and
+        # no-question paths where no retrieval actually ran.
+        "retrieval_path_summary": "",
     }
     if getattr(config, "dry_run", False):
         dry_run_retrievers: list[str] = ["VectorCypherRetriever"]
@@ -861,13 +1588,8 @@ def run_retrieval_and_qa(
             "Pass --run-id, --latest, or use --all-runs to query across all data."
         )
 
-    retrieval_query = (
-        _RETRIEVAL_QUERY_WITH_CLUSTER_ALL_RUNS if (cluster_aware and all_runs)
-        else _RETRIEVAL_QUERY_WITH_CLUSTER if cluster_aware
-        else _RETRIEVAL_QUERY_WITH_EXPANSION_ALL_RUNS if (expand_graph and all_runs)
-        else _RETRIEVAL_QUERY_BASE_ALL_RUNS if all_runs
-        else _RETRIEVAL_QUERY_WITH_EXPANSION if expand_graph
-        else _RETRIEVAL_QUERY_BASE
+    retrieval_query = _select_retrieval_query(
+        expand_graph=expand_graph, cluster_aware=cluster_aware, all_runs=all_runs
     )
 
     # Query params for filtering. source_uri=None is valid: the null-conditional
@@ -875,11 +1597,12 @@ def run_retrieval_and_qa(
     # run_id is only included for run-scoped queries (not all-runs mode).
     # alignment_version is passed when cluster_aware=True to filter ALIGNED_WITH edges
     # to the current alignment generation only.
-    query_params: dict[str, object] = {"source_uri": source_uri}
-    if not all_runs:
-        query_params["run_id"] = run_id
-    if cluster_aware:
-        query_params["alignment_version"] = ALIGNMENT_VERSION
+    query_params = _build_query_params(
+        run_id=run_id,
+        source_uri=source_uri,
+        all_runs=all_runs,
+        cluster_aware=cluster_aware,
+    )
 
     warnings_list: list[str] = []
     citation_warnings_list: list[str] = []
@@ -913,25 +1636,16 @@ def run_retrieval_and_qa(
         raise ValueError(f"Live retrieval requires config attributes: {', '.join(missing_cfg)}")
 
     with neo4j.GraphDatabase.driver(neo4j_uri, auth=(neo4j_username, neo4j_password)) as driver:
-        embedder = OpenAIEmbeddings(model=EMBEDDER_MODEL_NAME)
-        retriever = VectorCypherRetriever(
-            driver=driver,
-            index_name=resolved_index_name,
-            embedder=embedder,
-            retrieval_query=retrieval_query,
-            result_formatter=_chunk_citation_formatter,
-            neo4j_database=neo4j_database,
-        )
-
         # Build GraphRAG with the Power Atlas citation-enforcing prompt template and
         # capability-aware LLM for grounded, citation-enforced output.
         # Aligned with vendor pattern from vendor-resources/examples/customize/answer/custom_prompt.py
         # and vendor-resources/examples/question_answering/graphrag_with_neo4j_message_history.py.
-        llm = build_openai_llm(effective_qa_model)
-        rag = GraphRAG(
-            retriever=retriever,
-            llm=llm,
-            prompt_template=POWER_ATLAS_RAG_TEMPLATE,
+        _, rag = _build_retriever_and_rag(
+            driver,
+            index_name=resolved_index_name,
+            retrieval_query=retrieval_query,
+            qa_model=effective_qa_model,
+            neo4j_database=neo4j_database,
         )
 
         # Run the GraphRAG search with optional message history for interactive mode.
@@ -979,60 +1693,34 @@ def run_retrieval_and_qa(
                     citation_warnings_list.append(empty_text_warning)
                 hits.append({"content": item.content, "metadata": meta})
 
-    # Check answer citation completeness; apply controlled fallback when not fully cited.
-    # raw_answer preserves the original LLM output for transparency/debugging regardless
-    # of whether a fallback replacement is applied.
-    raw_answer = answer_text
-    # In all-runs mode, attempt to repair uncited segments using retrieved citation tokens
-    # before falling back to the generic citation fallback.  This avoids the fallback
-    # when valid evidence was retrieved but the LLM omitted trailing citation tokens on
-    # some segments.  Repair is skipped when no hits were retrieved (truly insufficient
-    # evidence) — the fallback still applies in that case.
-    if all_runs and hits and answer_text and not _check_all_answers_cited(answer_text):
-        first_token = _first_citation_token_from_hits(hits)
-        if first_token:
-            answer_text = _repair_uncited_answer(answer_text, first_token)
-    answer_text, _, uncited = _build_citation_fallback(answer_text)
-    # all_cited is False both when the answer is empty (nothing to cite) and when
-    # the helper finds uncited sentences; True only when the answer is non-empty
-    # and every segment carries a trailing citation token.
-    all_cited = bool(raw_answer) and not uncited
-    if answer_text and not all_cited:
-        citation_warning = "Not all answer sentences or bullets end with a citation token."
-        _logger.warning(citation_warning)
-        warnings_list.append(citation_warning)
-        citation_warnings_list.append(citation_warning)
-        # Wrap the under-cited answer in a structured, clearly labeled fallback so that
-        # all consumers (UI, manifests, downstream stages) see an explicit citation
-        # warning instead of silently treating an under-cited response as fully reliable.
+    # Unified answer postprocessing: raw citation check, repair, fallback, warnings, and
+    # evidence quality bundle — computed via the shared helper so single-shot and
+    # interactive paths cannot drift silently.
+    pp = _postprocess_answer(
+        answer_text,
+        hits,
+        all_runs=all_runs,
+        existing_citation_warnings=citation_warnings_list,
+    )
+    # Propagate any new citation warnings (e.g. uncited-answer warning added by the
+    # helper) to the general warnings list so callers see a unified warnings list.
+    # _postprocess_answer guarantees that the returned citation_warnings list always
+    # starts with the elements of existing_citation_warnings (in the same order),
+    # so slicing from len(citation_warnings_list) yields only the newly-added warnings.
+    for w in pp["citation_warnings"][len(citation_warnings_list):]:
+        warnings_list.append(w)
+    if pp["citation_fallback_applied"]:
+        display = pp["display_answer"]
         fallback_preview = (
-            answer_text[:200] + "..." if len(answer_text) > 200 else answer_text
+            display[:_FALLBACK_PREVIEW_MAX_LEN] + "..."
+            if len(display) > _FALLBACK_PREVIEW_MAX_LEN
+            else display
         )
         _logger.warning(
             "Answer replaced with citation fallback (length=%d, preview=%r)",
-            len(answer_text),
+            len(display),
             fallback_preview,
         )
-
-    # Build the structured per-answer citation quality signal bundle.
-    # evidence_level encodes the overall quality of the retrieved evidence:
-    #   "no_answer"  – no answer was generated (empty answer text)
-    #   "full"       – every answer sentence and bullet ends with a citation token AND
-    #                  no critical citation-quality warnings exist (e.g. no empty chunks)
-    #   "degraded"   – any answer sentence or bullet is missing a citation token, OR a
-    #                  critical citation-quality warning exists (e.g. empty chunk text).
-    #                  Missing OPTIONAL citation fields (page, start_char, end_char) do
-    #                  NOT degrade evidence_level per citation contract #159.
-    evidence_level = (
-        "no_answer" if not answer_text
-        else ("degraded" if (not all_cited or citation_warnings_list) else "full")
-    )
-    live_citation_quality: dict[str, object] = {
-        "all_cited": all_cited,
-        "evidence_level": evidence_level,
-        "warning_count": len(citation_warnings_list),
-        "citation_warnings": citation_warnings_list,
-    }
 
     # Use first hit's citation data as example when hits are available so the manifest
     # reflects actual retrieved provenance rather than placeholder values.
@@ -1062,11 +1750,18 @@ def run_retrieval_and_qa(
         "citation_token_example": actual_citation_token,
         "citation_object_example": actual_citation_object,
         "citation_example": actual_citation_object,
-        "answer": answer_text,
-        "raw_answer": raw_answer or "",
-        "citation_fallback_applied": uncited,
-        "all_answers_cited": all_cited,
-        "citation_quality": live_citation_quality,
+        "answer": pp["display_answer"],
+        "raw_answer": pp["raw_answer"],
+        "citation_fallback_applied": pp["citation_fallback_applied"],
+        # all_answers_cited reflects the FINAL delivered answer citation state (after any
+        # repair or fallback).  raw_answer_all_cited reflects the original LLM output.
+        "all_answers_cited": pp["all_cited"],
+        "raw_answer_all_cited": pp["raw_answer_all_cited"],
+        "citation_repair_applied": pp["citation_repair_applied"],
+        "citation_repair_strategy": pp["citation_repair_strategy"],
+        "citation_repair_source_chunk_id": pp["citation_repair_source_chunk_id"],
+        "citation_quality": pp["citation_quality"],
+        "retrieval_path_summary": _format_retrieval_path_summary(hits),
     }
 
 
@@ -1144,19 +1839,15 @@ def run_interactive_qa(
 
     resolved_index_name = index_name if index_name is not None else CHUNK_EMBEDDING_INDEX_NAME
     effective_qa_model = getattr(config, "openai_model", None) or "gpt-4o-mini"
-    retrieval_query = (
-        _RETRIEVAL_QUERY_WITH_CLUSTER_ALL_RUNS if (cluster_aware and all_runs)
-        else _RETRIEVAL_QUERY_WITH_CLUSTER if cluster_aware
-        else _RETRIEVAL_QUERY_WITH_EXPANSION_ALL_RUNS if (expand_graph and all_runs)
-        else _RETRIEVAL_QUERY_BASE_ALL_RUNS if all_runs
-        else _RETRIEVAL_QUERY_WITH_EXPANSION if expand_graph
-        else _RETRIEVAL_QUERY_BASE
+    retrieval_query = _select_retrieval_query(
+        expand_graph=expand_graph, cluster_aware=cluster_aware, all_runs=all_runs
     )
-    query_params: dict[str, object] = {"source_uri": source_uri}
-    if not all_runs:
-        query_params["run_id"] = run_id
-    if cluster_aware:
-        query_params["alignment_version"] = ALIGNMENT_VERSION
+    query_params = _build_query_params(
+        run_id=run_id,
+        source_uri=source_uri,
+        all_runs=all_runs,
+        cluster_aware=cluster_aware,
+    )
 
     history: MessageHistory = InMemoryMessageHistory()
     print(f"Using retrieval scope: {_format_scope_label(run_id, all_runs)}")
@@ -1165,20 +1856,12 @@ def run_interactive_qa(
     # Build driver, retriever, LLM, and GraphRAG once and reuse across all REPL turns
     # to avoid per-turn connection overhead and Neo4j driver churn.
     with neo4j.GraphDatabase.driver(neo4j_uri, auth=(neo4j_username, neo4j_password)) as driver:
-        embedder = OpenAIEmbeddings(model=EMBEDDER_MODEL_NAME)
-        retriever = VectorCypherRetriever(
-            driver=driver,
+        _, rag = _build_retriever_and_rag(
+            driver,
             index_name=resolved_index_name,
-            embedder=embedder,
             retrieval_query=retrieval_query,
-            result_formatter=_chunk_citation_formatter,
+            qa_model=effective_qa_model,
             neo4j_database=neo4j_database,
-        )
-        llm = build_openai_llm(effective_qa_model)
-        rag = GraphRAG(
-            retriever=retriever,
-            llm=llm,
-            prompt_template=POWER_ATLAS_RAG_TEMPLATE,
         )
         try:
             while True:
@@ -1200,24 +1883,21 @@ def run_interactive_qa(
                     message_history=history,
                 )
                 answer = rag_result.answer if rag_result else ""
-                # In all-runs mode, attempt to repair uncited segments using retrieved
-                # citation tokens before falling back.  Mirrors the repair logic in
-                # run_retrieval_and_qa to keep citation-enforcement consistent.
-                if all_runs and answer and rag_result and rag_result.retriever_result:
+                # Build repair hits from retriever result items (empty list when no
+                # retriever result is available — _postprocess_answer handles this).
+                _repair_hits: list[dict[str, object]] = []
+                if rag_result and rag_result.retriever_result:
                     _repair_hits = [
                         {"metadata": item.metadata or {}}
                         for item in rag_result.retriever_result.items
                     ]
-                    if _repair_hits and not _check_all_answers_cited(answer):
-                        _first_token = _first_citation_token_from_hits(_repair_hits)
-                        if _first_token:
-                            answer = _repair_uncited_answer(answer, _first_token)
-                display_answer, history_answer, uncited = _build_citation_fallback(answer)
-                print(f"\nAnswer:\n{display_answer}\n")
-                if uncited:
-                    _logger.warning("Not all answer sentences or bullets end with a citation token.")
+                # Unified postprocessing: repair, fallback, warnings, and citation quality
+                # via the shared helper so this path stays aligned with run_retrieval_and_qa.
+                pp = _postprocess_answer(answer, _repair_hits, all_runs=all_runs)
+                print(f"\nAnswer:\n{pp['display_answer']}\n")
+                if pp["citation_fallback_applied"]:
                     print(
-                        "⚠ WARNING: Not all answer sentences or bullets are cited — evidence quality may be degraded."
+                        "WARNING: Not all answer sentences or bullets are cited - evidence quality may be degraded."
                     )
                 # Store only the refusal prefix (not the full uncited output) in history
                 # so that subsequent turns are not conditioned on under-cited content.
@@ -1225,7 +1905,7 @@ def run_interactive_qa(
                 history.add_messages(
                     [
                         LLMMessage(role="user", content=question),
-                        LLMMessage(role="assistant", content=history_answer),
+                        LLMMessage(role="assistant", content=pp["history_answer"]),
                     ]
                 )
         except KeyboardInterrupt:
@@ -1237,5 +1917,7 @@ __all__ = [
     "run_interactive_qa",
     "_CITATION_FALLBACK_PREFIX",
     "_format_scope_label",
+    "_format_retrieval_path_summary",
+    "_postprocess_answer",
 ]
 
