@@ -306,7 +306,8 @@ class TestCitationRepairParity:
 
         pp = _postprocess_answer(answer, [_HIT], all_runs=True)
 
-        # Repair must be applied for an uncited answer when hits are available.
+        # Repair must be attempted and applied for an uncited answer when hits are available.
+        assert pp["citation_repair_attempted"] is True
         assert pp["citation_repair_applied"] is True
         assert pp["citation_repair_strategy"] == "append_first_retrieved_token"
         # Display and history answers must both carry the repaired (cited) text.
@@ -322,6 +323,7 @@ class TestCitationRepairParity:
 
         pp = _postprocess_answer(answer, [_HIT], all_runs=True)
 
+        assert pp["citation_repair_attempted"] is False
         assert pp["citation_repair_applied"] is False
         assert pp["raw_answer_all_cited"] is True
         assert pp["citation_fallback_applied"] is False
@@ -339,6 +341,7 @@ class TestCitationRepairParity:
 
         pp = _postprocess_answer(answer, hits, all_runs=True)
 
+        assert pp["citation_repair_attempted"] is True
         assert pp["citation_repair_applied"] is True
         assert pp["citation_repair_source_chunk_id"] == "c1"
         assert token_a in pp["display_answer"]

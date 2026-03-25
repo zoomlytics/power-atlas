@@ -29,14 +29,17 @@ This document is the canonical reference for the meaning, relationships, and inv
 
 | Field | Type | Description |
 |---|---|---|
+| `citation_repair_attempted` | `bool` | `True` when the preconditions for repair were met and repair logic was entered, regardless of whether repair ultimately changed the answer. `False` when repair was never evaluated (e.g. not in all-runs mode, answer already fully cited, no hits available). |
 | `citation_repair_applied` | `bool` | `True` **only** when repair logic ran *and* the answer text actually changed as a result. |
 | `citation_repair_strategy` | `str \| None` | Name of the repair algorithm used (e.g. `"append_first_retrieved_token"`), or `None` when `citation_repair_applied` is `False`. |
-| `citation_repair_source_chunk_id` | `str \| None` | `chunk_id` of the retrieved chunk whose citation token was used during repair, or `None` when `citation_repair_applied` is `False`. |
+| `citation_repair_source_chunk_id` | `str \| None` | `chunk_id` of the retrieved chunk whose citation token was used during repair, or `None` when `citation_repair_applied` is `False` **or when the winning retrieved hit had no `chunk_id` to propagate**. |
 
 **Repair invariants:**
 
+- `citation_repair_attempted` reflects whether repair logic was **entered** (preconditions met), not whether repair ultimately changed anything.
 - `citation_repair_applied` reflects whether the **answer text changed**, not merely whether repair logic was invoked.  If repair ran but produced a string identical to the input, `citation_repair_applied` is `False`.
-- `citation_repair_strategy` and `citation_repair_source_chunk_id` are **only populated when `citation_repair_applied` is `True`**.  When `citation_repair_applied` is `False`, both are `None`.
+- `citation_repair_strategy` is **only populated when `citation_repair_applied` is `True`**. `citation_repair_source_chunk_id` is populated when `citation_repair_applied` is `True` **and** the selected retrieved hit exposes a non-empty `chunk_id`; otherwise it is `None`. When `citation_repair_applied` is `False`, both are `None`.
+- `citation_repair_applied` implies `citation_repair_attempted`: if `citation_repair_applied` is `True`, then `citation_repair_attempted` is also `True`.  The reverse is not true: `citation_repair_attempted` can be `True` while `citation_repair_applied` is `False` (repair was entered but produced no change or found no candidate token).
 - Repair is currently only attempted in **all-runs mode** (`all_runs=True`), because that mode lacks a single authoritative `run_id` citation token and the LLM sometimes omits trailing tokens.
 
 ### 2.3 Final answer fields
@@ -110,19 +113,21 @@ Two answer variants are produced internally by `_postprocess_answer`:
 
 The following invariants hold across all postprocessing paths:
 
-1. **Repair-applied invariant:** `citation_repair_strategy` and `citation_repair_source_chunk_id` are `None` whenever `citation_repair_applied` is `False`.  They are non-`None` only when `citation_repair_applied` is `True`.
+1. **Repair-applied invariant:** `citation_repair_strategy` is `None` whenever `citation_repair_applied` is `False`. `citation_repair_source_chunk_id` is `None` whenever `citation_repair_applied` is `False`, and may also be `None` when `citation_repair_applied` is `True` if the winning retrieved hit had no `chunk_id`.
 
 2. **Text-change invariant:** `citation_repair_applied = True` means the repaired answer text *differs* from `raw_answer`.  If repair ran but produced identical text, `citation_repair_applied` remains `False`.
 
-3. **Raw vs final citation divergence:** `raw_answer_all_cited` and `all_answers_cited` (= `citation_quality["all_cited"]`) can and do differ: repair can fix a `raw_answer_all_cited=False` answer so that `all_answers_cited=True`, or leave it uncited.
+3. **Attempted ⊇ applied invariant:** `citation_repair_applied = True` implies `citation_repair_attempted = True`.  The reverse does not hold: repair can be attempted (preconditions met) but not applied (no candidate token found, or repair produced no textual change).
 
-4. **Fallback does not change `all_answers_cited`:** `citation_fallback_applied=True` means a prefix was prepended to `answer` for display, but `all_answers_cited` reflects citation completeness of the repaired answer text itself — not of the prefixed display string.
+4. **Raw vs final citation divergence:** `raw_answer_all_cited` and `all_answers_cited` (= `citation_quality["all_cited"]`) can and do differ: repair can fix a `raw_answer_all_cited=False` answer so that `all_answers_cited=True`, or leave it uncited.
 
-5. **`evidence_level` alignment with warnings:** If `citation_warnings` is non-empty, `evidence_level` is always `"degraded"` (never `"full"`).  `"full"` requires both `all_cited=True` and an empty `citation_warnings` list.
+5. **Fallback does not change `all_answers_cited`:** `citation_fallback_applied=True` means a prefix was prepended to `answer` for display, but `all_answers_cited` reflects citation completeness of the repaired answer text itself — not of the prefixed display string.
 
-6. **Warning propagation:** Every warning added to `citation_warnings` is also appended to `warnings`.  The reverse is not true: `warnings` may contain operational warnings not present in `citation_warnings`.
+6. **`evidence_level` alignment with warnings:** If `citation_warnings` is non-empty, `evidence_level` is always `"degraded"` (never `"full"`).  `"full"` requires both `all_cited=True` and an empty `citation_warnings` list.
 
-7. **`citation_quality` mirrors top-level fields:** `citation_quality["all_cited"]` always equals the top-level `all_answers_cited`.  `citation_quality["raw_answer_all_cited"]` always equals the top-level `raw_answer_all_cited`.  `citation_quality["evidence_level"]` always equals the top-level fields used to derive `evidence_level`.
+7. **Warning propagation:** Every warning added to `citation_warnings` is also appended to `warnings`.  The reverse is not true: `warnings` may contain operational warnings not present in `citation_warnings`.
+
+8. **`citation_quality` mirrors top-level fields:** `citation_quality["all_cited"]` always equals the top-level `all_answers_cited`.  `citation_quality["raw_answer_all_cited"]` always equals the top-level `raw_answer_all_cited`.  `citation_quality["evidence_level"]` always equals the top-level fields used to derive `evidence_level`.
 
 ---
 
@@ -138,6 +143,7 @@ The LLM produced a fully cited answer from the start.
   "raw_answer": "Claim A. [CITATION|chunk_id=abc|…]",
   "raw_answer_all_cited": true,
   "all_answers_cited": true,
+  "citation_repair_attempted": false,
   "citation_repair_applied": false,
   "citation_repair_strategy": null,
   "citation_repair_source_chunk_id": null,
@@ -163,6 +169,7 @@ The LLM omitted citation tokens and repair did not run (run-scoped mode).
   "raw_answer": "Claim A without citation.",
   "raw_answer_all_cited": false,
   "all_answers_cited": false,
+  "citation_repair_attempted": false,
   "citation_repair_applied": false,
   "citation_repair_strategy": null,
   "citation_repair_source_chunk_id": null,
@@ -188,6 +195,7 @@ All-runs mode (`all_runs=True`): the LLM omitted a citation token, repair append
   "raw_answer": "Claim A.",
   "raw_answer_all_cited": false,
   "all_answers_cited": true,
+  "citation_repair_attempted": true,
   "citation_repair_applied": true,
   "citation_repair_strategy": "append_first_retrieved_token",
   "citation_repair_source_chunk_id": "xyz",
@@ -215,6 +223,7 @@ All-runs mode: repair ran (and the answer text changed), but the repaired answer
   "raw_answer": "Claim A. Claim B.",
   "raw_answer_all_cited": false,
   "all_answers_cited": false,
+  "citation_repair_attempted": true,
   "citation_repair_applied": true,
   "citation_repair_strategy": "append_first_retrieved_token",
   "citation_repair_source_chunk_id": "xyz",
@@ -242,6 +251,7 @@ The LLM returned an empty string (e.g. the question was out of scope or retrieva
   "raw_answer": "",
   "raw_answer_all_cited": false,
   "all_answers_cited": false,
+  "citation_repair_attempted": false,
   "citation_repair_applied": false,
   "citation_repair_strategy": null,
   "citation_repair_source_chunk_id": null,
@@ -269,6 +279,7 @@ A retrieved chunk had empty text during retrieval, raising an operational warnin
   "raw_answer": "Claim A. [CITATION|chunk_id=abc|…]",
   "raw_answer_all_cited": true,
   "all_answers_cited": true,
+  "citation_repair_attempted": false,
   "citation_repair_applied": false,
   "citation_repair_strategy": null,
   "citation_repair_source_chunk_id": null,
@@ -285,6 +296,34 @@ A retrieved chunk had empty text during retrieval, raising an operational warnin
 ```
 
 Even though the answer is fully cited, `evidence_level` is `"degraded"` because a citation-quality warning exists.  This reflects the fact that the cited chunk carried no usable text evidence.
+
+### 4.7 Repair attempted but not applied — no candidate token found
+
+All-runs mode (`all_runs=True`): repair preconditions were met (uncited answer, hits provided) but none of the retrieved hits contained a usable citation token.
+
+```json
+{
+  "answer": "Insufficient citations detected: Claim A without citation.",
+  "raw_answer": "Claim A without citation.",
+  "raw_answer_all_cited": false,
+  "all_answers_cited": false,
+  "citation_repair_attempted": true,
+  "citation_repair_applied": false,
+  "citation_repair_strategy": null,
+  "citation_repair_source_chunk_id": null,
+  "citation_fallback_applied": true,
+  "citation_quality": {
+    "all_cited": false,
+    "raw_answer_all_cited": false,
+    "evidence_level": "degraded",
+    "warning_count": 1,
+    "citation_warnings": ["Not all answer sentences or bullets end with a citation token."]
+  },
+  "warnings": ["Not all answer sentences or bullets end with a citation token."]
+}
+```
+
+`citation_repair_attempted` is `true` because repair logic was entered (all-runs mode, hits present, uncited answer).  `citation_repair_applied` is `false` because no citation token was available in the hits to append, so the answer text was unchanged.  Downstream consumers can use `citation_repair_attempted=true` + `citation_repair_applied=false` to distinguish this "attempted but unable to repair" case from the §4.2 case where repair was never entered at all.
 
 ---
 

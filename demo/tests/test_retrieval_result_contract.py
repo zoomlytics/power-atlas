@@ -109,6 +109,7 @@ _POSTPROCESS_RESULT_KEYS: frozenset[str] = frozenset({
     "raw_answer",
     "raw_answer_all_cited",
     "repaired_answer",
+    "citation_repair_attempted",
     "citation_repair_applied",
     "citation_repair_strategy",
     "citation_repair_source_chunk_id",
@@ -224,6 +225,7 @@ _POSTPROCESS_SCENARIOS: list[tuple[str, str, list, bool, list | None, dict]] = [
             "raw_answer": _CITED_ANSWER,
             "raw_answer_all_cited": True,
             "repaired_answer": _CITED_ANSWER,
+            "citation_repair_attempted": False,
             "citation_repair_applied": False,
             "citation_repair_strategy": None,
             "citation_repair_source_chunk_id": None,
@@ -247,6 +249,7 @@ _POSTPROCESS_SCENARIOS: list[tuple[str, str, list, bool, list | None, dict]] = [
             "raw_answer": _UNCITED_ANSWER,
             "raw_answer_all_cited": False,
             "repaired_answer": _REPAIRED_UNCITED_ANSWER,
+            "citation_repair_attempted": True,
             "citation_repair_applied": True,
             "citation_repair_strategy": "append_first_retrieved_token",
             "citation_repair_source_chunk_id": "c1",
@@ -270,6 +273,7 @@ _POSTPROCESS_SCENARIOS: list[tuple[str, str, list, bool, list | None, dict]] = [
             "raw_answer": _UNCITED_ANSWER,
             "raw_answer_all_cited": False,
             "repaired_answer": _UNCITED_ANSWER,
+            "citation_repair_attempted": False,
             "citation_repair_applied": False,
             "citation_repair_strategy": None,
             "citation_repair_source_chunk_id": None,
@@ -293,6 +297,7 @@ _POSTPROCESS_SCENARIOS: list[tuple[str, str, list, bool, list | None, dict]] = [
             "raw_answer": _UNCITED_ANSWER,
             "raw_answer_all_cited": False,
             "repaired_answer": _UNCITED_ANSWER,
+            "citation_repair_attempted": False,
             "citation_repair_applied": False,
             "citation_repair_strategy": None,
             "citation_repair_source_chunk_id": None,
@@ -316,6 +321,7 @@ _POSTPROCESS_SCENARIOS: list[tuple[str, str, list, bool, list | None, dict]] = [
             "raw_answer": "",
             "raw_answer_all_cited": False,
             "repaired_answer": "",
+            "citation_repair_attempted": False,
             "citation_repair_applied": False,
             "citation_repair_strategy": None,
             "citation_repair_source_chunk_id": None,
@@ -339,6 +345,7 @@ _POSTPROCESS_SCENARIOS: list[tuple[str, str, list, bool, list | None, dict]] = [
             "raw_answer": "   \n  ",
             "raw_answer_all_cited": False,
             "repaired_answer": "   \n  ",
+            "citation_repair_attempted": False,
             "citation_repair_applied": False,
             "citation_repair_strategy": None,
             "citation_repair_source_chunk_id": None,
@@ -362,6 +369,7 @@ _POSTPROCESS_SCENARIOS: list[tuple[str, str, list, bool, list | None, dict]] = [
             "raw_answer": _UNCITED_ANSWER,
             "raw_answer_all_cited": False,
             "repaired_answer": _UNCITED_ANSWER,
+            "citation_repair_attempted": False,
             "citation_repair_applied": False,
             "citation_repair_strategy": None,
             "citation_repair_source_chunk_id": None,
@@ -385,6 +393,7 @@ _POSTPROCESS_SCENARIOS: list[tuple[str, str, list, bool, list | None, dict]] = [
             "raw_answer": _CITED_ANSWER,
             "raw_answer_all_cited": True,
             "repaired_answer": _CITED_ANSWER,
+            "citation_repair_attempted": False,
             "citation_repair_applied": False,
             "citation_repair_strategy": None,
             "citation_repair_source_chunk_id": None,
@@ -508,15 +517,31 @@ class TestPostprocessAnswerInvariants:
         )
 
     def test_repair_strategy_and_chunk_id_only_when_repair_applied(self) -> None:
-        """``citation_repair_strategy`` and ``citation_repair_source_chunk_id`` are ``None``
-        when repair was not applied, and non-``None`` when it was."""
+        """``citation_repair_strategy`` is ``None`` when repair was not applied, and
+        non-``None`` when it was.  ``citation_repair_source_chunk_id`` follows the same
+        rule for ``strategy``, but may also be ``None`` when repair is applied and the
+        winning hit has no ``chunk_id`` to propagate."""
         pp_no_repair = _postprocess_answer(_CITED_ANSWER, [_HIT], all_runs=True)
         assert pp_no_repair["citation_repair_strategy"] is None
         assert pp_no_repair["citation_repair_source_chunk_id"] is None
 
         pp_repair = _postprocess_answer(_UNCITED_ANSWER, [_HIT], all_runs=True)
         assert pp_repair["citation_repair_strategy"] is not None
+        # source_chunk_id is present here because _HIT has a non-empty chunk_id.
         assert pp_repair["citation_repair_source_chunk_id"] is not None
+
+        # When repair is applied but the winning hit has no chunk_id, source_chunk_id
+        # is None even though citation_repair_applied is True.
+        hit_no_chunk = {
+            "metadata": {
+                "citation_token": _TOKEN,
+                "chunk_id": "",
+            }
+        }
+        pp_repair_no_chunk = _postprocess_answer(_UNCITED_ANSWER, [hit_no_chunk], all_runs=True)
+        assert pp_repair_no_chunk["citation_repair_applied"] is True
+        assert pp_repair_no_chunk["citation_repair_strategy"] is not None
+        assert pp_repair_no_chunk["citation_repair_source_chunk_id"] is None
 
     def test_repair_skipped_when_raw_answer_already_all_cited(self) -> None:
         """When the raw answer is already fully cited, repair is skipped, but
