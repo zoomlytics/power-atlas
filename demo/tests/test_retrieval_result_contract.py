@@ -534,7 +534,7 @@ class TestPostprocessAnswerInvariants:
         # is None even though citation_repair_applied is True.
         hit_no_chunk = {
             "metadata": {
-                "citation_token": _HIT["metadata"]["citation_token"],
+                "citation_token": _TOKEN,
                 "chunk_id": "",
             }
         }
