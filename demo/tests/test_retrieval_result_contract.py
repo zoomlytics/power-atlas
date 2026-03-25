@@ -14,7 +14,6 @@ Structure
 
     - fully cited answer
     - uncited answer repaired (text changed)
-    - uncited answer where repair is attempted but produces no change (no-op)
     - citation fallback applied (run-scoped mode, no repair)
     - citation fallback applied (all-runs mode, no hits available)
     - empty / whitespace-only answer
