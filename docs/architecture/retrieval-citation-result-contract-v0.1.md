@@ -2,15 +2,15 @@
 
 **Status:** Accepted  
 **Audience:** Contributors, architects, reviewers  
-**Scope:** Postprocessing semantics for the retrieval/citation result dict returned by `run_retrieval_and_qa`
+**Scope:** Postprocessing semantics for the retrieval/citation result dict in **postprocessed `status="live"` results** from `run_retrieval_and_qa` (i.e., runs where QA executed and `_postprocess_answer` ran to completion).
 
 ---
 
 ## 1) Summary
 
-`run_retrieval_and_qa` returns a result dict that contains both the **final deliverable fields** (what callers and the UI consume) and **diagnostic fields** (what tests and observability tooling inspect).  The postprocessing path — citation repair, citation fallback, evidence-level derivation — runs through a single shared helper (`_postprocess_answer`) so the single-shot and interactive paths stay aligned.
+`run_retrieval_and_qa` returns a result dict that contains both the **final deliverable fields** (what callers and the UI consume) and **diagnostic fields** (what tests and observability tooling inspect).  The postprocessing path — citation repair, citation fallback, evidence-level derivation — runs through a single shared helper (`_postprocess_answer`) so the single-shot and interactive paths stay aligned for **live, postprocessed runs**.
 
-This document is the canonical reference for the meaning, relationships, and invariants of every postprocessing/result field.  It is not a description of the retrieval architecture itself (see [retrieval-semantics-v0.1.md](retrieval-semantics-v0.1.md)); it focuses exclusively on what the result dict carries and why.
+This document is the canonical reference for the meaning, relationships, and invariants of every postprocessing/result field **in postprocessed `status="live"` payloads**.  It is not a description of the retrieval architecture itself (see [retrieval-semantics-v0.1.md](retrieval-semantics-v0.1.md)); it focuses exclusively on what the postprocessed result dict carries and why.  **Dry-run and other early-return result shapes (e.g., `status="dry_run"`) are out of scope and may omit postprocessing-only fields such as `warnings`.**
 
 ---
 
