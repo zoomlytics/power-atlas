@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import io
 import types
+from collections.abc import Callable
 from unittest.mock import MagicMock, patch
 
 from demo.stages.retrieval_and_qa import (
@@ -186,6 +187,16 @@ class TestRunInteractiveQaDebugFlag:
     calls are made.
     """
 
+    @staticmethod
+    def _make_capture() -> tuple[io.StringIO, Callable[..., None]]:
+        """Return (captured_sio, capture_fn) for patching builtins.print."""
+        captured = io.StringIO()
+
+        def _capture_print(*args: object, sep: str = " ", end: str = "\n", **_kw: object) -> None:
+            captured.write(sep.join(str(a) for a in args) + end)
+
+        return captured, _capture_print
+
     def _make_rag_result(self, answer: str, token: str | None = None) -> MagicMock:
         """Build a mock RAG result with one retrieval item."""
         mock_item = MagicMock()
@@ -209,10 +220,7 @@ class TestRunInteractiveQaDebugFlag:
         mock_rag = MagicMock()
         mock_rag.search.return_value = mock_rag_result
 
-        captured = io.StringIO()
-
-        def _capture_print(*args: object, sep: str = " ", end: str = "\n", **_kw: object) -> None:
-            captured.write(sep.join(str(a) for a in args) + end)
+        captured, _capture_print = self._make_capture()
 
         with (
             patch("demo.stages.retrieval_and_qa.neo4j") as mock_neo4j,
@@ -261,10 +269,7 @@ class TestRunInteractiveQaDebugFlag:
         mock_rag = MagicMock()
         mock_rag.search.return_value = mock_rag_result
 
-        captured = io.StringIO()
-
-        def _capture_print(*args: object, sep: str = " ", end: str = "\n", **_kw: object) -> None:
-            captured.write(sep.join(str(a) for a in args) + end)
+        captured, _capture_print = self._make_capture()
 
         with (
             patch("demo.stages.retrieval_and_qa.neo4j") as mock_neo4j,
@@ -302,3 +307,131 @@ class TestRunInteractiveQaDebugFlag:
 
         assert "fallback_applied=True" in output
         assert "evidence=degraded" in output
+
+    def test_debug_values_sourced_from_postprocess_result_not_recomputed(self) -> None:
+        """Debug output values come from _postprocess_answer, not independently recomputed.
+
+        This test patches _postprocess_answer to return a controlled result and
+        verifies that the exact values from that result appear in the debug output,
+        proving the debug surface reads from the shared postprocessing contract
+        rather than recomputing citation quality independently.
+        """
+        import demo.stages.retrieval_and_qa as _raq_mod
+
+        controlled_pp: _raq_mod._AnswerPostprocessResult = {
+            "raw_answer": "some answer",
+            "raw_answer_all_cited": False,
+            "repaired_answer": "some answer (repaired)",
+            "citation_repair_attempted": True,
+            "citation_repair_applied": True,
+            "citation_repair_strategy": "first_hit",
+            "citation_repair_source_chunk_id": "cx99",
+            "display_answer": "some answer (repaired)",
+            "history_answer": "some answer (repaired)",
+            "citation_fallback_applied": False,
+            "all_cited": True,
+            "evidence_level": "full",
+            "citation_warnings": [],
+            "warning_count": 0,
+            "citation_quality": {
+                "all_cited": True,
+                "raw_answer_all_cited": False,
+                "evidence_level": "full",
+                "warning_count": 0,
+                "citation_warnings": [],
+            },
+        }
+
+        mock_rag_result = self._make_rag_result(f"Cited answer. {_TOKEN}", token=_TOKEN)
+        mock_rag = MagicMock()
+        mock_rag.search.return_value = mock_rag_result
+
+        captured, _capture_print = self._make_capture()
+
+        with (
+            patch("demo.stages.retrieval_and_qa.neo4j") as mock_neo4j,
+            patch(
+                "demo.stages.retrieval_and_qa._build_retriever_and_rag",
+                return_value=(MagicMock(), mock_rag),
+            ),
+            patch("demo.stages.retrieval_and_qa.os.getenv", return_value="fake-api-key"),
+            patch("builtins.input", side_effect=["test question", EOFError()]),
+            patch("builtins.print", side_effect=_capture_print),
+            patch(
+                "demo.stages.retrieval_and_qa._postprocess_answer",
+                return_value=controlled_pp,
+            ),
+        ):
+            mock_neo4j.GraphDatabase.driver.return_value.__enter__.return_value = (
+                mock_neo4j.GraphDatabase.driver.return_value
+            )
+            mock_neo4j.GraphDatabase.driver.return_value.__exit__ = MagicMock(return_value=False)
+            run_interactive_qa(_LIVE_CONFIG, all_runs=True, debug=True)
+
+        output = captured.getvalue()
+        # Verify the debug line reflects the controlled pp values, not recomputed ones.
+        assert "raw_cited=False" in output
+        assert "final_cited=True" in output
+        assert "repair_applied=True" in output
+        assert "fallback_applied=False" in output
+        assert "evidence=full" in output
+        assert "warnings=0" in output
+
+    def test_debug_robustness_no_retriever_result(self) -> None:
+        """Debug output is emitted without error when retriever_result is None."""
+        mock_rag_result = MagicMock()
+        mock_rag_result.answer = "An answer with no retriever result."
+        mock_rag_result.retriever_result = None
+        mock_rag = MagicMock()
+        mock_rag.search.return_value = mock_rag_result
+
+        captured, _capture_print = self._make_capture()
+
+        with (
+            patch("demo.stages.retrieval_and_qa.neo4j") as mock_neo4j,
+            patch(
+                "demo.stages.retrieval_and_qa._build_retriever_and_rag",
+                return_value=(MagicMock(), mock_rag),
+            ),
+            patch("demo.stages.retrieval_and_qa.os.getenv", return_value="fake-api-key"),
+            patch("builtins.input", side_effect=["test question", EOFError()]),
+            patch("builtins.print", side_effect=_capture_print),
+        ):
+            mock_neo4j.GraphDatabase.driver.return_value.__enter__.return_value = (
+                mock_neo4j.GraphDatabase.driver.return_value
+            )
+            mock_neo4j.GraphDatabase.driver.return_value.__exit__ = MagicMock(return_value=False)
+            run_interactive_qa(_LIVE_CONFIG, all_runs=True, debug=True)
+
+        output = captured.getvalue()
+        assert "[debug]" in output
+
+    def test_debug_robustness_empty_retriever_items(self) -> None:
+        """Debug output is emitted without error when retriever_result.items is empty."""
+        mock_rag_result = MagicMock()
+        mock_rag_result.answer = "An answer with no retrieval hits."
+        mock_rag_result.retriever_result = MagicMock()
+        mock_rag_result.retriever_result.items = []
+        mock_rag = MagicMock()
+        mock_rag.search.return_value = mock_rag_result
+
+        captured, _capture_print = self._make_capture()
+
+        with (
+            patch("demo.stages.retrieval_and_qa.neo4j") as mock_neo4j,
+            patch(
+                "demo.stages.retrieval_and_qa._build_retriever_and_rag",
+                return_value=(MagicMock(), mock_rag),
+            ),
+            patch("demo.stages.retrieval_and_qa.os.getenv", return_value="fake-api-key"),
+            patch("builtins.input", side_effect=["test question", EOFError()]),
+            patch("builtins.print", side_effect=_capture_print),
+        ):
+            mock_neo4j.GraphDatabase.driver.return_value.__enter__.return_value = (
+                mock_neo4j.GraphDatabase.driver.return_value
+            )
+            mock_neo4j.GraphDatabase.driver.return_value.__exit__ = MagicMock(return_value=False)
+            run_interactive_qa(_LIVE_CONFIG, all_runs=True, debug=True)
+
+        output = captured.getvalue()
+        assert "[debug]" in output
