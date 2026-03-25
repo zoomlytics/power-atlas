@@ -413,7 +413,7 @@ def _apply_citation_repair(
     *,
     all_runs: bool,
     raw_answer_all_cited: bool,
-) -> tuple[str, bool, str | None, str | None]:
+) -> tuple[str, bool, bool, str | None, str | None]:
     """Attempt to repair uncited answer segments using retrieved citation tokens.
 
     Shared by both ``run_retrieval_and_qa`` and ``run_interactive_qa`` so that
@@ -422,7 +422,7 @@ def _apply_citation_repair(
     Repair is only attempted when *all_runs* is True, hits are available, the
     answer is non-empty, and the raw answer was not already fully cited.  When
     repair is not needed or no citation token is available this function returns
-    *answer_text* unchanged with ``applied=False``.
+    *answer_text* unchanged with ``attempted=False`` and ``applied=False``.
 
     Parameters
     ----------
@@ -441,10 +441,14 @@ def _apply_citation_repair(
 
     Returns
     -------
-    tuple[str, bool, str | None, str | None]
-        ``(repaired_answer, applied, strategy, source_chunk_id)`` where:
+    tuple[str, bool, bool, str | None, str | None]
+        ``(repaired_answer, attempted, applied, strategy, source_chunk_id)`` where:
 
         - *repaired_answer*: The answer after repair (or *answer_text* unchanged).
+        - *attempted*: ``True`` when the preconditions for repair were met (i.e.
+          ``all_runs=True``, hits non-empty, answer non-empty, answer not already
+          fully cited) and repair logic was entered.  ``False`` when any
+          precondition was not satisfied and repair was never evaluated.
         - *applied*: ``True`` when the repaired answer text differs from the
           original *answer_text* (i.e. the answer was actually modified by repair).
           ``False`` when no repair ran or when repair produced no change.
@@ -456,10 +460,12 @@ def _apply_citation_repair(
           ``False``.
     """
     if not (all_runs and hits and answer_text.strip() and not raw_answer_all_cited):
-        return answer_text, False, None, None
+        return answer_text, False, False, None, None
     first_token = _first_citation_token_from_hits(hits)
     if not first_token:
-        return answer_text, False, None, None
+        # Preconditions were met and repair was attempted, but no citation token
+        # was available in the retrieved hits to use for repair.
+        return answer_text, True, False, None, None
     source_chunk_id: str | None = None
     for hit in hits:
         metadata = hit.get("metadata") or {}
@@ -474,8 +480,8 @@ def _apply_citation_repair(
     # This makes citation_repair_applied unambiguous: it means "the final
     # answer text was changed by repair", not merely "repair logic executed".
     if repaired == answer_text:
-        return answer_text, False, None, None
-    return repaired, True, "append_first_retrieved_token", source_chunk_id
+        return answer_text, True, False, None, None
+    return repaired, True, True, "append_first_retrieved_token", source_chunk_id
 
 
 def _build_citation_fallback(answer: str) -> tuple[str, str, bool]:
@@ -524,6 +530,7 @@ class _AnswerPostprocessResult(TypedDict):
     raw_answer: str
     raw_answer_all_cited: bool
     repaired_answer: str
+    citation_repair_attempted: bool
     citation_repair_applied: bool
     citation_repair_strategy: str | None
     citation_repair_source_chunk_id: str | None
@@ -585,6 +592,11 @@ def _postprocess_answer(
         - ``raw_answer_all_cited`` — whether the raw answer was fully cited.
         - ``repaired_answer`` — answer text after citation repair (equals
           *raw_answer* when no repair was applied).
+        - ``citation_repair_attempted`` — ``True`` when the preconditions for
+          repair were met and repair logic was entered, regardless of whether
+          repair ultimately changed the answer.  ``False`` when repair was not
+          evaluated at all (e.g. not in all-runs mode, answer already cited,
+          no hits available).
         - ``citation_repair_applied`` — ``True`` when repair actually modified
           the answer text (i.e. the repaired answer differs from the raw answer).
           ``False`` when repair was not attempted, was not needed, or produced no
@@ -610,7 +622,7 @@ def _postprocess_answer(
     raw_answer = answer_text
     raw_answer_all_cited = _check_all_answers_cited(raw_answer) if raw_answer.strip() else False
 
-    repaired, citation_repair_applied, citation_repair_strategy, citation_repair_source_chunk_id = (
+    repaired, citation_repair_attempted, citation_repair_applied, citation_repair_strategy, citation_repair_source_chunk_id = (
         _apply_citation_repair(
             answer_text,
             hits,
@@ -657,6 +669,7 @@ def _postprocess_answer(
         "raw_answer": raw_answer,
         "raw_answer_all_cited": raw_answer_all_cited,
         "repaired_answer": repaired,
+        "citation_repair_attempted": citation_repair_attempted,
         "citation_repair_applied": citation_repair_applied,
         "citation_repair_strategy": citation_repair_strategy,
         "citation_repair_source_chunk_id": citation_repair_source_chunk_id,
@@ -1587,6 +1600,10 @@ def run_retrieval_and_qa(
         # fully cited before any repair or fallback was applied.  False when the LLM
         # omitted citation tokens on some segments; True when all segments were already cited.
         "raw_answer_all_cited": False,
+        # citation_repair_attempted is True when the preconditions for repair evaluation
+        # were met (all_runs=True, non-empty answer, hits available, answer not already
+        # cited) and repair logic was entered.
+        "citation_repair_attempted": False,
         # citation_repair_applied is True when the all-runs repair heuristic appended a
         # retrieved citation token to one or more uncited answer segments.
         "citation_repair_applied": False,
@@ -1804,6 +1821,7 @@ def run_retrieval_and_qa(
         "all_answers_cited": pp["all_cited"],
         "raw_answer_all_cited": pp["raw_answer_all_cited"],
         "citation_repair_applied": pp["citation_repair_applied"],
+        "citation_repair_attempted": pp["citation_repair_attempted"],
         "citation_repair_strategy": pp["citation_repair_strategy"],
         "citation_repair_source_chunk_id": pp["citation_repair_source_chunk_id"],
         "citation_quality": pp["citation_quality"],

@@ -602,17 +602,18 @@ def _make_hit(token: str, chunk_id: str) -> dict:
 
 
 class TestApplyCitationRepair:
-    """_apply_citation_repair returns (repaired, applied, strategy, chunk_id)."""
+    """_apply_citation_repair returns (repaired, attempted, applied, strategy, chunk_id)."""
 
     _TOKEN = "[CITATION|chunk_id=abc|run_id=r|source_uri=file%3A%2F%2F%2Ff|chunk_index=0|page=1|start_char=0|end_char=99]"
 
     def test_no_repair_when_not_all_runs(self) -> None:
         answer = "Uncited sentence."
         hits = [_make_hit(self._TOKEN, "abc")]
-        result, applied, strategy, chunk_id = _apply_citation_repair(
+        result, attempted, applied, strategy, chunk_id = _apply_citation_repair(
             answer, hits, all_runs=False, raw_answer_all_cited=False
         )
         assert result == answer
+        assert attempted is False
         assert applied is False
         assert strategy is None
         assert chunk_id is None
@@ -620,32 +621,36 @@ class TestApplyCitationRepair:
     def test_no_repair_when_already_cited(self) -> None:
         answer = f"Already cited {self._TOKEN}"
         hits = [_make_hit(self._TOKEN, "abc")]
-        result, applied, _, _ = _apply_citation_repair(
+        result, attempted, applied, _, _ = _apply_citation_repair(
             answer, hits, all_runs=True, raw_answer_all_cited=True
         )
         assert result == answer
+        assert attempted is False
         assert applied is False
 
     def test_no_repair_when_empty_answer(self) -> None:
-        result, applied, _, _ = _apply_citation_repair(
+        result, attempted, applied, _, _ = _apply_citation_repair(
             "", [_make_hit(self._TOKEN, "abc")], all_runs=True, raw_answer_all_cited=False
         )
         assert result == ""
+        assert attempted is False
         assert applied is False
 
     def test_no_repair_when_no_hits(self) -> None:
-        result, applied, _, _ = _apply_citation_repair(
+        result, attempted, applied, _, _ = _apply_citation_repair(
             "Uncited.", [], all_runs=True, raw_answer_all_cited=False
         )
         assert result == "Uncited."
+        assert attempted is False
         assert applied is False
 
     def test_repair_applied_in_all_runs_mode(self) -> None:
         answer = "Uncited sentence."
         hits = [_make_hit(self._TOKEN, "abc")]
-        result, applied, strategy, chunk_id = _apply_citation_repair(
+        result, attempted, applied, strategy, chunk_id = _apply_citation_repair(
             answer, hits, all_runs=True, raw_answer_all_cited=False
         )
+        assert attempted is True
         assert applied is True
         assert strategy == "append_first_retrieved_token"
         assert chunk_id == "abc"
@@ -655,33 +660,37 @@ class TestApplyCitationRepair:
         token_a = self._TOKEN
         token_b = self._TOKEN.replace("chunk_id=abc", "chunk_id=xyz")
         hits = [_make_hit(token_a, "abc"), _make_hit(token_b, "xyz")]
-        _, _, _, chunk_id = _apply_citation_repair(
+        _, _, _, _, chunk_id = _apply_citation_repair(
             "Uncited.", hits, all_runs=True, raw_answer_all_cited=False
         )
         assert chunk_id == "abc"
 
     def test_no_repair_when_hits_have_no_token(self) -> None:
+        """attempted is True when preconditions were met but no token was found in hits."""
         hits = [{"metadata": {"citation_token": None, "chunk_id": "abc"}}]
-        result, applied, _, _ = _apply_citation_repair(
+        result, attempted, applied, _, _ = _apply_citation_repair(
             "Uncited.", hits, all_runs=True, raw_answer_all_cited=False
         )
         assert result == "Uncited."
+        assert attempted is True
         assert applied is False
 
     def test_source_chunk_id_is_none_when_chunk_id_missing(self) -> None:
         hits = [{"metadata": {"citation_token": self._TOKEN, "chunk_id": ""}}]
-        _, applied, _, chunk_id = _apply_citation_repair(
+        _, attempted, applied, _, chunk_id = _apply_citation_repair(
             "Uncited.", hits, all_runs=True, raw_answer_all_cited=False
         )
+        assert attempted is True
         assert applied is True
         assert chunk_id is None
 
     def test_applied_false_when_repair_produces_no_change(self) -> None:
-        """applied is False when _repair_uncited_answer returns text identical to input.
+        """attempted is True but applied is False when repair produces no textual change.
 
-        citation_repair_applied means the answer text was actually modified, not
-        merely that repair logic was invoked.  This test uses a mock to simulate
-        the edge case where the repair function returns the original text unchanged.
+        citation_repair_attempted distinguishes "repair was evaluated" from "repair
+        was not attempted at all".  citation_repair_applied remains False because the
+        answer text was not modified.  This test uses a mock to simulate the edge case
+        where the repair function returns the original text unchanged.
         """
         answer = "Uncited sentence."
         hits = [_make_hit(self._TOKEN, "abc")]
@@ -689,10 +698,11 @@ class TestApplyCitationRepair:
             "demo.stages.retrieval_and_qa._repair_uncited_answer",
             return_value=answer,
         ):
-            result, applied, strategy, chunk_id = _apply_citation_repair(
+            result, attempted, applied, strategy, chunk_id = _apply_citation_repair(
                 answer, hits, all_runs=True, raw_answer_all_cited=False
             )
         assert result == answer
+        assert attempted is True
         assert applied is False
         assert strategy is None
         assert chunk_id is None
@@ -719,6 +729,7 @@ class TestPostprocessAnswer:
         result = _postprocess_answer(answer, [_HIT], all_runs=True)
         assert result["raw_answer"] == answer
         assert result["raw_answer_all_cited"] is True
+        assert result["citation_repair_attempted"] is False
         assert result["citation_repair_applied"] is False
         assert result["citation_fallback_applied"] is False
         assert result["all_cited"] is True
@@ -735,6 +746,7 @@ class TestPostprocessAnswer:
         result = _postprocess_answer(answer, [_HIT], all_runs=True)
         assert result["raw_answer"] == answer
         assert result["raw_answer_all_cited"] is False
+        assert result["citation_repair_attempted"] is True
         assert result["citation_repair_applied"] is True
         assert result["citation_repair_strategy"] == "append_first_retrieved_token"
         assert result["citation_repair_source_chunk_id"] == "abc"
@@ -755,6 +767,7 @@ class TestPostprocessAnswer:
         result = _postprocess_answer(answer, [], all_runs=False)
         assert result["raw_answer"] == answer
         assert result["raw_answer_all_cited"] is False
+        assert result["citation_repair_attempted"] is False
         assert result["citation_repair_applied"] is False
         assert result["citation_fallback_applied"] is True
         assert result["all_cited"] is False
@@ -772,14 +785,28 @@ class TestPostprocessAnswer:
         """Repair requires hits; with no hits and uncited answer fallback is applied."""
         answer = "No evidence here."
         result = _postprocess_answer(answer, [], all_runs=True)
+        assert result["citation_repair_attempted"] is False
         assert result["citation_repair_applied"] is False
         assert result["citation_fallback_applied"] is True
         assert result["evidence_level"] == "degraded"
+
+    def test_repair_attempted_but_not_applied_when_no_token_in_hits(self) -> None:
+        """attempted=True, applied=False when preconditions met but no token found in hits."""
+        answer = "Uncited sentence."
+        hits_no_token: list[dict[str, object]] = [{"metadata": {"citation_token": None, "chunk_id": "abc"}}]
+        result = _postprocess_answer(answer, hits_no_token, all_runs=True)
+        assert result["citation_repair_attempted"] is True
+        assert result["citation_repair_applied"] is False
+        assert result["citation_repair_strategy"] is None
+        assert result["citation_repair_source_chunk_id"] is None
+        # Answer unchanged, so fallback should be applied.
+        assert result["citation_fallback_applied"] is True
 
     def test_empty_answer_returns_no_answer_evidence_level(self) -> None:
         result = _postprocess_answer("", [], all_runs=False)
         assert result["raw_answer"] == ""
         assert result["raw_answer_all_cited"] is False
+        assert result["citation_repair_attempted"] is False
         assert result["citation_repair_applied"] is False
         assert result["citation_fallback_applied"] is False
         assert result["all_cited"] is False
@@ -794,6 +821,7 @@ class TestPostprocessAnswer:
         existing = ["Chunk 'abc' has empty or whitespace-only text."]
         result = _postprocess_answer(answer, [_HIT], all_runs=True, existing_citation_warnings=existing)
         assert result["raw_answer_all_cited"] is True
+        assert result["citation_repair_attempted"] is False
         assert result["citation_fallback_applied"] is False
         assert result["all_cited"] is True
         # Even though the answer is cited, the pre-existing chunk warning degrades evidence.
