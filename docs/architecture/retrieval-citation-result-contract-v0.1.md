@@ -259,9 +259,9 @@ The LLM returned an empty string (e.g. the question was out of scope or retrieva
 
 `evidence_level` is `"no_answer"` because the answer text is empty.  No warnings are raised for an empty answer (the LLM's refusal or silence is not a citation error).
 
-### 4.6 Empty chunk text — degraded evidence with pre-retrieval warning
+### 4.6 Empty chunk text — degraded evidence with retrieval-time warning
 
-A retrieved chunk had empty text, raising an operational warning before postprocessing.
+A retrieved chunk had empty text during retrieval, raising an operational warning before postprocessing.
 
 ```json
 {
