@@ -221,7 +221,7 @@ class TestRunInteractiveQaDebugFlag:
                 return_value=(MagicMock(), mock_rag),
             ),
             patch("demo.stages.retrieval_and_qa.os.getenv", return_value="fake-api-key"),
-            patch("builtins.input", side_effect=["test question", EOFError]),
+            patch("builtins.input", side_effect=["test question", EOFError()]),
             patch("builtins.print", side_effect=_capture_print),
         ):
             mock_neo4j.GraphDatabase.driver.return_value.__enter__ = lambda s: s
