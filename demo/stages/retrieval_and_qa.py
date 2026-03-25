@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import os
 import re
-from typing import Literal, TypedDict
+from typing import Literal, TypedDict, cast
 
 import neo4j
 from neo4j_graphrag.embeddings.openai import OpenAIEmbeddings
@@ -547,6 +547,33 @@ class _AnswerPostprocessResult(TypedDict):
     citation_quality: _CitationQualityBundle
 
 
+#: Single authoritative mapping from :class:`_AnswerPostprocessResult` internal field
+#: names to their corresponding public ``run_retrieval_and_qa()`` result-dict keys.
+#:
+#: This constant is the single source of truth for the projection layer.
+#: :func:`_project_postprocess_to_public` builds the returned dict from it, and the
+#: test suite imports it directly so the same mapping drives both the runtime and the
+#: contract assertions — eliminating any possibility of the two drifting apart.
+#:
+#: Renames:
+#:   - ``display_answer``  → ``answer``           (public name is shorter)
+#:   - ``all_cited``       → ``all_answers_cited`` (public name is explicit)
+#:
+#: All other entries are identity mappings (internal key == public key).
+_POSTPROCESS_FIELD_MAP: dict[str, str] = {
+    "display_answer": "answer",
+    "raw_answer": "raw_answer",
+    "citation_fallback_applied": "citation_fallback_applied",
+    "all_cited": "all_answers_cited",
+    "raw_answer_all_cited": "raw_answer_all_cited",
+    "citation_repair_attempted": "citation_repair_attempted",
+    "citation_repair_applied": "citation_repair_applied",
+    "citation_repair_strategy": "citation_repair_strategy",
+    "citation_repair_source_chunk_id": "citation_repair_source_chunk_id",
+    "citation_quality": "citation_quality",
+}
+
+
 class _PostprocessPublicFields(TypedDict):
     """Public API fields produced by projecting an :class:`_AnswerPostprocessResult`.
 
@@ -556,18 +583,7 @@ class _PostprocessPublicFields(TypedDict):
     mapping typed means the compiler and tests can both catch renames that only
     update one side.
 
-    Field mapping (internal → public):
-
-    - ``display_answer``              → ``answer``
-    - ``raw_answer``                  → ``raw_answer``
-    - ``citation_fallback_applied``   → ``citation_fallback_applied``
-    - ``all_cited``                   → ``all_answers_cited``
-    - ``raw_answer_all_cited``        → ``raw_answer_all_cited``
-    - ``citation_repair_attempted``   → ``citation_repair_attempted``
-    - ``citation_repair_applied``     → ``citation_repair_applied``
-    - ``citation_repair_strategy``    → ``citation_repair_strategy``
-    - ``citation_repair_source_chunk_id`` → ``citation_repair_source_chunk_id``
-    - ``citation_quality``            → ``citation_quality``
+    The authoritative field mapping is :data:`_POSTPROCESS_FIELD_MAP`.
     """
 
     answer: str
@@ -588,8 +604,8 @@ def _project_postprocess_to_public(
     """Map an :class:`_AnswerPostprocessResult` to the public result surface.
 
     This adapter translates every internal postprocessing field to its
-    corresponding public ``run_retrieval_and_qa()`` key, codifying the
-    projection layer so the contract and runtime stay in sync.  All callers
+    corresponding public ``run_retrieval_and_qa()`` key using
+    :data:`_POSTPROCESS_FIELD_MAP` as the single source of truth.  All callers
     that assemble the public result dict should use this function rather than
     spelling out the field mapping inline.
 
@@ -602,24 +618,15 @@ def _project_postprocess_to_public(
     -------
     _PostprocessPublicFields
         Typed dict with the public-facing postprocessing fields populated from
-        *pp*.  Keys that carry the same name on both sides are passed through
-        unchanged; the following renames are applied:
-
-        - ``display_answer``          → ``answer``
-        - ``all_cited``               → ``all_answers_cited``
+        *pp* according to :data:`_POSTPROCESS_FIELD_MAP`.
     """
-    return {
-        "answer": pp["display_answer"],
-        "raw_answer": pp["raw_answer"],
-        "citation_fallback_applied": pp["citation_fallback_applied"],
-        "all_answers_cited": pp["all_cited"],
-        "raw_answer_all_cited": pp["raw_answer_all_cited"],
-        "citation_repair_attempted": pp["citation_repair_attempted"],
-        "citation_repair_applied": pp["citation_repair_applied"],
-        "citation_repair_strategy": pp["citation_repair_strategy"],
-        "citation_repair_source_chunk_id": pp["citation_repair_source_chunk_id"],
-        "citation_quality": pp["citation_quality"],
-    }
+    return cast(
+        _PostprocessPublicFields,
+        {
+            public_key: pp[internal_key]  # type: ignore[literal-required]
+            for internal_key, public_key in _POSTPROCESS_FIELD_MAP.items()
+        },
+    )
 
 
 def _postprocess_answer(
@@ -2096,6 +2103,7 @@ __all__ = [
     "_format_retrieval_path_summary",
     "_format_postprocess_debug_summary",
     "_postprocess_answer",
+    "_POSTPROCESS_FIELD_MAP",
     "_PostprocessPublicFields",
     "_project_postprocess_to_public",
 ]

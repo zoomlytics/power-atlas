@@ -57,7 +57,7 @@ Structure
 ``TestRunRetrievalAndQaPostprocessMapping``
     Spy-based tests that verify every ``_postprocess_answer()`` internal field is mapped
     to the correct public key in the ``run_retrieval_and_qa()`` result dict.  Uses
-    :data:`_POSTPROCESS_TO_PUBLIC_FIELD_MAP` as the authoritative mapping registry.
+    :data:`_POSTPROCESS_FIELD_MAP` as the authoritative mapping registry.
 
 ``TestRunRetrievalAndQaDocumentedScenarios``
     Table-driven end-to-end tests that drive ``run_retrieval_and_qa()`` through each
@@ -106,6 +106,7 @@ import pytest
 
 from demo.stages.retrieval_and_qa import (
     _CITATION_FALLBACK_PREFIX,
+    _POSTPROCESS_FIELD_MAP,
     _PostprocessPublicFields,
     _postprocess_answer,
     _project_postprocess_to_public,
@@ -256,22 +257,6 @@ _RETRIEVAL_SCOPE_REQUIRED_KEYS: frozenset[str] = frozenset({
     "scope_widened",
     "all_runs",
 })
-
-#: Mapping from ``_postprocess_answer()`` internal field names to their
-#: corresponding public ``run_retrieval_and_qa()`` result-dict field names.
-#: Every entry must hold: ``result[public_key] == pp[pp_key]`` for every live result.
-_POSTPROCESS_TO_PUBLIC_FIELD_MAP: dict[str, str] = {
-    "display_answer": "answer",
-    "raw_answer": "raw_answer",
-    "citation_fallback_applied": "citation_fallback_applied",
-    "all_cited": "all_answers_cited",
-    "raw_answer_all_cited": "raw_answer_all_cited",
-    "citation_repair_attempted": "citation_repair_attempted",
-    "citation_repair_applied": "citation_repair_applied",
-    "citation_repair_strategy": "citation_repair_strategy",
-    "citation_repair_source_chunk_id": "citation_repair_source_chunk_id",
-    "citation_quality": "citation_quality",
-}
 
 #: Metadata for a hit that triggers an empty-chunk-text citation warning.
 #: All optional citation fields are present so no "missing optional fields"
@@ -1211,7 +1196,7 @@ class TestRunRetrievalAndQaPostprocessMapping:
     to the public ``run_retrieval_and_qa()`` result dict.
 
     Uses a spy to capture the exact ``_postprocess_answer`` return value used
-    internally, then asserts each entry in :data:`_POSTPROCESS_TO_PUBLIC_FIELD_MAP`
+    internally, then asserts each entry in :data:`_POSTPROCESS_FIELD_MAP`
     holds: ``result[public_key] == pp[pp_key]``.  This makes the mapping
     contract explicit and ensures that renaming an internal field without updating
     the public surface causes a test failure.
@@ -1262,12 +1247,12 @@ class TestRunRetrievalAndQaPostprocessMapping:
         all_runs: bool,
         run_id: str | None,
     ) -> None:
-        """Every entry in ``_POSTPROCESS_TO_PUBLIC_FIELD_MAP`` must hold for the live
+        """Every entry in ``_POSTPROCESS_FIELD_MAP`` must hold for the live
         result: ``result[public_key] == pp[pp_key]``."""
         result, pp = self._run_and_capture_postprocess(
             answer, items_metadata, all_runs=all_runs, run_id=run_id
         )
-        for pp_key, public_key in _POSTPROCESS_TO_PUBLIC_FIELD_MAP.items():
+        for pp_key, public_key in _POSTPROCESS_FIELD_MAP.items():
             assert result[public_key] == pp[pp_key], (
                 f"[{scenario}] Mapping {pp_key!r} → {public_key!r} failed: "
                 f"result[{public_key!r}]={result[public_key]!r}, "
@@ -1846,7 +1831,7 @@ class TestProjectPostprocessToPublic:
     def test_pass_through_fields_match_exactly(self) -> None:
         """Fields that are not renamed must be passed through unchanged from *pp*.
 
-        Uses ``_POSTPROCESS_TO_PUBLIC_FIELD_MAP`` to identify pass-through fields
+        Uses ``_POSTPROCESS_FIELD_MAP`` to identify pass-through fields
         (those where the internal key equals the public key) to avoid
         maintaining a duplicate mapping here.
         """
@@ -1854,7 +1839,7 @@ class TestProjectPostprocessToPublic:
         pub = _project_postprocess_to_public(pp)
         pass_through = {
             pp_key: pub_key
-            for pp_key, pub_key in _POSTPROCESS_TO_PUBLIC_FIELD_MAP.items()
+            for pp_key, pub_key in _POSTPROCESS_FIELD_MAP.items()
             if pp_key == pub_key  # identity mappings only (no renames)
         }
         for pp_key, pub_key in pass_through.items():
@@ -1878,11 +1863,11 @@ class TestProjectPostprocessToPublic:
     def test_all_field_mappings_hold_for_all_scenarios(
         self, scenario: str, answer: str, hits: list, all_runs: bool
     ) -> None:
-        """Every entry in ``_POSTPROCESS_TO_PUBLIC_FIELD_MAP`` must hold for the
+        """Every entry in ``_POSTPROCESS_FIELD_MAP`` must hold for the
         projected result: ``pub[public_key] == pp[pp_key]``."""
         pp = self._pp(answer, hits, all_runs=all_runs)
         pub = _project_postprocess_to_public(pp)
-        for pp_key, public_key in _POSTPROCESS_TO_PUBLIC_FIELD_MAP.items():
+        for pp_key, public_key in _POSTPROCESS_FIELD_MAP.items():
             assert pub[public_key] == pp[pp_key], (
                 f"[{scenario}] Mapping {pp_key!r} → {public_key!r} failed: "
                 f"pub[{public_key!r}]={pub[public_key]!r}, "
