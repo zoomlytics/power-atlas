@@ -152,6 +152,9 @@ These invariants reflect several architectural commitments:
 
 ## 6) Related Architecture Documents
 
+- [Retrieval/citation result contract v0.1](retrieval-citation-result-contract-v0.1.md) —
+  canonical reference for postprocessing field semantics, invariants, and scenario examples
+  (`answer`, `raw_answer`, `citation_repair_applied`, `evidence_level`, etc.)
 - [Claim argument model v0.3](claim-argument-model-v0.3.md) — decision record for the
   `HAS_PARTICIPANT {role}` edge model that underpins participation-aware retrieval
 - [Unstructured-first entity resolution v0.1](unstructured-first-entity-resolution-v0.1.md) —
