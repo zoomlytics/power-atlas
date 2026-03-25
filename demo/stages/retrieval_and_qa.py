@@ -1165,11 +1165,24 @@ def _format_retrieval_path_summary(hits: list[dict[str, object]]) -> str:
             lines.append("  (no retrieval-path diagnostics available — older result format)")
             continue
 
+        if not isinstance(diag, dict):
+            lines.append(f"  (malformed retrieval-path diagnostics: expected dict, got {type(diag).__name__!r})")
+            continue
+
         # HAS_PARTICIPANT edges (from claim_details)
-        hp_edges = diag.get("has_participant_edges") or []
+        _raw_hp = diag.get("has_participant_edges")
+        if isinstance(_raw_hp, list):
+            hp_edges: list[object] = _raw_hp
+        else:
+            if _raw_hp is not None:
+                lines.append(f"  (malformed has_participant_edges: expected list, got {type(_raw_hp).__name__!r} — skipped)")
+            hp_edges = []
         if hp_edges:
             lines.append("  HAS_PARTICIPANT edges (claims with participation):")
             for entry in hp_edges:
+                if not isinstance(entry, dict):
+                    lines.append(f"    • (malformed entry: {entry!r})")
+                    continue
                 claim_text = str(entry.get("claim_text") or "")
                 roles = entry.get("roles") or []
                 role_parts_list: list[str] = []
@@ -1191,17 +1204,32 @@ def _format_retrieval_path_summary(hits: list[dict[str, object]]) -> str:
             lines.append("  HAS_PARTICIPANT edges: (none)")
 
         # RESOLVES_TO canonical entities
-        resolves_to = diag.get("canonical_via_resolves_to") or []
+        _raw_rt = diag.get("canonical_via_resolves_to")
+        if isinstance(_raw_rt, list):
+            resolves_to: list[object] = _raw_rt
+        else:
+            if _raw_rt is not None:
+                lines.append(f"  (malformed canonical_via_resolves_to: expected list, got {type(_raw_rt).__name__!r} — skipped)")
+            resolves_to = []
         if resolves_to:
             lines.append(f"  RESOLVES_TO canonical entities: {resolves_to!r}")
         else:
             lines.append("  RESOLVES_TO canonical entities: (none)")
 
         # Cluster memberships (MEMBER_OF)
-        memberships = diag.get("cluster_memberships") or []
+        _raw_mem = diag.get("cluster_memberships")
+        if isinstance(_raw_mem, list):
+            memberships: list[object] = _raw_mem
+        else:
+            if _raw_mem is not None:
+                lines.append(f"  (malformed cluster_memberships: expected list, got {type(_raw_mem).__name__!r} — skipped)")
+            memberships = []
         if memberships:
             lines.append("  Cluster memberships (MEMBER_OF):")
             for m in memberships:
+                if not isinstance(m, dict):
+                    lines.append(f"    • (malformed entry: {m!r})")
+                    continue
                 c_name = m.get("cluster_name") or m.get("cluster_id") or ""
                 c_status = m.get("membership_status") or "unknown"
                 c_method = m.get("membership_method") or ""
@@ -1210,10 +1238,19 @@ def _format_retrieval_path_summary(hits: list[dict[str, object]]) -> str:
             lines.append("  Cluster memberships (MEMBER_OF): (none)")
 
         # Canonical alignments (ALIGNED_WITH)
-        alignments = diag.get("cluster_canonical_via_aligned_with") or []
+        _raw_al = diag.get("cluster_canonical_via_aligned_with")
+        if isinstance(_raw_al, list):
+            alignments: list[object] = _raw_al
+        else:
+            if _raw_al is not None:
+                lines.append(f"  (malformed cluster_canonical_via_aligned_with: expected list, got {type(_raw_al).__name__!r} — skipped)")
+            alignments = []
         if alignments:
             lines.append("  Canonical via ALIGNED_WITH:")
             for a in alignments:
+                if not isinstance(a, dict):
+                    lines.append(f"    • (malformed entry: {a!r})")
+                    continue
                 canon_name = a.get("canonical_name") or ""
                 a_method = a.get("alignment_method") or ""
                 a_status = a.get("alignment_status") or ""

@@ -549,6 +549,160 @@ class TestFormatRetrievalPathSummary:
         assert "Claim with partial role." in result
         assert "(unknown)" in result
 
+    # ------------------------------------------------------------------
+    # Malformed non-role diagnostics payload safety
+    # ------------------------------------------------------------------
+
+    def test_malformed_diagnostics_root_not_dict_does_not_crash(self) -> None:
+        """A non-dict diagnostics root must not raise; emits a degraded note."""
+        for bad_root in ["a string", 42, ["a", "list"], True]:
+            hit = _make_hit("c_bad_root")
+            hit["metadata"]["retrieval_path_diagnostics"] = bad_root
+            result = _format_retrieval_path_summary([hit])
+            assert "malformed" in result, f"expected 'malformed' in output for root={bad_root!r}"
+
+    def test_malformed_diagnostics_root_not_dict_still_shows_chunk_id(self) -> None:
+        """chunk_id must still appear even when the diagnostics root is malformed."""
+        hit = _make_hit("c_bad_root_id")
+        hit["metadata"]["retrieval_path_diagnostics"] = "not a dict"
+        result = _format_retrieval_path_summary([hit])
+        assert "c_bad_root_id" in result
+
+    def test_malformed_has_participant_edges_not_list_does_not_crash(self) -> None:
+        """A non-list has_participant_edges field must not raise; emits degraded note."""
+        hit = _make_hit("c_hp_notlist")
+        hit["metadata"]["retrieval_path_diagnostics"] = {
+            "has_participant_edges": {"claim_text": "oops", "roles": []},
+            "canonical_via_resolves_to": [],
+            "cluster_memberships": [],
+            "cluster_canonical_via_aligned_with": [],
+        }
+        result = _format_retrieval_path_summary([hit])
+        assert "malformed" in result
+
+    def test_malformed_hp_edge_entry_not_dict_does_not_crash(self) -> None:
+        """Non-dict entries in has_participant_edges list must not raise."""
+        hit = _make_hit("c_hp_entry_bad")
+        hit["metadata"]["retrieval_path_diagnostics"] = {
+            "has_participant_edges": ["not a dict", 99, None],
+            "canonical_via_resolves_to": [],
+            "cluster_memberships": [],
+            "cluster_canonical_via_aligned_with": [],
+        }
+        result = _format_retrieval_path_summary([hit])
+        assert "malformed" in result
+
+    def test_malformed_cluster_memberships_not_list_does_not_crash(self) -> None:
+        """A non-list cluster_memberships field must not raise; emits degraded note."""
+        hit = _make_hit("c_mem_notlist")
+        hit["metadata"]["retrieval_path_diagnostics"] = {
+            "has_participant_edges": [],
+            "canonical_via_resolves_to": [],
+            "cluster_memberships": "should-be-a-list",
+            "cluster_canonical_via_aligned_with": [],
+        }
+        result = _format_retrieval_path_summary([hit])
+        assert "malformed" in result
+
+    def test_malformed_membership_entry_not_dict_does_not_crash(self) -> None:
+        """Non-dict entries in cluster_memberships list must not raise."""
+        hit = _make_hit("c_mem_entry_bad")
+        hit["metadata"]["retrieval_path_diagnostics"] = {
+            "has_participant_edges": [],
+            "canonical_via_resolves_to": [],
+            "cluster_memberships": ["bad-entry", 42],
+            "cluster_canonical_via_aligned_with": [],
+        }
+        result = _format_retrieval_path_summary([hit])
+        assert "malformed" in result
+
+    def test_partial_membership_entry_renders_gracefully(self) -> None:
+        """Membership dict entries missing expected keys must not raise."""
+        hit = _make_hit("c_mem_partial")
+        hit["metadata"]["retrieval_path_diagnostics"] = {
+            "has_participant_edges": [],
+            "canonical_via_resolves_to": [],
+            "cluster_memberships": [
+                {"cluster_name": "SomeCluster"},  # status and method missing
+                {"membership_status": "provisional"},  # name/id and method missing
+            ],
+            "cluster_canonical_via_aligned_with": [],
+        }
+        result = _format_retrieval_path_summary([hit])
+        assert "Cluster memberships" in result
+        assert "SomeCluster" in result
+
+    def test_malformed_alignments_not_list_does_not_crash(self) -> None:
+        """A non-list cluster_canonical_via_aligned_with field must not raise."""
+        hit = _make_hit("c_al_notlist")
+        hit["metadata"]["retrieval_path_diagnostics"] = {
+            "has_participant_edges": [],
+            "canonical_via_resolves_to": [],
+            "cluster_memberships": [],
+            "cluster_canonical_via_aligned_with": {"canonical_name": "oops"},
+        }
+        result = _format_retrieval_path_summary([hit])
+        assert "malformed" in result
+
+    def test_malformed_alignment_entry_not_dict_does_not_crash(self) -> None:
+        """Non-dict entries in cluster_canonical_via_aligned_with list must not raise."""
+        hit = _make_hit("c_al_entry_bad")
+        hit["metadata"]["retrieval_path_diagnostics"] = {
+            "has_participant_edges": [],
+            "canonical_via_resolves_to": [],
+            "cluster_memberships": [],
+            "cluster_canonical_via_aligned_with": ["bad-entry", 99],
+        }
+        result = _format_retrieval_path_summary([hit])
+        assert "malformed" in result
+
+    def test_partial_alignment_entry_renders_gracefully(self) -> None:
+        """Alignment dict entries missing expected keys must not raise."""
+        hit = _make_hit("c_al_partial")
+        hit["metadata"]["retrieval_path_diagnostics"] = {
+            "has_participant_edges": [],
+            "canonical_via_resolves_to": [],
+            "cluster_memberships": [],
+            "cluster_canonical_via_aligned_with": [
+                {"canonical_name": "PartialCanon"},  # method and status missing
+                {"alignment_method": "embedding"},   # name and status missing
+            ],
+        }
+        result = _format_retrieval_path_summary([hit])
+        assert "ALIGNED_WITH" in result
+        assert "PartialCanon" in result
+
+    def test_malformed_resolves_to_not_list_does_not_crash(self) -> None:
+        """A non-list canonical_via_resolves_to field must not raise."""
+        hit = _make_hit("c_rt_notlist")
+        hit["metadata"]["retrieval_path_diagnostics"] = {
+            "has_participant_edges": [],
+            "canonical_via_resolves_to": "not-a-list",
+            "cluster_memberships": [],
+            "cluster_canonical_via_aligned_with": [],
+        }
+        result = _format_retrieval_path_summary([hit])
+        assert "malformed" in result
+
+    def test_well_formed_payload_unaffected_by_hardening(self) -> None:
+        """Hardening must not change output for fully well-formed payloads."""
+        hit = _make_hit(
+            "c_wellformed",
+            score=0.95,
+            claim_details=_CLAIM_DETAILS_FULL,
+            canonical_entities=_CANONICAL_ENTITIES,
+            cluster_memberships=_CLUSTER_MEMBERSHIPS,
+            cluster_canonical_alignments=_CLUSTER_CANONICAL_ALIGNMENTS,
+        )
+        result = _format_retrieval_path_summary([hit])
+        assert "=== Retrieval Path Summary ===" in result
+        assert "chunk_id='c_wellformed'" in result
+        assert "HAS_PARTICIPANT edges" in result
+        assert "RESOLVES_TO" in result
+        assert "Cluster memberships" in result
+        assert "ALIGNED_WITH" in result
+        assert "malformed" not in result
+
 
 # ---------------------------------------------------------------------------
 # Integration: _chunk_citation_formatter injects retrieval_path_diagnostics
