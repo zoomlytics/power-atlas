@@ -1,10 +1,11 @@
 """Result-level contract tests for retrieval answer postprocessing metadata.
 
 These tests assert the exact postprocessing/result semantics surfaced by
-``_postprocess_answer()`` and ``run_retrieval_and_qa()`` across every documented
-scenario.  They are intended to serve as executable contract documentation so that
-future refactors cannot silently change surfaced metadata or the relationships
-between top-level fields and nested ``citation_quality`` data without a test failure.
+``_postprocess_answer()`` and ``run_retrieval_and_qa()`` across the core documented
+scenarios.  They are intended to serve as executable contract documentation for those
+scenarios so that future refactors cannot silently change surfaced metadata or the
+relationships between top-level fields and nested ``citation_quality`` data without a
+test failure.
 
 Structure
 ---------
@@ -785,6 +786,11 @@ class TestRunRetrievalAndQaResultContract:
         assert cq["all_cited"] is False
         assert cq["evidence_level"] == "degraded"
         assert cq["warning_count"] >= 1
+        # Citation warnings must be propagated to the top-level warnings list.
+        for w in cq["citation_warnings"]:
+            assert w in result["warnings"], (
+                f"citation_quality warning {w!r} missing from top-level warnings"
+            )
 
     def test_no_answer_from_rag_result_shape(self) -> None:
         """An empty answer from the RAG produces a no_answer evidence level."""
@@ -829,6 +835,13 @@ class TestRunRetrievalAndQaResultContract:
                 f"citation_quality.warning_count != len(citation_warnings) "
                 f"for answer={answer!r}"
             )
+            # citation_quality.citation_warnings must be a subset of the top-level
+            # warnings list so callers see a unified, complete warnings surface.
+            for w in cq["citation_warnings"]:
+                assert w in result["warnings"], (
+                    f"citation_quality warning {w!r} missing from top-level warnings "
+                    f"for answer={answer!r}"
+                )
 
     def test_repair_applied_false_when_run_scoped(self) -> None:
         """Repair is never applied in run-scoped mode (all_runs=False)."""
