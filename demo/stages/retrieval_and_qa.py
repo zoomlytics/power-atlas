@@ -1286,7 +1286,7 @@ def _chunk_citation_formatter(record: neo4j.Record) -> RetrieverResultItem:
     # Build claim context section when the graph-expanded query returned claim_details.
     # Explicit role mentions (via HAS_PARTICIPANT {role} edges) are surfaced so the LLM
     # can reason about claim roles precisely.  When no participation edges exist for a
-    # claim the slot is simply omitted — no chunk co-location fallback.
+    # claim the roles list is empty (roles: []) — no chunk co-location fallback is applied.
     claim_details_raw = record.get("claim_details")
     claim_details: list[dict[str, object]] = list(claim_details_raw) if claim_details_raw is not None else []
     claim_context = _format_claim_details(claim_details)
