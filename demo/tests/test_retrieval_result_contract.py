@@ -83,6 +83,18 @@ Structure
       ``citation_quality["citation_warnings"]``.
     - Operational warnings that are not citation-quality issues appear only in the
       top-level ``warnings`` list, not in ``citation_quality["citation_warnings"]``.
+
+``TestProjectPostprocessToPublic``
+    Direct unit tests for the :func:`_project_postprocess_to_public` adapter that
+    maps an :class:`_AnswerPostprocessResult` to the public result surface.  Tests
+    the adapter in isolation (without going through ``run_retrieval_and_qa``):
+
+    - The returned key set exactly matches ``_PostprocessPublicFields``.
+    - ``display_answer`` is renamed to ``answer``.
+    - ``all_cited`` is renamed to ``all_answers_cited``.
+    - All pass-through fields are forwarded unchanged.
+    - The mapping holds across all postprocessing scenarios.
+    - ``citation_quality`` is the same dict object (no copy).
 """
 from __future__ import annotations
 
@@ -94,7 +106,9 @@ import pytest
 
 from demo.stages.retrieval_and_qa import (
     _CITATION_FALLBACK_PREFIX,
+    _PostprocessPublicFields,
     _postprocess_answer,
+    _project_postprocess_to_public,
     run_retrieval_and_qa,
 )
 
@@ -1725,6 +1739,184 @@ class TestRunRetrievalAndQaDocumentedScenarios:
         assert _UNCITED_WARNING in cq["citation_warnings"]
         assert _UNCITED_WARNING in result["warnings"]
         assert cq["warning_count"] == len(cq["citation_warnings"])
+
+
+# ---------------------------------------------------------------------------
+# TestProjectPostprocessToPublic
+# ---------------------------------------------------------------------------
+
+#: Exact set of all keys in a ``_PostprocessPublicFields`` dict.
+_POSTPROCESS_PUBLIC_KEYS: frozenset[str] = frozenset({
+    "answer",
+    "raw_answer",
+    "citation_fallback_applied",
+    "all_answers_cited",
+    "raw_answer_all_cited",
+    "citation_repair_attempted",
+    "citation_repair_applied",
+    "citation_repair_strategy",
+    "citation_repair_source_chunk_id",
+    "citation_quality",
+})
+
+
+class TestProjectPostprocessToPublic:
+    """Direct unit tests for the :func:`_project_postprocess_to_public` adapter.
+
+    These tests exercise the adapter function in isolation — calling it with
+    a known :class:`_AnswerPostprocessResult` and asserting that every public
+    key carries the correctly projected value.  Unlike the spy-based tests in
+    :class:`TestRunRetrievalAndQaPostprocessMapping`, these tests do not go
+    through the full ``run_retrieval_and_qa`` stack, making each mapping
+    assertion cheaper and more explicit.
+    """
+
+    def _pp(self, answer: str, hits: list, all_runs: bool) -> dict:
+        """Return a ``_postprocess_answer`` result for the given inputs."""
+        return _postprocess_answer(answer, hits, all_runs=all_runs)
+
+    def test_returns_postprocess_public_fields_key_set(self) -> None:
+        """``_project_postprocess_to_public`` must return exactly the documented
+        ``_PostprocessPublicFields`` key set — no extra, no missing keys."""
+        pp = self._pp(_CITED_ANSWER, [_HIT], all_runs=True)
+        pub = _project_postprocess_to_public(pp)
+        assert set(pub.keys()) == _POSTPROCESS_PUBLIC_KEYS, (
+            f"Key set mismatch: extra={set(pub.keys()) - _POSTPROCESS_PUBLIC_KEYS!r}, "
+            f"missing={_POSTPROCESS_PUBLIC_KEYS - set(pub.keys())!r}"
+        )
+
+    @pytest.mark.parametrize(
+        "scenario,answer,hits,all_runs",
+        [
+            ("fully_cited", _CITED_ANSWER, [_HIT], True),
+            ("repair_applied", _UNCITED_ANSWER, [_HIT], True),
+            ("fallback_run_scoped", _UNCITED_ANSWER, [_HIT], False),
+            ("fallback_all_runs_no_hits", _UNCITED_ANSWER, [], True),
+            ("empty_answer", "", [], True),
+        ],
+        ids=["fully_cited", "repair_applied", "fallback_run_scoped",
+             "fallback_all_runs_no_hits", "empty_answer"],
+    )
+    def test_key_set_is_stable_across_scenarios(
+        self, scenario: str, answer: str, hits: list, all_runs: bool
+    ) -> None:
+        """The returned key set must be identical for every scenario."""
+        pp = self._pp(answer, hits, all_runs=all_runs)
+        pub = _project_postprocess_to_public(pp)
+        assert set(pub.keys()) == _POSTPROCESS_PUBLIC_KEYS, (
+            f"[{scenario}] Key set mismatch: "
+            f"extra={set(pub.keys()) - _POSTPROCESS_PUBLIC_KEYS!r}, "
+            f"missing={_POSTPROCESS_PUBLIC_KEYS - set(pub.keys())!r}"
+        )
+
+    def test_answer_maps_from_display_answer(self) -> None:
+        """``pub['answer']`` must equal ``pp['display_answer']`` (the rename)."""
+        pp = self._pp(_CITED_ANSWER, [_HIT], all_runs=True)
+        pub = _project_postprocess_to_public(pp)
+        assert pub["answer"] == pp["display_answer"]
+
+    def test_answer_is_not_raw_answer(self) -> None:
+        """After repair, ``pub['answer']`` must differ from ``pp['raw_answer']``
+        because the adapter must map from ``display_answer``, not ``raw_answer``."""
+        pp = self._pp(_UNCITED_ANSWER, [_HIT], all_runs=True)
+        pub = _project_postprocess_to_public(pp)
+        assert pub["answer"] == pp["display_answer"]
+        assert pub["answer"] != pp["raw_answer"], (
+            "pub['answer'] must come from display_answer, not raw_answer"
+        )
+
+    def test_all_answers_cited_maps_from_all_cited(self) -> None:
+        """``pub['all_answers_cited']`` must equal ``pp['all_cited']`` (the rename)."""
+        pp = self._pp(_CITED_ANSWER, [_HIT], all_runs=True)
+        pub = _project_postprocess_to_public(pp)
+        assert pub["all_answers_cited"] == pp["all_cited"]
+
+    def test_all_answers_cited_is_not_raw_answer_all_cited(self) -> None:
+        """After repair, ``all_answers_cited`` reflects final citation state (``all_cited``),
+        not ``raw_answer_all_cited``, which reflects the original LLM output."""
+        # Repair makes raw_answer_all_cited=False → all_cited=True
+        pp = self._pp(_UNCITED_ANSWER, [_HIT], all_runs=True)
+        pub = _project_postprocess_to_public(pp)
+        assert pub["all_answers_cited"] == pp["all_cited"]
+        assert pub["all_answers_cited"] is True
+        assert pub["raw_answer_all_cited"] is False, (
+            "raw_answer_all_cited must reflect the original LLM output, not the repaired result"
+        )
+
+    def test_pass_through_fields_match_exactly(self) -> None:
+        """Fields that are not renamed must be passed through unchanged from *pp*.
+
+        Uses ``_POSTPROCESS_TO_PUBLIC_FIELD_MAP`` to identify pass-through fields
+        (those where the internal key equals the public key) to avoid
+        maintaining a duplicate mapping here.
+        """
+        pp = self._pp(_UNCITED_ANSWER, [_HIT], all_runs=True)
+        pub = _project_postprocess_to_public(pp)
+        pass_through = {
+            pp_key: pub_key
+            for pp_key, pub_key in _POSTPROCESS_TO_PUBLIC_FIELD_MAP.items()
+            if pp_key == pub_key  # identity mappings only (no renames)
+        }
+        for pp_key, pub_key in pass_through.items():
+            assert pub[pub_key] == pp[pp_key], (
+                f"Pass-through field {pub_key!r}: "
+                f"expected {pp[pp_key]!r}, got {pub[pub_key]!r}"
+            )
+
+    @pytest.mark.parametrize(
+        "scenario,answer,hits,all_runs",
+        [
+            ("fully_cited", _CITED_ANSWER, [_HIT], True),
+            ("repair_applied", _UNCITED_ANSWER, [_HIT], True),
+            ("fallback_run_scoped", _UNCITED_ANSWER, [_HIT], False),
+            ("fallback_all_runs_no_hits", _UNCITED_ANSWER, [], True),
+            ("empty_answer", "", [], True),
+        ],
+        ids=["fully_cited", "repair_applied", "fallback_run_scoped",
+             "fallback_all_runs_no_hits", "empty_answer"],
+    )
+    def test_all_field_mappings_hold_for_all_scenarios(
+        self, scenario: str, answer: str, hits: list, all_runs: bool
+    ) -> None:
+        """Every entry in ``_POSTPROCESS_TO_PUBLIC_FIELD_MAP`` must hold for the
+        projected result: ``pub[public_key] == pp[pp_key]``."""
+        pp = self._pp(answer, hits, all_runs=all_runs)
+        pub = _project_postprocess_to_public(pp)
+        for pp_key, public_key in _POSTPROCESS_TO_PUBLIC_FIELD_MAP.items():
+            assert pub[public_key] == pp[pp_key], (
+                f"[{scenario}] Mapping {pp_key!r} → {public_key!r} failed: "
+                f"pub[{public_key!r}]={pub[public_key]!r}, "
+                f"pp[{pp_key!r}]={pp[pp_key]!r}"
+            )
+
+    def test_fallback_answer_carries_prefix_in_public_answer(self) -> None:
+        """When fallback is applied, ``pub['answer']`` must start with the fallback
+        prefix because the adapter maps ``display_answer`` (which carries the prefix)."""
+        pp = self._pp(_UNCITED_ANSWER, [], all_runs=False)
+        pub = _project_postprocess_to_public(pp)
+        assert pp["citation_fallback_applied"] is True
+        assert pub["answer"].startswith(_CITATION_FALLBACK_PREFIX), (
+            "pub['answer'] must carry the fallback prefix when citation_fallback_applied=True"
+        )
+
+    def test_citation_quality_bundle_identity(self) -> None:
+        """``pub['citation_quality']`` must be the exact same dict object as
+        ``pp['citation_quality']`` (no copy, no re-packing)."""
+        pp = self._pp(_CITED_ANSWER, [_HIT], all_runs=True)
+        pub = _project_postprocess_to_public(pp)
+        assert pub["citation_quality"] is pp["citation_quality"], (
+            "citation_quality should be the same dict object (no deep-copy)"
+        )
+
+    def test_return_type_annotation_matches_postprocess_public_fields(self) -> None:
+        """The result of ``_project_postprocess_to_public`` must be an instance
+        (structural) of ``_PostprocessPublicFields`` — i.e. a plain dict with the
+        exact documented key set."""
+        pp = self._pp(_CITED_ANSWER, [_HIT], all_runs=True)
+        pub: _PostprocessPublicFields = _project_postprocess_to_public(pp)
+        # TypedDicts are plain dicts at runtime; verify the key set is sufficient.
+        assert isinstance(pub, dict)
+        assert set(pub.keys()) == _POSTPROCESS_PUBLIC_KEYS
 
 
 class TestRunRetrievalAndQaWarningsContract:

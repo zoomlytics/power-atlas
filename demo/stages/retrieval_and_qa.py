@@ -547,6 +547,81 @@ class _AnswerPostprocessResult(TypedDict):
     citation_quality: _CitationQualityBundle
 
 
+class _PostprocessPublicFields(TypedDict):
+    """Public API fields produced by projecting an :class:`_AnswerPostprocessResult`.
+
+    This TypedDict is the return type of :func:`_project_postprocess_to_public`
+    and codifies the exact translation layer between the internal postprocessing
+    contract and the ``run_retrieval_and_qa()`` result surface.  Keeping the
+    mapping typed means the compiler and tests can both catch renames that only
+    update one side.
+
+    Field mapping (internal → public):
+
+    - ``display_answer``              → ``answer``
+    - ``raw_answer``                  → ``raw_answer``
+    - ``citation_fallback_applied``   → ``citation_fallback_applied``
+    - ``all_cited``                   → ``all_answers_cited``
+    - ``raw_answer_all_cited``        → ``raw_answer_all_cited``
+    - ``citation_repair_attempted``   → ``citation_repair_attempted``
+    - ``citation_repair_applied``     → ``citation_repair_applied``
+    - ``citation_repair_strategy``    → ``citation_repair_strategy``
+    - ``citation_repair_source_chunk_id`` → ``citation_repair_source_chunk_id``
+    - ``citation_quality``            → ``citation_quality``
+    """
+
+    answer: str
+    raw_answer: str
+    citation_fallback_applied: bool
+    all_answers_cited: bool
+    raw_answer_all_cited: bool
+    citation_repair_attempted: bool
+    citation_repair_applied: bool
+    citation_repair_strategy: str | None
+    citation_repair_source_chunk_id: str | None
+    citation_quality: _CitationQualityBundle
+
+
+def _project_postprocess_to_public(
+    pp: _AnswerPostprocessResult,
+) -> _PostprocessPublicFields:
+    """Map an :class:`_AnswerPostprocessResult` to the public result surface.
+
+    This adapter translates every internal postprocessing field to its
+    corresponding public ``run_retrieval_and_qa()`` key, codifying the
+    projection layer so the contract and runtime stay in sync.  All callers
+    that assemble the public result dict should use this function rather than
+    spelling out the field mapping inline.
+
+    Parameters
+    ----------
+    pp:
+        Structured result from :func:`_postprocess_answer`.
+
+    Returns
+    -------
+    _PostprocessPublicFields
+        Typed dict with the public-facing postprocessing fields populated from
+        *pp*.  Keys that carry the same name on both sides are passed through
+        unchanged; the following renames are applied:
+
+        - ``display_answer``          → ``answer``
+        - ``all_cited``               → ``all_answers_cited``
+    """
+    return {
+        "answer": pp["display_answer"],
+        "raw_answer": pp["raw_answer"],
+        "citation_fallback_applied": pp["citation_fallback_applied"],
+        "all_answers_cited": pp["all_cited"],
+        "raw_answer_all_cited": pp["raw_answer_all_cited"],
+        "citation_repair_attempted": pp["citation_repair_attempted"],
+        "citation_repair_applied": pp["citation_repair_applied"],
+        "citation_repair_strategy": pp["citation_repair_strategy"],
+        "citation_repair_source_chunk_id": pp["citation_repair_source_chunk_id"],
+        "citation_quality": pp["citation_quality"],
+    }
+
+
 def _postprocess_answer(
     answer_text: str,
     hits: list[dict[str, object]],
@@ -1819,18 +1894,7 @@ def run_retrieval_and_qa(
         "citation_token_example": actual_citation_token,
         "citation_object_example": actual_citation_object,
         "citation_example": actual_citation_object,
-        "answer": pp["display_answer"],
-        "raw_answer": pp["raw_answer"],
-        "citation_fallback_applied": pp["citation_fallback_applied"],
-        # all_answers_cited reflects the FINAL delivered answer citation state (after any
-        # repair or fallback).  raw_answer_all_cited reflects the original LLM output.
-        "all_answers_cited": pp["all_cited"],
-        "raw_answer_all_cited": pp["raw_answer_all_cited"],
-        "citation_repair_applied": pp["citation_repair_applied"],
-        "citation_repair_attempted": pp["citation_repair_attempted"],
-        "citation_repair_strategy": pp["citation_repair_strategy"],
-        "citation_repair_source_chunk_id": pp["citation_repair_source_chunk_id"],
-        "citation_quality": pp["citation_quality"],
+        **_project_postprocess_to_public(pp),
         "retrieval_path_summary": _format_retrieval_path_summary(hits),
     }
 
@@ -2032,5 +2096,7 @@ __all__ = [
     "_format_retrieval_path_summary",
     "_format_postprocess_debug_summary",
     "_postprocess_answer",
+    "_PostprocessPublicFields",
+    "_project_postprocess_to_public",
 ]
 
