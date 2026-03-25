@@ -103,6 +103,50 @@ _FALLBACK_DISPLAY_UNCITED = f"{_CITATION_FALLBACK_PREFIX}: {_UNCITED_ANSWER}"
 #: The standard warning message appended when the final answer is not fully cited.
 _UNCITED_WARNING = "Not all answer sentences or bullets end with a citation token."
 
+#: Exact set of all top-level keys in an ``_AnswerPostprocessResult``.
+_POSTPROCESS_RESULT_KEYS: frozenset[str] = frozenset({
+    "raw_answer",
+    "raw_answer_all_cited",
+    "repaired_answer",
+    "citation_repair_applied",
+    "citation_repair_strategy",
+    "citation_repair_source_chunk_id",
+    "display_answer",
+    "history_answer",
+    "citation_fallback_applied",
+    "all_cited",
+    "evidence_level",
+    "citation_warnings",
+    "warning_count",
+    "citation_quality",
+})
+
+#: Exact set of all keys inside the nested ``_CitationQualityBundle``.
+_CITATION_QUALITY_BUNDLE_KEYS: frozenset[str] = frozenset({
+    "all_cited",
+    "raw_answer_all_cited",
+    "evidence_level",
+    "warning_count",
+    "citation_warnings",
+})
+
+#: A realistic retrieval-item metadata dict for live-path (``run_retrieval_and_qa``) tests.
+#: Includes ``citation_object`` with all optional fields (page, start_char, end_char) populated
+#: so no "missing optional citation fields" warnings are emitted by the live code path.
+_LIVE_ITEM_METADATA: dict[str, object] = {
+    "citation_token": _TOKEN,
+    "chunk_id": "c1",
+    "citation_object": {
+        "chunk_id": "c1",
+        "run_id": "r1",
+        "source_uri": "file:///doc.pdf",
+        "chunk_index": 0,
+        "page": 1,
+        "start_char": 0,
+        "end_char": 50,
+    },
+}
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -377,9 +421,15 @@ class TestPostprocessAnswerResultContract:
         existing_warnings: list | None,
         expected: dict,
     ) -> None:
-        """Every field listed in *expected* must match the returned result exactly."""
+        """Every field listed in *expected* must match the returned result exactly,
+        and the returned dict must contain exactly the documented postprocessing key set."""
         pp = _postprocess_answer(
             answer, hits, all_runs=all_runs, existing_citation_warnings=existing_warnings
+        )
+        assert set(pp.keys()) == _POSTPROCESS_RESULT_KEYS, (
+            f"[{scenario}] Result key set mismatch: "
+            f"extra={set(pp.keys()) - _POSTPROCESS_RESULT_KEYS!r}, "
+            f"missing={_POSTPROCESS_RESULT_KEYS - set(pp.keys())!r}"
         )
         for key, value in expected.items():
             assert pp[key] == value, (
@@ -398,14 +448,20 @@ class TestPostprocessAnswerResultContract:
         hits: list,
         all_runs: bool,
         existing_warnings: list | None,
-        expected: dict,
+        expected: dict,  # noqa: ARG002  (consumed by parametrize; bundle key-set checked below)
     ) -> None:
-        """``citation_quality`` must mirror each corresponding top-level field."""
+        """``citation_quality`` must mirror each corresponding top-level field, and its
+        key set must match the documented ``_CitationQualityBundle`` contract exactly."""
         pp = _postprocess_answer(
             answer, hits, all_runs=all_runs, existing_citation_warnings=existing_warnings
         )
         cq = pp["citation_quality"]
 
+        assert set(cq.keys()) == _CITATION_QUALITY_BUNDLE_KEYS, (
+            f"[{scenario}] citation_quality key set mismatch: "
+            f"extra={set(cq.keys()) - _CITATION_QUALITY_BUNDLE_KEYS!r}, "
+            f"missing={_CITATION_QUALITY_BUNDLE_KEYS - set(cq.keys())!r}"
+        )
         assert cq["all_cited"] == pp["all_cited"], (
             f"[{scenario}] citation_quality.all_cited diverged from top-level all_cited"
         )
@@ -669,7 +725,7 @@ class TestRunRetrievalAndQaResultContract:
         """A fully cited answer produces the expected top-level and citation_quality fields."""
         result = _run_with_mocked_retrieval(
             answer=_CITED_ANSWER,
-            items_metadata=[{"citation_token": _TOKEN, "chunk_id": "c1"}],
+            items_metadata=[_LIVE_ITEM_METADATA],
             all_runs=True,
         )
 
@@ -690,7 +746,7 @@ class TestRunRetrievalAndQaResultContract:
         """An uncited answer in all-runs mode is repaired; result fields reflect repair."""
         result = _run_with_mocked_retrieval(
             answer=_UNCITED_ANSWER,
-            items_metadata=[{"citation_token": _TOKEN, "chunk_id": "c1"}],
+            items_metadata=[_LIVE_ITEM_METADATA],
             all_runs=True,
         )
 
@@ -713,7 +769,7 @@ class TestRunRetrievalAndQaResultContract:
         """An uncited answer in run-scoped mode (no repair) produces fallback fields."""
         result = _run_with_mocked_retrieval(
             answer=_UNCITED_ANSWER,
-            items_metadata=[{"citation_token": _TOKEN, "chunk_id": "c1"}],
+            items_metadata=[_LIVE_ITEM_METADATA],
             all_runs=False,
             run_id="r1",
         )
@@ -749,8 +805,8 @@ class TestRunRetrievalAndQaResultContract:
     def test_citation_quality_bundle_coherent_with_top_level(self) -> None:
         """For all surfaced scenarios, ``citation_quality`` must mirror top-level fields."""
         scenarios = [
-            (_CITED_ANSWER, [{"citation_token": _TOKEN, "chunk_id": "c1"}]),
-            (_UNCITED_ANSWER, [{"citation_token": _TOKEN, "chunk_id": "c1"}]),
+            (_CITED_ANSWER, [_LIVE_ITEM_METADATA]),
+            (_UNCITED_ANSWER, [_LIVE_ITEM_METADATA]),
             (_UNCITED_ANSWER, []),
             ("", []),
         ]
@@ -776,7 +832,7 @@ class TestRunRetrievalAndQaResultContract:
         """Repair is never applied in run-scoped mode (all_runs=False)."""
         result = _run_with_mocked_retrieval(
             answer=_UNCITED_ANSWER,
-            items_metadata=[{"citation_token": _TOKEN, "chunk_id": "c1"}],
+            items_metadata=[_LIVE_ITEM_METADATA],
             all_runs=False,
             run_id="r1",
         )
@@ -792,7 +848,7 @@ class TestRunRetrievalAndQaResultContract:
         ``None`` when repair was not applied."""
         result = _run_with_mocked_retrieval(
             answer=_CITED_ANSWER,
-            items_metadata=[{"citation_token": _TOKEN, "chunk_id": "c1"}],
+            items_metadata=[_LIVE_ITEM_METADATA],
             all_runs=True,
         )
 
