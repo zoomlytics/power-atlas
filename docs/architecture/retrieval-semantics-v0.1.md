@@ -46,8 +46,9 @@ because:
   (`raw_exact`, `casefold_exact`, `normalized_exact`) that documents how the slot text was
   resolved to the mention.  Co-location carries no equivalent signal.
 - **No fallback**: the retrieval stage does **not** fall back to co-located mentions for claims
-  that lack participation edges.  Absence of a participation edge is recorded faithfully as a
-  `null` slot in `claim_details`; it is not silently backfilled.
+  that lack participation edges.  A claim with no participation edges is still included in
+  `claim_details` with an empty `roles` list (`roles: []`); no slot is backfilled and no
+  chunk co-location is substituted.
 
 Chunk co-location (`MENTIONED_IN`) is preserved in the graph for architecture-level inspection
 but must not be used as a proxy for claim-argument semantics.
