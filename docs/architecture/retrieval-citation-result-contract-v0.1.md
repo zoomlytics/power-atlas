@@ -297,7 +297,7 @@ The full lifecycle executed by `_postprocess_answer` in order:
 3. **Attempt citation repair** (`_apply_citation_repair`) — in all-runs mode only, if `raw_answer_all_cited` is `False` and retrieved hits are available, attempt to append the first retrieved citation token.
 4. **Apply citation fallback** (`_build_citation_fallback`) — if the repaired answer is still not fully cited, prepend the `"Insufficient citations detected: …"` prefix to the display answer and store only the bare prefix in the history answer.
 5. **Derive `all_cited`** — check citation completeness of the repaired answer (independent of the fallback prefix).
-6. **Collect `citation_warnings`** — merge any pre-retrieval citation warnings (e.g. empty-chunk-text warnings) with any new warnings (e.g. uncited-answer warning).
+6. **Collect `citation_warnings`** — merge any pre-postprocessing (retrieval-time) citation warnings (e.g. empty-chunk-text warnings) with any new warnings (e.g. uncited-answer warning).
 7. **Derive `evidence_level`** — from `all_cited` and `citation_warnings` (see §2.6).
 8. **Build `citation_quality` bundle** — structured dict consolidating citation state for callers.
 
