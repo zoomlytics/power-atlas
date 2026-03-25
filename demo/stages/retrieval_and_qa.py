@@ -1835,6 +1835,40 @@ def run_retrieval_and_qa(
     }
 
 
+def _format_postprocess_debug_summary(pp: _AnswerPostprocessResult) -> str:
+    """Format a compact postprocessing debug summary line from a postprocess result.
+
+    Intended for opt-in debug output in :func:`run_interactive_qa` when
+    *debug=True*.  All values are read directly from the shared
+    :class:`_AnswerPostprocessResult` contract so the debug surface cannot drift
+    from the underlying postprocessing semantics.
+
+    Parameters
+    ----------
+    pp:
+        Postprocessing result returned by :func:`_postprocess_answer`.
+
+    Returns
+    -------
+    str
+        A human-readable single-line summary (plus an optional second line for
+        warning details when ``warning_count > 0``).
+    """
+    parts = [
+        f"raw_cited={pp['raw_answer_all_cited']}",
+        f"final_cited={pp['all_cited']}",
+        f"repair_applied={pp['citation_repair_applied']}",
+        f"fallback_applied={pp['citation_fallback_applied']}",
+        f"evidence={pp['evidence_level']}",
+        f"warnings={pp['warning_count']}",
+    ]
+    summary = "[debug] " + " | ".join(parts)
+    if pp["citation_warnings"]:
+        warning_details = "; ".join(pp["citation_warnings"])
+        summary += f"\n[debug] warning_details: {warning_details}"
+    return summary
+
+
 def run_interactive_qa(
     config: object,
     *,
@@ -1845,6 +1879,7 @@ def run_interactive_qa(
     expand_graph: bool = False,
     cluster_aware: bool = False,
     all_runs: bool = False,
+    debug: bool = False,
 ) -> None:
     """Run a REPL-style interactive Q&A session.
 
@@ -1887,6 +1922,11 @@ def run_interactive_qa(
     all_runs:
         When True, retrieval queries all Chunk nodes regardless of run_id.
         Citations may span multiple runs/files.
+    debug:
+        When True, prints a compact postprocessing summary after each answer showing
+        citation quality metadata sourced from the shared postprocessing contract
+        (raw/final citation state, repair/fallback applied, evidence level, warning
+        count).  Default is False so normal interactive output is unaffected.
     """
     # Validate and resolve session-level config once before opening any connections.
     if not all_runs and run_id is None:
@@ -1969,6 +2009,8 @@ def run_interactive_qa(
                     print(
                         "WARNING: Not all answer sentences or bullets are cited - evidence quality may be degraded."
                     )
+                if debug:
+                    print(_format_postprocess_debug_summary(pp))
                 # Store only the refusal prefix (not the full uncited output) in history
                 # so that subsequent turns are not conditioned on under-cited content.
                 # The full fallback text is still printed to the user above.
@@ -1988,6 +2030,7 @@ __all__ = [
     "_CITATION_FALLBACK_PREFIX",
     "_format_scope_label",
     "_format_retrieval_path_summary",
+    "_format_postprocess_debug_summary",
     "_postprocess_answer",
 ]
 

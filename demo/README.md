@@ -150,6 +150,31 @@ Batch `ingest` runs instead write their manifest to the specified output directo
 
 Note: interactive Q&A sessions (for example, using `ask --interactive`) do not write a manifest; rely on the console output or your shell history instead.
 
+To inspect postprocessing metadata during an interactive session, pass `--debug` alongside `--interactive`:
+
+```bash
+python -m demo.run_demo --live ask --interactive --debug --run-id <RUN_ID>
+```
+
+With `--debug` enabled, a compact summary line is printed after each answer showing citation quality metadata sourced from the shared postprocessing contract:
+
+```
+[debug] raw_cited=True | final_cited=True | repair_applied=False | fallback_applied=False | evidence=full | warnings=0
+```
+
+Fields mirror the result contract used by the non-interactive `ask` path:
+
+| Field | Meaning |
+| --- | --- |
+| `raw_cited` | Whether the LLM's raw answer was fully cited before any repair |
+| `final_cited` | Whether the final delivered answer is fully cited (after repair/fallback) |
+| `repair_applied` | Whether citation repair changed the answer text |
+| `fallback_applied` | Whether the citation fallback prefix was prepended (degraded evidence) |
+| `evidence` | Evidence level: `full`, `degraded`, or `no_answer` |
+| `warnings` | Count of citation warnings; warning details follow on a second `[debug]` line when non-zero |
+
+The `--debug` flag has no effect unless `--interactive` is also set and default interactive output is unchanged when `--debug` is omitted.
+
 For successful Q&A runs, the manifest should normally show:
 
 - `stages.retrieval_and_qa.all_answers_cited: true`
