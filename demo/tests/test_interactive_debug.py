@@ -274,8 +274,9 @@ class TestRunInteractiveQaDebugFlag:
             patch("builtins.input", side_effect=["test question", EOFError]),
             patch("builtins.print", side_effect=_capture_print),
         ):
-            mock_neo4j.GraphDatabase.driver.return_value.__enter__ = lambda s: s
-            mock_neo4j.GraphDatabase.driver.return_value.__exit__ = MagicMock(return_value=False)
+            driver_mock = mock_neo4j.GraphDatabase.driver.return_value
+            driver_mock.__enter__.return_value = driver_mock
+            driver_mock.__exit__.return_value = False
             # No debug= passed — should default to False.
             run_interactive_qa(_LIVE_CONFIG, all_runs=True)
 
