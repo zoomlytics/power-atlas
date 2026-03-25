@@ -1311,8 +1311,16 @@ _EMPTY_CHUNK_WARNING_MSG: str = (
 )
 
 #: Parametrized scenario table for TestRunRetrievalAndQaDocumentedScenarios.
-#: Each row: (id, answer, items_metadata, all_runs, run_id, expected_fields)
-#: where expected_fields is a dict of {public_key: expected_value}.
+#: Each row:
+#:   (id, answer, items_metadata, all_runs, run_id,
+#:    expected_fields, evidence_level, expected_citation_warnings, required_in_warnings)
+#: where:
+#:   - expected_fields is a dict of {public_key: expected_value}
+#:   - evidence_level is the expected ``citation_quality["evidence_level"]`` string
+#:   - expected_citation_warnings is the exact list expected in
+#:     ``citation_quality["citation_warnings"]``
+#:   - required_in_warnings is the list of warnings that must appear in the
+#:     top-level ``warnings`` list (subset check)
 _DOCUMENTED_SCENARIOS: list[tuple] = [
     # §4.1 Full citation — no repair, no fallback.
     # The LLM produced a fully cited answer from the start.
@@ -1639,10 +1647,84 @@ class TestRunRetrievalAndQaDocumentedScenarios:
             f"[{scenario}] citation_quality.warning_count != len(citation_warnings)"
         )
 
+    def test_s4_4_repair_applied_answer_still_degraded(self) -> None:
+        """§4.4: Repair applied but answer still degraded.
 
-# ---------------------------------------------------------------------------
-# TestRunRetrievalAndQaWarningsContract
-# ---------------------------------------------------------------------------
+        All-runs mode: repair ran and the answer text changed, but the repaired
+        answer still has uncited segments (so fallback is also applied).
+
+        Note: The current ``_repair_uncited_answer`` implementation appends the
+        retrieved token to *every* uncited sentence, which means a normal
+        two-sentence uncited input always becomes fully cited after repair.  §4.4
+        is therefore unreachable through purely end-to-end inputs with the
+        current heuristic.  This test patches ``_apply_citation_repair`` to
+        return the partially-repaired answer described in the contract document
+        §4.4, verifying that ``run_retrieval_and_qa`` correctly handles this
+        path (repair applied, fallback also applied, evidence_level degraded)
+        regardless of which specific repair algorithm produces it.
+        """
+        # A two-sentence answer where repair appended the token only once
+        # (to the last sentence), leaving the first sentence uncited.
+        # "Claim A." is the uncited first sentence; "Claim B. [TOKEN]" is cited.
+        raw_two_sentence = "Claim A. Claim B."
+        partially_repaired = f"Claim A. Claim B. {_TOKEN}"
+
+        def _mock_repair(
+            answer_text: str,
+            hits: list,
+            *,
+            all_runs: bool,
+            raw_answer_all_cited: bool,
+        ) -> tuple:
+            # Simulate a partial repair: token appended once (at end), not per-sentence.
+            if all_runs and hits and answer_text.strip() and not raw_answer_all_cited:
+                return partially_repaired, True, True, "append_first_retrieved_token", "c1"
+            return answer_text, False, False, None, None
+
+        expected_fallback_answer = f"{_CITATION_FALLBACK_PREFIX}: {partially_repaired}"
+
+        mock_rag = MagicMock()
+        mock_rag.search.return_value = _make_rag_result(
+            raw_two_sentence, [_LIVE_ITEM_METADATA]
+        )
+        with (
+            patch.dict(os.environ, {"OPENAI_API_KEY": "fake-key"}),
+            patch("neo4j.GraphDatabase.driver"),
+            patch(
+                "demo.stages.retrieval_and_qa._build_retriever_and_rag"
+            ) as mock_build,
+            patch(
+                "demo.stages.retrieval_and_qa._apply_citation_repair",
+                side_effect=_mock_repair,
+            ),
+        ):
+            mock_build.return_value = (MagicMock(), mock_rag)
+            result = run_retrieval_and_qa(
+                _LIVE_CONFIG,
+                all_runs=True,
+                question="What is the claim?",
+            )
+
+        # Both repair AND fallback are applied (repair changed the text but the
+        # repaired answer still has uncited segments → fallback prefix is prepended).
+        assert result["answer"] == expected_fallback_answer, (
+            f"answer: expected {expected_fallback_answer!r}, got {result['answer']!r}"
+        )
+        assert result["raw_answer"] == raw_two_sentence
+        assert result["all_answers_cited"] is False
+        assert result["raw_answer_all_cited"] is False
+        assert result["citation_repair_attempted"] is True
+        assert result["citation_repair_applied"] is True
+        assert result["citation_repair_strategy"] == "append_first_retrieved_token"
+        assert result["citation_repair_source_chunk_id"] == "c1"
+        assert result["citation_fallback_applied"] is True
+
+        cq = result["citation_quality"]
+        assert cq["evidence_level"] == "degraded"
+        assert cq["all_cited"] is False
+        assert _UNCITED_WARNING in cq["citation_warnings"]
+        assert _UNCITED_WARNING in result["warnings"]
+        assert cq["warning_count"] == len(cq["citation_warnings"])
 
 
 class TestRunRetrievalAndQaWarningsContract:
