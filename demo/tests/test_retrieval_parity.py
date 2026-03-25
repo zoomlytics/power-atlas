@@ -97,11 +97,13 @@ def _capture_single_shot_select_query(extra_flags: dict[str, object]) -> dict[st
     with patch("demo.stages.retrieval_and_qa._select_retrieval_query", side_effect=spy):
         run_retrieval_and_qa(_LIVE_CONFIG, question=None, **flags)
 
-    # run_retrieval_and_qa calls _select_retrieval_query twice in the live path
-    # (once for retrieval_query_contract, once for retrieval_query); both calls
-    # use identical kwargs.  Return the last captured call (the live-path call).
     assert captured, "Expected at least one _select_retrieval_query call"
-    return captured[-1]
+    first_kwargs = captured[0]
+    for call_kwargs in captured[1:]:
+        assert (
+            call_kwargs == first_kwargs
+        ), "Expected all _select_retrieval_query calls to use identical kwargs"
+    return first_kwargs
 
 
 def _capture_interactive_select_query(extra_flags: dict[str, object]) -> dict[str, object]:
@@ -147,7 +149,11 @@ def _capture_single_shot_build_query_params(extra_flags: dict[str, object]) -> d
         captured.append(dict(kwargs))
         return orig(**kwargs)  # type: ignore[arg-type]
 
-    flags: dict[str, object] = {"run_id": "r1", **extra_flags}
+    # Only inject a run_id for the non-all-runs case; when all_runs=True callers
+    # omit run_id entirely, which is the realistic parity scenario.
+    flags: dict[str, object] = (
+        {"run_id": "r1", **extra_flags} if not extra_flags.get("all_runs") else dict(extra_flags)
+    )
     with patch("demo.stages.retrieval_and_qa._build_query_params", side_effect=spy):
         run_retrieval_and_qa(_LIVE_CONFIG, question=None, **flags)
 
@@ -167,7 +173,11 @@ def _capture_interactive_build_query_params(extra_flags: dict[str, object]) -> d
         captured.append(dict(kwargs))
         return orig(**kwargs)  # type: ignore[arg-type]
 
-    flags: dict[str, object] = {"run_id": "r1", **extra_flags}
+    # Only inject a run_id for the non-all-runs case; when all_runs=True callers
+    # omit run_id entirely, which is the realistic parity scenario.
+    flags: dict[str, object] = (
+        {"run_id": "r1", **extra_flags} if not extra_flags.get("all_runs") else dict(extra_flags)
+    )
     with (
         patch.dict(os.environ, {"OPENAI_API_KEY": "fake-key"}),
         patch("demo.stages.retrieval_and_qa._build_query_params", side_effect=spy),
@@ -225,11 +235,18 @@ class TestRetrievalQueryParity:
         ids=["base_all_runs", "expand_graph", "cluster_aware"],
     )
     def test_same_flags_produce_same_selected_query_string(self, extra_flags: dict[str, object]) -> None:
-        """The selected query string itself is identical for both paths."""
-        flags: dict[str, object] = {"all_runs": True, **extra_flags}
-        single_shot_query = _select_retrieval_query(**flags)
-        interactive_query = _select_retrieval_query(**flags)
-        assert single_shot_query == interactive_query
+        """The selected query string implied by each entry point's captured kwargs is identical."""
+        single_shot_kwargs = _capture_single_shot_select_query(extra_flags)
+        interactive_kwargs = _capture_interactive_select_query(extra_flags)
+
+        single_shot_query = _select_retrieval_query(**single_shot_kwargs)
+        interactive_query = _select_retrieval_query(**interactive_kwargs)
+        assert single_shot_query == interactive_query, (
+            "Selected retrieval query string diverged between entry points: "
+            f"flags={extra_flags!r}, "
+            f"single-shot kwargs={single_shot_kwargs!r}, interactive kwargs={interactive_kwargs!r}, "
+            f"single-shot query={single_shot_query!r}, interactive query={interactive_query!r}"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -262,39 +279,6 @@ class TestQueryParamParity:
             f"_build_query_params kwargs diverged for flags {extra_flags!r}: "
             f"single-shot={single_shot_kwargs!r}, interactive={interactive_kwargs!r}"
         )
-
-    @pytest.mark.parametrize(
-        "run_id,source_uri,cluster_aware,all_runs",
-        [
-            ("run-abc", None, False, False),
-            ("run-abc", "file:///doc.pdf", False, False),
-            ("run-abc", None, True, False),
-            (None, None, False, True),
-        ],
-        ids=["run_scoped", "run_scoped_with_source", "cluster_aware", "all_runs"],
-    )
-    def test_same_scalar_inputs_produce_same_params_dict(
-        self,
-        run_id: str | None,
-        source_uri: str | None,
-        cluster_aware: bool,
-        all_runs: bool,
-    ) -> None:
-        """Direct helper call parity: same inputs → same params for both paths."""
-        single_shot_params = _build_query_params(
-            run_id=run_id,
-            source_uri=source_uri,
-            all_runs=all_runs,
-            cluster_aware=cluster_aware,
-        )
-        interactive_params = _build_query_params(
-            run_id=run_id,
-            source_uri=source_uri,
-            all_runs=all_runs,
-            cluster_aware=cluster_aware,
-        )
-        assert single_shot_params == interactive_params
-
 
 # ---------------------------------------------------------------------------
 # TestCitationRepairParity
@@ -331,18 +315,6 @@ class TestCitationRepairParity:
         # When repair produces a fully-cited answer, fallback must not be applied.
         assert pp["citation_fallback_applied"] is False
         assert pp["all_cited"] is True
-
-    def test_all_runs_repair_produces_cited_answer_no_fallback(self) -> None:
-        """When repair succeeds in all-runs mode, neither path should apply fallback."""
-        answer = "An uncited claim."
-
-        pp = _postprocess_answer(answer, [_HIT], all_runs=True)
-
-        assert pp["citation_repair_applied"] is True
-        assert pp["citation_fallback_applied"] is False
-        assert pp["all_cited"] is True
-        assert _TOKEN in pp["display_answer"]
-        assert _TOKEN in pp["history_answer"]
 
     def test_all_runs_repair_applied_false_when_answer_already_cited(self) -> None:
         """Both paths skip repair when the answer is already fully cited."""
@@ -384,20 +356,6 @@ class TestCitationFallbackParity:
     (either ``all_runs=False`` or no hits available).  These tests verify that the
     shared fallback logic produces identical results for both paths.
     """
-
-    def test_uncited_answer_no_hits_fallback_applied_identically(self) -> None:
-        """Both paths produce identical fallback output for same uncited answer."""
-        answer = "An uncited answer with no evidence."
-
-        # Simulates single-shot path (all_runs=False, no repair attempted).
-        single_shot_pp = _postprocess_answer(answer, [], all_runs=False)
-        # Simulates interactive path (all_runs=False, no repair attempted).
-        interactive_pp = _postprocess_answer(answer, [], all_runs=False)
-
-        assert single_shot_pp["display_answer"] == interactive_pp["display_answer"]
-        assert single_shot_pp["history_answer"] == interactive_pp["history_answer"]
-        assert single_shot_pp["citation_fallback_applied"] == interactive_pp["citation_fallback_applied"]
-        assert single_shot_pp["evidence_level"] == interactive_pp["evidence_level"]
 
     def test_fallback_display_answer_starts_with_prefix(self) -> None:
         """Both paths produce a display_answer starting with _CITATION_FALLBACK_PREFIX."""
