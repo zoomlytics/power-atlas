@@ -592,6 +592,22 @@ class TestFormatRetrievalPathSummary:
         result = _format_retrieval_path_summary([hit])
         assert "malformed" in result
 
+    def test_hp_edge_entry_roles_is_non_iterable_scalar_does_not_crash(self) -> None:
+        """A dict HP edge entry whose roles value is a truthy scalar must not raise."""
+        for bad_roles in [42, True, 3.14]:
+            hit = _make_hit("c_hp_roles_scalar")
+            hit["metadata"]["retrieval_path_diagnostics"] = {
+                "has_participant_edges": [
+                    {"claim_text": "Claim with scalar roles.", "roles": bad_roles}
+                ],
+                "canonical_via_resolves_to": [],
+                "cluster_memberships": [],
+                "cluster_canonical_via_aligned_with": [],
+            }
+            result = _format_retrieval_path_summary([hit])
+            assert "Claim with scalar roles." in result, f"claim text missing for roles={bad_roles!r}"
+            assert "malformed" in result, f"expected 'malformed' in output for roles={bad_roles!r}"
+
     def test_malformed_cluster_memberships_not_list_does_not_crash(self) -> None:
         """A non-list cluster_memberships field must not raise; emits degraded note."""
         hit = _make_hit("c_mem_notlist")

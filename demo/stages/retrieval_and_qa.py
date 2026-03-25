@@ -1184,7 +1184,16 @@ def _format_retrieval_path_summary(hits: list[dict[str, object]]) -> str:
                     lines.append(f"    • (malformed entry: {entry!r})")
                     continue
                 claim_text = str(entry.get("claim_text") or "")
-                roles = entry.get("roles") or []
+                _raw_roles = entry.get("roles")
+                if isinstance(_raw_roles, list):
+                    roles: list[object] = _raw_roles
+                else:
+                    roles = []
+                    if _raw_roles is not None:
+                        role_parts_list = [f"(malformed roles: {_raw_roles!r})"]
+                        preview = claim_text[:80] + ("..." if len(claim_text) > 80 else "")
+                        lines.append(f"    • \"{preview}\" [{', '.join(role_parts_list)}]")
+                        continue
                 role_parts_list: list[str] = []
                 for r in roles:
                     if not isinstance(r, dict):
