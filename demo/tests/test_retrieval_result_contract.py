@@ -1192,7 +1192,7 @@ class TestRunRetrievalAndQaPublicKeyContract:
 
 
 class TestRunRetrievalAndQaPostprocessMapping:
-    """Verify that every ``_postprocess_answer()`` internal field is correctly mapped
+    """Verify that every entry in :data:`_POSTPROCESS_FIELD_MAP` is correctly mapped
     to the public ``run_retrieval_and_qa()`` result dict.
 
     Uses a spy to capture the exact ``_postprocess_answer`` return value used
