@@ -1730,9 +1730,18 @@ class TestRunRetrievalAndQaDocumentedScenarios:
 # TestProjectPostprocessToPublic
 # ---------------------------------------------------------------------------
 
-#: Exact set of all public keys in a ``_PostprocessPublicFields`` dict,
-#: derived from the values of :data:`_POSTPROCESS_FIELD_MAP` to avoid drift.
-_POSTPROCESS_PUBLIC_KEYS: frozenset[str] = frozenset(_POSTPROCESS_FIELD_MAP.values())
+#: Exact set of all public keys in a ``_PostprocessPublicFields`` dict.
+#: Derived from the TypedDict's own annotations so that any drift between
+#: the TypedDict definition and :data:`_POSTPROCESS_FIELD_MAP` is caught
+#: at import time by the assertion immediately below.
+_POSTPROCESS_PUBLIC_KEYS: frozenset[str] = frozenset(
+    _PostprocessPublicFields.__annotations__
+)
+assert _POSTPROCESS_PUBLIC_KEYS == frozenset(_POSTPROCESS_FIELD_MAP.values()), (
+    "_PostprocessPublicFields annotations do not match _POSTPROCESS_FIELD_MAP values; "
+    f"extra in TypedDict={_POSTPROCESS_PUBLIC_KEYS - frozenset(_POSTPROCESS_FIELD_MAP.values())!r}, "
+    f"missing from TypedDict={frozenset(_POSTPROCESS_FIELD_MAP.values()) - _POSTPROCESS_PUBLIC_KEYS!r}"
+)
 
 
 class TestProjectPostprocessToPublic:

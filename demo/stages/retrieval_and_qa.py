@@ -577,6 +577,10 @@ _POSTPROCESS_FIELD_MAP: Mapping[str, str] = types.MappingProxyType({
     "citation_repair_source_chunk_id": "citation_repair_source_chunk_id",
     "citation_quality": "citation_quality",
 })
+assert len(set(_POSTPROCESS_FIELD_MAP.values())) == len(_POSTPROCESS_FIELD_MAP), (
+    "_POSTPROCESS_FIELD_MAP contains duplicate public-key values; "
+    "each internal key must map to a distinct public key"
+)
 
 
 class _PostprocessPublicFields(TypedDict):
