@@ -55,7 +55,7 @@ Structure
       their documented key sets.
 
 ``TestRunRetrievalAndQaPostprocessMapping``
-    Spy-based tests that verify every ``_postprocess_answer()`` internal field is mapped
+    Spy-based tests that verify every entry in :data:`_POSTPROCESS_FIELD_MAP` is mapped
     to the correct public key in the ``run_retrieval_and_qa()`` result dict.  Uses
     :data:`_POSTPROCESS_FIELD_MAP` as the authoritative mapping registry.
 
