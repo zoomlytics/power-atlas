@@ -278,9 +278,9 @@ A retrieved chunk had empty text during retrieval, raising an operational warnin
     "raw_answer_all_cited": true,
     "evidence_level": "degraded",
     "warning_count": 1,
-    "citation_warnings": ["Retrieved chunk chunk_id=abc has empty text; evidence quality may be degraded."]
+    "citation_warnings": ["Chunk 'abc' has empty or whitespace-only text."]
   },
-  "warnings": ["Retrieved chunk chunk_id=abc has empty text; evidence quality may be degraded."]
+  "warnings": ["Chunk 'abc' has empty or whitespace-only text."]
 }
 ```
 
