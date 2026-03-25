@@ -421,8 +421,10 @@ def _apply_citation_repair(
 
     Repair is only attempted when *all_runs* is True, hits are available, the
     answer is non-empty, and the raw answer was not already fully cited.  When
-    repair is not needed or no citation token is available this function returns
-    *answer_text* unchanged with ``attempted=False`` and ``applied=False``.
+    any precondition is not met this function returns *answer_text* unchanged
+    with ``attempted=False`` and ``applied=False``.  When preconditions are met
+    but no usable citation token can be found in the hits, ``attempted=True``
+    and ``applied=False`` are returned.
 
     Parameters
     ----------
