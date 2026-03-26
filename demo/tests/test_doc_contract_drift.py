@@ -55,61 +55,17 @@ _CONTRACT_DOC_PATH: Path = (
 )
 
 # ---------------------------------------------------------------------------
-# Shared test fixtures (mirrors test_retrieval_result_contract.py)
+# Shared test fixtures (reused from test_retrieval_result_contract.py)
 # ---------------------------------------------------------------------------
 
-_LIVE_CONFIG = types.SimpleNamespace(
-    neo4j_uri="bolt://localhost:7687",
-    neo4j_username="neo4j",
-    neo4j_password="password",
-    neo4j_database=None,
-    openai_model="gpt-4o-mini",
-    dry_run=False,
+from demo.tests.test_retrieval_result_contract import (
+    _CITED_ANSWER,
+    _EMPTY_CHUNK_METADATA,
+    _LIVE_CONFIG,
+    _LIVE_ITEM_METADATA,
+    _TOKEN,
+    _UNCITED_ANSWER,
 )
-
-#: A valid synthetic citation token shared across scenarios.
-_TOKEN = (
-    "[CITATION|chunk_id=c1|run_id=r1|source_uri=file%3A%2F%2F%2Fdoc.pdf"
-    "|chunk_index=0|page=1|start_char=0|end_char=50]"
-)
-
-#: Retrieval item metadata with all optional citation fields populated.
-_LIVE_ITEM_METADATA: dict[str, object] = {
-    "citation_token": _TOKEN,
-    "chunk_id": "c1",
-    "citation_object": {
-        "chunk_id": "c1",
-        "run_id": "r1",
-        "source_uri": "file:///doc.pdf",
-        "chunk_index": 0,
-        "page": 1,
-        "start_char": 0,
-        "end_char": 50,
-    },
-}
-
-#: A fully cited single-sentence answer.
-_CITED_ANSWER = f"This claim is well-supported. {_TOKEN}"
-
-#: A single uncited sentence with no citation token.
-_UNCITED_ANSWER = "An uncited claim that needs a citation."
-
-#: Metadata that triggers an empty-chunk-text citation warning (§4.6).
-_EMPTY_CHUNK_METADATA: dict[str, object] = {
-    "citation_token": _TOKEN,
-    "chunk_id": "c1",
-    "citation_object": {
-        "chunk_id": "c1",
-        "run_id": "r1",
-        "source_uri": "file:///doc.pdf",
-        "chunk_index": 0,
-        "page": 1,
-        "start_char": 0,
-        "end_char": 50,
-    },
-    "empty_chunk_text": True,
-}
-
 #: Metadata for a hit that has a fully-populated ``citation_object`` but no
 #: ``citation_token``.  In all-runs mode this triggers repair (preconditions met)
 #: but repair cannot apply because there is no token to append (§4.7).  The
