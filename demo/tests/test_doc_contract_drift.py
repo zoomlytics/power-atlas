@@ -287,7 +287,14 @@ def _collect_drifts(
 
         # --- int ---
         if isinstance(doc_val, int):
-            if doc_val != rt_val:
+            # Require the runtime value to be a real int (bools are not accepted,
+            # even though they are subclasses of int).
+            if not isinstance(rt_val, int) or isinstance(rt_val, bool):
+                drifts.append(
+                    f"[§{section_id}] {field_path!r}:"
+                    f" doc has int, runtime has {type(rt_val).__name__!r}"
+                )
+            elif doc_val != rt_val:
                 drifts.append(
                     f"[§{section_id}] {field_path!r}:"
                     f" doc={doc_val!r}, runtime={rt_val!r}"
