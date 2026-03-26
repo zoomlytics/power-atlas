@@ -639,6 +639,74 @@ def _project_postprocess_to_public(
     )
 
 
+class _RetrievalDebugView(TypedDict):
+    """Typed inspection/debug model shared by the interactive and single-shot paths.
+
+    This structure centralises all fields required for the interactive debug
+    output surface so that both :func:`run_interactive_qa` (interactive path)
+    and :func:`run_retrieval_and_qa` (single-shot path) produce debug views
+    from the same data shape.  Consuming :func:`_format_postprocess_debug_summary`
+    exclusively from this type prevents the debug surface from drifting relative
+    to the underlying postprocessing contract.
+
+    Fields are populated by :func:`_build_retrieval_debug_view` from an
+    :class:`_AnswerPostprocessResult` plus any supplementary runtime data (e.g.
+    *malformed_diagnostics_count* derived from the hit list).
+    """
+
+    raw_answer_all_cited: bool
+    all_cited: bool
+    citation_repair_attempted: bool
+    citation_repair_applied: bool
+    citation_fallback_applied: bool
+    evidence_level: Literal["no_answer", "full", "degraded"]
+    warning_count: int
+    citation_warnings: list[str]
+    malformed_diagnostics_count: int
+
+
+def _build_retrieval_debug_view(
+    pp: _AnswerPostprocessResult,
+    *,
+    malformed_diagnostics_count: int = 0,
+) -> _RetrievalDebugView:
+    """Build a :class:`_RetrievalDebugView` from a postprocessing result.
+
+    This is the single factory used by both retrieval entry points to construct
+    the typed debug/inspection model.  All debug rendering should consume the
+    returned view rather than reading ``_AnswerPostprocessResult`` fields
+    directly, so the two cannot drift apart silently.
+
+    Parameters
+    ----------
+    pp:
+        Postprocessing result returned by :func:`_postprocess_answer`.
+    malformed_diagnostics_count:
+        Number of hits that contain structurally malformed
+        ``retrieval_path_diagnostics`` payloads, as returned by
+        :func:`_count_malformed_diagnostics`.  Defaults to ``0`` when not
+        provided (e.g. when the hit list is empty or diagnostics were not
+        collected).
+
+    Returns
+    -------
+    _RetrievalDebugView
+        Typed inspection/debug view populated from *pp* and the supplementary
+        runtime data.
+    """
+    return {
+        "raw_answer_all_cited": pp["raw_answer_all_cited"],
+        "all_cited": pp["all_cited"],
+        "citation_repair_attempted": pp["citation_repair_attempted"],
+        "citation_repair_applied": pp["citation_repair_applied"],
+        "citation_fallback_applied": pp["citation_fallback_applied"],
+        "evidence_level": pp["evidence_level"],
+        "warning_count": pp["warning_count"],
+        "citation_warnings": pp["citation_warnings"],
+        "malformed_diagnostics_count": malformed_diagnostics_count,
+    }
+
+
 def _postprocess_answer(
     answer_text: str,
     hits: list[dict[str, object]],
@@ -2014,18 +2082,19 @@ def run_retrieval_and_qa(
     }
 
 
-def _format_postprocess_debug_summary(pp: _AnswerPostprocessResult) -> str:
-    """Format a compact postprocessing debug summary line from a postprocess result.
+def _format_postprocess_debug_summary(view: _RetrievalDebugView) -> str:
+    """Format a compact postprocessing debug summary line from a retrieval debug view.
 
     Intended for opt-in debug output in :func:`run_interactive_qa` when
-    *debug=True*.  All values are read directly from the shared
-    :class:`_AnswerPostprocessResult` contract so the debug surface cannot drift
-    from the underlying postprocessing semantics.
+    *debug=True*.  All values are read from the shared :class:`_RetrievalDebugView`
+    contract so the debug surface cannot drift from the underlying postprocessing
+    semantics.  Callers must first build the view via
+    :func:`_build_retrieval_debug_view`.
 
     Parameters
     ----------
-    pp:
-        Postprocessing result returned by :func:`_postprocess_answer`.
+    view:
+        Typed inspection/debug view built by :func:`_build_retrieval_debug_view`.
 
     Returns
     -------
@@ -2034,16 +2103,17 @@ def _format_postprocess_debug_summary(pp: _AnswerPostprocessResult) -> str:
         warning details when ``warning_count > 0``).
     """
     parts = [
-        f"raw_cited={pp['raw_answer_all_cited']}",
-        f"final_cited={pp['all_cited']}",
-        f"repair_applied={pp['citation_repair_applied']}",
-        f"fallback_applied={pp['citation_fallback_applied']}",
-        f"evidence={pp['evidence_level']}",
-        f"warnings={pp['warning_count']}",
+        f"raw_cited={view['raw_answer_all_cited']}",
+        f"final_cited={view['all_cited']}",
+        f"repair_applied={view['citation_repair_applied']}",
+        f"fallback_applied={view['citation_fallback_applied']}",
+        f"evidence={view['evidence_level']}",
+        f"warnings={view['warning_count']}",
+        f"malformed_diagnostics={view['malformed_diagnostics_count']}",
     ]
     summary = "[debug] " + " | ".join(parts)
-    if pp["citation_warnings"]:
-        warning_details = "; ".join(pp["citation_warnings"])
+    if view["citation_warnings"]:
+        warning_details = "; ".join(view["citation_warnings"])
         summary += f"\n[debug] warning_details: {warning_details}"
     return summary
 
@@ -2183,13 +2253,20 @@ def run_interactive_qa(
                 # Unified postprocessing: repair, fallback, warnings, and citation quality
                 # via the shared helper so this path stays aligned with run_retrieval_and_qa.
                 pp = _postprocess_answer(answer, _repair_hits, all_runs=all_runs)
+                # Build the typed inspection/debug view from the postprocess result so
+                # that debug rendering consumes the shared model rather than reading
+                # _AnswerPostprocessResult fields directly.
+                debug_view = _build_retrieval_debug_view(
+                    pp,
+                    malformed_diagnostics_count=_count_malformed_diagnostics(_repair_hits),
+                )
                 print(f"\nAnswer:\n{pp['display_answer']}\n")
                 if pp["citation_fallback_applied"]:
                     print(
                         "WARNING: Not all answer sentences or bullets are cited - evidence quality may be degraded."
                     )
                 if debug:
-                    print(_format_postprocess_debug_summary(pp))
+                    print(_format_postprocess_debug_summary(debug_view))
                 # Store only the refusal prefix (not the full uncited output) in history
                 # so that subsequent turns are not conditioned on under-cited content.
                 # The full fallback text is still printed to the user above.
@@ -2216,5 +2293,7 @@ __all__ = [
     "_POSTPROCESS_FIELD_MAP",
     "_PostprocessPublicFields",
     "_project_postprocess_to_public",
+    "_RetrievalDebugView",
+    "_build_retrieval_debug_view",
 ]
 
