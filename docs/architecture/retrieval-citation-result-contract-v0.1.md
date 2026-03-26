@@ -104,9 +104,9 @@ Two answer variants are produced internally by `_postprocess_answer`:
 A hit contributes to `malformed_diagnostics_count` (at most once, regardless of how many sub-field errors it has) when its `retrieval_path_diagnostics` value is **present and not `None`** but:
 
 - The root value is not a `dict`, **or**
-- Any known list field (`has_participant_edges`, `canonical_via_resolves_to`, `cluster_memberships`, `cluster_canonical_via_aligned_with`) is present but not a `list`, **or**
+- Any known list field (`has_participant_edges`, `canonical_via_resolves_to`, `cluster_memberships`, `cluster_canonical_via_aligned_with`) is present with a non-`None` value that is not a `list`, **or**
 - Any entry in `has_participant_edges`, `cluster_memberships`, or `cluster_canonical_via_aligned_with` is not a `dict`, **or**
-- Any `roles` entry within an `has_participant_edges` element is present but not a `list`, or contains a non-`dict` item.
+- Any `roles` entry within an `has_participant_edges` element is present with a non-`None` value that is not a `list`, or contains a non-`dict` item. (`roles=None` is treated as absent.)
 
 Hits where `retrieval_path_diagnostics` is **absent or `None`** are **not** counted — they represent an older result format rather than a data error.
 
