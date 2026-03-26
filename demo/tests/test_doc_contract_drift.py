@@ -62,7 +62,6 @@ from demo.tests.test_retrieval_result_contract import (
     _EMPTY_CHUNK_METADATA,
     _LIVE_CONFIG,
     _LIVE_ITEM_METADATA,
-    _TOKEN,
     _UNCITED_ANSWER,
 )
 #: Metadata for a hit that has a fully-populated ``citation_object`` but no
