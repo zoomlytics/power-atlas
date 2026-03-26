@@ -39,6 +39,13 @@ from typing import Any
 import pytest
 
 from demo.stages.retrieval_and_qa import _CITATION_FALLBACK_PREFIX
+from demo.tests.test_retrieval_result_contract import (
+    _CITED_ANSWER,
+    _EMPTY_CHUNK_METADATA,
+    _LIVE_ITEM_METADATA,
+    _UNCITED_ANSWER,
+    _run_with_mocked_retrieval,
+)
 
 # ---------------------------------------------------------------------------
 # Contract document location
@@ -49,19 +56,6 @@ _CONTRACT_DOC_PATH: Path = (
     / "docs"
     / "architecture"
     / "retrieval-citation-result-contract-v0.1.md"
-)
-
-# ---------------------------------------------------------------------------
-# Shared test fixtures (reused from test_retrieval_result_contract.py)
-# ---------------------------------------------------------------------------
-
-from demo.tests.test_retrieval_result_contract import (
-    _CITED_ANSWER,
-    _EMPTY_CHUNK_METADATA,
-    _LIVE_CONFIG,
-    _LIVE_ITEM_METADATA,
-    _UNCITED_ANSWER,
-    _run_with_mocked_retrieval,
 )
 #: Metadata for a hit that has a fully-populated ``citation_object`` but no
 #: ``citation_token``.  In all-runs mode this triggers repair (preconditions met)
@@ -521,7 +515,7 @@ class TestDocContractDrift:
         section_id: str,
         doc_scenarios: dict[str, dict[str, Any]],
     ) -> None:
-        """Concrete field values in the §{section_id} doc example must match
+        """Concrete field values in the doc example for this section must match
         the live ``run_retrieval_and_qa()`` output.
 
         A failure means the documented scenario and the runtime behaviour have
