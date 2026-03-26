@@ -32,15 +32,11 @@ Coverage
 from __future__ import annotations
 
 import json
-import os
 import re
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock, patch
 
 import pytest
-
-from demo.stages.retrieval_and_qa import run_retrieval_and_qa
 
 # ---------------------------------------------------------------------------
 # Contract document location
@@ -63,6 +59,7 @@ from demo.tests.test_retrieval_result_contract import (
     _LIVE_CONFIG,
     _LIVE_ITEM_METADATA,
     _UNCITED_ANSWER,
+    _run_with_mocked_retrieval,
 )
 #: Metadata for a hit that has a fully-populated ``citation_object`` but no
 #: ``citation_token``.  In all-runs mode this triggers repair (preconditions met)
@@ -354,61 +351,6 @@ def _collect_drifts(
             f" {type(doc_val).__name__!r} (value={doc_val!r}) in contract"
         )
     return drifts
-
-
-# ---------------------------------------------------------------------------
-# Runtime execution helpers
-# ---------------------------------------------------------------------------
-
-
-def _make_rag_result(answer: str, items_metadata: list[dict[str, object]]) -> MagicMock:
-    """Build a mock RAG search result carrying *answer* and *items_metadata*."""
-    mock_items = [
-        MagicMock(content=f"chunk_content_{i}", metadata=meta)
-        for i, meta in enumerate(items_metadata)
-    ]
-    mock_result = MagicMock()
-    mock_result.answer = answer
-    mock_result.retriever_result.items = mock_items
-    return mock_result
-
-
-def _run_with_mocked_retrieval(
-    answer: str,
-    items_metadata: list[dict[str, object]],
-    *,
-    all_runs: bool = True,
-    run_id: str | None = None,
-) -> dict[str, object]:
-    """Drive ``run_retrieval_and_qa`` with mocked Neo4j / RAG infrastructure.
-
-    Parameters
-    ----------
-    answer:
-        Answer text the mocked RAG layer will return.
-    items_metadata:
-        Per-item metadata dicts for the mock retrieval result.
-    all_runs:
-        Whether to use the all-runs code path.
-    run_id:
-        Required when *all_runs* is ``False``.
-    """
-    if not all_runs and run_id is None:
-        raise ValueError("run_id is required when all_runs is False")
-    mock_rag = MagicMock()
-    mock_rag.search.return_value = _make_rag_result(answer, items_metadata)
-    with (
-        patch.dict(os.environ, {"OPENAI_API_KEY": "fake-key"}),
-        patch("neo4j.GraphDatabase.driver"),
-        patch("demo.stages.retrieval_and_qa._build_retriever_and_rag") as mock_build,
-    ):
-        mock_build.return_value = (MagicMock(), mock_rag)
-        return run_retrieval_and_qa(
-            _LIVE_CONFIG,
-            all_runs=all_runs,
-            run_id=run_id,
-            question="What is the claim?",
-        )
 
 
 # ---------------------------------------------------------------------------
