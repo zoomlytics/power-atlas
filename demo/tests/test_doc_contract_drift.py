@@ -377,6 +377,24 @@ def _collect_drifts(
                 )
             continue
 
+        # --- fallback for previously-unhandled scalar types (e.g. float) ---
+        if isinstance(doc_val, float):
+            # For floats we require exact numeric equality. If the contract
+            # ever needs tolerance-based comparison, this is the place to
+            # update.
+            if doc_val != rt_val:
+                drifts.append(
+                    f"[§{section_id}] {field_path!r}:"
+                    f" doc={doc_val!r}, runtime={rt_val!r}"
+                )
+            continue
+
+        # Any other unexpected type should cause the test to fail loudly so
+        # that the contract and comparator can be updated together.
+        raise TypeError(
+            f"[§{section_id}] {field_path!r}: unsupported doc value type"
+            f" {type(doc_val).__name__!r} (value={doc_val!r}) in contract"
+        )
     return drifts
 
 
