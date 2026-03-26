@@ -3,18 +3,23 @@
 These tests verify that:
 
 - When ``debug=True``, a compact postprocessing summary is printed after each
-  answer, sourced from the shared :class:`_AnswerPostprocessResult` contract.
+  answer, sourced from the shared :class:`_RetrievalDebugView` contract.
 - When ``debug=False`` (default), no debug output is emitted.
 - The summary produced by :func:`_format_postprocess_debug_summary` reflects
-  the correct values from the postprocessing result for representative
-  scenarios.
+  the correct values from the debug view for representative scenarios.
+- :func:`_build_retrieval_debug_view` correctly projects an
+  :class:`_AnswerPostprocessResult` into a :class:`_RetrievalDebugView`.
 
 Structure
 ---------
+``TestBuildRetrievalDebugView``
+    Unit tests for :func:`_build_retrieval_debug_view`, covering baseline
+    construction, repair-applied scenario, and malformed-diagnostics propagation.
+
 ``TestFormatPostprocessDebugSummary``
     Unit tests for :func:`_format_postprocess_debug_summary` directly, covering
     the key scenarios the issue calls for (fully cited, repair applied, fallback
-    applied, warnings present).
+    applied, warnings present, malformed diagnostics).
 
 ``TestRunInteractiveQaDebugFlag``
     Integration tests that drive :func:`run_interactive_qa` with a fully mocked
@@ -29,6 +34,8 @@ from collections.abc import Callable
 from unittest.mock import MagicMock, patch
 
 from demo.stages.retrieval_and_qa import (
+    _RetrievalDebugView,
+    _build_retrieval_debug_view,
     _format_postprocess_debug_summary,
     _postprocess_answer,
     run_interactive_qa,
@@ -59,6 +66,90 @@ _HIT: dict[str, object] = {"metadata": {"citation_token": _TOKEN, "chunk_id": "c
 
 
 # ---------------------------------------------------------------------------
+# TestBuildRetrievalDebugView
+# ---------------------------------------------------------------------------
+
+
+class TestBuildRetrievalDebugView:
+    """Unit tests for _build_retrieval_debug_view.
+
+    Verifies that the factory correctly projects _AnswerPostprocessResult
+    fields into _RetrievalDebugView, including the repair-applied scenario
+    and malformed-diagnostics propagation.
+    """
+
+    def test_baseline_fully_cited(self) -> None:
+        """All fields are populated correctly for a fully cited answer."""
+        answer = f"A fully cited answer. {_TOKEN}"
+        pp = _postprocess_answer(answer, [_HIT], all_runs=True)
+
+        view = _build_retrieval_debug_view(pp)
+
+        assert view["raw_answer_all_cited"] is True
+        assert view["all_cited"] is True
+        assert view["citation_repair_applied"] is False
+        assert view["citation_fallback_applied"] is False
+        assert view["evidence_level"] == "full"
+        assert view["warning_count"] == 0
+        assert view["citation_warnings"] == []
+        assert view["malformed_diagnostics_count"] == 0
+
+    def test_repair_applied_scenario(self) -> None:
+        """citation_repair_applied is True when repair changes the answer text."""
+        answer = "An uncited claim needing repair."
+        pp = _postprocess_answer(answer, [_HIT], all_runs=True)
+
+        assert pp["citation_repair_applied"] is True, "Precondition: repair must be applied"
+
+        view = _build_retrieval_debug_view(pp)
+
+        assert view["citation_repair_applied"] is True
+        assert view["raw_answer_all_cited"] is False
+        assert view["all_cited"] is True
+        assert view["citation_fallback_applied"] is False
+        assert view["evidence_level"] == "full"
+
+    def test_malformed_diagnostics_count_propagated(self) -> None:
+        """malformed_diagnostics_count is taken from the keyword argument, not recomputed."""
+        answer = f"A cited answer. {_TOKEN}"
+        pp = _postprocess_answer(answer, [_HIT], all_runs=True)
+
+        view = _build_retrieval_debug_view(pp, malformed_diagnostics_count=3)
+
+        assert view["malformed_diagnostics_count"] == 3
+
+    def test_malformed_diagnostics_default_is_zero(self) -> None:
+        """malformed_diagnostics_count defaults to 0 when not provided."""
+        answer = f"A cited answer. {_TOKEN}"
+        pp = _postprocess_answer(answer, [_HIT], all_runs=True)
+
+        view = _build_retrieval_debug_view(pp)
+
+        assert view["malformed_diagnostics_count"] == 0
+
+    def test_view_is_retrieval_debug_view_type(self) -> None:
+        """_build_retrieval_debug_view returns a dict with the _RetrievalDebugView keys."""
+        answer = f"Cited. {_TOKEN}"
+        pp = _postprocess_answer(answer, [_HIT], all_runs=True)
+
+        view = _build_retrieval_debug_view(pp)
+
+        assert set(view.keys()) == set(_RetrievalDebugView.__annotations__)
+
+    def test_citation_warnings_forwarded(self) -> None:
+        """citation_warnings from the postprocess result are present in the view."""
+        # No hits → fallback → citation warning expected.
+        pp = _postprocess_answer("An uncited answer.", [], all_runs=False)
+
+        assert pp["citation_warnings"], "Precondition: at least one warning expected"
+
+        view = _build_retrieval_debug_view(pp)
+
+        assert view["citation_warnings"] == pp["citation_warnings"]
+        assert view["warning_count"] == pp["warning_count"]
+
+
+# ---------------------------------------------------------------------------
 # TestFormatPostprocessDebugSummary
 # ---------------------------------------------------------------------------
 
@@ -66,10 +157,10 @@ _HIT: dict[str, object] = {"metadata": {"citation_token": _TOKEN, "chunk_id": "c
 class TestFormatPostprocessDebugSummary:
     """Unit tests for _format_postprocess_debug_summary.
 
-    Each test asserts that the summary line correctly reflects the values in
-    the _AnswerPostprocessResult it receives, covering the key fields the
-    issue requires: raw/final citation state, repair/fallback applied,
-    evidence level, and warning count.
+    Each test builds a _RetrievalDebugView via _build_retrieval_debug_view and
+    then asserts that the summary line correctly reflects the values in the view,
+    covering: raw/final citation state, repair/fallback applied, evidence level,
+    warning count, and malformed-diagnostics count.
     """
 
     def test_fully_cited_answer_summary(self) -> None:
@@ -77,7 +168,7 @@ class TestFormatPostprocessDebugSummary:
         answer = f"A fully cited answer. {_TOKEN}"
         pp = _postprocess_answer(answer, [_HIT], all_runs=True)
 
-        summary = _format_postprocess_debug_summary(pp)
+        summary = _format_postprocess_debug_summary(_build_retrieval_debug_view(pp))
 
         assert "[debug]" in summary
         assert "raw_cited=True" in summary
@@ -86,6 +177,7 @@ class TestFormatPostprocessDebugSummary:
         assert "fallback_applied=False" in summary
         assert "evidence=full" in summary
         assert "warnings=0" in summary
+        assert "malformed_diagnostics=0" in summary
 
     def test_repair_applied_summary(self) -> None:
         """Summary reflects citation_repair_applied=True when repair changes the answer text."""
@@ -95,7 +187,7 @@ class TestFormatPostprocessDebugSummary:
         # Repair should be applied in all-runs mode with a hit available.
         assert pp["citation_repair_applied"] is True
 
-        summary = _format_postprocess_debug_summary(pp)
+        summary = _format_postprocess_debug_summary(_build_retrieval_debug_view(pp))
 
         assert "repair_applied=True" in summary
         assert "raw_cited=False" in summary
@@ -110,7 +202,7 @@ class TestFormatPostprocessDebugSummary:
 
         assert pp["citation_fallback_applied"] is True
 
-        summary = _format_postprocess_debug_summary(pp)
+        summary = _format_postprocess_debug_summary(_build_retrieval_debug_view(pp))
 
         assert "fallback_applied=True" in summary
         assert "repair_applied=False" in summary
@@ -126,7 +218,7 @@ class TestFormatPostprocessDebugSummary:
 
         assert pp["warning_count"] > 0
 
-        summary = _format_postprocess_debug_summary(pp)
+        summary = _format_postprocess_debug_summary(_build_retrieval_debug_view(pp))
 
         assert f"warnings={pp['warning_count']}" in summary
 
@@ -137,7 +229,7 @@ class TestFormatPostprocessDebugSummary:
 
         assert pp["citation_warnings"], "Expected at least one citation warning for this scenario"
 
-        summary = _format_postprocess_debug_summary(pp)
+        summary = _format_postprocess_debug_summary(_build_retrieval_debug_view(pp))
 
         assert "[debug] warning_details:" in summary
 
@@ -148,7 +240,7 @@ class TestFormatPostprocessDebugSummary:
 
         assert pp["warning_count"] == 0
 
-        summary = _format_postprocess_debug_summary(pp)
+        summary = _format_postprocess_debug_summary(_build_retrieval_debug_view(pp))
 
         assert "warning_details" not in summary
 
@@ -157,7 +249,7 @@ class TestFormatPostprocessDebugSummary:
         answer = f"Cited answer. {_TOKEN}"
         pp = _postprocess_answer(answer, [_HIT], all_runs=True)
 
-        summary = _format_postprocess_debug_summary(pp)
+        summary = _format_postprocess_debug_summary(_build_retrieval_debug_view(pp))
 
         assert summary.startswith("[debug] ")
 
@@ -165,9 +257,29 @@ class TestFormatPostprocessDebugSummary:
         """evidence=no_answer is reflected correctly in the summary for empty answers."""
         pp = _postprocess_answer("", [], all_runs=False)
 
-        summary = _format_postprocess_debug_summary(pp)
+        summary = _format_postprocess_debug_summary(_build_retrieval_debug_view(pp))
 
         assert "evidence=no_answer" in summary
+
+    def test_malformed_diagnostics_nonzero_in_summary(self) -> None:
+        """malformed_diagnostics count is shown in the summary when non-zero."""
+        answer = f"A cited answer. {_TOKEN}"
+        pp = _postprocess_answer(answer, [_HIT], all_runs=True)
+
+        summary = _format_postprocess_debug_summary(
+            _build_retrieval_debug_view(pp, malformed_diagnostics_count=2)
+        )
+
+        assert "malformed_diagnostics=2" in summary
+
+    def test_malformed_diagnostics_zero_in_summary(self) -> None:
+        """malformed_diagnostics=0 is shown in the summary when all diagnostics are well-formed."""
+        answer = f"A cited answer. {_TOKEN}"
+        pp = _postprocess_answer(answer, [_HIT], all_runs=True)
+
+        summary = _format_postprocess_debug_summary(_build_retrieval_debug_view(pp))
+
+        assert "malformed_diagnostics=0" in summary
 
 
 # ---------------------------------------------------------------------------
@@ -300,6 +412,7 @@ class TestRunInteractiveQaDebugFlag:
         assert "fallback_applied=False" in output
         assert "evidence=full" in output
         assert "warnings=0" in output
+        assert "malformed_diagnostics=0" in output
 
     def test_debug_true_fallback_scenario_summary(self) -> None:
         """Debug output reflects fallback_applied=True when the answer is uncited."""
@@ -376,6 +489,42 @@ class TestRunInteractiveQaDebugFlag:
         assert "fallback_applied=False" in output
         assert "evidence=full" in output
         assert "warnings=0" in output
+        assert "malformed_diagnostics=0" in output
+
+    def test_debug_malformed_diagnostics_reflected_in_output(self) -> None:
+        """Debug output shows malformed_diagnostics_count when hits have malformed diagnostics.
+
+        Patches _count_malformed_diagnostics to return 1 and verifies that the
+        value propagates through _build_retrieval_debug_view into the debug line.
+        """
+        mock_rag_result = self._make_rag_result(f"Cited answer. {_TOKEN}", token=_TOKEN)
+        mock_rag = MagicMock()
+        mock_rag.search.return_value = mock_rag_result
+
+        captured, _capture_print = self._make_capture()
+
+        with (
+            patch("demo.stages.retrieval_and_qa.neo4j") as mock_neo4j,
+            patch(
+                "demo.stages.retrieval_and_qa._build_retriever_and_rag",
+                return_value=(MagicMock(), mock_rag),
+            ),
+            patch("demo.stages.retrieval_and_qa.os.getenv", return_value="fake-api-key"),
+            patch("builtins.input", side_effect=["test question", EOFError()]),
+            patch("builtins.print", side_effect=_capture_print),
+            patch(
+                "demo.stages.retrieval_and_qa._count_malformed_diagnostics",
+                return_value=1,
+            ),
+        ):
+            mock_neo4j.GraphDatabase.driver.return_value.__enter__.return_value = (
+                mock_neo4j.GraphDatabase.driver.return_value
+            )
+            mock_neo4j.GraphDatabase.driver.return_value.__exit__ = MagicMock(return_value=False)
+            run_interactive_qa(_LIVE_CONFIG, all_runs=True, debug=True)
+
+        output = captured.getvalue()
+        assert "malformed_diagnostics=1" in output
 
     def test_debug_robustness_no_retriever_result(self) -> None:
         """Debug output is emitted without error when retriever_result is None."""

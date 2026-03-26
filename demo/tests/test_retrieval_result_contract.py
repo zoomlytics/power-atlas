@@ -210,6 +210,20 @@ _CITATION_QUALITY_BUNDLE_KEYS: frozenset[str] = frozenset({
     "citation_warnings",
 })
 
+#: Exact set of required keys in the ``debug_view`` nested dict returned by
+#: ``run_retrieval_and_qa()``.  Mirrors :class:`_RetrievalDebugView` annotations.
+_DEBUG_VIEW_REQUIRED_KEYS: frozenset[str] = frozenset({
+    "raw_answer_all_cited",
+    "all_cited",
+    "citation_repair_attempted",
+    "citation_repair_applied",
+    "citation_fallback_applied",
+    "evidence_level",
+    "warning_count",
+    "citation_warnings",
+    "malformed_diagnostics_count",
+})
+
 #: A realistic retrieval-item metadata dict for live-path (``run_retrieval_and_qa``) tests.
 #: Includes ``citation_object`` with all optional fields (page, start_char, end_char) populated
 #: so no "missing optional citation fields" warnings are emitted by the live code path.
@@ -271,6 +285,8 @@ _LIVE_RESULT_REQUIRED_KEYS: frozenset[str] = frozenset({
     "citation_repair_strategy",
     "citation_repair_source_chunk_id",
     "citation_quality",
+    # --- typed inspection/debug view (shared across interactive and single-shot paths) ---
+    "debug_view",
     # --- warnings ---
     "warnings",
 })
@@ -1135,6 +1151,7 @@ class TestRunRetrievalAndQaPublicKeyContract:
         dict_fields = (
             "citation_quality", "retrieval_scope",
             "citation_object_example", "citation_example",
+            "debug_view",
         )
         for key in str_fields:
             assert isinstance(result[key], str), (
@@ -1189,6 +1206,20 @@ class TestRunRetrievalAndQaPublicKeyContract:
         missing = _RETRIEVAL_SCOPE_REQUIRED_KEYS - set(scope.keys())
         assert not extra and not missing, (
             f"retrieval_scope key set mismatch — extra={extra!r}, missing={missing!r}"
+        )
+
+    def test_debug_view_has_required_keys(self) -> None:
+        """``debug_view`` must contain exactly the documented key set."""
+        result = _run_with_mocked_retrieval(
+            answer=_CITED_ANSWER,
+            items_metadata=[_LIVE_ITEM_METADATA],
+            all_runs=True,
+        )
+        dv = result["debug_view"]
+        extra = set(dv.keys()) - _DEBUG_VIEW_REQUIRED_KEYS
+        missing = _DEBUG_VIEW_REQUIRED_KEYS - set(dv.keys())
+        assert not extra and not missing, (
+            f"debug_view key set mismatch — extra={extra!r}, missing={missing!r}"
         )
 
     @pytest.mark.parametrize(
