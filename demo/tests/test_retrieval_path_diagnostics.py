@@ -1631,3 +1631,295 @@ class TestCountMalformedDiagnostics:
                                   "cluster_canonical_via_aligned_with": []}),
         ]
         assert _count_malformed_diagnostics(hits) == 2
+
+
+# ---------------------------------------------------------------------------
+# Parity: _format_retrieval_path_summary ↔ _count_malformed_diagnostics
+# ---------------------------------------------------------------------------
+
+
+def _make_well_formed_diag() -> dict:
+    """Return a fully well-formed diagnostics dict for parity test cases."""
+    return {
+        "has_participant_edges": [
+            {
+                "claim_text": "A founded B.",
+                "roles": [
+                    {"role": "subject", "mention_name": "A", "match_method": "raw_exact"}
+                ],
+            }
+        ],
+        "canonical_via_resolves_to": ["Entity X"],
+        "cluster_memberships": [
+            {"cluster_name": "Corp", "membership_status": "accepted", "membership_method": "exact"}
+        ],
+        "cluster_canonical_via_aligned_with": [
+            {
+                "canonical_name": "Corp Inc.",
+                "alignment_method": "embedding",
+                "alignment_status": "aligned",
+            }
+        ],
+    }
+
+
+def _make_empty_diag() -> dict:
+    """Return a well-formed diagnostics dict with all empty lists."""
+    return {
+        "has_participant_edges": [],
+        "canonical_via_resolves_to": [],
+        "cluster_memberships": [],
+        "cluster_canonical_via_aligned_with": [],
+    }
+
+
+_PARITY_CASES: list[tuple[str, object, bool, int]] = [
+    # (label, diagnostics_value, expects_malformed_in_summary, expected_count)
+    # ---- well-formed: no crash, no "malformed", count=0 ----
+    ("well_formed_full", _make_well_formed_diag(), False, 0),
+    ("well_formed_empty_lists", _make_empty_diag(), False, 0),
+    # ---- explicit None: treated as old format, not malformed ----
+    ("none_diag", None, False, 0),
+    # ---- root not a dict ----
+    ("root_string", "a string", True, 1),
+    ("root_int", 42, True, 1),
+    ("root_list", ["a", "list"], True, 1),
+    ("root_bool", True, True, 1),
+    # ---- list field wrong type ----
+    (
+        "hp_edges_not_list",
+        {
+            "has_participant_edges": {"claim_text": "oops", "roles": []},
+            "canonical_via_resolves_to": [],
+            "cluster_memberships": [],
+            "cluster_canonical_via_aligned_with": [],
+        },
+        True,
+        1,
+    ),
+    (
+        "resolves_to_not_list",
+        {
+            "has_participant_edges": [],
+            "canonical_via_resolves_to": "not-a-list",
+            "cluster_memberships": [],
+            "cluster_canonical_via_aligned_with": [],
+        },
+        True,
+        1,
+    ),
+    (
+        "memberships_not_list",
+        {
+            "has_participant_edges": [],
+            "canonical_via_resolves_to": [],
+            "cluster_memberships": "bad",
+            "cluster_canonical_via_aligned_with": [],
+        },
+        True,
+        1,
+    ),
+    (
+        "alignments_not_list",
+        {
+            "has_participant_edges": [],
+            "canonical_via_resolves_to": [],
+            "cluster_memberships": [],
+            "cluster_canonical_via_aligned_with": {"canonical_name": "oops"},
+        },
+        True,
+        1,
+    ),
+    # ---- non-dict entry within a list field ----
+    (
+        "hp_edge_entry_not_dict",
+        {
+            "has_participant_edges": ["not-a-dict", None, 99],
+            "canonical_via_resolves_to": [],
+            "cluster_memberships": [],
+            "cluster_canonical_via_aligned_with": [],
+        },
+        True,
+        1,
+    ),
+    (
+        "membership_entry_not_dict",
+        {
+            "has_participant_edges": [],
+            "canonical_via_resolves_to": [],
+            "cluster_memberships": ["bad-entry", 42],
+            "cluster_canonical_via_aligned_with": [],
+        },
+        True,
+        1,
+    ),
+    (
+        "alignment_entry_not_dict",
+        {
+            "has_participant_edges": [],
+            "canonical_via_resolves_to": [],
+            "cluster_memberships": [],
+            "cluster_canonical_via_aligned_with": ["bad-entry", 99],
+        },
+        True,
+        1,
+    ),
+    # ---- roles field malformed inside HP edge ----
+    (
+        "roles_not_list",
+        {
+            "has_participant_edges": [{"claim_text": "X.", "roles": "not-a-list"}],
+            "canonical_via_resolves_to": [],
+            "cluster_memberships": [],
+            "cluster_canonical_via_aligned_with": [],
+        },
+        True,
+        1,
+    ),
+    (
+        "role_entry_not_dict",
+        {
+            "has_participant_edges": [{"claim_text": "X.", "roles": [None, "bad"]}],
+            "canonical_via_resolves_to": [],
+            "cluster_memberships": [],
+            "cluster_canonical_via_aligned_with": [],
+        },
+        True,
+        1,
+    ),
+    # ---- multiple malformed fields in same hit: counts once ----
+    (
+        "multiple_malformed_fields_counts_once",
+        {
+            "has_participant_edges": "not-a-list",
+            "canonical_via_resolves_to": 42,
+            "cluster_memberships": [],
+            "cluster_canonical_via_aligned_with": [],
+        },
+        True,
+        1,
+    ),
+    # ---- partial validity: some fields well-formed, some missing ----
+    (
+        "partial_only_hp_edges_key",
+        {"has_participant_edges": []},
+        False,
+        0,
+    ),
+    (
+        "partial_mixed_valid_and_malformed_field",
+        {
+            "has_participant_edges": [
+                {
+                    "claim_text": "Valid claim.",
+                    "roles": [
+                        {"role": "subject", "mention_name": "A", "match_method": "raw_exact"}
+                    ],
+                }
+            ],
+            "canonical_via_resolves_to": "bad",  # malformed
+            "cluster_memberships": [],
+            "cluster_canonical_via_aligned_with": [],
+        },
+        True,
+        1,
+    ),
+]
+
+
+class TestMalformedDiagnosticsParityTableDriven:
+    """Parity tests: _format_retrieval_path_summary and _count_malformed_diagnostics
+    must agree on what constitutes a malformed diagnostics payload.
+
+    For each case in *_PARITY_CASES* we assert:
+
+    1. Neither function raises (no crash).
+    2. ``_format_retrieval_path_summary`` contains (or does not contain) the word
+       ``"malformed"`` as required by the expected value.
+    3. ``_count_malformed_diagnostics`` returns the expected integer count.
+
+    This guards against semantic drift between the formatter (observability surface)
+    and the counter (telemetry surface) as diagnostics schemas evolve.
+    """
+
+    def _hit(self, diag: object) -> dict:
+        return {
+            "content": "text",
+            "metadata": {"chunk_id": "c_parity", "retrieval_path_diagnostics": diag},
+        }
+
+    @pytest.mark.parametrize(
+        "label,diag,expects_malformed_in_summary,expected_count",
+        [(c[0], c[1], c[2], c[3]) for c in _PARITY_CASES],
+        ids=[c[0] for c in _PARITY_CASES],
+    )
+    def test_single_hit_parity(
+        self,
+        label: str,
+        diag: object,
+        expects_malformed_in_summary: bool,
+        expected_count: int,
+    ) -> None:
+        """Single-hit: summary and count agree for every case in the parity table."""
+        hit = self._hit(diag)
+        summary = _format_retrieval_path_summary([hit])
+        count = _count_malformed_diagnostics([hit])
+
+        if expects_malformed_in_summary:
+            assert "malformed" in summary, (
+                f"[{label}] expected 'malformed' in summary but got: {summary!r}"
+            )
+        else:
+            assert "malformed" not in summary, (
+                f"[{label}] expected no 'malformed' in summary but got: {summary!r}"
+            )
+        assert count == expected_count, (
+            f"[{label}] expected count={expected_count}, got count={count}"
+        )
+
+    def test_multiple_malformed_hits_batch_count_and_summary(self) -> None:
+        """Batch of three malformed hits: count==3, summary mentions 'malformed' per hit."""
+        bad_roots = ["a string", 42, ["a", "list"]]
+        hits = [self._hit(root) for root in bad_roots]
+
+        summary = _format_retrieval_path_summary(hits)
+        count = _count_malformed_diagnostics(hits)
+
+        assert count == 3
+        assert summary.count("malformed") >= 3
+
+    def test_mixed_valid_and_malformed_batch_parity(self) -> None:
+        """Batch with one well-formed and two malformed hits: count==2, summary contains 'malformed'."""
+        hits = [
+            self._hit(_make_well_formed_diag()),  # well-formed → 0
+            self._hit("bad-root"),                # malformed → 1
+            self._hit({"has_participant_edges": "not-a-list",  # malformed → 1
+                       "canonical_via_resolves_to": [],
+                       "cluster_memberships": [],
+                       "cluster_canonical_via_aligned_with": []}),
+        ]
+        summary = _format_retrieval_path_summary(hits)
+        count = _count_malformed_diagnostics(hits)
+
+        assert count == 2
+        assert "malformed" in summary
+
+    def test_all_well_formed_batch_no_malformed_in_summary(self) -> None:
+        """Batch of three well-formed hits: count==0, summary does not contain 'malformed'."""
+        hits = [self._hit(_make_well_formed_diag()) for _ in range(3)]
+
+        summary = _format_retrieval_path_summary(hits)
+        count = _count_malformed_diagnostics(hits)
+
+        assert count == 0
+        assert "malformed" not in summary
+
+    def test_none_diag_batch_not_counted_not_flagged(self) -> None:
+        """Explicit None diagnostics are not counted and not flagged as malformed in summary."""
+        hits = [self._hit(None) for _ in range(3)]
+
+        summary = _format_retrieval_path_summary(hits)
+        count = _count_malformed_diagnostics(hits)
+
+        assert count == 0
+        assert "malformed" not in summary
