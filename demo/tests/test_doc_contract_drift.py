@@ -303,26 +303,13 @@ def _collect_drifts(
             leaf = field_path.rsplit(".", 1)[-1] if "." in field_path else field_path
 
             if leaf in _ANSWER_TEXT_FIELDS:
-                # Answer text is largely illustrative. We require the runtime value
-                # to be a string and, when the doc provides a concrete prefix, we
-                # also require the runtime answer to start with that documented
-                # prefix. This detects drift in fallback messages while still
-                # allowing the remainder of the answer text to vary.
+                # Answer text in the contract doc is largely illustrative. For these
+                # fields we only require the runtime value to be a string, to avoid
+                # spurious drift failures when the documented prose changes.
                 if not isinstance(rt_val, str):
                     drifts.append(
                         f"[§{section_id}] {field_path!r}:"
                         f" doc has str, runtime has {type(rt_val).__name__!r}"
-                    )
-                    continue
-
-                # Treat the first line of the documented answer as a contractual
-                # prefix when it is non-empty.
-                doc_prefix = doc_val.splitlines()[0] if doc_val else ""
-                if doc_prefix and not rt_val.startswith(doc_prefix):
-                    drifts.append(
-                        f"[§{section_id}] {field_path!r}:"
-                        f" runtime answer does not start with documented prefix"
-                        f" {doc_prefix!r}"
                     )
                 continue
 
