@@ -1380,6 +1380,98 @@ def _format_retrieval_path_summary(hits: list[dict[str, object]]) -> str:
     return "\n".join(lines)
 
 
+def _count_malformed_diagnostics(hits: list[dict[str, object]]) -> int:
+    """Return the number of hits that contain malformed retrieval-path diagnostics payloads.
+
+    A hit is counted (at most once regardless of how many sub-field errors it has)
+    when its ``retrieval_path_diagnostics`` value is **present and not ``None``** but
+    fails any of the structural checks performed by
+    :func:`_format_retrieval_path_summary`:
+
+    - The root value is not a ``dict``.
+    - Any known list field (``has_participant_edges``,
+      ``canonical_via_resolves_to``, ``cluster_memberships``,
+      ``cluster_canonical_via_aligned_with``) is present but not a ``list``.
+    - Any entry in ``has_participant_edges`` or ``cluster_memberships`` or
+      ``cluster_canonical_via_aligned_with`` is not a ``dict``.
+    - Any ``roles`` entry within an ``has_participant_edges`` element is present
+      but not a ``list``, or contains a non-``dict`` item.
+
+    Hits where ``retrieval_path_diagnostics`` is absent or ``None`` are **not**
+    counted — they represent an older result format rather than a data error.
+
+    Parameters
+    ----------
+    hits:
+        List of hit dicts as stored in the ``retrieval_results`` field of the
+        ``run_retrieval_and_qa`` return value.
+
+    Returns
+    -------
+    int
+        Count of hits with at least one malformed diagnostics condition.
+        Zero when all hits have well-formed (or absent/``None``) diagnostics.
+    """
+    count = 0
+    for hit in hits:
+        meta = hit.get("metadata") or {}
+        if "retrieval_path_diagnostics" not in meta:
+            continue
+        diag = meta["retrieval_path_diagnostics"]
+        if diag is None:
+            continue
+        if not isinstance(diag, dict):
+            count += 1
+            continue
+        if _diagnostics_dict_has_malformed_fields(diag):
+            count += 1
+    return count
+
+
+def _diagnostics_dict_has_malformed_fields(diag: dict[str, object]) -> bool:
+    """Return ``True`` if *diag* contains any structurally malformed sub-field.
+
+    Mirrors the type checks performed by :func:`_format_retrieval_path_summary`
+    so that :func:`_count_malformed_diagnostics` stays aligned with the formatter
+    without duplicating the full rendering logic.
+    """
+    # Check that known list fields are actually lists when present.
+    _list_fields = (
+        "has_participant_edges",
+        "canonical_via_resolves_to",
+        "cluster_memberships",
+        "cluster_canonical_via_aligned_with",
+    )
+    for field in _list_fields:
+        val = diag.get(field)
+        if val is not None and not isinstance(val, list):
+            return True
+
+    # Check that entries in list fields that iterate as dicts are actually dicts.
+    _dict_entry_fields = (
+        "has_participant_edges",
+        "cluster_memberships",
+        "cluster_canonical_via_aligned_with",
+    )
+    for field in _dict_entry_fields:
+        val = diag.get(field)
+        if not isinstance(val, list):
+            continue
+        for entry in val:
+            if not isinstance(entry, dict):
+                return True
+            # For HAS_PARTICIPANT edges, also check the nested roles list.
+            if field == "has_participant_edges":
+                roles = entry.get("roles")
+                if roles is not None and not isinstance(roles, list):
+                    return True
+                if isinstance(roles, list):
+                    for role in roles:
+                        if not isinstance(role, dict):
+                            return True
+    return False
+
+
 def _chunk_citation_formatter(record: neo4j.Record) -> RetrieverResultItem:
     """Format a retrieved Chunk record into a RetrieverResultItem with a stable citation token.
 
@@ -1726,6 +1818,10 @@ def run_retrieval_and_qa(
         # retrieval completes; the empty-string default is used for dry-run and
         # no-question paths where no retrieval actually ran.
         "retrieval_path_summary": "",
+        # malformed_diagnostics_count counts hits whose retrieval_path_diagnostics
+        # payload failed any structural check during formatting.  Zero in base (no
+        # retrieval ran yet); overridden with the actual count in the live result.
+        "malformed_diagnostics_count": 0,
     }
     if getattr(config, "dry_run", False):
         dry_run_retrievers: list[str] = ["VectorCypherRetriever"]
@@ -1913,6 +2009,7 @@ def run_retrieval_and_qa(
         "citation_example": actual_citation_object,
         **_project_postprocess_to_public(pp),
         "retrieval_path_summary": _format_retrieval_path_summary(hits),
+        "malformed_diagnostics_count": _count_malformed_diagnostics(hits),
     }
 
 
@@ -2111,6 +2208,8 @@ __all__ = [
     "_CITATION_FALLBACK_PREFIX",
     "_format_scope_label",
     "_format_retrieval_path_summary",
+    "_count_malformed_diagnostics",
+    "_diagnostics_dict_has_malformed_fields",
     "_format_postprocess_debug_summary",
     "_postprocess_answer",
     "_POSTPROCESS_FIELD_MAP",

@@ -231,6 +231,7 @@ _LIVE_RESULT_REQUIRED_KEYS: frozenset[str] = frozenset({
     "hits",
     "retrieval_results",
     "retrieval_path_summary",
+    "malformed_diagnostics_count",
     # --- citation examples ---
     "citation_token_example",
     "citation_object_example",
@@ -1087,7 +1088,7 @@ class TestRunRetrievalAndQaPublicKeyContract:
             "citation_repair_attempted", "citation_repair_applied",
             "expand_graph", "cluster_aware", "interactive_mode", "message_history_enabled",
         )
-        int_fields = ("top_k", "hits")
+        int_fields = ("top_k", "hits", "malformed_diagnostics_count")
         list_fields = ("retrievers", "retrieval_results", "warnings")
         dict_fields = (
             "citation_quality", "retrieval_scope",
