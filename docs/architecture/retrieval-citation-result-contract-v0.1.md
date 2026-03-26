@@ -363,6 +363,7 @@ When `config.dry_run=True`, the function returns immediately after the shared ba
 | `qa` | `"GraphRAG all-runs citations"` when `all_runs=True`; `"GraphRAG run-scoped citations"` otherwise |
 | `answer` | `""` (default — no LLM ran) |
 | `raw_answer` | `""` (default) |
+| `raw_answer_all_cited` | `False` (default) |
 | `all_answers_cited` | `False` (default) |
 | `citation_quality.evidence_level` | `"no_answer"` (default — no answer was produced) |
 | `citation_quality.all_cited` | `False` (default) |
@@ -387,6 +388,7 @@ When `config.dry_run=True`, the function returns immediately after the shared ba
   "qa": "GraphRAG run-scoped citations",
   "answer": "",
   "raw_answer": "",
+  "raw_answer_all_cited": false,
   "all_answers_cited": false,
   "citation_repair_attempted": false,
   "citation_repair_applied": false,
@@ -416,6 +418,7 @@ When `question=None` in live mode (i.e. `config.dry_run=False`), the function sh
 | `status` | `"live"` |
 | `retrieval_skipped` | `True` |
 | `retrievers` | `[]` (nothing ran) |
+| `qa` | `"GraphRAG run-scoped citations"` (the default run-scoped label; no retrieval ran) |
 | `hits` | `0` |
 | `retrieval_results` | `[]` |
 | `warnings` | `["No question provided; skipping vector retrieval."]` (exactly one entry) |
@@ -436,6 +439,7 @@ The `warnings` list contains **exactly** the no-question skip message.  No citat
   "status": "live",
   "retrieval_skipped": true,
   "retrievers": [],
+  "qa": "GraphRAG run-scoped citations",
   "hits": 0,
   "retrieval_results": [],
   "warnings": ["No question provided; skipping vector retrieval."],
