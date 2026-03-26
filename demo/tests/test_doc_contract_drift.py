@@ -38,6 +38,8 @@ from typing import Any
 
 import pytest
 
+from demo.stages.retrieval_and_qa import _CITATION_FALLBACK_PREFIX
+
 # ---------------------------------------------------------------------------
 # Contract document location
 # ---------------------------------------------------------------------------
@@ -174,7 +176,10 @@ def _collect_drifts(
     6. **``int``** — exact match required.
     7. **``str``**:
 
-       * Fields in ``_ANSWER_TEXT_FIELDS``: Python type check only.
+       * Fields in ``_ANSWER_TEXT_FIELDS``: type check (must be ``str``), plus
+         a prefix check when ``citation_fallback_applied`` is ``True`` in the
+         same dict — the runtime value must start with
+         ``_CITATION_FALLBACK_PREFIX``.
        * Fields in ``_NULL_VS_NONNULL_FIELDS`` when doc value is non-null:
          runtime must also be non-null.
        * Strings containing ``…``: illustrative placeholder; skipped.
@@ -307,13 +312,26 @@ def _collect_drifts(
             leaf = field_path.rsplit(".", 1)[-1] if "." in field_path else field_path
 
             if leaf in _ANSWER_TEXT_FIELDS:
-                # Answer text in the contract doc is largely illustrative. For these
-                # fields we only require the runtime value to be a string, to avoid
-                # spurious drift failures when the documented prose changes.
+                # Answer text in the contract doc is largely illustrative. We
+                # require the runtime value to be a string and, when
+                # citation_fallback_applied is True at the same dict level, we
+                # also require the public `answer` (not `raw_answer`) to start
+                # with the documented fallback prefix so drift in that prefix
+                # is still caught.
                 if not isinstance(rt_val, str):
                     drifts.append(
                         f"[§{section_id}] {field_path!r}:"
                         f" doc has str, runtime has {type(rt_val).__name__!r}"
+                    )
+                elif (
+                    leaf == "answer"
+                    and doc.get("citation_fallback_applied") is True
+                    and not rt_val.startswith(_CITATION_FALLBACK_PREFIX)
+                ):
+                    drifts.append(
+                        f"[§{section_id}] {field_path!r}:"
+                        f" citation_fallback_applied is True but runtime answer"
+                        f" does not start with {_CITATION_FALLBACK_PREFIX!r}"
                     )
                 continue
 
