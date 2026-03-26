@@ -509,7 +509,13 @@ class TestDocContractDrift:
     # Per-section drift checks
     # ------------------------------------------------------------------
 
-    @pytest.mark.parametrize("section_id", sorted(_SECTION_FIXTURES))
+    @pytest.mark.parametrize(
+        "section_id",
+        sorted(
+            _SECTION_FIXTURES,
+            key=lambda s: tuple(int(part) for part in s.split(".")),
+        ),
+    )
     def test_no_drift_between_doc_and_runtime(
         self,
         section_id: str,
