@@ -82,7 +82,7 @@ Two answer variants are produced internally by `_postprocess_answer`:
 |---|---|---|
 | `all_cited` | `bool` | Whether every sentence/bullet in the final answer is cited.  Mirrors `all_answers_cited` at the top level. |
 | `raw_answer_all_cited` | `bool` | Whether the raw LLM output was fully cited before any repair.  Mirrors `raw_answer_all_cited` at the top level. |
-| `evidence_level` | `"no_answer" \| "full" \| "degraded"` | Encodes overall citation quality (see §2.6). |
+| `evidence_level` | `"no_answer" \| "full" \| "degraded"` | Encodes overall citation quality (see §2.8). |
 | `warning_count` | `int` | `len(citation_warnings)`. |
 | `citation_warnings` | `list[str]` | All citation-quality warnings, including warnings that were raised before postprocessing (e.g. empty-chunk-text warnings). |
 
@@ -95,7 +95,24 @@ Two answer variants are produced internally by `_postprocess_answer`:
 
 `citation_warnings` (inside `citation_quality`) contains **only citation-quality-related** warnings.  Callers that want to assess citation quality specifically should use `citation_quality["citation_warnings"]`; callers that want all warnings should use the top-level `warnings` list.
 
-### 2.6 Evidence-level semantics
+### 2.7 Malformed-diagnostics telemetry
+
+| Field | Type | Description |
+|---|---|---|
+| `malformed_diagnostics_count` | `int` | Number of retrieved hits whose `retrieval_path_diagnostics` payload failed at least one structural check during result formatting.  Zero when all hits have well-formed (or absent/`None`) diagnostics. |
+
+A hit contributes to `malformed_diagnostics_count` (at most once, regardless of how many sub-field errors it has) when its `retrieval_path_diagnostics` value is **present and not `None`** but:
+
+- The root value is not a `dict`, **or**
+- Any known list field (`has_participant_edges`, `canonical_via_resolves_to`, `cluster_memberships`, `cluster_canonical_via_aligned_with`) is present with a non-`None` value that is not a `list`, **or**
+- Any entry in `has_participant_edges`, `cluster_memberships`, or `cluster_canonical_via_aligned_with` is not a `dict`, **or**
+- Any `roles` entry within an `has_participant_edges` element is present with a non-`None` value that is not a `list`, or contains a non-`dict` item. (`roles=None` is treated as absent.)
+
+Hits where `retrieval_path_diagnostics` is **absent or `None`** are **not** counted — they represent an older result format rather than a data error.
+
+`malformed_diagnostics_count > 0` is a signal for downstream alerting: it indicates that the graph database returned diagnostics payloads with unexpected types, which may reflect a schema migration, a bug in the retrieval query, or data corruption.  The human-readable `retrieval_path_summary` string surfaces per-hit details, while `malformed_diagnostics_count` provides a machine-readable counter for metrics and alerting without requiring string parsing.
+
+### 2.8 Evidence-level semantics
 
 `evidence_level` is derived from `all_cited` (for the final answer) and the combined `citation_warnings` list:
 
@@ -128,6 +145,8 @@ The following invariants hold across all postprocessing paths:
 7. **Warning propagation:** Every warning added to `citation_warnings` is also appended to `warnings`.  The reverse is not true: `warnings` may contain operational warnings not present in `citation_warnings`.
 
 8. **`citation_quality` mirrors top-level fields:** `citation_quality["all_cited"]` always equals the top-level `all_answers_cited`.  `citation_quality["raw_answer_all_cited"]` always equals the top-level `raw_answer_all_cited`.  `citation_quality["evidence_level"]` always equals the top-level fields used to derive `evidence_level`.
+
+9. **`malformed_diagnostics_count` non-negative integer:** `malformed_diagnostics_count` is always present and is always a non-negative integer.  It equals zero when all retrieved hits have well-formed or absent diagnostics.  Absent/`None` diagnostics are not counted — only hits whose diagnostics are structurally invalid (root not a `dict`, or sub-field type errors) are counted.
 
 ---
 
@@ -337,7 +356,7 @@ The full lifecycle executed by `_postprocess_answer` in order:
 4. **Apply citation fallback** (`_build_citation_fallback`) — if the repaired answer is still not fully cited, prepend the `"Insufficient citations detected: …"` prefix to the display answer and store only the bare prefix in the history answer.
 5. **Derive `all_cited`** — check citation completeness of the repaired answer (independent of the fallback prefix).
 6. **Collect `citation_warnings`** — merge any pre-postprocessing (retrieval-time) citation warnings (e.g. empty-chunk-text warnings) with any new warnings (e.g. uncited-answer warning).
-7. **Derive `evidence_level`** — from `all_cited` and `citation_warnings` (see §2.6).
+7. **Derive `evidence_level`** — from `all_cited` and `citation_warnings` (see §2.8).
 8. **Build `citation_quality` bundle** — structured dict consolidating citation state for callers.
 
 ---

@@ -10,6 +10,8 @@ These tests verify:
    ``_chunk_citation_formatter`` and contains the expected structure.
 4. ``run_retrieval_and_qa`` result dicts always contain the ``retrieval_path_summary``
    key (including dry-run and no-question code paths).
+5. ``_count_malformed_diagnostics`` returns the correct hit-level count for all
+   malformed and well-formed diagnostics scenarios.
 """
 from __future__ import annotations
 
@@ -17,6 +19,8 @@ import pytest
 
 from demo.stages.retrieval_and_qa import (
     _build_retrieval_path_diagnostics,
+    _count_malformed_diagnostics,
+    _diagnostics_dict_has_malformed_fields,
     _format_claim_details,
     _format_retrieval_path_summary,
     _normalize_claim_roles,
@@ -891,6 +895,17 @@ class TestRunRetrievalAndQaIncludesRetrievalPathSummary:
 
         return DryRunConfig()
 
+    def _make_live_config(self):
+        class LiveConfig:
+            dry_run = False
+            openai_model = "gpt-4o"
+            neo4j_uri = "bolt://localhost:7687"
+            neo4j_username = "neo4j"
+            neo4j_password = "password"
+            neo4j_database = None
+
+        return LiveConfig()
+
     def test_dry_run_result_has_retrieval_path_summary(self) -> None:
         from demo.stages.retrieval_and_qa import run_retrieval_and_qa
 
@@ -901,6 +916,18 @@ class TestRunRetrievalAndQaIncludesRetrievalPathSummary:
         )
         assert "retrieval_path_summary" in result
         assert result["retrieval_path_summary"] == ""
+
+    def test_dry_run_result_has_malformed_diagnostics_count_zero(self) -> None:
+        """Dry-run result must include malformed_diagnostics_count == 0 (no retrieval ran)."""
+        from demo.stages.retrieval_and_qa import run_retrieval_and_qa
+
+        result = run_retrieval_and_qa(
+            self._make_dry_run_config(),
+            run_id="test_run",
+            question="Who founded MercadoLibre?",
+        )
+        assert "malformed_diagnostics_count" in result
+        assert result["malformed_diagnostics_count"] == 0
 
     def test_dry_run_with_expand_graph_has_retrieval_path_summary(self) -> None:
         from demo.stages.retrieval_and_qa import run_retrieval_and_qa
@@ -914,6 +941,19 @@ class TestRunRetrievalAndQaIncludesRetrievalPathSummary:
         assert "retrieval_path_summary" in result
         assert result["retrieval_path_summary"] == ""
 
+    def test_dry_run_with_expand_graph_has_malformed_diagnostics_count_zero(self) -> None:
+        """Dry-run (expand_graph) result must include malformed_diagnostics_count == 0."""
+        from demo.stages.retrieval_and_qa import run_retrieval_and_qa
+
+        result = run_retrieval_and_qa(
+            self._make_dry_run_config(),
+            run_id="test_run",
+            question="Who founded MercadoLibre?",
+            expand_graph=True,
+        )
+        assert "malformed_diagnostics_count" in result
+        assert result["malformed_diagnostics_count"] == 0
+
     def test_dry_run_with_cluster_aware_has_retrieval_path_summary(self) -> None:
         from demo.stages.retrieval_and_qa import run_retrieval_and_qa
 
@@ -925,6 +965,49 @@ class TestRunRetrievalAndQaIncludesRetrievalPathSummary:
         )
         assert "retrieval_path_summary" in result
         assert result["retrieval_path_summary"] == ""
+
+    def test_dry_run_with_cluster_aware_has_malformed_diagnostics_count_zero(self) -> None:
+        """Dry-run (cluster_aware) result must include malformed_diagnostics_count == 0."""
+        from demo.stages.retrieval_and_qa import run_retrieval_and_qa
+
+        result = run_retrieval_and_qa(
+            self._make_dry_run_config(),
+            run_id="test_run",
+            question="Who founded MercadoLibre?",
+            cluster_aware=True,
+        )
+        assert "malformed_diagnostics_count" in result
+        assert result["malformed_diagnostics_count"] == 0
+
+    def test_no_question_result_has_retrieval_path_summary(self) -> None:
+        """Live early-return when question=None must include retrieval_path_summary == ''."""
+        import os
+        import unittest.mock as mock
+        from demo.stages.retrieval_and_qa import run_retrieval_and_qa
+
+        with mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+            result = run_retrieval_and_qa(
+                self._make_live_config(),
+                run_id="test_run",
+                question=None,
+            )
+        assert "retrieval_path_summary" in result
+        assert result["retrieval_path_summary"] == ""
+
+    def test_no_question_result_has_malformed_diagnostics_count_zero(self) -> None:
+        """Live early-return when question=None must include malformed_diagnostics_count == 0."""
+        import os
+        import unittest.mock as mock
+        from demo.stages.retrieval_and_qa import run_retrieval_and_qa
+
+        with mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+            result = run_retrieval_and_qa(
+                self._make_live_config(),
+                run_id="test_run",
+                question=None,
+            )
+        assert "malformed_diagnostics_count" in result
+        assert result["malformed_diagnostics_count"] == 0
 
 
 # ---------------------------------------------------------------------------
@@ -1302,3 +1385,249 @@ class TestFormatClaimDetails:
         result = _format_claim_details(details)
         assert "Valid claim." in result
         assert result.count("•") == 1
+
+
+# ---------------------------------------------------------------------------
+# _diagnostics_dict_has_malformed_fields: sub-field structural checks
+# ---------------------------------------------------------------------------
+
+
+class TestDiagnosticsDictHasMalformedFields:
+    """_diagnostics_dict_has_malformed_fields returns True iff any known sub-field
+    is structurally malformed."""
+
+    def _well_formed(self) -> dict:
+        """Return a fully well-formed diagnostics dict."""
+        return {
+            "has_participant_edges": [
+                {
+                    "claim_text": "A founded B.",
+                    "roles": [
+                        {"role": "subject", "mention_name": "A", "match_method": "raw_exact"}
+                    ],
+                }
+            ],
+            "canonical_via_resolves_to": ["Entity X"],
+            "cluster_memberships": [
+                {"cluster_name": "Corp", "membership_status": "accepted", "membership_method": "exact"}
+            ],
+            "cluster_canonical_via_aligned_with": [
+                {"canonical_name": "Corp Inc.", "alignment_method": "embedding", "alignment_status": "aligned"}
+            ],
+        }
+
+    def test_well_formed_returns_false(self) -> None:
+        assert _diagnostics_dict_has_malformed_fields(self._well_formed()) is False
+
+    def test_empty_lists_returns_false(self) -> None:
+        diag = {
+            "has_participant_edges": [],
+            "canonical_via_resolves_to": [],
+            "cluster_memberships": [],
+            "cluster_canonical_via_aligned_with": [],
+        }
+        assert _diagnostics_dict_has_malformed_fields(diag) is False
+
+    def test_has_participant_edges_not_list_returns_true(self) -> None:
+        diag = self._well_formed()
+        diag["has_participant_edges"] = {"claim_text": "oops"}  # type: ignore[assignment]
+        assert _diagnostics_dict_has_malformed_fields(diag) is True
+
+    def test_canonical_via_resolves_to_not_list_returns_true(self) -> None:
+        diag = self._well_formed()
+        diag["canonical_via_resolves_to"] = "not-a-list"  # type: ignore[assignment]
+        assert _diagnostics_dict_has_malformed_fields(diag) is True
+
+    def test_cluster_memberships_not_list_returns_true(self) -> None:
+        diag = self._well_formed()
+        diag["cluster_memberships"] = 42  # type: ignore[assignment]
+        assert _diagnostics_dict_has_malformed_fields(diag) is True
+
+    def test_cluster_canonical_via_aligned_with_not_list_returns_true(self) -> None:
+        diag = self._well_formed()
+        diag["cluster_canonical_via_aligned_with"] = True  # type: ignore[assignment]
+        assert _diagnostics_dict_has_malformed_fields(diag) is True
+
+    def test_hp_edge_entry_not_dict_returns_true(self) -> None:
+        diag = self._well_formed()
+        diag["has_participant_edges"] = ["not-a-dict"]  # type: ignore[assignment]
+        assert _diagnostics_dict_has_malformed_fields(diag) is True
+
+    def test_cluster_membership_entry_not_dict_returns_true(self) -> None:
+        diag = self._well_formed()
+        diag["cluster_memberships"] = [99]  # type: ignore[assignment]
+        assert _diagnostics_dict_has_malformed_fields(diag) is True
+
+    def test_alignment_entry_not_dict_returns_true(self) -> None:
+        diag = self._well_formed()
+        diag["cluster_canonical_via_aligned_with"] = [None]  # type: ignore[assignment]
+        assert _diagnostics_dict_has_malformed_fields(diag) is True
+
+    def test_hp_edge_roles_not_list_returns_true(self) -> None:
+        diag = self._well_formed()
+        diag["has_participant_edges"] = [{"claim_text": "X.", "roles": "not-a-list"}]  # type: ignore[assignment]
+        assert _diagnostics_dict_has_malformed_fields(diag) is True
+
+    def test_hp_edge_role_entry_not_dict_returns_true(self) -> None:
+        diag = self._well_formed()
+        diag["has_participant_edges"] = [  # type: ignore[assignment]
+            {"claim_text": "X.", "roles": [None, "bad-entry"]}
+        ]
+        assert _diagnostics_dict_has_malformed_fields(diag) is True
+
+    def test_hp_edge_roles_none_is_not_malformed(self) -> None:
+        """``roles=None`` in an HP edge is treated as absent (not malformed)."""
+        diag = self._well_formed()
+        diag["has_participant_edges"] = [{"claim_text": "X.", "roles": None}]  # type: ignore[assignment]
+        assert _diagnostics_dict_has_malformed_fields(diag) is False
+
+    def test_absent_optional_fields_not_malformed(self) -> None:
+        """A diagnostics dict with only some known keys present is not malformed."""
+        diag: dict[str, object] = {"has_participant_edges": []}
+        assert _diagnostics_dict_has_malformed_fields(diag) is False
+
+
+# ---------------------------------------------------------------------------
+# _count_malformed_diagnostics: hit-level counter
+# ---------------------------------------------------------------------------
+
+
+class TestCountMalformedDiagnostics:
+    """_count_malformed_diagnostics returns the correct count of malformed hits."""
+
+    def _hit_with_diag(self, diag: object) -> dict:
+        """Return a hit dict with the given retrieval_path_diagnostics value."""
+        return {"content": "text", "metadata": {"chunk_id": "c1", "retrieval_path_diagnostics": diag}}
+
+    def _hit_without_diag(self) -> dict:
+        """Return a hit dict with no retrieval_path_diagnostics key at all."""
+        return {"content": "text", "metadata": {"chunk_id": "c1"}}
+
+    def _well_formed_diag(self) -> dict:
+        return {
+            "has_participant_edges": [],
+            "canonical_via_resolves_to": [],
+            "cluster_memberships": [],
+            "cluster_canonical_via_aligned_with": [],
+        }
+
+    def test_empty_hits_returns_zero(self) -> None:
+        assert _count_malformed_diagnostics([]) == 0
+
+    def test_all_well_formed_returns_zero(self) -> None:
+        hits = [self._hit_with_diag(self._well_formed_diag()) for _ in range(3)]
+        assert _count_malformed_diagnostics(hits) == 0
+
+    def test_diagnostics_key_absent_not_counted(self) -> None:
+        """Missing retrieval_path_diagnostics key = older format, not malformed."""
+        assert _count_malformed_diagnostics([self._hit_without_diag()]) == 0
+
+    def test_diagnostics_none_not_counted(self) -> None:
+        """``retrieval_path_diagnostics=None`` = older format, not malformed."""
+        assert _count_malformed_diagnostics([self._hit_with_diag(None)]) == 0
+
+    def test_root_not_dict_counts_as_one(self) -> None:
+        for bad_root in ["a string", 42, ["a", "list"], True]:
+            assert _count_malformed_diagnostics([self._hit_with_diag(bad_root)]) == 1, (
+                f"Expected count=1 for root={bad_root!r}"
+            )
+
+    def test_one_malformed_out_of_three_counts_one(self) -> None:
+        hits = [
+            self._hit_with_diag(self._well_formed_diag()),
+            self._hit_with_diag("bad-root"),
+            self._hit_with_diag(self._well_formed_diag()),
+        ]
+        assert _count_malformed_diagnostics(hits) == 1
+
+    def test_all_three_malformed_counts_three(self) -> None:
+        hits = [self._hit_with_diag("bad") for _ in range(3)]
+        assert _count_malformed_diagnostics(hits) == 3
+
+    def test_single_malformed_subfield_counts_once_per_hit(self) -> None:
+        """Multiple malformed sub-fields in the same hit count as 1, not multiple."""
+        bad_diag: dict[str, object] = {
+            "has_participant_edges": "not-a-list",
+            "canonical_via_resolves_to": 42,
+            "cluster_memberships": [],
+            "cluster_canonical_via_aligned_with": [],
+        }
+        assert _count_malformed_diagnostics([self._hit_with_diag(bad_diag)]) == 1
+
+    def test_malformed_hp_edges_not_list_counts(self) -> None:
+        bad_diag = {
+            "has_participant_edges": {"claim_text": "oops", "roles": []},
+            "canonical_via_resolves_to": [],
+            "cluster_memberships": [],
+            "cluster_canonical_via_aligned_with": [],
+        }
+        assert _count_malformed_diagnostics([self._hit_with_diag(bad_diag)]) == 1
+
+    def test_malformed_hp_edge_entry_not_dict_counts(self) -> None:
+        bad_diag = {
+            "has_participant_edges": ["not-a-dict"],
+            "canonical_via_resolves_to": [],
+            "cluster_memberships": [],
+            "cluster_canonical_via_aligned_with": [],
+        }
+        assert _count_malformed_diagnostics([self._hit_with_diag(bad_diag)]) == 1
+
+    def test_malformed_roles_not_list_counts(self) -> None:
+        bad_diag = {
+            "has_participant_edges": [{"claim_text": "X.", "roles": "not-a-list"}],
+            "canonical_via_resolves_to": [],
+            "cluster_memberships": [],
+            "cluster_canonical_via_aligned_with": [],
+        }
+        assert _count_malformed_diagnostics([self._hit_with_diag(bad_diag)]) == 1
+
+    def test_malformed_role_entry_not_dict_counts(self) -> None:
+        bad_diag = {
+            "has_participant_edges": [{"claim_text": "X.", "roles": [None, "bad"]}],
+            "canonical_via_resolves_to": [],
+            "cluster_memberships": [],
+            "cluster_canonical_via_aligned_with": [],
+        }
+        assert _count_malformed_diagnostics([self._hit_with_diag(bad_diag)]) == 1
+
+    def test_malformed_cluster_memberships_not_list_counts(self) -> None:
+        bad_diag = {
+            "has_participant_edges": [],
+            "canonical_via_resolves_to": [],
+            "cluster_memberships": "bad",
+            "cluster_canonical_via_aligned_with": [],
+        }
+        assert _count_malformed_diagnostics([self._hit_with_diag(bad_diag)]) == 1
+
+    def test_malformed_alignments_not_list_counts(self) -> None:
+        bad_diag = {
+            "has_participant_edges": [],
+            "canonical_via_resolves_to": [],
+            "cluster_memberships": [],
+            "cluster_canonical_via_aligned_with": 99,
+        }
+        assert _count_malformed_diagnostics([self._hit_with_diag(bad_diag)]) == 1
+
+    def test_metadata_none_handled_gracefully(self) -> None:
+        """A hit with ``metadata=None`` must not raise."""
+        hit: dict = {"content": "text", "metadata": None}
+        assert _count_malformed_diagnostics([hit]) == 0
+
+    def test_hit_missing_metadata_key_handled_gracefully(self) -> None:
+        """A hit dict without a ``metadata`` key must not raise."""
+        hit: dict = {"content": "text"}
+        assert _count_malformed_diagnostics([hit]) == 0
+
+    def test_mixed_absent_none_and_malformed_hits(self) -> None:
+        """Absent, None, and malformed diagnostics are counted correctly in a batch."""
+        hits = [
+            self._hit_without_diag(),          # absent → 0
+            self._hit_with_diag(None),          # None → 0
+            self._hit_with_diag(self._well_formed_diag()),  # well-formed → 0
+            self._hit_with_diag("bad-root"),    # malformed → 1
+            self._hit_with_diag({"has_participant_edges": "not-a-list",  # malformed → 1
+                                  "canonical_via_resolves_to": [],
+                                  "cluster_memberships": [],
+                                  "cluster_canonical_via_aligned_with": []}),
+        ]
+        assert _count_malformed_diagnostics(hits) == 2
