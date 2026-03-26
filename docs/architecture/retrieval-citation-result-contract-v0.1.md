@@ -424,6 +424,7 @@ When `question=None` in live mode (i.e. `config.dry_run=False`), the function sh
 | `warnings` | `["No question provided; skipping vector retrieval."]` (exactly one entry) |
 | `answer` | `""` (default — no LLM ran) |
 | `raw_answer` | `""` (default) |
+| `raw_answer_all_cited` | `False` (default) |
 | `all_answers_cited` | `False` (default) |
 | `citation_quality.evidence_level` | `"no_answer"` (default) |
 | `citation_quality.citation_warnings` | `[]` (no citation-quality issues) |
@@ -445,6 +446,7 @@ The `warnings` list contains **exactly** the no-question skip message.  No citat
   "warnings": ["No question provided; skipping vector retrieval."],
   "answer": "",
   "raw_answer": "",
+  "raw_answer_all_cited": false,
   "all_answers_cited": false,
   "citation_repair_attempted": false,
   "citation_repair_applied": false,

@@ -1955,13 +1955,17 @@ class TestRunRetrievalAndQaEarlyReturnContract:
         )
 
     def test_retrieval_skipped_default_answer_fields(self) -> None:
-        """Retrieval-skipped result must carry default (empty/False) answer fields."""
+        """Retrieval-skipped result must carry default (empty/False/None) answer fields."""
         result = self._skip_result()
         assert result["answer"] == ""
         assert result["raw_answer"] == ""
+        assert result["raw_answer_all_cited"] is False
         assert result["all_answers_cited"] is False
         assert result["citation_repair_attempted"] is False
         assert result["citation_repair_applied"] is False
+        assert result["citation_repair_strategy"] is None
+        assert result["citation_repair_source_chunk_id"] is None
+        assert result["citation_fallback_applied"] is False
 
     def test_retrieval_skipped_citation_quality_defaults(self) -> None:
         """Retrieval-skipped ``citation_quality`` must carry default no_answer values."""
