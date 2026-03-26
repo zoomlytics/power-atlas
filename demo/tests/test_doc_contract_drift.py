@@ -266,18 +266,52 @@ def _collect_drifts(
                 )
             continue
 
-        # --- List: compare length only ---
+        # --- List: compare length, and optionally elements when concrete ---
         if isinstance(doc_val, list):
             if not isinstance(rt_val, list):
                 drifts.append(
                     f"[§{section_id}] {field_path!r}: doc has list,"
                     f" runtime has {type(rt_val).__name__!r}"
                 )
-            elif len(doc_val) != len(rt_val):
-                drifts.append(
-                    f"[§{section_id}] {field_path!r}: doc lists {len(doc_val)} item(s),"
-                    f" runtime has {len(rt_val)} item(s) — runtime value: {rt_val!r}"
-                )
+            else:
+                # Helper: detect whether the doc list uses explicit placeholders,
+                # in which case we only enforce list length, not per-element equality.
+                def _list_uses_placeholders(list_val: list[Any]) -> bool:
+                    for elem in list_val:
+                        if isinstance(elem, str) and re.search(r"\{[^}]+\}", elem):
+                            return True
+                    return False
+
+                # Helper: normalize variable parts (e.g. chunk IDs) in list elements
+                # so wording drift is still detected while ignoring dynamic IDs.
+                def _normalize_list_element(val: Any) -> Any:
+                    if not isinstance(val, str):
+                        return val
+                    # Normalize chunk identifiers in warning strings such as
+                    # "Chunk 'abc123' ..." -> "Chunk '<id>' ..."
+                    normalized = re.sub(
+                        r"Chunk '([^']+)'",
+                        "Chunk '<id>'",
+                        val,
+                    )
+                    return normalized
+
+                if len(doc_val) != len(rt_val):
+                    drifts.append(
+                        f"[§{section_id}] {field_path!r}: doc lists {len(doc_val)} item(s),"
+                        f" runtime has {len(rt_val)} item(s) — runtime value: {rt_val!r}"
+                    )
+                # When the doc does not use placeholders, compare normalized elements
+                # to detect wording drift in concrete list values (e.g. warnings).
+                if not _list_uses_placeholders(doc_val):
+                    for idx, (doc_item, rt_item) in enumerate(zip(doc_val, rt_val)):
+                        norm_doc = _normalize_list_element(doc_item)
+                        norm_rt = _normalize_list_element(rt_item)
+                        if norm_doc != norm_rt:
+                            drifts.append(
+                                f"[§{section_id}] {field_path!r}[{idx}]:"
+                                f" doc={doc_item!r}, runtime={rt_item!r}"
+                            )
             continue
 
         # --- None ---
