@@ -82,7 +82,7 @@ Two answer variants are produced internally by `_postprocess_answer`:
 |---|---|---|
 | `all_cited` | `bool` | Whether every sentence/bullet in the final answer is cited.  Mirrors `all_answers_cited` at the top level. |
 | `raw_answer_all_cited` | `bool` | Whether the raw LLM output was fully cited before any repair.  Mirrors `raw_answer_all_cited` at the top level. |
-| `evidence_level` | `"no_answer" \| "full" \| "degraded"` | Encodes overall citation quality (see §2.6). |
+| `evidence_level` | `"no_answer" \| "full" \| "degraded"` | Encodes overall citation quality (see §2.8). |
 | `warning_count` | `int` | `len(citation_warnings)`. |
 | `citation_warnings` | `list[str]` | All citation-quality warnings, including warnings that were raised before postprocessing (e.g. empty-chunk-text warnings). |
 
@@ -356,7 +356,7 @@ The full lifecycle executed by `_postprocess_answer` in order:
 4. **Apply citation fallback** (`_build_citation_fallback`) — if the repaired answer is still not fully cited, prepend the `"Insufficient citations detected: …"` prefix to the display answer and store only the bare prefix in the history answer.
 5. **Derive `all_cited`** — check citation completeness of the repaired answer (independent of the fallback prefix).
 6. **Collect `citation_warnings`** — merge any pre-postprocessing (retrieval-time) citation warnings (e.g. empty-chunk-text warnings) with any new warnings (e.g. uncited-answer warning).
-7. **Derive `evidence_level`** — from `all_cited` and `citation_warnings` (see §2.6).
+7. **Derive `evidence_level`** — from `all_cited` and `citation_warnings` (see §2.8).
 8. **Build `citation_quality` bundle** — structured dict consolidating citation state for callers.
 
 ---

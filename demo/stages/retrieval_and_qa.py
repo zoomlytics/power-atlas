@@ -1395,7 +1395,7 @@ def _count_malformed_diagnostics(hits: list[dict[str, object]]) -> int:
       not a ``list``.
     - Any entry in ``has_participant_edges`` or ``cluster_memberships`` or
       ``cluster_canonical_via_aligned_with`` is not a ``dict``.
-    - Any ``roles`` entry within an ``has_participant_edges`` element is present
+    - Any ``roles`` entry within a ``has_participant_edges`` element is present
       and not ``None`` but not a ``list``, or contains a non-``dict`` item.
 
     Hits where ``retrieval_path_diagnostics`` is absent or ``None`` are **not**

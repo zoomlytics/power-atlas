@@ -895,6 +895,17 @@ class TestRunRetrievalAndQaIncludesRetrievalPathSummary:
 
         return DryRunConfig()
 
+    def _make_live_config(self):
+        class LiveConfig:
+            dry_run = False
+            openai_model = "gpt-4o"
+            neo4j_uri = "bolt://localhost:7687"
+            neo4j_username = "neo4j"
+            neo4j_password = "password"
+            neo4j_database = None
+
+        return LiveConfig()
+
     def test_dry_run_result_has_retrieval_path_summary(self) -> None:
         from demo.stages.retrieval_and_qa import run_retrieval_and_qa
 
@@ -905,6 +916,18 @@ class TestRunRetrievalAndQaIncludesRetrievalPathSummary:
         )
         assert "retrieval_path_summary" in result
         assert result["retrieval_path_summary"] == ""
+
+    def test_dry_run_result_has_malformed_diagnostics_count_zero(self) -> None:
+        """Dry-run result must include malformed_diagnostics_count == 0 (no retrieval ran)."""
+        from demo.stages.retrieval_and_qa import run_retrieval_and_qa
+
+        result = run_retrieval_and_qa(
+            self._make_dry_run_config(),
+            run_id="test_run",
+            question="Who founded MercadoLibre?",
+        )
+        assert "malformed_diagnostics_count" in result
+        assert result["malformed_diagnostics_count"] == 0
 
     def test_dry_run_with_expand_graph_has_retrieval_path_summary(self) -> None:
         from demo.stages.retrieval_and_qa import run_retrieval_and_qa
@@ -918,6 +941,19 @@ class TestRunRetrievalAndQaIncludesRetrievalPathSummary:
         assert "retrieval_path_summary" in result
         assert result["retrieval_path_summary"] == ""
 
+    def test_dry_run_with_expand_graph_has_malformed_diagnostics_count_zero(self) -> None:
+        """Dry-run (expand_graph) result must include malformed_diagnostics_count == 0."""
+        from demo.stages.retrieval_and_qa import run_retrieval_and_qa
+
+        result = run_retrieval_and_qa(
+            self._make_dry_run_config(),
+            run_id="test_run",
+            question="Who founded MercadoLibre?",
+            expand_graph=True,
+        )
+        assert "malformed_diagnostics_count" in result
+        assert result["malformed_diagnostics_count"] == 0
+
     def test_dry_run_with_cluster_aware_has_retrieval_path_summary(self) -> None:
         from demo.stages.retrieval_and_qa import run_retrieval_and_qa
 
@@ -929,6 +965,49 @@ class TestRunRetrievalAndQaIncludesRetrievalPathSummary:
         )
         assert "retrieval_path_summary" in result
         assert result["retrieval_path_summary"] == ""
+
+    def test_dry_run_with_cluster_aware_has_malformed_diagnostics_count_zero(self) -> None:
+        """Dry-run (cluster_aware) result must include malformed_diagnostics_count == 0."""
+        from demo.stages.retrieval_and_qa import run_retrieval_and_qa
+
+        result = run_retrieval_and_qa(
+            self._make_dry_run_config(),
+            run_id="test_run",
+            question="Who founded MercadoLibre?",
+            cluster_aware=True,
+        )
+        assert "malformed_diagnostics_count" in result
+        assert result["malformed_diagnostics_count"] == 0
+
+    def test_no_question_result_has_retrieval_path_summary(self) -> None:
+        """Live early-return when question=None must include retrieval_path_summary == ''."""
+        import os
+        import unittest.mock as mock
+        from demo.stages.retrieval_and_qa import run_retrieval_and_qa
+
+        with mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+            result = run_retrieval_and_qa(
+                self._make_live_config(),
+                run_id="test_run",
+                question=None,
+            )
+        assert "retrieval_path_summary" in result
+        assert result["retrieval_path_summary"] == ""
+
+    def test_no_question_result_has_malformed_diagnostics_count_zero(self) -> None:
+        """Live early-return when question=None must include malformed_diagnostics_count == 0."""
+        import os
+        import unittest.mock as mock
+        from demo.stages.retrieval_and_qa import run_retrieval_and_qa
+
+        with mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+            result = run_retrieval_and_qa(
+                self._make_live_config(),
+                run_id="test_run",
+                question=None,
+            )
+        assert "malformed_diagnostics_count" in result
+        assert result["malformed_diagnostics_count"] == 0
 
 
 # ---------------------------------------------------------------------------
