@@ -1391,11 +1391,12 @@ def _count_malformed_diagnostics(hits: list[dict[str, object]]) -> int:
     - The root value is not a ``dict``.
     - Any known list field (``has_participant_edges``,
       ``canonical_via_resolves_to``, ``cluster_memberships``,
-      ``cluster_canonical_via_aligned_with``) is present but not a ``list``.
+      ``cluster_canonical_via_aligned_with``) is present and not ``None`` but
+      not a ``list``.
     - Any entry in ``has_participant_edges`` or ``cluster_memberships`` or
       ``cluster_canonical_via_aligned_with`` is not a ``dict``.
     - Any ``roles`` entry within an ``has_participant_edges`` element is present
-      but not a ``list``, or contains a non-``dict`` item.
+      and not ``None`` but not a ``list``, or contains a non-``dict`` item.
 
     Hits where ``retrieval_path_diagnostics`` is absent or ``None`` are **not**
     counted — they represent an older result format rather than a data error.
