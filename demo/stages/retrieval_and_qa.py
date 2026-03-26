@@ -2253,19 +2253,19 @@ def run_interactive_qa(
                 # Unified postprocessing: repair, fallback, warnings, and citation quality
                 # via the shared helper so this path stays aligned with run_retrieval_and_qa.
                 pp = _postprocess_answer(answer, _repair_hits, all_runs=all_runs)
-                # Build the typed inspection/debug view from the postprocess result so
-                # that debug rendering consumes the shared model rather than reading
-                # _AnswerPostprocessResult fields directly.
-                debug_view = _build_retrieval_debug_view(
-                    pp,
-                    malformed_diagnostics_count=_count_malformed_diagnostics(_repair_hits),
-                )
                 print(f"\nAnswer:\n{pp['display_answer']}\n")
                 if pp["citation_fallback_applied"]:
                     print(
                         "WARNING: Not all answer sentences or bullets are cited - evidence quality may be degraded."
                     )
                 if debug:
+                    # Build the typed inspection/debug view from the postprocess result so
+                    # that debug rendering consumes the shared model rather than reading
+                    # _AnswerPostprocessResult fields directly.
+                    debug_view = _build_retrieval_debug_view(
+                        pp,
+                        malformed_diagnostics_count=_count_malformed_diagnostics(_repair_hits),
+                    )
                     print(_format_postprocess_debug_summary(debug_view))
                 # Store only the refusal prefix (not the full uncited output) in history
                 # so that subsequent turns are not conditioned on under-cited content.
