@@ -346,7 +346,145 @@ All-runs mode (`all_runs=True`): repair preconditions were met (uncited answer, 
 
 ---
 
-## 5) Postprocessing Lifecycle
+## 5) Early-Return Result Contracts
+
+`run_retrieval_and_qa()` has two short-circuit paths that return before `_postprocess_answer` runs.  These are called **early-return** paths.  Their result shapes differ from the live postprocessed shape documented in §2–§4 in predictable, contractual ways.
+
+### 5.1 Dry-run (`status="dry_run"`)
+
+When `config.dry_run=True`, the function returns immediately after the shared base dict is constructed.  No retrieval, embedder, or LLM call is made.
+
+**Result shape invariants:**
+
+| Field | Value |
+|---|---|
+| `status` | `"dry_run"` |
+| `retrievers` | `["VectorCypherRetriever"]` (base); `+ ["graph expansion"]` when `expand_graph=True`; `+ ["graph expansion", "cluster traversal"]` when `cluster_aware=True` |
+| `qa` | `"GraphRAG all-runs citations"` when `all_runs=True`; `"GraphRAG run-scoped citations"` otherwise |
+| `answer` | `""` (default — no LLM ran) |
+| `raw_answer` | `""` (default) |
+| `raw_answer_all_cited` | `False` (default) |
+| `all_answers_cited` | `False` (default) |
+| `citation_quality.evidence_level` | `"no_answer"` (default — no answer was produced) |
+| `citation_quality.all_cited` | `False` (default) |
+| `citation_quality.warning_count` | `0` (default) |
+| `citation_quality.citation_warnings` | `[]` (default) |
+| `retrieval_path_summary` | `""` (default — no retrieval ran) |
+| `malformed_diagnostics_count` | `0` (default — no hits were retrieved) |
+
+**Fields absent from the dry-run result** (present only in live/postprocessed results):
+
+- `hits` — no retrieval ran; the count is not applicable.
+- `retrieval_results` — no retrieval ran; the list is not applicable.
+- `warnings` — no operational warnings are raised during dry-run; the key is absent.
+- `retrieval_skipped` — the retrieval-skipped sentinel is only set on the no-question path (§5.2).
+
+**Example:**
+
+```json
+{
+  "status": "dry_run",
+  "retrievers": ["VectorCypherRetriever"],
+  "qa": "GraphRAG run-scoped citations",
+  "answer": "",
+  "raw_answer": "",
+  "raw_answer_all_cited": false,
+  "all_answers_cited": false,
+  "citation_repair_attempted": false,
+  "citation_repair_applied": false,
+  "citation_repair_strategy": null,
+  "citation_repair_source_chunk_id": null,
+  "citation_fallback_applied": false,
+  "citation_quality": {
+    "all_cited": false,
+    "raw_answer_all_cited": false,
+    "evidence_level": "no_answer",
+    "warning_count": 0,
+    "citation_warnings": []
+  },
+  "retrieval_path_summary": "",
+  "malformed_diagnostics_count": 0
+}
+```
+
+### 5.2 Retrieval skipped — no question provided (`status="live"`, `retrieval_skipped=True`)
+
+When `question=None` in live mode (i.e. `config.dry_run=False`), the function short-circuits after validating the retrieval query but before opening a Neo4j driver or making any LLM call.
+
+**Result shape invariants:**
+
+| Field | Value |
+|---|---|
+| `status` | `"live"` |
+| `retrieval_skipped` | `True` |
+| `retrievers` | `[]` (nothing ran) |
+| `qa` | `"GraphRAG run-scoped citations"` (the default run-scoped label; no retrieval ran) |
+| `hits` | `0` |
+| `retrieval_results` | `[]` |
+| `warnings` | `["No question provided; skipping vector retrieval."]` (exactly one entry) |
+| `answer` | `""` (default — no LLM ran) |
+| `raw_answer` | `""` (default) |
+| `raw_answer_all_cited` | `False` (default) |
+| `all_answers_cited` | `False` (default) |
+| `citation_quality.evidence_level` | `"no_answer"` (default) |
+| `citation_quality.citation_warnings` | `[]` (no citation-quality issues) |
+| `retrieval_path_summary` | `""` (default — no retrieval ran) |
+| `malformed_diagnostics_count` | `0` (default) |
+
+The `warnings` list contains **exactly** the no-question skip message.  No citation-quality warnings are raised because no answer was produced.  The `citation_quality["citation_warnings"]` list is therefore empty, and the skip warning is **not** propagated to `citation_quality["citation_warnings"]` (it is an operational warning, not a citation-quality issue — consistent with §2.5.2).
+
+**Example:**
+
+```json
+{
+  "status": "live",
+  "retrieval_skipped": true,
+  "retrievers": [],
+  "qa": "GraphRAG run-scoped citations",
+  "hits": 0,
+  "retrieval_results": [],
+  "warnings": ["No question provided; skipping vector retrieval."],
+  "answer": "",
+  "raw_answer": "",
+  "raw_answer_all_cited": false,
+  "all_answers_cited": false,
+  "citation_repair_attempted": false,
+  "citation_repair_applied": false,
+  "citation_repair_strategy": null,
+  "citation_repair_source_chunk_id": null,
+  "citation_fallback_applied": false,
+  "citation_quality": {
+    "all_cited": false,
+    "raw_answer_all_cited": false,
+    "evidence_level": "no_answer",
+    "warning_count": 0,
+    "citation_warnings": []
+  },
+  "retrieval_path_summary": "",
+  "malformed_diagnostics_count": 0
+}
+```
+
+### 5.3 Distinguishing live from non-live results
+
+| Field | `dry_run` | `retrieval_skipped` | Live postprocessed |
+|---|---|---|---|
+| `status` | `"dry_run"` | `"live"` | `"live"` |
+| `retrieval_skipped` | *absent* | `True` | *absent* |
+| `hits` | *absent* | `0` | `≥ 0` (integer) |
+| `retrieval_results` | *absent* | `[]` | list of result dicts |
+| `warnings` | *absent* | non-empty list | list (may be empty) |
+| `answer` | `""` | `""` | LLM-generated string |
+| `citation_quality.evidence_level` | `"no_answer"` | `"no_answer"` | `"no_answer"` / `"full"` / `"degraded"` |
+
+Callers can reliably distinguish the three shapes:
+- `result["status"] == "dry_run"` → dry-run early return (§5.1).
+- `result.get("retrieval_skipped") is True` → no-question early return (§5.2).
+- Otherwise → live postprocessed result (§2–§4).
+
+---
+
+## 6) Postprocessing Lifecycle
 
 The full lifecycle executed by `_postprocess_answer` in order:
 
@@ -361,7 +499,7 @@ The full lifecycle executed by `_postprocess_answer` in order:
 
 ---
 
-## 6) Related Documents
+## 7) Related Documents
 
 - [Retrieval semantics v0.1](retrieval-semantics-v0.1.md) — chunk-first retrieval design, graph expansion layers, and citation-anchoring invariants
 - [Claim argument model v0.3](claim-argument-model-v0.3.md) — `HAS_PARTICIPANT {role}` edge model underpinning participation-aware retrieval

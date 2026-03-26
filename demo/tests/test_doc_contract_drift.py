@@ -18,7 +18,7 @@ Maintainers must explicitly reconcile the difference before merging.
 Coverage
 --------
 ``TestDocContractDrift``
-    Parametrized end-to-end drift checks.
+    Parametrized end-to-end drift checks for §4 (live postprocessed) scenarios.
 
     - ``test_doc_has_all_fixture_sections`` — every section ID in
       ``_SECTION_FIXTURES`` must be present as a ``### 4.x`` heading in the doc.
@@ -28,19 +28,32 @@ Coverage
     - ``test_no_drift_between_doc_and_runtime[4.x]`` — for each mapped section,
       concrete (non-placeholder) field values from the doc JSON must match the
       live runtime output.
+
+``TestDocEarlyReturnDrift``
+    Parametrized end-to-end drift checks for §5 (early-return) scenarios.
+
+    - ``test_doc_has_all_early_return_fixture_sections`` — every section ID in
+      ``_EARLY_RETURN_SECTION_RUNNERS`` must be present as a ``### 5.x`` heading.
+    - ``test_all_early_return_doc_sections_are_mapped_or_excluded`` — every
+      ``### 5.x`` heading is either in ``_EARLY_RETURN_SECTION_RUNNERS`` or in
+      ``_EXCLUDED_EARLY_RETURN_SECTIONS``.
+    - ``test_no_drift_between_doc_and_runtime[5.x]`` — for each mapped section,
+      concrete field values from the doc JSON must match the live runtime output.
 """
 from __future__ import annotations
 
 import json
 import re
+import types
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-from demo.stages.retrieval_and_qa import _CITATION_FALLBACK_PREFIX
+from demo.stages.retrieval_and_qa import _CITATION_FALLBACK_PREFIX, run_retrieval_and_qa
 from demo.tests.test_retrieval_result_contract import (
     _CITED_ANSWER,
+    _DRY_RUN_CONFIG,
     _EMPTY_CHUNK_METADATA,
     _LIVE_ITEM_METADATA,
     _UNCITED_ANSWER,
@@ -129,6 +142,54 @@ def _find_doc_section_ids() -> set[str]:
     text = _CONTRACT_DOC_PATH.read_text(encoding="utf-8")
     return set(re.findall(r"^### (4\.\d+)", text, re.MULTILINE))
 
+
+def _parse_early_return_section_json_from_doc() -> dict[str, dict[str, Any]]:
+    """Parse JSON examples from §5.x subsections of the contract document.
+
+    Returns
+    -------
+    dict[str, dict]
+        Mapping of section number (e.g. ``"5.1"``) to the parsed JSON dict.
+        Sections that contain no JSON code block are omitted.
+
+    Raises
+    ------
+    FileNotFoundError
+        If the contract document does not exist at ``_CONTRACT_DOC_PATH``.
+    ValueError
+        If a JSON code block in a §5.x section cannot be parsed.
+    """
+    text = _CONTRACT_DOC_PATH.read_text(encoding="utf-8")
+
+    # Each ### 5.x heading starts a subsection; body runs until the next heading.
+    section_re = re.compile(
+        r"^### (5\.\d+)[^\n]*\n(.*?)(?=^### |^## |\Z)",
+        re.MULTILINE | re.DOTALL,
+    )
+    json_block_re = re.compile(r"```json\r?\n(.*?)\r?\n```", re.DOTALL)
+
+    sections: dict[str, dict[str, Any]] = {}
+    for m in section_re.finditer(text):
+        section_id = m.group(1)
+        body = m.group(2)
+        jm = json_block_re.search(body)
+        if not jm:
+            continue
+        raw = jm.group(1)
+        try:
+            sections[section_id] = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise ValueError(
+                f"Failed to parse JSON block in §{section_id} of {_CONTRACT_DOC_PATH}: "
+                f"{exc}\n--- raw block ---\n{raw}"
+            ) from exc
+    return sections
+
+
+def _find_early_return_doc_section_ids() -> set[str]:
+    """Return all ``### 5.x`` section IDs found in the contract document."""
+    text = _CONTRACT_DOC_PATH.read_text(encoding="utf-8")
+    return set(re.findall(r"^### (5\.\d+)", text, re.MULTILINE))
 
 # ---------------------------------------------------------------------------
 # Comparison helpers
@@ -532,6 +593,142 @@ class TestDocContractDrift:
             )
 
         runtime_result = _run_with_mocked_retrieval(**_SECTION_FIXTURES[section_id])
+        drifts = _collect_drifts(section_id, doc_json, runtime_result)
+
+        assert not drifts, (
+            f"Doc-vs-runtime drift detected in §{section_id} "
+            f"({_CONTRACT_DOC_PATH.name}):\n"
+            + "\n".join(f"  • {d}" for d in drifts)
+        )
+
+
+# ---------------------------------------------------------------------------
+# Early-return (§5.x) section runners and fixtures
+# ---------------------------------------------------------------------------
+
+#: Maps each §5.x section ID to a zero-argument callable that returns the
+#: runtime result for drift comparison.
+_EARLY_RETURN_SECTION_RUNNERS: dict[str, Any] = {
+    "5.1": lambda: run_retrieval_and_qa(
+        _DRY_RUN_CONFIG, run_id="drift-dr-1", source_uri=None
+    ),
+    "5.2": lambda: run_retrieval_and_qa(
+        types.SimpleNamespace(
+            dry_run=False,
+            openai_model="gpt-4o-mini",
+            neo4j_uri="",
+            neo4j_username="",
+            neo4j_password="",
+            neo4j_database=None,
+        ),
+        run_id="drift-skip-1",
+        source_uri=None,
+        question=None,
+    ),
+}
+
+#: §5.x sections that require special handling and are intentionally excluded
+#: from automated doc-vs-runtime comparison.  Every §5.x section in the doc
+#: that is NOT in ``_EARLY_RETURN_SECTION_RUNNERS`` must have an entry here.
+_EXCLUDED_EARLY_RETURN_SECTIONS: dict[str, str] = {
+    "5.3": (
+        "Comparison table, no JSON example — covered by "
+        "TestRunRetrievalAndQaEarlyReturnContract in test_retrieval_result_contract.py."
+    ),
+}
+
+
+# ---------------------------------------------------------------------------
+# Early-return drift test class
+# ---------------------------------------------------------------------------
+
+
+class TestDocEarlyReturnDrift:
+    """Detect drift between §5 (early-return) JSON examples in the contract doc
+    and live runtime output.
+
+    For each §5.x section mapped in ``_EARLY_RETURN_SECTION_RUNNERS`` this class:
+
+    1. Reads the JSON example directly from the contract markdown document.
+    2. Calls the runner callable to obtain the runtime result.
+    3. Compares concrete (non-placeholder) field values using ``_collect_drifts``.
+
+    A failure indicates that either the documentation or the implementation is
+    out of sync.  A maintainer must explicitly reconcile the difference.
+    """
+
+    @pytest.fixture(scope="class")
+    def early_return_doc_scenarios(self) -> dict[str, dict[str, Any]]:
+        """Parse and cache all §5.x JSON examples from the contract doc."""
+        return _parse_early_return_section_json_from_doc()
+
+    @pytest.fixture(scope="class")
+    def early_return_doc_section_ids(self) -> set[str]:
+        """All ``### 5.x`` section IDs present in the contract document."""
+        return _find_early_return_doc_section_ids()
+
+    def test_doc_has_all_early_return_fixture_sections(
+        self, early_return_doc_section_ids: set[str]
+    ) -> None:
+        """Every section in ``_EARLY_RETURN_SECTION_RUNNERS`` must exist in the doc.
+
+        Fails when a runner references a section that was renamed or removed.
+        """
+        missing_from_doc = frozenset(_EARLY_RETURN_SECTION_RUNNERS) - early_return_doc_section_ids
+        assert not missing_from_doc, (
+            f"Sections in _EARLY_RETURN_SECTION_RUNNERS not found in the contract doc "
+            f"({_CONTRACT_DOC_PATH.name}): "
+            + ", ".join(f"§{s}" for s in sorted(missing_from_doc))
+        )
+
+    def test_all_early_return_doc_sections_are_mapped_or_excluded(
+        self, early_return_doc_section_ids: set[str]
+    ) -> None:
+        """Every ``### 5.x`` heading in the doc must be in ``_EARLY_RETURN_SECTION_RUNNERS``
+        or explicitly listed in ``_EXCLUDED_EARLY_RETURN_SECTIONS``.
+
+        Fails when a new §5.x section is added to the doc without coverage.
+        """
+        unmapped = (
+            early_return_doc_section_ids
+            - frozenset(_EARLY_RETURN_SECTION_RUNNERS)
+            - frozenset(_EXCLUDED_EARLY_RETURN_SECTIONS)
+        )
+        assert not unmapped, (
+            f"Doc sections {[f'§{s}' for s in sorted(unmapped, key=lambda s: tuple(int(p) for p in s.split('.')))]} "
+            f"have no entry in _EARLY_RETURN_SECTION_RUNNERS and no exclusion note. "
+            f"Add a runner or document why automated comparison is not possible in "
+            f"_EXCLUDED_EARLY_RETURN_SECTIONS."
+        )
+
+    @pytest.mark.parametrize(
+        "section_id",
+        sorted(
+            _EARLY_RETURN_SECTION_RUNNERS,
+            key=lambda s: tuple(int(part) for part in s.split(".")),
+        ),
+    )
+    def test_no_drift_between_doc_and_runtime(
+        self,
+        section_id: str,
+        early_return_doc_scenarios: dict[str, dict[str, Any]],
+    ) -> None:
+        """Concrete field values in the §5.x doc example must match the runtime output.
+
+        A failure means the documented early-return scenario and the runtime
+        behaviour have diverged.  Inspect the drift messages to determine whether
+        the doc or the implementation needs to be updated.
+        """
+        doc_json = early_return_doc_scenarios.get(section_id)
+        if doc_json is None:
+            pytest.fail(
+                f"§{section_id} is listed in _EARLY_RETURN_SECTION_RUNNERS but has "
+                f"no JSON code block in the contract doc ({_CONTRACT_DOC_PATH.name}). "
+                f"Either add a JSON example to the doc section or remove the entry "
+                f"from _EARLY_RETURN_SECTION_RUNNERS."
+            )
+
+        runtime_result = _EARLY_RETURN_SECTION_RUNNERS[section_id]()
         drifts = _collect_drifts(section_id, doc_json, runtime_result)
 
         assert not drifts, (

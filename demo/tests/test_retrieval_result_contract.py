@@ -84,6 +84,20 @@ Structure
     - Operational warnings that are not citation-quality issues appear only in the
       top-level ``warnings`` list, not in ``citation_quality["citation_warnings"]``.
 
+``TestRunRetrievalAndQaEarlyReturnContract``
+    Contract tests for the two early-return (non-live) paths documented in §5 of the
+    canonical contract document:
+
+    - ``dry_run=True``: status is ``"dry_run"``; retrieval/LLM never run; the key set
+      is the shared base plus ``status``/``retrievers``/``qa`` and excludes
+      ``hits``, ``retrieval_results``, ``warnings``, and ``retrieval_skipped``.
+    - ``question=None`` in live mode (retrieval skipped): status is ``"live"``,
+      ``retrieval_skipped=True``; the key set extends the dry-run set with ``hits``,
+      ``retrieval_results``, ``warnings``, and ``retrieval_skipped``.
+    - Default field values (answer, citation_quality, etc.) in both paths.
+    - Caller distinction invariant: ``status="dry_run"`` vs ``retrieval_skipped=True``.
+    - Skip warning appears in ``warnings`` but not in ``citation_quality["citation_warnings"]``.
+
 ``TestProjectPostprocessToPublic``
     Direct unit tests for the :func:`_project_postprocess_to_public` adapter that
     maps an :class:`_AnswerPostprocessResult` to the public result surface.  Tests
@@ -128,6 +142,13 @@ _LIVE_CONFIG = types.SimpleNamespace(
     dry_run=False,
 )
 
+#: Minimal config for dry-run early-return tests.  Neo4j credentials are
+#: intentionally absent to prove the dry-run path never touches them.
+_DRY_RUN_CONFIG = types.SimpleNamespace(
+    openai_model="gpt-4o-mini",
+    dry_run=True,
+)
+
 #: A valid synthetic citation token shared across tests.
 _TOKEN = (
     "[CITATION|chunk_id=c1|run_id=r1|source_uri=file%3A%2F%2F%2Fdoc.pdf"
@@ -157,6 +178,9 @@ _FALLBACK_DISPLAY_UNCITED = f"{_CITATION_FALLBACK_PREFIX}: {_UNCITED_ANSWER}"
 
 #: The standard warning message appended when the final answer is not fully cited.
 _UNCITED_WARNING = "Not all answer sentences or bullets end with a citation token."
+
+#: The exact warning message emitted when retrieval is skipped (no question provided).
+_SKIP_WARNING = "No question provided; skipping vector retrieval."
 
 #: Exact set of all top-level keys in an ``_AnswerPostprocessResult``.
 _POSTPROCESS_RESULT_KEYS: frozenset[str] = frozenset({
@@ -258,6 +282,24 @@ _RETRIEVAL_SCOPE_REQUIRED_KEYS: frozenset[str] = frozenset({
     "scope_widened",
     "all_runs",
 })
+
+#: Exact set of required top-level keys for the ``dry_run`` early-return path.
+#: The dry-run result omits fields that only exist when retrieval actually ran
+#: (``hits``, ``retrieval_results``, ``warnings``, ``retrieval_skipped``).
+#: All other base fields plus ``status``, ``retrievers``, and ``qa`` are present.
+#: See §5.1 of the canonical contract document.
+_DRY_RUN_RESULT_REQUIRED_KEYS: frozenset[str] = (
+    _LIVE_RESULT_REQUIRED_KEYS
+    - {"hits", "retrieval_results", "warnings", "retrieval_skipped"}
+)
+
+#: Exact set of required top-level keys when retrieval is skipped because no
+#: question was provided (``question=None`` in live mode).
+#: Extends the live key set with ``retrieval_skipped`` to signal the skip.
+#: See §5.2 of the canonical contract document.
+_RETRIEVAL_SKIPPED_RESULT_REQUIRED_KEYS: frozenset[str] = (
+    _LIVE_RESULT_REQUIRED_KEYS | {"retrieval_skipped"}
+)
 
 #: Metadata for a hit that triggers an empty-chunk-text citation warning.
 #: All optional citation fields are present so no "missing optional fields"
@@ -1725,6 +1767,252 @@ class TestRunRetrievalAndQaDocumentedScenarios:
         assert _UNCITED_WARNING in cq["citation_warnings"]
         assert _UNCITED_WARNING in result["warnings"]
         assert cq["warning_count"] == len(cq["citation_warnings"])
+
+
+# ---------------------------------------------------------------------------
+# TestRunRetrievalAndQaEarlyReturnContract
+# ---------------------------------------------------------------------------
+
+
+class TestRunRetrievalAndQaEarlyReturnContract:
+    """Contract tests for the early-return (non-live) paths documented in §5 of the
+    canonical contract document.
+
+    Two early-return paths exist in ``run_retrieval_and_qa()``:
+
+    1. **dry_run** (§5.1) — ``config.dry_run=True`` short-circuits before any retrieval
+       or LLM call.  The result carries ``status="dry_run"`` and omits
+       ``hits``, ``retrieval_results``, ``warnings``, and ``retrieval_skipped``.
+
+    2. **retrieval skipped / no question** (§5.2) — ``question=None`` in live mode
+       short-circuits before any Neo4j or LLM call.  The result carries
+       ``status="live"``, ``retrieval_skipped=True``, and includes
+       ``hits=0``, ``retrieval_results=[]``, and ``warnings`` containing
+       the skip message.
+    """
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _dry_run_result(**kwargs) -> dict[str, object]:
+        """Return a dry-run result.  Extra keyword args are forwarded to ``run_retrieval_and_qa``."""
+        return run_retrieval_and_qa(_DRY_RUN_CONFIG, run_id="dr-run-1", source_uri=None, **kwargs)
+
+    @staticmethod
+    def _skip_result(**kwargs) -> dict[str, object]:
+        """Return a retrieval-skipped (no-question) result.
+
+        Uses invalid Neo4j credentials to prove the skip path never opens a driver.
+        """
+        cfg = types.SimpleNamespace(
+            dry_run=False,
+            openai_model="gpt-4o-mini",
+            neo4j_uri="",
+            neo4j_username="",
+            neo4j_password="",
+            neo4j_database=None,
+        )
+        return run_retrieval_and_qa(cfg, run_id="skip-run-1", source_uri=None, question=None, **kwargs)
+
+    # ------------------------------------------------------------------
+    # §5.1  dry_run key-set contract
+    # ------------------------------------------------------------------
+
+    def test_dry_run_contains_exactly_required_keys(self) -> None:
+        """dry_run result must contain EXACTLY the documented required key set —
+        no extra, no missing keys."""
+        result = self._dry_run_result()
+        extra = set(result.keys()) - _DRY_RUN_RESULT_REQUIRED_KEYS
+        missing = _DRY_RUN_RESULT_REQUIRED_KEYS - set(result.keys())
+        assert not extra and not missing, (
+            f"dry_run key set mismatch — extra={extra!r}, missing={missing!r}"
+        )
+
+    def test_dry_run_status_is_dry_run(self) -> None:
+        """dry_run result must carry ``status='dry_run'``."""
+        assert self._dry_run_result()["status"] == "dry_run"
+
+    def test_dry_run_omits_hits(self) -> None:
+        """``hits`` must be absent from the dry_run result (retrieval never ran)."""
+        assert "hits" not in self._dry_run_result()
+
+    def test_dry_run_omits_retrieval_results(self) -> None:
+        """``retrieval_results`` must be absent from the dry_run result."""
+        assert "retrieval_results" not in self._dry_run_result()
+
+    def test_dry_run_omits_warnings(self) -> None:
+        """``warnings`` must be absent from the dry_run result (no operational warnings)."""
+        assert "warnings" not in self._dry_run_result()
+
+    def test_dry_run_omits_retrieval_skipped(self) -> None:
+        """``retrieval_skipped`` must be absent from the dry_run result (it is only
+        set on the no-question path)."""
+        assert "retrieval_skipped" not in self._dry_run_result()
+
+    def test_dry_run_retrievers_default(self) -> None:
+        """dry_run with no expand_graph/cluster_aware flags must report
+        ``retrievers=['VectorCypherRetriever']``."""
+        result = self._dry_run_result()
+        assert result["retrievers"] == ["VectorCypherRetriever"]
+
+    def test_dry_run_retrievers_expand_graph(self) -> None:
+        """dry_run with ``expand_graph=True`` must include ``'graph expansion'``
+        in the retrievers list."""
+        result = self._dry_run_result(expand_graph=True)
+        assert "graph expansion" in result["retrievers"]
+        assert "cluster traversal" not in result["retrievers"]
+
+    def test_dry_run_retrievers_cluster_aware(self) -> None:
+        """dry_run with ``cluster_aware=True`` must include both ``'graph expansion'``
+        and ``'cluster traversal'`` in the retrievers list."""
+        result = self._dry_run_result(cluster_aware=True)
+        assert "graph expansion" in result["retrievers"]
+        assert "cluster traversal" in result["retrievers"]
+
+    def test_dry_run_qa_label_run_scoped(self) -> None:
+        """dry_run in run-scoped mode (``all_runs=False``) must carry the run-scoped qa label."""
+        result = self._dry_run_result(all_runs=False)
+        assert result["qa"] == "GraphRAG run-scoped citations"
+
+    def test_dry_run_qa_label_all_runs(self) -> None:
+        """dry_run in all-runs mode (``all_runs=True``) must carry the all-runs qa label."""
+        result = self._dry_run_result(all_runs=True)
+        assert result["qa"] == "GraphRAG all-runs citations"
+
+    def test_dry_run_default_answer_fields(self) -> None:
+        """dry_run result must carry default (empty/False) answer fields because
+        no LLM call was made."""
+        result = self._dry_run_result()
+        assert result["answer"] == ""
+        assert result["raw_answer"] == ""
+        assert result["all_answers_cited"] is False
+        assert result["raw_answer_all_cited"] is False
+        assert result["citation_fallback_applied"] is False
+        assert result["citation_repair_attempted"] is False
+        assert result["citation_repair_applied"] is False
+        assert result["citation_repair_strategy"] is None
+        assert result["citation_repair_source_chunk_id"] is None
+
+    def test_dry_run_citation_quality_defaults(self) -> None:
+        """dry_run ``citation_quality`` must carry default no_answer values."""
+        cq = self._dry_run_result()["citation_quality"]
+        assert isinstance(cq, dict)
+        assert cq["evidence_level"] == "no_answer"
+        assert cq["all_cited"] is False
+        assert cq["raw_answer_all_cited"] is False
+        assert cq["warning_count"] == 0
+        assert cq["citation_warnings"] == []
+
+    def test_dry_run_retrieval_path_summary_empty(self) -> None:
+        """``retrieval_path_summary`` must be the empty string in dry_run (no retrieval ran)."""
+        assert self._dry_run_result()["retrieval_path_summary"] == ""
+
+    def test_dry_run_malformed_diagnostics_count_zero(self) -> None:
+        """``malformed_diagnostics_count`` must be 0 in dry_run (no hits retrieved)."""
+        assert self._dry_run_result()["malformed_diagnostics_count"] == 0
+
+    # ------------------------------------------------------------------
+    # §5.2  retrieval-skipped (no-question) key-set contract
+    # ------------------------------------------------------------------
+
+    def test_retrieval_skipped_contains_exactly_required_keys(self) -> None:
+        """Retrieval-skipped result must contain EXACTLY the documented required key set —
+        no extra, no missing keys."""
+        result = self._skip_result()
+        extra = set(result.keys()) - _RETRIEVAL_SKIPPED_RESULT_REQUIRED_KEYS
+        missing = _RETRIEVAL_SKIPPED_RESULT_REQUIRED_KEYS - set(result.keys())
+        assert not extra and not missing, (
+            f"retrieval_skipped key set mismatch — extra={extra!r}, missing={missing!r}"
+        )
+
+    def test_retrieval_skipped_status_is_live(self) -> None:
+        """Retrieval-skipped result must carry ``status='live'`` (not ``'dry_run'``)."""
+        assert self._skip_result()["status"] == "live"
+
+    def test_retrieval_skipped_flag_is_true(self) -> None:
+        """``retrieval_skipped`` must be ``True`` when ``question=None``."""
+        assert self._skip_result()["retrieval_skipped"] is True
+
+    def test_retrieval_skipped_hits_zero(self) -> None:
+        """``hits`` must be ``0`` on the retrieval-skipped path."""
+        assert self._skip_result()["hits"] == 0
+
+    def test_retrieval_skipped_retrieval_results_empty(self) -> None:
+        """``retrieval_results`` must be ``[]`` on the retrieval-skipped path."""
+        assert self._skip_result()["retrieval_results"] == []
+
+    def test_retrieval_skipped_retrievers_empty(self) -> None:
+        """``retrievers`` must be ``[]`` when retrieval was skipped (nothing ran)."""
+        assert self._skip_result()["retrievers"] == []
+
+    def test_retrieval_skipped_warnings_contains_skip_message(self) -> None:
+        """``warnings`` must contain exactly the skip message and nothing else."""
+        result = self._skip_result()
+        assert result["warnings"] == [_SKIP_WARNING], (
+            f"Expected warnings=[{_SKIP_WARNING!r}]; got {result['warnings']!r}"
+        )
+
+    def test_retrieval_skipped_default_answer_fields(self) -> None:
+        """Retrieval-skipped result must carry default (empty/False/None) answer fields."""
+        result = self._skip_result()
+        assert result["answer"] == ""
+        assert result["raw_answer"] == ""
+        assert result["raw_answer_all_cited"] is False
+        assert result["all_answers_cited"] is False
+        assert result["citation_repair_attempted"] is False
+        assert result["citation_repair_applied"] is False
+        assert result["citation_repair_strategy"] is None
+        assert result["citation_repair_source_chunk_id"] is None
+        assert result["citation_fallback_applied"] is False
+
+    def test_retrieval_skipped_citation_quality_defaults(self) -> None:
+        """Retrieval-skipped ``citation_quality`` must carry default no_answer values."""
+        cq = self._skip_result()["citation_quality"]
+        assert cq["evidence_level"] == "no_answer"
+        assert cq["all_cited"] is False
+        assert cq["warning_count"] == 0
+        assert cq["citation_warnings"] == []
+
+    def test_retrieval_skipped_warning_not_in_citation_warnings(self) -> None:
+        """The skip warning is an operational warning (§2.5.2) — it must appear in
+        ``warnings`` but must NOT appear in ``citation_quality["citation_warnings"]``."""
+        result = self._skip_result()
+        assert _SKIP_WARNING in result["warnings"]
+        cq = result["citation_quality"]
+        assert _SKIP_WARNING not in cq["citation_warnings"], (
+            "Skip warning must not propagate to citation_quality.citation_warnings "
+            "(it is an operational warning, not a citation-quality issue)"
+        )
+
+    def test_retrieval_skipped_retrieval_path_summary_empty(self) -> None:
+        """``retrieval_path_summary`` must be the empty string when retrieval was skipped."""
+        assert self._skip_result()["retrieval_path_summary"] == ""
+
+    def test_retrieval_skipped_malformed_diagnostics_count_zero(self) -> None:
+        """``malformed_diagnostics_count`` must be 0 when retrieval was skipped."""
+        assert self._skip_result()["malformed_diagnostics_count"] == 0
+
+    # ------------------------------------------------------------------
+    # §5.3  caller-distinction invariants
+    # ------------------------------------------------------------------
+
+    def test_dry_run_distinguished_by_status(self) -> None:
+        """Callers can distinguish dry_run results by checking ``status == 'dry_run'``."""
+        assert self._dry_run_result()["status"] == "dry_run"
+
+    def test_retrieval_skipped_distinguished_by_flag(self) -> None:
+        """Callers can distinguish retrieval-skipped results by checking
+        ``result.get('retrieval_skipped') is True``."""
+        result = self._skip_result()
+        assert result.get("retrieval_skipped") is True
+
+    def test_dry_run_has_no_retrieval_skipped_flag(self) -> None:
+        """``retrieval_skipped`` must be absent from the dry_run result — callers must not
+        confuse dry_run with the no-question path."""
+        result = self._dry_run_result()
+        assert result.get("retrieval_skipped") is None  # absent
 
 
 # ---------------------------------------------------------------------------
