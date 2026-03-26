@@ -640,12 +640,13 @@ def _project_postprocess_to_public(
 
 
 class _RetrievalDebugView(TypedDict):
-    """Typed inspection/debug model shared by the interactive and single-shot paths.
+    """Typed inspection/debug model shared across retrieval/QA debug surfaces.
 
-    This structure centralises all fields required for the interactive debug
-    output surface so that both :func:`run_interactive_qa` (interactive path)
-    and :func:`run_retrieval_and_qa` (single-shot path) produce debug views
-    from the same data shape.  Consuming :func:`_format_postprocess_debug_summary`
+    This structure centralises all fields required for the inspection/debug
+    output surface so that both :func:`run_interactive_qa` (interactive path,
+    rendered on stdout when *debug=True*) and :func:`run_retrieval_and_qa`
+    (single-shot path, returned as the ``debug_view`` key) produce views from
+    the same data shape.  Consuming :func:`_format_postprocess_debug_summary`
     exclusively from this type prevents the debug surface from drifting relative
     to the underlying postprocessing contract.
 
@@ -1891,6 +1892,20 @@ def run_retrieval_and_qa(
         # payload failed any structural check during formatting.  Zero in base (no
         # retrieval ran yet); overridden with the actual count in the live result.
         "malformed_diagnostics_count": 0,
+        # debug_view provides the typed inspection/debug surface populated from the
+        # postprocessing result.  Defaults to all-zero values in early-return paths
+        # where no retrieval or postprocessing ran; overridden in the live result.
+        "debug_view": {
+            "raw_answer_all_cited": False,
+            "all_cited": False,
+            "citation_repair_attempted": False,
+            "citation_repair_applied": False,
+            "citation_fallback_applied": False,
+            "evidence_level": "no_answer",
+            "warning_count": 0,
+            "citation_warnings": [],
+            "malformed_diagnostics_count": 0,
+        },
     }
     if getattr(config, "dry_run", False):
         dry_run_retrievers: list[str] = ["VectorCypherRetriever"]
@@ -2065,6 +2080,7 @@ def run_retrieval_and_qa(
     elif expand_graph:
         live_retrievers.append("graph expansion")
     qa_scope_label = "GraphRAG all-runs citations" if all_runs else "GraphRAG run-scoped citations"
+    _malformed_count = _count_malformed_diagnostics(hits)
     return {
         **base,
         "status": "live",
@@ -2078,7 +2094,11 @@ def run_retrieval_and_qa(
         "citation_example": actual_citation_object,
         **_project_postprocess_to_public(pp),
         "retrieval_path_summary": _format_retrieval_path_summary(hits),
-        "malformed_diagnostics_count": _count_malformed_diagnostics(hits),
+        "malformed_diagnostics_count": _malformed_count,
+        # Build the typed debug view from the postprocess result and the malformed
+        # count so the single-shot path surfaces the same inspection model as the
+        # interactive path, preventing silent drift between the two.
+        "debug_view": _build_retrieval_debug_view(pp, malformed_diagnostics_count=_malformed_count),
     }
 
 
