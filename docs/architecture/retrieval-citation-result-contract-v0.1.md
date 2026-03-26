@@ -112,7 +112,7 @@ Hits where `retrieval_path_diagnostics` is **absent or `None`** are **not** coun
 
 `malformed_diagnostics_count > 0` is a signal for downstream alerting: it indicates that the graph database returned diagnostics payloads with unexpected types, which may reflect a schema migration, a bug in the retrieval query, or data corruption.  The human-readable `retrieval_path_summary` string surfaces per-hit details, while `malformed_diagnostics_count` provides a machine-readable counter for metrics and alerting without requiring string parsing.
 
-### 2.6 Evidence-level semantics
+### 2.8 Evidence-level semantics
 
 `evidence_level` is derived from `all_cited` (for the final answer) and the combined `citation_warnings` list:
 
