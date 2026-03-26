@@ -522,7 +522,7 @@ class TestDocContractDrift:
             - frozenset(_EXCLUDED_SECTIONS)
         )
         assert not unmapped, (
-            f"Doc sections {[f'§{s}' for s in sorted(unmapped, key=lambda x: float(x))]} "
+            f"Doc sections {[f'§{s}' for s in sorted(unmapped, key=lambda s: tuple(int(p) for p in s.split('.')))]} "
             f"have no entry in _SECTION_FIXTURES and no exclusion note in "
             f"_EXCLUDED_SECTIONS. Add the scenario fixture or document why "
             f"automated comparison is not possible in _EXCLUDED_SECTIONS."
