@@ -157,7 +157,7 @@ def _parse_section_json_from_doc() -> dict[str, dict[str, Any]]:
         r"^### (4\.\d+)[^\n]*\n(.*?)(?=^### |^## |\Z)",
         re.MULTILINE | re.DOTALL,
     )
-    json_block_re = re.compile(r"```json\n(.*?)\n```", re.DOTALL)
+    json_block_re = re.compile(r"```json\r?\n(.*?)\r?\n```", re.DOTALL)
 
     sections: dict[str, dict[str, Any]] = {}
     for m in section_re.finditer(text):
