@@ -167,10 +167,12 @@ def _collect_drifts(
     1. **Missing fields** — a field present in *doc* but absent from *runtime*
        is always reported as drift.
     2. **Nested dict** — recurse into both dicts.
-    3. **List** — compare **length** only.  List items may carry placeholder
-       chunk IDs or illustrative answer text that differs between the doc
-       example and the live fixture.  A length mismatch (e.g. doc says one
-       warning, runtime emits none) is still caught.
+    3. **List** — compare **length** first, then (when lengths match) compare
+       items element-by-element using the same rules as for their types.
+       List items may carry placeholder chunk IDs or illustrative answer text;
+       such placeholder-style differences are normalized/ignored, but real
+       content or structural drift (including a length mismatch) is still
+       caught.
     4. **``None``** — exact match required.
     5. **``bool``** — exact match required (``is`` check, not ``==``, to
        distinguish ``True``/``False`` from ``1``/``0``).
