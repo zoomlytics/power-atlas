@@ -2485,6 +2485,16 @@ class TestMetadataTaxonomyBoundaries:
             "raw_answer_all_cited",
             "malformed_diagnostics_count",
         }
+        # Enforce the mirroring convention: all allowed shared keys must be present
+        # both at the top level and inside debug_view.
+        assert allowed_shared_keys <= top_level_keys, (
+            "Shared keys documented by the mirroring convention must be present at "
+            f"the top level; missing={allowed_shared_keys - top_level_keys!r}"
+        )
+        assert allowed_shared_keys <= debug_view_keys, (
+            "Shared keys documented by the mirroring convention must be present in "
+            f"debug_view; missing={allowed_shared_keys - debug_view_keys!r}"
+        )
         # debug_view-exclusive keys (those that are NOT already top-level fields)
         # must never appear as new direct top-level keys.
         forbidden_overlap = (debug_view_keys & top_level_keys) - allowed_shared_keys
