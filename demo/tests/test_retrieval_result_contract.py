@@ -2083,6 +2083,68 @@ class TestRunRetrievalAndQaEarlyReturnContract:
         result = self._dry_run_result()
         assert result.get("retrieval_skipped") is None  # absent
 
+    # ------------------------------------------------------------------
+    # §5.1 / §5.2  debug_view invariants
+    # ------------------------------------------------------------------
+
+    def test_dry_run_debug_view_present(self) -> None:
+        """``debug_view`` must be present in the dry_run result (§5.1)."""
+        assert "debug_view" in self._dry_run_result()
+
+    def test_dry_run_debug_view_has_required_keys(self) -> None:
+        """``debug_view`` in the dry_run result must contain exactly the documented
+        key set (§5.1 / §2.9)."""
+        dv = self._dry_run_result()["debug_view"]
+        assert isinstance(dv, dict)
+        extra = set(dv) - _DEBUG_VIEW_REQUIRED_KEYS
+        missing = _DEBUG_VIEW_REQUIRED_KEYS - set(dv)
+        assert not extra and not missing, (
+            f"debug_view key set mismatch (dry_run) — extra={extra!r}, missing={missing!r}"
+        )
+
+    def test_dry_run_debug_view_all_zero_defaults(self) -> None:
+        """All ``debug_view`` values must carry all-zero defaults on the dry_run
+        path — no postprocessing ran so no real data is available (§5.1)."""
+        dv = self._dry_run_result()["debug_view"]
+        assert dv["raw_answer_all_cited"] is False
+        assert dv["all_cited"] is False
+        assert dv["citation_repair_attempted"] is False
+        assert dv["citation_repair_applied"] is False
+        assert dv["citation_fallback_applied"] is False
+        assert dv["evidence_level"] == "no_answer"
+        assert dv["warning_count"] == 0
+        assert dv["citation_warnings"] == []
+        assert dv["malformed_diagnostics_count"] == 0
+
+    def test_retrieval_skipped_debug_view_present(self) -> None:
+        """``debug_view`` must be present in the retrieval-skipped result (§5.2)."""
+        assert "debug_view" in self._skip_result()
+
+    def test_retrieval_skipped_debug_view_has_required_keys(self) -> None:
+        """``debug_view`` in the retrieval-skipped result must contain exactly the
+        documented key set (§5.2 / §2.9)."""
+        dv = self._skip_result()["debug_view"]
+        assert isinstance(dv, dict)
+        extra = set(dv) - _DEBUG_VIEW_REQUIRED_KEYS
+        missing = _DEBUG_VIEW_REQUIRED_KEYS - set(dv)
+        assert not extra and not missing, (
+            f"debug_view key set mismatch (retrieval_skipped) — extra={extra!r}, missing={missing!r}"
+        )
+
+    def test_retrieval_skipped_debug_view_all_zero_defaults(self) -> None:
+        """All ``debug_view`` values must carry all-zero defaults when retrieval was
+        skipped — no postprocessing ran so no real data is available (§5.2)."""
+        dv = self._skip_result()["debug_view"]
+        assert dv["raw_answer_all_cited"] is False
+        assert dv["all_cited"] is False
+        assert dv["citation_repair_attempted"] is False
+        assert dv["citation_repair_applied"] is False
+        assert dv["citation_fallback_applied"] is False
+        assert dv["evidence_level"] == "no_answer"
+        assert dv["warning_count"] == 0
+        assert dv["citation_warnings"] == []
+        assert dv["malformed_diagnostics_count"] == 0
+
 
 # ---------------------------------------------------------------------------
 # TestProjectPostprocessToPublic
