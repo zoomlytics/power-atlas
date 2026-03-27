@@ -101,8 +101,8 @@ The result dict carries four distinct metadata surfaces.  Future contributors mu
 
 | Surface | Key(s) | Audience | Purpose |
 |---|---|---|---|
-| **Top-level operational warnings** | `warnings` | All callers | Every actionable signal a caller might act on or display; superset of `citation_warnings`. |
-| **Citation-quality details** | `citation_quality` (bundle) | Callers assessing citation quality | Citation-specific flags and warnings only; subset of `warnings`. |
+| **Top-level operational warnings** | `warnings` | All callers | Every actionable signal a caller might act on or display; superset of `citation_quality["citation_warnings"]`. |
+| **Citation-quality details** | `citation_quality` (bundle) | Callers assessing citation quality | Citation-specific flags, metrics, and warnings; `citation_quality["citation_warnings"]` is a subset of top-level `warnings`. |
 | **Telemetry** | `malformed_diagnostics_count` | Monitoring / alerting pipelines | Machine-readable counters for metrics; **not** warnings and **not** business-logic signals. |
 | **Debug-only inspection** | `debug_view` (bundle) | Tests, debugging tools | Consolidated postprocessing state for inspection; not a stable API surface for callers. |
 
