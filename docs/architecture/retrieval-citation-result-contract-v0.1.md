@@ -444,6 +444,15 @@ When `config.dry_run=True`, the function returns immediately after the shared ba
 | `citation_quality.citation_warnings` | `[]` (default) |
 | `retrieval_path_summary` | `""` (default — no retrieval ran) |
 | `malformed_diagnostics_count` | `0` (default — no hits were retrieved) |
+| `debug_view.raw_answer_all_cited` | `False` (default — no postprocessing ran) |
+| `debug_view.all_cited` | `False` (default) |
+| `debug_view.citation_repair_attempted` | `False` (default) |
+| `debug_view.citation_repair_applied` | `False` (default) |
+| `debug_view.citation_fallback_applied` | `False` (default) |
+| `debug_view.evidence_level` | `"no_answer"` (default) |
+| `debug_view.warning_count` | `0` (default) |
+| `debug_view.citation_warnings` | `[]` (default) |
+| `debug_view.malformed_diagnostics_count` | `0` (default) |
 
 **Fields absent from the dry-run result** (present only in live/postprocessed results):
 
@@ -476,7 +485,18 @@ When `config.dry_run=True`, the function returns immediately after the shared ba
     "citation_warnings": []
   },
   "retrieval_path_summary": "",
-  "malformed_diagnostics_count": 0
+  "malformed_diagnostics_count": 0,
+  "debug_view": {
+    "raw_answer_all_cited": false,
+    "all_cited": false,
+    "citation_repair_attempted": false,
+    "citation_repair_applied": false,
+    "citation_fallback_applied": false,
+    "evidence_level": "no_answer",
+    "warning_count": 0,
+    "citation_warnings": [],
+    "malformed_diagnostics_count": 0
+  }
 }
 ```
 
@@ -503,6 +523,15 @@ When `question=None` in live mode (i.e. `config.dry_run=False`), the function sh
 | `citation_quality.citation_warnings` | `[]` (no citation-quality issues) |
 | `retrieval_path_summary` | `""` (default — no retrieval ran) |
 | `malformed_diagnostics_count` | `0` (default) |
+| `debug_view.raw_answer_all_cited` | `False` (default — no postprocessing ran) |
+| `debug_view.all_cited` | `False` (default) |
+| `debug_view.citation_repair_attempted` | `False` (default) |
+| `debug_view.citation_repair_applied` | `False` (default) |
+| `debug_view.citation_fallback_applied` | `False` (default) |
+| `debug_view.evidence_level` | `"no_answer"` (default) |
+| `debug_view.warning_count` | `0` (default) |
+| `debug_view.citation_warnings` | `[]` (default) |
+| `debug_view.malformed_diagnostics_count` | `0` (default) |
 
 The `warnings` list contains **exactly** the no-question skip message.  No citation-quality warnings are raised because no answer was produced.  The `citation_quality["citation_warnings"]` list is therefore empty, and the skip warning is **not** propagated to `citation_quality["citation_warnings"]` (it is an operational warning, not a citation-quality issue — consistent with §2.5.2).
 
@@ -534,7 +563,18 @@ The `warnings` list contains **exactly** the no-question skip message.  No citat
     "citation_warnings": []
   },
   "retrieval_path_summary": "",
-  "malformed_diagnostics_count": 0
+  "malformed_diagnostics_count": 0,
+  "debug_view": {
+    "raw_answer_all_cited": false,
+    "all_cited": false,
+    "citation_repair_attempted": false,
+    "citation_repair_applied": false,
+    "citation_fallback_applied": false,
+    "evidence_level": "no_answer",
+    "warning_count": 0,
+    "citation_warnings": [],
+    "malformed_diagnostics_count": 0
+  }
 }
 ```
 
@@ -549,6 +589,7 @@ The `warnings` list contains **exactly** the no-question skip message.  No citat
 | `warnings` | *absent* | non-empty list | list (may be empty) |
 | `answer` | `""` | `""` | LLM-generated string |
 | `citation_quality.evidence_level` | `"no_answer"` | `"no_answer"` | `"no_answer"` / `"full"` / `"degraded"` |
+| `debug_view` | present (all-zero defaults) | present (all-zero defaults) | present (real postprocessing data) |
 
 Callers can reliably distinguish the three shapes:
 - `result["status"] == "dry_run"` → dry-run early return (§5.1).
