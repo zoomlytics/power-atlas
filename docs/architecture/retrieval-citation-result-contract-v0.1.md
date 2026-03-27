@@ -179,12 +179,12 @@ Hits where `retrieval_path_diagnostics` is **absent or `None`** are **not** coun
 
 ### 2.9 `debug_view` contract status
 
-`debug_view` is a **supported inspection-oriented surface**.  It is always present in postprocessed `status="live"` results, is built from the same shared typed model (`_RetrievalDebugView`) used by the interactive debug path, and its key set is enforced by contract tests.
+`debug_view` is a **supported inspection-oriented surface**.  It is always present in **all result shapes** (postprocessed `status="live"`, `status="dry_run"`, and `retrieval_skipped` early returns), is built from the same shared typed model (`_RetrievalDebugView`) used by the interactive debug path, and its key set is enforced by contract tests.
 
 **What `debug_view` is:**
 - A consolidated view of postprocessing state, assembled from `_AnswerPostprocessResult` via `_build_retrieval_debug_view`.
 - Suitable for diagnostics, tooling, evaluation pipelines, and inspection during development.
-- Always present in postprocessed `status="live"` results; its key set is stable and contract-tested.
+- Always present in all result shapes; its key set is stable and contract-tested.  For postprocessed `status="live"` results the fields carry real postprocessing data; for early-return payloads (e.g. `status="dry_run"` or `retrieval_skipped`) the same keys are present but carry default or zero values.
 
 **What `debug_view` is not:**
 - Not the preferred surface for ordinary application logic when a primary public field already exists at the top level or inside `citation_quality`.  Callers should prefer top-level fields (e.g. `citation_repair_attempted`, `citation_fallback_applied`) and `citation_quality` fields (e.g. `evidence_level`, `all_cited`) for production application logic.
