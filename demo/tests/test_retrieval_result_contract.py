@@ -2454,14 +2454,12 @@ class TestMetadataTaxonomyBoundaries:
     def test_debug_view_keys_not_in_top_level_result(self) -> None:
         """``debug_view`` must not introduce new top-level keys (invariant §3.11).
 
-        ``debug_view`` intentionally mirrors some top-level keys (e.g.
-        ``citation_repair_attempted``, ``citation_repair_applied``,
-        ``citation_fallback_applied``, ``raw_answer_all_cited``,
-        ``malformed_diagnostics_count``).  These shared keys are documented in
-        §2.9 (mirroring convention) and §3.11 (including ``malformed_diagnostics_count``)
-        of the contract.  Other ``debug_view`` keys use internal names
-        (e.g. ``all_cited``) that differ from the public aliases at the top
-        level (e.g. ``all_answers_cited``) and must NOT appear at the top level.
+        ``debug_view`` intentionally mirrors some top-level keys — specifically
+        those that appear in both ``_DEBUG_VIEW_REQUIRED_KEYS`` and
+        ``_LIVE_RESULT_REQUIRED_KEYS`` (see §2.9 mirroring convention and
+        §3.11).  Other ``debug_view`` keys use internal names (e.g.
+        ``all_cited``) that differ from the public aliases at the top level
+        (e.g. ``all_answers_cited``) and must NOT appear at the top level.
 
         The key invariant is that ``debug_view`` must not cause any extra keys
         to appear at the top level of the result beyond those in
@@ -2474,17 +2472,10 @@ class TestMetadataTaxonomyBoundaries:
         )
         top_level_keys = set(result.keys()) - {"debug_view"}
         debug_view_keys = set(result["debug_view"].keys())
-        # These keys are intentionally shared between debug_view and the top-level
-        # result (see §2.9 mirroring convention).  They are already part of the
-        # documented top-level contract and are mirrored in debug_view for
-        # inspection convenience.
-        allowed_shared_keys: set[str] = {
-            "citation_repair_attempted",
-            "citation_repair_applied",
-            "citation_fallback_applied",
-            "raw_answer_all_cited",
-            "malformed_diagnostics_count",
-        }
+        # Derive the set of intentionally shared keys from the intersection of the
+        # two documented key-set constants rather than hardcoding them here.  This
+        # ensures the test stays in sync automatically if either constant changes.
+        allowed_shared_keys: frozenset[str] = _DEBUG_VIEW_REQUIRED_KEYS & _LIVE_RESULT_REQUIRED_KEYS
         # Enforce the mirroring convention: all allowed shared keys must be present
         # both at the top level and inside debug_view.
         assert allowed_shared_keys <= top_level_keys, (
