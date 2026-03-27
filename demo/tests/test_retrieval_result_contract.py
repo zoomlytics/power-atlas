@@ -2467,12 +2467,13 @@ class TestMetadataTaxonomyBoundaries:
         )
         dv = result["debug_view"]
         top_level_keys = set(result.keys()) - {"debug_view"}
-        # Keys inside debug_view that are NOT direct top-level keys are the
-        # debug-only keys.  Verify they haven't been accidentally exposed at
-        # the top level.
-        debug_only_keys = set(dv.keys()) - top_level_keys
+        # Certain internal debug_view fields must never be exposed as direct
+        # top-level keys, even if their values are mirrored via public aliases.
+        # This set is derived from the debug-only metadata fields documented
+        # for the retrieval pipeline.
+        debug_only_keys = {"all_cited", "evidence_level", "warning_count", "citation_warnings"}
         for key in debug_only_keys:
-            assert key not in result, (
+            assert key not in top_level_keys, (
                 f"debug_view-only key {key!r} must not appear as a direct "
                 "top-level key in the result dict"
             )
