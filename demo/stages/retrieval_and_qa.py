@@ -640,15 +640,23 @@ def _project_postprocess_to_public(
 
 
 class _RetrievalDebugView(TypedDict):
-    """Typed inspection/debug model shared across retrieval/QA debug surfaces.
+    """Typed inspection model shared across retrieval/QA surfaces.
 
-    This structure centralises all fields required for the inspection/debug
-    output surface so that both :func:`run_interactive_qa` (interactive path,
-    rendered on stdout when *debug=True*) and :func:`run_retrieval_and_qa`
-    (single-shot path, returned as the ``debug_view`` key) produce views from
-    the same data shape.  Consuming :func:`_format_postprocess_debug_summary`
-    exclusively from this type prevents the debug surface from drifting relative
-    to the underlying postprocessing contract.
+    This structure centralises all fields required for the supported
+    inspection-oriented surface so that both :func:`run_interactive_qa`
+    (interactive path, rendered on stdout when *debug=True*) and
+    :func:`run_retrieval_and_qa` (single-shot path, returned as the
+    ``debug_view`` key) produce views from the same data shape.  Consuming
+    :func:`_format_postprocess_debug_summary` exclusively from this type
+    prevents the inspection surface from drifting relative to the underlying
+    postprocessing contract.
+
+    ``debug_view`` is a **supported inspection-oriented surface**: it is always
+    present in postprocessed ``status="live"`` results and its key set is
+    enforced by contract tests.  It is suitable for diagnostics, tooling, and
+    evaluation.  Callers should prefer top-level fields and ``citation_quality``
+    for ordinary application logic; ``debug_view`` consolidates the same state
+    for convenience without carrying additional hidden data.
 
     Fields are populated by :func:`_build_retrieval_debug_view` from an
     :class:`_AnswerPostprocessResult` plus any supplementary runtime data (e.g.
@@ -674,7 +682,7 @@ def _build_retrieval_debug_view(
     """Build a :class:`_RetrievalDebugView` from a postprocessing result.
 
     This is the single factory used by both retrieval entry points to construct
-    the typed debug/inspection model.  All debug rendering should consume the
+    the typed inspection model.  All inspection rendering should consume the
     returned view rather than reading ``_AnswerPostprocessResult`` fields
     directly, so the two cannot drift apart silently.
 
@@ -692,7 +700,7 @@ def _build_retrieval_debug_view(
     Returns
     -------
     _RetrievalDebugView
-        Typed inspection/debug view populated from *pp* and the supplementary
+        Typed inspection view populated from *pp* and the supplementary
         runtime data.
     """
     return {
@@ -1892,7 +1900,7 @@ def run_retrieval_and_qa(
         # payload failed any structural check during formatting.  Zero in base (no
         # retrieval ran yet); overridden with the actual count in the live result.
         "malformed_diagnostics_count": 0,
-        # debug_view provides the typed inspection/debug surface populated from the
+        # debug_view provides the typed inspection surface populated from the
         # postprocessing result.  Defaults to all-zero values in early-return paths
         # where no retrieval or postprocessing ran; overridden in the live result.
         "debug_view": {
@@ -2095,7 +2103,7 @@ def run_retrieval_and_qa(
         **_project_postprocess_to_public(pp),
         "retrieval_path_summary": _format_retrieval_path_summary(hits),
         "malformed_diagnostics_count": _malformed_count,
-        # Build the typed debug view from the postprocess result and the malformed
+        # Build the typed inspection view from the postprocess result and the malformed
         # count so the single-shot path surfaces the same inspection model as the
         # interactive path, preventing silent drift between the two.
         "debug_view": _build_retrieval_debug_view(pp, malformed_diagnostics_count=_malformed_count),
@@ -2114,7 +2122,7 @@ def _format_postprocess_debug_summary(view: _RetrievalDebugView) -> str:
     Parameters
     ----------
     view:
-        Typed inspection/debug view built by :func:`_build_retrieval_debug_view`.
+        Typed inspection view built by :func:`_build_retrieval_debug_view`.
 
     Returns
     -------
@@ -2279,7 +2287,7 @@ def run_interactive_qa(
                         "WARNING: Not all answer sentences or bullets are cited - evidence quality may be degraded."
                     )
                 if debug:
-                    # Build the typed inspection/debug view from the postprocess result so
+                    # Build the typed inspection view from the postprocess result so
                     # that debug rendering consumes the shared model rather than reading
                     # _AnswerPostprocessResult fields directly.
                     debug_view = _build_retrieval_debug_view(
