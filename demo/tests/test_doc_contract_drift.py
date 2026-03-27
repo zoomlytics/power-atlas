@@ -262,24 +262,41 @@ def _build_early_return_runners(
 
     Only non-excluded ``early_return_scenarios`` entries are included.
     """
-    return {
-        section_id: _make_early_return_runner(section_id, scenario)
-        for section_id, scenario in scenarios_data.get("early_return_scenarios", {}).items()
-        if not scenario.get("excluded", False)
-    }
+    early_return_scenarios = scenarios_data.get("early_return_scenarios", {})
+    if not isinstance(early_return_scenarios, dict):
+        raise ValueError("early_return_scenarios must be a mapping")
+
+    runners: dict[str, Callable[[], dict[str, Any]]] = {}
+    for section_id, scenario in early_return_scenarios.items():
+        if not isinstance(scenario, dict):
+            raise ValueError(
+                f"early_return_scenarios[{section_id!r}] must be a mapping"
+            )
+        if scenario.get("excluded", False):
+            continue
+        runners[section_id] = _make_early_return_runner(section_id, scenario)
+
+    return runners
 
 
 def _build_excluded_early_return_sections(
     scenarios_data: dict[str, Any],
 ) -> dict[str, str]:
     """Return excluded_reason strings for excluded ``early_return_scenarios`` entries."""
-    return {
-        section_id: scenario["excluded_reason"]
-        for section_id, scenario in scenarios_data.get("early_return_scenarios", {}).items()
-        if scenario.get("excluded", False)
-    }
+    early_return_scenarios = scenarios_data.get("early_return_scenarios", {})
+    if not isinstance(early_return_scenarios, dict):
+        raise ValueError("early_return_scenarios must be a mapping")
 
+    excluded_sections: dict[str, str] = {}
+    for section_id, scenario in early_return_scenarios.items():
+        if not isinstance(scenario, dict):
+            raise ValueError(
+                f"early_return_scenarios[{section_id!r}] must be a mapping"
+            )
+        if scenario.get("excluded", False):
+            excluded_sections[section_id] = scenario["excluded_reason"]
 
+    return excluded_sections
 # Load the fixture file once at import time so the resulting dicts can be used
 # in parametrize decorators (which are evaluated at collection time).  If the
 # file is missing or malformed the load is silenced here so that test collection
