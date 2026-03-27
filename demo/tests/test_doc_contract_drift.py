@@ -269,16 +269,6 @@ except (FileNotFoundError, ValueError, yaml.YAMLError) as exc:  # pragma: no cov
     _SCENARIOS_DATA = {}
     _SCENARIOS_DATA_ERROR = exc
 
-# If the fixture file failed to load, skip all drift tests in this module so
-# that the first reported issue points directly at the YAML/fixture problem
-# rather than secondary drift failures caused by empty scenario data.
-if _SCENARIOS_DATA_ERROR is not None:  # pragma: no cover - behavior validated via higher-level tests
-    pytest.skip(
-        f"Skipping doc contract drift tests because scenarios fixture failed to load: "
-        f"{_SCENARIOS_DATA_ERROR}",
-        allow_module_level=True,
-    )
-
 # ---------------------------------------------------------------------------
 # Doc parsing
 # ---------------------------------------------------------------------------
