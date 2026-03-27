@@ -2787,7 +2787,7 @@ class TestMetadataTaxonomyBoundaries:
     def test_debug_view_exclusive_keys_not_in_top_level_for_early_return_paths(
         self,
         path_label: str,
-        required_keys: frozenset,
+        required_keys: frozenset[str],
     ) -> None:
         """``debug_view``-exclusive keys must not appear as direct top-level keys
         for early-return paths (dry_run and retrieval_skipped), mirroring the
