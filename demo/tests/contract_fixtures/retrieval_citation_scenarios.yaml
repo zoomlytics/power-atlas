@@ -1,0 +1,186 @@
+# Canonical contract scenario fixtures for the retrieval/citation result contract.
+#
+# This file is the machine-readable single source of truth for the scenario
+# inputs used by doc-vs-runtime drift checks and runtime contract tests.
+#
+# Files that consume this fixture:
+#   - demo/tests/test_doc_contract_drift.py  (loads _SECTION_FIXTURES and
+#     _EARLY_RETURN_SECTION_RUNNERS from here instead of inline Python dicts)
+#
+# Each live scenario's ``answer`` / ``items_metadata`` / ``all_runs`` / ``run_id``
+# fields are passed verbatim to ``_run_with_mocked_retrieval()`` in the drift
+# tests.  Each early-return scenario's fields are used to build the appropriate
+# ``run_retrieval_and_qa()`` call.
+#
+# Excluded scenarios are retained here with ``excluded: true`` so that newly
+# added doc sections cannot fall through silently without at least an explicit
+# exclusion note — matching the invariant enforced by
+# ``test_all_doc_sections_are_mapped_or_excluded``.
+
+# ---------------------------------------------------------------------------
+# Shared values
+# ---------------------------------------------------------------------------
+# YAML anchors let us define a value once and alias it wherever needed, keeping
+# the file DRY while remaining plain JSON-serialisable when the anchors are
+# resolved (e.g. by PyYAML's safe_load).
+
+shared:
+  # The citation token uses URL-encoded characters (e.g. ``file%3A%2F%2F`` for
+  # ``file://``) because the real citation format produced by the graph retrieval
+  # pipeline percent-encodes the ``source_uri`` parameter inside the token string.
+  # This mirrors the exact format expected by the postprocessing code and the doc
+  # examples; do not decode the encoding here.
+  citation_token: &token >-
+    [CITATION|chunk_id=c1|run_id=r1|source_uri=file%3A%2F%2F%2Fdoc.pdf|chunk_index=0|page=1|start_char=0|end_char=50]
+
+  # A fully cited single-sentence answer using the canonical citation token.
+  cited_answer: &cited_answer >-
+    This claim is well-supported. [CITATION|chunk_id=c1|run_id=r1|source_uri=file%3A%2F%2F%2Fdoc.pdf|chunk_index=0|page=1|start_char=0|end_char=50]
+
+  # A single uncited sentence with no citation token.
+  uncited_answer: &uncited_answer "An uncited claim that needs a citation."
+
+  # Standard live retrieval item with all optional citation fields populated.
+  # Using a fully populated citation_object avoids any "missing optional citation
+  # fields" operational warning so scenario warning counts are deterministic.
+  live_item_metadata: &live_item_metadata
+    citation_token: *token
+    chunk_id: "c1"
+    citation_object:
+      chunk_id: "c1"
+      run_id: "r1"
+      source_uri: "file:///doc.pdf"
+      chunk_index: 0
+      page: 1
+      start_char: 0
+      end_char: 50
+
+  # Hit that triggers an empty-chunk-text citation warning.
+  # All optional citation fields are present so no additional "missing optional
+  # fields" warning is emitted alongside the empty-chunk warning (§4.6).
+  empty_chunk_metadata: &empty_chunk_metadata
+    citation_token: *token
+    chunk_id: "c1"
+    citation_object:
+      chunk_id: "c1"
+      run_id: "r1"
+      source_uri: "file:///doc.pdf"
+      chunk_index: 0
+      page: 1
+      start_char: 0
+      end_char: 50
+    empty_chunk_text: true
+
+  # Hit with a fully-populated citation_object but *no* citation_token.
+  # In all-runs mode this triggers repair (preconditions met) but repair cannot
+  # apply because there is no token to append (§4.7).  The citation_object is
+  # present so no "missing optional citation fields" operational warning is
+  # emitted — matching the single-warning expectation in the §4.7 doc example.
+  hit_metadata_no_token: &hit_metadata_no_token
+    chunk_id: "c-no-token"
+    citation_object:
+      chunk_id: "c-no-token"
+      run_id: "r1"
+      source_uri: "file:///doc.pdf"
+      chunk_index: 0
+      page: 1
+      start_char: 0
+      end_char: 50
+
+# ---------------------------------------------------------------------------
+# §4.x live postprocessed scenarios
+# ---------------------------------------------------------------------------
+# Each non-excluded entry maps a section ID to the kwargs for
+# ``_run_with_mocked_retrieval()``.  Excluded entries carry ``excluded: true``
+# and an ``excluded_reason`` explaining why automated comparison is not
+# possible; they still appear here so the fixture file mirrors the full set of
+# doc sections and the "all doc sections mapped or excluded" invariant remains
+# machine-checkable.
+
+live_scenarios:
+  "4.1":
+    description: "Full citation — no repair, no fallback"
+    answer: *cited_answer
+    items_metadata:
+      - *live_item_metadata
+    all_runs: true
+
+  "4.2":
+    description: "Degraded citation — fallback applied (run-scoped mode)"
+    answer: *uncited_answer
+    items_metadata:
+      - *live_item_metadata
+    all_runs: false
+    run_id: "r1"
+
+  "4.3":
+    description: "Repair applied — citation fixed, no fallback"
+    answer: *uncited_answer
+    items_metadata:
+      - *live_item_metadata
+    all_runs: true
+
+  "4.4":
+    description: "Repair applied but answer still degraded"
+    excluded: true
+    excluded_reason: >-
+      Requires patching _apply_citation_repair to produce a partial repair;
+      covered by TestRunRetrievalAndQaDocumentedScenarios.
+      test_s4_4_repair_applied_answer_still_degraded in test_retrieval_result_contract.py.
+
+  "4.5":
+    description: "No answer generated"
+    answer: ""
+    items_metadata: []
+    all_runs: true
+
+  "4.6":
+    description: "Empty chunk text — degraded evidence with retrieval-time warning"
+    answer: *cited_answer
+    items_metadata:
+      - *empty_chunk_metadata
+    all_runs: true
+
+  "4.7":
+    description: "Repair attempted but not applied — no candidate token found"
+    answer: *uncited_answer
+    items_metadata:
+      - *hit_metadata_no_token
+    all_runs: true
+
+# ---------------------------------------------------------------------------
+# §5.x early-return scenarios
+# ---------------------------------------------------------------------------
+# Each non-excluded entry maps a section ID to the config fields used to
+# construct the ``run_retrieval_and_qa()`` call.
+#
+# Required fields for all non-excluded entries:
+#   dry_run (bool, required)
+#     - true  → uses _DRY_RUN_CONFIG; function returns before any retrieval or
+#               LLM call.  No ``question`` field is needed for this path.
+#     - false → uses a live config with empty Neo4j credentials; the function
+#               reaches the retrieval-skip guard.  The ``question`` field must
+#               also be provided (set to null to trigger the skip path).
+#   run_id (str, required) — passed as the run_id kwarg.
+#   question (str | null, required when dry_run is false)
+#     - null  → triggers the retrieval-skipped early return (§5.2).
+#     - str   → a concrete question; use only when a future scenario needs one.
+
+early_return_scenarios:
+  "5.1":
+    description: "Dry-run path"
+    dry_run: true
+    run_id: "drift-dr-1"
+
+  "5.2":
+    description: "Retrieval skipped — no question provided"
+    dry_run: false
+    run_id: "drift-skip-1"
+    question: null
+
+  "5.3":
+    description: "Distinguishing live from non-live results"
+    excluded: true
+    excluded_reason: >-
+      Comparison table, no JSON example — covered by
+      TestRunRetrievalAndQaEarlyReturnContract in test_retrieval_result_contract.py.
