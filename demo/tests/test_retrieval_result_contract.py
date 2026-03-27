@@ -109,6 +109,24 @@ Structure
     - All pass-through fields are forwarded unchanged.
     - The mapping holds across all postprocessing scenarios.
     - ``citation_quality`` is the same dict object (no copy).
+
+``TestMetadataTaxonomyBoundaries``
+    Tests that enforce the four-surface metadata taxonomy defined in §2.6 of the
+    canonical contract document.  Covers representative, ambiguous, and combined
+    examples so future contributors cannot accidentally migrate a field to the
+    wrong surface without a test failure:
+
+    - Telemetry (`malformed_diagnostics_count > 0`) does **not** add entries to
+      ``warnings`` or ``citation_quality["citation_warnings"]`` (§3.10).
+    - ``debug_view`` keys are isolated inside their nested dict and do not appear
+      at the top level of the result (§3.11).
+    - Combined scenario: empty-chunk warning + uncited-answer warning both appear
+      in ``warnings`` **and** ``citation_quality["citation_warnings"]`` (ambiguous
+      multi-surface case — both warnings are citation-quality issues per rule 1).
+    - ``debug_view`` mirrors the same postprocessing state as the public surface
+      (no additional hidden state; it is a convenience view, not extra data).
+    - Operational warnings (non-citation-quality) appear only in ``warnings``,
+      not in ``citation_quality["citation_warnings"]`` (skip warning example).
 """
 from __future__ import annotations
 
@@ -338,6 +356,26 @@ _EMPTY_CHUNK_METADATA: dict[str, object] = {
 #: Metadata for a hit with no citation token — repair is attempted (preconditions
 #: met) but cannot find a token to apply.  Represents §4.7.
 _HIT_METADATA_NO_TOKEN: dict[str, object] = {"chunk_id": "c-no-token"}
+
+#: Metadata for a hit with a malformed ``retrieval_path_diagnostics`` payload.
+#: The diagnostics value is a plain string instead of a dict, which triggers
+#: ``malformed_diagnostics_count = 1`` in the live path.  All citation fields are
+#: fully populated so no citation warnings are emitted alongside the telemetry
+#: counter — keeping warning counts deterministic for taxonomy boundary tests.
+_MALFORMED_DIAGNOSTICS_METADATA: dict[str, object] = {
+    "citation_token": _TOKEN,
+    "chunk_id": "c1",
+    "citation_object": {
+        "chunk_id": "c1",
+        "run_id": "r1",
+        "source_uri": "file:///doc.pdf",
+        "chunk_index": 0,
+        "page": 1,
+        "start_char": 0,
+        "end_char": 50,
+    },
+    "retrieval_path_diagnostics": "not-a-dict",  # malformed: root must be a dict
+}
 
 
 # ---------------------------------------------------------------------------
@@ -2365,3 +2403,187 @@ class TestRunRetrievalAndQaWarningsContract:
             f"Expected empty citation_warnings; got {cq['citation_warnings']!r}"
         )
         assert cq["warning_count"] == 0
+
+
+# ---------------------------------------------------------------------------
+# TestMetadataTaxonomyBoundaries
+# ---------------------------------------------------------------------------
+
+
+class TestMetadataTaxonomyBoundaries:
+    """Enforce the four-surface metadata taxonomy defined in §2.6 of the contract document.
+
+    The four surfaces are:
+    - ``warnings`` (top-level operational warnings list; superset for all warning strings)
+    - ``citation_quality`` bundle (citation-quality details; its ``citation_warnings`` list
+      is a subset of ``warnings``)
+    - ``malformed_diagnostics_count`` (telemetry counter, NOT a warning)
+    - ``debug_view`` (debug-only inspection bundle, NOT a top-level API surface)
+
+    These tests cover representative, ambiguous, and combined scenarios to prevent
+    future contributors from accidentally migrating a field to the wrong surface.
+    See §2.6, §3.10, and §3.11 of the canonical contract document.
+    """
+
+    def test_malformed_diagnostics_count_nonzero_does_not_add_to_warnings(self) -> None:
+        """Telemetry counter must not pollute ``warnings`` (invariant §3.10).
+
+        When ``malformed_diagnostics_count > 0``, no entry is added to the
+        top-level ``warnings`` list.  The counter is a machine-readable alerting
+        signal; callers must read it directly from the integer field.
+        """
+        result = _run_with_mocked_retrieval(
+            answer=_CITED_ANSWER,
+            items_metadata=[_MALFORMED_DIAGNOSTICS_METADATA],
+            all_runs=True,
+        )
+        assert result["malformed_diagnostics_count"] > 0, (
+            "Expected malformed_diagnostics_count > 0 for hit with malformed diagnostics; "
+            f"got {result['malformed_diagnostics_count']!r}"
+        )
+        assert result["warnings"] == [], (
+            "Telemetry counter malformed_diagnostics_count must not add entries to "
+            f"warnings; got {result['warnings']!r}"
+        )
+        assert result["citation_quality"]["citation_warnings"] == [], (
+            "Telemetry counter malformed_diagnostics_count must not add entries to "
+            f"citation_quality.citation_warnings; got "
+            f"{result['citation_quality']['citation_warnings']!r}"
+        )
+
+    def test_debug_view_keys_not_in_top_level_result(self) -> None:
+        """``debug_view`` fields must be nested inside their bundle (invariant §3.11).
+
+        Some ``debug_view`` keys use internal names (e.g. ``all_cited``) that differ
+        from the public aliases at the top level (e.g. ``all_answers_cited``).  None
+        of the debug-view-only keys (i.e. keys not already present as direct top-level
+        keys) should appear at the top level of the result.  In addition, the result
+        key set must equal ``_LIVE_RESULT_REQUIRED_KEYS`` exactly — ``debug_view``
+        must not introduce new top-level keys.
+        """
+        result = _run_with_mocked_retrieval(
+            answer=_CITED_ANSWER,
+            items_metadata=[_LIVE_ITEM_METADATA],
+            all_runs=True,
+        )
+        top_level_keys = set(result.keys()) - {"debug_view"}
+        debug_view_keys = set(result["debug_view"].keys())
+        # Certain internal debug_view fields must never be exposed as direct
+        # top-level keys, even if their values are mirrored via public aliases.
+        # Only keys explicitly allowed to be shared by name may appear both in
+        # debug_view and at the top level; all other debug_view keys must remain
+        # nested under the debug_view bundle.
+        allowed_shared_keys: set[str] = set()
+        forbidden_overlap = (debug_view_keys & top_level_keys) - allowed_shared_keys
+        assert not forbidden_overlap, (
+            "debug_view-only keys must not appear as direct top-level keys in the "
+            f"result dict; forbidden overlap={forbidden_overlap!r}"
+        )
+        # The overall top-level key set must equal the documented required set —
+        # debug_view must not have caused any extra keys to appear at the top level.
+        assert set(result.keys()) == _LIVE_RESULT_REQUIRED_KEYS, (
+            "debug_view must not introduce new top-level keys beyond the documented set; "
+            f"extra={set(result.keys()) - _LIVE_RESULT_REQUIRED_KEYS!r}"
+        )
+
+    def test_combined_empty_chunk_and_uncited_answer_both_in_citation_warnings(
+        self,
+    ) -> None:
+        """Combined ambiguous scenario: empty-chunk warning + uncited-answer warning.
+
+        Both warnings are citation-quality issues (§2.6 taxonomy rule 1).  In
+        all-runs mode with an empty-chunk hit and an uncited answer, repair is
+        attempted but yields a fully cited result (token appended).  To produce
+        both warnings simultaneously, use run-scoped mode (no repair) so the
+        uncited-answer warning is also raised.
+
+        Both warnings must appear in ``warnings`` **and** in
+        ``citation_quality["citation_warnings"]``.
+        """
+        result = _run_with_mocked_retrieval(
+            answer=_UNCITED_ANSWER,
+            items_metadata=[_EMPTY_CHUNK_METADATA],
+            all_runs=False,
+            run_id="r1",
+        )
+        cq = result["citation_quality"]
+        assert _EMPTY_CHUNK_WARNING_MSG in result["warnings"], (
+            f"Empty-chunk warning missing from top-level warnings; "
+            f"got {result['warnings']!r}"
+        )
+        assert _EMPTY_CHUNK_WARNING_MSG in cq["citation_warnings"], (
+            f"Empty-chunk warning missing from citation_quality.citation_warnings; "
+            f"got {cq['citation_warnings']!r}"
+        )
+        assert _UNCITED_WARNING in result["warnings"], (
+            f"Uncited-answer warning missing from top-level warnings; "
+            f"got {result['warnings']!r}"
+        )
+        assert _UNCITED_WARNING in cq["citation_warnings"], (
+            f"Uncited-answer warning missing from citation_quality.citation_warnings; "
+            f"got {cq['citation_warnings']!r}"
+        )
+        assert cq["evidence_level"] == "degraded", (
+            "evidence_level must be 'degraded' when citation warnings exist"
+        )
+
+    def test_debug_view_mirrors_public_postprocessing_state(self) -> None:
+        """``debug_view`` consolidates the same postprocessing state as the public surface.
+
+        The fields in ``debug_view`` are derived from ``_AnswerPostprocessResult``
+        (the same source as the public result dict).  This test verifies that the
+        values in ``debug_view`` are consistent with the corresponding public fields
+        so the debug surface cannot silently drift from the live result.
+        """
+        result = _run_with_mocked_retrieval(
+            answer=_UNCITED_ANSWER,
+            items_metadata=[_LIVE_ITEM_METADATA],
+            all_runs=True,
+        )
+        dv = result["debug_view"]
+        assert dv["all_cited"] == result["all_answers_cited"], (
+            "debug_view.all_cited must mirror top-level all_answers_cited"
+        )
+        assert dv["raw_answer_all_cited"] == result["raw_answer_all_cited"], (
+            "debug_view.raw_answer_all_cited must mirror top-level raw_answer_all_cited"
+        )
+        assert dv["citation_repair_attempted"] == result["citation_repair_attempted"], (
+            "debug_view.citation_repair_attempted must mirror top-level field"
+        )
+        assert dv["citation_repair_applied"] == result["citation_repair_applied"], (
+            "debug_view.citation_repair_applied must mirror top-level field"
+        )
+        assert dv["citation_fallback_applied"] == result["citation_fallback_applied"], (
+            "debug_view.citation_fallback_applied must mirror top-level field"
+        )
+        assert dv["evidence_level"] == result["citation_quality"]["evidence_level"], (
+            "debug_view.evidence_level must mirror citation_quality.evidence_level"
+        )
+        assert dv["warning_count"] == result["citation_quality"]["warning_count"], (
+            "debug_view.warning_count must mirror citation_quality.warning_count"
+        )
+        assert dv["citation_warnings"] == result["citation_quality"]["citation_warnings"], (
+            "debug_view.citation_warnings must mirror citation_quality.citation_warnings"
+        )
+        assert dv["malformed_diagnostics_count"] == result["malformed_diagnostics_count"], (
+            "debug_view.malformed_diagnostics_count must mirror top-level field"
+        )
+
+    def test_operational_skip_warning_in_warnings_not_citation_warnings(self) -> None:
+        """Operational (non-citation-quality) warning must appear only in ``warnings``.
+
+        The retrieval-skipped warning is an operational signal (§2.6 taxonomy rule 4):
+        it indicates that no retrieval ran, which is not a citation-quality problem.
+        It must appear in the top-level ``warnings`` list but must **not** be
+        propagated to ``citation_quality["citation_warnings"]``.
+        """
+        helper = TestRunRetrievalAndQaEarlyReturnContract()
+        result = helper._skip_result()
+        assert _SKIP_WARNING in result["warnings"], (
+            f"Skip warning missing from top-level warnings; got {result['warnings']!r}"
+        )
+        cq = result["citation_quality"]
+        assert _SKIP_WARNING not in cq["citation_warnings"], (
+            f"Skip warning must not appear in citation_quality.citation_warnings; "
+            f"got {cq['citation_warnings']!r}"
+        )
