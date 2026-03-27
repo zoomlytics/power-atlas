@@ -652,11 +652,14 @@ class _RetrievalDebugView(TypedDict):
     postprocessing contract.
 
     ``debug_view`` is a **supported inspection-oriented surface**: it is always
-    present in postprocessed ``status="live"`` results and its key set is
-    enforced by contract tests.  It is suitable for diagnostics, tooling, and
-    evaluation.  Callers should prefer top-level fields and ``citation_quality``
-    for ordinary application logic; ``debug_view`` consolidates the same state
-    for convenience without carrying additional hidden data.
+    present in all result shapes and its key set is enforced by contract tests.
+    For postprocessed ``status="live"`` results, these fields are populated with
+    the full postprocessing state; for early-return payloads (e.g. dry-run or
+    retrieval-skipped paths) the same keys are present but carry default or
+    zero-valued data.  It is suitable for diagnostics, tooling, and evaluation.
+    Callers should prefer top-level fields and ``citation_quality`` for ordinary
+    application logic; ``debug_view`` consolidates the same state for
+    convenience without carrying additional hidden data.
 
     Fields are populated by :func:`_build_retrieval_debug_view` from an
     :class:`_AnswerPostprocessResult` plus any supplementary runtime data (e.g.
