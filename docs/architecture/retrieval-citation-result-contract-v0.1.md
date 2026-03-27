@@ -184,7 +184,7 @@ Hits where `retrieval_path_diagnostics` is **absent or `None`** are **not** coun
 **What `debug_view` is:**
 - A consolidated view of postprocessing state, assembled from `_AnswerPostprocessResult` via `_build_retrieval_debug_view`.
 - Suitable for diagnostics, tooling, evaluation pipelines, and inspection during development.
-- Always returned; its key set is stable and contract-tested.
+- Always present in postprocessed `status="live"` results; its key set is stable and contract-tested.
 
 **What `debug_view` is not:**
 - Not the preferred surface for ordinary application logic when a primary public field already exists at the top level or inside `citation_quality`.  Callers should prefer top-level fields (e.g. `citation_repair_attempted`, `citation_fallback_applied`) and `citation_quality` fields (e.g. `evidence_level`, `all_cited`) for production application logic.
