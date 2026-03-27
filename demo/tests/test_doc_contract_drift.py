@@ -46,9 +46,10 @@ import json
 import re
 import types
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import pytest
+import yaml
 
 from demo.stages.retrieval_and_qa import _CITATION_FALLBACK_PREFIX, run_retrieval_and_qa
 from demo.tests.test_retrieval_result_contract import (
@@ -70,24 +71,281 @@ _CONTRACT_DOC_PATH: Path = (
     / "architecture"
     / "retrieval-citation-result-contract-v0.1.md"
 )
-#: Metadata for a hit that has a fully-populated ``citation_object`` but no
-#: ``citation_token``.  In all-runs mode this triggers repair (preconditions met)
-#: but repair cannot apply because there is no token to append (§4.7).  The
-#: ``citation_object`` is present so no "missing optional citation fields"
-#: operational warning is emitted — matching the single-warning expectation in
-#: the doc's §4.7 JSON example.
-_HIT_METADATA_NO_TOKEN: dict[str, object] = {
-    "chunk_id": "c-no-token",
-    "citation_object": {
-        "chunk_id": "c-no-token",
-        "run_id": "r1",
-        "source_uri": "file:///doc.pdf",
-        "chunk_index": 0,
-        "page": 1,
-        "start_char": 0,
-        "end_char": 50,
-    },
-}
+
+# ---------------------------------------------------------------------------
+# Canonical fixture file
+# ---------------------------------------------------------------------------
+
+#: Path to the machine-readable canonical scenario fixture file used by the
+#: doc-vs-runtime drift checks in this module. The runtime contract tests in
+#: ``test_retrieval_result_contract.py`` mirror these scenarios via Python
+#: constants and integrity checks rather than loading this YAML directly.
+_FIXTURE_PATH: Path = Path(__file__).parent / "contract_fixtures" / "retrieval_citation_scenarios.yaml"
+
+
+def _load_contract_scenarios() -> dict[str, Any]:
+    """Load and return the parsed contents of the canonical fixture YAML file.
+
+    Raises
+    ------
+    FileNotFoundError
+        If the fixture file does not exist at ``_FIXTURE_PATH``.
+    ValueError
+        If the parsed YAML content is not a mapping/dict.
+    """
+    data = yaml.safe_load(_FIXTURE_PATH.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise ValueError(
+            f"Expected a mapping at {_FIXTURE_PATH}, but got {type(data).__name__!r}"
+        )
+    return data
+
+
+def _build_section_fixtures(
+    scenarios_data: dict[str, Any],
+) -> dict[str, dict[str, Any]]:
+    """Build the section-to-kwargs mapping for ``_run_with_mocked_retrieval``.
+
+    Only non-excluded ``live_scenarios`` entries are included.  Each entry's
+    ``answer``, ``items_metadata``, ``all_runs``, and (optionally) ``run_id``
+    fields are forwarded verbatim to ``_run_with_mocked_retrieval``.
+
+    Raises
+    ------
+    ValueError
+        If a non-excluded scenario is missing a required field so that the
+        error is caught by the import-time try/except and surfaces via the
+        integrity tests rather than as a raw ``KeyError``.
+    """
+    result: dict[str, dict[str, Any]] = {}
+    for section_id, scenario in scenarios_data.get("live_scenarios", {}).items():
+        if not isinstance(scenario, dict):
+            raise ValueError(
+                f"Live scenario {section_id!r} is not a mapping (got {type(scenario).__name__!r})"
+            )
+        if scenario.get("excluded", False):
+            continue
+        for required in ("answer", "items_metadata", "all_runs"):
+            if required not in scenario:
+                raise ValueError(
+                    f"Live scenario {section_id!r} is missing required field {required!r}"
+                )
+        params: dict[str, Any] = {
+            "answer": scenario["answer"],
+            "items_metadata": scenario["items_metadata"],
+            "all_runs": scenario["all_runs"],
+        }
+        if "run_id" in scenario:
+            params["run_id"] = scenario["run_id"]
+        result[section_id] = params
+    return result
+
+
+def _build_excluded_sections(
+    scenarios_data: dict[str, Any],
+) -> dict[str, str]:
+    """Return the ``excluded_reason`` strings for excluded ``live_scenarios`` entries.
+
+    Raises
+    ------
+    ValueError
+        If ``live_scenarios`` is not a mapping or any scenario entry is not a
+        mapping, so that malformed fixtures surface with a clear error message
+        rather than as ``AttributeError``/``TypeError``.
+    """
+    live_scenarios = scenarios_data.get("live_scenarios", {})
+    if not isinstance(live_scenarios, dict):
+        raise ValueError(
+            "Expected 'live_scenarios' to be a mapping/dict, but got "
+            f"{type(live_scenarios).__name__!r}"
+        )
+
+    result: dict[str, str] = {}
+    for section_id, scenario in live_scenarios.items():
+        if not isinstance(scenario, dict):
+            raise ValueError(
+                "Expected each 'live_scenarios' entry to be a mapping/dict, "
+                f"but section {section_id!r} has type {type(scenario).__name__!r}"
+            )
+        if scenario.get("excluded", False):
+            if "excluded_reason" not in scenario:
+                raise ValueError(
+                    "Excluded scenario {section_id!r} is missing required "
+                    "'excluded_reason' field"
+                )
+            result[section_id] = scenario["excluded_reason"]
+
+    return result
+def _make_early_return_runner(
+    section_id: str,
+    scenario: dict[str, Any],
+) -> Callable[[], dict[str, Any]]:
+    """Build a zero-argument callable that executes the early-return scenario.
+
+    Parameters
+    ----------
+    section_id:
+        The section key (e.g. ``"5.1"``) used in error messages.
+    scenario:
+        A single ``early_return_scenarios`` entry from the fixture file.
+        Must contain ``run_id`` (str) and ``dry_run`` (bool).  For non-dry-run
+        scenarios the ``question`` key must also be present (explicitly set to
+        ``null`` to trigger the retrieval-skipped path, or a string to pass a
+        concrete question).
+
+    Returns
+    -------
+    Callable
+        A zero-argument function that calls ``run_retrieval_and_qa()`` with
+        the appropriate config and returns the result dict.
+
+    Raises
+    ------
+    ValueError
+        If ``scenario`` is not a mapping, or if a required field
+        (``run_id``, ``dry_run``, or ``question`` for non-dry-run scenarios)
+        is missing so the error is meaningful.
+    """
+    if not isinstance(scenario, dict):
+        raise ValueError(
+            f"Early-return scenario {section_id!r} is not a mapping "
+            f"(got {type(scenario).__name__!r})"
+        )
+    for required in ("run_id", "dry_run"):
+        if required not in scenario:
+            raise ValueError(
+                f"Early-return scenario {section_id!r} is missing required field {required!r}"
+            )
+
+    run_id = scenario["run_id"]
+    if not isinstance(run_id, str):
+        raise ValueError(
+            f"Early-return scenario {section_id!r}: 'run_id' must be a str, "
+            f"got {type(run_id).__name__!r}"
+        )
+
+    dry_run = scenario["dry_run"]
+    if not isinstance(dry_run, bool):
+        raise ValueError(
+            f"Early-return scenario {section_id!r}: 'dry_run' must be a bool, "
+            f"got {type(dry_run).__name__!r} (value={dry_run!r}); "
+            "use YAML bare true/false, not quoted strings"
+        )
+
+    if dry_run:
+        def _dry_run_runner() -> dict[str, Any]:
+            return run_retrieval_and_qa(_DRY_RUN_CONFIG, run_id=run_id, source_uri=None)
+
+        return _dry_run_runner
+
+    # Retrieval-skipped path: live config with empty Neo4j credentials and
+    # question=None so the function short-circuits before opening a driver.
+    # Require explicit null in the fixture; a missing key raises ValueError
+    # with context rather than silently becoming None and triggering an
+    # unintended early return.
+    if "question" not in scenario:
+        raise ValueError(
+            f"Early-return scenario {section_id!r} is non-dry-run but missing "
+            f"required field 'question' (set to null to trigger the skipped path)"
+        )
+    question: str | None = scenario["question"]
+
+    def _skip_runner() -> dict[str, Any]:
+        return run_retrieval_and_qa(
+            types.SimpleNamespace(
+                dry_run=False,
+                openai_model="gpt-4o-mini",
+                neo4j_uri="",
+                neo4j_username="",
+                neo4j_password="",
+                neo4j_database=None,
+            ),
+            run_id=run_id,
+            source_uri=None,
+            question=question,
+        )
+
+    return _skip_runner
+
+
+def _build_early_return_runners(
+    scenarios_data: dict[str, Any],
+) -> dict[str, Callable[[], dict[str, Any]]]:
+    """Build the section-to-runner mapping for early-return (§5.x) scenarios.
+
+    Only non-excluded ``early_return_scenarios`` entries are included.
+    """
+    early_return_scenarios = scenarios_data.get("early_return_scenarios", {})
+    if not isinstance(early_return_scenarios, dict):
+        raise ValueError("early_return_scenarios must be a mapping")
+
+    runners: dict[str, Callable[[], dict[str, Any]]] = {}
+    for section_id, scenario in early_return_scenarios.items():
+        if not isinstance(scenario, dict):
+            raise ValueError(
+                f"early_return_scenarios[{section_id!r}] must be a mapping"
+            )
+        if scenario.get("excluded", False):
+            continue
+        runners[section_id] = _make_early_return_runner(section_id, scenario)
+
+    return runners
+
+
+def _build_excluded_early_return_sections(
+    scenarios_data: dict[str, Any],
+) -> dict[str, str]:
+    """Return excluded_reason strings for excluded ``early_return_scenarios`` entries."""
+    early_return_scenarios = scenarios_data.get("early_return_scenarios", {})
+    if not isinstance(early_return_scenarios, dict):
+        raise ValueError("early_return_scenarios must be a mapping")
+
+    excluded_sections: dict[str, str] = {}
+    for section_id, scenario in early_return_scenarios.items():
+        if not isinstance(scenario, dict):
+            raise ValueError(
+                f"early_return_scenarios[{section_id!r}] must be a mapping"
+            )
+        if scenario.get("excluded", False):
+            if "excluded_reason" not in scenario:
+                raise ValueError(
+                    f"early_return_scenarios[{section_id!r}] missing required 'excluded_reason'"
+                )
+            excluded_sections[section_id] = scenario["excluded_reason"]
+
+    return excluded_sections
+# Load the fixture file once at import time so the resulting dicts can be used
+# in parametrize decorators (which are evaluated at collection time).  If the
+# file is missing or malformed the load is silenced here so that test collection
+# still succeeds; TestContractFixtureIntegrity.test_fixture_file_exists /
+# test_fixture_file_is_loadable will then fail with a clear, actionable message
+# rather than an opaque import-time traceback.
+#
+# All four scenario dicts are built inside the same guarded block so that
+# validation errors from the builder functions (missing required fields, wrong
+# scenario shape, missing excluded_reason, etc.) are also captured in
+# ``_SCENARIOS_DATA_ERROR`` rather than escaping as opaque import-time exceptions.
+try:
+    _SCENARIOS_DATA: dict[str, Any] = _load_contract_scenarios()
+    _SECTION_FIXTURES: dict[str, dict[str, Any]] = _build_section_fixtures(_SCENARIOS_DATA)
+    _EXCLUDED_SECTIONS: dict[str, str] = _build_excluded_sections(_SCENARIOS_DATA)
+    _EARLY_RETURN_SECTION_RUNNERS: dict[str, Callable[[], dict[str, Any]]] = (
+        _build_early_return_runners(_SCENARIOS_DATA)
+    )
+    _EXCLUDED_EARLY_RETURN_SECTIONS: dict[str, str] = _build_excluded_early_return_sections(
+        _SCENARIOS_DATA
+    )
+    _SCENARIOS_DATA_ERROR: Exception | None = None
+except Exception as exc:  # pragma: no cover - exercised indirectly via integrity tests
+    # Preserve test collection even if the fixture file is missing, malformed,
+    # or a builder function raises due to an invalid scenario entry.
+    # TestContractFixtureIntegrity will then fail with an actionable message.
+    _SCENARIOS_DATA = {}
+    _SECTION_FIXTURES = {}
+    _EXCLUDED_SECTIONS = {}
+    _EARLY_RETURN_SECTION_RUNNERS = {}
+    _EXCLUDED_EARLY_RETURN_SECTIONS = {}
+    _SCENARIOS_DATA_ERROR = exc
 
 # ---------------------------------------------------------------------------
 # Doc parsing
@@ -436,56 +694,11 @@ def _collect_drifts(
 # ---------------------------------------------------------------------------
 # Section-to-fixture mapping
 # ---------------------------------------------------------------------------
-
-#: Maps each §4.x section ID to the kwargs passed to ``_run_with_mocked_retrieval``.
-#: Only sections whose expected behaviour is fully deterministic without internal
-#: mock patching are listed here.
-_SECTION_FIXTURES: dict[str, dict[str, Any]] = {
-    "4.1": {
-        "answer": _CITED_ANSWER,
-        "items_metadata": [_LIVE_ITEM_METADATA],
-        "all_runs": True,
-    },
-    "4.2": {
-        "answer": _UNCITED_ANSWER,
-        "items_metadata": [_LIVE_ITEM_METADATA],
-        "all_runs": False,
-        "run_id": "r1",
-    },
-    "4.3": {
-        "answer": _UNCITED_ANSWER,
-        "items_metadata": [_LIVE_ITEM_METADATA],
-        "all_runs": True,
-    },
-    "4.5": {
-        "answer": "",
-        "items_metadata": [],
-        "all_runs": True,
-    },
-    "4.6": {
-        "answer": _CITED_ANSWER,
-        "items_metadata": [_EMPTY_CHUNK_METADATA],
-        "all_runs": True,
-    },
-    "4.7": {
-        "answer": _UNCITED_ANSWER,
-        "items_metadata": [_HIT_METADATA_NO_TOKEN],
-        "all_runs": True,
-    },
-}
-
-#: §4.x sections that require internal mock patching and are intentionally
-#: excluded from automated doc-vs-runtime comparison.  Every section in the doc
-#: that is NOT in ``_SECTION_FIXTURES`` must have an entry here so that newly
-#: added doc sections are not silently overlooked.
-_EXCLUDED_SECTIONS: dict[str, str] = {
-    "4.4": (
-        "Requires patching _apply_citation_repair to produce a partial repair; "
-        "covered by TestRunRetrievalAndQaDocumentedScenarios. "
-        "test_s4_4_repair_applied_answer_still_degraded in "
-        "test_retrieval_result_contract.py."
-    ),
-}
+# ``_SECTION_FIXTURES`` and ``_EXCLUDED_SECTIONS`` are both populated in the
+# guarded try/except block near the top of this module (after all builder
+# function definitions) so that any validation error from the builders is
+# captured in ``_SCENARIOS_DATA_ERROR`` rather than escaping at import time.
+# ---------------------------------------------------------------------------
 
 
 # ---------------------------------------------------------------------------
@@ -493,6 +706,11 @@ _EXCLUDED_SECTIONS: dict[str, str] = {
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.skipif(
+    _SCENARIOS_DATA_ERROR is not None,
+    reason="Skipping §4.x drift tests because the scenarios fixture failed to load; "
+    "see TestContractFixtureIntegrity for the actionable failure.",
+)
 class TestDocContractDrift:
     """Detect drift between §4 JSON examples in the contract doc and live runtime output.
 
@@ -605,37 +823,11 @@ class TestDocContractDrift:
 # ---------------------------------------------------------------------------
 # Early-return (§5.x) section runners and fixtures
 # ---------------------------------------------------------------------------
-
-#: Maps each §5.x section ID to a zero-argument callable that returns the
-#: runtime result for drift comparison.
-_EARLY_RETURN_SECTION_RUNNERS: dict[str, Any] = {
-    "5.1": lambda: run_retrieval_and_qa(
-        _DRY_RUN_CONFIG, run_id="drift-dr-1", source_uri=None
-    ),
-    "5.2": lambda: run_retrieval_and_qa(
-        types.SimpleNamespace(
-            dry_run=False,
-            openai_model="gpt-4o-mini",
-            neo4j_uri="",
-            neo4j_username="",
-            neo4j_password="",
-            neo4j_database=None,
-        ),
-        run_id="drift-skip-1",
-        source_uri=None,
-        question=None,
-    ),
-}
-
-#: §5.x sections that require special handling and are intentionally excluded
-#: from automated doc-vs-runtime comparison.  Every §5.x section in the doc
-#: that is NOT in ``_EARLY_RETURN_SECTION_RUNNERS`` must have an entry here.
-_EXCLUDED_EARLY_RETURN_SECTIONS: dict[str, str] = {
-    "5.3": (
-        "Comparison table, no JSON example — covered by "
-        "TestRunRetrievalAndQaEarlyReturnContract in test_retrieval_result_contract.py."
-    ),
-}
+# ``_EARLY_RETURN_SECTION_RUNNERS`` and ``_EXCLUDED_EARLY_RETURN_SECTIONS`` are
+# both populated in the guarded try/except block near the top of this module
+# so that any validation error from the builders is captured in
+# ``_SCENARIOS_DATA_ERROR`` rather than escaping at import time.
+# ---------------------------------------------------------------------------
 
 
 # ---------------------------------------------------------------------------
@@ -643,6 +835,11 @@ _EXCLUDED_EARLY_RETURN_SECTIONS: dict[str, str] = {
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.skipif(
+    _SCENARIOS_DATA_ERROR is not None,
+    reason="Skipping §5.x early-return drift tests because the scenarios fixture failed "
+    "to load; see TestContractFixtureIntegrity for the actionable failure.",
+)
 class TestDocEarlyReturnDrift:
     """Detect drift between §5 (early-return) JSON examples in the contract doc
     and live runtime output.
@@ -735,4 +932,134 @@ class TestDocEarlyReturnDrift:
             f"Doc-vs-runtime drift detected in §{section_id} "
             f"({_CONTRACT_DOC_PATH.name}):\n"
             + "\n".join(f"  • {d}" for d in drifts)
+        )
+
+
+# ---------------------------------------------------------------------------
+# Fixture integrity checks
+# ---------------------------------------------------------------------------
+
+
+class TestContractFixtureIntegrity:
+    """Verify that the canonical fixture file is internally consistent and
+    stays aligned with the shared constants in ``test_retrieval_result_contract``.
+
+    These tests act as a coupling mechanism: if a maintainer changes a shared
+    constant in the runtime contract test (e.g. ``_CITED_ANSWER``) without
+    updating the fixture file, or vice versa, a failure here makes the
+    discrepancy visible before any drift tests run.
+    """
+
+    def _require_scenarios_data(self) -> None:
+        """Fail with a clear message if the fixture file could not be loaded.
+
+        Call at the start of any test that accesses ``_SCENARIOS_DATA``.
+        """
+        if _SCENARIOS_DATA_ERROR is not None:
+            pytest.fail(
+                f"Fixture file at {_FIXTURE_PATH} could not be loaded; "
+                f"fix the file before running these tests.\n"
+                f"  Error: {_SCENARIOS_DATA_ERROR}"
+            )
+
+    def test_fixture_file_exists(self) -> None:
+        """The canonical fixture YAML file must exist at ``_FIXTURE_PATH``."""
+        assert _FIXTURE_PATH.exists(), (
+            f"Canonical fixture file not found at {_FIXTURE_PATH}. "
+            "Create it or update _FIXTURE_PATH."
+        )
+
+    def test_fixture_file_is_loadable(self) -> None:
+        """The fixture file must parse without errors and produce a mapping.
+
+        Also surfaces any import-time load error so the failure message is
+        actionable even when this test runs first in the session.
+        """
+        self._require_scenarios_data()
+        data = _load_contract_scenarios()
+        assert "live_scenarios" in data, "Fixture file must have a 'live_scenarios' key"
+        assert "early_return_scenarios" in data, (
+            "Fixture file must have an 'early_return_scenarios' key"
+        )
+        assert "shared" in data, "Fixture file must have a 'shared' key"
+
+    def test_fixture_cited_answer_matches_test_constant(self) -> None:
+        """``shared.cited_answer`` in the fixture must equal ``_CITED_ANSWER``
+        from ``test_retrieval_result_contract``.
+
+        Fails if the runtime test constant and the fixture file drift apart,
+        ensuring that both sources drive the same scenarios.
+        """
+        self._require_scenarios_data()
+        fixture_cited = _SCENARIOS_DATA["shared"]["cited_answer"]
+        assert fixture_cited == _CITED_ANSWER, (
+            f"Fixture shared.cited_answer does not match _CITED_ANSWER.\n"
+            f"  fixture : {fixture_cited!r}\n"
+            f"  constant: {_CITED_ANSWER!r}"
+        )
+
+    def test_fixture_uncited_answer_matches_test_constant(self) -> None:
+        """``shared.uncited_answer`` in the fixture must equal ``_UNCITED_ANSWER``."""
+        self._require_scenarios_data()
+        fixture_uncited = _SCENARIOS_DATA["shared"]["uncited_answer"]
+        assert fixture_uncited == _UNCITED_ANSWER, (
+            f"Fixture shared.uncited_answer does not match _UNCITED_ANSWER.\n"
+            f"  fixture : {fixture_uncited!r}\n"
+            f"  constant: {_UNCITED_ANSWER!r}"
+        )
+
+    def test_fixture_live_item_metadata_matches_test_constant(self) -> None:
+        """``shared.live_item_metadata`` in the fixture must equal ``_LIVE_ITEM_METADATA``."""
+        self._require_scenarios_data()
+        fixture_meta = _SCENARIOS_DATA["shared"]["live_item_metadata"]
+        assert fixture_meta == _LIVE_ITEM_METADATA, (
+            f"Fixture shared.live_item_metadata does not match _LIVE_ITEM_METADATA.\n"
+            f"  fixture : {fixture_meta!r}\n"
+            f"  constant: {_LIVE_ITEM_METADATA!r}"
+        )
+
+    def test_fixture_empty_chunk_metadata_matches_test_constant(self) -> None:
+        """``shared.empty_chunk_metadata`` in the fixture must equal ``_EMPTY_CHUNK_METADATA``."""
+        self._require_scenarios_data()
+        fixture_meta = _SCENARIOS_DATA["shared"]["empty_chunk_metadata"]
+        assert fixture_meta == _EMPTY_CHUNK_METADATA, (
+            f"Fixture shared.empty_chunk_metadata does not match _EMPTY_CHUNK_METADATA.\n"
+            f"  fixture : {fixture_meta!r}\n"
+            f"  constant: {_EMPTY_CHUNK_METADATA!r}"
+        )
+
+    def test_fixture_live_scenarios_keys_match_section_fixtures(self) -> None:
+        """Every non-excluded live scenario in the fixture file must appear in
+        ``_SECTION_FIXTURES``, and every entry in ``_SECTION_FIXTURES`` must
+        correspond to a non-excluded live scenario in the fixture file.
+        """
+        self._require_scenarios_data()
+        fixture_active = frozenset(
+            sid
+            for sid, s in _SCENARIOS_DATA["live_scenarios"].items()
+            if not s.get("excluded", False)
+        )
+        assert fixture_active == frozenset(_SECTION_FIXTURES), (
+            f"Non-excluded live fixture sections do not match _SECTION_FIXTURES.\n"
+            f"  in fixture only : {sorted(fixture_active - frozenset(_SECTION_FIXTURES))}\n"
+            f"  in _SECTION_FIXTURES only: {sorted(frozenset(_SECTION_FIXTURES) - fixture_active)}"
+        )
+
+    def test_fixture_early_return_keys_match_runners(self) -> None:
+        """Every non-excluded early-return scenario in the fixture file must
+        appear in ``_EARLY_RETURN_SECTION_RUNNERS``, and every runner must have
+        a corresponding fixture entry.
+        """
+        self._require_scenarios_data()
+        fixture_active = frozenset(
+            sid
+            for sid, s in _SCENARIOS_DATA["early_return_scenarios"].items()
+            if not s.get("excluded", False)
+        )
+        assert fixture_active == frozenset(_EARLY_RETURN_SECTION_RUNNERS), (
+            f"Non-excluded early-return fixture sections do not match "
+            f"_EARLY_RETURN_SECTION_RUNNERS.\n"
+            f"  in fixture only : {sorted(fixture_active - frozenset(_EARLY_RETURN_SECTION_RUNNERS))}\n"
+            f"  in _EARLY_RETURN_SECTION_RUNNERS only: "
+            f"{sorted(frozenset(_EARLY_RETURN_SECTION_RUNNERS) - fixture_active)}"
         )
