@@ -307,6 +307,10 @@ def _build_excluded_early_return_sections(
                 f"early_return_scenarios[{section_id!r}] must be a mapping"
             )
         if scenario.get("excluded", False):
+            if "excluded_reason" not in scenario:
+                raise ValueError(
+                    f"early_return_scenarios[{section_id!r}] missing required 'excluded_reason'"
+                )
             excluded_sections[section_id] = scenario["excluded_reason"]
 
     return excluded_sections
