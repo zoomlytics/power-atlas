@@ -201,9 +201,9 @@ The following invariants hold across all postprocessing paths:
 
 9. **`malformed_diagnostics_count` non-negative integer:** `malformed_diagnostics_count` is always present and is always a non-negative integer.  It equals zero when all retrieved hits have well-formed or absent diagnostics.  Absent/`None` diagnostics are not counted — only hits whose diagnostics are structurally invalid (root not a `dict`, or sub-field type errors) are counted.
 
-10. **Telemetry does not pollute warnings:** `malformed_diagnostics_count > 0` never causes an entry to be added to `warnings` or `citation_quality["citation_warnings"]`.  The count is a telemetry signal for alerting pipelines; callers must read the integer field directly.  (See §2.6 taxonomy rule 2.)
+10. **Telemetry does not pollute warnings:** `malformed_diagnostics_count > 0` never causes an entry to be added to `warnings` or `citation_quality["citation_warnings"]`.  The count is a telemetry signal for alerting pipelines; callers must read the integer field directly.  (See §2.6 taxonomy rule 3.)
 
-11. **`debug_view` keys do not appear at the top level:** Every key in the `debug_view` bundle is nested inside that dict.  `debug_view` does not add new top-level keys beyond those documented in §2.  (See §2.6 taxonomy rule 4.)
+11. **`debug_view` keys do not appear at the top level:** Every key in the `debug_view` bundle is nested inside that dict.  `debug_view` does not add new top-level keys beyond those documented in §2.  (See §2.6 taxonomy rule 5.)
 
 ---
 
