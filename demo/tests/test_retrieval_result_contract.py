@@ -2574,15 +2574,8 @@ class TestMetadataTaxonomyBoundaries:
         It must appear in the top-level ``warnings`` list but must **not** be
         propagated to ``citation_quality["citation_warnings"]``.
         """
-        cfg = types.SimpleNamespace(
-            dry_run=False,
-            openai_model="gpt-4o-mini",
-            neo4j_uri="",
-            neo4j_username="",
-            neo4j_password="",
-            neo4j_database=None,
-        )
-        result = run_retrieval_and_qa(cfg, run_id="taxonomy-skip-1", source_uri=None, question=None)
+        helper = TestRunRetrievalAndQaEarlyReturnContract()
+        result = helper._skip_result()
         assert _SKIP_WARNING in result["warnings"], (
             f"Skip warning missing from top-level warnings; got {result['warnings']!r}"
         )
