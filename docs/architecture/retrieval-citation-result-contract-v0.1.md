@@ -191,7 +191,7 @@ Hits where `retrieval_path_diagnostics` is **absent or `None`** are **not** coun
 - Not a replacement for `citation_quality` (which is the structured citation-quality bundle for callers assessing answer quality).
 - Not a telemetry surface (`malformed_diagnostics_count` serves that role).
 
-**Mirroring convention:** Several fields in `debug_view` intentionally mirror top-level fields (e.g. `citation_repair_attempted`, `citation_repair_applied`, `citation_fallback_applied`, `raw_answer_all_cited`) and `citation_quality` fields (e.g. `all_cited`, `evidence_level`, `warning_count`, `citation_warnings`).  This mirroring exists for convenience so inspection tooling has a single consolidated view without needing to read from multiple surfaces.  `debug_view` does not carry hidden additional state beyond what is already available at the top level or in `citation_quality`.
+**Mirroring convention:** Several fields in `debug_view` intentionally mirror top-level fields (e.g. `citation_repair_attempted`, `citation_repair_applied`, `citation_fallback_applied`, `raw_answer_all_cited`, `malformed_diagnostics_count`) and `citation_quality` fields (e.g. `all_cited`, `evidence_level`, `warning_count`, `citation_warnings`).  This mirroring exists for convenience so inspection tooling has a single consolidated view without needing to read from multiple surfaces.  `debug_view` does not carry hidden additional state beyond what is already available at the top level or in `citation_quality`.
 
 ---
 
