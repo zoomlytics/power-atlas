@@ -132,7 +132,7 @@ The result dict carries four distinct metadata surfaces.  Future contributors mu
 | Empty-chunk-text warning | `citation_warnings` **and** `warnings` | Citation-quality issue — the cited chunk carried no usable text evidence (rule 1). |
 | Skip warning (`"No question provided; skipping vector retrieval."`) | `warnings` only | Operational context, not a citation-quality issue (rule 3). |
 | `malformed_diagnostics_count > 0` | telemetry integer field only | Machine-readable alerting counter, not a human-facing warning string (rule 2). |
-| `evidence_level`, `warning_count`, `citation_repair_*` | `debug_view` | Internal postprocessing state surfaced for inspection/debugging (rule 4). |
+| `evidence_level`, `warning_count`, `citation_repair_*` | `citation_quality` bundle and/or top-level fields (also mirrored in `debug_view`) | Public contract fields that are duplicated under `debug_view` for inspection/debugging (rule 4). |
 
 #### Ambiguous surface examples
 
