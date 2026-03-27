@@ -2414,8 +2414,9 @@ class TestMetadataTaxonomyBoundaries:
     """Enforce the four-surface metadata taxonomy defined in §2.6 of the contract document.
 
     The four surfaces are:
-    - ``warnings`` (top-level operational warnings list, superset)
-    - ``citation_quality`` bundle (citation-quality details, subset of ``warnings``)
+    - ``warnings`` (top-level operational warnings list; superset for all warning strings)
+    - ``citation_quality`` bundle (citation-quality details; its ``citation_warnings`` list
+      is a subset of ``warnings``)
     - ``malformed_diagnostics_count`` (telemetry counter, NOT a warning)
     - ``debug_view`` (debug-only inspection bundle, NOT a top-level API surface)
 
