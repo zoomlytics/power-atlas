@@ -2418,7 +2418,7 @@ class TestMetadataTaxonomyBoundaries:
     - ``citation_quality`` bundle (citation-quality details; its ``citation_warnings`` list
       is a subset of ``warnings``)
     - ``malformed_diagnostics_count`` (telemetry counter, NOT a warning)
-    - ``debug_view`` (debug-only inspection bundle, NOT a top-level API surface)
+    - ``debug_view`` (supported inspection-oriented surface, NOT a top-level API surface)
 
     These tests cover representative, ambiguous, and combined scenarios to prevent
     future contributors from accidentally migrating a field to the wrong surface.
@@ -2452,14 +2452,18 @@ class TestMetadataTaxonomyBoundaries:
         )
 
     def test_debug_view_keys_not_in_top_level_result(self) -> None:
-        """``debug_view`` fields must be nested inside their bundle (invariant §3.11).
+        """``debug_view`` must not introduce new top-level keys (invariant §3.11).
 
-        Some ``debug_view`` keys use internal names (e.g. ``all_cited``) that differ
-        from the public aliases at the top level (e.g. ``all_answers_cited``).  None
-        of the debug-view-only keys (i.e. keys not already present as direct top-level
-        keys) should appear at the top level of the result.  In addition, the result
-        key set must equal ``_LIVE_RESULT_REQUIRED_KEYS`` exactly — ``debug_view``
-        must not introduce new top-level keys.
+        ``debug_view`` intentionally mirrors some top-level keys — specifically
+        those that appear in both ``_DEBUG_VIEW_REQUIRED_KEYS`` and
+        ``_LIVE_RESULT_REQUIRED_KEYS`` (see §2.9 mirroring convention and
+        §3.11).  Other ``debug_view`` keys use internal names (e.g.
+        ``all_cited``) that differ from the public aliases at the top level
+        (e.g. ``all_answers_cited``) and must NOT appear at the top level.
+
+        The key invariant is that ``debug_view`` must not cause any extra keys
+        to appear at the top level of the result beyond those in
+        ``_LIVE_RESULT_REQUIRED_KEYS``.
         """
         result = _run_with_mocked_retrieval(
             answer=_CITED_ANSWER,
@@ -2468,19 +2472,29 @@ class TestMetadataTaxonomyBoundaries:
         )
         top_level_keys = set(result.keys()) - {"debug_view"}
         debug_view_keys = set(result["debug_view"].keys())
-        # Certain internal debug_view fields must never be exposed as direct
-        # top-level keys, even if their values are mirrored via public aliases.
-        # Only keys explicitly allowed to be shared by name may appear both in
-        # debug_view and at the top level; all other debug_view keys must remain
-        # nested under the debug_view bundle.
-        allowed_shared_keys: set[str] = set()
+        # Derive the set of intentionally shared keys from the intersection of the
+        # two documented key-set constants rather than hardcoding them here.  This
+        # ensures the test stays in sync automatically if either constant changes.
+        allowed_shared_keys: frozenset[str] = _DEBUG_VIEW_REQUIRED_KEYS & _LIVE_RESULT_REQUIRED_KEYS
+        # Enforce the mirroring convention: all allowed shared keys must be present
+        # both at the top level and inside debug_view.
+        assert allowed_shared_keys <= top_level_keys, (
+            "Shared keys documented by the mirroring convention must be present at "
+            f"the top level; missing={allowed_shared_keys - top_level_keys!r}"
+        )
+        assert allowed_shared_keys <= debug_view_keys, (
+            "Shared keys documented by the mirroring convention must be present in "
+            f"debug_view; missing={allowed_shared_keys - debug_view_keys!r}"
+        )
+        # debug_view-exclusive keys (those that are NOT already top-level fields)
+        # must never appear as new direct top-level keys.
         forbidden_overlap = (debug_view_keys & top_level_keys) - allowed_shared_keys
         assert not forbidden_overlap, (
-            "debug_view-only keys must not appear as direct top-level keys in the "
-            f"result dict; forbidden overlap={forbidden_overlap!r}"
+            "debug_view-exclusive keys must not appear as direct top-level keys in "
+            f"the result dict; forbidden overlap={forbidden_overlap!r}"
         )
         # The overall top-level key set must equal the documented required set —
-        # debug_view must not have caused any extra keys to appear at the top level.
+        # debug_view must not have introduced any extra top-level keys.
         assert set(result.keys()) == _LIVE_RESULT_REQUIRED_KEYS, (
             "debug_view must not introduce new top-level keys beyond the documented set; "
             f"extra={set(result.keys()) - _LIVE_RESULT_REQUIRED_KEYS!r}"

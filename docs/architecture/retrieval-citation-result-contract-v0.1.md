@@ -104,7 +104,7 @@ The result dict carries four distinct metadata surfaces.  Future contributors mu
 | **Top-level operational warnings** | `warnings` | All callers | Every actionable signal a caller might act on or display; superset of `citation_quality["citation_warnings"]`. |
 | **Citation-quality details** | `citation_quality` (bundle) | Callers assessing citation quality | Citation-specific flags, metrics, and warnings; `citation_quality["citation_warnings"]` is a subset of top-level `warnings`. |
 | **Telemetry** | `malformed_diagnostics_count` | Monitoring / alerting pipelines | Machine-readable counters for metrics; **not** warnings and **not** business-logic signals. |
-| **Debug-only inspection** | `debug_view` (bundle) | Tests, debugging tools | Consolidated postprocessing state for inspection; not a stable API surface for callers. |
+| **Supported inspection** | `debug_view` (bundle) | Diagnostics, tooling, evaluation, inspection | Supported inspection-oriented surface consolidating postprocessing state.  Suitable for diagnostics, tooling, and evaluation; not the preferred surface for ordinary application logic when a primary public field already exists. |
 
 #### Decision rules
 
@@ -124,7 +124,7 @@ The result dict carries four distinct metadata surfaces.  Future contributors mu
    - Yes → add to top-level `warnings` only (do **not** add to `citation_quality["citation_warnings"]`).
    - No → continue.
 
-5. **Is it internal state useful only for debugging / testing?**
+5. **Is it inspection-oriented state useful for diagnostics, tooling, or evaluation, but not the preferred surface for ordinary application logic when a primary public field already exists?**
    - Yes → include in `debug_view` (do **not** add a new top-level key).
    - No → add as a top-level result field.
 
@@ -177,6 +177,22 @@ Hits where `retrieval_path_diagnostics` is **absent or `None`** are **not** coun
 
 `evidence_level` reflects the state of the **repaired answer**, not the raw LLM output.  An answer that was not fully cited in `raw_answer` but was repaired to full citation by `citation_repair_applied=True` will still show `"full"` if `citation_warnings` is empty after repair.
 
+### 2.9 `debug_view` contract status
+
+`debug_view` is a **supported inspection-oriented surface**.  It is always present in **all result shapes** (postprocessed `status="live"`, `status="dry_run"`, and `retrieval_skipped` early returns), is built from the same shared typed model (`_RetrievalDebugView`) used by the interactive debug path, and its key set is enforced by contract tests.
+
+**What `debug_view` is:**
+- A consolidated view of postprocessing state, assembled from `_AnswerPostprocessResult` via `_build_retrieval_debug_view`.
+- Suitable for diagnostics, tooling, evaluation pipelines, and inspection during development.
+- Always present in all result shapes; its key set is stable and contract-tested.  For postprocessed `status="live"` results the fields carry real postprocessing data; for early-return payloads (e.g. `status="dry_run"` or `retrieval_skipped`) the same keys are present but carry default or zero values.
+
+**What `debug_view` is not:**
+- Not the preferred surface for ordinary application logic when a primary public field already exists at the top level or inside `citation_quality`.  Callers should prefer top-level fields (e.g. `citation_repair_attempted`, `citation_fallback_applied`) and `citation_quality` fields (e.g. `evidence_level`, `all_cited`) for production application logic.
+- Not a replacement for `citation_quality` (which is the structured citation-quality bundle for callers assessing answer quality).
+- Not a telemetry surface (`malformed_diagnostics_count` serves that role).
+
+**Mirroring convention:** Several fields in `debug_view` intentionally mirror top-level fields (e.g. `citation_repair_attempted`, `citation_repair_applied`, `citation_fallback_applied`, `raw_answer_all_cited`, `malformed_diagnostics_count`) and `citation_quality` fields (e.g. `all_cited`, `evidence_level`, `warning_count`, `citation_warnings`).  This mirroring exists for convenience so inspection tooling has a single consolidated view without needing to read from multiple surfaces.  `debug_view` does not carry hidden additional state beyond what is already available at the top level or in `citation_quality`.
+
 ---
 
 ## 3) Field Invariants
@@ -203,7 +219,7 @@ The following invariants hold across all postprocessing paths:
 
 10. **Telemetry does not pollute warnings:** `malformed_diagnostics_count > 0` never causes an entry to be added to `warnings` or `citation_quality["citation_warnings"]`.  The count is a telemetry signal for alerting pipelines; callers must read the integer field directly.  (See §2.6 taxonomy rule 3.)
 
-11. **`debug_view` keys do not appear at the top level:** Every key in the `debug_view` bundle is nested inside that dict.  `debug_view` does not add new top-level keys beyond those documented in §2.  (See §2.6 taxonomy rule 5.)
+11. **`debug_view` does not introduce new top-level keys:** `debug_view` intentionally mirrors some top-level keys (e.g. `citation_repair_attempted`, `citation_repair_applied`, `citation_fallback_applied`, `raw_answer_all_cited`, `malformed_diagnostics_count`); those keys are already part of the documented top-level contract and are mirrored for inspection convenience.  `debug_view`-exclusive keys (e.g. `all_cited`, `evidence_level`, `warning_count`, `citation_warnings`) must not appear as new direct top-level keys.  `debug_view` must not cause the top-level key set to grow beyond those documented in §2.  (See §2.6 taxonomy rule 5 and §2.9.)
 
 ---
 
