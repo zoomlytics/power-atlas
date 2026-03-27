@@ -2458,7 +2458,8 @@ class TestMetadataTaxonomyBoundaries:
         ``citation_repair_attempted``, ``citation_repair_applied``,
         ``citation_fallback_applied``, ``raw_answer_all_cited``,
         ``malformed_diagnostics_count``).  These shared keys are documented in
-        §2.9 of the contract.  Other ``debug_view`` keys use internal names
+        §2.9 (mirroring convention) and §3.11 (including ``malformed_diagnostics_count``)
+        of the contract.  Other ``debug_view`` keys use internal names
         (e.g. ``all_cited``) that differ from the public aliases at the top
         level (e.g. ``all_answers_cited``) and must NOT appear at the top level.
 
