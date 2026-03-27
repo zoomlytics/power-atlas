@@ -144,14 +144,38 @@ def _build_section_fixtures(
 def _build_excluded_sections(
     scenarios_data: dict[str, Any],
 ) -> dict[str, str]:
-    """Return the ``excluded_reason`` strings for excluded ``live_scenarios`` entries."""
-    return {
-        section_id: scenario["excluded_reason"]
-        for section_id, scenario in scenarios_data.get("live_scenarios", {}).items()
-        if scenario.get("excluded", False)
-    }
+    """Return the ``excluded_reason`` strings for excluded ``live_scenarios`` entries.
 
+    Raises
+    ------
+    ValueError
+        If ``live_scenarios`` is not a mapping or any scenario entry is not a
+        mapping, so that malformed fixtures surface with a clear error message
+        rather than as ``AttributeError``/``TypeError``.
+    """
+    live_scenarios = scenarios_data.get("live_scenarios", {})
+    if not isinstance(live_scenarios, dict):
+        raise ValueError(
+            "Expected 'live_scenarios' to be a mapping/dict, but got "
+            f"{type(live_scenarios).__name__!r}"
+        )
 
+    result: dict[str, str] = {}
+    for section_id, scenario in live_scenarios.items():
+        if not isinstance(scenario, dict):
+            raise ValueError(
+                "Expected each 'live_scenarios' entry to be a mapping/dict, "
+                f"but section {section_id!r} has type {type(scenario).__name__!r}"
+            )
+        if scenario.get("excluded", False):
+            if "excluded_reason" not in scenario:
+                raise ValueError(
+                    "Excluded scenario {section_id!r} is missing required "
+                    "'excluded_reason' field"
+                )
+            result[section_id] = scenario["excluded_reason"]
+
+    return result
 def _make_early_return_runner(
     section_id: str,
     scenario: dict[str, Any],
