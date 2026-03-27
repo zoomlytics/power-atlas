@@ -2467,16 +2467,18 @@ class TestMetadataTaxonomyBoundaries:
             all_runs=True,
         )
         top_level_keys = set(result.keys()) - {"debug_view"}
+        debug_view_keys = set(result["debug_view"].keys())
         # Certain internal debug_view fields must never be exposed as direct
         # top-level keys, even if their values are mirrored via public aliases.
-        # This set is derived from the debug-only metadata fields documented
-        # for the retrieval pipeline.
-        debug_only_keys = {"all_cited", "evidence_level", "warning_count", "citation_warnings"}
-        for key in debug_only_keys:
-            assert key not in top_level_keys, (
-                f"debug_view-only key {key!r} must not appear as a direct "
-                "top-level key in the result dict"
-            )
+        # Only keys explicitly allowed to be shared by name may appear both in
+        # debug_view and at the top level; all other debug_view keys must remain
+        # nested under the debug_view bundle.
+        allowed_shared_keys: set[str] = set()
+        forbidden_overlap = (debug_view_keys & top_level_keys) - allowed_shared_keys
+        assert not forbidden_overlap, (
+            "debug_view-only keys must not appear as direct top-level keys in the "
+            f"result dict; forbidden overlap={forbidden_overlap!r}"
+        )
         # The overall top-level key set must equal the documented required set —
         # debug_view must not have caused any extra keys to appear at the top level.
         assert set(result.keys()) == _LIVE_RESULT_REQUIRED_KEYS, (
