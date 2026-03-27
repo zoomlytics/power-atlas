@@ -439,6 +439,7 @@ When `config.dry_run=True`, the function returns immediately after the shared ba
 | `raw_answer_all_cited` | `False` (default) |
 | `all_answers_cited` | `False` (default) |
 | `citation_quality.evidence_level` | `"no_answer"` (default — no answer was produced) |
+| `citation_quality.raw_answer_all_cited` | `False` (default) |
 | `citation_quality.all_cited` | `False` (default) |
 | `citation_quality.warning_count` | `0` (default) |
 | `citation_quality.citation_warnings` | `[]` (default) |
@@ -520,6 +521,7 @@ When `question=None` in live mode (i.e. `config.dry_run=False`), the function sh
 | `raw_answer_all_cited` | `False` (default) |
 | `all_answers_cited` | `False` (default) |
 | `citation_quality.evidence_level` | `"no_answer"` (default) |
+| `citation_quality.raw_answer_all_cited` | `False` (default) |
 | `citation_quality.all_cited` | `False` (default) |
 | `citation_quality.warning_count` | `0` (default) |
 | `citation_quality.citation_warnings` | `[]` (no citation-quality issues) |
