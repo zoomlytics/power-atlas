@@ -217,9 +217,22 @@ def _make_early_return_runner(
                 f"Early-return scenario {section_id!r} is missing required field {required!r}"
             )
 
-    run_id: str = scenario["run_id"]
+    run_id = scenario["run_id"]
+    if not isinstance(run_id, str):
+        raise ValueError(
+            f"Early-return scenario {section_id!r}: 'run_id' must be a str, "
+            f"got {type(run_id).__name__!r}"
+        )
 
-    if scenario["dry_run"]:
+    dry_run = scenario["dry_run"]
+    if not isinstance(dry_run, bool):
+        raise ValueError(
+            f"Early-return scenario {section_id!r}: 'dry_run' must be a bool, "
+            f"got {type(dry_run).__name__!r} (value={dry_run!r}); "
+            "use YAML bare true/false, not quoted strings"
+        )
+
+    if dry_run:
         def _dry_run_runner() -> dict[str, Any]:
             return run_retrieval_and_qa(_DRY_RUN_CONFIG, run_id=run_id, source_uri=None)
 
