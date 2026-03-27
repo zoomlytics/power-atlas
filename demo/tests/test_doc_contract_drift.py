@@ -89,8 +89,15 @@ def _load_contract_scenarios() -> dict[str, Any]:
     ------
     FileNotFoundError
         If the fixture file does not exist at ``_FIXTURE_PATH``.
+    ValueError
+        If the parsed YAML content is not a mapping/dict.
     """
-    return yaml.safe_load(_FIXTURE_PATH.read_text(encoding="utf-8"))
+    data = yaml.safe_load(_FIXTURE_PATH.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise ValueError(
+            f"Expected a mapping at {_FIXTURE_PATH}, but got {type(data).__name__!r}"
+        )
+    return data
 
 
 def _build_section_fixtures(
@@ -103,7 +110,7 @@ def _build_section_fixtures(
     fields are forwarded verbatim to ``_run_with_mocked_retrieval``.
     """
     result: dict[str, dict[str, Any]] = {}
-    for section_id, scenario in scenarios_data["live_scenarios"].items():
+    for section_id, scenario in scenarios_data.get("live_scenarios", {}).items():
         if scenario.get("excluded", False):
             continue
         params: dict[str, Any] = {
@@ -123,7 +130,7 @@ def _build_excluded_sections(
     """Return the ``excluded_reason`` strings for excluded ``live_scenarios`` entries."""
     return {
         section_id: scenario["excluded_reason"]
-        for section_id, scenario in scenarios_data["live_scenarios"].items()
+        for section_id, scenario in scenarios_data.get("live_scenarios", {}).items()
         if scenario.get("excluded", False)
     }
 
@@ -190,7 +197,7 @@ def _build_early_return_runners(
     """
     return {
         section_id: _make_early_return_runner(scenario)
-        for section_id, scenario in scenarios_data["early_return_scenarios"].items()
+        for section_id, scenario in scenarios_data.get("early_return_scenarios", {}).items()
         if not scenario.get("excluded", False)
     }
 
@@ -201,14 +208,23 @@ def _build_excluded_early_return_sections(
     """Return excluded_reason strings for excluded ``early_return_scenarios`` entries."""
     return {
         section_id: scenario["excluded_reason"]
-        for section_id, scenario in scenarios_data["early_return_scenarios"].items()
+        for section_id, scenario in scenarios_data.get("early_return_scenarios", {}).items()
         if scenario.get("excluded", False)
     }
 
 
 # Load the fixture file once at import time so the resulting dicts can be used
-# in parametrize decorators (which are evaluated at collection time).
-_SCENARIOS_DATA: dict[str, Any] = _load_contract_scenarios()
+# in parametrize decorators (which are evaluated at collection time).  If the
+# file is missing or malformed the load is silenced here so that test collection
+# still succeeds; TestContractFixtureIntegrity.test_fixture_file_exists /
+# test_fixture_file_is_loadable will then fail with a clear, actionable message
+# rather than an opaque import-time traceback.
+try:
+    _SCENARIOS_DATA: dict[str, Any] = _load_contract_scenarios()
+    _SCENARIOS_DATA_ERROR: Exception | None = None
+except (FileNotFoundError, ValueError, yaml.YAMLError) as exc:  # pragma: no cover - exercised indirectly via integrity tests
+    _SCENARIOS_DATA = {}
+    _SCENARIOS_DATA_ERROR = exc
 
 # ---------------------------------------------------------------------------
 # Doc parsing
@@ -822,6 +838,18 @@ class TestContractFixtureIntegrity:
     discrepancy visible before any drift tests run.
     """
 
+    def _require_scenarios_data(self) -> None:
+        """Fail with a clear message if the fixture file could not be loaded.
+
+        Call at the start of any test that accesses ``_SCENARIOS_DATA``.
+        """
+        if _SCENARIOS_DATA_ERROR is not None:
+            pytest.fail(
+                f"Fixture file at {_FIXTURE_PATH} could not be loaded; "
+                f"fix the file before running these tests.\n"
+                f"  Error: {_SCENARIOS_DATA_ERROR}"
+            )
+
     def test_fixture_file_exists(self) -> None:
         """The canonical fixture YAML file must exist at ``_FIXTURE_PATH``."""
         assert _FIXTURE_PATH.exists(), (
@@ -830,7 +858,12 @@ class TestContractFixtureIntegrity:
         )
 
     def test_fixture_file_is_loadable(self) -> None:
-        """The fixture file must parse without errors."""
+        """The fixture file must parse without errors and produce a mapping.
+
+        Also surfaces any import-time load error so the failure message is
+        actionable even when this test runs first in the session.
+        """
+        self._require_scenarios_data()
         data = _load_contract_scenarios()
         assert "live_scenarios" in data, "Fixture file must have a 'live_scenarios' key"
         assert "early_return_scenarios" in data, (
@@ -845,6 +878,7 @@ class TestContractFixtureIntegrity:
         Fails if the runtime test constant and the fixture file drift apart,
         ensuring that both sources drive the same scenarios.
         """
+        self._require_scenarios_data()
         fixture_cited = _SCENARIOS_DATA["shared"]["cited_answer"]
         assert fixture_cited == _CITED_ANSWER, (
             f"Fixture shared.cited_answer does not match _CITED_ANSWER.\n"
@@ -854,6 +888,7 @@ class TestContractFixtureIntegrity:
 
     def test_fixture_uncited_answer_matches_test_constant(self) -> None:
         """``shared.uncited_answer`` in the fixture must equal ``_UNCITED_ANSWER``."""
+        self._require_scenarios_data()
         fixture_uncited = _SCENARIOS_DATA["shared"]["uncited_answer"]
         assert fixture_uncited == _UNCITED_ANSWER, (
             f"Fixture shared.uncited_answer does not match _UNCITED_ANSWER.\n"
@@ -863,6 +898,7 @@ class TestContractFixtureIntegrity:
 
     def test_fixture_live_item_metadata_matches_test_constant(self) -> None:
         """``shared.live_item_metadata`` in the fixture must equal ``_LIVE_ITEM_METADATA``."""
+        self._require_scenarios_data()
         fixture_meta = _SCENARIOS_DATA["shared"]["live_item_metadata"]
         assert fixture_meta == _LIVE_ITEM_METADATA, (
             f"Fixture shared.live_item_metadata does not match _LIVE_ITEM_METADATA.\n"
@@ -872,6 +908,7 @@ class TestContractFixtureIntegrity:
 
     def test_fixture_empty_chunk_metadata_matches_test_constant(self) -> None:
         """``shared.empty_chunk_metadata`` in the fixture must equal ``_EMPTY_CHUNK_METADATA``."""
+        self._require_scenarios_data()
         fixture_meta = _SCENARIOS_DATA["shared"]["empty_chunk_metadata"]
         assert fixture_meta == _EMPTY_CHUNK_METADATA, (
             f"Fixture shared.empty_chunk_metadata does not match _EMPTY_CHUNK_METADATA.\n"
@@ -884,6 +921,7 @@ class TestContractFixtureIntegrity:
         ``_SECTION_FIXTURES``, and every entry in ``_SECTION_FIXTURES`` must
         correspond to a non-excluded live scenario in the fixture file.
         """
+        self._require_scenarios_data()
         fixture_active = frozenset(
             sid
             for sid, s in _SCENARIOS_DATA["live_scenarios"].items()
@@ -900,6 +938,7 @@ class TestContractFixtureIntegrity:
         appear in ``_EARLY_RETURN_SECTION_RUNNERS``, and every runner must have
         a corresponding fixture entry.
         """
+        self._require_scenarios_data()
         fixture_active = frozenset(
             sid
             for sid, s in _SCENARIOS_DATA["early_return_scenarios"].items()

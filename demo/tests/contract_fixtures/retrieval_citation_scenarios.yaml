@@ -34,6 +34,14 @@ shared:
     [CITATION|chunk_id=c1|run_id=r1|source_uri=file%3A%2F%2F%2Fdoc.pdf|chunk_index=0|page=1|start_char=0|end_char=50]
 
   # A fully cited single-sentence answer using the canonical citation token.
+  # NOTE: The citation token is intentionally repeated in full here rather than
+  #       referencing ``*token`` via an alias, because YAML cannot splice an
+  #       aliased scalar into the middle of a larger string value.
+  #       If you update ``shared.citation_token``, you MUST also update the
+  #       token embedded in ``shared.cited_answer`` to keep this fixture
+  #       internally consistent.  The ``TestContractFixtureIntegrity`` test
+  #       ``test_fixture_cited_answer_matches_test_constant`` will catch any
+  #       drift between this value and the ``_CITED_ANSWER`` Python constant.
   cited_answer: &cited_answer >-
     This claim is well-supported. [CITATION|chunk_id=c1|run_id=r1|source_uri=file%3A%2F%2F%2Fdoc.pdf|chunk_index=0|page=1|start_char=0|end_char=50]
 

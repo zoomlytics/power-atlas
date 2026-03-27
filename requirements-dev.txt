@@ -4,3 +4,4 @@ pytest-cov
 ruff
 mypy
 types-python-dateutil
+pyyaml>=6.0
