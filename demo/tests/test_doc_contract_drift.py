@@ -76,9 +76,10 @@ _CONTRACT_DOC_PATH: Path = (
 # Canonical fixture file
 # ---------------------------------------------------------------------------
 
-#: Path to the machine-readable canonical scenario fixture file.  This is the
-#: single source of truth for scenario inputs used by both the doc-vs-runtime
-#: drift checks in this module and the runtime contract tests.
+#: Path to the machine-readable canonical scenario fixture file used by the
+#: doc-vs-runtime drift checks in this module. The runtime contract tests in
+#: ``test_retrieval_result_contract.py`` mirror these scenarios via Python
+#: constants and integrity checks rather than loading this YAML directly.
 _FIXTURE_PATH: Path = Path(__file__).parent / "contract_fixtures" / "retrieval_citation_scenarios.yaml"
 
 
@@ -108,11 +109,27 @@ def _build_section_fixtures(
     Only non-excluded ``live_scenarios`` entries are included.  Each entry's
     ``answer``, ``items_metadata``, ``all_runs``, and (optionally) ``run_id``
     fields are forwarded verbatim to ``_run_with_mocked_retrieval``.
+
+    Raises
+    ------
+    ValueError
+        If a non-excluded scenario is missing a required field so that the
+        error is caught by the import-time try/except and surfaces via the
+        integrity tests rather than as a raw ``KeyError``.
     """
     result: dict[str, dict[str, Any]] = {}
     for section_id, scenario in scenarios_data.get("live_scenarios", {}).items():
+        if not isinstance(scenario, dict):
+            raise ValueError(
+                f"Live scenario {section_id!r} is not a mapping (got {type(scenario).__name__!r})"
+            )
         if scenario.get("excluded", False):
             continue
+        for required in ("answer", "items_metadata", "all_runs"):
+            if required not in scenario:
+                raise ValueError(
+                    f"Live scenario {section_id!r} is missing required field {required!r}"
+                )
         params: dict[str, Any] = {
             "answer": scenario["answer"],
             "items_metadata": scenario["items_metadata"],
@@ -136,12 +153,15 @@ def _build_excluded_sections(
 
 
 def _make_early_return_runner(
+    section_id: str,
     scenario: dict[str, Any],
 ) -> Callable[[], dict[str, Any]]:
     """Build a zero-argument callable that executes the early-return scenario.
 
     Parameters
     ----------
+    section_id:
+        The section key (e.g. ``"5.1"``) used in error messages.
     scenario:
         A single ``early_return_scenarios`` entry from the fixture file.
         Must contain ``run_id`` (str) and ``dry_run`` (bool).  For non-dry-run
@@ -154,7 +174,25 @@ def _make_early_return_runner(
     Callable
         A zero-argument function that calls ``run_retrieval_and_qa()`` with
         the appropriate config and returns the result dict.
+
+    Raises
+    ------
+    ValueError
+        If ``scenario`` is not a mapping, or if a required field
+        (``run_id``, ``dry_run``, or ``question`` for non-dry-run scenarios)
+        is missing so the error is meaningful.
     """
+    if not isinstance(scenario, dict):
+        raise ValueError(
+            f"Early-return scenario {section_id!r} is not a mapping "
+            f"(got {type(scenario).__name__!r})"
+        )
+    for required in ("run_id", "dry_run"):
+        if required not in scenario:
+            raise ValueError(
+                f"Early-return scenario {section_id!r} is missing required field {required!r}"
+            )
+
     run_id: str = scenario["run_id"]
 
     if scenario["dry_run"]:
@@ -165,9 +203,14 @@ def _make_early_return_runner(
 
     # Retrieval-skipped path: live config with empty Neo4j credentials and
     # question=None so the function short-circuits before opening a driver.
-    # Use scenario["question"] (not .get()) to require explicit null in the
-    # fixture; a missing key will raise KeyError rather than silently becoming
-    # None and triggering an unintended early return.
+    # Require explicit null in the fixture; a missing key raises ValueError
+    # with context rather than silently becoming None and triggering an
+    # unintended early return.
+    if "question" not in scenario:
+        raise ValueError(
+            f"Early-return scenario {section_id!r} is non-dry-run but missing "
+            f"required field 'question' (set to null to trigger the skipped path)"
+        )
     question: str | None = scenario["question"]
 
     def _skip_runner() -> dict[str, Any]:
@@ -196,7 +239,7 @@ def _build_early_return_runners(
     Only non-excluded ``early_return_scenarios`` entries are included.
     """
     return {
-        section_id: _make_early_return_runner(scenario)
+        section_id: _make_early_return_runner(section_id, scenario)
         for section_id, scenario in scenarios_data.get("early_return_scenarios", {}).items()
         if not scenario.get("excluded", False)
     }
@@ -225,6 +268,16 @@ try:
 except (FileNotFoundError, ValueError, yaml.YAMLError) as exc:  # pragma: no cover - exercised indirectly via integrity tests
     _SCENARIOS_DATA = {}
     _SCENARIOS_DATA_ERROR = exc
+
+# If the fixture file failed to load, skip all drift tests in this module so
+# that the first reported issue points directly at the YAML/fixture problem
+# rather than secondary drift failures caused by empty scenario data.
+if _SCENARIOS_DATA_ERROR is not None:  # pragma: no cover - behavior validated via higher-level tests
+    pytest.skip(
+        f"Skipping doc contract drift tests because scenarios fixture failed to load: "
+        f"{_SCENARIOS_DATA_ERROR}",
+        allow_module_level=True,
+    )
 
 # ---------------------------------------------------------------------------
 # Doc parsing

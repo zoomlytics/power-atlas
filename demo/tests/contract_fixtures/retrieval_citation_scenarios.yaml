@@ -1,9 +1,12 @@
 # Canonical contract scenario fixtures for the retrieval/citation result contract.
 #
 # This file is the machine-readable single source of truth for the scenario
-# inputs used by doc-vs-runtime drift checks and runtime contract tests.
+# inputs used by the doc-vs-runtime drift checks. Runtime contract tests
+# continue to use Python fixtures/constants directly, but those constants are
+# validated against the values in this YAML via integrity tests (see
+# TestContractFixtureIntegrity).
 #
-# Files that consume this fixture:
+# Primary consumer of this fixture:
 #   - demo/tests/test_doc_contract_drift.py  (loads _SECTION_FIXTURES and
 #     _EARLY_RETURN_SECTION_RUNNERS from here instead of inline Python dicts)
 #
