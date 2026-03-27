@@ -193,6 +193,23 @@ Hits where `retrieval_path_diagnostics` is **absent or `None`** are **not** coun
 
 **Mirroring convention:** Several fields in `debug_view` intentionally mirror top-level fields (e.g. `citation_repair_attempted`, `citation_repair_applied`, `citation_fallback_applied`, `raw_answer_all_cited`, `malformed_diagnostics_count`) and `citation_quality` fields (e.g. `all_cited`, `evidence_level`, `warning_count`, `citation_warnings`).  This mirroring exists for convenience so inspection tooling has a single consolidated view without needing to read from multiple surfaces.  `debug_view` does not carry hidden additional state beyond what is already available at the top level or in `citation_quality`.
 
+**Field classification table:**
+
+| `debug_view` field | Classification | Mirrors | Naming note |
+|---|---|---|---|
+| `raw_answer_all_cited` | Mirrored | top-level `raw_answer_all_cited` | Same name at both levels |
+| `citation_repair_attempted` | Mirrored | top-level `citation_repair_attempted` | Same name at both levels |
+| `citation_repair_applied` | Mirrored | top-level `citation_repair_applied` | Same name at both levels |
+| `citation_fallback_applied` | Mirrored | top-level `citation_fallback_applied` | Same name at both levels |
+| `malformed_diagnostics_count` | Mirrored | top-level `malformed_diagnostics_count` | Same name at both levels |
+| `all_cited` | Inspection-only | `citation_quality["all_cited"]` and top-level `all_answers_cited` | **Name differs**: top-level public alias is `all_answers_cited`; internal/inspection name is `all_cited`.  `all_cited` must NOT appear as a direct top-level key. |
+| `evidence_level` | Inspection-only | `citation_quality["evidence_level"]` | Not a direct top-level key; access via `citation_quality` for production logic |
+| `warning_count` | Inspection-only | `citation_quality["warning_count"]` | Not a direct top-level key; access via `citation_quality` for production logic |
+| `citation_warnings` | Inspection-only | `citation_quality["citation_warnings"]` | Not a direct top-level key; access via `citation_quality` for production logic |
+
+"Mirrored" fields appear under the **same name** at both the top level and inside `debug_view`.
+"Inspection-only" fields exist **only inside `debug_view`** (or inside `citation_quality`); they must not appear as new direct top-level keys.  This boundary is enforced by contract tests (§3.11).
+
 ---
 
 ## 3) Field Invariants

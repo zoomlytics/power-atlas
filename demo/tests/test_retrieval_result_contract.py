@@ -119,12 +119,17 @@ Structure
     - Telemetry (`malformed_diagnostics_count > 0`) does **not** add entries to
       ``warnings`` or ``citation_quality["citation_warnings"]`` (§3.10).
     - ``debug_view`` keys are isolated inside their nested dict and do not appear
-      at the top level of the result (§3.11).
+      at the top level of the result (§3.11) — tested for the live path,
+      and parametrized across both early-return paths (dry_run and retrieval_skipped).
     - Combined scenario: empty-chunk warning + uncited-answer warning both appear
       in ``warnings`` **and** ``citation_quality["citation_warnings"]`` (ambiguous
       multi-surface case — both warnings are citation-quality issues per rule 1).
     - ``debug_view`` mirrors the same postprocessing state as the public surface
-      (no additional hidden state; it is a convenience view, not extra data).
+      (no additional hidden state; it is a convenience view, not extra data) —
+      tested for a single scenario and parametrized across all six documented live scenarios.
+    - ``all_answers_cited`` is the public top-level alias; ``all_cited`` is the
+      inspection-only name used inside ``debug_view`` (and ``citation_quality``) —
+      the name distinction and non-leakage invariant are explicitly tested (§2.9 table).
     - Operational warnings (non-citation-quality) appear only in ``warnings``,
       not in ``citation_quality["citation_warnings"]`` (skip warning example).
 """
@@ -2484,7 +2489,15 @@ class TestMetadataTaxonomyBoundaries:
 
     These tests cover representative, ambiguous, and combined scenarios to prevent
     future contributors from accidentally migrating a field to the wrong surface.
-    See §2.6, §3.10, and §3.11 of the canonical contract document.
+    See §2.6, §3.10, §3.11, and §2.9 of the canonical contract document.
+
+    In addition to the four-surface taxonomy, this class enforces the ``debug_view``
+    field-level mirroring rules from §2.9:
+    - Mirrored fields (same name at top-level and in ``debug_view``) carry identical values.
+    - Inspection-only fields (``all_cited``, ``evidence_level``, ``warning_count``,
+      ``citation_warnings``) must not appear as direct top-level keys on any result shape.
+    - The ``all_answers_cited`` / ``all_cited`` name distinction is explicitly tested:
+      ``all_answers_cited`` is the public alias; ``all_cited`` is the inspection-only name.
     """
 
     def test_malformed_diagnostics_count_nonzero_does_not_add_to_warnings(self) -> None:
@@ -2643,6 +2656,169 @@ class TestMetadataTaxonomyBoundaries:
         )
         assert dv["malformed_diagnostics_count"] == result["malformed_diagnostics_count"], (
             "debug_view.malformed_diagnostics_count must mirror top-level field"
+        )
+
+    def test_all_answers_cited_is_public_alias_all_cited_is_inspection_only(self) -> None:
+        """``all_answers_cited`` is the public top-level alias; ``all_cited`` is the
+        inspection-only name used inside ``debug_view`` (and ``citation_quality``).
+
+        The naming distinction is deliberate (§2.9 field classification table):
+        - ``all_answers_cited`` is the public key at the top level.
+        - ``all_cited`` is the internal/inspection name and must NOT appear as a
+          direct top-level key.
+        - ``debug_view["all_cited"]`` and ``result["all_answers_cited"]`` mirror the
+          same value under different names.
+
+        This test exercises both a True and a False case to confirm the mirror holds
+        regardless of the specific citation outcome.
+        """
+        # Fully cited — all_answers_cited=True, debug_view.all_cited=True
+        result_cited = _run_with_mocked_retrieval(
+            answer=_CITED_ANSWER,
+            items_metadata=[_LIVE_ITEM_METADATA],
+            all_runs=True,
+        )
+        assert "all_answers_cited" in result_cited, (
+            "all_answers_cited must be present at the top level"
+        )
+        assert "all_cited" not in result_cited, (
+            "all_cited must NOT appear as a direct top-level key (it is inspection-only)"
+        )
+        assert result_cited["debug_view"]["all_cited"] == result_cited["all_answers_cited"], (
+            "debug_view.all_cited must mirror top-level all_answers_cited (True case)"
+        )
+        assert result_cited["all_answers_cited"] is True
+
+        # Uncited — all_answers_cited=False (repair applied but still uncited impossible in
+        # one-hit all-runs: repair makes it cited; use run-scoped so repair doesn't run)
+        result_uncited = _run_with_mocked_retrieval(
+            answer=_UNCITED_ANSWER,
+            items_metadata=[_LIVE_ITEM_METADATA],
+            all_runs=False,
+            run_id="r1",
+        )
+        assert "all_answers_cited" in result_uncited, (
+            "all_answers_cited must be present at the top level (uncited case)"
+        )
+        assert "all_cited" not in result_uncited, (
+            "all_cited must NOT appear as a direct top-level key (uncited case)"
+        )
+        assert result_uncited["debug_view"]["all_cited"] == result_uncited["all_answers_cited"], (
+            "debug_view.all_cited must mirror top-level all_answers_cited (False case)"
+        )
+        assert result_uncited["all_answers_cited"] is False
+
+    @pytest.mark.parametrize(
+        "scenario,answer,items_metadata,all_runs,run_id",
+        [
+            ("fully_cited", _CITED_ANSWER, [_LIVE_ITEM_METADATA], True, None),
+            ("repair_applied", _UNCITED_ANSWER, [_LIVE_ITEM_METADATA], True, None),
+            ("fallback_run_scoped", _UNCITED_ANSWER, [_LIVE_ITEM_METADATA], False, "r1"),
+            ("no_answer", "", [], True, None),
+            ("empty_chunk_warning", _CITED_ANSWER, [_EMPTY_CHUNK_METADATA], True, None),
+            ("repair_attempted_no_token", _UNCITED_ANSWER, [_HIT_METADATA_NO_TOKEN], True, None),
+        ],
+        ids=[
+            "fully_cited", "repair_applied", "fallback_run_scoped",
+            "no_answer", "empty_chunk_warning", "repair_attempted_no_token",
+        ],
+    )
+    def test_debug_view_mirrors_values_consistent_across_live_scenarios(
+        self,
+        scenario: str,
+        answer: str,
+        items_metadata: list,
+        all_runs: bool,
+        run_id: str | None,
+    ) -> None:
+        """For every documented live scenario, ``debug_view`` values must be consistent
+        with their corresponding top-level and ``citation_quality`` counterparts.
+
+        Verifies all nine mirroring relationships in §2.9 across the full scenario
+        matrix so that no individual scenario can silently drift.
+        """
+        result = _run_with_mocked_retrieval(
+            answer=answer,
+            items_metadata=items_metadata,
+            all_runs=all_runs,
+            run_id=run_id,
+        )
+        dv = result["debug_view"]
+        cq = result["citation_quality"]
+        # Mirrored fields (same name, same value at both levels)
+        assert dv["raw_answer_all_cited"] == result["raw_answer_all_cited"], (
+            f"[{scenario}] debug_view.raw_answer_all_cited must mirror top-level field"
+        )
+        assert dv["citation_repair_attempted"] == result["citation_repair_attempted"], (
+            f"[{scenario}] debug_view.citation_repair_attempted must mirror top-level field"
+        )
+        assert dv["citation_repair_applied"] == result["citation_repair_applied"], (
+            f"[{scenario}] debug_view.citation_repair_applied must mirror top-level field"
+        )
+        assert dv["citation_fallback_applied"] == result["citation_fallback_applied"], (
+            f"[{scenario}] debug_view.citation_fallback_applied must mirror top-level field"
+        )
+        assert dv["malformed_diagnostics_count"] == result["malformed_diagnostics_count"], (
+            f"[{scenario}] debug_view.malformed_diagnostics_count must mirror top-level field"
+        )
+        # Inspection-only fields (debug_view name vs public alias)
+        assert dv["all_cited"] == result["all_answers_cited"], (
+            f"[{scenario}] debug_view.all_cited must mirror top-level all_answers_cited"
+        )
+        # Inspection-only fields mirroring citation_quality
+        assert dv["evidence_level"] == cq["evidence_level"], (
+            f"[{scenario}] debug_view.evidence_level must mirror citation_quality.evidence_level"
+        )
+        assert dv["warning_count"] == cq["warning_count"], (
+            f"[{scenario}] debug_view.warning_count must mirror citation_quality.warning_count"
+        )
+        assert dv["citation_warnings"] == cq["citation_warnings"], (
+            f"[{scenario}] debug_view.citation_warnings must mirror citation_quality.citation_warnings"
+        )
+
+    @pytest.mark.parametrize(
+        "path_label,required_keys",
+        [
+            ("dry_run", _DRY_RUN_RESULT_REQUIRED_KEYS),
+            ("retrieval_skipped", _RETRIEVAL_SKIPPED_RESULT_REQUIRED_KEYS),
+        ],
+        ids=["dry_run", "retrieval_skipped"],
+    )
+    def test_debug_view_exclusive_keys_not_in_top_level_for_early_return_paths(
+        self,
+        path_label: str,
+        required_keys: frozenset,
+    ) -> None:
+        """``debug_view``-exclusive keys must not appear as direct top-level keys
+        for early-return paths (dry_run and retrieval_skipped), mirroring the
+        invariant already enforced for the live path (§3.11).
+
+        The same mirroring convention applies across all result shapes: keys that
+        are inspection-only in ``debug_view`` (e.g. ``all_cited``, ``evidence_level``,
+        ``warning_count``, ``citation_warnings``) must never leak to the top level.
+        """
+        helper = TestRunRetrievalAndQaEarlyReturnContract()
+        result = (
+            helper._dry_run_result()
+            if path_label == "dry_run"
+            else helper._skip_result()
+        )
+        top_level_keys = set(result.keys()) - {"debug_view"}
+        debug_view_keys = set(result["debug_view"].keys())
+        # Mirrored top-level keys: debug_view fields that legitimately appear at both
+        # the top level and inside debug_view (the intentional mirroring convention, §2.9).
+        mirrored_top_level_keys: frozenset[str] = _DEBUG_VIEW_REQUIRED_KEYS & required_keys
+        # Forbidden overlap: debug_view-exclusive keys appearing at the top level
+        forbidden_overlap = (debug_view_keys & top_level_keys) - mirrored_top_level_keys
+        assert not forbidden_overlap, (
+            f"[{path_label}] debug_view-exclusive keys must not appear as direct top-level keys; "
+            f"forbidden overlap={forbidden_overlap!r}"
+        )
+        # The top-level key set must equal the documented required set for this path
+        assert set(result.keys()) == required_keys, (
+            f"[{path_label}] debug_view must not introduce new top-level keys beyond the "
+            f"documented set; extra={set(result.keys()) - required_keys!r}, "
+            f"missing={required_keys - set(result.keys())!r}"
         )
 
     def test_operational_skip_warning_in_warnings_not_citation_warnings(self) -> None:
