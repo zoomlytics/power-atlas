@@ -2569,7 +2569,7 @@ class TestMetadataTaxonomyBoundaries:
     def test_operational_skip_warning_in_warnings_not_citation_warnings(self) -> None:
         """Operational (non-citation-quality) warning must appear only in ``warnings``.
 
-        The retrieval-skipped warning is an operational signal (§2.6 taxonomy rule 3):
+        The retrieval-skipped warning is an operational signal (§2.6 taxonomy rule 4):
         it indicates that no retrieval ran, which is not a citation-quality problem.
         It must appear in the top-level ``warnings`` list but must **not** be
         propagated to ``citation_quality["citation_warnings"]``.

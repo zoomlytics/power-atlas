@@ -108,19 +108,23 @@ The result dict carries four distinct metadata surfaces.  Future contributors mu
 
 #### Decision rules
 
-1. **Does the signal reflect a citation-quality problem** (the evidence for an answer is absent or unreliable)?
+1. **Does the signal reflect a citation-quality problem** (the evidence for an answer is absent or unreliable) *and* is it expressed as a human-readable warning string?
    - Yes → add to `citation_quality["citation_warnings"]` **and** propagate to top-level `warnings` (invariant §3.7).
    - No → continue.
 
-2. **Is it a machine-readable counter for alerting** (not a human-facing warning string)?
+2. **Is it a citation-quality flag or metric** (not a warning string, but a structured value about citation quality — e.g. `evidence_level`, `warning_count`, `all_cited`)?
+   - Yes → place under the `citation_quality` bundle.  Mirror in `debug_view` if inspection tooling needs it.  Do **not** add a new top-level key unless it belongs to the documented postprocessing contract (see §2.2–§2.3).
+   - No → continue.
+
+3. **Is it a machine-readable counter for alerting** (not a human-facing warning string)?
    - Yes → expose as a dedicated integer field in the result (e.g. `malformed_diagnostics_count`).  Do **not** add a string entry to `warnings`.
    - No → continue.
 
-3. **Is it operational context a caller may want to act on or display** (but not a citation-quality issue)?
+4. **Is it operational context a caller may want to act on or display** (but not a citation-quality issue)?
    - Yes → add to top-level `warnings` only (do **not** add to `citation_quality["citation_warnings"]`).
    - No → continue.
 
-4. **Is it internal state useful only for debugging / testing?**
+5. **Is it internal state useful only for debugging / testing?**
    - Yes → include in `debug_view` (do **not** add a new top-level key).
    - No → add as a top-level result field.
 
@@ -128,19 +132,21 @@ The result dict carries four distinct metadata surfaces.  Future contributors mu
 
 | Signal | Surface | Rationale |
 |---|---|---|
-| Uncited-answer warning | `citation_warnings` **and** `warnings` | Citation-quality issue (rule 1). |
+| Uncited-answer warning | `citation_warnings` **and** `warnings` | Citation-quality issue expressed as a warning string (rule 1). |
 | Empty-chunk-text warning | `citation_warnings` **and** `warnings` | Citation-quality issue — the cited chunk carried no usable text evidence (rule 1). |
-| Skip warning (`"No question provided; skipping vector retrieval."`) | `warnings` only | Operational context, not a citation-quality issue (rule 3). |
-| `malformed_diagnostics_count > 0` | telemetry integer field only | Machine-readable alerting counter, not a human-facing warning string (rule 2). |
-| `evidence_level`, `warning_count`, `citation_repair_*` | `citation_quality` bundle and/or top-level fields (also mirrored in `debug_view`) | Public contract fields that are duplicated under `debug_view` for inspection/debugging (rule 4). |
+| `evidence_level`, `warning_count`, `all_cited` | `citation_quality` bundle (also mirrored in `debug_view`) | Citation-quality metrics/flags, not warning strings (rule 2). |
+| Skip warning (`"No question provided; skipping vector retrieval."`) | `warnings` only | Operational context, not a citation-quality issue (rule 4). |
+| `malformed_diagnostics_count > 0` | telemetry integer field only | Machine-readable alerting counter, not a human-facing warning string (rule 3). |
+| `citation_repair_attempted`, `citation_repair_applied` | top-level fields (also mirrored in `debug_view`) | Documented postprocessing contract fields; mirrored in `debug_view` for inspection (rule 5 not reached). |
 
 #### Ambiguous surface examples
 
-Some signals touch multiple surfaces — the rule above always resolves the ambiguity:
+Some signals touch multiple surfaces — the rules above always resolve the ambiguity:
 
 - **Empty-chunk-text warning** is both a citation-quality issue *and* an operational warning.  Rule 1 applies: add to `citation_warnings` and propagate to `warnings`.  The fact that it also appears in `warnings` does not make it a "telemetry" or "debug" field.
-- **`malformed_diagnostics_count`** measures a structural anomaly in retrieved data, which *could* be treated as a warning.  Rule 2 applies: it is a machine-readable counter for alerting pipelines.  Adding a string to `warnings` for each malformed hit would pollute the human-facing surface; callers that need this signal should read the integer counter directly.
-- **`citation_repair_attempted`** is primarily a top-level postprocessing field (documented in §2.2) that does not directly affect the quality of the delivered answer.  It is also mirrored in `debug_view` as part of the consolidated inspection surface.  Rule 4 applies to choosing whether to add new fields as additional top-level keys; it does not require removing fields that are already part of the documented top-level contract.  `debug_view` mirrors existing top-level and `citation_quality` data for convenience — it does not carry hidden additional state.
+- **`malformed_diagnostics_count`** measures a structural anomaly in retrieved data, which *could* be treated as a warning.  Rule 3 applies: it is a machine-readable counter for alerting pipelines.  Adding a string to `warnings` for each malformed hit would pollute the human-facing surface; callers that need this signal should read the integer counter directly.
+- **`evidence_level`** is a citation-quality signal, but it is a structured flag, not a warning string.  Rule 2 applies: it belongs in the `citation_quality` bundle, not in `citation_warnings` and not at the top level.
+- **`citation_repair_attempted`** is primarily a top-level postprocessing field (documented in §2.2) that does not directly affect the quality of the delivered answer.  It is also mirrored in `debug_view` as part of the consolidated inspection surface.  Rule 5 applies to choosing whether to add new fields as additional top-level keys; it does not require removing fields that are already part of the documented top-level contract.  `debug_view` mirrors existing top-level and `citation_quality` data for convenience — it does not carry hidden additional state.
 
 ### 2.7 Malformed-diagnostics telemetry
 
