@@ -95,6 +95,53 @@ Two answer variants are produced internally by `_postprocess_answer`:
 
 `citation_warnings` (inside `citation_quality`) contains **only citation-quality-related** warnings.  Callers that want to assess citation quality specifically should use `citation_quality["citation_warnings"]`; callers that want all warnings should use the top-level `warnings` list.
 
+### 2.6 Metadata surface taxonomy
+
+The result dict carries four distinct metadata surfaces.  Future contributors must decide which surface to use when adding a new field.  The decision rules below are the canonical guide.
+
+| Surface | Key(s) | Audience | Purpose |
+|---|---|---|---|
+| **Top-level operational warnings** | `warnings` | All callers | Every actionable signal a caller might act on or display; superset of `citation_warnings`. |
+| **Citation-quality details** | `citation_quality` (bundle) | Callers assessing citation quality | Citation-specific flags and warnings only; subset of `warnings`. |
+| **Telemetry** | `malformed_diagnostics_count` | Monitoring / alerting pipelines | Machine-readable counters for metrics; **not** warnings and **not** business-logic signals. |
+| **Debug-only inspection** | `debug_view` (bundle) | Tests, debugging tools | Consolidated postprocessing state for inspection; not a stable API surface for callers. |
+
+#### Decision rules
+
+1. **Does the signal reflect a citation-quality problem** (the evidence for an answer is absent or unreliable)?
+   - Yes → add to `citation_quality["citation_warnings"]` **and** propagate to top-level `warnings` (invariant §3.7).
+   - No → continue.
+
+2. **Is it a machine-readable counter for alerting** (not a human-facing warning string)?
+   - Yes → expose as a dedicated integer field in the result (e.g. `malformed_diagnostics_count`).  Do **not** add a string entry to `warnings`.
+   - No → continue.
+
+3. **Is it operational context a caller may want to act on or display** (but not a citation-quality issue)?
+   - Yes → add to top-level `warnings` only (do **not** add to `citation_quality["citation_warnings"]`).
+   - No → continue.
+
+4. **Is it internal state useful only for debugging / testing?**
+   - Yes → include in `debug_view` (do **not** add a new top-level key).
+   - No → add as a top-level result field.
+
+#### Taxonomy examples
+
+| Signal | Surface | Rationale |
+|---|---|---|
+| Uncited-answer warning | `citation_warnings` **and** `warnings` | Citation-quality issue (rule 1). |
+| Empty-chunk-text warning | `citation_warnings` **and** `warnings` | Citation-quality issue — the cited chunk carried no usable text evidence (rule 1). |
+| Skip warning (`"No question provided; skipping vector retrieval."`) | `warnings` only | Operational context, not a citation-quality issue (rule 3). |
+| `malformed_diagnostics_count > 0` | telemetry integer field only | Machine-readable alerting counter, not a human-facing warning string (rule 2). |
+| `evidence_level`, `warning_count`, `citation_repair_*` | `debug_view` | Internal postprocessing state surfaced for inspection/debugging (rule 4). |
+
+#### Ambiguous surface examples
+
+Some signals touch multiple surfaces — the rule above always resolves the ambiguity:
+
+- **Empty-chunk-text warning** is both a citation-quality issue *and* an operational warning.  Rule 1 applies: add to `citation_warnings` and propagate to `warnings`.  The fact that it also appears in `warnings` does not make it a "telemetry" or "debug" field.
+- **`malformed_diagnostics_count`** measures a structural anomaly in retrieved data, which *could* be treated as a warning.  Rule 2 applies: it is a machine-readable counter for alerting pipelines.  Adding a string to `warnings` for each malformed hit would pollute the human-facing surface; callers that need this signal should read the integer counter directly.
+- **`citation_repair_attempted`** is primarily a top-level postprocessing field (documented in §2.2) that does not directly affect the quality of the delivered answer.  It is also mirrored in `debug_view` as part of the consolidated inspection surface.  Rule 4 applies to choosing whether to add new fields as additional top-level keys; it does not require removing fields that are already part of the documented top-level contract.  `debug_view` mirrors existing top-level and `citation_quality` data for convenience — it does not carry hidden additional state.
+
 ### 2.7 Malformed-diagnostics telemetry
 
 | Field | Type | Description |
@@ -147,6 +194,10 @@ The following invariants hold across all postprocessing paths:
 8. **`citation_quality` mirrors top-level fields:** `citation_quality["all_cited"]` always equals the top-level `all_answers_cited`.  `citation_quality["raw_answer_all_cited"]` always equals the top-level `raw_answer_all_cited`.  `citation_quality["evidence_level"]` always equals the top-level fields used to derive `evidence_level`.
 
 9. **`malformed_diagnostics_count` non-negative integer:** `malformed_diagnostics_count` is always present and is always a non-negative integer.  It equals zero when all retrieved hits have well-formed or absent diagnostics.  Absent/`None` diagnostics are not counted — only hits whose diagnostics are structurally invalid (root not a `dict`, or sub-field type errors) are counted.
+
+10. **Telemetry does not pollute warnings:** `malformed_diagnostics_count > 0` never causes an entry to be added to `warnings` or `citation_quality["citation_warnings"]`.  The count is a telemetry signal for alerting pipelines; callers must read the integer field directly.  (See §2.6 taxonomy rule 2.)
+
+11. **`debug_view` keys do not appear at the top level:** Every key in the `debug_view` bundle is nested inside that dict.  `debug_view` does not add new top-level keys beyond those documented in §2.  (See §2.6 taxonomy rule 4.)
 
 ---
 
