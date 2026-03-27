@@ -262,11 +262,31 @@ def _build_excluded_early_return_sections(
 # still succeeds; TestContractFixtureIntegrity.test_fixture_file_exists /
 # test_fixture_file_is_loadable will then fail with a clear, actionable message
 # rather than an opaque import-time traceback.
+#
+# All four scenario dicts are built inside the same guarded block so that
+# validation errors from the builder functions (missing required fields, wrong
+# scenario shape, missing excluded_reason, etc.) are also captured in
+# ``_SCENARIOS_DATA_ERROR`` rather than escaping as opaque import-time exceptions.
 try:
     _SCENARIOS_DATA: dict[str, Any] = _load_contract_scenarios()
+    _SECTION_FIXTURES: dict[str, dict[str, Any]] = _build_section_fixtures(_SCENARIOS_DATA)
+    _EXCLUDED_SECTIONS: dict[str, str] = _build_excluded_sections(_SCENARIOS_DATA)
+    _EARLY_RETURN_SECTION_RUNNERS: dict[str, Callable[[], dict[str, Any]]] = (
+        _build_early_return_runners(_SCENARIOS_DATA)
+    )
+    _EXCLUDED_EARLY_RETURN_SECTIONS: dict[str, str] = _build_excluded_early_return_sections(
+        _SCENARIOS_DATA
+    )
     _SCENARIOS_DATA_ERROR: Exception | None = None
-except (FileNotFoundError, ValueError, yaml.YAMLError) as exc:  # pragma: no cover - exercised indirectly via integrity tests
+except Exception as exc:  # pragma: no cover - exercised indirectly via integrity tests
+    # Preserve test collection even if the fixture file is missing, malformed,
+    # or a builder function raises due to an invalid scenario entry.
+    # TestContractFixtureIntegrity will then fail with an actionable message.
     _SCENARIOS_DATA = {}
+    _SECTION_FIXTURES = {}
+    _EXCLUDED_SECTIONS = {}
+    _EARLY_RETURN_SECTION_RUNNERS = {}
+    _EXCLUDED_EARLY_RETURN_SECTIONS = {}
     _SCENARIOS_DATA_ERROR = exc
 
 # ---------------------------------------------------------------------------
@@ -614,21 +634,13 @@ def _collect_drifts(
 
 
 # ---------------------------------------------------------------------------
-# Section-to-fixture mapping  (loaded from the canonical fixture file)
+# Section-to-fixture mapping
 # ---------------------------------------------------------------------------
-
-#: Maps each §4.x section ID to the kwargs passed to ``_run_with_mocked_retrieval``.
-#: Populated from ``_FIXTURE_PATH`` so the contract scenario inputs have a
-#: single machine-readable source of truth.  Only non-excluded scenarios are
-#: present; see ``_EXCLUDED_SECTIONS`` for the rest.
-_SECTION_FIXTURES: dict[str, dict[str, Any]] = _build_section_fixtures(_SCENARIOS_DATA)
-
-#: §4.x sections that require internal mock patching and are intentionally
-#: excluded from automated doc-vs-runtime comparison.  Every section in the doc
-#: that is NOT in ``_SECTION_FIXTURES`` must have an entry here so that newly
-#: added doc sections are not silently overlooked.
-#: Populated from the ``excluded`` entries in ``_FIXTURE_PATH``.
-_EXCLUDED_SECTIONS: dict[str, str] = _build_excluded_sections(_SCENARIOS_DATA)
+# ``_SECTION_FIXTURES`` and ``_EXCLUDED_SECTIONS`` are both populated in the
+# guarded try/except block near the top of this module (after all builder
+# function definitions) so that any validation error from the builders is
+# captured in ``_SCENARIOS_DATA_ERROR`` rather than escaping at import time.
+# ---------------------------------------------------------------------------
 
 
 # ---------------------------------------------------------------------------
@@ -636,6 +648,11 @@ _EXCLUDED_SECTIONS: dict[str, str] = _build_excluded_sections(_SCENARIOS_DATA)
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.skipif(
+    _SCENARIOS_DATA_ERROR is not None,
+    reason="Skipping §4.x drift tests because the scenarios fixture failed to load; "
+    "see TestContractFixtureIntegrity for the actionable failure.",
+)
 class TestDocContractDrift:
     """Detect drift between §4 JSON examples in the contract doc and live runtime output.
 
@@ -746,24 +763,13 @@ class TestDocContractDrift:
 
 
 # ---------------------------------------------------------------------------
-# Early-return (§5.x) section runners and fixtures  (loaded from fixture file)
+# Early-return (§5.x) section runners and fixtures
 # ---------------------------------------------------------------------------
-
-#: Maps each §5.x section ID to a zero-argument callable that returns the
-#: runtime result for drift comparison.
-#: Populated from ``_FIXTURE_PATH`` so the runner parameters have the same
-#: machine-readable source of truth as the §4.x live scenario inputs.
-_EARLY_RETURN_SECTION_RUNNERS: dict[str, Callable[[], dict[str, Any]]] = (
-    _build_early_return_runners(_SCENARIOS_DATA)
-)
-
-#: §5.x sections that require special handling and are intentionally excluded
-#: from automated doc-vs-runtime comparison.  Every §5.x section in the doc
-#: that is NOT in ``_EARLY_RETURN_SECTION_RUNNERS`` must have an entry here.
-#: Populated from the ``excluded`` entries in ``_FIXTURE_PATH``.
-_EXCLUDED_EARLY_RETURN_SECTIONS: dict[str, str] = _build_excluded_early_return_sections(
-    _SCENARIOS_DATA
-)
+# ``_EARLY_RETURN_SECTION_RUNNERS`` and ``_EXCLUDED_EARLY_RETURN_SECTIONS`` are
+# both populated in the guarded try/except block near the top of this module
+# so that any validation error from the builders is captured in
+# ``_SCENARIOS_DATA_ERROR`` rather than escaping at import time.
+# ---------------------------------------------------------------------------
 
 
 # ---------------------------------------------------------------------------
@@ -771,6 +777,11 @@ _EXCLUDED_EARLY_RETURN_SECTIONS: dict[str, str] = _build_excluded_early_return_s
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.skipif(
+    _SCENARIOS_DATA_ERROR is not None,
+    reason="Skipping §5.x early-return drift tests because the scenarios fixture failed "
+    "to load; see TestContractFixtureIntegrity for the actionable failure.",
+)
 class TestDocEarlyReturnDrift:
     """Detect drift between §5 (early-return) JSON examples in the contract doc
     and live runtime output.
