@@ -520,6 +520,8 @@ When `question=None` in live mode (i.e. `config.dry_run=False`), the function sh
 | `raw_answer_all_cited` | `False` (default) |
 | `all_answers_cited` | `False` (default) |
 | `citation_quality.evidence_level` | `"no_answer"` (default) |
+| `citation_quality.all_cited` | `False` (default) |
+| `citation_quality.warning_count` | `0` (default) |
 | `citation_quality.citation_warnings` | `[]` (no citation-quality issues) |
 | `retrieval_path_summary` | `""` (default — no retrieval ran) |
 | `malformed_diagnostics_count` | `0` (default) |
