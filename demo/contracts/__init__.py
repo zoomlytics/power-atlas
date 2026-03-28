@@ -4,6 +4,7 @@ from typing import Any
 from demo.contracts.manifest import build_batch_manifest, build_stage_manifest, write_manifest, write_manifest_md
 from demo.contracts.paths import ARTIFACTS_DIR, CONFIG_DIR, FIXTURES_DIR, PDF_PIPELINE_CONFIG_PATH
 from demo.contracts.pipeline import (
+
     CHUNK_EMBEDDING_DIMENSIONS,
     CHUNK_EMBEDDING_INDEX_NAME,
     CHUNK_EMBEDDING_LABEL,
@@ -17,6 +18,11 @@ from demo.contracts.pipeline import (
 )
 from demo.contracts.prompts import POWER_ATLAS_RAG_TEMPLATE, PROMPT_IDS
 from demo.contracts.resolution import ALIGNMENT_VERSION
+from demo.contracts.retrieval_metadata_policy import (
+    FieldSurfacePolicy,
+    RetrievalMetadataSurface,
+    RETRIEVAL_METADATA_SURFACE_POLICY,
+)
 from demo.contracts.runtime import Config, make_run_id, timestamp
 from demo.contracts.structured import (
     COMMON_PREDICATE_LABELS,
@@ -55,6 +61,9 @@ __all__ = [
     "PIPELINE_CONFIG_DATA",
     "POWER_ATLAS_RAG_TEMPLATE",
     "PROMPT_IDS",
+    "FieldSurfacePolicy",
+    "RetrievalMetadataSurface",
+    "RETRIEVAL_METADATA_SURFACE_POLICY",
     "STRUCTURED_FILE_HEADERS",
     "timestamp",
     "VALUE_TYPES",
