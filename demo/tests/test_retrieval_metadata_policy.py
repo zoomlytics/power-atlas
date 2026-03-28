@@ -15,7 +15,8 @@ The goals here are:
 3. Confirm no field lists its canonical surface as a forbidden surface (structural
    contradiction).
 4. Confirm the known ambiguous fields (§2.6) are correctly classified.
-5. Confirm the module is importable and exports the documented public names.
+5. Confirm the module is importable and exports the documented public names via
+   the public ``demo.contracts`` package surface (not just the submodule).
 """
 
 from __future__ import annotations
@@ -251,12 +252,21 @@ class TestKnownFieldClassifications:
             f"got {policy.canonical_surface!r}."
         )
 
-    def test_citation_warnings_propagated_to_warnings(self) -> None:
-        """citation_warnings must be mirrored in warnings (superset invariant §3.7)."""
+    def test_citation_warnings_forbidden_at_top_level(self) -> None:
+        """citation_warnings must be forbidden as a direct top-level key (§2.9 Inspection-only).
+
+        The top-level ``warnings`` list is a *superset* of
+        ``citation_quality["citation_warnings"]`` — it may contain additional
+        non-citation warnings (§3.7).  Because the relationship is superset
+        (not identical-value mirror), ``"warnings"`` is not listed in
+        ``mirrored_in``.  The structural enforcement for this field is that the
+        bare key ``"citation_warnings"`` must not appear as a direct top-level
+        key (§2.9 Inspection-only).
+        """
         policy = RETRIEVAL_METADATA_SURFACE_POLICY["citation_warnings"]
-        assert "warnings" in policy.mirrored_in, (
-            f"'citation_warnings' must be mirrored in 'warnings' (superset invariant §3.7); "
-            f"got mirrored_in={policy.mirrored_in!r}."
+        assert "top_level" in policy.forbidden_in, (
+            f"'citation_warnings' must be forbidden at 'top_level' (§2.9 Inspection-only); "
+            f"got forbidden_in={policy.forbidden_in!r}."
         )
 
     def test_malformed_diagnostics_count_canonical_surface_is_telemetry(self) -> None:
@@ -349,3 +359,70 @@ class TestKnownFieldClassifications:
                 f"§2.9 Inspection-only field {field_name!r} must declare 'debug_view' in "
                 f"mirrored_in; got mirrored_in={policy.mirrored_in!r}."
             )
+
+
+# ---------------------------------------------------------------------------
+# Package public-surface import test
+# ---------------------------------------------------------------------------
+
+
+class TestPackagePublicExports:
+    """Verify the three policy names are importable from the public ``demo.contracts`` surface.
+
+    Importing from ``demo.contracts`` rather than the submodule catches any drift
+    in ``demo/contracts/__init__.py`` — if a name is removed from the package
+    ``__all__`` or the re-export import is deleted, this test will fail before
+    callers encounter a runtime ``ImportError``.
+    """
+
+    def test_field_surface_policy_importable_from_package(self) -> None:
+        """``FieldSurfacePolicy`` must be importable from ``demo.contracts``."""
+        from demo.contracts import FieldSurfacePolicy as _FieldSurfacePolicy  # noqa: PLC0415
+
+        assert _FieldSurfacePolicy is not None
+
+    def test_retrieval_metadata_surface_importable_from_package(self) -> None:
+        """``RetrievalMetadataSurface`` must be importable from ``demo.contracts``."""
+        from demo.contracts import RetrievalMetadataSurface as _Surface  # noqa: PLC0415
+
+        assert _Surface is not None
+
+    def test_retrieval_metadata_surface_policy_importable_from_package(self) -> None:
+        """``RETRIEVAL_METADATA_SURFACE_POLICY`` must be importable from ``demo.contracts``."""
+        from demo.contracts import RETRIEVAL_METADATA_SURFACE_POLICY as _POLICY  # noqa: PLC0415
+
+        assert _POLICY is not None
+
+    def test_all_three_names_in_package_all(self) -> None:
+        """All three public names must appear in ``demo.contracts.__all__``."""
+        import demo.contracts as _contracts  # noqa: PLC0415
+
+        expected = {"FieldSurfacePolicy", "RetrievalMetadataSurface", "RETRIEVAL_METADATA_SURFACE_POLICY"}
+        missing = expected - set(_contracts.__all__)
+        assert not missing, (
+            f"The following names are missing from demo.contracts.__all__: {sorted(missing)!r}. "
+            f"Add them so callers using 'from demo.contracts import *' receive them."
+        )
+
+    def test_package_exports_are_same_objects_as_submodule(self) -> None:
+        """Names re-exported from ``demo.contracts`` must be the same objects as from the submodule."""
+        import demo.contracts as _contracts  # noqa: PLC0415
+        from demo.contracts.retrieval_metadata_policy import (  # noqa: PLC0415
+            FieldSurfacePolicy as _SubFieldSurfacePolicy,
+            RetrievalMetadataSurface as _SubSurface,
+            RETRIEVAL_METADATA_SURFACE_POLICY as _SubPolicy,
+        )
+
+        assert _contracts.FieldSurfacePolicy is _SubFieldSurfacePolicy, (
+            "demo.contracts.FieldSurfacePolicy must be the same object as "
+            "demo.contracts.retrieval_metadata_policy.FieldSurfacePolicy"
+        )
+        assert _contracts.RetrievalMetadataSurface is _SubSurface, (
+            "demo.contracts.RetrievalMetadataSurface must be the same object as "
+            "demo.contracts.retrieval_metadata_policy.RetrievalMetadataSurface"
+        )
+        assert _contracts.RETRIEVAL_METADATA_SURFACE_POLICY is _SubPolicy, (
+            "demo.contracts.RETRIEVAL_METADATA_SURFACE_POLICY must be the same object as "
+            "demo.contracts.retrieval_metadata_policy.RETRIEVAL_METADATA_SURFACE_POLICY"
+        )
+
