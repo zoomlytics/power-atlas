@@ -141,9 +141,10 @@ Structure
     - Rule 1 (citation-quality warning strings) — ``test_citation_quality_warning_strings_dual_surfaced``:
       for every documented citation-quality warning type the warning string must appear
       on **both** ``citation_quality["citation_warnings"]`` and top-level ``warnings``.
-    - Rule 2 (citation-quality metrics/flags) — ``test_citation_quality_metric_fields_not_at_top_level``:
-      structured citation-quality values (``evidence_level``, ``warning_count``) must not
-      appear as direct top-level keys; they belong in the ``citation_quality`` bundle.
+    - Rule 2 (citation-quality fields forbidden as top-level keys) — ``test_citation_quality_fields_forbidden_as_top_level_keys``:
+      citation-quality values (``evidence_level``, ``warning_count``) and the rule-1
+      warning-string list (``citation_warnings``) must not appear as direct top-level keys;
+      they belong in the ``citation_quality`` bundle.
     - Rule 3 (telemetry counters) — ``test_telemetry_counter_not_in_citation_quality_bundle``:
       ``malformed_diagnostics_count`` must not appear inside the ``citation_quality`` bundle.
     - Rule 4 (operational warnings) — ``test_operational_warnings_not_in_citation_warnings``:
