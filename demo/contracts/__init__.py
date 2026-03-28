@@ -17,6 +17,11 @@ from demo.contracts.pipeline import (
 )
 from demo.contracts.prompts import POWER_ATLAS_RAG_TEMPLATE, PROMPT_IDS
 from demo.contracts.resolution import ALIGNMENT_VERSION
+from demo.contracts.retrieval_metadata_policy import (
+    FieldSurfacePolicy,
+    RetrievalMetadataSurface,
+    RETRIEVAL_METADATA_SURFACE_POLICY,
+)
 from demo.contracts.runtime import Config, make_run_id, timestamp
 from demo.contracts.structured import (
     COMMON_PREDICATE_LABELS,
@@ -55,6 +60,9 @@ __all__ = [
     "PIPELINE_CONFIG_DATA",
     "POWER_ATLAS_RAG_TEMPLATE",
     "PROMPT_IDS",
+    "FieldSurfacePolicy",
+    "RetrievalMetadataSurface",
+    "RETRIEVAL_METADATA_SURFACE_POLICY",
     "STRUCTURED_FILE_HEADERS",
     "timestamp",
     "VALUE_TYPES",
