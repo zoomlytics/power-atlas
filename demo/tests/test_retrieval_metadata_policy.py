@@ -138,6 +138,27 @@ class TestPolicyMapSurfaceValidity:
             f"Valid surfaces: {sorted(_VALID_SURFACES)!r}."
         )
 
+    @pytest.mark.parametrize("field_name", sorted(RETRIEVAL_METADATA_SURFACE_POLICY))
+    def test_field_name_by_surface_keys_are_valid(self, field_name: str) -> None:
+        """Every key in field_name_by_surface must be a recognised RetrievalMetadataSurface."""
+        policy = RETRIEVAL_METADATA_SURFACE_POLICY[field_name]
+        invalid = frozenset(policy.field_name_by_surface) - _VALID_SURFACES
+        assert not invalid, (
+            f"RETRIEVAL_METADATA_SURFACE_POLICY[{field_name!r}].field_name_by_surface "
+            f"contains invalid surface key(s): {sorted(invalid)!r}. "
+            f"Valid surfaces: {sorted(_VALID_SURFACES)!r}."
+        )
+
+    @pytest.mark.parametrize("field_name", sorted(RETRIEVAL_METADATA_SURFACE_POLICY))
+    def test_field_name_by_surface_values_are_non_empty_strings(self, field_name: str) -> None:
+        """Every value in field_name_by_surface must be a non-empty string."""
+        policy = RETRIEVAL_METADATA_SURFACE_POLICY[field_name]
+        for surface, alias in policy.field_name_by_surface.items():
+            assert isinstance(alias, str) and alias, (
+                f"RETRIEVAL_METADATA_SURFACE_POLICY[{field_name!r}].field_name_by_surface"
+                f"[{surface!r}] must be a non-empty string; got {alias!r}."
+            )
+
 
 # ---------------------------------------------------------------------------
 # Internal consistency tests
@@ -210,6 +231,24 @@ class TestKnownFieldClassifications:
         assert "debug_view" in policy.mirrored_in, (
             f"'all_answers_cited' must be mirrored in 'debug_view' (§2.9); "
             f"got mirrored_in={policy.mirrored_in!r}."
+        )
+
+    def test_all_answers_cited_alias_in_debug_view_is_all_cited(self) -> None:
+        """all_answers_cited must encode 'all_cited' as its name in debug_view (§2.9 naming alias)."""
+        policy = RETRIEVAL_METADATA_SURFACE_POLICY["all_answers_cited"]
+        assert policy.field_name_by_surface.get("debug_view") == "all_cited", (
+            f"'all_answers_cited' must map 'debug_view' -> 'all_cited' in "
+            f"field_name_by_surface (§2.9 naming alias); "
+            f"got field_name_by_surface={policy.field_name_by_surface!r}."
+        )
+
+    def test_all_answers_cited_alias_in_citation_quality_is_all_cited(self) -> None:
+        """all_answers_cited must encode 'all_cited' as its name in citation_quality (§2.9)."""
+        policy = RETRIEVAL_METADATA_SURFACE_POLICY["all_answers_cited"]
+        assert policy.field_name_by_surface.get("citation_quality") == "all_cited", (
+            f"'all_answers_cited' must map 'citation_quality' -> 'all_cited' in "
+            f"field_name_by_surface (§2.9 naming alias); "
+            f"got field_name_by_surface={policy.field_name_by_surface!r}."
         )
 
     def test_evidence_level_canonical_surface_is_citation_quality(self) -> None:

@@ -18,8 +18,10 @@ Surfaces
 --------
 Each field belongs to one of five metadata surfaces:
 
-- **top_level** — Direct keys in the ``run_retrieval_and_qa()`` result dict.
-  The primary public-facing surface for ordinary application logic.
+- **top_level** — Ordinary public-facing result keys in the
+  ``run_retrieval_and_qa()`` result dict, excluding the dedicated ``warnings``
+  list and ``telemetry`` counters, which are separate named surfaces even though
+  they are also direct top-level dict keys.
 - **citation_quality** — Nested ``citation_quality`` bundle.  Citation-specific
   flags, metrics, and warning strings.
 - **telemetry** — Machine-readable counter fields (e.g. ``malformed_diagnostics_count``).
@@ -54,7 +56,7 @@ field name (as it appears on the canonical owning surface) mapping to a
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
 
 __all__ = [
@@ -106,6 +108,12 @@ class FieldSurfacePolicy:
         Surfaces where this field must **not** appear.  Recorded for the
         ambiguous-placement cases discussed in §2.6 and §2.9 so that contributors
         do not accidentally place the field on the wrong surface.
+    field_name_by_surface:
+        Maps a surface identifier to the name under which this field appears on
+        that surface, populated only when the name differs from the canonical
+        field name (i.e., the key in
+        :data:`RETRIEVAL_METADATA_SURFACE_POLICY`).  Empty dict when the field
+        uses the same name on every surface it appears on.
     notes:
         Human-readable annotation for naming distinctions, multi-surface
         subtleties, or references to contract document sections.
@@ -115,6 +123,7 @@ class FieldSurfacePolicy:
     canonical_surface: RetrievalMetadataSurface
     mirrored_in: tuple[RetrievalMetadataSurface, ...] = ()
     forbidden_in: tuple[RetrievalMetadataSurface, ...] = ()
+    field_name_by_surface: dict[str, str] = field(default_factory=dict)
     notes: str = ""
 
 
@@ -145,9 +154,14 @@ RETRIEVAL_METADATA_SURFACE_POLICY: dict[str, FieldSurfacePolicy] = {
         canonical_surface="top_level",
         mirrored_in=("citation_quality", "debug_view"),
         forbidden_in=(),
+        field_name_by_surface={
+            "citation_quality": "all_cited",
+            "debug_view": "all_cited",
+        },
         notes=(
             "Top-level key is 'all_answers_cited'; the same value appears as 'all_cited' "
-            "inside citation_quality and debug_view (§2.9 Inspection-only).  "
+            "inside citation_quality and debug_view (§2.9 Inspection-only) — see "
+            "field_name_by_surface for the per-surface name mapping.  "
             "The bare name 'all_cited' must NOT be a direct top-level key."
         ),
     ),
@@ -228,8 +242,8 @@ RETRIEVAL_METADATA_SURFACE_POLICY: dict[str, FieldSurfacePolicy] = {
             "warning (§2.6 rule 3, §2.7, §3.10).  "
             "Must NOT add string entries to the warnings list or appear inside "
             "citation_quality.  "
-            "Also appears at top-level as an integer field; mirrored in debug_view "
-            "under the same name (§2.9 Mirrored)."
+            "Exposed via the telemetry top-level integer field; mirrored in "
+            "debug_view under the same name (§2.9 Mirrored)."
         ),
     ),
     # ------------------------------------------------------------------
