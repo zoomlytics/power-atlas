@@ -2207,9 +2207,10 @@ class TestMixedEarlyReturnSentinelEdge:
        trigger the retrieval-skipped early return; ``dry_run=True`` still returns
        the dry-run payload.
 
-    3. **question="" is not a sentinel** — only ``None`` activates the
-       retrieval-skipped short-circuit.  An empty string falls through to live
-       mode and does NOT produce ``retrieval_skipped=True``.
+    3. **question="" is not treated as a retrieval-skipping sentinel in these
+       tests** — only ``None`` activates the ``retrieval_skipped`` short-circuit
+       in the mixed ``dry_run`` scenarios covered here; an empty string behaves
+       like any other non-``None`` question along these code paths.
 
     4. **dry_run + retrieval-mode modifiers preserve the dry_run key set** —
        passing ``all_runs=True``, ``expand_graph=True``, or ``cluster_aware=True``
