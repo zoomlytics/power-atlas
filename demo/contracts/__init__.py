@@ -4,7 +4,6 @@ from typing import Any
 from demo.contracts.manifest import build_batch_manifest, build_stage_manifest, write_manifest, write_manifest_md
 from demo.contracts.paths import ARTIFACTS_DIR, CONFIG_DIR, FIXTURES_DIR, PDF_PIPELINE_CONFIG_PATH
 from demo.contracts.pipeline import (
-
     CHUNK_EMBEDDING_DIMENSIONS,
     CHUNK_EMBEDDING_INDEX_NAME,
     CHUNK_EMBEDDING_LABEL,
