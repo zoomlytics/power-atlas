@@ -1155,6 +1155,26 @@ class TestRunRetrievalAndQaResultContract:
 
 
 # ---------------------------------------------------------------------------
+# Shared live-scenario parameter matrix
+# ---------------------------------------------------------------------------
+
+#: Canonical six-scenario parameter matrix used by multiple parametrized tests.
+#: Each tuple is ``(scenario_id, answer, items_metadata, all_runs, run_id)``.
+#: Adding or renaming a scenario here propagates to every test that uses this constant.
+_LIVE_SCENARIOS: list[tuple] = [
+    ("fully_cited", _CITED_ANSWER, [_LIVE_ITEM_METADATA], True, None),
+    ("repair_applied", _UNCITED_ANSWER, [_LIVE_ITEM_METADATA], True, None),
+    ("fallback_run_scoped", _UNCITED_ANSWER, [_LIVE_ITEM_METADATA], False, "r1"),
+    ("no_answer", "", [], True, None),
+    ("empty_chunk_warning", _CITED_ANSWER, [_EMPTY_CHUNK_METADATA], True, None),
+    ("repair_attempted_no_token", _UNCITED_ANSWER, [_HIT_METADATA_NO_TOKEN], True, None),
+]
+
+#: pytest ``ids`` list corresponding to :data:`_LIVE_SCENARIOS`.
+_LIVE_SCENARIO_IDS: list[str] = [row[0] for row in _LIVE_SCENARIOS]
+
+
+# ---------------------------------------------------------------------------
 # TestRunRetrievalAndQaPublicKeyContract
 # ---------------------------------------------------------------------------
 
@@ -1291,18 +1311,8 @@ class TestRunRetrievalAndQaPublicKeyContract:
 
     @pytest.mark.parametrize(
         "scenario,answer,items_metadata,all_runs,run_id",
-        [
-            ("fully_cited", _CITED_ANSWER, [_LIVE_ITEM_METADATA], True, None),
-            ("repair_applied", _UNCITED_ANSWER, [_LIVE_ITEM_METADATA], True, None),
-            ("fallback_run_scoped", _UNCITED_ANSWER, [_LIVE_ITEM_METADATA], False, "r1"),
-            ("no_answer", "", [], True, None),
-            ("empty_chunk_warning", _CITED_ANSWER, [_EMPTY_CHUNK_METADATA], True, None),
-            ("repair_attempted_no_token", _UNCITED_ANSWER, [_HIT_METADATA_NO_TOKEN], True, None),
-        ],
-        ids=[
-            "fully_cited", "repair_applied", "fallback_run_scoped",
-            "no_answer", "empty_chunk_warning", "repair_attempted_no_token",
-        ],
+        _LIVE_SCENARIOS,
+        ids=_LIVE_SCENARIO_IDS,
     )
     def test_required_key_set_is_stable_across_scenarios(
         self,
@@ -2380,18 +2390,8 @@ class TestRunRetrievalAndQaWarningsContract:
 
     @pytest.mark.parametrize(
         "scenario,answer,items_metadata,all_runs,run_id",
-        [
-            ("fully_cited", _CITED_ANSWER, [_LIVE_ITEM_METADATA], True, None),
-            ("repair_applied", _UNCITED_ANSWER, [_LIVE_ITEM_METADATA], True, None),
-            ("fallback_run_scoped", _UNCITED_ANSWER, [_LIVE_ITEM_METADATA], False, "r1"),
-            ("no_answer", "", [], True, None),
-            ("empty_chunk_warning", _CITED_ANSWER, [_EMPTY_CHUNK_METADATA], True, None),
-            ("repair_attempted_no_token", _UNCITED_ANSWER, [_HIT_METADATA_NO_TOKEN], True, None),
-        ],
-        ids=[
-            "fully_cited", "repair_applied", "fallback_run_scoped",
-            "no_answer", "empty_chunk_warning", "repair_attempted_no_token",
-        ],
+        _LIVE_SCENARIOS,
+        ids=_LIVE_SCENARIO_IDS,
     )
     def test_citation_warnings_are_subset_of_top_level_warnings(
         self,
@@ -2734,18 +2734,8 @@ class TestMetadataTaxonomyBoundaries:
 
     @pytest.mark.parametrize(
         "scenario,answer,items_metadata,all_runs,run_id",
-        [
-            ("fully_cited", _CITED_ANSWER, [_LIVE_ITEM_METADATA], True, None),
-            ("repair_applied", _UNCITED_ANSWER, [_LIVE_ITEM_METADATA], True, None),
-            ("fallback_run_scoped", _UNCITED_ANSWER, [_LIVE_ITEM_METADATA], False, "r1"),
-            ("no_answer", "", [], True, None),
-            ("empty_chunk_warning", _CITED_ANSWER, [_EMPTY_CHUNK_METADATA], True, None),
-            ("repair_attempted_no_token", _UNCITED_ANSWER, [_HIT_METADATA_NO_TOKEN], True, None),
-        ],
-        ids=[
-            "fully_cited", "repair_applied", "fallback_run_scoped",
-            "no_answer", "empty_chunk_warning", "repair_attempted_no_token",
-        ],
+        _LIVE_SCENARIOS,
+        ids=_LIVE_SCENARIO_IDS,
     )
     def test_debug_view_mirrors_values_consistent_across_live_scenarios(
         self,
@@ -2912,18 +2902,8 @@ class TestProjectionPolicySurfaceOwnership:
 
     @pytest.mark.parametrize(
         "scenario,answer,items_metadata,all_runs,run_id",
-        [
-            ("fully_cited", _CITED_ANSWER, [_LIVE_ITEM_METADATA], True, None),
-            ("repair_applied", _UNCITED_ANSWER, [_LIVE_ITEM_METADATA], True, None),
-            ("fallback_run_scoped", _UNCITED_ANSWER, [_LIVE_ITEM_METADATA], False, "r1"),
-            ("no_answer", "", [], True, None),
-            ("empty_chunk_warning", _CITED_ANSWER, [_EMPTY_CHUNK_METADATA], True, None),
-            ("repair_attempted_no_token", _UNCITED_ANSWER, [_HIT_METADATA_NO_TOKEN], True, None),
-        ],
-        ids=[
-            "fully_cited", "repair_applied", "fallback_run_scoped",
-            "no_answer", "empty_chunk_warning", "repair_attempted_no_token",
-        ],
+        _LIVE_SCENARIOS,
+        ids=_LIVE_SCENARIO_IDS,
     )
     def test_debug_view_has_exactly_documented_key_set(
         self,
@@ -2952,7 +2932,7 @@ class TestProjectionPolicySurfaceOwnership:
         missing = _DEBUG_VIEW_REQUIRED_KEYS - actual_keys
         assert actual_keys == _DEBUG_VIEW_REQUIRED_KEYS, (
             f"[{scenario}] {_SURFACE_DEBUG_VIEW} key set mismatch — "
-            f"extra={extra!r}, missing={missing!r}. "
+            f"extra={sorted(extra)!r}, missing={sorted(missing)!r}. "
             f"debug_view must not introduce undocumented state (§2.9). "
             f"If a new key is intentional, update _DEBUG_VIEW_REQUIRED_KEYS and the "
             f"contract document."
@@ -2960,18 +2940,8 @@ class TestProjectionPolicySurfaceOwnership:
 
     @pytest.mark.parametrize(
         "scenario,answer,items_metadata,all_runs,run_id",
-        [
-            ("fully_cited", _CITED_ANSWER, [_LIVE_ITEM_METADATA], True, None),
-            ("repair_applied", _UNCITED_ANSWER, [_LIVE_ITEM_METADATA], True, None),
-            ("fallback_run_scoped", _UNCITED_ANSWER, [_LIVE_ITEM_METADATA], False, "r1"),
-            ("no_answer", "", [], True, None),
-            ("empty_chunk_warning", _CITED_ANSWER, [_EMPTY_CHUNK_METADATA], True, None),
-            ("repair_attempted_no_token", _UNCITED_ANSWER, [_HIT_METADATA_NO_TOKEN], True, None),
-        ],
-        ids=[
-            "fully_cited", "repair_applied", "fallback_run_scoped",
-            "no_answer", "empty_chunk_warning", "repair_attempted_no_token",
-        ],
+        _LIVE_SCENARIOS,
+        ids=_LIVE_SCENARIO_IDS,
     )
     def test_citation_quality_bundle_has_exactly_documented_key_set(
         self,
@@ -2998,7 +2968,7 @@ class TestProjectionPolicySurfaceOwnership:
         missing = _CITATION_QUALITY_BUNDLE_KEYS - actual_keys
         assert actual_keys == _CITATION_QUALITY_BUNDLE_KEYS, (
             f"[{scenario}] {_SURFACE_CITATION_QUALITY} key set mismatch — "
-            f"extra={extra!r}, missing={missing!r}. "
+            f"extra={sorted(extra)!r}, missing={sorted(missing)!r}. "
             f"If a new key is intentional, update _CITATION_QUALITY_BUNDLE_KEYS and the "
             f"contract document."
         )
@@ -3158,8 +3128,7 @@ class TestProjectionPolicySurfaceOwnership:
         ``citation_warnings`` would misclassify an operational signal as a
         citation-quality problem and pollute the citation-quality surface.
         """
-        helper = TestRunRetrievalAndQaEarlyReturnContract()
-        result = helper._skip_result()
+        result = TestRunRetrievalAndQaEarlyReturnContract._skip_result()
         assert operational_warning in result["warnings"], (
             f"[{path_label}] Operational warning {operational_warning!r} missing from "
             f"{_SURFACE_WARNINGS}; got {result['warnings']!r}"
