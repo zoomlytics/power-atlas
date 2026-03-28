@@ -358,6 +358,72 @@ class TestKnownFieldClassifications:
             f"got forbidden_in={policy.forbidden_in!r}."
         )
 
+    def test_citation_repair_applied_canonical_surface_is_top_level(self) -> None:
+        """citation_repair_applied must have top_level as its canonical surface (§2.9 Mirrored)."""
+        policy = RETRIEVAL_METADATA_SURFACE_POLICY["citation_repair_applied"]
+        assert policy.canonical_surface == "top_level", (
+            f"'citation_repair_applied' canonical_surface must be 'top_level' (§2.9 Mirrored); "
+            f"got {policy.canonical_surface!r}."
+        )
+
+    def test_citation_repair_applied_mirrored_in_debug_view(self) -> None:
+        """citation_repair_applied must be mirrored in debug_view (§2.9 Mirrored)."""
+        policy = RETRIEVAL_METADATA_SURFACE_POLICY["citation_repair_applied"]
+        assert "debug_view" in policy.mirrored_in, (
+            f"'citation_repair_applied' must be mirrored in 'debug_view' (§2.9 Mirrored); "
+            f"got mirrored_in={policy.mirrored_in!r}."
+        )
+
+    def test_citation_repair_applied_forbidden_in_citation_quality(self) -> None:
+        """citation_repair_applied must be forbidden in citation_quality (not a citation-quality metric)."""
+        policy = RETRIEVAL_METADATA_SURFACE_POLICY["citation_repair_applied"]
+        assert "citation_quality" in policy.forbidden_in, (
+            f"'citation_repair_applied' must be forbidden in 'citation_quality' "
+            f"(postprocessing control field, not a citation-quality metric); "
+            f"got forbidden_in={policy.forbidden_in!r}."
+        )
+
+    def test_citation_fallback_applied_canonical_surface_is_top_level(self) -> None:
+        """citation_fallback_applied must have top_level as its canonical surface (§2.9 Mirrored)."""
+        policy = RETRIEVAL_METADATA_SURFACE_POLICY["citation_fallback_applied"]
+        assert policy.canonical_surface == "top_level", (
+            f"'citation_fallback_applied' canonical_surface must be 'top_level' (§2.9 Mirrored); "
+            f"got {policy.canonical_surface!r}."
+        )
+
+    def test_citation_fallback_applied_mirrored_in_debug_view(self) -> None:
+        """citation_fallback_applied must be mirrored in debug_view (§2.9 Mirrored)."""
+        policy = RETRIEVAL_METADATA_SURFACE_POLICY["citation_fallback_applied"]
+        assert "debug_view" in policy.mirrored_in, (
+            f"'citation_fallback_applied' must be mirrored in 'debug_view' (§2.9 Mirrored); "
+            f"got mirrored_in={policy.mirrored_in!r}."
+        )
+
+    def test_citation_fallback_applied_forbidden_in_citation_quality(self) -> None:
+        """citation_fallback_applied must be forbidden in citation_quality (not a citation-quality metric)."""
+        policy = RETRIEVAL_METADATA_SURFACE_POLICY["citation_fallback_applied"]
+        assert "citation_quality" in policy.forbidden_in, (
+            f"'citation_fallback_applied' must be forbidden in 'citation_quality' "
+            f"(postprocessing control field, not a citation-quality metric); "
+            f"got forbidden_in={policy.forbidden_in!r}."
+        )
+
+    def test_raw_answer_all_cited_canonical_surface_is_top_level(self) -> None:
+        """raw_answer_all_cited must have top_level as its canonical surface (§2.9 Mirrored)."""
+        policy = RETRIEVAL_METADATA_SURFACE_POLICY["raw_answer_all_cited"]
+        assert policy.canonical_surface == "top_level", (
+            f"'raw_answer_all_cited' canonical_surface must be 'top_level' (§2.9 Mirrored); "
+            f"got {policy.canonical_surface!r}."
+        )
+
+    def test_raw_answer_all_cited_mirrored_in_debug_view(self) -> None:
+        """raw_answer_all_cited must be mirrored in debug_view (§2.9 Mirrored)."""
+        policy = RETRIEVAL_METADATA_SURFACE_POLICY["raw_answer_all_cited"]
+        assert "debug_view" in policy.mirrored_in, (
+            f"'raw_answer_all_cited' must be mirrored in 'debug_view' (§2.9 Mirrored); "
+            f"got mirrored_in={policy.mirrored_in!r}."
+        )
+
     def test_all_debug_view_mirrored_fields_listed(self) -> None:
         """All §2.9 Mirrored fields must declare debug_view in their mirrored_in tuple.
 
@@ -532,5 +598,22 @@ class TestImmutability:
         assert len(policy.field_name_by_surface) == 0, (
             "'raw_answer_all_cited'.field_name_by_surface must be empty (no aliases); "
             f"got {dict(policy.field_name_by_surface)!r}."
+        )
+
+    @pytest.mark.parametrize("field_name", sorted(RETRIEVAL_METADATA_SURFACE_POLICY))
+    def test_every_field_name_by_surface_is_mapping_proxy(self, field_name: str) -> None:
+        """field_name_by_surface must be a MappingProxyType for every policy entry.
+
+        ``FieldSurfacePolicy.__post_init__`` coerces any input to a
+        ``MappingProxyType``, so this test catches any regression where a plain
+        ``dict`` is stored instead (e.g. if the coercion is accidentally removed).
+        """
+        from types import MappingProxyType  # noqa: PLC0415
+
+        policy = RETRIEVAL_METADATA_SURFACE_POLICY[field_name]
+        assert isinstance(policy.field_name_by_surface, MappingProxyType), (
+            f"RETRIEVAL_METADATA_SURFACE_POLICY[{field_name!r}].field_name_by_surface "
+            f"must be a MappingProxyType (coerced by __post_init__); got "
+            f"{type(policy.field_name_by_surface).__name__!r}."
         )
 

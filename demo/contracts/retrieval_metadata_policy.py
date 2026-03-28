@@ -132,6 +132,17 @@ class FieldSurfacePolicy:
     )
     notes: str = ""
 
+    def __post_init__(self) -> None:
+        # Coerce field_name_by_surface to MappingProxyType so the immutability
+        # guarantee holds even when a caller supplies a plain dict.  The dataclass
+        # is frozen, so attribute assignment must go through object.__setattr__.
+        if not isinstance(self.field_name_by_surface, MappingProxyType):
+            object.__setattr__(
+                self,
+                "field_name_by_surface",
+                MappingProxyType(dict(self.field_name_by_surface)),
+            )
+
 
 # ---------------------------------------------------------------------------
 # Declarative policy map
@@ -154,10 +165,11 @@ RETRIEVAL_METADATA_SURFACE_POLICY: Mapping[str, FieldSurfacePolicy] = MappingPro
     # ------------------------------------------------------------------
     # all_answers_cited / all_cited — fully-cited flag for the delivered answer
     #
-    # §2.9 classification: Inspection-only (debug_view["all_cited"]).
-    # The top-level public alias is "all_answers_cited"; the name inside
-    # citation_quality and debug_view is "all_cited".  The bare name "all_cited"
-    # must NOT appear as a direct top-level key (§2.9).
+    # The top-level public alias is "all_answers_cited" (canonical top-level key).
+    # The §2.9 Inspection-only entry is "all_cited" inside debug_view and
+    # citation_quality — that bare name must NOT appear as a direct top-level key.
+    # "all_answers_cited" is the public top-level alias; "all_cited" is the
+    # inspection-only name used inside citation_quality and debug_view.
     # ------------------------------------------------------------------
     "all_answers_cited": FieldSurfacePolicy(
         canonical_surface="top_level",
