@@ -465,3 +465,72 @@ class TestPackagePublicExports:
             "demo.contracts.retrieval_metadata_policy.RETRIEVAL_METADATA_SURFACE_POLICY"
         )
 
+
+# ---------------------------------------------------------------------------
+# Immutability tests
+# ---------------------------------------------------------------------------
+
+
+class TestImmutability:
+    """Policy map and field-name alias mapping must be immutable at runtime.
+
+    ``FieldSurfacePolicy`` is a frozen dataclass, so attributes cannot be
+    reassigned.  The ``field_name_by_surface`` attribute and the module-level
+    ``RETRIEVAL_METADATA_SURFACE_POLICY`` are additionally stored as
+    :class:`~types.MappingProxyType` instances, which raise :exc:`TypeError`
+    on any mutation attempt (``__setitem__``, ``__delitem__``, etc.).
+    """
+
+    def test_policy_map_is_mapping_proxy(self) -> None:
+        """RETRIEVAL_METADATA_SURFACE_POLICY must be a MappingProxyType."""
+        from types import MappingProxyType  # noqa: PLC0415
+
+        assert isinstance(RETRIEVAL_METADATA_SURFACE_POLICY, MappingProxyType), (
+            "RETRIEVAL_METADATA_SURFACE_POLICY must be a MappingProxyType so callers "
+            f"cannot mutate the canonical policy map; got {type(RETRIEVAL_METADATA_SURFACE_POLICY).__name__!r}."
+        )
+
+    def test_policy_map_rejects_new_entry(self) -> None:
+        """Attempting to add a new key to RETRIEVAL_METADATA_SURFACE_POLICY must raise TypeError."""
+        with pytest.raises(TypeError):
+            RETRIEVAL_METADATA_SURFACE_POLICY["__test_mutation__"] = None  # type: ignore[index]
+
+    def test_policy_map_rejects_delete_entry(self) -> None:
+        """Attempting to delete a key from RETRIEVAL_METADATA_SURFACE_POLICY must raise TypeError."""
+        existing_key = next(iter(RETRIEVAL_METADATA_SURFACE_POLICY))
+        with pytest.raises(TypeError):
+            del RETRIEVAL_METADATA_SURFACE_POLICY[existing_key]  # type: ignore[attr-defined]
+
+    def test_field_name_by_surface_is_mapping_proxy(self) -> None:
+        """field_name_by_surface on all_answers_cited must be a MappingProxyType."""
+        from types import MappingProxyType  # noqa: PLC0415
+
+        policy = RETRIEVAL_METADATA_SURFACE_POLICY["all_answers_cited"]
+        assert isinstance(policy.field_name_by_surface, MappingProxyType), (
+            "'all_answers_cited'.field_name_by_surface must be a MappingProxyType so it "
+            "cannot be mutated at runtime; got "
+            f"{type(policy.field_name_by_surface).__name__!r}."
+        )
+
+    def test_field_name_by_surface_rejects_mutation(self) -> None:
+        """Attempting to add an entry to field_name_by_surface must raise TypeError."""
+        policy = RETRIEVAL_METADATA_SURFACE_POLICY["all_answers_cited"]
+        with pytest.raises(TypeError):
+            policy.field_name_by_surface["top_level"] = "__test__"  # type: ignore[index]
+
+    def test_default_field_name_by_surface_is_mapping_proxy(self) -> None:
+        """Fields with no name aliases must use an empty MappingProxyType as default."""
+        from types import MappingProxyType  # noqa: PLC0415
+
+        # raw_answer_all_cited has no aliases; its field_name_by_surface should
+        # be an empty MappingProxyType, not a plain dict.
+        policy = RETRIEVAL_METADATA_SURFACE_POLICY["raw_answer_all_cited"]
+        assert isinstance(policy.field_name_by_surface, MappingProxyType), (
+            "'raw_answer_all_cited'.field_name_by_surface (no-alias field) must be a "
+            f"MappingProxyType; got {type(policy.field_name_by_surface).__name__!r}."
+        )
+        assert len(policy.field_name_by_surface) == 0, (
+            "'raw_answer_all_cited'.field_name_by_surface must be empty (no aliases); "
+            f"got {dict(policy.field_name_by_surface)!r}."
+        )
+

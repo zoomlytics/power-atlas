@@ -42,7 +42,8 @@ empty list, ``"no_answer"``).  This is documented in §2.9 of the contract docum
 
 Policy map
 ----------
-:data:`RETRIEVAL_METADATA_SURFACE_POLICY` is a ``dict`` keyed by the canonical
+:data:`RETRIEVAL_METADATA_SURFACE_POLICY` is a read-only :class:`~types.MappingProxyType`
+keyed by the canonical
 field name (as it appears on the canonical owning surface) mapping to a
 :class:`FieldSurfacePolicy` instance that records:
 
@@ -57,7 +58,8 @@ field name (as it appears on the canonical owning surface) mapping to a
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Literal
+from types import MappingProxyType
+from typing import Literal, Mapping
 
 __all__ = [
     "FieldSurfacePolicy",
@@ -112,8 +114,10 @@ class FieldSurfacePolicy:
         Maps a surface identifier to the name under which this field appears on
         that surface, populated only when the name differs from the canonical
         field name (i.e., the key in
-        :data:`RETRIEVAL_METADATA_SURFACE_POLICY`).  Empty dict when the field
-        uses the same name on every surface it appears on.
+        :data:`RETRIEVAL_METADATA_SURFACE_POLICY`).  Empty mapping when the field
+        uses the same name on every surface it appears on.  Stored as a
+        :class:`~types.MappingProxyType` so policy entries cannot be mutated at
+        runtime.
     notes:
         Human-readable annotation for naming distinctions, multi-surface
         subtleties, or references to contract document sections.
@@ -123,7 +127,9 @@ class FieldSurfacePolicy:
     canonical_surface: RetrievalMetadataSurface
     mirrored_in: tuple[RetrievalMetadataSurface, ...] = ()
     forbidden_in: tuple[RetrievalMetadataSurface, ...] = ()
-    field_name_by_surface: dict[str, str] = field(default_factory=dict)
+    field_name_by_surface: Mapping[RetrievalMetadataSurface, str] = field(
+        default_factory=lambda: MappingProxyType({})
+    )
     notes: str = ""
 
 
@@ -138,10 +144,13 @@ class FieldSurfacePolicy:
 #: Values are :class:`FieldSurfacePolicy` instances encoding the ownership,
 #: mirroring, and forbidden-surface rules.
 #:
+#: Exposed as a :class:`~types.MappingProxyType` so importers cannot add, remove,
+#: or replace entries at runtime.
+#:
 #: This map is the single in-code reference for field placement decisions.
 #: For decision-rule narrative and rationale, see §2.6 and §2.9 of
 #: ``docs/architecture/retrieval-citation-result-contract-v0.1.md``.
-RETRIEVAL_METADATA_SURFACE_POLICY: dict[str, FieldSurfacePolicy] = {
+RETRIEVAL_METADATA_SURFACE_POLICY: Mapping[str, FieldSurfacePolicy] = MappingProxyType({
     # ------------------------------------------------------------------
     # all_answers_cited / all_cited — fully-cited flag for the delivered answer
     #
@@ -154,10 +163,10 @@ RETRIEVAL_METADATA_SURFACE_POLICY: dict[str, FieldSurfacePolicy] = {
         canonical_surface="top_level",
         mirrored_in=("citation_quality", "debug_view"),
         forbidden_in=(),
-        field_name_by_surface={
+        field_name_by_surface=MappingProxyType({
             "citation_quality": "all_cited",
             "debug_view": "all_cited",
-        },
+        }),
         notes=(
             "Top-level key is 'all_answers_cited'; the same value appears as 'all_cited' "
             "inside citation_quality and debug_view (§2.9 Inspection-only) — see "
@@ -307,4 +316,4 @@ RETRIEVAL_METADATA_SURFACE_POLICY: dict[str, FieldSurfacePolicy] = {
             "(§2.9 Inspection-only)."
         ),
     ),
-}
+})
