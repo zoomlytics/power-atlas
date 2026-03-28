@@ -3091,14 +3091,23 @@ _SURFACE_TELEMETRY = "telemetry integer field (malformed_diagnostics_count)"
 _SURFACE_DEBUG_VIEW = "debug_view"
 _SURFACE_TOP_LEVEL = "direct top-level key"
 
-#: Fields that the policy forbids from appearing as direct top-level keys.
-#: Derived from :data:`RETRIEVAL_METADATA_SURFACE_POLICY` — any field with
-#: ``"top_level"`` in its ``forbidden_in`` set.  Used to parametrize
-#: :meth:`TestProjectionPolicySurfaceOwnership.test_citation_quality_metric_fields_not_at_top_level`.
+#: Fields that the policy says are canonical on the ``citation_quality`` surface,
+#: mirrored in ``debug_view``, and explicitly forbidden from appearing as direct
+#: top-level keys.  Derived from :data:`RETRIEVAL_METADATA_SURFACE_POLICY` so that
+#: any new field added to the policy with those same characteristics is automatically
+#: covered by the parametrized test below.
+#:
+#: Filtering to ``canonical_surface == "citation_quality"`` and
+#: ``"debug_view" in mirrored_in`` keeps the parametrization aligned with the test's
+#: assertions (that the field is present in both ``citation_quality`` and ``debug_view``)
+#: and prevents surprising failures if a future policy entry forbids ``top_level`` for
+#: some other reason or surface combination.
 _POLICY_FIELDS_FORBIDDEN_AT_TOP_LEVEL: list[str] = sorted(
     canonical_key
     for canonical_key, pol in RETRIEVAL_METADATA_SURFACE_POLICY.items()
     if "top_level" in pol.forbidden_in
+    and pol.canonical_surface == "citation_quality"
+    and "debug_view" in pol.mirrored_in
 )
 
 
@@ -3113,9 +3122,14 @@ class TestProjectionPolicySurfaceOwnership:
 
     - **Rule 1** — citation-quality warning *strings* → both ``citation_warnings`` and
       ``warnings``.
-    - **Rule 2** — citation-quality *metrics/flags* (``evidence_level``, ``warning_count``,
-      ``citation_warnings``) → ``citation_quality`` bundle only; must not be direct
-      top-level keys.  Parametrized from :data:`_POLICY_FIELDS_FORBIDDEN_AT_TOP_LEVEL`.
+    - **Rule 2** — citation-quality *metrics/flags* (``evidence_level``, ``warning_count``)
+      → ``citation_quality`` bundle only; must not be direct top-level keys.
+    - **Rule 1 / top-level key** — ``citation_warnings`` is a warning-string field (rule 1)
+      that is dual-surfaced via ``citation_quality`` and ``warnings``, but must also not
+      appear as a *key* at the top level.  Covered by
+      :data:`_POLICY_FIELDS_FORBIDDEN_AT_TOP_LEVEL` alongside the rule-2 metric fields.
+      Parametrized test:
+      :meth:`test_citation_quality_fields_forbidden_as_top_level_keys`.
     - **Rule 3** — machine-readable telemetry counters (``malformed_diagnostics_count``)
       → integer field only; must not appear inside ``citation_quality``.
     - **Rule 4** — operational (non-citation-quality) warnings → top-level ``warnings``
@@ -3208,7 +3222,7 @@ class TestProjectionPolicySurfaceOwnership:
         )
 
     # ------------------------------------------------------------------
-    # Rule 2: citation-quality metrics/flags must not be direct top-level keys
+    # Rule 2 + top-level key: citation_quality fields forbidden as direct top-level keys
     # ------------------------------------------------------------------
 
     @pytest.mark.parametrize(
@@ -3216,21 +3230,28 @@ class TestProjectionPolicySurfaceOwnership:
         _POLICY_FIELDS_FORBIDDEN_AT_TOP_LEVEL,
         ids=_POLICY_FIELDS_FORBIDDEN_AT_TOP_LEVEL,
     )
-    def test_citation_quality_metric_fields_not_at_top_level(
+    def test_citation_quality_fields_forbidden_as_top_level_keys(
         self,
         field_name: str,
     ) -> None:
-        """Citation-quality metric fields must not appear as direct top-level keys (rule 2).
+        """``citation_quality`` fields must not appear as direct top-level keys.
 
         Parametrized from :data:`_POLICY_FIELDS_FORBIDDEN_AT_TOP_LEVEL`, which is derived
-        from :data:`RETRIEVAL_METADATA_SURFACE_POLICY` — so any new ``citation_quality``
-        metric that is marked ``forbidden_in=("top_level", ...)`` in the policy will
-        automatically be covered here without a manual update to this test.
+        from :data:`RETRIEVAL_METADATA_SURFACE_POLICY` — specifically fields with
+        ``canonical_surface="citation_quality"``, ``"debug_view" in mirrored_in``, and
+        ``"top_level" in forbidden_in``.
 
-        Each covered field belongs in the ``citation_quality`` bundle (canonical surface)
-        and is additionally mirrored inside ``debug_view`` for inspection tooling.  It must
-        **not** appear as a new direct top-level key — doing so would erode surface
-        ownership and confuse callers about the canonical access path.
+        The covered fields include:
+
+        - ``evidence_level`` and ``warning_count`` — citation-quality metrics/flags
+          (§2.6 rule 2) that must not be promoted to direct top-level keys.
+        - ``citation_warnings`` — a rule-1 warning-string list that is dual-surfaced
+          through ``citation_quality`` and ``warnings``, but whose *key name* must also
+          not appear as a direct top-level key (it would conflict with the canonical
+          ``citation_quality["citation_warnings"]`` access path).
+
+        Adding a new field to the policy with the same surface combination will
+        automatically extend coverage here without a manual update to this test.
         """
         result = _run_with_mocked_retrieval(
             answer=_CITED_ANSWER,
@@ -3239,7 +3260,7 @@ class TestProjectionPolicySurfaceOwnership:
         )
         assert field_name not in result, (
             f"{field_name!r} must not appear as a {_SURFACE_TOP_LEVEL} "
-            f"(§2.6 rule 2, policy forbidden_in). It is a citation-quality metric — "
+            f"(policy forbidden_in). It belongs in the {_SURFACE_CITATION_QUALITY} — "
             f"access it via citation_quality[{field_name!r}] for production logic, or via "
             f"debug_view[{field_name!r}] for inspection."
         )
