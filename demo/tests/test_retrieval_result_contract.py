@@ -2232,8 +2232,8 @@ class TestMixedEarlyReturnSentinelEdge:
 
     @staticmethod
     def _dry_run_result(**kwargs) -> dict[str, object]:
-        """Return a dry-run result, forwarding extra kwargs to ``run_retrieval_and_qa``."""
-        return run_retrieval_and_qa(_DRY_RUN_CONFIG, run_id="dr-run-1", source_uri=None, **kwargs)
+        """Return a dry-run result using the shared early-return helper."""
+        return TestRunRetrievalAndQaEarlyReturnContract._dry_run_result(**kwargs)
 
     # ------------------------------------------------------------------
     # §1  Precedence: dry_run > question=None
