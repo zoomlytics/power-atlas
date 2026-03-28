@@ -448,9 +448,12 @@ class TestKnownFieldClassifications:
     def test_all_debug_view_inspection_only_fields_listed(self) -> None:
         """All §2.9 Inspection-only fields must declare debug_view in their mirrored_in tuple.
 
-        The §2.9 classification table lists the following as "Inspection-only"
-        (exist only inside debug_view or citation_quality, not as direct top-level keys):
-        all_cited (→ all_answers_cited), evidence_level, warning_count, citation_warnings.
+        The §2.9 classification table lists the following names as "Inspection-only"
+        (the bare names exist only inside debug_view or citation_quality, not as direct
+        top-level keys): all_cited, evidence_level, warning_count, citation_warnings.
+        The policy entry key for the all_cited field is "all_answers_cited" because
+        all_answers_cited is the public top-level alias — the inspection-only name
+        ("all_cited") must NOT be a direct top-level key (§2.9).
         """
         inspection_only_fields = {
             "all_answers_cited",

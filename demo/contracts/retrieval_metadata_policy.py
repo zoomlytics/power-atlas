@@ -73,7 +73,11 @@ __all__ = [
 
 #: The five metadata surfaces defined in §2.6 of the contract document.
 #:
-#: - ``"top_level"``       — Direct keys in the ``run_retrieval_and_qa()`` result dict.
+#: - ``"top_level"``       — Ordinary public-facing result keys in the
+#:                           ``run_retrieval_and_qa()`` result dict, excluding the
+#:                           dedicated ``warnings`` list and ``telemetry`` counters,
+#:                           which are separate named surfaces even though they are
+#:                           also direct top-level dict keys.
 #: - ``"citation_quality"``— Nested ``citation_quality`` bundle (flags, metrics, warnings).
 #: - ``"telemetry"``       — Machine-readable integer counters for alerting pipelines.
 #: - ``"debug_view"``      — Supported inspection surface; mirrors top-level and
@@ -133,15 +137,16 @@ class FieldSurfacePolicy:
     notes: str = ""
 
     def __post_init__(self) -> None:
-        # Coerce field_name_by_surface to MappingProxyType so the immutability
-        # guarantee holds even when a caller supplies a plain dict.  The dataclass
-        # is frozen, so attribute assignment must go through object.__setattr__.
-        if not isinstance(self.field_name_by_surface, MappingProxyType):
-            object.__setattr__(
-                self,
-                "field_name_by_surface",
-                MappingProxyType(dict(self.field_name_by_surface)),
-            )
+        # Always copy into a fresh dict and wrap in a new MappingProxyType so
+        # the immutability guarantee holds even when a caller supplies a
+        # MappingProxyType backed by a mutable mapping they still control.
+        # The dataclass is frozen, so attribute assignment must go through
+        # object.__setattr__.
+        object.__setattr__(
+            self,
+            "field_name_by_surface",
+            MappingProxyType(dict(self.field_name_by_surface)),
+        )
 
 
 # ---------------------------------------------------------------------------
