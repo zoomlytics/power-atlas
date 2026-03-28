@@ -2186,6 +2186,213 @@ class TestRunRetrievalAndQaEarlyReturnContract:
 
 
 # ---------------------------------------------------------------------------
+# TestMixedEarlyReturnSentinelEdge
+# ---------------------------------------------------------------------------
+
+
+class TestMixedEarlyReturnSentinelEdge:
+    """Contract tests for mixed early-return inputs and sentinel-edge behavior.
+
+    These tests lock down precedence rules and edge-case short-circuit semantics
+    that sit just outside the canonical ``dry_run`` / ``question=None`` happy
+    paths already covered by :class:`TestRunRetrievalAndQaEarlyReturnContract`.
+
+    Key invariants verified here:
+
+    1. **dry_run wins over question=None** — ``config.dry_run=True`` is checked
+       before the ``question is None`` guard.  When both conditions are true the
+       result must be the ``dry_run`` shape, not the ``retrieval_skipped`` shape.
+
+    2. **dry_run wins over question=""** — an empty-string question does not
+       trigger the retrieval-skipped early return; ``dry_run=True`` still returns
+       the dry-run payload.
+
+    3. **question="" is not treated as a retrieval-skipping sentinel in these
+       tests** — only ``None`` activates the ``retrieval_skipped`` short-circuit
+       in the mixed ``dry_run`` scenarios covered here; an empty string behaves
+       like any other non-``None`` question along these code paths.
+
+    4. **dry_run + retrieval-mode modifiers preserve the dry_run key set** —
+       passing ``all_runs=True``, ``expand_graph=True``, or ``cluster_aware=True``
+       alongside ``dry_run=True`` must not inject any non-dry-run keys (``hits``,
+       ``retrieval_results``, ``warnings``, ``retrieval_skipped``) into the result.
+
+    5. **debug_view zero-defaults are preserved across mixed dry_run paths** —
+       all ``debug_view`` values must remain all-zero regardless of which
+       modifiers accompany ``dry_run=True``.
+
+    6. **question field is recorded faithfully** — the ``question`` key in the
+       result always mirrors the value passed to ``run_retrieval_and_qa``,
+       including ``None`` and ``""``.
+    """
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _dry_run_result(**kwargs) -> dict[str, object]:
+        """Return a dry-run result using the shared early-return helper."""
+        return TestRunRetrievalAndQaEarlyReturnContract._dry_run_result(**kwargs)
+
+    # ------------------------------------------------------------------
+    # §1  Precedence: dry_run > question=None
+    # ------------------------------------------------------------------
+
+    def test_dry_run_with_question_none_status_is_dry_run(self) -> None:
+        """When ``dry_run=True`` and ``question=None``, the result must carry
+        ``status='dry_run'`` — the dry_run check runs before the question guard."""
+        result = self._dry_run_result(question=None)
+        assert result["status"] == "dry_run"
+
+    def test_dry_run_with_question_none_no_retrieval_skipped(self) -> None:
+        """``retrieval_skipped`` must be absent when ``dry_run=True``, even if
+        ``question=None`` — dry_run wins and its result shape omits that flag."""
+        result = self._dry_run_result(question=None)
+        assert "retrieval_skipped" not in result
+
+    def test_dry_run_with_question_none_exact_key_set(self) -> None:
+        """``dry_run=True`` + ``question=None`` must produce exactly the dry_run
+        required key set — no extra retrieval-skipped or live-only keys."""
+        result = self._dry_run_result(question=None)
+        extra = set(result.keys()) - _DRY_RUN_RESULT_REQUIRED_KEYS
+        missing = _DRY_RUN_RESULT_REQUIRED_KEYS - set(result.keys())
+        assert not extra and not missing, (
+            f"dry_run+question=None key set mismatch — extra={extra!r}, missing={missing!r}"
+        )
+
+    def test_dry_run_with_question_none_records_none(self) -> None:
+        """The ``question`` field in the dry_run result must be ``None`` when
+        ``question=None`` was passed — the value is recorded faithfully."""
+        result = self._dry_run_result(question=None)
+        assert result["question"] is None
+
+    # ------------------------------------------------------------------
+    # §2  Precedence: dry_run > question=""
+    # ------------------------------------------------------------------
+
+    def test_dry_run_with_empty_question_status_is_dry_run(self) -> None:
+        """When ``dry_run=True`` and ``question=""``, the result must still carry
+        ``status='dry_run'`` — an empty string does not change the dry-run path."""
+        result = self._dry_run_result(question="")
+        assert result["status"] == "dry_run"
+
+    def test_dry_run_with_empty_question_exact_key_set(self) -> None:
+        """``dry_run=True`` + ``question=""`` must produce exactly the dry_run
+        required key set — no leakage from the live or retrieval-skipped paths."""
+        result = self._dry_run_result(question="")
+        extra = set(result.keys()) - _DRY_RUN_RESULT_REQUIRED_KEYS
+        missing = _DRY_RUN_RESULT_REQUIRED_KEYS - set(result.keys())
+        assert not extra and not missing, (
+            f"dry_run+question='' key set mismatch — extra={extra!r}, missing={missing!r}"
+        )
+
+    def test_dry_run_with_empty_question_records_empty_string(self) -> None:
+        """The ``question`` field must be ``""`` when ``question=""`` was passed —
+        no coercion to ``None`` occurs on the dry-run path."""
+        result = self._dry_run_result(question="")
+        assert result["question"] == ""
+
+    # ------------------------------------------------------------------
+    # §3  Sentinel distinction: question="" is not question=None
+    # ------------------------------------------------------------------
+
+    def test_empty_question_is_not_retrieval_skipped_sentinel(self) -> None:
+        """In dry_run mode, ``question=None`` and ``question=""`` both return
+        ``status='dry_run'``, but their ``question`` fields differ — confirming
+        that ``""`` is not silently coerced to ``None`` or vice-versa."""
+        result_none = self._dry_run_result(question=None)
+        result_empty = self._dry_run_result(question="")
+        # Both are dry_run — but the recorded values must differ
+        assert result_none["question"] is None
+        assert result_empty["question"] == ""
+        assert result_none["question"] != result_empty["question"]
+
+    # ------------------------------------------------------------------
+    # §4  dry_run + retrieval-mode modifiers preserve the dry_run key set
+    # ------------------------------------------------------------------
+
+    def test_dry_run_with_all_runs_exact_key_set(self) -> None:
+        """``dry_run=True`` + ``all_runs=True`` must produce exactly the dry_run
+        required key set — no live-only keys injected by the all-runs modifier."""
+        result = self._dry_run_result(all_runs=True)
+        extra = set(result.keys()) - _DRY_RUN_RESULT_REQUIRED_KEYS
+        missing = _DRY_RUN_RESULT_REQUIRED_KEYS - set(result.keys())
+        assert not extra and not missing, (
+            f"dry_run+all_runs key set mismatch — extra={extra!r}, missing={missing!r}"
+        )
+
+    def test_dry_run_with_expand_graph_exact_key_set(self) -> None:
+        """``dry_run=True`` + ``expand_graph=True`` must produce exactly the dry_run
+        required key set — graph-expansion modifier must not add live-only keys."""
+        result = self._dry_run_result(expand_graph=True)
+        extra = set(result.keys()) - _DRY_RUN_RESULT_REQUIRED_KEYS
+        missing = _DRY_RUN_RESULT_REQUIRED_KEYS - set(result.keys())
+        assert not extra and not missing, (
+            f"dry_run+expand_graph key set mismatch — extra={extra!r}, missing={missing!r}"
+        )
+
+    def test_dry_run_with_cluster_aware_exact_key_set(self) -> None:
+        """``dry_run=True`` + ``cluster_aware=True`` must produce exactly the dry_run
+        required key set — cluster modifier must not add live-only keys."""
+        result = self._dry_run_result(cluster_aware=True)
+        extra = set(result.keys()) - _DRY_RUN_RESULT_REQUIRED_KEYS
+        missing = _DRY_RUN_RESULT_REQUIRED_KEYS - set(result.keys())
+        assert not extra and not missing, (
+            f"dry_run+cluster_aware key set mismatch — extra={extra!r}, missing={missing!r}"
+        )
+
+    # ------------------------------------------------------------------
+    # §5  debug_view zero-defaults preserved across mixed dry_run paths
+    # ------------------------------------------------------------------
+
+    def _assert_debug_view_early_return_defaults(self, dv: object, label: str) -> None:
+        """Assert that a ``debug_view`` dict carries the early-return default values
+        (all boolean fields False, evidence_level 'no_answer', counts zero, lists empty).
+        """
+        assert isinstance(dv, dict), f"{label}: debug_view must be a dict"
+        assert dv["raw_answer_all_cited"] is False, label
+        assert dv["all_cited"] is False, label
+        assert dv["citation_repair_attempted"] is False, label
+        assert dv["citation_repair_applied"] is False, label
+        assert dv["citation_fallback_applied"] is False, label
+        assert dv["evidence_level"] == "no_answer", label
+        assert dv["warning_count"] == 0, label
+        assert dv["citation_warnings"] == [], label
+        assert dv["malformed_diagnostics_count"] == 0, label
+
+    def test_dry_run_with_question_none_debug_view_early_return_defaults(self) -> None:
+        """``debug_view`` must carry early-return defaults when ``dry_run=True`` and
+        ``question=None`` — no postprocessing ran on either path."""
+        result = self._dry_run_result(question=None)
+        self._assert_debug_view_early_return_defaults(result["debug_view"], "dry_run+question=None")
+
+    def test_dry_run_with_empty_question_debug_view_early_return_defaults(self) -> None:
+        """``debug_view`` must carry early-return defaults when ``dry_run=True`` and
+        ``question=""`` — the dry_run short-circuit runs before any retrieval."""
+        result = self._dry_run_result(question="")
+        self._assert_debug_view_early_return_defaults(result["debug_view"], "dry_run+question=''")
+
+    def test_dry_run_with_all_runs_debug_view_early_return_defaults(self) -> None:
+        """``debug_view`` must carry early-return defaults when ``dry_run=True`` and
+        ``all_runs=True`` — the all-runs modifier does not run retrieval in dry-run."""
+        result = self._dry_run_result(all_runs=True)
+        self._assert_debug_view_early_return_defaults(result["debug_view"], "dry_run+all_runs")
+
+    def test_dry_run_with_expand_graph_debug_view_early_return_defaults(self) -> None:
+        """``debug_view`` must carry early-return defaults when ``dry_run=True`` and
+        ``expand_graph=True`` — graph expansion is not executed in dry-run."""
+        result = self._dry_run_result(expand_graph=True)
+        self._assert_debug_view_early_return_defaults(result["debug_view"], "dry_run+expand_graph")
+
+    def test_dry_run_with_cluster_aware_debug_view_early_return_defaults(self) -> None:
+        """``debug_view`` must carry early-return defaults when ``dry_run=True`` and
+        ``cluster_aware=True`` — cluster traversal is not executed in dry-run."""
+        result = self._dry_run_result(cluster_aware=True)
+        self._assert_debug_view_early_return_defaults(result["debug_view"], "dry_run+cluster_aware")
+
+
+# ---------------------------------------------------------------------------
 # TestProjectPostprocessToPublic
 # ---------------------------------------------------------------------------
 
