@@ -280,8 +280,8 @@ RETRIEVAL_METADATA_SURFACE_POLICY: dict[str, FieldSurfacePolicy] = {
     # ------------------------------------------------------------------
     "citation_warnings": FieldSurfacePolicy(
         canonical_surface="citation_quality",
-        mirrored_in=("warnings", "debug_view"),
-        forbidden_in=(),
+        mirrored_in=("debug_view",),
+        forbidden_in=("top_level",),
         notes=(
             "Citation-quality warning strings (§2.6 rule 1): every entry in "
             "citation_quality['citation_warnings'] is also propagated to the "
