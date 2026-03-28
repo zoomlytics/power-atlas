@@ -132,6 +132,30 @@ Structure
       the name distinction and non-leakage invariant are explicitly tested (§2.9 table).
     - Operational warnings (non-citation-quality) appear only in ``warnings``,
       not in ``citation_quality["citation_warnings"]`` (skip warning example).
+
+``TestProjectionPolicySurfaceOwnership``
+    Projection-policy tests that verify each signal is owned by exactly the correct
+    surface(s) and cannot silently migrate to a wrong destination.  Organized around
+    the four taxonomy decision rules from §2.6:
+
+    - Rule 1 (citation-quality warning strings) — ``test_citation_quality_warning_strings_dual_surfaced``:
+      for every documented citation-quality warning type the warning string must appear
+      on **both** ``citation_quality["citation_warnings"]`` and top-level ``warnings``.
+    - Rule 2 (citation-quality metrics/flags) — ``test_citation_quality_metric_fields_not_at_top_level``:
+      structured citation-quality values (``evidence_level``, ``warning_count``) must not
+      appear as direct top-level keys; they belong in the ``citation_quality`` bundle.
+    - Rule 3 (telemetry counters) — ``test_telemetry_counter_not_in_citation_quality_bundle``:
+      ``malformed_diagnostics_count`` must not appear inside the ``citation_quality`` bundle.
+    - Rule 4 (operational warnings) — ``test_operational_warnings_not_in_citation_warnings``:
+      operational (non-citation-quality) warnings must not propagate to
+      ``citation_quality["citation_warnings"]``.
+    - **Exact key-set invariants** — ``test_debug_view_has_exactly_documented_key_set`` and
+      ``test_citation_quality_bundle_has_exactly_documented_key_set`` (both parametrized
+      across all six live scenarios) ensure ``debug_view`` carries no undocumented hidden
+      state and ``citation_quality`` carries no extra fields beyond its documented bundle.
+    - **Ambiguous case** — ``test_ambiguous_evidence_level_surface_classification`` explicitly
+      names the ``evidence_level`` ambiguity (§2.6 ambiguous-examples table) and verifies
+      it is correctly classified as a ``citation_quality``-bundle metric (not a top-level key).
 """
 from __future__ import annotations
 
@@ -2838,4 +2862,358 @@ class TestMetadataTaxonomyBoundaries:
         assert _SKIP_WARNING not in cq["citation_warnings"], (
             f"Skip warning must not appear in citation_quality.citation_warnings; "
             f"got {cq['citation_warnings']!r}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# TestProjectionPolicySurfaceOwnership
+# ---------------------------------------------------------------------------
+
+#: Human-readable surface labels used in projection-policy assertion messages so
+#: that a failing test immediately names the wrong destination surface.
+_SURFACE_WARNINGS = "top-level warnings"
+_SURFACE_CITATION_WARNINGS = "citation_quality['citation_warnings']"
+_SURFACE_CITATION_QUALITY = "citation_quality bundle"
+_SURFACE_TELEMETRY = "telemetry integer field (malformed_diagnostics_count)"
+_SURFACE_DEBUG_VIEW = "debug_view"
+_SURFACE_TOP_LEVEL = "direct top-level key"
+
+
+class TestProjectionPolicySurfaceOwnership:
+    """Projection-policy tests: each signal must be owned by exactly the correct surface(s).
+
+    These tests are organized around the four taxonomy decision rules from §2.6 of the
+    contract document and target future contributor drift risks not already pinned by the
+    mirroring/isolation tests in :class:`TestMetadataTaxonomyBoundaries`.
+
+    Decision rules tested explicitly:
+
+    - **Rule 1** — citation-quality warning *strings* → both ``citation_warnings`` and
+      ``warnings``.
+    - **Rule 2** — citation-quality *metrics/flags* (``evidence_level``, ``warning_count``)
+      → ``citation_quality`` bundle only; must not be direct top-level keys.
+    - **Rule 3** — machine-readable telemetry counters (``malformed_diagnostics_count``)
+      → integer field only; must not appear inside ``citation_quality``.
+    - **Rule 4** — operational (non-citation-quality) warnings → top-level ``warnings``
+      only; must not propagate to ``citation_quality["citation_warnings"]``.
+
+    In addition, two exact-key-set invariants guard against hidden-state drift:
+
+    - ``debug_view`` must contain **exactly** :data:`_DEBUG_VIEW_REQUIRED_KEYS`.
+    - The ``citation_quality`` bundle must contain **exactly**
+      :data:`_CITATION_QUALITY_BUNDLE_KEYS`.
+
+    Both are parametrized across all six documented live scenarios.
+    """
+
+    # ------------------------------------------------------------------
+    # Exact key-set invariants (no hidden state; no extra bundle fields)
+    # ------------------------------------------------------------------
+
+    @pytest.mark.parametrize(
+        "scenario,answer,items_metadata,all_runs,run_id",
+        [
+            ("fully_cited", _CITED_ANSWER, [_LIVE_ITEM_METADATA], True, None),
+            ("repair_applied", _UNCITED_ANSWER, [_LIVE_ITEM_METADATA], True, None),
+            ("fallback_run_scoped", _UNCITED_ANSWER, [_LIVE_ITEM_METADATA], False, "r1"),
+            ("no_answer", "", [], True, None),
+            ("empty_chunk_warning", _CITED_ANSWER, [_EMPTY_CHUNK_METADATA], True, None),
+            ("repair_attempted_no_token", _UNCITED_ANSWER, [_HIT_METADATA_NO_TOKEN], True, None),
+        ],
+        ids=[
+            "fully_cited", "repair_applied", "fallback_run_scoped",
+            "no_answer", "empty_chunk_warning", "repair_attempted_no_token",
+        ],
+    )
+    def test_debug_view_has_exactly_documented_key_set(
+        self,
+        scenario: str,
+        answer: str,
+        items_metadata: list,
+        all_runs: bool,
+        run_id: str | None,
+    ) -> None:
+        """``debug_view`` must contain **exactly** the documented key set across all scenarios.
+
+        ``debug_view`` is a supported inspection surface, not an escape hatch for
+        introducing semantically new state (§2.9).  If a contributor adds an extra key
+        to ``debug_view`` without updating :data:`_DEBUG_VIEW_REQUIRED_KEYS` and the
+        contract document, this test will fail with an actionable message naming the
+        extra key and the surface where it was mistakenly placed.
+        """
+        result = _run_with_mocked_retrieval(
+            answer=answer,
+            items_metadata=items_metadata,
+            all_runs=all_runs,
+            run_id=run_id,
+        )
+        actual_keys = set(result["debug_view"].keys())
+        extra = actual_keys - _DEBUG_VIEW_REQUIRED_KEYS
+        missing = _DEBUG_VIEW_REQUIRED_KEYS - actual_keys
+        assert actual_keys == _DEBUG_VIEW_REQUIRED_KEYS, (
+            f"[{scenario}] {_SURFACE_DEBUG_VIEW} key set mismatch — "
+            f"extra={extra!r}, missing={missing!r}. "
+            f"debug_view must not introduce undocumented state (§2.9). "
+            f"If a new key is intentional, update _DEBUG_VIEW_REQUIRED_KEYS and the "
+            f"contract document."
+        )
+
+    @pytest.mark.parametrize(
+        "scenario,answer,items_metadata,all_runs,run_id",
+        [
+            ("fully_cited", _CITED_ANSWER, [_LIVE_ITEM_METADATA], True, None),
+            ("repair_applied", _UNCITED_ANSWER, [_LIVE_ITEM_METADATA], True, None),
+            ("fallback_run_scoped", _UNCITED_ANSWER, [_LIVE_ITEM_METADATA], False, "r1"),
+            ("no_answer", "", [], True, None),
+            ("empty_chunk_warning", _CITED_ANSWER, [_EMPTY_CHUNK_METADATA], True, None),
+            ("repair_attempted_no_token", _UNCITED_ANSWER, [_HIT_METADATA_NO_TOKEN], True, None),
+        ],
+        ids=[
+            "fully_cited", "repair_applied", "fallback_run_scoped",
+            "no_answer", "empty_chunk_warning", "repair_attempted_no_token",
+        ],
+    )
+    def test_citation_quality_bundle_has_exactly_documented_key_set(
+        self,
+        scenario: str,
+        answer: str,
+        items_metadata: list,
+        all_runs: bool,
+        run_id: str | None,
+    ) -> None:
+        """``citation_quality`` bundle must contain **exactly** the documented key set.
+
+        The ``citation_quality`` bundle is the authoritative citation-quality surface
+        (§2.6 rule 2).  Extra keys would indicate a signal was silently migrated to
+        the wrong surface without a contract update.
+        """
+        result = _run_with_mocked_retrieval(
+            answer=answer,
+            items_metadata=items_metadata,
+            all_runs=all_runs,
+            run_id=run_id,
+        )
+        actual_keys = set(result["citation_quality"].keys())
+        extra = actual_keys - _CITATION_QUALITY_BUNDLE_KEYS
+        missing = _CITATION_QUALITY_BUNDLE_KEYS - actual_keys
+        assert actual_keys == _CITATION_QUALITY_BUNDLE_KEYS, (
+            f"[{scenario}] {_SURFACE_CITATION_QUALITY} key set mismatch — "
+            f"extra={extra!r}, missing={missing!r}. "
+            f"If a new key is intentional, update _CITATION_QUALITY_BUNDLE_KEYS and the "
+            f"contract document."
+        )
+
+    # ------------------------------------------------------------------
+    # Rule 2: citation-quality metrics/flags must not be direct top-level keys
+    # ------------------------------------------------------------------
+
+    @pytest.mark.parametrize(
+        "field_name",
+        ["evidence_level", "warning_count"],
+        ids=["evidence_level", "warning_count"],
+    )
+    def test_citation_quality_metric_fields_not_at_top_level(
+        self,
+        field_name: str,
+    ) -> None:
+        """Citation-quality metric fields must not appear as direct top-level keys (rule 2).
+
+        ``evidence_level`` and ``warning_count`` are structured citation-quality values
+        (not warning strings).  Per §2.6 rule 2 they belong in the ``citation_quality``
+        bundle.  They are also mirrored inside ``debug_view`` for inspection tooling.
+        They must **not** appear as new direct top-level keys — doing so would erode
+        surface ownership and confuse callers about the canonical access path.
+        """
+        result = _run_with_mocked_retrieval(
+            answer=_CITED_ANSWER,
+            items_metadata=[_LIVE_ITEM_METADATA],
+            all_runs=True,
+        )
+        assert field_name not in result, (
+            f"{field_name!r} must not appear as a {_SURFACE_TOP_LEVEL} "
+            f"(§2.6 rule 2). It is a citation-quality metric — access it via "
+            f"citation_quality[{field_name!r}] for production logic, or via "
+            f"debug_view[{field_name!r}] for inspection."
+        )
+        # Confirm the field is correctly placed on its designated surface.
+        assert field_name in result["citation_quality"], (
+            f"{field_name!r} must be present in the {_SURFACE_CITATION_QUALITY}"
+        )
+        assert field_name in result["debug_view"], (
+            f"{field_name!r} must be present in {_SURFACE_DEBUG_VIEW} (mirrored from "
+            f"citation_quality per §2.9)"
+        )
+
+    # ------------------------------------------------------------------
+    # Rule 3: telemetry counters must not appear inside citation_quality
+    # ------------------------------------------------------------------
+
+    def test_telemetry_counter_not_in_citation_quality_bundle(self) -> None:
+        """``malformed_diagnostics_count`` must not appear inside ``citation_quality``.
+
+        It is a machine-readable alerting counter (§2.6 rule 3, §2.7).  Adding it to
+        the ``citation_quality`` bundle would misclassify it as a citation-quality metric
+        and expose it on the wrong surface.  Callers that need this signal read the
+        integer field directly at the top level.
+        """
+        result = _run_with_mocked_retrieval(
+            answer=_CITED_ANSWER,
+            items_metadata=[_MALFORMED_DIAGNOSTICS_METADATA],
+            all_runs=True,
+        )
+        assert result["malformed_diagnostics_count"] > 0, (
+            "Fixture precondition: expected malformed_diagnostics_count > 0; "
+            f"got {result['malformed_diagnostics_count']!r}"
+        )
+        assert "malformed_diagnostics_count" not in result["citation_quality"], (
+            f"malformed_diagnostics_count must not appear in the {_SURFACE_CITATION_QUALITY}. "
+            f"It is a {_SURFACE_TELEMETRY} (§2.6 rule 3). "
+            f"Moving it into citation_quality would erode the telemetry/citation-quality "
+            f"surface boundary."
+        )
+
+    # ------------------------------------------------------------------
+    # Rule 1: citation-quality warning strings must be dual-surfaced
+    # ------------------------------------------------------------------
+
+    @pytest.mark.parametrize(
+        "scenario,answer,items_metadata,all_runs,run_id,expected_warning",
+        [
+            (
+                "uncited_answer",
+                _UNCITED_ANSWER,
+                [_LIVE_ITEM_METADATA],
+                False,
+                "r1",
+                _UNCITED_WARNING,
+            ),
+            (
+                "empty_chunk_text",
+                _CITED_ANSWER,
+                [_EMPTY_CHUNK_METADATA],
+                True,
+                None,
+                _EMPTY_CHUNK_WARNING_MSG,
+            ),
+        ],
+        ids=["uncited_answer", "empty_chunk_text"],
+    )
+    def test_citation_quality_warning_strings_dual_surfaced(
+        self,
+        scenario: str,
+        answer: str,
+        items_metadata: list,
+        all_runs: bool,
+        run_id: str | None,
+        expected_warning: str,
+    ) -> None:
+        """Citation-quality warning strings must appear on both surfaces (rule 1).
+
+        Per §2.6 rule 1, any signal that reflects a citation-quality problem **and**
+        is expressed as a human-readable warning string must be added to
+        ``citation_quality["citation_warnings"]`` **and** propagated to top-level
+        ``warnings``.  This test explicitly verifies each documented citation-quality
+        warning type to prevent a future contributor from routing the warning to only
+        one surface.
+        """
+        result = _run_with_mocked_retrieval(
+            answer=answer,
+            items_metadata=items_metadata,
+            all_runs=all_runs,
+            run_id=run_id,
+        )
+        cq = result["citation_quality"]
+        assert expected_warning in result["warnings"], (
+            f"[{scenario}] Citation-quality warning {expected_warning!r} missing from "
+            f"{_SURFACE_WARNINGS}. Per §2.6 rule 1 it must appear on both "
+            f"{_SURFACE_WARNINGS} and {_SURFACE_CITATION_WARNINGS}."
+        )
+        assert expected_warning in cq["citation_warnings"], (
+            f"[{scenario}] Citation-quality warning {expected_warning!r} missing from "
+            f"{_SURFACE_CITATION_WARNINGS}. Per §2.6 rule 1 it must appear on both "
+            f"{_SURFACE_WARNINGS} and {_SURFACE_CITATION_WARNINGS}."
+        )
+
+    # ------------------------------------------------------------------
+    # Rule 4: operational warnings must not propagate to citation_warnings
+    # ------------------------------------------------------------------
+
+    @pytest.mark.parametrize(
+        "path_label,operational_warning",
+        [
+            ("retrieval_skipped", _SKIP_WARNING),
+        ],
+        ids=["retrieval_skipped"],
+    )
+    def test_operational_warnings_not_in_citation_warnings(
+        self,
+        path_label: str,
+        operational_warning: str,
+    ) -> None:
+        """Operational (non-citation-quality) warnings must not propagate to
+        ``citation_quality["citation_warnings"]`` (rule 4).
+
+        Rule 4 of §2.6: warnings that represent operational context (e.g. retrieval
+        was skipped) must go to top-level ``warnings`` only.  Propagating them to
+        ``citation_warnings`` would misclassify an operational signal as a
+        citation-quality problem and pollute the citation-quality surface.
+        """
+        helper = TestRunRetrievalAndQaEarlyReturnContract()
+        result = helper._skip_result()
+        assert operational_warning in result["warnings"], (
+            f"[{path_label}] Operational warning {operational_warning!r} missing from "
+            f"{_SURFACE_WARNINGS}; got {result['warnings']!r}"
+        )
+        assert operational_warning not in result["citation_quality"]["citation_warnings"], (
+            f"[{path_label}] Operational warning {operational_warning!r} must not appear "
+            f"in {_SURFACE_CITATION_WARNINGS} (§2.6 rule 4). "
+            f"It is operational context, not a citation-quality problem."
+        )
+
+    # ------------------------------------------------------------------
+    # Ambiguous case: evidence_level (§2.6 ambiguous-examples table)
+    # ------------------------------------------------------------------
+
+    def test_ambiguous_evidence_level_surface_classification(self) -> None:
+        """Ambiguous case: ``evidence_level`` must be classified as a citation-quality
+        metric, not a top-level key (§2.6 ambiguous-examples table).
+
+        ``evidence_level`` is a structured flag (§2.8) that could plausibly be treated
+        as a top-level field.  The §2.6 taxonomy resolves this via rule 2: it is a
+        citation-quality metric, not a warning string → it belongs in the
+        ``citation_quality`` bundle and must not appear as a direct top-level key.
+        It is additionally mirrored in ``debug_view`` for inspection tooling (§2.9).
+
+        This test names the ambiguity explicitly so the intended classification is
+        self-documenting and any future migration to the wrong surface fails loudly.
+        """
+        result = _run_with_mocked_retrieval(
+            answer=_CITED_ANSWER,
+            items_metadata=[_LIVE_ITEM_METADATA],
+            all_runs=True,
+        )
+        # Must NOT be a direct top-level key (rule 2: citation-quality metric).
+        assert "evidence_level" not in result, (
+            f"evidence_level must not be a {_SURFACE_TOP_LEVEL} (§2.6 rule 2). "
+            f"It is a citation-quality metric — access it via "
+            f"citation_quality['evidence_level'] for production logic."
+        )
+        # Must be present in the citation_quality bundle.
+        assert "evidence_level" in result["citation_quality"], (
+            f"evidence_level must be present in the {_SURFACE_CITATION_QUALITY}"
+        )
+        # Must be mirrored in debug_view for inspection (§2.9).
+        assert "evidence_level" in result["debug_view"], (
+            f"evidence_level must be present in {_SURFACE_DEBUG_VIEW} (mirrored from "
+            f"citation_quality per §2.9)"
+        )
+        # Must NOT appear in citation_warnings (it is a metric, not a warning string).
+        assert "evidence_level" not in result["citation_quality"]["citation_warnings"], (
+            f"evidence_level must not appear in {_SURFACE_CITATION_WARNINGS}. "
+            f"It is a structured flag (§2.8), not a human-readable warning string."
+        )
+        # Must NOT appear in top-level warnings.
+        assert "evidence_level" not in result["warnings"], (
+            f"evidence_level must not appear in {_SURFACE_WARNINGS}. "
+            f"It is a citation-quality metric, not a warning string (§2.6 rule 2)."
         )
