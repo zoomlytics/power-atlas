@@ -2214,7 +2214,7 @@ class TestMixedEarlyReturnSentinelEdge:
 
     4. **dry_run + retrieval-mode modifiers preserve the dry_run key set** —
        passing ``all_runs=True``, ``expand_graph=True``, or ``cluster_aware=True``
-       alongside ``dry_run=True`` must not inject any live-only keys (``hits``,
+       alongside ``dry_run=True`` must not inject any non-dry-run keys (``hits``,
        ``retrieval_results``, ``warnings``, ``retrieval_skipped``) into the result.
 
     5. **debug_view zero-defaults are preserved across mixed dry_run paths** —
