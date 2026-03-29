@@ -167,6 +167,14 @@ Structure
     - ``all_answers_cited`` is the public top-level alias; ``all_cited`` is the
       inspection-only name used inside ``debug_view`` (and ``citation_quality``) —
       the name distinction and non-leakage invariant are explicitly tested (§2.9 table).
+    - **Mixed-warning superset contract** — ``test_mixed_citation_and_operational_warnings_superset_contract``:
+      a result containing **both** a citation-quality warning (uncited-answer) and an
+      operational warning (missing optional citation fields) proves the full superset
+      invariant (§3.7 / ``propagates_to``): citation warnings propagate upward to
+      top-level ``warnings``; operational warnings remain top-level-only;
+      ``warning_count`` tracks citation-quality warnings, not the total
+      ``len(result["warnings"])``; ``debug_view["citation_warnings"]`` mirrors the
+      citation-quality surface, not the operational top-level entries.
     - Operational warnings (non-citation-quality) appear only in ``warnings``,
       not in ``citation_quality["citation_warnings"]`` (skip warning example).
 
@@ -452,6 +460,32 @@ _MALFORMED_DIAGNOSTICS_METADATA: dict[str, object] = {
     },
     "retrieval_path_diagnostics": "not-a-dict",  # malformed: root must be a dict
 }
+
+#: Metadata for a hit with missing optional citation fields (``page``, ``start_char``,
+#: ``end_char`` absent from ``citation_object``).  The live code path emits an
+#: **operational** informational warning for each chunk with absent optional fields
+#: and adds it to the top-level ``warnings`` list **only** — it is intentionally
+#: NOT propagated to ``citation_quality["citation_warnings"]`` (§2.6 rule 4).
+#: Used in the mixed-warning superset-contract test to produce an operational warning
+#: alongside a citation-quality warning.
+_MISSING_OPTIONAL_FIELDS_METADATA: dict[str, object] = {
+    "citation_token": _TOKEN,
+    "chunk_id": "c2",
+    "citation_object": {
+        "chunk_id": "c2",
+        "run_id": "r1",
+        "source_uri": "file:///doc.pdf",
+        "chunk_index": 0,
+        # page, start_char, end_char intentionally absent → operational warning
+    },
+}
+
+#: Expected operational warning text produced for ``_MISSING_OPTIONAL_FIELDS_METADATA``.
+#: Matches the format emitted by the live retrieval loop for chunks whose
+#: ``citation_object`` is missing one or more optional fields.
+_MISSING_OPTIONAL_FIELDS_WARNING: str = (
+    "Chunk 'c2' missing optional citation fields: page, start_char, end_char"
+)
 
 
 # ---------------------------------------------------------------------------
@@ -3611,6 +3645,131 @@ class TestMetadataTaxonomyBoundaries:
             f"[{path_label}] debug_view must not introduce new top-level keys beyond the "
             f"documented set; extra={set(result.keys()) - required_keys!r}, "
             f"missing={required_keys - set(result.keys())!r}"
+        )
+
+    def test_mixed_citation_and_operational_warnings_superset_contract(self) -> None:
+        """Mixed-warning scenario: top-level ``warnings`` is a **strict superset** of
+        ``citation_quality["citation_warnings"]`` when both warning types coexist.
+
+        This is the runtime-facing contract for the ``propagates_to`` semantics
+        introduced in the retrieval metadata policy (§3.7 superset invariant).
+
+        Scenario
+        --------
+        A single retrieval result contains:
+
+        - One **citation-quality** warning — the uncited-answer warning added by
+          ``_postprocess_answer()`` when no sentence carries a citation token.
+          This warning must appear in **both** ``citation_quality["citation_warnings"]``
+          **and** top-level ``warnings`` (§2.6 rule 1 / propagates_to).
+        - One **operational** informational warning — a chunk-level warning for a
+          hit whose ``citation_object`` is missing optional fields (``page``,
+          ``start_char``, ``end_char``).  This warning is added to top-level
+          ``warnings`` only; it must **not** appear in
+          ``citation_quality["citation_warnings"]`` (§2.6 rule 4).
+
+        Together these two warnings prove the superset relationship: every entry in
+        ``citation_quality["citation_warnings"]`` propagates to top-level ``warnings``,
+        but top-level ``warnings`` may contain additional operational entries that are
+        not citation-quality problems.
+
+        Assertions are anchored to
+        :data:`~demo.contracts.RETRIEVAL_METADATA_SURFACE_POLICY`
+        ``["citation_warnings"].propagates_to`` so the test stays in sync with the
+        policy model rather than hard-coding surface names.
+        """
+        result = _run_with_mocked_retrieval(
+            answer=_UNCITED_ANSWER,
+            items_metadata=[_MISSING_OPTIONAL_FIELDS_METADATA],
+            all_runs=False,
+            run_id="r1",
+        )
+        cq = result["citation_quality"]
+        dv = result["debug_view"]
+
+        # Fixture preconditions: the scenario must contain at least one citation
+        # warning and at least one operational warning so the superset is strict.
+        assert _UNCITED_WARNING in cq["citation_warnings"], (
+            f"Fixture precondition failed: expected uncited-answer citation warning; "
+            f"got citation_warnings={cq['citation_warnings']!r}"
+        )
+        assert _MISSING_OPTIONAL_FIELDS_WARNING in result["warnings"], (
+            f"Fixture precondition failed: expected operational warning for missing "
+            f"optional fields; got warnings={result['warnings']!r}"
+        )
+        assert _MISSING_OPTIONAL_FIELDS_WARNING not in cq["citation_warnings"], (
+            f"Fixture precondition failed: operational warning must NOT be in "
+            f"citation_warnings; got citation_warnings={cq['citation_warnings']!r}"
+        )
+
+        # ── Core superset invariant (§3.7) ──────────────────────────────────────
+        # Every citation warning must appear on every surface listed in propagates_to.
+        # Anchored to the policy so surface changes are caught automatically.
+        propagates_to = RETRIEVAL_METADATA_SURFACE_POLICY["citation_warnings"].propagates_to
+        for surface in propagates_to:
+            surface_values = result[surface]
+            for w in cq["citation_warnings"]:
+                assert w in surface_values, (
+                    f"Citation warning {w!r} missing from propagation target "
+                    f"{surface!r} (policy propagates_to={list(propagates_to)!r}); "
+                    f"got {surface}={surface_values!r}"
+                )
+
+        # Top-level warnings is a strict superset of citation_warnings.
+        assert set(cq["citation_warnings"]) <= set(result["warnings"]), (
+            "citation_quality['citation_warnings'] must be a subset of top-level "
+            f"warnings; citation_warnings={cq['citation_warnings']!r}, "
+            f"warnings={result['warnings']!r}"
+        )
+        assert len(result["warnings"]) > len(cq["citation_warnings"]), (
+            "top-level warnings must contain additional operational entries beyond "
+            "citation_warnings in the mixed-warning scenario; "
+            f"warnings={result['warnings']!r}, "
+            f"citation_warnings={cq['citation_warnings']!r}"
+        )
+
+        # ── debug_view mirrors citation_quality, not the full top-level warnings ─
+        assert dv["citation_warnings"] == cq["citation_warnings"], (
+            "debug_view['citation_warnings'] must mirror "
+            "citation_quality['citation_warnings'] exactly — "
+            "it does not mirror the full top-level warnings list; "
+            f"debug_view citation_warnings={dv['citation_warnings']!r}, "
+            f"citation_quality citation_warnings={cq['citation_warnings']!r}"
+        )
+
+        # ── warning_count tracks citation-quality warnings, not total warnings ───
+        assert cq["warning_count"] == len(cq["citation_warnings"]), (
+            "citation_quality['warning_count'] must equal "
+            "len(citation_quality['citation_warnings']); "
+            f"warning_count={cq['warning_count']!r}, "
+            f"len(citation_warnings)={len(cq['citation_warnings'])!r}"
+        )
+        assert len(result["warnings"]) >= cq["warning_count"], (
+            "len(top-level warnings) must be >= citation_quality['warning_count'] "
+            "because warnings is the superset; "
+            f"len(warnings)={len(result['warnings'])!r}, "
+            f"warning_count={cq['warning_count']!r}"
+        )
+        # Crucially, warning_count must NOT equal len(result["warnings"]) here,
+        # since there is an additional operational warning at the top level.
+        assert cq["warning_count"] < len(result["warnings"]), (
+            "warning_count must be strictly less than len(top-level warnings) in "
+            "the mixed-warning scenario — warning_count counts citation-quality "
+            "warnings only, not the total number of top-level warnings; "
+            f"warning_count={cq['warning_count']!r}, "
+            f"len(warnings)={len(result['warnings'])!r}"
+        )
+
+        # ── Operational warning must not leak into citation_quality ──────────────
+        assert _MISSING_OPTIONAL_FIELDS_WARNING not in cq["citation_warnings"], (
+            "Operational (non-citation-quality) warning must not appear in "
+            "citation_quality['citation_warnings'] (§2.6 rule 4); "
+            f"got citation_warnings={cq['citation_warnings']!r}"
+        )
+        assert _MISSING_OPTIONAL_FIELDS_WARNING not in dv["citation_warnings"], (
+            "Operational warning must not appear in debug_view['citation_warnings'] "
+            "(debug_view mirrors citation_quality, which excludes operational warnings); "
+            f"got debug_view citation_warnings={dv['citation_warnings']!r}"
         )
 
     def test_operational_skip_warning_in_warnings_not_citation_warnings(self) -> None:
