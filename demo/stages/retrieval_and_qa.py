@@ -2087,10 +2087,10 @@ def run_retrieval_and_qa(
 
     # ── Stage 3: postprocessing — may add MORE citation-quality warnings ─────
     # Pass the retrieval-time citation warnings into _postprocess_answer() so the
-    # helper can extend the list (e.g. by appending an uncited-answer warning).
-    # The helper guarantees that the returned citation_warnings list always starts
-    # with the same elements as existing_citation_warnings, in the same order.
-    # Unified answer postprocessing: raw citation check, repair, fallback, warnings, and
+    # helper can derive an updated list of citation warnings (e.g. by appending
+    # an uncited-answer warning) without mutating the input list.
+    # The helper guarantees that the returned citation_warnings list is a new list
+    # whose initial elements are exactly existing_citation_warnings, in the same order.
     # evidence quality bundle — computed via the shared helper so single-shot and
     # interactive paths cannot drift silently.
     _n_retrieval_citation_warnings = len(citation_warnings_list)
