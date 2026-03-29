@@ -33,6 +33,7 @@ The six representative fields covered here are those listed in the §2.10 table:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from types import MappingProxyType
 from typing import Mapping
 
 import pytest
@@ -74,6 +75,16 @@ class _TaxonomyClaim:
     )
     propagation_targets: tuple[RetrievalMetadataSurface, ...] = ()
     forbidden_surfaces: tuple[RetrievalMetadataSurface, ...] = ()
+
+    def __post_init__(self) -> None:
+        # Wrap the mutable dict in an immutable proxy so that frozen=True is
+        # meaningful end-to-end: the attribute itself cannot be rebound *and*
+        # the mapping contents cannot be mutated across tests.
+        object.__setattr__(
+            self,
+            "alias_mirror_surfaces",
+            MappingProxyType(dict(self.alias_mirror_surfaces)),
+        )
 
 
 #: Structured encoding of the §2.10 representative field examples table.
