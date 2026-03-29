@@ -440,6 +440,15 @@ All-runs mode (`all_runs=True`): repair preconditions were met (uncited answer, 
 
 `run_retrieval_and_qa()` has two short-circuit paths that return before `_postprocess_answer` runs.  These are called **early-return** paths.  Their result shapes differ from the live postprocessed shape documented in §2–§4 in predictable, contractual ways.
 
+The ordered precedence rules for these paths are captured in the machine-readable policy module `demo/contracts/retrieval_early_return_policy.py` as `EARLY_RETURN_PRECEDENCE` — an ordered tuple of `EarlyReturnRule` entries listed from highest to lowest priority.  That module is the single in-code reference for which branch wins when multiple conditions are simultaneously true (e.g. `dry_run=True` and `question=None`).
+
+**Evaluation order** (first match wins):
+
+| Priority | Condition | Outcome `status` | Additional signal | Wins over |
+|---|---|---|---|---|
+| 1 | `config.dry_run=True` | `"dry_run"` | — | `retrieval_skipped` |
+| 2 | `question is None` (live mode) | `"live"` | `retrieval_skipped=True` (§5.2; see §5.3 for caller-distinction rules) | — |
+
 ### 5.1 Dry-run (`status="dry_run"`)
 
 When `config.dry_run=True`, the function returns immediately after the shared base dict is constructed.  No retrieval, embedder, or LLM call is made.

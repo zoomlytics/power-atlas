@@ -98,6 +98,27 @@ Structure
     - Caller distinction invariant: ``status="dry_run"`` vs ``retrieval_skipped=True``.
     - Skip warning appears in ``warnings`` but not in ``citation_quality["citation_warnings"]``.
 
+``TestMixedEarlyReturnSentinelEdge``
+    Contract tests for mixed early-return inputs and sentinel-edge behavior.  The
+    precedence rules asserted here are backed by the centralized
+    :data:`~demo.contracts.EARLY_RETURN_PRECEDENCE` policy in
+    ``demo/contracts/retrieval_early_return_policy.py``.
+
+``TestEarlyReturnPrecedencePolicy``
+    Direct unit tests for the centralized
+    :data:`~demo.contracts.EARLY_RETURN_PRECEDENCE` policy itself.  Verifies that:
+
+    - The policy contains exactly two rules with unique priorities 1 and 2.
+    - The dry-run rule (priority 1) uses ``outcome_status="dry_run"`` and lists
+      ``"retrieval_skipped"`` in its ``wins_over`` set.
+    - The retrieval-skipped rule (priority 2) uses ``outcome_status="live"`` and
+      has an empty ``wins_over`` set.
+    - The ``absent_keys`` / ``exclusive_keys`` fields on each rule are consistent
+      with the :data:`_DRY_RUN_RESULT_REQUIRED_KEYS` and
+      :data:`_RETRIEVAL_SKIPPED_RESULT_REQUIRED_KEYS` constants — i.e. the policy
+      can be used to *derive* those constants from :data:`_LIVE_RESULT_REQUIRED_KEYS`.
+    - All ``wins_over`` references resolve to known rule names.
+
 ``TestProjectPostprocessToPublic``
     Direct unit tests for the :func:`_project_postprocess_to_public` adapter that
     maps an :class:`_AnswerPostprocessResult` to the public result surface.  Tests
@@ -167,6 +188,11 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from demo.contracts import RETRIEVAL_METADATA_SURFACE_POLICY
+from demo.contracts import (
+    EARLY_RETURN_PRECEDENCE,
+    EARLY_RETURN_RULE_BY_NAME,
+    EarlyReturnRule,
+)
 from demo.stages.retrieval_and_qa import (
     _CITATION_FALLBACK_PREFIX,
     _POSTPROCESS_FIELD_MAP,
@@ -2244,11 +2270,19 @@ class TestMixedEarlyReturnSentinelEdge:
     that sit just outside the canonical ``dry_run`` / ``question=None`` happy
     paths already covered by :class:`TestRunRetrievalAndQaEarlyReturnContract`.
 
+    The precedence rules encoded here are backed by the centralized
+    :data:`~demo.contracts.EARLY_RETURN_PRECEDENCE` policy
+    (``demo/contracts/retrieval_early_return_policy.py``).  See
+    :class:`TestEarlyReturnPrecedencePolicy` for direct unit tests of the policy
+    structure itself.
+
     Key invariants verified here:
 
     1. **dry_run wins over question=None** — ``config.dry_run=True`` is checked
        before the ``question is None`` guard.  When both conditions are true the
        result must be the ``dry_run`` shape, not the ``retrieval_skipped`` shape.
+       (``EARLY_RETURN_RULE_BY_NAME["dry_run"].wins_over`` contains
+       ``"retrieval_skipped"``.)
 
     2. **dry_run wins over question=""** — an empty-string question does not
        trigger the retrieval-skipped early return; ``dry_run=True`` still returns
@@ -2437,6 +2471,176 @@ class TestMixedEarlyReturnSentinelEdge:
         ``cluster_aware=True`` — cluster traversal is not executed in dry-run."""
         result = self._dry_run_result(cluster_aware=True)
         self._assert_debug_view_early_return_defaults(result["debug_view"], "dry_run+cluster_aware")
+
+
+# ---------------------------------------------------------------------------
+# TestEarlyReturnPrecedencePolicy
+# ---------------------------------------------------------------------------
+
+
+class TestEarlyReturnPrecedencePolicy:
+    """Direct unit tests for the centralized :data:`~demo.contracts.EARLY_RETURN_PRECEDENCE` policy.
+
+    These tests verify the *policy structure* itself — not the runtime behaviour
+    (which is covered by :class:`TestMixedEarlyReturnSentinelEdge` and
+    :class:`TestRunRetrievalAndQaEarlyReturnContract`).  The goal is to ensure that:
+
+    - The policy is complete: exactly the two documented early-return rules exist.
+    - The ordering is correct: dry_run (priority 1) comes before retrieval_skipped
+      (priority 2).
+    - Precedence metadata is accurate: ``wins_over`` reflects the runtime order.
+    - The policy is *self-consistent* with the test-level key-set constants
+      (:data:`_DRY_RUN_RESULT_REQUIRED_KEYS` and
+      :data:`_RETRIEVAL_SKIPPED_RESULT_REQUIRED_KEYS`), meaning the constants can
+      be *derived* from the policy + :data:`_LIVE_RESULT_REQUIRED_KEYS`.
+
+    If any of these tests fail after a new early-return branch is added, update
+    :data:`~demo.contracts.EARLY_RETURN_PRECEDENCE` and the corresponding key-set
+    constants to keep the policy and the runtime in sync.
+    """
+
+    # ------------------------------------------------------------------
+    # §1  Policy structure
+    # ------------------------------------------------------------------
+
+    def test_exactly_two_rules(self) -> None:
+        """Policy must contain exactly two early-return rules (dry_run and retrieval_skipped)."""
+        assert len(EARLY_RETURN_PRECEDENCE) == 2
+
+    def test_priorities_are_unique(self) -> None:
+        """Every rule must have a distinct priority value."""
+        priorities = [r.priority for r in EARLY_RETURN_PRECEDENCE]
+        assert len(priorities) == len(set(priorities))
+
+    def test_rules_ordered_ascending_by_priority(self) -> None:
+        """Rules in the tuple must appear in ascending priority order (index 0 = highest)."""
+        priorities = [r.priority for r in EARLY_RETURN_PRECEDENCE]
+        assert priorities == sorted(priorities)
+
+    def test_rule_names_are_non_empty(self) -> None:
+        """Every rule must carry a non-empty name string."""
+        for rule in EARLY_RETURN_PRECEDENCE:
+            assert rule.name, f"Rule at priority {rule.priority} has an empty name"
+
+    def test_section_refs_are_present(self) -> None:
+        """Every rule must carry a non-empty section_ref for cross-document traceability."""
+        for rule in EARLY_RETURN_PRECEDENCE:
+            assert rule.section_ref, f"Rule {rule.name!r} is missing section_ref"
+
+    def test_rule_by_name_lookup_covers_all_rules(self) -> None:
+        """``EARLY_RETURN_RULE_BY_NAME`` must map exactly the same rules as the tuple."""
+        assert set(EARLY_RETURN_RULE_BY_NAME.keys()) == {r.name for r in EARLY_RETURN_PRECEDENCE}
+
+    def test_wins_over_references_all_resolve(self) -> None:
+        """All ``wins_over`` entries must reference a known rule name."""
+        known = {r.name for r in EARLY_RETURN_PRECEDENCE}
+        for rule in EARLY_RETURN_PRECEDENCE:
+            unresolved = rule.wins_over - known
+            assert not unresolved, (
+                f"Rule {rule.name!r} wins_over references unknown name(s): {unresolved!r}"
+            )
+
+    # ------------------------------------------------------------------
+    # §2  dry_run rule specifics (priority 1)
+    # ------------------------------------------------------------------
+
+    def test_first_rule_is_dry_run(self) -> None:
+        """The first rule in EARLY_RETURN_PRECEDENCE (index 0) must be ``dry_run``."""
+        assert EARLY_RETURN_PRECEDENCE[0].name == "dry_run"
+
+    def test_dry_run_priority_is_1(self) -> None:
+        """``dry_run`` rule must have priority 1 (highest precedence)."""
+        assert EARLY_RETURN_RULE_BY_NAME["dry_run"].priority == 1
+
+    def test_dry_run_outcome_status(self) -> None:
+        """``dry_run`` rule must produce ``outcome_status="dry_run"``."""
+        assert EARLY_RETURN_RULE_BY_NAME["dry_run"].outcome_status == "dry_run"
+
+    def test_dry_run_wins_over_retrieval_skipped(self) -> None:
+        """``dry_run.wins_over`` must contain ``"retrieval_skipped"`` — confirming that
+        when both conditions are simultaneously true, the dry_run shape is returned."""
+        assert "retrieval_skipped" in EARLY_RETURN_RULE_BY_NAME["dry_run"].wins_over
+
+    def test_dry_run_absent_keys_contains_retrieval_skipped_key(self) -> None:
+        """``dry_run.absent_keys`` must include ``"retrieval_skipped"`` — the flag is
+        absent from the dry_run result shape (§5.1)."""
+        assert "retrieval_skipped" in EARLY_RETURN_RULE_BY_NAME["dry_run"].absent_keys
+
+    def test_dry_run_absent_keys_contains_hits(self) -> None:
+        """``dry_run.absent_keys`` must include ``"hits"`` (no retrieval ran — §5.1)."""
+        assert "hits" in EARLY_RETURN_RULE_BY_NAME["dry_run"].absent_keys
+
+    def test_dry_run_absent_keys_contains_retrieval_results(self) -> None:
+        """``dry_run.absent_keys`` must include ``"retrieval_results"`` (§5.1)."""
+        assert "retrieval_results" in EARLY_RETURN_RULE_BY_NAME["dry_run"].absent_keys
+
+    def test_dry_run_absent_keys_contains_warnings(self) -> None:
+        """``dry_run.absent_keys`` must include ``"warnings"`` — no operational
+        warnings are raised in dry-run mode (§5.1)."""
+        assert "warnings" in EARLY_RETURN_RULE_BY_NAME["dry_run"].absent_keys
+
+    # ------------------------------------------------------------------
+    # §3  retrieval_skipped rule specifics (priority 2)
+    # ------------------------------------------------------------------
+
+    def test_second_rule_is_retrieval_skipped(self) -> None:
+        """The second rule in EARLY_RETURN_PRECEDENCE (index 1) must be ``retrieval_skipped``."""
+        assert EARLY_RETURN_PRECEDENCE[1].name == "retrieval_skipped"
+
+    def test_retrieval_skipped_priority_is_2(self) -> None:
+        """``retrieval_skipped`` rule must have priority 2."""
+        assert EARLY_RETURN_RULE_BY_NAME["retrieval_skipped"].priority == 2
+
+    def test_retrieval_skipped_outcome_status_is_live(self) -> None:
+        """``retrieval_skipped`` rule must produce ``outcome_status="live"`` — the
+        result carries ``status="live"`` to distinguish it from the dry_run path (§5.3)."""
+        assert EARLY_RETURN_RULE_BY_NAME["retrieval_skipped"].outcome_status == "live"
+
+    def test_retrieval_skipped_wins_over_nothing(self) -> None:
+        """``retrieval_skipped.wins_over`` must be empty — it has the lowest priority
+        among early-return rules and does not preempt any other condition."""
+        assert not EARLY_RETURN_RULE_BY_NAME["retrieval_skipped"].wins_over
+
+    def test_retrieval_skipped_exclusive_keys_contains_retrieval_skipped_flag(self) -> None:
+        """``retrieval_skipped.exclusive_keys`` must include ``"retrieval_skipped"`` —
+        the flag is the canonical caller signal for this path (§5.3)."""
+        assert "retrieval_skipped" in EARLY_RETURN_RULE_BY_NAME["retrieval_skipped"].exclusive_keys
+
+    # ------------------------------------------------------------------
+    # §4  Cross-reference with test key-set constants
+    # ------------------------------------------------------------------
+
+    def test_dry_run_absent_keys_consistent_with_key_set_constant(self) -> None:
+        """Applying ``dry_run.absent_keys`` to :data:`_LIVE_RESULT_REQUIRED_KEYS` must
+        produce exactly :data:`_DRY_RUN_RESULT_REQUIRED_KEYS`.
+
+        This cross-reference confirms that the policy's ``absent_keys`` set is the
+        authoritative, in-one-place definition of what the key-set constant encodes.
+        """
+        rule = EARLY_RETURN_RULE_BY_NAME["dry_run"]
+        derived = _LIVE_RESULT_REQUIRED_KEYS - rule.absent_keys
+        assert derived == _DRY_RUN_RESULT_REQUIRED_KEYS, (
+            "dry_run.absent_keys is inconsistent with _DRY_RUN_RESULT_REQUIRED_KEYS; "
+            f"derived={derived - _DRY_RUN_RESULT_REQUIRED_KEYS!r} extra, "
+            f"missing={_DRY_RUN_RESULT_REQUIRED_KEYS - derived!r}"
+        )
+
+    def test_retrieval_skipped_exclusive_keys_consistent_with_key_set_constant(self) -> None:
+        """Applying ``retrieval_skipped.exclusive_keys`` to :data:`_LIVE_RESULT_REQUIRED_KEYS`
+        must produce exactly :data:`_RETRIEVAL_SKIPPED_RESULT_REQUIRED_KEYS`.
+
+        This cross-reference confirms that the policy's ``exclusive_keys`` set is the
+        authoritative definition of what :data:`_RETRIEVAL_SKIPPED_RESULT_REQUIRED_KEYS`
+        encodes relative to the live key set.
+        """
+        rule = EARLY_RETURN_RULE_BY_NAME["retrieval_skipped"]
+        derived = _LIVE_RESULT_REQUIRED_KEYS | rule.exclusive_keys
+        assert derived == _RETRIEVAL_SKIPPED_RESULT_REQUIRED_KEYS, (
+            "retrieval_skipped.exclusive_keys is inconsistent with "
+            "_RETRIEVAL_SKIPPED_RESULT_REQUIRED_KEYS; "
+            f"derived={derived - _RETRIEVAL_SKIPPED_RESULT_REQUIRED_KEYS!r} extra, "
+            f"missing={_RETRIEVAL_SKIPPED_RESULT_REQUIRED_KEYS - derived!r}"
+        )
 
 
 # ---------------------------------------------------------------------------
