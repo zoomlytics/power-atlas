@@ -81,10 +81,11 @@ def _capture_single_shot_select_query(extra_flags: dict[str, object]) -> dict[st
     """Return the kwargs passed to ``_select_retrieval_query`` by the live path of
     ``run_retrieval_and_qa``.
 
-    Uses ``question=None`` for an early return before any Neo4j or OpenAI call.
-    ``all_runs=True`` is injected so the function skips the ``run_id`` validation
-    check (the parity test supplies any caller-provided flag overrides via
-    *extra_flags*).
+    Uses an empty-string question (non-``None`` so the early-return resolver does
+    not short-circuit before the setup helpers are reached) with ``all_runs=True``
+    to skip the ``run_id`` validation check.  The function raises ``ValueError``
+    at the ``OPENAI_API_KEY`` guard after the spy has captured its call; that
+    error is expected and suppressed here.
     """
     captured: list[dict[str, object]] = []
     orig = _select_retrieval_query
@@ -95,7 +96,10 @@ def _capture_single_shot_select_query(extra_flags: dict[str, object]) -> dict[st
 
     flags: dict[str, object] = {"all_runs": True, **extra_flags}
     with patch("demo.stages.retrieval_and_qa._select_retrieval_query", side_effect=spy):
-        run_retrieval_and_qa(_LIVE_CONFIG, question=None, **flags)
+        try:
+            run_retrieval_and_qa(_LIVE_CONFIG, question="", **flags)
+        except ValueError:
+            pass  # OPENAI_API_KEY guard fires after the spy captures; that is expected.
 
     assert captured, "Expected at least one _select_retrieval_query call"
     first_kwargs = captured[0]
@@ -140,7 +144,10 @@ def _capture_single_shot_build_query_params(extra_flags: dict[str, object]) -> d
     """Return the kwargs passed to ``_build_query_params`` by the live path of
     ``run_retrieval_and_qa``.
 
-    Uses ``question=None`` for an early return before any Neo4j or OpenAI call.
+    Uses an empty-string question (non-``None`` so the early-return resolver does
+    not short-circuit before the setup helpers are reached).  The function raises
+    ``ValueError`` at the ``OPENAI_API_KEY`` guard after the spy has captured its
+    call; that error is expected and suppressed here.
     """
     captured: list[dict[str, object]] = []
     orig = _build_query_params
@@ -155,7 +162,10 @@ def _capture_single_shot_build_query_params(extra_flags: dict[str, object]) -> d
         {"run_id": "r1", **extra_flags} if not extra_flags.get("all_runs") else dict(extra_flags)
     )
     with patch("demo.stages.retrieval_and_qa._build_query_params", side_effect=spy):
-        run_retrieval_and_qa(_LIVE_CONFIG, question=None, **flags)
+        try:
+            run_retrieval_and_qa(_LIVE_CONFIG, question="", **flags)
+        except ValueError:
+            pass  # OPENAI_API_KEY guard fires after the spy captures; that is expected.
 
     assert captured, "Expected at least one _build_query_params call"
     return captured[0]

@@ -16,7 +16,7 @@ from demo.llm_utils import build_openai_llm
 from neo4j_graphrag.retrievers import VectorCypherRetriever
 from neo4j_graphrag.types import LLMMessage, RetrieverResultItem
 
-from demo.contracts import CHUNK_EMBEDDING_INDEX_NAME, EMBEDDER_MODEL_NAME, FIXTURES_DIR, PROMPT_IDS, ALIGNMENT_VERSION
+from demo.contracts import CHUNK_EMBEDDING_INDEX_NAME, EMBEDDER_MODEL_NAME, FIXTURES_DIR, PROMPT_IDS, ALIGNMENT_VERSION, resolve_early_return_rule
 from demo.contracts.prompts import POWER_ATLAS_RAG_TEMPLATE
 
 _DEFAULT_TOP_K = 10
@@ -1918,24 +1918,47 @@ def run_retrieval_and_qa(
             "malformed_diagnostics_count": 0,
         },
     }
-    # Early-return #1 — dry_run (priority 1, highest precedence).
-    # This guard must remain the first post-base check so that dry_run wins over
-    # all other conditions (question=None, retrieval modifiers, etc.).
+    # Resolve which (if any) early-return rule applies.
+    # EARLY_RETURN_PRECEDENCE is the single authoritative ordering source; the
+    # resolver evaluates conditions in that order so that mixed inputs
+    # (e.g. dry_run=True and question=None simultaneously) always produce the
+    # correct winning branch without duplicating precedence in manual if-chains.
     # Precedence contract: demo/contracts/retrieval_early_return_policy.py
-    # Contract doc: docs/architecture/retrieval-citation-result-contract-v0.1.md §5.1
-    if getattr(config, "dry_run", False):
-        dry_run_retrievers: list[str] = ["VectorCypherRetriever"]
-        if cluster_aware:
-            dry_run_retrievers += ["graph expansion", "cluster traversal"]
-        elif expand_graph:
-            dry_run_retrievers.append("graph expansion")
-        dry_run_qa_label = "GraphRAG all-runs citations" if all_runs else "GraphRAG run-scoped citations"
-        return {
-            **base,
-            "status": "dry_run",
-            "retrievers": dry_run_retrievers,
-            "qa": dry_run_qa_label,
-        }
+    # Contract doc: docs/architecture/retrieval-citation-result-contract-v0.1.md §5
+    _early_rule = resolve_early_return_rule(
+        is_dry_run=getattr(config, "dry_run", False),
+        question=question,
+    )
+    if _early_rule is not None:
+        if _early_rule.name == "dry_run":
+            # §5.1 — dry_run early return.
+            dry_run_retrievers: list[str] = ["VectorCypherRetriever"]
+            if cluster_aware:
+                dry_run_retrievers += ["graph expansion", "cluster traversal"]
+            elif expand_graph:
+                dry_run_retrievers.append("graph expansion")
+            dry_run_qa_label = "GraphRAG all-runs citations" if all_runs else "GraphRAG run-scoped citations"
+            return {
+                **base,
+                "status": "dry_run",
+                "retrievers": dry_run_retrievers,
+                "qa": dry_run_qa_label,
+            }
+        if _early_rule.name == "retrieval_skipped":
+            # §5.2 — retrieval_skipped early return.
+            warning_msg = "No question provided; skipping vector retrieval."
+            _logger.warning(warning_msg)
+            # Retrieval (and optional graph expansion) did not run; report no retrievers.
+            return {
+                **base,
+                "status": "live",
+                "retrievers": [],
+                "qa": "GraphRAG run-scoped citations",
+                "hits": 0,
+                "retrieval_results": [],
+                "warnings": [warning_msg],
+                "retrieval_skipped": True,
+            }
 
     # Live retrieval: build a VectorCypherRetriever with citation formatter.
     # run_id is mandatory unless all_runs=True (which queries across all chunks).
@@ -1964,26 +1987,6 @@ def run_retrieval_and_qa(
     warnings_list: list[str] = []
     citation_warnings_list: list[str] = []
     hits: list[dict[str, object]] = []
-
-    # Early-return §5.2 — retrieval_skipped (priority 2).
-    # This guard runs after dry_run so that dry_run takes precedence when both
-    # config.dry_run=True and question=None are simultaneously true.
-    # Precedence contract: demo/contracts/retrieval_early_return_policy.py
-    # Contract doc: docs/architecture/retrieval-citation-result-contract-v0.1.md §5.2
-    if question is None:
-        warning_msg = "No question provided; skipping vector retrieval."
-        _logger.warning(warning_msg)
-        # Retrieval (and optional graph expansion) did not run; report no retrievers.
-        return {
-            **base,
-            "status": "live",
-            "retrievers": [],
-            "qa": "GraphRAG run-scoped citations",
-            "hits": 0,
-            "retrieval_results": [],
-            "warnings": [warning_msg],
-            "retrieval_skipped": True,
-        }
 
     if not os.getenv("OPENAI_API_KEY"):
         raise ValueError("OPENAI_API_KEY environment variable is required for live retrieval.")
