@@ -2798,7 +2798,9 @@ class TestEarlyReturnRulePayloadCorrespondence:
     def _retrieval_skipped_result(**kwargs) -> dict[str, object]:
         """Return a retrieval-skipped result (``dry_run=False``, ``question=None``).
 
-        Uses empty/invalid Neo4j credentials to prove no driver connection is opened.
+        The config intentionally uses empty/invalid Neo4j credentials so that, if the
+        early-return for ``question is None`` regressed to occur after live config
+        validation or driver creation, this path would start failing.
 
         Delegates to ``TestRunRetrievalAndQaEarlyReturnContract._skip_result`` to ensure
         a single source of truth for the skip-result configuration.
