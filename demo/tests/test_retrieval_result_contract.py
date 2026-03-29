@@ -2960,7 +2960,7 @@ class TestEarlyReturnRulePayloadCorrespondence:
         ids=["all_runs", "expand_graph", "cluster_aware"],
     )
     def test_dry_run_absent_keys_preserved_with_retrieval_modifier(
-        self, modifier: dict
+        self, modifier: dict[str, bool]
     ) -> None:
         """Passing retrieval-mode modifiers alongside ``dry_run=True`` must not inject
         any of ``dry_run.absent_keys`` into the runtime payload.
