@@ -698,7 +698,7 @@ The retrieval/citation contract is intentionally distributed across several arti
 | **Taxonomy and narrative contract explanation** (this document) | `docs/architecture/retrieval-citation-result-contract-v0.1.md` | Narrative documentation |
 | **Readable scenario-based contract tests** | `demo/tests/test_retrieval_result_contract.py` | Contract tests |
 | **Generic policy-vs-runtime parity tests** | `demo/tests/test_retrieval_metadata_projection_parity.py` | Contract tests |
-| **Fixture-backed doc/runtime drift scenarios** | `demo/tests/contract_fixtures/retrieval_citation_scenarios.yaml` | Contract tests |
+| **Fixture-backed doc/runtime drift scenarios** | `demo/tests/test_doc_contract_drift.py` (fixture: `demo/tests/contract_fixtures/retrieval_citation_scenarios.yaml`) | Contract tests |
 
 ### How these artifacts relate
 
