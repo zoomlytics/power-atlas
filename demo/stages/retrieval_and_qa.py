@@ -2002,11 +2002,13 @@ def run_retrieval_and_qa(
     #                            warnings (operational + citation-quality).
     #   citation_warnings_list — citation-quality subset only.  Passed into
     #                            _postprocess_answer() as existing_citation_warnings
-    #                            so the helper can extend it.  Every entry here must
+    #                            to seed the helper’s internal accumulator. The
+    #                            helper returns a new, extended citation_warnings
+    #                            list derived from this seed. Every entry here must
     #                            also appear in warnings_list.
     #
-    # After _postprocess_answer() returns, any citation warnings it added are
-    # propagated up to warnings_list so the two lists remain consistent.
+    # After _postprocess_answer() returns, any new citation warnings it produced
+    # are propagated up to warnings_list so the two lists remain consistent.
     # See §2.5.2 of the contract document for the full invariant specification.
     warnings_list: list[str] = []
     citation_warnings_list: list[str] = []
