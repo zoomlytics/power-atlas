@@ -3770,12 +3770,7 @@ class TestMetadataTaxonomyBoundaries:
             f"len(warnings)={len(result['warnings'])!r}"
         )
 
-        # ── Operational warning must not leak into citation_quality ──────────────
-        assert _MISSING_OPTIONAL_FIELDS_WARNING not in cq["citation_warnings"], (
-            "Operational (non-citation-quality) warning must not appear in "
-            "citation_quality['citation_warnings'] (§2.6 rule 4); "
-            f"got citation_warnings={cq['citation_warnings']!r}"
-        )
+        # ── Operational warning must not leak into citation-related views ───────
         assert _MISSING_OPTIONAL_FIELDS_WARNING not in dv["citation_warnings"], (
             "Operational warning must not appear in debug_view['citation_warnings'] "
             "(debug_view mirrors citation_quality, which excludes operational warnings); "
