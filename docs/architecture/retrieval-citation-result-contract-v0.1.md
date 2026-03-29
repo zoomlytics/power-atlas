@@ -686,6 +686,58 @@ The full lifecycle executed by `_postprocess_answer` in order:
 
 ---
 
+## 8) Maintainer Artifact Ownership Map
+
+The retrieval/citation contract is intentionally distributed across several artifacts.  The table below maps each area of responsibility to the file that owns it and clarifies whether that file is machine-readable policy, a runtime implementation, narrative documentation, or contract tests.
+
+| Responsibility | Artifact | Kind |
+|---|---|---|
+| **Early-return precedence / short-circuit ordering** | `demo/contracts/retrieval_early_return_policy.py` | Machine-readable policy |
+| **Metadata surface ownership, mirror, propagation, and forbidden-placement policy** | `demo/contracts/retrieval_metadata_policy.py` | Machine-readable policy |
+| **Runtime payload assembly** (postprocessing, citation repair, evidence-level derivation) | `demo/stages/retrieval_and_qa.py` | Runtime implementation |
+| **Taxonomy and narrative contract explanation** (this document) | `docs/architecture/retrieval-citation-result-contract-v0.1.md` | Narrative documentation |
+| **Readable scenario-based contract tests** | `demo/tests/test_retrieval_result_contract.py` | Contract tests |
+| **Generic policy-vs-runtime parity tests** | `demo/tests/test_retrieval_metadata_projection_parity.py` | Contract tests |
+| **Fixture-backed doc/runtime drift scenarios** | `demo/tests/contract_fixtures/retrieval_citation_scenarios.yaml` | Contract tests |
+
+### How these artifacts relate
+
+- **Policy files** (`retrieval_early_return_policy.py`, `retrieval_metadata_policy.py`) are the machine-readable single source of truth.  They encode the rules that the runtime must follow.  Both are re-exported from `demo/contracts/__init__.py` for convenient import.
+- **The runtime** (`retrieval_and_qa.py`) consumes the policy objects (e.g. `EARLY_RETURN_PRECEDENCE`, `RETRIEVAL_METADATA_SURFACE_POLICY`) to drive branching and field projection.  It should contain no duplicated rule logic — behaviour is derived from policy.
+- **This document** (narrative doc) explains *why* the rules exist, documents invariants in prose and tables, and is the canonical reference that any reviewer should read first.
+- **Contract tests** verify that the runtime matches what the policy and this document declare.  There are three complementary layers: scenario tests for readable coverage of documented cases, parity tests for exhaustive policy-driven checks, and fixture-backed scenarios to catch doc/runtime drift.
+
+### When making changes
+
+**Changing early-return precedence or adding a new early-return branch:**
+1. Edit `demo/contracts/retrieval_early_return_policy.py` (policy).
+2. Update the runtime handler in `demo/stages/retrieval_and_qa.py` if a new branch needs a code path.
+3. Update §5 of this document to reflect the new or reordered branch.
+4. Add or update readable scenario tests in `demo/tests/test_retrieval_result_contract.py`.
+
+**Changing metadata surface ownership, mirrors, propagation, or forbidden placement:**
+1. Edit `demo/contracts/retrieval_metadata_policy.py` (policy).
+2. Verify or update the runtime projection in `demo/stages/retrieval_and_qa.py`.
+3. Update §2–§3 of this document if the field taxonomy changes.
+4. The parametric parity tests in `demo/tests/test_retrieval_metadata_projection_parity.py` are policy-driven; they will automatically cover new fields once the policy is updated.
+
+**Changing runtime payload assembly (postprocessing logic, field values):**
+1. Edit `demo/stages/retrieval_and_qa.py` (runtime).
+2. Update §2, §4, or §6 of this document to reflect the new behaviour.
+3. Update or add readable scenario tests in `demo/tests/test_retrieval_result_contract.py`.
+4. Update fixture snapshots in `demo/tests/contract_fixtures/retrieval_citation_scenarios.yaml` if any expected output changes.
+
+**Updating narrative documentation only:**
+1. Edit this document.
+2. Verify that no policy file or test needs a corresponding update (documentation-only changes that stay aligned with existing behaviour are self-contained).
+
+**Adding new contract scenarios or invariant tests:**
+1. Add readable scenario cases to `demo/tests/test_retrieval_result_contract.py`.
+2. Add fixture-backed drift scenarios to `demo/tests/contract_fixtures/retrieval_citation_scenarios.yaml` when the scenario should be anchored to a specific snapshot.
+3. Extend `demo/tests/test_retrieval_metadata_projection_parity.py` only when a new surface or policy dimension is introduced that the parametric suite does not yet cover.
+
+---
+
 ## Closing Note
 
 This document is the canonical reference for postprocessing/result-field semantics in Power Atlas retrieval.  Any change to the meaning or population rules of the fields listed in §2 requires an explicit update to this document.
