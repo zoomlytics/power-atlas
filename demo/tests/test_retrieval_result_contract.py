@@ -3046,6 +3046,49 @@ class TestRunRetrievalAndQaWarningsContract:
         )
         assert cq["warning_count"] == 0
 
+    @pytest.mark.parametrize(
+        "scenario,answer,items_metadata,all_runs,run_id",
+        _LIVE_SCENARIOS,
+        ids=_LIVE_SCENARIO_IDS,
+    )
+    def test_citation_warnings_propagation_from_policy(
+        self,
+        scenario: str,
+        answer: str,
+        items_metadata: list,
+        all_runs: bool,
+        run_id: str | None,
+    ) -> None:
+        """citation_warnings entries must appear on every surface in propagates_to.
+
+        Driven by
+        :data:`~demo.contracts.RETRIEVAL_METADATA_SURFACE_POLICY`
+        ``["citation_warnings"].propagates_to``.  The only settled propagation
+        target today is the top-level ``"warnings"`` surface (invariant §3.7):
+        every entry in ``citation_quality["citation_warnings"]`` must also appear
+        in the top-level ``warnings`` list, while ``warnings`` may contain
+        additional non-citation entries.
+        """
+        propagates_to = RETRIEVAL_METADATA_SURFACE_POLICY["citation_warnings"].propagates_to
+        # Structural assertion: confirm the policy encodes the expected target.
+        assert "warnings" in propagates_to, (
+            "Policy must list 'warnings' in citation_warnings.propagates_to (§3.7)"
+        )
+        result = _run_with_mocked_retrieval(
+            answer=answer,
+            items_metadata=items_metadata,
+            all_runs=all_runs,
+            run_id=run_id,
+        )
+        cq = result["citation_quality"]
+        # Runtime assertion: verify each propagates_to target contains every entry.
+        for w in cq["citation_warnings"]:
+            assert w in result["warnings"], (
+                f"[{scenario}] citation_quality warning {w!r} missing from "
+                f"top-level warnings (policy propagates_to={list(propagates_to)!r}); "
+                f"got {result['warnings']!r}"
+            )
+
 
 # ---------------------------------------------------------------------------
 # TestMetadataTaxonomyBoundaries
