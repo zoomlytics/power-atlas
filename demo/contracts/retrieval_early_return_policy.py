@@ -124,6 +124,14 @@ class EarlyReturnRule:
     wins_over: frozenset[str]
     section_ref: str
 
+    def __post_init__(self) -> None:
+        # Coerce all collection fields to frozenset so the immutability
+        # guarantee holds even when a caller supplies a plain set.
+        # The dataclass is frozen, so assignment must go through
+        # object.__setattr__.
+        for _field in ("absent_keys", "exclusive_keys", "wins_over"):
+            object.__setattr__(self, _field, frozenset(getattr(self, _field)))
+
 
 # ---------------------------------------------------------------------------
 # Precedence table
