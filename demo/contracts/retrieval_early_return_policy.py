@@ -73,6 +73,7 @@ __all__ = [
     "EarlyReturnRule",
     "EARLY_RETURN_PRECEDENCE",
     "EARLY_RETURN_RULE_BY_NAME",
+    "resolve_early_return_rule",
 ]
 
 # ---------------------------------------------------------------------------
@@ -234,3 +235,57 @@ if len(_names) != len(set(_names)):
 EARLY_RETURN_RULE_BY_NAME: Mapping[str, EarlyReturnRule] = MappingProxyType(
     {rule.name: rule for rule in EARLY_RETURN_PRECEDENCE}
 )
+
+
+# ---------------------------------------------------------------------------
+# Runtime resolver
+# ---------------------------------------------------------------------------
+
+
+def resolve_early_return_rule(
+    *,
+    is_dry_run: bool,
+    question: str | None,
+) -> "EarlyReturnRule | None":
+    """Return the first matching early-return rule given the runtime inputs.
+
+    Evaluates each rule's condition in :data:`EARLY_RETURN_PRECEDENCE` order
+    (index 0 = highest priority) and returns the first rule whose condition is
+    satisfied.  Returns ``None`` when no early-return condition is met and live
+    retrieval should proceed.
+
+    This function is the single runtime point where :data:`EARLY_RETURN_PRECEDENCE`
+    drives branch selection.  ``run_retrieval_and_qa()`` calls it once before
+    constructing any early-return payloads; the returned rule name determines
+    which branch is taken.
+
+    Parameters
+    ----------
+    is_dry_run:
+        Whether ``config.dry_run=True``.
+    question:
+        The question string passed to ``run_retrieval_and_qa()``.
+
+    Raises
+    ------
+    RuntimeError
+        If a rule name in :data:`EARLY_RETURN_PRECEDENCE` has no corresponding
+        condition defined in this function.  This prevents silent misses when
+        new rules are added to the policy without updating the resolver.
+        When adding a new :class:`EarlyReturnRule` to the precedence table,
+        add a matching entry to ``_conditions`` in this function.
+    """
+    _conditions: dict[str, bool] = {
+        "dry_run": is_dry_run,
+        "retrieval_skipped": question is None,
+    }
+    unknown = {r.name for r in EARLY_RETURN_PRECEDENCE} - _conditions.keys()
+    if unknown:
+        raise RuntimeError(
+            f"resolve_early_return_rule: no condition defined for rule(s) {unknown!r}; "
+            "add the missing condition(s) to the _conditions dict in this function."
+        )
+    for rule in EARLY_RETURN_PRECEDENCE:
+        if _conditions[rule.name]:
+            return rule
+    return None

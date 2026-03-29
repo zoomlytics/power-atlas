@@ -191,6 +191,7 @@ from demo.contracts import RETRIEVAL_METADATA_SURFACE_POLICY
 from demo.contracts import (
     EARLY_RETURN_PRECEDENCE,
     EARLY_RETURN_RULE_BY_NAME,
+    resolve_early_return_rule,
 )
 from demo.stages.retrieval_and_qa import (
     _CITATION_FALLBACK_PREFIX,
@@ -2640,6 +2641,99 @@ class TestEarlyReturnPrecedencePolicy:
             f"derived={derived - _RETRIEVAL_SKIPPED_RESULT_REQUIRED_KEYS!r} extra, "
             f"missing={_RETRIEVAL_SKIPPED_RESULT_REQUIRED_KEYS - derived!r}"
         )
+
+
+# ---------------------------------------------------------------------------
+# TestResolveEarlyReturnRule
+# ---------------------------------------------------------------------------
+
+
+class TestResolveEarlyReturnRule:
+    """Unit tests for :func:`~demo.contracts.resolve_early_return_rule`.
+
+    These tests verify that the resolver correctly maps runtime inputs to the
+    matching :class:`~demo.contracts.EarlyReturnRule` (or ``None``) by
+    evaluating conditions in :data:`~demo.contracts.EARLY_RETURN_PRECEDENCE`
+    order.  They do not go through ``run_retrieval_and_qa()`` — they exercise
+    the helper in isolation.
+    """
+
+    # ------------------------------------------------------------------
+    # No-match (live) path
+    # ------------------------------------------------------------------
+
+    def test_returns_none_when_no_rule_matches(self) -> None:
+        """When ``is_dry_run=False`` and ``question`` is a non-None string,
+        the resolver must return ``None`` (live retrieval should proceed)."""
+        assert resolve_early_return_rule(is_dry_run=False, question="some question") is None
+
+    def test_returns_none_for_empty_string_question(self) -> None:
+        """An empty-string question with ``is_dry_run=False`` must return ``None`` —
+        ``question=""`` is not a retrieval-skipping sentinel."""
+        assert resolve_early_return_rule(is_dry_run=False, question="") is None
+
+    # ------------------------------------------------------------------
+    # dry_run rule (priority 1)
+    # ------------------------------------------------------------------
+
+    def test_returns_dry_run_when_is_dry_run_true(self) -> None:
+        """When ``is_dry_run=True`` the resolver must return the ``dry_run`` rule."""
+        rule = resolve_early_return_rule(is_dry_run=True, question="any question")
+        assert rule is not None
+        assert rule.name == "dry_run"
+
+    def test_dry_run_beats_question_none(self) -> None:
+        """When ``is_dry_run=True`` and ``question=None``, the resolver must return
+        the ``dry_run`` rule — dry_run has higher priority than retrieval_skipped."""
+        rule = resolve_early_return_rule(is_dry_run=True, question=None)
+        assert rule is not None
+        assert rule.name == "dry_run"
+
+    def test_dry_run_beats_empty_question(self) -> None:
+        """When ``is_dry_run=True`` and ``question=""``, the resolver must return
+        the ``dry_run`` rule."""
+        rule = resolve_early_return_rule(is_dry_run=True, question="")
+        assert rule is not None
+        assert rule.name == "dry_run"
+
+    def test_dry_run_rule_outcome_status(self) -> None:
+        """The returned ``dry_run`` rule must carry ``outcome_status='dry_run'``."""
+        rule = resolve_early_return_rule(is_dry_run=True, question=None)
+        assert rule is not None
+        assert rule.outcome_status == "dry_run"
+
+    # ------------------------------------------------------------------
+    # retrieval_skipped rule (priority 2)
+    # ------------------------------------------------------------------
+
+    def test_returns_retrieval_skipped_when_question_is_none(self) -> None:
+        """When ``is_dry_run=False`` and ``question=None``, the resolver must return
+        the ``retrieval_skipped`` rule."""
+        rule = resolve_early_return_rule(is_dry_run=False, question=None)
+        assert rule is not None
+        assert rule.name == "retrieval_skipped"
+
+    def test_retrieval_skipped_rule_outcome_status(self) -> None:
+        """The returned ``retrieval_skipped`` rule must carry ``outcome_status='live'``."""
+        rule = resolve_early_return_rule(is_dry_run=False, question=None)
+        assert rule is not None
+        assert rule.outcome_status == "live"
+
+    # ------------------------------------------------------------------
+    # Returned object is the policy object (identity / reference check)
+    # ------------------------------------------------------------------
+
+    def test_returned_rule_is_from_precedence_table(self) -> None:
+        """The resolver must return the same object instance as the matching entry
+        in :data:`EARLY_RETURN_PRECEDENCE`, not a copy."""
+        rule = resolve_early_return_rule(is_dry_run=True, question=None)
+        assert rule is EARLY_RETURN_RULE_BY_NAME["dry_run"]
+
+    def test_returned_retrieval_skipped_rule_is_from_precedence_table(self) -> None:
+        """Resolver must return the same object instance as the ``retrieval_skipped``
+        entry in :data:`EARLY_RETURN_PRECEDENCE`."""
+        rule = resolve_early_return_rule(is_dry_run=False, question=None)
+        assert rule is EARLY_RETURN_RULE_BY_NAME["retrieval_skipped"]
 
 
 # ---------------------------------------------------------------------------

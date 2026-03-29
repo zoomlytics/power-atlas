@@ -81,10 +81,11 @@ def _capture_single_shot_select_query(extra_flags: dict[str, object]) -> dict[st
     """Return the kwargs passed to ``_select_retrieval_query`` by the live path of
     ``run_retrieval_and_qa``.
 
-    Uses ``question=None`` for an early return before any Neo4j or OpenAI call.
-    ``all_runs=True`` is injected so the function skips the ``run_id`` validation
-    check (the parity test supplies any caller-provided flag overrides via
-    *extra_flags*).
+    Uses an empty-string question (non-``None`` so the early-return resolver does
+    not short-circuit before the setup helpers are reached) with ``all_runs=True``
+    to skip the ``run_id`` validation check.  ``os.getenv`` is patched to return
+    an empty string for ``OPENAI_API_KEY`` so the API-key guard fires
+    deterministically regardless of the process environment.
     """
     captured: list[dict[str, object]] = []
     orig = _select_retrieval_query
@@ -94,8 +95,16 @@ def _capture_single_shot_select_query(extra_flags: dict[str, object]) -> dict[st
         return orig(**kwargs)  # type: ignore[arg-type]
 
     flags: dict[str, object] = {"all_runs": True, **extra_flags}
-    with patch("demo.stages.retrieval_and_qa._select_retrieval_query", side_effect=spy):
-        run_retrieval_and_qa(_LIVE_CONFIG, question=None, **flags)
+    with (
+        patch("demo.stages.retrieval_and_qa._select_retrieval_query", side_effect=spy),
+        patch("demo.stages.retrieval_and_qa.os.getenv", return_value=""),
+    ):
+        try:
+            run_retrieval_and_qa(_LIVE_CONFIG, question="", **flags)
+        except ValueError as exc:
+            assert "OPENAI_API_KEY" in str(exc), (
+                f"Expected OPENAI_API_KEY guard ValueError; got: {exc!r}"
+            )
 
     assert captured, "Expected at least one _select_retrieval_query call"
     first_kwargs = captured[0]
@@ -140,7 +149,10 @@ def _capture_single_shot_build_query_params(extra_flags: dict[str, object]) -> d
     """Return the kwargs passed to ``_build_query_params`` by the live path of
     ``run_retrieval_and_qa``.
 
-    Uses ``question=None`` for an early return before any Neo4j or OpenAI call.
+    Uses an empty-string question (non-``None`` so the early-return resolver does
+    not short-circuit before the setup helpers are reached).  ``os.getenv`` is
+    patched to return an empty string for ``OPENAI_API_KEY`` so the API-key
+    guard fires deterministically regardless of the process environment.
     """
     captured: list[dict[str, object]] = []
     orig = _build_query_params
@@ -154,8 +166,16 @@ def _capture_single_shot_build_query_params(extra_flags: dict[str, object]) -> d
     flags: dict[str, object] = (
         {"run_id": "r1", **extra_flags} if not extra_flags.get("all_runs") else dict(extra_flags)
     )
-    with patch("demo.stages.retrieval_and_qa._build_query_params", side_effect=spy):
-        run_retrieval_and_qa(_LIVE_CONFIG, question=None, **flags)
+    with (
+        patch("demo.stages.retrieval_and_qa._build_query_params", side_effect=spy),
+        patch("demo.stages.retrieval_and_qa.os.getenv", return_value=""),
+    ):
+        try:
+            run_retrieval_and_qa(_LIVE_CONFIG, question="", **flags)
+        except ValueError as exc:
+            assert "OPENAI_API_KEY" in str(exc), (
+                f"Expected OPENAI_API_KEY guard ValueError; got: {exc!r}"
+            )
 
     assert captured, "Expected at least one _build_query_params call"
     return captured[0]

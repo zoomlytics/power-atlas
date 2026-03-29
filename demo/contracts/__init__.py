@@ -21,6 +21,7 @@ from demo.contracts.retrieval_early_return_policy import (
     EarlyReturnRule,
     EARLY_RETURN_PRECEDENCE,
     EARLY_RETURN_RULE_BY_NAME,
+    resolve_early_return_rule,
 )
 from demo.contracts.retrieval_metadata_policy import (
     FieldSurfacePolicy,
@@ -59,6 +60,7 @@ __all__ = [
     "EARLY_RETURN_PRECEDENCE",
     "EARLY_RETURN_RULE_BY_NAME",
     "EarlyReturnRule",
+    "resolve_early_return_rule",
     "EMBEDDER_MODEL_NAME",
     "ensure_pipeline_contract_loaded",
     "FIXTURES_DIR",
