@@ -184,24 +184,27 @@ EARLY_RETURN_PRECEDENCE: tuple[EarlyReturnRule, ...] = (
 
 # Ensure priorities are unique and form a dense sequence starting at 1.
 _priorities = sorted(r.priority for r in EARLY_RETURN_PRECEDENCE)
-assert _priorities == list(range(1, len(EARLY_RETURN_PRECEDENCE) + 1)), (
-    "EARLY_RETURN_PRECEDENCE priorities must be unique integers starting at 1; "
-    f"got {_priorities!r}"
-)
+if _priorities != list(range(1, len(EARLY_RETURN_PRECEDENCE) + 1)):
+    raise ValueError(
+        "EARLY_RETURN_PRECEDENCE priorities must be unique integers starting at 1; "
+        f"got {_priorities!r}"
+    )
 
 # Ensure all wins_over references resolve to known rule names.
 _known_names = frozenset(r.name for r in EARLY_RETURN_PRECEDENCE)
 for _rule in EARLY_RETURN_PRECEDENCE:
     _unresolved = _rule.wins_over - _known_names
-    assert not _unresolved, (
-        f"Rule {_rule.name!r} wins_over references unknown rule name(s): {_unresolved!r}"
-    )
+    if _unresolved:
+        raise ValueError(
+            f"Rule {_rule.name!r} wins_over references unknown rule name(s): {_unresolved!r}"
+        )
 
 # Ensure no rule lists itself in wins_over.
 for _rule in EARLY_RETURN_PRECEDENCE:
-    assert _rule.name not in _rule.wins_over, (
-        f"Rule {_rule.name!r} must not list itself in wins_over"
-    )
+    if _rule.name in _rule.wins_over:
+        raise ValueError(
+            f"Rule {_rule.name!r} must not list itself in wins_over"
+        )
 
 # Expose a convenience lookup (name → rule) as a read-only mapping.
 #: Read-only mapping from rule name to :class:`EarlyReturnRule`.
