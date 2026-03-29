@@ -475,8 +475,8 @@ class TestPolicyVsRuntimeProjectionParity:
         :class:`~demo.tests.test_retrieval_result_contract.TestMetadataTaxonomyBoundaries`.
         """
         result = result_fn()
-        # Use the canonical key name for the forbidden-surface check; the field should
-        # not appear under any name on this surface.
+        # Use the canonical key name as the primary forbidden-surface check; the field
+        # must not appear under its canonical key or any configured alias on this surface.
         forbidden_dict = _surface_dict(result, forbidden_surface)
         # Check both the canonical key and any alias that the field declares for this
         # surface (in case someone accidentally added an aliased entry).
