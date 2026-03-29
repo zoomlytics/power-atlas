@@ -119,6 +119,22 @@ Structure
       can be used to *derive* those constants from :data:`_LIVE_RESULT_REQUIRED_KEYS`.
     - All ``wins_over`` references resolve to known rule names.
 
+``TestEarlyReturnRulePayloadCorrespondence``
+    Policy-backed correspondence tests that verify the runtime payload returned by
+    ``run_retrieval_and_qa()`` matches the structured metadata declared in each
+    :class:`~demo.contracts.EarlyReturnRule` entry in
+    :data:`~demo.contracts.EARLY_RETURN_PRECEDENCE`.  For each current rule this
+    layer checks:
+
+    - ``result["status"]`` equals ``rule.outcome_status``.
+    - Every key in ``rule.absent_keys`` is absent from the returned payload.
+    - Every key in ``rule.exclusive_keys`` is present in the returned payload.
+    - ``resolve_early_return_rule(...)`` returns the matching rule for the
+      triggering inputs (resolver ↔ runtime alignment).
+    - Exclusive keys of one rule do not leak into the other rule's payload.
+    - Retrieval-mode modifiers (``all_runs``, ``expand_graph``, ``cluster_aware``)
+      alongside ``dry_run=True`` do not inject any of ``dry_run.absent_keys``.
+
 ``TestProjectPostprocessToPublic``
     Direct unit tests for the :func:`_project_postprocess_to_public` adapter that
     maps an :class:`_AnswerPostprocessResult` to the public result surface.  Tests
@@ -2734,6 +2750,232 @@ class TestResolveEarlyReturnRule:
         entry in :data:`EARLY_RETURN_PRECEDENCE`."""
         rule = resolve_early_return_rule(is_dry_run=False, question=None)
         assert rule is EARLY_RETURN_RULE_BY_NAME["retrieval_skipped"]
+
+
+# ---------------------------------------------------------------------------
+# TestEarlyReturnRulePayloadCorrespondence
+# ---------------------------------------------------------------------------
+
+
+class TestEarlyReturnRulePayloadCorrespondence:
+    """Policy-backed correspondence tests: each early-return rule's declared metadata
+    must align with the actual runtime payload returned by ``run_retrieval_and_qa()``.
+
+    This class is the explicit **rule ↔ payload** seam.  For each current rule in
+    :data:`~demo.contracts.EARLY_RETURN_PRECEDENCE` it drives
+    ``run_retrieval_and_qa()`` with the canonical triggering inputs and asserts that:
+
+    - ``result["status"]`` equals ``rule.outcome_status``
+    - every key in ``rule.absent_keys`` is absent from the returned payload
+    - every key in ``rule.exclusive_keys`` is present in the returned payload
+    - :func:`~demo.contracts.resolve_early_return_rule` returns the same rule for
+      those inputs (resolver ↔ runtime alignment)
+
+    Failures report which rule fired and which invariant (status / absent / exclusive)
+    was violated, making regressions from future rule additions immediately actionable.
+
+    **Scope** — current rules covered:
+
+    - ``dry_run`` (§5.1): ``dry_run=True`` + ``question=None``
+    - ``retrieval_skipped`` (§5.2): ``dry_run=False`` + ``question=None``
+
+    ``question=""`` is **not** covered here — it does not trigger any early-return
+    rule and belongs to the live-retrieval path.
+    """
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _dry_run_result(**kwargs) -> dict[str, object]:
+        """Return a dry-run result with ``question=None`` (canonical trigger for §5.1)."""
+        return run_retrieval_and_qa(
+            _DRY_RUN_CONFIG, run_id="dr-corr-1", source_uri=None, question=None, **kwargs
+        )
+
+    @staticmethod
+    def _retrieval_skipped_result(**kwargs) -> dict[str, object]:
+        """Return a retrieval-skipped result (``dry_run=False``, ``question=None``).
+
+        The config intentionally uses empty/invalid Neo4j credentials so that, if the
+        early-return for ``question is None`` regressed to occur after live config
+        validation or driver creation, this path would start failing.
+
+        Delegates to ``TestRunRetrievalAndQaEarlyReturnContract._skip_result`` to ensure
+        a single source of truth for the skip-result configuration.
+        """
+        return TestRunRetrievalAndQaEarlyReturnContract._skip_result(**kwargs)
+
+    # ------------------------------------------------------------------
+    # §1  Resolver alignment — resolver agrees with the triggering inputs
+    # ------------------------------------------------------------------
+
+    def test_dry_run_resolver_returns_dry_run_rule(self) -> None:
+        """``resolve_early_return_rule(is_dry_run=True, question=None)`` must return
+        the ``dry_run`` rule — aligning the resolver with the dry-run runtime path."""
+        rule = resolve_early_return_rule(is_dry_run=True, question=None)
+        assert rule is not None, "Expected dry_run rule; resolver returned None"
+        assert rule.name == "dry_run", (
+            f"Expected rule name 'dry_run'; got {rule.name!r}"
+        )
+
+    def test_retrieval_skipped_resolver_returns_retrieval_skipped_rule(self) -> None:
+        """``resolve_early_return_rule(is_dry_run=False, question=None)`` must return
+        the ``retrieval_skipped`` rule — aligning the resolver with the skip runtime path."""
+        rule = resolve_early_return_rule(is_dry_run=False, question=None)
+        assert rule is not None, "Expected retrieval_skipped rule; resolver returned None"
+        assert rule.name == "retrieval_skipped", (
+            f"Expected rule name 'retrieval_skipped'; got {rule.name!r}"
+        )
+
+    def test_empty_string_question_is_not_an_early_return_trigger(self) -> None:
+        """``question=""`` must not match any early-return rule.
+
+        Confirms that this input is correctly excluded from the early-return suite
+        and should proceed to the live-retrieval path.
+        """
+        rule = resolve_early_return_rule(is_dry_run=False, question="")
+        assert rule is None, (
+            f"question='' must not trigger any early-return rule; got {rule.name!r}"
+        )
+
+    # ------------------------------------------------------------------
+    # §2  Status correspondence — result["status"] == rule.outcome_status
+    # ------------------------------------------------------------------
+
+    def test_dry_run_result_status_matches_rule_outcome_status(self) -> None:
+        """The dry-run runtime payload ``status`` must equal ``dry_run.outcome_status``."""
+        rule = EARLY_RETURN_RULE_BY_NAME["dry_run"]
+        result = self._dry_run_result()
+        assert result["status"] == rule.outcome_status, (
+            f"[{rule.name}] status mismatch: "
+            f"got {result['status']!r}, rule declares {rule.outcome_status!r} "
+            f"({rule.section_ref})"
+        )
+
+    def test_retrieval_skipped_result_status_matches_rule_outcome_status(self) -> None:
+        """The retrieval-skipped runtime payload ``status`` must equal
+        ``retrieval_skipped.outcome_status``."""
+        rule = EARLY_RETURN_RULE_BY_NAME["retrieval_skipped"]
+        result = self._retrieval_skipped_result()
+        assert result["status"] == rule.outcome_status, (
+            f"[{rule.name}] status mismatch: "
+            f"got {result['status']!r}, rule declares {rule.outcome_status!r} "
+            f"({rule.section_ref})"
+        )
+
+    # ------------------------------------------------------------------
+    # §3  Absent-key correspondence — rule.absent_keys ∩ result.keys() == ∅
+    # ------------------------------------------------------------------
+
+    def test_dry_run_absent_keys_are_absent_from_runtime_payload(self) -> None:
+        """Every key in ``dry_run.absent_keys`` must be absent from the dry-run
+        runtime payload."""
+        rule = EARLY_RETURN_RULE_BY_NAME["dry_run"]
+        result = self._dry_run_result()
+        present = rule.absent_keys & set(result.keys())
+        assert not present, (
+            f"[{rule.name}] absent_keys present in runtime payload: {present!r} "
+            f"({rule.section_ref})"
+        )
+
+    def test_retrieval_skipped_absent_keys_are_absent_from_runtime_payload(self) -> None:
+        """Every key in ``retrieval_skipped.absent_keys`` must be absent from the
+        retrieval-skipped runtime payload.
+
+        The set is currently empty for this rule; this test guards against a future
+        regression where a key is added to ``absent_keys`` without updating the
+        runtime payload construction.
+        """
+        rule = EARLY_RETURN_RULE_BY_NAME["retrieval_skipped"]
+        result = self._retrieval_skipped_result()
+        present = rule.absent_keys & set(result.keys())
+        assert not present, (
+            f"[{rule.name}] absent_keys present in runtime payload: {present!r} "
+            f"({rule.section_ref})"
+        )
+
+    # ------------------------------------------------------------------
+    # §4  Exclusive-key correspondence — rule.exclusive_keys ⊆ result.keys()
+    # ------------------------------------------------------------------
+
+    def test_dry_run_exclusive_keys_are_present_in_runtime_payload(self) -> None:
+        """Every key in ``dry_run.exclusive_keys`` must be present in the dry-run
+        runtime payload.
+
+        The set is currently empty for this rule; this test guards against a future
+        regression where a key is added to ``exclusive_keys`` without updating the
+        runtime payload construction.
+        """
+        rule = EARLY_RETURN_RULE_BY_NAME["dry_run"]
+        result = self._dry_run_result()
+        missing = rule.exclusive_keys - set(result.keys())
+        assert not missing, (
+            f"[{rule.name}] exclusive_keys missing from runtime payload: {missing!r} "
+            f"({rule.section_ref})"
+        )
+
+    def test_retrieval_skipped_exclusive_keys_are_present_in_runtime_payload(self) -> None:
+        """Every key in ``retrieval_skipped.exclusive_keys`` must be present in the
+        retrieval-skipped runtime payload.
+
+        Specifically, ``retrieval_skipped=True`` must appear as the caller-visible
+        signal for this path (§5.3).
+        """
+        rule = EARLY_RETURN_RULE_BY_NAME["retrieval_skipped"]
+        result = self._retrieval_skipped_result()
+        missing = rule.exclusive_keys - set(result.keys())
+        assert not missing, (
+            f"[{rule.name}] exclusive_keys missing from runtime payload: {missing!r} "
+            f"({rule.section_ref})"
+        )
+
+    # ------------------------------------------------------------------
+    # §5  Exclusivity symmetry — one rule's exclusive keys absent from other's payload
+    # ------------------------------------------------------------------
+
+    def test_retrieval_skipped_exclusive_keys_absent_from_dry_run_payload(self) -> None:
+        """``retrieval_skipped``'s exclusive keys must not appear in the dry-run
+        runtime payload — the two rule paths must be disjoint for these keys."""
+        rule = EARLY_RETURN_RULE_BY_NAME["retrieval_skipped"]
+        result = self._dry_run_result()
+        leaked = rule.exclusive_keys & set(result.keys())
+        assert not leaked, (
+            f"[dry_run] retrieval_skipped exclusive_keys leaked into dry_run payload: "
+            f"{leaked!r}"
+        )
+
+    # ------------------------------------------------------------------
+    # §6  Mixed dry-run modifiers preserve absent-key semantics
+    # ------------------------------------------------------------------
+
+    @pytest.mark.parametrize(
+        "modifier",
+        [
+            {"all_runs": True},
+            {"expand_graph": True},
+            {"cluster_aware": True},
+        ],
+        ids=["all_runs", "expand_graph", "cluster_aware"],
+    )
+    def test_dry_run_absent_keys_preserved_with_retrieval_modifier(
+        self, modifier: dict[str, bool]
+    ) -> None:
+        """Passing retrieval-mode modifiers alongside ``dry_run=True`` must not inject
+        any of ``dry_run.absent_keys`` into the runtime payload.
+
+        The dry-run short-circuit runs before any retrieval logic, so these modifiers
+        must have no effect on the returned key set.
+        """
+        rule = EARLY_RETURN_RULE_BY_NAME["dry_run"]
+        result = self._dry_run_result(**modifier)
+        present = rule.absent_keys & set(result.keys())
+        modifier_name = next(iter(modifier))
+        assert not present, (
+            f"[dry_run+{modifier_name}] absent_keys injected into payload: {present!r} "
+            f"({rule.section_ref})"
+        )
 
 
 # ---------------------------------------------------------------------------
