@@ -6,9 +6,10 @@ live retrieval / postprocessing path.
 
 Background
 ----------
-``run_retrieval_and_qa()`` has two early-return (non-live) paths — documented in
-§5 of ``docs/architecture/retrieval-citation-result-contract-v0.1.md``.  Before
-this module existed, the ordering rules for these paths were encoded implicitly in
+``run_retrieval_and_qa()`` has two early-return paths that bypass live retrieval /
+postprocessing — documented in §5 of
+``docs/architecture/retrieval-citation-result-contract-v0.1.md``.  Before this
+module existed, the ordering rules for these paths were encoded implicitly in
 control flow and existed only in test docstrings and prose documentation.  When
 multiple conditions are simultaneously true (e.g. ``dry_run=True`` **and**
 ``question=None``), contributors had no in-code reference to determine which
