@@ -469,7 +469,7 @@ _MALFORMED_DIAGNOSTICS_METADATA: dict[str, object] = {
 #: Used in the mixed-warning superset-contract test to produce an operational warning
 #: alongside a citation-quality warning.
 _MISSING_OPTIONAL_FIELDS_METADATA: dict[str, object] = {
-    "citation_token": _TOKEN,
+    "citation_token": _TOKEN_2,
     "chunk_id": "c2",
     "citation_object": {
         "chunk_id": "c2",
