@@ -3715,16 +3715,26 @@ class TestMetadataTaxonomyBoundaries:
                     f"got {surface}={surface_values!r}"
                 )
 
-        # Top-level warnings is a strict superset of citation_warnings.
-        assert set(cq["citation_warnings"]) <= set(result["warnings"]), (
-            "citation_quality['citation_warnings'] must be a subset of top-level "
-            f"warnings; citation_warnings={cq['citation_warnings']!r}, "
-            f"warnings={result['warnings']!r}"
+        # Top-level warnings surface (policy-driven) is a strict superset of citation_warnings.
+        top_level_warnings_surface = "warnings"
+        assert top_level_warnings_surface in propagates_to, (
+            "Test assumption violated: top-level warnings surface must appear in "
+            f"RETRIEVAL_METADATA_SURFACE_POLICY['citation_warnings'].propagates_to; "
+            f"got propagates_to={list(propagates_to)!r}, "
+            f"expected to include {top_level_warnings_surface!r}"
         )
-        assert len(result["warnings"]) > len(cq["citation_warnings"]), (
-            "top-level warnings must contain additional operational entries beyond "
-            "citation_warnings in the mixed-warning scenario; "
-            f"warnings={result['warnings']!r}, "
+        warnings_values = result[top_level_warnings_surface]
+        assert set(cq["citation_warnings"]) <= set(warnings_values), (
+            "citation_quality['citation_warnings'] must be a subset of the "
+            f"{top_level_warnings_surface!r} surface; "
+            f"citation_warnings={cq['citation_warnings']!r}, "
+            f"{top_level_warnings_surface}={warnings_values!r}"
+        )
+        assert len(warnings_values) > len(cq["citation_warnings"]), (
+            f"{top_level_warnings_surface!r} surface must contain additional "
+            "operational entries beyond citation_warnings in the mixed-warning "
+            "scenario; "
+            f"{top_level_warnings_surface}={warnings_values!r}, "
             f"citation_warnings={cq['citation_warnings']!r}"
         )
 
