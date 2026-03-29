@@ -206,6 +206,15 @@ for _rule in EARLY_RETURN_PRECEDENCE:
             f"Rule {_rule.name!r} must not list itself in wins_over"
         )
 
+# Ensure rule names are unique so the name-keyed mapping is lossless.
+_names = [r.name for r in EARLY_RETURN_PRECEDENCE]
+if len(_names) != len(set(_names)):
+    _dupes = {n for n in _names if _names.count(n) > 1}
+    raise ValueError(
+        "EARLY_RETURN_PRECEDENCE rule names must be unique; "
+        f"duplicate name(s): {_dupes!r}"
+    )
+
 # Expose a convenience lookup (name → rule) as a read-only mapping.
 #: Read-only mapping from rule name to :class:`EarlyReturnRule`.
 #: Convenience alias; do not mutate.

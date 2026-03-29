@@ -1918,7 +1918,7 @@ def run_retrieval_and_qa(
             "malformed_diagnostics_count": 0,
         },
     }
-    # Early-return §1 — dry_run (priority 1, highest precedence).
+    # Early-return #1 — dry_run (priority 1, highest precedence).
     # This guard must remain the first post-base check so that dry_run wins over
     # all other conditions (question=None, retrieval modifiers, etc.).
     # Precedence contract: demo/contracts/retrieval_early_return_policy.py
@@ -1965,7 +1965,7 @@ def run_retrieval_and_qa(
     citation_warnings_list: list[str] = []
     hits: list[dict[str, object]] = []
 
-    # Early-return §2 — retrieval_skipped (priority 2).
+    # Early-return §5.2 — retrieval_skipped (priority 2).
     # This guard runs after dry_run so that dry_run takes precedence when both
     # config.dry_run=True and question=None are simultaneously true.
     # Precedence contract: demo/contracts/retrieval_early_return_policy.py
