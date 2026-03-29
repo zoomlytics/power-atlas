@@ -2799,18 +2799,11 @@ class TestEarlyReturnRulePayloadCorrespondence:
         """Return a retrieval-skipped result (``dry_run=False``, ``question=None``).
 
         Uses empty/invalid Neo4j credentials to prove no driver connection is opened.
+
+        Delegates to ``TestRunRetrievalAndQaEarlyReturnContract._skip_result`` to ensure
+        a single source of truth for the skip-result configuration.
         """
-        cfg = types.SimpleNamespace(
-            dry_run=False,
-            openai_model="gpt-4o-mini",
-            neo4j_uri="",
-            neo4j_username="",
-            neo4j_password="",
-            neo4j_database=None,
-        )
-        return run_retrieval_and_qa(
-            cfg, run_id="skip-corr-1", source_uri=None, question=None, **kwargs
-        )
+        return TestRunRetrievalAndQaEarlyReturnContract._skip_result(**kwargs)
 
     # ------------------------------------------------------------------
     # §1  Resolver alignment — resolver agrees with the triggering inputs
