@@ -189,21 +189,40 @@ class TestTaxonomyExampleExactMirrors:
     """Exact-mirror claims in the §2.10 table must match the policy."""
 
     @pytest.mark.parametrize("field_name", _TAXONOMY_FIELDS)
-    def test_exact_mirror_surfaces_present_in_mirrored_in(self, field_name: str) -> None:
-        """Every surface documented as an exact mirror must appear in mirrored_in.
+    def test_mirrored_in_matches_documented_mirrors(self, field_name: str) -> None:
+        """policy.mirrored_in must equal the union of exact-mirror and alias-mirror surfaces.
 
-        An exact mirror means the field is present on the additional surface under
-        the same key name with the identical value.
+        Checks both directions:
+        - Every surface documented as a mirror (exact or alias) must appear in
+          ``mirrored_in``.
+        - No surface may appear in ``mirrored_in`` that is not documented as either
+          an exact mirror or an alias mirror in §2.10.
+
+        If either direction fails, the §2.10 taxonomy table and the policy have
+        drifted; one of them must be updated.
         """
         claim = _TAXONOMY_EXAMPLE_CLAIMS[field_name]
         policy = RETRIEVAL_METADATA_SURFACE_POLICY[field_name]
-        for surface in claim.exact_mirror_surfaces:
-            assert surface in policy.mirrored_in, (
-                f"Taxonomy example drift for {field_name!r}: "
-                f"§2.10 documents {surface!r} as an exact mirror but it is not "
-                f"listed in mirrored_in={policy.mirrored_in!r}. "
-                f"Update the §2.10 taxonomy table or the policy entry to restore alignment."
-            )
+        documented_mirrors = set(claim.exact_mirror_surfaces) | set(claim.alias_mirror_surfaces)
+        actual_mirrors = set(policy.mirrored_in)
+
+        undocumented = actual_mirrors - documented_mirrors
+        assert not undocumented, (
+            f"Taxonomy example drift for {field_name!r}: "
+            f"policy.mirrored_in contains surface(s) {sorted(undocumented)!r} "
+            f"that are not documented as mirrors in §2.10 "
+            f"(documented_mirrors={sorted(documented_mirrors)!r}, "
+            f"policy_mirrored_in={sorted(actual_mirrors)!r}). "
+            f"Update the §2.10 taxonomy table or the policy entry to restore alignment."
+        )
+
+        missing = documented_mirrors - actual_mirrors
+        assert not missing, (
+            f"Taxonomy example drift for {field_name!r}: "
+            f"§2.10 documents surface(s) {sorted(missing)!r} as mirrors but they "
+            f"are not listed in policy.mirrored_in={sorted(actual_mirrors)!r}. "
+            f"Update the §2.10 taxonomy table or the policy entry to restore alignment."
+        )
 
     @pytest.mark.parametrize("field_name", _TAXONOMY_FIELDS)
     def test_exact_mirror_surfaces_have_no_alias_entry(self, field_name: str) -> None:
@@ -235,32 +254,50 @@ class TestTaxonomyExampleAliasMirrors:
     """Alias-mirror claims in the §2.10 table must match the policy."""
 
     @pytest.mark.parametrize("field_name", _TAXONOMY_FIELDS)
-    def test_alias_mirror_surfaces_present_in_mirrored_in(self, field_name: str) -> None:
-        """Every surface documented as an alias mirror must appear in mirrored_in.
+    def test_field_name_by_surface_matches_documented_aliases(self, field_name: str) -> None:
+        """policy.field_name_by_surface must equal the set of documented alias mirrors.
 
-        An alias mirror means the field is present on the additional surface under
-        a different key name, with the identical value.
+        Checks both directions:
+        - Every surface documented as an alias mirror must have a corresponding
+          entry in ``field_name_by_surface``.
+        - No entry may exist in ``field_name_by_surface`` that is not documented
+          as an alias mirror in §2.10.
+
+        Also verifies that every alias mirror surface appears in ``mirrored_in``
+        and that the documented alias key name matches the policy.
         """
         claim = _TAXONOMY_EXAMPLE_CLAIMS[field_name]
         policy = RETRIEVAL_METADATA_SURFACE_POLICY[field_name]
-        for surface in claim.alias_mirror_surfaces:
+        documented_alias_surfaces = set(claim.alias_mirror_surfaces)
+        actual_alias_surfaces = set(policy.field_name_by_surface)
+
+        undocumented = actual_alias_surfaces - documented_alias_surfaces
+        assert not undocumented, (
+            f"Taxonomy example drift for {field_name!r}: "
+            f"policy.field_name_by_surface contains alias entries for surface(s) "
+            f"{sorted(undocumented)!r} that are not documented as alias mirrors in §2.10 "
+            f"(documented_alias_mirrors={sorted(documented_alias_surfaces)!r}, "
+            f"policy_field_name_by_surface keys={sorted(actual_alias_surfaces)!r}). "
+            f"Update the §2.10 taxonomy table or the policy entry to restore alignment."
+        )
+
+        missing = documented_alias_surfaces - actual_alias_surfaces
+        assert not missing, (
+            f"Taxonomy example drift for {field_name!r}: "
+            f"§2.10 documents surface(s) {sorted(missing)!r} as alias mirrors but "
+            f"field_name_by_surface has no entry for them "
+            f"(policy_field_name_by_surface keys={sorted(actual_alias_surfaces)!r}). "
+            f"Update the §2.10 taxonomy table or the policy entry to restore alignment."
+        )
+
+        # Verify each documented alias surface is in mirrored_in and the alias name matches.
+        for surface, expected_alias in claim.alias_mirror_surfaces.items():
             assert surface in policy.mirrored_in, (
                 f"Taxonomy example drift for {field_name!r}: "
                 f"§2.10 documents {surface!r} as an alias mirror but it is not "
                 f"listed in mirrored_in={policy.mirrored_in!r}. "
                 f"Update the §2.10 taxonomy table or the policy entry to restore alignment."
             )
-
-    @pytest.mark.parametrize("field_name", _TAXONOMY_FIELDS)
-    def test_alias_mirror_key_names_match(self, field_name: str) -> None:
-        """Every alias mirror surface must use the documented alias key name.
-
-        If the alias key name changes in ``field_name_by_surface``, the §2.10
-        taxonomy table note column must also be updated to reflect the new name.
-        """
-        claim = _TAXONOMY_EXAMPLE_CLAIMS[field_name]
-        policy = RETRIEVAL_METADATA_SURFACE_POLICY[field_name]
-        for surface, expected_alias in claim.alias_mirror_surfaces.items():
             actual_alias = policy.field_name_by_surface.get(surface)
             assert actual_alias == expected_alias, (
                 f"Taxonomy example drift for {field_name!r}: "
@@ -280,8 +317,14 @@ class TestTaxonomyExamplePropagationTargets:
     """Propagation / superset claims in the §2.10 table must match the policy."""
 
     @pytest.mark.parametrize("field_name", _TAXONOMY_FIELDS)
-    def test_propagation_targets_present_in_propagates_to(self, field_name: str) -> None:
-        """Every surface documented as a propagation target must appear in propagates_to.
+    def test_propagation_targets_match(self, field_name: str) -> None:
+        """policy.propagates_to must equal the set of documented propagation targets.
+
+        Checks both directions:
+        - Every surface documented as a propagation target must appear in
+          ``propagates_to``.
+        - No surface may appear in ``propagates_to`` that is not documented as
+          a propagation target in §2.10.
 
         A propagation relationship means the canonical surface is a subset and
         every element from it must also appear on the target (superset) surface.
@@ -289,13 +332,26 @@ class TestTaxonomyExamplePropagationTargets:
         """
         claim = _TAXONOMY_EXAMPLE_CLAIMS[field_name]
         policy = RETRIEVAL_METADATA_SURFACE_POLICY[field_name]
-        for surface in claim.propagation_targets:
-            assert surface in policy.propagates_to, (
-                f"Taxonomy example drift for {field_name!r}: "
-                f"§2.10 documents {surface!r} as a propagation (superset) target "
-                f"but it is not listed in propagates_to={policy.propagates_to!r}. "
-                f"Update the §2.10 taxonomy table or the policy entry to restore alignment."
-            )
+        expected_targets = set(claim.propagation_targets)
+        actual_targets = set(policy.propagates_to)
+
+        undocumented = actual_targets - expected_targets
+        assert not undocumented, (
+            f"Taxonomy example drift for {field_name!r}: "
+            f"policy.propagates_to contains surface(s) {sorted(undocumented)!r} "
+            f"that are not documented as propagation targets in §2.10 "
+            f"(documented_propagation_targets={sorted(expected_targets)!r}, "
+            f"policy_propagates_to={sorted(actual_targets)!r}). "
+            f"Update the §2.10 taxonomy table or the policy entry to restore alignment."
+        )
+
+        missing = expected_targets - actual_targets
+        assert not missing, (
+            f"Taxonomy example drift for {field_name!r}: "
+            f"§2.10 documents propagation targets {sorted(missing)!r} but they "
+            f"are not listed in policy.propagates_to={sorted(actual_targets)!r}. "
+            f"Update the §2.10 taxonomy table or the policy entry to restore alignment."
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -307,20 +363,39 @@ class TestTaxonomyExampleForbiddenSurfaces:
     """Forbidden-placement claims in the §2.10 table must match the policy."""
 
     @pytest.mark.parametrize("field_name", _TAXONOMY_FIELDS)
-    def test_forbidden_surfaces_present_in_forbidden_in(self, field_name: str) -> None:
-        """Every surface documented as forbidden must appear in forbidden_in.
+    def test_forbidden_surfaces_match(self, field_name: str) -> None:
+        """policy.forbidden_in must equal the set of documented forbidden surfaces.
+
+        Checks both directions:
+        - Every surface documented as forbidden must appear in ``forbidden_in``.
+        - No surface may appear in ``forbidden_in`` that is not documented as
+          forbidden in §2.10.
 
         A forbidden placement means the field must never appear on that surface.
         If a field is no longer forbidden on a surface that the §2.10 table
-        documents as forbidden, the relationship has changed and both the policy
-        and the docs table must be updated deliberately.
+        documents as forbidden, or if a new forbidden surface is added to the
+        policy, the relationship has changed and both the policy and the docs
+        table must be updated deliberately.
         """
         claim = _TAXONOMY_EXAMPLE_CLAIMS[field_name]
         policy = RETRIEVAL_METADATA_SURFACE_POLICY[field_name]
-        for surface in claim.forbidden_surfaces:
-            assert surface in policy.forbidden_in, (
-                f"Taxonomy example drift for {field_name!r}: "
-                f"§2.10 documents {surface!r} as a forbidden placement but it is not "
-                f"listed in forbidden_in={policy.forbidden_in!r}. "
-                f"Update the §2.10 taxonomy table or the policy entry to restore alignment."
-            )
+        doc_forbidden = set(claim.forbidden_surfaces)
+        policy_forbidden = set(policy.forbidden_in)
+
+        undocumented_policy_surfaces = policy_forbidden - doc_forbidden
+        assert not undocumented_policy_surfaces, (
+            f"Taxonomy example drift for {field_name!r}: "
+            f"policy.forbidden_in contains surface(s) {sorted(undocumented_policy_surfaces)!r} "
+            f"that are not documented as forbidden in §2.10 "
+            f"(documented_forbidden={sorted(doc_forbidden)!r}, "
+            f"policy_forbidden_in={sorted(policy_forbidden)!r}). "
+            f"Update the §2.10 taxonomy table or the policy entry to restore alignment."
+        )
+
+        undocumented_in_policy = doc_forbidden - policy_forbidden
+        assert not undocumented_in_policy, (
+            f"Taxonomy example drift for {field_name!r}: "
+            f"§2.10 documents surface(s) {sorted(undocumented_in_policy)!r} as forbidden "
+            f"but they are not listed in forbidden_in={sorted(policy_forbidden)!r}. "
+            f"Update the §2.10 taxonomy table or the policy entry to restore alignment."
+        )
