@@ -1994,6 +1994,22 @@ def run_retrieval_and_qa(
         cluster_aware=cluster_aware,
     )
 
+    # ── Warning surfaces ────────────────────────────────────────────────────────
+    # Two parallel accumulators are built during retrieval, then merged after
+    # postprocessing:
+    #
+    #   warnings_list          — top-level, human-facing superset.  Receives ALL
+    #                            warnings (operational + citation-quality).
+    #   citation_warnings_list — citation-quality subset only.  Passed into
+    #                            _postprocess_answer() as existing_citation_warnings
+    #                            to seed the helper’s internal accumulator. The
+    #                            helper returns a new, extended citation_warnings
+    #                            list derived from this seed. Every entry here must
+    #                            also appear in warnings_list.
+    #
+    # After _postprocess_answer() returns, any new citation warnings it produced
+    # are propagated up to warnings_list so the two lists remain consistent.
+    # See §2.5.2 of the contract document for the full invariant specification.
     warnings_list: list[str] = []
     citation_warnings_list: list[str] = []
     hits: list[dict[str, object]] = []
@@ -2042,9 +2058,9 @@ def run_retrieval_and_qa(
             for item in rag_result.retriever_result.items:
                 meta = item.metadata or {}
                 citation_obj = meta.get("citation_object") or {}
-                # Surface informational warnings for chunks missing optional citation
-                # fields (page, start_char, end_char).  These are logged for
-                # observability but are intentionally not added to citation_warnings_list
+                # ── Stage 1: retrieval-time OPERATIONAL warnings ─────────────────
+                # Missing optional fields (page, start_char, end_char) are surfaced
+                # to warnings_list only.  They are NOT added to citation_warnings_list
                 # because missing optional fields do not degrade citation enforcement.
                 # evidence_level is only degraded by critical issues (empty chunk text
                 # or uncited answer segments); see RFC #159 citation contract.
@@ -2056,33 +2072,41 @@ def run_retrieval_and_qa(
                         ", ".join(missing_fields),
                     )
                     chunk_warning = f"Chunk {citation_obj.get('chunk_id')!r} missing optional citation fields: {', '.join(missing_fields)}"
+                    # Operational warning: top-level only, NOT a citation-quality issue.
                     warnings_list.append(chunk_warning)
-                    # Intentionally NOT added to citation_warnings_list: optional
-                    # fields do not affect evidence_level per citation contract #159.
-                # Surface warnings for chunks with empty or whitespace-only text.
-                # These chunks contribute no evidence to the answer and degrade retrieval quality.
+                # ── Stage 2: retrieval-time CITATION-QUALITY warnings ────────────
+                # Empty/whitespace-only chunk text is a citation-quality issue: the
+                # cited chunk carries no usable evidence.  Added to both surfaces so
+                # the invariant (citation_warnings ⊆ warnings) is maintained.
                 if meta.get("empty_chunk_text"):
                     chunk_id_val = citation_obj.get("chunk_id")
                     empty_text_warning = f"Chunk {chunk_id_val!r} has empty or whitespace-only text."
-                    warnings_list.append(empty_text_warning)
-                    citation_warnings_list.append(empty_text_warning)
+                    warnings_list.append(empty_text_warning)           # superset
+                    citation_warnings_list.append(empty_text_warning)  # citation-quality subset
                 hits.append({"content": item.content, "metadata": meta})
 
-    # Unified answer postprocessing: raw citation check, repair, fallback, warnings, and
+    # ── Stage 3: postprocessing — may add MORE citation-quality warnings ─────
+    # Pass the retrieval-time citation warnings into _postprocess_answer() so the
+    # helper can derive an updated list of citation warnings (e.g. by appending
+    # an uncited-answer warning) without mutating the input list.
+    # The helper guarantees that the returned citation_warnings list is a new list
+    # whose initial elements are exactly existing_citation_warnings, in the same order.
     # evidence quality bundle — computed via the shared helper so single-shot and
     # interactive paths cannot drift silently.
+    _n_retrieval_citation_warnings = len(citation_warnings_list)
     pp = _postprocess_answer(
         answer_text,
         hits,
         all_runs=all_runs,
         existing_citation_warnings=citation_warnings_list,
     )
-    # Propagate any new citation warnings (e.g. uncited-answer warning added by the
-    # helper) to the general warnings list so callers see a unified warnings list.
-    # _postprocess_answer guarantees that the returned citation_warnings list always
-    # starts with the elements of existing_citation_warnings (in the same order),
-    # so slicing from len(citation_warnings_list) yields only the newly-added warnings.
-    for w in pp["citation_warnings"][len(citation_warnings_list):]:
+
+    # ── Stage 4: propagate postprocessing-added citation warnings upward ─────
+    # pp["citation_warnings"] starts with all retrieval-time citation warnings,
+    # so slicing at _n_retrieval_citation_warnings yields only the warnings that
+    # _postprocess_answer() added (e.g. the uncited-answer warning).  Each is
+    # appended to warnings_list so the superset invariant is maintained.
+    for w in pp["citation_warnings"][_n_retrieval_citation_warnings:]:
         warnings_list.append(w)
     if pp["citation_fallback_applied"]:
         display = pp["display_answer"]
