@@ -66,8 +66,10 @@ which verify the counter does not add string entries to the warnings list.
 
 from __future__ import annotations
 
+import functools
 import os
 import types
+from collections.abc import Callable
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -128,6 +130,7 @@ _LIVE_ITEM_METADATA: dict[str, object] = {
 # ---------------------------------------------------------------------------
 
 
+@functools.cache
 def _make_live_result() -> dict[str, object]:
     """Return a live, fully-cited result from ``run_retrieval_and_qa()``.
 
@@ -155,11 +158,13 @@ def _make_live_result() -> dict[str, object]:
         )
 
 
+@functools.cache
 def _make_dry_run_result() -> dict[str, object]:
     """Return a dry-run early-return result from ``run_retrieval_and_qa()``."""
     return run_retrieval_and_qa(_DRY_RUN_CONFIG, run_id="dr-parity-1", source_uri=None)
 
 
+@functools.cache
 def _make_retrieval_skipped_result() -> dict[str, object]:
     """Return a retrieval-skipped early-return result from ``run_retrieval_and_qa()``.
 
@@ -213,24 +218,6 @@ def _effective_name(canonical_key: str, surface: str, policy: FieldSurfacePolicy
     return policy.field_name_by_surface.get(surface, canonical_key)
 
 
-def _field_present_on_surface(
-    result: dict[str, object],
-    surface: str,
-    canonical_key: str,
-    policy: FieldSurfacePolicy,
-) -> bool:
-    """Return ``True`` if the field is present on *surface* in *result*.
-
-    For dict-backed surfaces uses a key-presence check with the correct alias.
-    For list surfaces (``warnings``) always returns ``False``; those surfaces are
-    not checked by the generic parametric tests.
-    """
-    if surface in _LIST_SURFACES:
-        return False  # not applicable for list surfaces
-    name = _effective_name(canonical_key, surface, policy)
-    return name in _surface_dict(result, surface)
-
-
 def _field_value_from_surface(
     result: dict[str, object],
     surface: str,
@@ -256,7 +243,7 @@ _POLICY_PARAMS: list[tuple[str, FieldSurfacePolicy]] = list(
 
 #: Result-shape factories and their labels.
 #: Each entry is (label, factory_fn) where factory_fn() → result dict.
-_RESULT_SHAPE_FACTORIES: list[tuple[str, object]] = [
+_RESULT_SHAPE_FACTORIES: list[tuple[str, Callable[[], dict[str, object]]]] = [
     ("live", _make_live_result),
     ("dry_run", _make_dry_run_result),
     ("retrieval_skipped", _make_retrieval_skipped_result),
@@ -264,7 +251,7 @@ _RESULT_SHAPE_FACTORIES: list[tuple[str, object]] = [
 
 #: (label, policy_entry, shape_label, factory_fn) combinations for full cross-product
 #: parametrization.  Each row uniquely identifies one (field, shape) pair.
-_FIELD_SHAPE_PARAMS: list[tuple[str, FieldSurfacePolicy, str, object]] = [
+_FIELD_SHAPE_PARAMS: list[tuple[str, FieldSurfacePolicy, str, Callable[[], dict[str, object]]]] = [
     (canonical_key, pol, shape_label, factory_fn)
     for canonical_key, pol in _POLICY_PARAMS
     for shape_label, factory_fn in _RESULT_SHAPE_FACTORIES
@@ -279,7 +266,7 @@ _FIELD_SHAPE_IDS: list[str] = [
 #: All (canonical_key, policy, mirror_surface, shape_label, factory_fn) rows for
 #: mirror-surface parametrization.  Only fields that have at least one mirror surface
 #: and where the mirror surface is dict-backed are included.
-_MIRROR_PARAMS: list[tuple[str, FieldSurfacePolicy, str, str, object]] = [
+_MIRROR_PARAMS: list[tuple[str, FieldSurfacePolicy, str, str, Callable[[], dict[str, object]]]] = [
     (canonical_key, pol, mirror_surface, shape_label, factory_fn)
     for canonical_key, pol in _POLICY_PARAMS
     for mirror_surface in pol.mirrored_in
@@ -295,7 +282,7 @@ _MIRROR_IDS: list[str] = [
 #: All (canonical_key, policy, forbidden_surface, shape_label, factory_fn) rows for
 #: forbidden-surface parametrization.  Only dict-backed forbidden surfaces are included;
 #: list surfaces (``warnings``) are excluded (see module docstring).
-_FORBIDDEN_PARAMS: list[tuple[str, FieldSurfacePolicy, str, str, object]] = [
+_FORBIDDEN_PARAMS: list[tuple[str, FieldSurfacePolicy, str, str, Callable[[], dict[str, object]]]] = [
     (canonical_key, pol, forbidden_surface, shape_label, factory_fn)
     for canonical_key, pol in _POLICY_PARAMS
     for forbidden_surface in pol.forbidden_in
@@ -311,7 +298,7 @@ _FORBIDDEN_IDS: list[str] = [
 #: All (canonical_key, policy, aliased_surface, alias, shape_label, factory_fn) rows for
 #: alias parametrization.  Only rows where field_name_by_surface has an entry for a
 #: dict-backed surface are included.
-_ALIAS_PARAMS: list[tuple[str, FieldSurfacePolicy, str, str, str, object]] = [
+_ALIAS_PARAMS: list[tuple[str, FieldSurfacePolicy, str, str, str, Callable[[], dict[str, object]]]] = [
     (canonical_key, pol, aliased_surface, alias, shape_label, factory_fn)
     for canonical_key, pol in _POLICY_PARAMS
     for aliased_surface, alias in pol.field_name_by_surface.items()
@@ -369,7 +356,7 @@ class TestPolicyVsRuntimeProjectionParity:
         canonical_key: str,
         pol: FieldSurfacePolicy,
         shape_label: str,
-        result_fn: object,
+        result_fn: Callable[[], dict[str, object]],
     ) -> None:
         """Every policy field must be present on its declared canonical surface.
 
@@ -378,7 +365,7 @@ class TestPolicyVsRuntimeProjectionParity:
         policy.  The failure message identifies the field, the canonical surface, and
         the result shape that violates the rule.
         """
-        result = result_fn()  # type: ignore[call-arg]
+        result = result_fn()
         surface_dict = _surface_dict(result, pol.canonical_surface)
         canonical_name = _effective_name(canonical_key, pol.canonical_surface, pol)
         assert canonical_name in surface_dict, (
@@ -404,7 +391,7 @@ class TestPolicyVsRuntimeProjectionParity:
         pol: FieldSurfacePolicy,
         mirror_surface: str,
         shape_label: str,
-        result_fn: object,
+        result_fn: Callable[[], dict[str, object]],
     ) -> None:
         """Every policy-declared mirror must be present in the mirror surface dict.
 
@@ -412,7 +399,7 @@ class TestPolicyVsRuntimeProjectionParity:
         should have been used.  Early-return paths (dry_run, retrieval_skipped) are
         required to maintain the same projection structure even with zero/default values.
         """
-        result = result_fn()  # type: ignore[call-arg]
+        result = result_fn()
         mirror_dict = _surface_dict(result, mirror_surface)
         mirror_name = _effective_name(canonical_key, mirror_surface, pol)
         assert mirror_name in mirror_dict, (
@@ -438,7 +425,7 @@ class TestPolicyVsRuntimeProjectionParity:
         pol: FieldSurfacePolicy,
         mirror_surface: str,
         shape_label: str,
-        result_fn: object,
+        result_fn: Callable[[], dict[str, object]],
     ) -> None:
         """Mirror values must equal the canonical value (no additional hidden state).
 
@@ -446,7 +433,7 @@ class TestPolicyVsRuntimeProjectionParity:
         exactly the same value as the canonical surface, not a derived or stale copy.
         Failure identifies the field, both surfaces, and the actual vs expected values.
         """
-        result = result_fn()  # type: ignore[call-arg]
+        result = result_fn()
         canonical_value = _field_value_from_surface(result, pol.canonical_surface, canonical_key, pol)
         mirror_value = _field_value_from_surface(result, mirror_surface, canonical_key, pol)
         mirror_name = _effective_name(canonical_key, mirror_surface, pol)
@@ -475,7 +462,7 @@ class TestPolicyVsRuntimeProjectionParity:
         pol: FieldSurfacePolicy,
         forbidden_surface: str,
         shape_label: str,
-        result_fn: object,
+        result_fn: Callable[[], dict[str, object]],
     ) -> None:
         """Policy-forbidden fields must not appear on their forbidden surfaces.
 
@@ -487,7 +474,7 @@ class TestPolicyVsRuntimeProjectionParity:
         The ``warnings`` list surface is not checked here; it is handled by
         :class:`~demo.tests.test_retrieval_result_contract.TestMetadataTaxonomyBoundaries`.
         """
-        result = result_fn()  # type: ignore[call-arg]
+        result = result_fn()
         # Use the canonical key name for the forbidden-surface check; the field should
         # not appear under any name on this surface.
         forbidden_dict = _surface_dict(result, forbidden_surface)
@@ -521,7 +508,7 @@ class TestPolicyVsRuntimeProjectionParity:
         aliased_surface: str,
         alias: str,
         shape_label: str,
-        result_fn: object,
+        result_fn: Callable[[], dict[str, object]],
     ) -> None:
         """When the policy declares an alias for a surface, only the alias key exists there.
 
@@ -533,7 +520,7 @@ class TestPolicyVsRuntimeProjectionParity:
         the canonical key (``all_answers_cited``) must not appear in ``citation_quality``
         or ``debug_view``; only the alias (``all_cited``) should be present there.
         """
-        result = result_fn()  # type: ignore[call-arg]
+        result = result_fn()
         surface_dict = _surface_dict(result, aliased_surface)
 
         # The alias key must be present.
@@ -748,7 +735,7 @@ class TestPolicyVsRuntimeProjectionParityEarlyReturnDefaults:
         ids=["dry_run", "retrieval_skipped"],
     )
     def test_evidence_level_not_top_level_key_on_early_return_paths(
-        self, path_label: str, result_fn: object
+        self, path_label: str, result_fn: Callable[[], dict[str, object]]
     ) -> None:
         """``evidence_level`` must not appear as a direct top-level key on early-return paths.
 
@@ -756,7 +743,7 @@ class TestPolicyVsRuntimeProjectionParityEarlyReturnDefaults:
         the top level.  The default early-return value (``"no_answer"``) must be accessed
         via ``citation_quality["evidence_level"]`` or ``debug_view["evidence_level"]``.
         """
-        result = result_fn()  # type: ignore[call-arg]
+        result = result_fn()
         assert "evidence_level" not in result, (
             f"[{path_label}] evidence_level must not be a direct top-level key "
             f"(forbidden_in top_level per policy).  Default value on this path is "
@@ -772,10 +759,10 @@ class TestPolicyVsRuntimeProjectionParityEarlyReturnDefaults:
         ids=["dry_run", "retrieval_skipped"],
     )
     def test_warning_count_not_top_level_key_on_early_return_paths(
-        self, path_label: str, result_fn: object
+        self, path_label: str, result_fn: Callable[[], dict[str, object]]
     ) -> None:
         """``warning_count`` must not appear as a direct top-level key on early-return paths."""
-        result = result_fn()  # type: ignore[call-arg]
+        result = result_fn()
         assert "warning_count" not in result, (
             f"[{path_label}] warning_count must not be a direct top-level key "
             f"(forbidden_in top_level per policy).  Default value is 0 and must be "
@@ -791,10 +778,10 @@ class TestPolicyVsRuntimeProjectionParityEarlyReturnDefaults:
         ids=["dry_run", "retrieval_skipped"],
     )
     def test_citation_warnings_not_top_level_key_on_early_return_paths(
-        self, path_label: str, result_fn: object
+        self, path_label: str, result_fn: Callable[[], dict[str, object]]
     ) -> None:
         """``citation_warnings`` key must not appear as a direct top-level key on early-return paths."""
-        result = result_fn()  # type: ignore[call-arg]
+        result = result_fn()
         assert "citation_warnings" not in result, (
             f"[{path_label}] citation_warnings must not be a direct top-level key "
             f"(forbidden_in top_level per policy).  Default is [] and must be "
@@ -814,7 +801,7 @@ class TestPolicyVsRuntimeProjectionParityEarlyReturnDefaults:
         ids=["dry_run", "retrieval_skipped"],
     )
     def test_malformed_diagnostics_count_not_in_citation_quality_on_early_return_paths(
-        self, path_label: str, result_fn: object
+        self, path_label: str, result_fn: Callable[[], dict[str, object]]
     ) -> None:
         """``malformed_diagnostics_count`` must not appear in ``citation_quality`` on early-return paths.
 
@@ -822,7 +809,7 @@ class TestPolicyVsRuntimeProjectionParityEarlyReturnDefaults:
         forbidden in the ``citation_quality`` bundle.  On early-return paths its default value
         is 0 and must be read directly from the top-level result.
         """
-        result = result_fn()  # type: ignore[call-arg]
+        result = result_fn()
         assert "malformed_diagnostics_count" not in result["citation_quality"], (
             f"[{path_label}] malformed_diagnostics_count must not appear in citation_quality "
             f"(forbidden_in citation_quality per policy).  It is a telemetry counter accessed "
@@ -842,10 +829,10 @@ class TestPolicyVsRuntimeProjectionParityEarlyReturnDefaults:
         ids=["dry_run", "retrieval_skipped"],
     )
     def test_citation_repair_attempted_not_in_citation_quality_on_early_return_paths(
-        self, path_label: str, result_fn: object
+        self, path_label: str, result_fn: Callable[[], dict[str, object]]
     ) -> None:
         """``citation_repair_attempted`` must not appear in ``citation_quality`` on early-return paths."""
-        result = result_fn()  # type: ignore[call-arg]
+        result = result_fn()
         assert "citation_repair_attempted" not in result["citation_quality"], (
             f"[{path_label}] citation_repair_attempted must not appear in citation_quality "
             f"(forbidden_in citation_quality per policy, §2.6 rule 2)."
@@ -860,10 +847,10 @@ class TestPolicyVsRuntimeProjectionParityEarlyReturnDefaults:
         ids=["dry_run", "retrieval_skipped"],
     )
     def test_citation_repair_applied_not_in_citation_quality_on_early_return_paths(
-        self, path_label: str, result_fn: object
+        self, path_label: str, result_fn: Callable[[], dict[str, object]]
     ) -> None:
         """``citation_repair_applied`` must not appear in ``citation_quality`` on early-return paths."""
-        result = result_fn()  # type: ignore[call-arg]
+        result = result_fn()
         assert "citation_repair_applied" not in result["citation_quality"], (
             f"[{path_label}] citation_repair_applied must not appear in citation_quality "
             f"(forbidden_in citation_quality per policy)."
@@ -878,10 +865,10 @@ class TestPolicyVsRuntimeProjectionParityEarlyReturnDefaults:
         ids=["dry_run", "retrieval_skipped"],
     )
     def test_citation_fallback_applied_not_in_citation_quality_on_early_return_paths(
-        self, path_label: str, result_fn: object
+        self, path_label: str, result_fn: Callable[[], dict[str, object]]
     ) -> None:
         """``citation_fallback_applied`` must not appear in ``citation_quality`` on early-return paths."""
-        result = result_fn()  # type: ignore[call-arg]
+        result = result_fn()
         assert "citation_fallback_applied" not in result["citation_quality"], (
             f"[{path_label}] citation_fallback_applied must not appear in citation_quality "
             f"(forbidden_in citation_quality per policy)."
@@ -900,7 +887,7 @@ class TestPolicyVsRuntimeProjectionParityEarlyReturnDefaults:
         ids=["dry_run", "retrieval_skipped"],
     )
     def test_debug_view_mirrors_present_on_early_return_paths(
-        self, path_label: str, result_fn: object
+        self, path_label: str, result_fn: Callable[[], dict[str, object]]
     ) -> None:
         """All policy-declared ``debug_view`` mirrors must be present on early-return paths.
 
@@ -908,7 +895,7 @@ class TestPolicyVsRuntimeProjectionParityEarlyReturnDefaults:
         even when all values carry defaults.  This ensures inspection tooling works
         consistently regardless of how the function was called.
         """
-        result = result_fn()  # type: ignore[call-arg]
+        result = result_fn()
         dv = result.get("debug_view")
         assert isinstance(dv, dict), (
             f"[{path_label}] debug_view must be a dict (present and not None)"
@@ -930,7 +917,7 @@ class TestPolicyVsRuntimeProjectionParityEarlyReturnDefaults:
         ids=["dry_run", "retrieval_skipped"],
     )
     def test_citation_quality_mirrors_present_on_early_return_paths(
-        self, path_label: str, result_fn: object
+        self, path_label: str, result_fn: Callable[[], dict[str, object]]
     ) -> None:
         """All policy-declared ``citation_quality`` mirrors/canonical fields must be present
         on early-return paths.
@@ -939,7 +926,7 @@ class TestPolicyVsRuntimeProjectionParityEarlyReturnDefaults:
         shape.  Fields that are canonical on ``citation_quality`` or mirrored there must
         appear on both the live and early-return paths.
         """
-        result = result_fn()  # type: ignore[call-arg]
+        result = result_fn()
         cq = result.get("citation_quality")
         assert isinstance(cq, dict), (
             f"[{path_label}] citation_quality must be a dict (present and not None)"
