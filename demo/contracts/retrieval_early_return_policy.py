@@ -66,6 +66,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from types import MappingProxyType
+from typing import Mapping
 
 __all__ = [
     "EarlyReturnRule",
@@ -226,6 +227,6 @@ if len(_names) != len(set(_names)):
 # Expose a convenience lookup (name → rule) as a read-only mapping.
 #: Read-only mapping from rule name to :class:`EarlyReturnRule`.
 #: Convenience alias; do not mutate.
-EARLY_RETURN_RULE_BY_NAME: MappingProxyType[str, EarlyReturnRule] = MappingProxyType(
+EARLY_RETURN_RULE_BY_NAME: Mapping[str, EarlyReturnRule] = MappingProxyType(
     {rule.name: rule for rule in EARLY_RETURN_PRECEDENCE}
 )
