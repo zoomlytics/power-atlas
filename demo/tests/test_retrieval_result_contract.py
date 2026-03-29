@@ -191,7 +191,6 @@ from demo.contracts import RETRIEVAL_METADATA_SURFACE_POLICY
 from demo.contracts import (
     EARLY_RETURN_PRECEDENCE,
     EARLY_RETURN_RULE_BY_NAME,
-    EarlyReturnRule,
 )
 from demo.stages.retrieval_and_qa import (
     _CITATION_FALLBACK_PREFIX,
