@@ -475,7 +475,7 @@ _MISSING_OPTIONAL_FIELDS_METADATA: dict[str, object] = {
         "chunk_id": "c2",
         "run_id": "r1",
         "source_uri": "file:///doc.pdf",
-        "chunk_index": 0,
+        "chunk_index": 1,
         # page, start_char, end_char intentionally absent → operational warning
     },
 }
