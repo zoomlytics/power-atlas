@@ -103,7 +103,10 @@ class EarlyReturnRule:
         Value of the ``"status"`` key in the result dict when this rule fires.
     absent_keys:
         Top-level result keys that are **absent** (not present at all) when this
-        rule fires.  Complement of the required-key set relative to the live result.
+        rule fires.  Conceptually this is the complement of the required-key set
+        relative to the live result, but the set may include keys that are not
+        part of the live-key universe for a particular result shape; such
+        non-live keys are ignored when deriving the complement from the live set.
     exclusive_keys:
         Top-level result keys that are **exclusive** to this rule's result shape —
         present only when this rule fires, absent on all other paths.
