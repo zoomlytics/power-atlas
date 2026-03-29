@@ -17,6 +17,11 @@ from demo.contracts.pipeline import (
 )
 from demo.contracts.prompts import POWER_ATLAS_RAG_TEMPLATE, PROMPT_IDS
 from demo.contracts.resolution import ALIGNMENT_VERSION
+from demo.contracts.retrieval_early_return_policy import (
+    EarlyReturnRule,
+    EARLY_RETURN_PRECEDENCE,
+    EARLY_RETURN_RULE_BY_NAME,
+)
 from demo.contracts.retrieval_metadata_policy import (
     FieldSurfacePolicy,
     RetrievalMetadataSurface,
@@ -51,6 +56,9 @@ __all__ = [
     "DATASET_ID",
     "DEFAULT_DB",
     "Config",
+    "EARLY_RETURN_PRECEDENCE",
+    "EARLY_RETURN_RULE_BY_NAME",
+    "EarlyReturnRule",
     "EMBEDDER_MODEL_NAME",
     "ensure_pipeline_contract_loaded",
     "FIXTURES_DIR",
