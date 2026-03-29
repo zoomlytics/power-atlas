@@ -2953,7 +2953,14 @@ class TestRunRetrievalAndQaWarningsContract:
         run_id: str | None,
     ) -> None:
         """Every warning in ``citation_quality['citation_warnings']`` must also
-        appear in the top-level ``warnings`` list (invariant §3.7)."""
+        appear on every surface in ``propagates_to`` (invariant §3.7).
+
+        Propagation targets are read from
+        :data:`~demo.contracts.RETRIEVAL_METADATA_SURFACE_POLICY`
+        ``["citation_warnings"].propagates_to`` so this assertion stays anchored
+        to the policy declaration rather than hard-coded surface names.
+        """
+        propagates_to = RETRIEVAL_METADATA_SURFACE_POLICY["citation_warnings"].propagates_to
         result = _run_with_mocked_retrieval(
             answer=answer,
             items_metadata=items_metadata,
@@ -2961,11 +2968,19 @@ class TestRunRetrievalAndQaWarningsContract:
             run_id=run_id,
         )
         cq = result["citation_quality"]
-        for w in cq["citation_warnings"]:
-            assert w in result["warnings"], (
-                f"[{scenario}] citation_quality warning {w!r} missing from "
-                f"top-level warnings; got {result['warnings']!r}"
+        for surface in propagates_to:
+            assert surface in result, (
+                f"[{scenario}] surface {surface!r} missing from result "
+                f"(policy propagates_to={list(propagates_to)!r}); "
+                f"got keys={list(result.keys())!r}"
             )
+            surface_values = result[surface]
+            for w in cq["citation_warnings"]:
+                assert w in surface_values, (
+                    f"[{scenario}] citation_quality warning {w!r} missing from "
+                    f"{surface!r} (policy propagates_to={list(propagates_to)!r}); "
+                    f"got {surface}={surface_values!r}"
+                )
 
     def test_empty_chunk_warning_appears_in_both_lists(self) -> None:
         """An empty-chunk-text warning must appear in both ``warnings`` and

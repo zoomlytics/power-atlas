@@ -52,6 +52,9 @@ field name (as it appears on the canonical owning surface) mapping to a
   state is introduced by mirroring).
 - Any surfaces where the field is explicitly forbidden (recorded for the ambiguous
   placement cases discussed in §2.6 and §2.9).
+- Any surfaces that receive a **propagated subset** of this field's values
+  (propagation targets, §3.7): the destination surface is a superset — it may
+  contain additional entries not present on the canonical surface.
 - Optional notes for naming distinctions or multi-surface subtleties.
 """
 
@@ -114,6 +117,15 @@ class FieldSurfacePolicy:
         Surfaces where this field must **not** appear.  Recorded for the
         ambiguous-placement cases discussed in §2.6 and §2.9 so that contributors
         do not accidentally place the field on the wrong surface.
+    propagates_to:
+        Surfaces that receive a **propagated subset** of this field's values.
+        Unlike ``mirrored_in`` (exact-value copy), each entry here is a
+        **superset** surface: every element from the canonical surface's value
+        also appears on the target surface, but the target may contain additional
+        entries not present here.  The canonical example is
+        ``citation_quality["citation_warnings"]`` propagating to the top-level
+        ``warnings`` list (invariant §3.7).  Empty when there is no settled
+        propagation relationship.
     field_name_by_surface:
         Maps a surface identifier to the name under which this field appears on
         that surface, populated only when the name differs from the canonical
@@ -131,6 +143,7 @@ class FieldSurfacePolicy:
     canonical_surface: RetrievalMetadataSurface
     mirrored_in: tuple[RetrievalMetadataSurface, ...] = ()
     forbidden_in: tuple[RetrievalMetadataSurface, ...] = ()
+    propagates_to: tuple[RetrievalMetadataSurface, ...] = ()
     field_name_by_surface: Mapping[RetrievalMetadataSurface, str] = field(
         default_factory=lambda: MappingProxyType({})
     )
@@ -322,11 +335,12 @@ RETRIEVAL_METADATA_SURFACE_POLICY: Mapping[str, FieldSurfacePolicy] = MappingPro
         canonical_surface="citation_quality",
         mirrored_in=("debug_view",),
         forbidden_in=("top_level",),
+        propagates_to=("warnings",),
         notes=(
             "Citation-quality warning strings (§2.6 rule 1): every entry in "
             "citation_quality['citation_warnings'] is also propagated to the "
-            "top-level warnings list (superset invariant §3.7).  "
-            "debug_view['citation_warnings'] mirrors the citation_quality list.  "
+            "top-level warnings list (superset invariant §3.7) — see propagates_to.  "
+            "debug_view['citation_warnings'] mirrors the citation_quality list exactly.  "
             "The top-level warnings list is the superset and may contain additional "
             "non-citation warnings.  "
             "The key 'citation_warnings' must NOT appear as a direct top-level key "

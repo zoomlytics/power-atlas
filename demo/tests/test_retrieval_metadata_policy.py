@@ -210,6 +210,68 @@ class TestPolicyMapInternalConsistency:
 
 
 # ---------------------------------------------------------------------------
+# Propagation relationship tests
+# ---------------------------------------------------------------------------
+
+
+class TestPolicyMapPropagationConsistency:
+    """propagates_to entries must use valid surfaces and not conflict with other fields."""
+
+    @pytest.mark.parametrize("field_name", sorted(RETRIEVAL_METADATA_SURFACE_POLICY))
+    def test_propagates_to_surfaces_are_valid(self, field_name: str) -> None:
+        """Every surface in propagates_to must be a recognised RetrievalMetadataSurface."""
+        policy = RETRIEVAL_METADATA_SURFACE_POLICY[field_name]
+        invalid = frozenset(policy.propagates_to) - _VALID_SURFACES
+        assert not invalid, (
+            f"RETRIEVAL_METADATA_SURFACE_POLICY[{field_name!r}].propagates_to contains "
+            f"invalid surface(s): {sorted(invalid)!r}. "
+            f"Valid surfaces: {sorted(_VALID_SURFACES)!r}."
+        )
+
+    @pytest.mark.parametrize("field_name", sorted(RETRIEVAL_METADATA_SURFACE_POLICY))
+    def test_canonical_surface_not_in_propagates_to(self, field_name: str) -> None:
+        """A field's canonical_surface must not also appear in its propagates_to tuple.
+
+        Propagation describes a subset→superset relationship with a *different* surface.
+        Listing the canonical surface in propagates_to would be a structural contradiction:
+        a surface cannot be a superset of itself in this model.
+        """
+        policy = RETRIEVAL_METADATA_SURFACE_POLICY[field_name]
+        assert policy.canonical_surface not in policy.propagates_to, (
+            f"RETRIEVAL_METADATA_SURFACE_POLICY[{field_name!r}] lists "
+            f"{policy.canonical_surface!r} as both canonical_surface and in "
+            f"propagates_to — a surface cannot propagate to itself."
+        )
+
+    @pytest.mark.parametrize("field_name", sorted(RETRIEVAL_METADATA_SURFACE_POLICY))
+    def test_no_overlap_between_propagates_to_and_mirrored_in(self, field_name: str) -> None:
+        """A surface must not appear in both propagates_to and mirrored_in simultaneously.
+
+        mirrored_in means exact-value copy; propagates_to means subset→superset.
+        The two relationships are mutually exclusive: a destination surface either
+        carries an identical copy (mirror) or a superset (propagation), not both.
+        """
+        policy = RETRIEVAL_METADATA_SURFACE_POLICY[field_name]
+        overlap = frozenset(policy.propagates_to) & frozenset(policy.mirrored_in)
+        assert not overlap, (
+            f"RETRIEVAL_METADATA_SURFACE_POLICY[{field_name!r}] lists "
+            f"{sorted(overlap)!r} in both propagates_to and mirrored_in — "
+            f"a surface cannot simultaneously be an exact mirror and a propagation target."
+        )
+
+    @pytest.mark.parametrize("field_name", sorted(RETRIEVAL_METADATA_SURFACE_POLICY))
+    def test_no_overlap_between_propagates_to_and_forbidden_in(self, field_name: str) -> None:
+        """A surface must not appear in both propagates_to and forbidden_in simultaneously."""
+        policy = RETRIEVAL_METADATA_SURFACE_POLICY[field_name]
+        overlap = frozenset(policy.propagates_to) & frozenset(policy.forbidden_in)
+        assert not overlap, (
+            f"RETRIEVAL_METADATA_SURFACE_POLICY[{field_name!r}] lists "
+            f"{sorted(overlap)!r} in both propagates_to and forbidden_in — "
+            f"a surface cannot simultaneously be a propagation target and forbidden."
+        )
+
+
+# ---------------------------------------------------------------------------
 # Specific field classification tests (§2.6 and §2.9 rules)
 # ---------------------------------------------------------------------------
 
@@ -306,6 +368,35 @@ class TestKnownFieldClassifications:
         assert "top_level" in policy.forbidden_in, (
             f"'citation_warnings' must be forbidden at 'top_level' (§2.9 Inspection-only); "
             f"got forbidden_in={policy.forbidden_in!r}."
+        )
+
+    def test_citation_warnings_propagates_to_warnings(self) -> None:
+        """citation_warnings must declare 'warnings' as a propagation target (§3.7).
+
+        Every entry in ``citation_quality["citation_warnings"]`` must also appear in
+        the top-level ``warnings`` list (superset invariant §3.7).  This subset→superset
+        relationship is encoded in ``propagates_to``, not in ``mirrored_in``, because
+        ``warnings`` may contain additional operational warnings not present in
+        ``citation_warnings``.
+        """
+        policy = RETRIEVAL_METADATA_SURFACE_POLICY["citation_warnings"]
+        assert "warnings" in policy.propagates_to, (
+            f"'citation_warnings' must list 'warnings' in propagates_to (§3.7 superset "
+            f"invariant); got propagates_to={policy.propagates_to!r}."
+        )
+
+    def test_citation_warnings_warnings_surface_not_in_mirrored_in(self) -> None:
+        """'warnings' must NOT appear in citation_warnings.mirrored_in.
+
+        The top-level ``warnings`` list is a superset, not an exact mirror, of
+        ``citation_quality["citation_warnings"]``.  Recording it in ``mirrored_in``
+        would falsely assert identical values; the correct encoding is ``propagates_to``.
+        """
+        policy = RETRIEVAL_METADATA_SURFACE_POLICY["citation_warnings"]
+        assert "warnings" not in policy.mirrored_in, (
+            f"'citation_warnings' must NOT list 'warnings' in mirrored_in — "
+            f"warnings is a superset (propagation target), not an exact mirror; "
+            f"got mirrored_in={policy.mirrored_in!r}."
         )
 
     def test_malformed_diagnostics_count_canonical_surface_is_telemetry(self) -> None:
