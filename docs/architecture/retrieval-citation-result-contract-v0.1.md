@@ -212,6 +212,41 @@ Hits where `retrieval_path_diagnostics` is **absent or `None`** are **not** coun
 
 ---
 
+### 2.10 Metadata relationship taxonomy
+
+The machine-readable policy in `demo/contracts/retrieval_metadata_policy.py` (`FieldSurfacePolicy`) expresses five distinct relationship types between a field and each surface it touches.  Understanding these types lets future contributors quickly determine how any field is supposed to behave across surfaces without reading individual field notes.
+
+#### Relationship types
+
+| Type | Definition | `FieldSurfacePolicy` attribute |
+|---|---|---|
+| **Canonical owner** | The primary surface where the field conceptually belongs and where production application logic should read it. | `canonical_surface` |
+| **Exact mirror** | The field appears on an additional surface under the **same key name** with the **identical value**. | `mirrored_in` (no entry in `field_name_by_surface` for that surface) |
+| **Alias mirror** | The field appears on an additional surface under a **different key name** with the **identical value**. | `mirrored_in` + corresponding entry in `field_name_by_surface` |
+| **Propagation / superset** | Every value from the canonical surface **must** also appear on the target surface, but the target is a superset and may contain additional values not present on the canonical surface. | `propagates_to` |
+| **Forbidden placement** | The field **must not** appear on this surface; placement here would violate the contract. | `forbidden_in` |
+
+#### Representative field examples
+
+| Field | Canonical surface | Relationship | Notes |
+|---|---|---|---|
+| `all_answers_cited` | `top_level` | **Alias mirror** → `citation_quality` (as `all_cited`), `debug_view` (as `all_cited`) | `all_answers_cited` is the public top-level alias; `all_cited` is the inspection/internal name.  The bare key `all_cited` must NOT appear as a direct top-level key. |
+| `raw_answer_all_cited` | `top_level` | **Exact mirror** → `citation_quality`, `debug_view` | Same key name used on all three surfaces; value is always identical. |
+| `citation_warnings` | `citation_quality` | **Propagation** → `warnings` (superset); **exact mirror** → `debug_view` | Every entry in `citation_quality["citation_warnings"]` propagates to the top-level `warnings` list (invariant §3.7).  `warnings` is the superset and may contain additional non-citation warnings.  `debug_view["citation_warnings"]` is an exact mirror of the `citation_quality` list.  The key `citation_warnings` is **forbidden** at the top level. |
+| `warning_count` | `citation_quality` | **Exact mirror** → `debug_view`; **forbidden** at `top_level` | Counts the entries in `citation_quality["citation_warnings"]` — it is a citation-quality metric, not a synonym for the length of the top-level `warnings` list (which is a superset). |
+| `malformed_diagnostics_count` | `telemetry` | **Exact mirror** → `debug_view`; **forbidden** in `citation_quality` and `warnings` | Machine-readable alerting counter; not a human-facing warning string (§2.7, §3.10).  Must never add entries to `warnings` or `citation_quality`. |
+| `evidence_level` | `citation_quality` | **Exact mirror** → `debug_view`; **forbidden** at `top_level` | Citation-quality flag; must not appear as a direct top-level key.  Use `citation_quality["evidence_level"]` for production logic (§2.8). |
+
+#### Key distinctions
+
+- **Alias mirror vs exact mirror:** the value is always identical, but an alias mirror involves a key-name change (`all_answers_cited` ↔ `all_cited`) whereas an exact mirror preserves the key name (`raw_answer_all_cited` on top-level, `citation_quality`, and `debug_view`).
+- **Propagation vs mirror:** a propagation relationship (`citation_warnings` → `warnings`) means the destination is a *strict superset* — the destination may contain entries not present on the source.  A mirror relationship always preserves the exact value.
+- **Forbidden placement:** marks surfaces where a field must *never* appear, regardless of what decision-rule logic might otherwise suggest.  This enforces the boundary between surfaces (e.g. `evidence_level` and `warning_count` must not leak to the top level; `malformed_diagnostics_count` must not pollute `citation_quality` or `warnings`).
+
+The `FieldSurfacePolicy` dataclass in `demo/contracts/retrieval_metadata_policy.py` is the machine-readable complement to this taxonomy; the field classification table in §2.9 shows how these types map to concrete `debug_view` entries.
+
+---
+
 ## 3) Field Invariants
 
 The following invariants hold across all postprocessing paths:
