@@ -80,7 +80,7 @@ from demo.stages.retrieval_and_qa import run_retrieval_and_qa
 # Shared fixtures
 # ---------------------------------------------------------------------------
 
-#: Minimal live-mode config (no dry_run flag).
+#: Minimal live-mode config with ``dry_run=False``.
 _LIVE_CONFIG = types.SimpleNamespace(
     neo4j_uri="bolt://localhost:7687",
     neo4j_username="neo4j",
