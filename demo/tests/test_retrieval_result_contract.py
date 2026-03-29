@@ -141,9 +141,10 @@ Structure
     - Rule 1 (citation-quality warning strings) — ``test_citation_quality_warning_strings_dual_surfaced``:
       for every documented citation-quality warning type the warning string must appear
       on **both** ``citation_quality["citation_warnings"]`` and top-level ``warnings``.
-    - Rule 2 (citation-quality metrics/flags) — ``test_citation_quality_metric_fields_not_at_top_level``:
-      structured citation-quality values (``evidence_level``, ``warning_count``) must not
-      appear as direct top-level keys; they belong in the ``citation_quality`` bundle.
+    - Rule 2 (citation-quality fields forbidden as top-level keys) — ``test_citation_quality_fields_forbidden_as_top_level_keys``:
+      citation-quality values (``evidence_level``, ``warning_count``) and the rule-1
+      warning-string list (``citation_warnings``) must not appear as direct top-level keys;
+      they belong in the ``citation_quality`` bundle.
     - Rule 3 (telemetry counters) — ``test_telemetry_counter_not_in_citation_quality_bundle``:
       ``malformed_diagnostics_count`` must not appear inside the ``citation_quality`` bundle.
     - Rule 4 (operational warnings) — ``test_operational_warnings_not_in_citation_warnings``:
@@ -165,6 +166,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from demo.contracts import RETRIEVAL_METADATA_SURFACE_POLICY
 from demo.stages.retrieval_and_qa import (
     _CITATION_FALLBACK_PREFIX,
     _POSTPROCESS_FIELD_MAP,
@@ -248,28 +250,31 @@ _POSTPROCESS_RESULT_KEYS: frozenset[str] = frozenset({
     "citation_quality",
 })
 
+
+def _policy_surface_key_set(surface: str) -> frozenset[str]:
+    """Derive the expected field-name set for *surface* from the shared policy.
+
+    For each field in :data:`RETRIEVAL_METADATA_SURFACE_POLICY` that is either
+    canonical on *surface* or mirrored there, returns the name under which the
+    field appears on that surface (using ``field_name_by_surface`` when the name
+    differs from the canonical key).
+    """
+    return frozenset(
+        pol.field_name_by_surface.get(surface, canonical_key)
+        for canonical_key, pol in RETRIEVAL_METADATA_SURFACE_POLICY.items()
+        if pol.canonical_surface == surface or surface in pol.mirrored_in
+    )
+
+
 #: Exact set of all keys inside the nested ``_CitationQualityBundle``.
-_CITATION_QUALITY_BUNDLE_KEYS: frozenset[str] = frozenset({
-    "all_cited",
-    "raw_answer_all_cited",
-    "evidence_level",
-    "warning_count",
-    "citation_warnings",
-})
+#: Derived from :data:`RETRIEVAL_METADATA_SURFACE_POLICY` so this constant
+#: stays automatically in sync when the policy changes.
+_CITATION_QUALITY_BUNDLE_KEYS: frozenset[str] = _policy_surface_key_set("citation_quality")
 
 #: Exact set of required keys in the ``debug_view`` nested dict returned by
-#: ``run_retrieval_and_qa()``.  Mirrors :class:`_RetrievalDebugView` annotations.
-_DEBUG_VIEW_REQUIRED_KEYS: frozenset[str] = frozenset({
-    "raw_answer_all_cited",
-    "all_cited",
-    "citation_repair_attempted",
-    "citation_repair_applied",
-    "citation_fallback_applied",
-    "evidence_level",
-    "warning_count",
-    "citation_warnings",
-    "malformed_diagnostics_count",
-})
+#: ``run_retrieval_and_qa()``.  Derived from :data:`RETRIEVAL_METADATA_SURFACE_POLICY`
+#: so the constant stays automatically in sync with the shared policy.
+_DEBUG_VIEW_REQUIRED_KEYS: frozenset[str] = _policy_surface_key_set("debug_view")
 
 #: A realistic retrieval-item metadata dict for live-path (``run_retrieval_and_qa``) tests.
 #: Includes ``citation_object`` with all optional fields (page, start_char, end_char) populated
@@ -462,6 +467,48 @@ def _run_with_mocked_retrieval(
             all_runs=all_runs,
             run_id=run_id,
             question=question,
+        )
+
+
+def _assert_debug_view_mirrors_policy(
+    result: dict[str, object], scenario: str
+) -> None:
+    """Assert every policy-defined ``debug_view`` mirror holds for *result*.
+
+    Iterates :data:`RETRIEVAL_METADATA_SURFACE_POLICY` and, for each field
+    mirrored in ``debug_view``, verifies the stored value equals the value on
+    the canonical source surface.  Uses ``field_name_by_surface`` to resolve
+    name differences (e.g. ``all_answers_cited`` at the top level is ``all_cited``
+    in ``debug_view``).
+
+    This helper is the policy-driven equivalent of enumerating mirror assertions
+    by hand — adding a field to the policy automatically extends the check here.
+    """
+    dv = result["debug_view"]
+    cq = result["citation_quality"]
+    for canonical_key, pol in RETRIEVAL_METADATA_SURFACE_POLICY.items():
+        if "debug_view" not in pol.mirrored_in:
+            continue
+        dv_name = pol.field_name_by_surface.get("debug_view", canonical_key)
+        if pol.canonical_surface in ("top_level", "telemetry"):
+            # Both top_level and telemetry fields are direct top-level keys in the
+            # result dict under the canonical key name (no top-level rename in policy).
+            expected = result[canonical_key]
+            source_desc = f"result[{canonical_key!r}]"
+        elif pol.canonical_surface == "citation_quality":
+            cq_name = pol.field_name_by_surface.get("citation_quality", canonical_key)
+            expected = cq[cq_name]
+            source_desc = f"citation_quality[{cq_name!r}]"
+        else:
+            raise AssertionError(
+                f"Policy field {canonical_key!r} is mirrored in debug_view but its "
+                f"canonical_surface {pol.canonical_surface!r} is not handled by "
+                f"_assert_debug_view_mirrors_policy.  Update the helper to support "
+                f"this new canonical surface."
+            )
+        assert dv[dv_name] == expected, (
+            f"[{scenario}] debug_view[{dv_name!r}] (policy field: {canonical_key!r}) "
+            f"must mirror {source_desc}: expected {expected!r}, got {dv[dv_name]!r}"
         )
 
 
@@ -2955,8 +3002,9 @@ class TestMetadataTaxonomyBoundaries:
         """For every documented live scenario, ``debug_view`` values must be consistent
         with their corresponding top-level and ``citation_quality`` counterparts.
 
-        Verifies all nine mirroring relationships in §2.9 across the full scenario
-        matrix so that no individual scenario can silently drift.
+        Delegates to :func:`_assert_debug_view_mirrors_policy` which derives all
+        mirroring relationships from :data:`RETRIEVAL_METADATA_SURFACE_POLICY`,
+        so that adding a new field to the policy automatically extends coverage here.
         """
         result = _run_with_mocked_retrieval(
             answer=answer,
@@ -2964,38 +3012,7 @@ class TestMetadataTaxonomyBoundaries:
             all_runs=all_runs,
             run_id=run_id,
         )
-        dv = result["debug_view"]
-        cq = result["citation_quality"]
-        # Mirrored fields (same name, same value at both levels)
-        assert dv["raw_answer_all_cited"] == result["raw_answer_all_cited"], (
-            f"[{scenario}] debug_view.raw_answer_all_cited must mirror top-level field"
-        )
-        assert dv["citation_repair_attempted"] == result["citation_repair_attempted"], (
-            f"[{scenario}] debug_view.citation_repair_attempted must mirror top-level field"
-        )
-        assert dv["citation_repair_applied"] == result["citation_repair_applied"], (
-            f"[{scenario}] debug_view.citation_repair_applied must mirror top-level field"
-        )
-        assert dv["citation_fallback_applied"] == result["citation_fallback_applied"], (
-            f"[{scenario}] debug_view.citation_fallback_applied must mirror top-level field"
-        )
-        assert dv["malformed_diagnostics_count"] == result["malformed_diagnostics_count"], (
-            f"[{scenario}] debug_view.malformed_diagnostics_count must mirror top-level field"
-        )
-        # Inspection-only fields (debug_view name vs public alias)
-        assert dv["all_cited"] == result["all_answers_cited"], (
-            f"[{scenario}] debug_view.all_cited must mirror top-level all_answers_cited"
-        )
-        # Inspection-only fields mirroring citation_quality
-        assert dv["evidence_level"] == cq["evidence_level"], (
-            f"[{scenario}] debug_view.evidence_level must mirror citation_quality.evidence_level"
-        )
-        assert dv["warning_count"] == cq["warning_count"], (
-            f"[{scenario}] debug_view.warning_count must mirror citation_quality.warning_count"
-        )
-        assert dv["citation_warnings"] == cq["citation_warnings"], (
-            f"[{scenario}] debug_view.citation_warnings must mirror citation_quality.citation_warnings"
-        )
+        _assert_debug_view_mirrors_policy(result, scenario)
 
     @pytest.mark.parametrize(
         "path_label,required_keys",
@@ -3075,6 +3092,25 @@ _SURFACE_TELEMETRY = "telemetry integer field (malformed_diagnostics_count)"
 _SURFACE_DEBUG_VIEW = "debug_view"
 _SURFACE_TOP_LEVEL = "direct top-level key"
 
+#: Fields that the policy says are canonical on the ``citation_quality`` surface,
+#: mirrored in ``debug_view``, and explicitly forbidden from appearing as direct
+#: top-level keys.  Derived from :data:`RETRIEVAL_METADATA_SURFACE_POLICY` so that
+#: any new field added to the policy with those same characteristics is automatically
+#: covered by the parametrized test below.
+#:
+#: Filtering to ``canonical_surface == "citation_quality"`` and
+#: ``"debug_view" in mirrored_in`` keeps the parametrization aligned with the test's
+#: assertions (that the field is present in both ``citation_quality`` and ``debug_view``)
+#: and prevents surprising failures if a future policy entry forbids ``top_level`` for
+#: some other reason or surface combination.
+_POLICY_FIELDS_FORBIDDEN_AT_TOP_LEVEL: list[str] = sorted(
+    canonical_key
+    for canonical_key, pol in RETRIEVAL_METADATA_SURFACE_POLICY.items()
+    if "top_level" in pol.forbidden_in
+    and pol.canonical_surface == "citation_quality"
+    and "debug_view" in pol.mirrored_in
+)
+
 
 class TestProjectionPolicySurfaceOwnership:
     """Projection-policy tests: each signal must be owned by exactly the correct surface(s).
@@ -3089,6 +3125,12 @@ class TestProjectionPolicySurfaceOwnership:
       ``warnings``.
     - **Rule 2** — citation-quality *metrics/flags* (``evidence_level``, ``warning_count``)
       → ``citation_quality`` bundle only; must not be direct top-level keys.
+    - **Rule 1 / top-level key** — ``citation_warnings`` is a warning-string field (rule 1)
+      that is dual-surfaced via ``citation_quality`` and ``warnings``, but must also not
+      appear as a *key* at the top level.  Covered by
+      :data:`_POLICY_FIELDS_FORBIDDEN_AT_TOP_LEVEL` alongside the rule-2 metric fields.
+      Parametrized test:
+      :meth:`test_citation_quality_fields_forbidden_as_top_level_keys`.
     - **Rule 3** — machine-readable telemetry counters (``malformed_diagnostics_count``)
       → integer field only; must not appear inside ``citation_quality``.
     - **Rule 4** — operational (non-citation-quality) warnings → top-level ``warnings``
@@ -3124,8 +3166,8 @@ class TestProjectionPolicySurfaceOwnership:
 
         ``debug_view`` is a supported inspection surface, not an escape hatch for
         introducing semantically new state (§2.9).  If a contributor adds an extra key
-        to ``debug_view`` without updating :data:`_DEBUG_VIEW_REQUIRED_KEYS` and the
-        contract document, this test will fail with an actionable message naming the
+        to ``debug_view`` without updating :data:`RETRIEVAL_METADATA_SURFACE_POLICY` and
+        the contract document, this test will fail with an actionable message naming the
         extra key and the surface where it was mistakenly placed.
         """
         result = _run_with_mocked_retrieval(
@@ -3141,7 +3183,7 @@ class TestProjectionPolicySurfaceOwnership:
             f"[{scenario}] {_SURFACE_DEBUG_VIEW} key set mismatch — "
             f"extra={sorted(extra)!r}, missing={sorted(missing)!r}. "
             f"debug_view must not introduce undocumented state (§2.9). "
-            f"If a new key is intentional, update _DEBUG_VIEW_REQUIRED_KEYS and the "
+            f"If a new key is intentional, update RETRIEVAL_METADATA_SURFACE_POLICY and the "
             f"contract document."
         )
 
@@ -3176,30 +3218,41 @@ class TestProjectionPolicySurfaceOwnership:
         assert actual_keys == _CITATION_QUALITY_BUNDLE_KEYS, (
             f"[{scenario}] {_SURFACE_CITATION_QUALITY} key set mismatch — "
             f"extra={sorted(extra)!r}, missing={sorted(missing)!r}. "
-            f"If a new key is intentional, update _CITATION_QUALITY_BUNDLE_KEYS and the "
+            f"If a new key is intentional, update RETRIEVAL_METADATA_SURFACE_POLICY and the "
             f"contract document."
         )
 
     # ------------------------------------------------------------------
-    # Rule 2: citation-quality metrics/flags must not be direct top-level keys
+    # Rule 2 + top-level key: citation_quality fields forbidden as direct top-level keys
     # ------------------------------------------------------------------
 
     @pytest.mark.parametrize(
         "field_name",
-        ["evidence_level", "warning_count"],
-        ids=["evidence_level", "warning_count"],
+        _POLICY_FIELDS_FORBIDDEN_AT_TOP_LEVEL,
+        ids=_POLICY_FIELDS_FORBIDDEN_AT_TOP_LEVEL,
     )
-    def test_citation_quality_metric_fields_not_at_top_level(
+    def test_citation_quality_fields_forbidden_as_top_level_keys(
         self,
         field_name: str,
     ) -> None:
-        """Citation-quality metric fields must not appear as direct top-level keys (rule 2).
+        """``citation_quality`` fields must not appear as direct top-level keys.
 
-        ``evidence_level`` and ``warning_count`` are structured citation-quality values
-        (not warning strings).  Per §2.6 rule 2 they belong in the ``citation_quality``
-        bundle.  They are also mirrored inside ``debug_view`` for inspection tooling.
-        They must **not** appear as new direct top-level keys — doing so would erode
-        surface ownership and confuse callers about the canonical access path.
+        Parametrized from :data:`_POLICY_FIELDS_FORBIDDEN_AT_TOP_LEVEL`, which is derived
+        from :data:`RETRIEVAL_METADATA_SURFACE_POLICY` — specifically fields with
+        ``canonical_surface="citation_quality"``, ``"debug_view" in mirrored_in``, and
+        ``"top_level" in forbidden_in``.
+
+        The covered fields include:
+
+        - ``evidence_level`` and ``warning_count`` — citation-quality metrics/flags
+          (§2.6 rule 2) that must not be promoted to direct top-level keys.
+        - ``citation_warnings`` — a rule-1 warning-string list that is dual-surfaced
+          through ``citation_quality`` and ``warnings``, but whose *key name* must also
+          not appear as a direct top-level key (it would conflict with the canonical
+          ``citation_quality["citation_warnings"]`` access path).
+
+        Adding a new field to the policy with the same surface combination will
+        automatically extend coverage here without a manual update to this test.
         """
         result = _run_with_mocked_retrieval(
             answer=_CITED_ANSWER,
@@ -3208,11 +3261,11 @@ class TestProjectionPolicySurfaceOwnership:
         )
         assert field_name not in result, (
             f"{field_name!r} must not appear as a {_SURFACE_TOP_LEVEL} "
-            f"(§2.6 rule 2). It is a citation-quality metric — access it via "
-            f"citation_quality[{field_name!r}] for production logic, or via "
+            f"(policy forbidden_in). It belongs in the {_SURFACE_CITATION_QUALITY} — "
+            f"access it via citation_quality[{field_name!r}] for production logic, or via "
             f"debug_view[{field_name!r}] for inspection."
         )
-        # Confirm the field is correctly placed on its designated surface.
+        # Confirm the field is correctly placed on its designated canonical surface.
         assert field_name in result["citation_quality"], (
             f"{field_name!r} must be present in the {_SURFACE_CITATION_QUALITY}"
         )
