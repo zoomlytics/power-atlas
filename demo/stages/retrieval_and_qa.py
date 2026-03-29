@@ -1944,7 +1944,7 @@ def run_retrieval_and_qa(
                 "retrievers": dry_run_retrievers,
                 "qa": dry_run_qa_label,
             }
-        if _early_rule.name == "retrieval_skipped":
+        elif _early_rule.name == "retrieval_skipped":
             # §5.2 — retrieval_skipped early return.
             warning_msg = "No question provided; skipping vector retrieval."
             _logger.warning(warning_msg)
@@ -1959,6 +1959,16 @@ def run_retrieval_and_qa(
                 "warnings": [warning_msg],
                 "retrieval_skipped": True,
             }
+        else:
+            # Guard against future rules added to EARLY_RETURN_PRECEDENCE without
+            # a corresponding branch here.  resolve_early_return_rule() already
+            # raises if the _conditions dict is missing a rule name, but this
+            # else-raise catches the symmetric gap: a rule whose condition fires
+            # but whose payload is not yet implemented in this block.
+            raise RuntimeError(
+                f"run_retrieval_and_qa: matched early-return rule {_early_rule.name!r} "
+                "has no corresponding payload branch.  Add a branch for this rule."
+            )
 
     # Live retrieval: build a VectorCypherRetriever with citation formatter.
     # run_id is mandatory unless all_runs=True (which queries across all chunks).
