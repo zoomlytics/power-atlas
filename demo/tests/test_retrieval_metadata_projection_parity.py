@@ -190,11 +190,6 @@ def _make_retrieval_skipped_result() -> dict[str, object]:
 #: checked with the same key-presence / key-access logic.
 _DICT_SURFACES: frozenset[str] = frozenset({"top_level", "citation_quality", "debug_view", "telemetry"})
 
-#: Surfaces that are lists of strings rather than dicts; key-based checks do not
-#: apply and are skipped in the generic parametric tests.
-_LIST_SURFACES: frozenset[str] = frozenset({"warnings"})
-
-
 def _surface_dict(result: dict[str, object], surface: str) -> dict[str, object]:
     """Return the dict that backs the given surface.
 
