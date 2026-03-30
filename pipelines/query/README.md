@@ -1095,16 +1095,17 @@ MATCH (canonical:CanonicalEntity)<-[a:ALIGNED_WITH]-(cluster:ResolvedEntityClust
 WHERE toLower(canonical.name) CONTAINS 'mercadolibre'
   AND a.run_id = $run_id AND a.alignment_version = $alignment_version
   AND m.run_id = $run_id
+  AND cluster.run_id = $run_id
 MATCH (c:ExtractedClaim)-[r:HAS_PARTICIPANT]->(m)
 WHERE c.run_id = $run_id
 RETURN canonical.name        AS canonical_entity,
        cluster.canonical_name AS cluster,
        m.name                 AS mention,
-       type(r)                AS role,
+       r.role                 AS role,
        c.claim_text,
        c.predicate,
        r.match_method
-ORDER BY role, c.claim_id;
+ORDER BY r.role, c.claim_id;
 ```
 
 **Talking point:** Each row exposes all three resolution layers — the curated canonical
