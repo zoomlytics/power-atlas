@@ -1185,18 +1185,21 @@ normalization / fuzzy-matching thresholds are too strict or that the corpus is s
 a single entity type. Clusters with mixed types suggest over-aggressive merging.
 
 ```cypher
-// For each cluster, count how many distinct entity_type values its member mentions have
+// For each cluster, count how many distinct (normalized) entity_type values its member mentions have
 MATCH (cluster:ResolvedEntityCluster)<-[:MEMBER_OF]-(m:EntityMention)
 WITH cluster,
-     count(
-       DISTINCT coalesce(
-         CASE
-           WHEN trim(m.entity_type) = '' THEN null
+     CASE
+       WHEN m.entity_type IS NULL OR trim(m.entity_type) = '' THEN 'UNKNOWN'
+       ELSE
+         CASE toUpper(trim(m.entity_type))
+           WHEN 'PERSON'   THEN 'Person'
+           WHEN 'ORG'      THEN 'Organization'
+           WHEN 'COMPANY'  THEN 'Organization'
            ELSE trim(m.entity_type)
-         END,
-         'UNKNOWN'
-       )
-     ) AS type_count
+         END
+     END AS normalized_type
+WITH cluster,
+     count(DISTINCT normalized_type) AS type_count
 RETURN type_count             AS distinct_types_in_cluster,
        count(cluster)         AS cluster_count
 ORDER BY type_count;
