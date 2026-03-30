@@ -26,6 +26,14 @@ needed to find a unique match):
    both the slot text and each mention name; match on equality.  Catches
    Unicode variant forms such as diacritics (``"Müller"`` → ``"muller"``) and
    typographic substitutions (``ß`` → ``ss``, em-dash → hyphen-minus).
+4. **list_split** — when all three strategies above yield no match *and* the
+   slot text contains conjunction/list separators (`` and ``, `` or ``, `` & ``,
+   or ``, ``), the slot is split into its constituent parts and each part is
+   matched independently using strategies 1–3.  One :HAS_PARTICIPANT edge is
+   emitted per successfully matched part (duplicate mention_ids are deduplicated
+   within the same slot).  This covers composite argument spans such as
+   ``"Amazon and eBay"`` (two entities) or ``"Xapo, Company"`` (entity + type
+   qualifier).
 
 For each slot, the first strategy that yields **exactly one** matching mention
 is used and an edge row is emitted with ``match_method`` set to the strategy
@@ -45,6 +53,7 @@ evidence is absent or contradictory.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -60,6 +69,7 @@ from demo.text_utils import normalize_mention_text
 MATCH_METHOD_RAW_EXACT = "raw_exact"
 MATCH_METHOD_CASEFOLD_EXACT = "casefold_exact"
 MATCH_METHOD_NORMALIZED_EXACT = "normalized_exact"
+MATCH_METHOD_LIST_SPLIT = "list_split"
 
 #: v0.3 Neo4j relationship type for all claim argument edges.
 #: Role is stored as the ``role`` property on the edge.
@@ -75,6 +85,42 @@ _SLOT_ROLE: dict[str, str] = {
     "subject": ROLE_SUBJECT,
     "object": ROLE_OBJECT,
 }
+
+# Matches conjunction/list separators used to split composite slot values.
+# Conjunctions (and/or/&) require surrounding whitespace so that words
+# containing these strings (e.g. "Anderson", "border") are not split.
+# Commas require only trailing whitespace — they are never ambiguously embedded
+# inside a token, so leading whitespace before the comma is already consumed by
+# the preceding token.
+_LIST_SPLIT_RE = re.compile(r"\s+(?:and|or|&)\s+|,\s+", re.IGNORECASE)
+
+# ---------------------------------------------------------------------------
+# List-splitting helper
+# ---------------------------------------------------------------------------
+
+
+def split_slot_text(slot_text: str) -> list[str]:
+    """Split *slot_text* on conjunction and list separators.
+
+    Splits on: `` and ``, `` or ``, `` & `` (surrounded by whitespace) and
+    ``, `` (comma followed by at least one space).  The split is
+    case-insensitive so ``"Amazon AND eBay"`` is handled the same as
+    ``"Amazon and eBay"``.
+
+    Parameters
+    ----------
+    slot_text:
+        The raw text of a claim's subject or object slot.
+
+    Returns
+    -------
+    A list of stripped, non-empty part strings when the split yields at least
+    two non-empty parts; an empty list otherwise (signals "no actionable
+    split").
+    """
+    parts = _LIST_SPLIT_RE.split(slot_text.strip())
+    stripped = [s for p in parts if (s := p.strip())]
+    return stripped if len(stripped) >= 2 else []
 
 # ---------------------------------------------------------------------------
 # Core matching
@@ -244,22 +290,47 @@ def build_participation_edges(
             if not slot_text:
                 continue
 
-            matched, method = match_slot_to_mention(str(slot_text), flat_mentions)
-            if matched is None:
+            slot_str = str(slot_text)
+            seen_for_slot: set[str] = set()
+
+            matched, method = match_slot_to_mention(slot_str, flat_mentions)
+            if matched is not None:
+                edge_rows.append(
+                    {
+                        "claim_id": claim_id,
+                        "mention_id": matched["mention_id"],
+                        "run_id": run_id,
+                        "source_uri": source_uri,
+                        "slot": slot,
+                        "role": _SLOT_ROLE[slot],
+                        "match_method": method,
+                        "edge_type": EDGE_TYPE_HAS_PARTICIPANT,
+                    }
+                )
                 continue
 
-            edge_rows.append(
-                {
-                    "claim_id": claim_id,
-                    "mention_id": matched["mention_id"],
-                    "run_id": run_id,
-                    "source_uri": source_uri,
-                    "slot": slot,
-                    "role": _SLOT_ROLE[slot],
-                    "match_method": method,
-                    "edge_type": EDGE_TYPE_HAS_PARTICIPANT,
-                }
-            )
+            # Whole-slot match failed; try splitting on conjunctions/list
+            # separators and match each part independently.
+            for part in split_slot_text(slot_str):
+                part_matched, _ = match_slot_to_mention(part, flat_mentions)
+                if part_matched is None:
+                    continue
+                mid = part_matched["mention_id"]
+                if mid in seen_for_slot:
+                    continue  # deduplicate: same mention already linked for this slot
+                seen_for_slot.add(mid)
+                edge_rows.append(
+                    {
+                        "claim_id": claim_id,
+                        "mention_id": mid,
+                        "run_id": run_id,
+                        "source_uri": source_uri,
+                        "slot": slot,
+                        "role": _SLOT_ROLE[slot],
+                        "match_method": MATCH_METHOD_LIST_SPLIT,
+                        "edge_type": EDGE_TYPE_HAS_PARTICIPANT,
+                    }
+                )
 
     return edge_rows
 
@@ -338,9 +409,11 @@ __all__ = [
     "MATCH_METHOD_RAW_EXACT",
     "MATCH_METHOD_CASEFOLD_EXACT",
     "MATCH_METHOD_NORMALIZED_EXACT",
+    "MATCH_METHOD_LIST_SPLIT",
     "EDGE_TYPE_HAS_PARTICIPANT",
     "ROLE_SUBJECT",
     "ROLE_OBJECT",
+    "split_slot_text",
     "match_slot_to_mention",
     "build_participation_edges",
     "write_participation_edges",
