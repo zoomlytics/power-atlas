@@ -110,8 +110,8 @@ _LIST_SPLIT_RE = re.compile(r"\s+(?:and|or|&)\s+|,\s+", re.IGNORECASE)
 def split_slot_text(slot_text: str) -> list[str]:
     """Split *slot_text* on conjunction and list separators.
 
-    Splits on: `` and ``, `` or ``, `` & `` (surrounded by whitespace) and
-    ``, `` (comma followed by at least one space).  The split is
+    Splits on: ``" and "``, ``" or "``, ``" & "`` (surrounded by whitespace)
+    and `", "`` (comma followed by at least one space).  The split is
     case-insensitive so ``"Amazon AND eBay"`` is handled the same as
     ``"Amazon and eBay"``.
 
