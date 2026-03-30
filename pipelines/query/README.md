@@ -1072,6 +1072,7 @@ in a single, legible chain.
 MATCH (canonical:CanonicalEntity)<-[a:ALIGNED_WITH]-(cluster:ResolvedEntityCluster)
 WHERE a.run_id = $run_id
   AND a.alignment_version = $alignment_version
+  AND cluster.run_id = $run_id
 RETURN canonical.name        AS canonical_entity,
        canonical.entity_type AS entity_type,
        count(DISTINCT cluster) AS aligned_cluster_count,
