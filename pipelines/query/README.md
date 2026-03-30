@@ -1069,6 +1069,247 @@ edge type to the core schema.
 
 ---
 
+## 11. Direct-DB diagnostics — participation coverage, cluster fragmentation, and hybrid alignment
+
+These queries are designed for direct database health checks. Run them after completing a full
+pipeline pass to validate retrieval-graph integrity before running live queries. Each query is
+self-contained (no parameters required) and returns a single aggregate result that can be
+inspected at a glance.
+
+> **When to use this section:** after any pipeline run, when troubleshooting low retrieval
+> quality, or as a regression check when schema or pipeline changes are deployed.
+
+---
+
+### 11a. Participation coverage
+
+**Role distribution** — confirms that `HAS_PARTICIPANT` edges were written for every expected
+argument role and reveals any role that is under-populated.
+
+```cypher
+// Edge counts by participation role (all runs)
+MATCH ()-[r:HAS_PARTICIPANT]->()
+RETURN r.role AS role, count(*) AS total
+ORDER BY total DESC;
+```
+
+**Interpretation:** Every role present in the extraction model (`subject`, `object`, and any
+additional roles) should appear in the result. A role with zero rows or a count far below the
+others indicates that the claim-participation stage failed to resolve matches for that slot.
+
+---
+
+**Claim edge-coverage distribution** — shows how many `HAS_PARTICIPANT` edges each
+`ExtractedClaim` received, revealing claims that were left with no participation links.
+
+```cypher
+// Distribution of HAS_PARTICIPANT edge counts per ExtractedClaim (all runs)
+MATCH (c:ExtractedClaim)
+OPTIONAL MATCH (c)-[r:HAS_PARTICIPANT]->(:EntityMention)
+WITH c, count(r) AS participant_edges
+RETURN participant_edges, count(*) AS claim_count
+ORDER BY participant_edges;
+```
+
+**Interpretation:** A large `claim_count` for `participant_edges = 0` means many claims were not
+linked to any entity mention. This can occur when:
+
+- The extraction LLM left subject/object slots blank.
+- The mention text did not match any `EntityMention` in the same chunk (no exact or
+  normalised match was found).
+- The claim-participation stage was not run for those claims.
+
+Claims with `participant_edges >= 1` are retrievable via entity-centric traversal.
+
+---
+
+**Per-run participation summary** — scoped breakdown to compare runs side-by-side.
+
+```cypher
+// Total HAS_PARTICIPANT edges per run_id
+MATCH ()-[r:HAS_PARTICIPANT]->()
+RETURN r.run_id AS run_id, r.role AS role, count(*) AS total
+ORDER BY run_id, role;
+```
+
+---
+
+### 11b. Mention clustering
+
+**Unresolved mention rate** — `EntityMention` nodes that were never assigned to any
+`ResolvedEntityCluster` are not reachable via cluster-aware traversal.
+
+```cypher
+// Mentions with and without a MEMBER_OF edge (all runs)
+MATCH (m:EntityMention)
+OPTIONAL MATCH (m)-[:MEMBER_OF]->(cluster:ResolvedEntityCluster)
+WITH m, cluster IS NOT NULL AS is_clustered
+RETURN is_clustered, count(*) AS mention_count
+ORDER BY is_clustered DESC;
+```
+
+**Interpretation:** `is_clustered = false` rows are "dark" mentions — they participate in
+claims but are invisible to cluster-level and canonical-level analytics. If this count is large,
+verify that `resolve-entities` ran to completion and that its manifest reports
+`mentions_clustered > 0`.
+
+---
+
+**Cluster size distribution** — shows the spread of how many mentions each cluster contains,
+which informs whether normalisation and fuzzy-matching are collapsing surface variants as expected.
+
+```cypher
+// Number of member EntityMention nodes per ResolvedEntityCluster (all runs)
+MATCH (cluster:ResolvedEntityCluster)<-[:MEMBER_OF]-(m:EntityMention)
+WITH cluster, count(m) AS member_count
+RETURN member_count, count(cluster) AS cluster_count
+ORDER BY member_count;
+```
+
+**Interpretation:** Clusters with `member_count = 1` are singletons — the entity appeared in
+only one surface form across the corpus. A healthy run should show some multi-member clusters
+(collapsed variants). A distribution that is *entirely* singletons may indicate that
+normalisation / fuzzy-matching thresholds are too strict or that the corpus is small.
+
+---
+
+### 11c. Cluster fragmentation by type
+
+**Entity-type distribution within clusters** — a cluster should ideally contain mentions of
+a single entity type. Clusters with mixed types suggest over-aggressive merging.
+
+```cypher
+// For each cluster, count how many distinct entity_type values its member mentions have
+MATCH (cluster:ResolvedEntityCluster)<-[:MEMBER_OF]-(m:EntityMention)
+WITH cluster, collect(DISTINCT m.entity_type) AS types, count(DISTINCT m.entity_type) AS type_count
+RETURN type_count             AS distinct_types_in_cluster,
+       count(cluster)         AS cluster_count
+ORDER BY type_count;
+```
+
+**Interpretation:** `distinct_types_in_cluster = 1` is the expected healthy state (all mentions
+in a cluster share the same entity type). Values greater than 1 indicate that the cluster
+contains mentions of different entity types and may represent a resolution error.
+
+---
+
+**Fragmented clusters — detail view** — lists every cluster that contains more than one distinct
+entity type, for manual inspection.
+
+```cypher
+// Clusters whose member mentions span more than one entity_type (all runs)
+MATCH (cluster:ResolvedEntityCluster)<-[:MEMBER_OF]-(m:EntityMention)
+WITH cluster, collect(DISTINCT m.entity_type) AS types, count(DISTINCT m.entity_type) AS type_count
+WHERE type_count > 1
+RETURN cluster.run_id          AS run_id,
+       cluster.cluster_id      AS cluster_id,
+       cluster.canonical_name  AS canonical_name,
+       cluster.entity_type     AS cluster_entity_type,
+       types                   AS member_entity_types,
+       type_count
+ORDER BY type_count DESC, cluster.canonical_name
+LIMIT 50;
+```
+
+---
+
+**Cluster entity-type summary** — aggregate count of clusters per declared `entity_type` on the
+cluster node, confirming type balance across the resolved graph.
+
+```cypher
+// How many ResolvedEntityCluster nodes exist per entity_type (all runs)
+MATCH (cluster:ResolvedEntityCluster)
+RETURN cluster.entity_type AS entity_type, count(*) AS cluster_count
+ORDER BY cluster_count DESC;
+```
+
+---
+
+### 11d. Hybrid alignment coverage
+
+**Alignment rate** — fraction of `ResolvedEntityCluster` nodes that have been linked to a
+`CanonicalEntity` via an `ALIGNED_WITH` edge. Only applicable after running
+`resolve-entities --resolution-mode hybrid`.
+
+```cypher
+// Clusters with and without ALIGNED_WITH edges (all runs)
+MATCH (cluster:ResolvedEntityCluster)
+OPTIONAL MATCH (cluster)-[a:ALIGNED_WITH]->(:CanonicalEntity)
+WITH cluster, a IS NOT NULL AS is_aligned
+RETURN is_aligned, count(*) AS cluster_count
+ORDER BY is_aligned DESC;
+```
+
+**Interpretation:** `is_aligned = false` clusters are those for which no matching
+`CanonicalEntity` was found in the structured catalog. This is expected for entities that appear
+only in the unstructured source and have no structured counterpart. A high unaligned rate when
+canonical counterparts *are* expected may indicate a threshold issue or a data loading problem
+with `ingest-structured`.
+
+---
+
+**Per-canonical alignment summary** — shows how many clusters and mentions are aligned to each
+`CanonicalEntity`, useful for confirming that the structured catalog is contributing to retrieval.
+
+```cypher
+// Canonical entities ranked by number of aligned clusters and bridged mentions (all runs)
+MATCH (canonical:CanonicalEntity)<-[a:ALIGNED_WITH]-(cluster:ResolvedEntityCluster)<-[:MEMBER_OF]-(m:EntityMention)
+RETURN canonical.name              AS canonical_entity,
+       canonical.entity_id         AS entity_id,
+       canonical.entity_type       AS entity_type,
+       count(DISTINCT cluster)     AS aligned_cluster_count,
+       count(DISTINCT m)           AS bridged_mention_count,
+       collect(DISTINCT a.alignment_method)[0..5] AS sample_methods
+ORDER BY aligned_cluster_count DESC
+LIMIT 20;
+```
+
+---
+
+**Unaligned cluster detail** — lists clusters that have no `ALIGNED_WITH` edge for manual
+review, scoped to a single run.
+
+```cypher
+// ResolvedEntityCluster nodes with no ALIGNED_WITH edge, scoped to a run
+MATCH (cluster:ResolvedEntityCluster)
+WHERE cluster.run_id = $run_id
+  AND NOT (cluster)-[:ALIGNED_WITH]->(:CanonicalEntity)
+RETURN cluster.cluster_id     AS cluster_id,
+       cluster.canonical_name AS canonical_name,
+       cluster.entity_type    AS entity_type,
+       cluster.normalized_text AS normalized_text
+ORDER BY cluster.entity_type, cluster.canonical_name
+LIMIT 50;
+```
+
+---
+
+**Full alignment-to-claim chain health check** — combines alignment coverage and participation
+coverage in a single query to confirm the end-to-end canonical → cluster → mention → claim path
+is intact (hybrid mode).
+
+```cypher
+// End-to-end chain: for each CanonicalEntity, count reachable claims via hybrid path (all runs)
+MATCH (canonical:CanonicalEntity)<-[:ALIGNED_WITH]-(:ResolvedEntityCluster)<-[:MEMBER_OF]-(m:EntityMention)
+OPTIONAL MATCH (c:ExtractedClaim)-[:HAS_PARTICIPANT]->(m)
+WITH canonical, count(DISTINCT m) AS mention_count, count(DISTINCT c) AS claim_count
+RETURN canonical.name        AS canonical_entity,
+       canonical.entity_type AS entity_type,
+       mention_count,
+       claim_count,
+       CASE WHEN claim_count = 0 THEN 'dark' ELSE 'active' END AS status
+ORDER BY claim_count DESC
+LIMIT 30;
+```
+
+**Interpretation:** `status = 'active'` canonical entities have at least one reachable claim
+through the hybrid traversal path. `status = 'dark'` canonical entities are aligned to clusters
+but none of those cluster members appear as participants in any extracted claim — typically
+because the entity was present in the structured catalog but did not appear in the unstructured
+source document, or because the claim-participation stage could not resolve a match.
+
+---
+
 ## How to use this workbook in Neo4j Browser
 
 1. Open Neo4j Browser at `http://localhost:7474`.
