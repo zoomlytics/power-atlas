@@ -974,10 +974,6 @@ class TestWriteParticipationEdgesIdempotency(unittest.TestCase):
             self.assertEqual(call[1].get("database_"), "mydb")
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 # ---------------------------------------------------------------------------
 # Tests for split_slot_text
 # ---------------------------------------------------------------------------
