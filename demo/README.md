@@ -969,6 +969,20 @@ python -m demo.run_demo --live ask --run-id <UNSTRUCTURED_RUN_ID> --cluster-awar
 
 Using `--run-id` explicitly ensures the validation targets the exact run you just enriched rather than relying on implicit latest-run selection.
 
+**Recommended post-hybrid graph traversal:** After hybrid alignment completes, use
+**canonical traversal** (starting from `CanonicalEntity` nodes) for validation queries
+and stakeholder demos rather than raw cluster-name traversal.  Canonical traversal
+provides a single, deduplicated entry point per entity and exposes the full
+`canonical → cluster → mention → claim` resolution chain in one query.  Raw
+cluster-name traversal can return fragmented results when entity-type splits produce
+more than one `ResolvedEntityCluster` row for the same real-world entity.
+
+For ready-to-run canonical traversal queries and a complete stakeholder demo query
+flow, see the
+[query workbook — section 7 (Canonical-entity traversal)](../pipelines/query/README.md#7-canonical-entity-traversal)
+and
+[section 10 (Stakeholder demo — canonical traversal query flow)](../pipelines/query/README.md#10-stakeholder-demo--canonical-traversal-query-flow-hybrid-mode).
+
 ---
 
 ## Run scopes and manifests
