@@ -1188,7 +1188,15 @@ a single entity type. Clusters with mixed types suggest over-aggressive merging.
 // For each cluster, count how many distinct entity_type values its member mentions have
 MATCH (cluster:ResolvedEntityCluster)<-[:MEMBER_OF]-(m:EntityMention)
 WITH cluster,
-     count(DISTINCT coalesce(m.entity_type, 'UNKNOWN'))   AS type_count
+     count(
+       DISTINCT coalesce(
+         CASE
+           WHEN trim(m.entity_type) = '' THEN null
+           ELSE trim(m.entity_type)
+         END,
+         'UNKNOWN'
+       )
+     ) AS type_count
 RETURN type_count             AS distinct_types_in_cluster,
        count(cluster)         AS cluster_count
 ORDER BY type_count;
