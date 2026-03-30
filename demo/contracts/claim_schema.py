@@ -51,7 +51,7 @@ def claim_extraction_schema() -> GraphSchema:
             # Created by the extraction stage (inline, after claims and mentions are
             # written) and also available via the standalone claim-participation stage.
             # Properties: role (subject | object | …), run_id, source_uri, match_method
-            #   (raw_exact | casefold_exact | normalized_exact).
+            #   (raw_exact | casefold_exact | normalized_exact | list_split).
             # See docs/architecture/claim-argument-model-v0.3.md for the decision record.
             RelationshipType(label="HAS_PARTICIPANT"),
         ],

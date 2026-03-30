@@ -10,12 +10,15 @@ import neo4j
 from demo.stages.claim_participation import (
     EDGE_TYPE_HAS_PARTICIPANT,
     MATCH_METHOD_CASEFOLD_EXACT,
+    MATCH_METHOD_LIST_SPLIT,
     MATCH_METHOD_NORMALIZED_EXACT,
     MATCH_METHOD_RAW_EXACT,
+    MATCH_OUTCOME_AMBIGUOUS,
     ROLE_OBJECT,
     ROLE_SUBJECT,
     build_participation_edges,
     match_slot_to_mention,
+    split_slot_text,
     write_participation_edges,
 )
 
@@ -134,10 +137,12 @@ class TestMatchSlotToMention(unittest.TestCase):
 
     def test_raw_exact_ambiguous_returns_none(self):
         # Two mentions with the same name — ambiguous at raw level.
+        # match returns (None, MATCH_OUTCOME_AMBIGUOUS) to signal ambiguity
+        # (distinct from the zero-match case which returns (None, None)).
         mentions = [_flat("ABC", "m1"), _flat("ABC", "m2")]
         result, method = match_slot_to_mention("ABC", mentions)
         self.assertIsNone(result)
-        self.assertIsNone(method)
+        self.assertEqual(method, MATCH_OUTCOME_AMBIGUOUS)
 
     # --- casefold_exact: only case differs ---
 
@@ -166,10 +171,11 @@ class TestMatchSlotToMention(unittest.TestCase):
         # Two mentions with different raw names that casefold to the same text
         # — ambiguous at casefold level (raw_exact already found 0 matches).
         # "Hello" and "HELLO" differ in raw form, but both casefold to "hello".
+        # Returns (None, MATCH_OUTCOME_AMBIGUOUS) to distinguish from zero-match.
         mentions = [_flat("Hello", "m1"), _flat("HELLO", "m2")]
         result, method = match_slot_to_mention("hello", mentions)
         self.assertIsNone(result)
-        self.assertIsNone(method)
+        self.assertEqual(method, MATCH_OUTCOME_AMBIGUOUS)
 
     # --- normalized_exact: Unicode normalization needed ---
 
@@ -220,10 +226,11 @@ class TestMatchSlotToMention(unittest.TestCase):
         # but neither matches via raw or casefold.
         # "Café" and "CAFÉ" both casefold to "café" (not "cafe") but both
         # normalize to "cafe" — so normalized_exact sees 2 matches → ambiguous.
+        # Returns (None, MATCH_OUTCOME_AMBIGUOUS) to distinguish from zero-match.
         mentions = [_flat("Café", "m1"), _flat("CAFÉ", "m2")]
         result, method = match_slot_to_mention("cafe", mentions)
         self.assertIsNone(result)
-        self.assertIsNone(method)
+        self.assertEqual(method, MATCH_OUTCOME_AMBIGUOUS)
 
     # --- no match ---
 
@@ -269,18 +276,21 @@ class TestStrategyPriorityOrder(unittest.TestCase):
 
     def test_raw_ambiguity_stops_search(self):
         # Two identical-name mentions → ambiguous at raw level; no edge.
+        # Returns (None, MATCH_OUTCOME_AMBIGUOUS) rather than (None, None)
+        # so callers can distinguish "ambiguous" from "no candidates found".
         mentions = [_flat("ABC", "m1"), _flat("ABC", "m2")]
         result, method = match_slot_to_mention("ABC", mentions)
         self.assertIsNone(result)
-        self.assertIsNone(method)
+        self.assertEqual(method, MATCH_OUTCOME_AMBIGUOUS)
 
     def test_casefold_ambiguity_stops_search(self):
         # Two mentions with different raw names that casefold identically
         # — ambiguous at casefold level; no edge created.
+        # Returns (None, MATCH_OUTCOME_AMBIGUOUS) rather than (None, None).
         mentions = [_flat("Hello", "m1"), _flat("HELLO", "m2")]
         result, method = match_slot_to_mention("hello", mentions)
         self.assertIsNone(result)
-        self.assertIsNone(method)
+        self.assertEqual(method, MATCH_OUTCOME_AMBIGUOUS)
 
 
 # ---------------------------------------------------------------------------
@@ -972,5 +982,381 @@ class TestWriteParticipationEdgesIdempotency(unittest.TestCase):
             self.assertEqual(call[1].get("database_"), "mydb")
 
 
-if __name__ == "__main__":
-    unittest.main()
+# ---------------------------------------------------------------------------
+# Tests for split_slot_text
+# ---------------------------------------------------------------------------
+
+
+class TestSplitSlotText(unittest.TestCase):
+    """Unit tests for split_slot_text — the conjunction/list splitter."""
+
+    # --- conjunction separators ---
+
+    def test_and_separator_splits_two_entities(self):
+        parts = split_slot_text("Amazon and eBay")
+        self.assertEqual(parts, ["Amazon", "eBay"])
+
+    def test_or_separator_splits_two_entities(self):
+        parts = split_slot_text("Amazon or eBay")
+        self.assertEqual(parts, ["Amazon", "eBay"])
+
+    def test_ampersand_separator_splits_two_entities(self):
+        parts = split_slot_text("Amazon & eBay")
+        self.assertEqual(parts, ["Amazon", "eBay"])
+
+    def test_and_separator_case_insensitive(self):
+        # "AND" in uppercase should also split.
+        parts = split_slot_text("Google AND Microsoft")
+        self.assertEqual(parts, ["Google", "Microsoft"])
+
+    def test_or_separator_case_insensitive(self):
+        parts = split_slot_text("Tesla OR Ford")
+        self.assertEqual(parts, ["Tesla", "Ford"])
+
+    # --- comma separators ---
+
+    def test_comma_space_separator_splits_two_parts(self):
+        # "Xapo, Company" → ["Xapo", "Company"]
+        parts = split_slot_text("Xapo, Company")
+        self.assertEqual(parts, ["Xapo", "Company"])
+
+    def test_comma_multiple_spaces_separator(self):
+        parts = split_slot_text("Xapo,  Organization")
+        self.assertEqual(parts, ["Xapo", "Organization"])
+
+    def test_comma_no_space_does_not_split(self):
+        # Comma without a following space is NOT a list separator.
+        parts = split_slot_text("Inc.,Ltd.")
+        self.assertEqual(parts, [])
+
+    # --- three-way splits ---
+
+    def test_three_part_and_split(self):
+        parts = split_slot_text("Google and Apple and Microsoft")
+        self.assertEqual(parts, ["Google", "Apple", "Microsoft"])
+
+    def test_three_part_comma_split(self):
+        parts = split_slot_text("Google, Apple, Microsoft")
+        self.assertEqual(parts, ["Google", "Apple", "Microsoft"])
+
+    def test_oxford_comma_and(self):
+        # "A, B, and C" — the ", and " separator is consumed as a unit so the
+        # last token is "C", not "and C".
+        parts = split_slot_text("Amazon, eBay, and Google")
+        self.assertEqual(parts, ["Amazon", "eBay", "Google"])
+
+    def test_oxford_comma_or(self):
+        parts = split_slot_text("Amazon, eBay, or Google")
+        self.assertEqual(parts, ["Amazon", "eBay", "Google"])
+
+    def test_oxford_comma_ampersand(self):
+        parts = split_slot_text("Amazon, eBay, & Google")
+        self.assertEqual(parts, ["Amazon", "eBay", "Google"])
+
+    def test_oxford_comma_case_insensitive(self):
+        parts = split_slot_text("Amazon, eBay, AND Google")
+        self.assertEqual(parts, ["Amazon", "eBay", "Google"])
+
+    # --- no split cases ---
+
+    def test_single_entity_returns_empty_list(self):
+        # Single entity with no separator → no split → empty list.
+        self.assertEqual(split_slot_text("Amazon"), [])
+
+    def test_empty_string_returns_empty_list(self):
+        self.assertEqual(split_slot_text(""), [])
+
+    def test_whitespace_only_returns_empty_list(self):
+        self.assertEqual(split_slot_text("   "), [])
+
+    def test_word_containing_and_not_split(self):
+        # "Anderson" contains "and" but as part of a word, not as a separator.
+        # The regex requires whitespace on both sides of "and".
+        self.assertEqual(split_slot_text("Anderson"), [])
+
+    # --- whitespace handling ---
+
+    def test_surrounding_whitespace_stripped_from_parts(self):
+        parts = split_slot_text("  Amazon  and  eBay  ")
+        self.assertEqual(parts, ["Amazon", "eBay"])
+
+    def test_parts_with_internal_spaces_preserved(self):
+        parts = split_slot_text("New York and Los Angeles")
+        self.assertEqual(parts, ["New York", "Los Angeles"])
+
+
+# ---------------------------------------------------------------------------
+# Tests for list-split matching in build_participation_edges
+# ---------------------------------------------------------------------------
+
+
+class TestBuildParticipationEdgesListSplit(unittest.TestCase):
+    """Regression tests for conjunction/list splitting in build_participation_edges.
+
+    These cover grouped, enumerative, and composite argument spans that do not
+    match as a whole but do match when split on conjunctions or commas.
+    """
+
+    # --- "and" conjunction ---
+
+    def test_object_and_conjunction_yields_two_edges(self):
+        # "Amazon and eBay" as object slot with both entities as mentions
+        # → two list_split edges (one per entity).
+        mentions = [
+            _mention("Amazon", "m-amazon"),
+            _mention("eBay", "m-ebay"),
+        ]
+        claims = [_claim("c1", obj="Amazon and eBay")]
+        edges = build_participation_edges(claims, mentions)
+        self.assertEqual(len(edges), 2)
+        mention_ids = {e["mention_id"] for e in edges}
+        self.assertEqual(mention_ids, {"m-amazon", "m-ebay"})
+        for e in edges:
+            self.assertEqual(e["slot"], "object")
+            self.assertEqual(e["role"], ROLE_OBJECT)
+            self.assertEqual(e["match_method"], MATCH_METHOD_LIST_SPLIT)
+            self.assertEqual(e["edge_type"], EDGE_TYPE_HAS_PARTICIPANT)
+
+    def test_subject_and_conjunction_yields_two_edges(self):
+        # "Google and Facebook" as subject slot.
+        mentions = [
+            _mention("Google", "m-g"),
+            _mention("Facebook", "m-fb"),
+        ]
+        claims = [_claim("c1", subject="Google and Facebook")]
+        edges = build_participation_edges(claims, mentions)
+        self.assertEqual(len(edges), 2)
+        self.assertTrue(all(e["slot"] == "subject" for e in edges))
+        self.assertTrue(all(e["role"] == ROLE_SUBJECT for e in edges))
+        self.assertTrue(all(e["match_method"] == MATCH_METHOD_LIST_SPLIT for e in edges))
+
+    # --- "or" conjunction ---
+
+    def test_object_or_conjunction_yields_two_edges(self):
+        mentions = [
+            _mention("Tesla", "m-tesla"),
+            _mention("Ford", "m-ford"),
+        ]
+        claims = [_claim("c1", obj="Tesla or Ford")]
+        edges = build_participation_edges(claims, mentions)
+        self.assertEqual(len(edges), 2)
+        mention_ids = {e["mention_id"] for e in edges}
+        self.assertEqual(mention_ids, {"m-tesla", "m-ford"})
+
+    # --- comma separator ---
+
+    def test_subject_comma_list_yields_two_edges(self):
+        # "Xapo, Company" as subject — Xapo matches as an entity,
+        # Company also has a mention.
+        mentions = [
+            _mention("Xapo", "m-xapo"),
+            _mention("Company", "m-company"),
+        ]
+        claims = [_claim("c1", subject="Xapo, Company")]
+        edges = build_participation_edges(claims, mentions)
+        self.assertEqual(len(edges), 2)
+        mention_ids = {e["mention_id"] for e in edges}
+        self.assertEqual(mention_ids, {"m-xapo", "m-company"})
+        for e in edges:
+            self.assertEqual(e["match_method"], MATCH_METHOD_LIST_SPLIT)
+
+    # --- partial match (one part matches, other does not) ---
+
+    def test_partial_match_yields_one_edge(self):
+        # "Amazon and UnknownCo": Amazon matches, UnknownCo has no mention.
+        mentions = [_mention("Amazon", "m-amazon")]
+        claims = [_claim("c1", obj="Amazon and UnknownCo")]
+        edges = build_participation_edges(claims, mentions)
+        self.assertEqual(len(edges), 1)
+        self.assertEqual(edges[0]["mention_id"], "m-amazon")
+        self.assertEqual(edges[0]["match_method"], MATCH_METHOD_LIST_SPLIT)
+
+    def test_no_parts_match_yields_no_edges(self):
+        # Neither "X" nor "Y" has a mention in the chunk.
+        mentions = [_mention("Amazon", "m-amazon")]
+        claims = [_claim("c1", obj="X and Y")]
+        edges = build_participation_edges(claims, mentions)
+        self.assertEqual(edges, [])
+
+    # --- deduplication within a slot ---
+
+    def test_list_parts_resolving_to_same_mention_deduplicated(self):
+        # "IBM and ibm" splits into ["IBM", "ibm"]; both casefold to "ibm"
+        # and match the single mention "IBM" → only one edge emitted.
+        mentions = [_mention("IBM", "m-ibm")]
+        claims = [_claim("c1", subject="IBM and ibm")]
+        edges = build_participation_edges(claims, mentions)
+        self.assertEqual(len(edges), 1)
+        self.assertEqual(edges[0]["mention_id"], "m-ibm")
+
+    # --- whole-slot match takes priority over list splitting ---
+
+    def test_whole_slot_match_prevents_list_split(self):
+        # "Amazon and eBay" is also a mention name itself — whole-slot raw_exact
+        # fires first; list_split must NOT be attempted.
+        mentions = [
+            _mention("Amazon and eBay", "m-combined"),
+            _mention("Amazon", "m-amazon"),
+            _mention("eBay", "m-ebay"),
+        ]
+        claims = [_claim("c1", obj="Amazon and eBay")]
+        edges = build_participation_edges(claims, mentions)
+        # raw_exact match on "Amazon and eBay" → one edge, not three.
+        self.assertEqual(len(edges), 1)
+        self.assertEqual(edges[0]["mention_id"], "m-combined")
+        self.assertEqual(edges[0]["match_method"], MATCH_METHOD_RAW_EXACT)
+
+    def test_ambiguous_whole_slot_does_not_trigger_list_split(self):
+        # Two mentions named "Amazon and eBay" → whole-slot match is ambiguous
+        # (MATCH_OUTCOME_AMBIGUOUS).  list_split must NOT be attempted, so no
+        # individual "Amazon" / "eBay" edges should be created either.
+        mentions = [
+            _mention("Amazon and eBay", "m-combined-1"),
+            _mention("Amazon and eBay", "m-combined-2"),
+            _mention("Amazon", "m-amazon"),
+            _mention("eBay", "m-ebay"),
+        ]
+        claims = [_claim("c1", obj="Amazon and eBay")]
+        edges = build_participation_edges(claims, mentions)
+        # Whole-slot is ambiguous — list-split must NOT fire.
+        self.assertEqual(edges, [])
+
+    def test_ambiguous_whole_slot_casefold_does_not_trigger_list_split(self):
+        # "google and facebook" casefolds to match two mentions ("Google and Facebook"
+        # and "GOOGLE AND FACEBOOK") — whole-slot is casefold-ambiguous.
+        # list_split must NOT be attempted.
+        mentions = [
+            _mention("Google and Facebook", "m-1"),
+            _mention("GOOGLE AND FACEBOOK", "m-2"),
+            _mention("Google", "m-google"),
+            _mention("Facebook", "m-fb"),
+        ]
+        claims = [_claim("c1", subject="google and facebook")]
+        edges = build_participation_edges(claims, mentions)
+        self.assertEqual(edges, [])
+
+    # --- list-split with casefold/normalized sub-matching ---
+
+    def test_list_split_parts_matched_via_casefold(self):
+        # "google and FACEBOOK": parts are "google" and "FACEBOOK";
+        # both match via casefold.
+        mentions = [
+            _mention("Google", "m-g"),
+            _mention("Facebook", "m-fb"),
+        ]
+        claims = [_claim("c1", subject="google and FACEBOOK")]
+        edges = build_participation_edges(claims, mentions)
+        self.assertEqual(len(edges), 2)
+        mention_ids = {e["mention_id"] for e in edges}
+        self.assertEqual(mention_ids, {"m-g", "m-fb"})
+        # All via list_split, not individual strategies.
+        for e in edges:
+            self.assertEqual(e["match_method"], MATCH_METHOD_LIST_SPLIT)
+
+    def test_list_split_parts_matched_via_normalized(self):
+        # "Müller and Café": parts match mentions after normalization.
+        mentions = [
+            _mention("Müller", "m-muller"),
+            _mention("Café", "m-cafe"),
+        ]
+        claims = [_claim("c1", subject="Muller and Cafe")]
+        edges = build_participation_edges(claims, mentions)
+        self.assertEqual(len(edges), 2)
+        mention_ids = {e["mention_id"] for e in edges}
+        self.assertEqual(mention_ids, {"m-muller", "m-cafe"})
+
+    # --- run-id scoping still enforced for list-split ---
+
+    def test_list_split_respects_run_id_scoping(self):
+        # Mentions are in a different run; no edges should be created even
+        # for correctly split parts.
+        mentions = [
+            _mention("Amazon", "m-amazon", run_id="run-B"),
+            _mention("eBay", "m-ebay", run_id="run-B"),
+        ]
+        claims = [_claim("c1", obj="Amazon and eBay", run_id="run-A")]
+        edges = build_participation_edges(claims, mentions)
+        self.assertEqual(edges, [])
+
+    # --- mixed subject/object with list split ---
+
+    def test_subject_list_split_and_object_direct_match(self):
+        # Subject: "Google and Apple" (list split); Object: "revenue" (raw_exact).
+        mentions = [
+            _mention("Google", "m-g"),
+            _mention("Apple", "m-apple"),
+            _mention("revenue", "m-revenue"),
+        ]
+        claims = [_claim("c1", subject="Google and Apple", obj="revenue")]
+        edges = build_participation_edges(claims, mentions)
+        subj_edges = [e for e in edges if e["slot"] == "subject"]
+        obj_edges = [e for e in edges if e["slot"] == "object"]
+        self.assertEqual(len(subj_edges), 2)
+        self.assertEqual(len(obj_edges), 1)
+        self.assertTrue(all(e["match_method"] == MATCH_METHOD_LIST_SPLIT for e in subj_edges))
+        self.assertEqual(obj_edges[0]["match_method"], MATCH_METHOD_RAW_EXACT)
+
+    # --- idempotency for list-split results ---
+
+    def test_list_split_result_idempotent(self):
+        mentions = [
+            _mention("Amazon", "m-amazon"),
+            _mention("eBay", "m-ebay"),
+        ]
+        claims = [_claim("c1", obj="Amazon and eBay")]
+        self.assertEqual(
+            build_participation_edges(claims, mentions),
+            build_participation_edges(claims, mentions),
+        )
+
+    # --- no fallback to chunk co-location ---
+
+    def test_no_edge_when_slot_text_has_no_matching_parts(self):
+        # When none of the split parts (or the whole text) matches any mention
+        # in the chunk, no edge is created — there is no chunk co-location fallback.
+        mentions = [_mention("OpenAI", "m-openai")]
+        claims = [_claim("c1", obj="Amazon and eBay")]
+        edges = build_participation_edges(claims, mentions)
+        self.assertEqual(edges, [])
+
+    # --- three-way conjunction ---
+
+    def test_three_part_and_yields_three_edges(self):
+        mentions = [
+            _mention("Google", "m-g"),
+            _mention("Apple", "m-apple"),
+            _mention("Microsoft", "m-ms"),
+        ]
+        claims = [_claim("c1", subject="Google and Apple and Microsoft")]
+        edges = build_participation_edges(claims, mentions)
+        self.assertEqual(len(edges), 3)
+        self.assertTrue(all(e["match_method"] == MATCH_METHOD_LIST_SPLIT for e in edges))
+
+    # --- Oxford-comma lists ---
+
+    def test_oxford_comma_and_yields_three_edges(self):
+        # "Amazon, eBay, and Google" — the ", and " separator must be consumed
+        # as a unit so the last part is "Google", not "and Google".
+        mentions = [
+            _mention("Amazon", "m-amazon"),
+            _mention("eBay", "m-ebay"),
+            _mention("Google", "m-google"),
+        ]
+        claims = [_claim("c1", obj="Amazon, eBay, and Google")]
+        edges = build_participation_edges(claims, mentions)
+        self.assertEqual(len(edges), 3)
+        mention_ids = {e["mention_id"] for e in edges}
+        self.assertEqual(mention_ids, {"m-amazon", "m-ebay", "m-google"})
+        self.assertTrue(all(e["match_method"] == MATCH_METHOD_LIST_SPLIT for e in edges))
+
+    def test_oxford_comma_or_yields_three_edges(self):
+        mentions = [
+            _mention("Tesla", "m-tesla"),
+            _mention("Ford", "m-ford"),
+            _mention("GM", "m-gm"),
+        ]
+        claims = [_claim("c1", obj="Tesla, Ford, or GM")]
+        edges = build_participation_edges(claims, mentions)
+        self.assertEqual(len(edges), 3)
+        mention_ids = {e["mention_id"] for e in edges}
+        self.assertEqual(mention_ids, {"m-tesla", "m-ford", "m-gm"})

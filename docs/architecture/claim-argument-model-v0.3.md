@@ -144,7 +144,7 @@ Rationale:
 |---|---|---|
 | `role` | STRING (MERGE key) | Semantic role: `"subject"`, `"object"`, or future values |
 | `run_id` | STRING | Extraction run that produced this edge |
-| `match_method` | STRING | `raw_exact` / `casefold_exact` / `normalized_exact` |
+| `match_method` | STRING | `raw_exact` / `casefold_exact` / `normalized_exact` / `list_split` |
 | `source_uri` | STRING? | Provenance URI for the source document |
 
 **MERGE identity:** `(claim)-[r:HAS_PARTICIPANT {role: row.role}]->(mention)`

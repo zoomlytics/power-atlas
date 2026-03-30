@@ -26,6 +26,14 @@ needed to find a unique match):
    both the slot text and each mention name; match on equality.  Catches
    Unicode variant forms such as diacritics (``"Müller"`` → ``"muller"``) and
    typographic substitutions (``ß`` → ``ss``, em-dash → hyphen-minus).
+4. **list_split** — when all three strategies above yield no match *and* the
+   slot text contains conjunction/list separators such as ``" and "``, ``" or "``,
+   ``" & "``, or ``", "``, the slot is split into its constituent parts and each part is
+   matched independently using strategies 1–3.  One :HAS_PARTICIPANT edge is
+   emitted per successfully matched part (duplicate mention_ids are deduplicated
+   within the same slot).  This covers composite argument spans such as
+   ``"Amazon and eBay"`` (two entities) or ``"Xapo, Company"`` (entity + type
+   qualifier).
 
 For each slot, the first strategy that yields **exactly one** matching mention
 is used and an edge row is emitted with ``match_method`` set to the strategy
@@ -45,6 +53,7 @@ evidence is absent or contradictory.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -60,6 +69,15 @@ from demo.text_utils import normalize_mention_text
 MATCH_METHOD_RAW_EXACT = "raw_exact"
 MATCH_METHOD_CASEFOLD_EXACT = "casefold_exact"
 MATCH_METHOD_NORMALIZED_EXACT = "normalized_exact"
+MATCH_METHOD_LIST_SPLIT = "list_split"
+
+# Sentinel returned by match_slot_to_mention (as the method value) when
+# two or more candidates match at any strategy level.  Callers that only check
+# ``matched is None`` are unaffected; callers that need to distinguish "no
+# candidates found" from "ambiguous" inspect ``method == MATCH_OUTCOME_AMBIGUOUS``.
+MATCH_OUTCOME_AMBIGUOUS = "ambiguous"
+# Private alias kept for backwards compatibility.
+_MATCH_OUTCOME_AMBIGUOUS = MATCH_OUTCOME_AMBIGUOUS
 
 #: v0.3 Neo4j relationship type for all claim argument edges.
 #: Role is stored as the ``role`` property on the edge.
@@ -76,6 +94,45 @@ _SLOT_ROLE: dict[str, str] = {
     "object": ROLE_OBJECT,
 }
 
+# Matches conjunction/list separators used to split composite slot values.
+# Conjunctions (and/or/&) require surrounding whitespace so that words
+# containing these strings (e.g. "Anderson", "border") are not split.
+# The optional leading comma (,?) in the first alternative handles Oxford-comma
+# lists such as "A, B, and C": the ", and " is consumed as a single separator
+# so the last token is correctly "C" rather than "and C".
+# Plain comma-only separators (", ") are handled by the second alternative.
+_LIST_SPLIT_RE = re.compile(r",?\s+(?:and|or|&)\s+|,\s+", re.IGNORECASE)
+
+# ---------------------------------------------------------------------------
+# List-splitting helper
+# ---------------------------------------------------------------------------
+
+
+def split_slot_text(slot_text: str) -> list[str]:
+    """Split *slot_text* on conjunction and list separators.
+
+    Splits on: ``" and "``, ``" or "``, ``" & "`` (surrounded by whitespace)
+    and ``", "`` (comma followed by at least one space).  Oxford-comma lists
+    such as ``"A, B, and C"`` are also handled — the ``", and "`` separator is
+    consumed as a single token so the result is ``["A", "B", "C"]`` rather
+    than ``["A", "B", "and C"]``.  The split is case-insensitive so
+    ``"Amazon AND eBay"`` is handled the same as ``"Amazon and eBay"``.
+
+    Parameters
+    ----------
+    slot_text:
+        The raw text of a claim's subject or object slot.
+
+    Returns
+    -------
+    A list of stripped, non-empty part strings when the split yields at least
+    two non-empty parts; an empty list otherwise (signals "no actionable
+    split").
+    """
+    parts = _LIST_SPLIT_RE.split(slot_text.strip())
+    stripped = [s for p in parts if (s := p.strip())]
+    return stripped if len(stripped) >= 2 else []
+
 # ---------------------------------------------------------------------------
 # Core matching
 # ---------------------------------------------------------------------------
@@ -90,7 +147,8 @@ def match_slot_to_mention(
     Strategies are tried in priority order from most restrictive to least
     restrictive.  The first strategy that yields **exactly one** match is used.
     A strategy that yields two or more matches is treated as ambiguous and
-    causes an immediate ``(None, None)`` return (no edge created).
+    causes an immediate return with ``(None, MATCH_OUTCOME_AMBIGUOUS)``
+    (no edge created).
 
     Parameters
     ----------
@@ -103,9 +161,13 @@ def match_slot_to_mention(
 
     Returns
     -------
-    ``(mention_row, match_method)`` when exactly one candidate matches, or
-    ``(None, None)`` when there is no match or when two or more candidates
-    match (ambiguity).
+    ``(mention_row, match_method)`` when exactly one candidate matches.
+
+    ``(None, None)`` when *no* candidate matches at any strategy level (zero
+    matches throughout — safe to attempt a list-split fallback).
+
+    ``(None, MATCH_OUTCOME_AMBIGUOUS)`` when two or more candidates match at
+    some strategy level (ambiguity — do **not** attempt a list-split fallback).
     """
     if not slot_text or not mentions:
         return None, None
@@ -127,8 +189,8 @@ def match_slot_to_mention(
     if len(raw_matches) == 1:
         return raw_matches[0], MATCH_METHOD_RAW_EXACT
     if len(raw_matches) > 1:
-        # Ambiguous — do not create an edge
-        return None, None
+        # Ambiguous — do not create an edge, and do not attempt list-split.
+        return None, MATCH_OUTCOME_AMBIGUOUS
 
     # Strategy 2: casefold_exact — computed lazily only when raw_exact finds 0 matches.
     slot_cf = slot_stripped.casefold()
@@ -136,7 +198,7 @@ def match_slot_to_mention(
     if len(cf_matches) == 1:
         return cf_matches[0], MATCH_METHOD_CASEFOLD_EXACT
     if len(cf_matches) > 1:
-        return None, None
+        return None, MATCH_OUTCOME_AMBIGUOUS
 
     # Strategy 3: normalized_exact — normalize_mention_text called lazily only when both
     # raw_exact and casefold_exact find 0 matches.  Pre-compute all mention normal forms
@@ -147,7 +209,9 @@ def match_slot_to_mention(
     norm_matches = [m for m, norm in norm_forms if norm == slot_norm]
     if len(norm_matches) == 1:
         return norm_matches[0], MATCH_METHOD_NORMALIZED_EXACT
-    # Zero or >1 matches — no edge
+    if len(norm_matches) > 1:
+        return None, MATCH_OUTCOME_AMBIGUOUS
+    # Zero matches across all strategies — no edge, but list-split may be tried.
     return None, None
 
 
@@ -244,22 +308,55 @@ def build_participation_edges(
             if not slot_text:
                 continue
 
-            matched, method = match_slot_to_mention(str(slot_text), flat_mentions)
-            if matched is None:
+            slot_str = str(slot_text)
+            seen_for_slot: set[str] = set()
+
+            matched, method = match_slot_to_mention(slot_str, flat_mentions)
+            if matched is not None:
+                edge_rows.append(
+                    {
+                        "claim_id": claim_id,
+                        "mention_id": matched["mention_id"],
+                        "run_id": run_id,
+                        "source_uri": source_uri,
+                        "slot": slot,
+                        "role": _SLOT_ROLE[slot],
+                        "match_method": method,
+                        "edge_type": EDGE_TYPE_HAS_PARTICIPANT,
+                    }
+                )
                 continue
 
-            edge_rows.append(
-                {
-                    "claim_id": claim_id,
-                    "mention_id": matched["mention_id"],
-                    "run_id": run_id,
-                    "source_uri": source_uri,
-                    "slot": slot,
-                    "role": _SLOT_ROLE[slot],
-                    "match_method": method,
-                    "edge_type": EDGE_TYPE_HAS_PARTICIPANT,
-                }
-            )
+            # Whole-slot match failed; try splitting on conjunctions/list
+            # separators and match each part independently — but ONLY when the
+            # whole-slot attempt found zero candidates (method is None).  When
+            # method is MATCH_OUTCOME_AMBIGUOUS (the public ambiguous-outcome
+            # marker) the whole-slot text matched two or more mentions; splitting
+            # it into parts would silently override that ambiguity signal and
+            # could emit misleading edges.
+            if method is not None:
+                # Ambiguous whole-slot match — skip list-split entirely.
+                continue
+            for part in split_slot_text(slot_str):
+                part_matched, _ = match_slot_to_mention(part, flat_mentions)
+                if part_matched is None:
+                    continue
+                mid = part_matched["mention_id"]
+                if mid in seen_for_slot:
+                    continue  # deduplicate: same mention already linked for this slot
+                seen_for_slot.add(mid)
+                edge_rows.append(
+                    {
+                        "claim_id": claim_id,
+                        "mention_id": mid,
+                        "run_id": run_id,
+                        "source_uri": source_uri,
+                        "slot": slot,
+                        "role": _SLOT_ROLE[slot],
+                        "match_method": MATCH_METHOD_LIST_SPLIT,
+                        "edge_type": EDGE_TYPE_HAS_PARTICIPANT,
+                    }
+                )
 
     return edge_rows
 
@@ -338,9 +435,12 @@ __all__ = [
     "MATCH_METHOD_RAW_EXACT",
     "MATCH_METHOD_CASEFOLD_EXACT",
     "MATCH_METHOD_NORMALIZED_EXACT",
+    "MATCH_METHOD_LIST_SPLIT",
+    "MATCH_OUTCOME_AMBIGUOUS",
     "EDGE_TYPE_HAS_PARTICIPANT",
     "ROLE_SUBJECT",
     "ROLE_OBJECT",
+    "split_slot_text",
     "match_slot_to_mention",
     "build_participation_edges",
     "write_participation_edges",
