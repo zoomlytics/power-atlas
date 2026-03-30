@@ -1137,8 +1137,12 @@ ORDER BY run_id, role;
 
 ### 11b. Mention clustering
 
-**Unresolved mention rate** — `EntityMention` nodes that were never assigned to any
-`ResolvedEntityCluster` are not reachable via cluster-aware traversal.
+**Unclustered mention rate / missing MEMBER_OF edges** — `EntityMention` nodes that have no
+`MEMBER_OF` edge to any `ResolvedEntityCluster`. Note that in `structured_anchor` mode, mentions
+resolved via a `RESOLVES_TO` edge intentionally have no `MEMBER_OF` edge, so an
+`is_clustered = false` result is not necessarily pathological — it depends on the resolution mode
+used. These mentions are still reachable by claim-based traversal; they are only invisible to
+cluster-level and canonical-level analytics.
 
 ```cypher
 // Mentions with and without a MEMBER_OF edge (all runs)
@@ -1149,9 +1153,10 @@ RETURN is_clustered, count(DISTINCT m) AS mention_count
 ORDER BY is_clustered DESC;
 ```
 
-**Interpretation:** `is_clustered = false` rows are "dark" mentions — they participate in
-claims but are invisible to cluster-level and canonical-level analytics. If this count is large,
-verify that `resolve-entities` ran to completion and that its manifest reports
+**Interpretation:** `is_clustered = false` counts are expected when `structured_anchor` mode was
+used (mentions anchor to canonical entities via `RESOLVES_TO` rather than cluster membership). If
+the resolution mode was `hybrid` or `unstructured_only`, a large unclustered count may indicate
+that `resolve-entities` did not run to completion — verify that its manifest reports
 `mentions_clustered > 0`.
 
 ---
@@ -1231,7 +1236,7 @@ ORDER BY cluster_count DESC;
 
 ### 11d. Hybrid alignment coverage
 
-**Alignment rate** — fraction of `ResolvedEntityCluster` nodes that have been linked to a
+**Alignment counts** — counts of `ResolvedEntityCluster` nodes that have or have not been linked to a
 `CanonicalEntity` via an `ALIGNED_WITH` edge. Only applicable after running
 `resolve-entities --resolution-mode hybrid`.
 
