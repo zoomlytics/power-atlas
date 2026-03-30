@@ -1128,6 +1128,8 @@ WHERE toLower(canonA.name) CONTAINS 'galperin'
   AND mA.run_id = $run_id
   AND mB.run_id = $run_id
   AND c.run_id  = $run_id
+  AND clA.run_id = $run_id
+  AND clB.run_id = $run_id
 WITH DISTINCT c, canonA, canonB, mA, mB
 RETURN c.claim_id,
        c.claim_text,
