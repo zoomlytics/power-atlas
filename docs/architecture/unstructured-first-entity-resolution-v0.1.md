@@ -640,6 +640,25 @@ The following three dimensions uniquely identify a `:ResolvedEntityCluster` node
 `cluster_id` format: `cluster::<run_id_enc>::<entity_type_enc>::<normalized_text_enc>`
 (each component percent-encoded via RFC 3986, `safe=''`).
 
+**Entity-type normalization** — before the `entity_type` dimension is encoded into the
+`cluster_id`, synonymous and variant labels are mapped to a single canonical form via
+`_normalize_entity_type()`:
+
+| Input label | Canonical form | Notes |
+|---|---|---|
+| `'ORG'` | `'Organization'` | Common LLM extraction shorthand |
+| `'Company'` | `'Organization'` | Companies are organizations |
+| `'Organization'` | `'Organization'` | Already canonical |
+| `'PERSON'` | `'Person'` | Common LLM extraction all-caps variant |
+| `'Person'` | `'Person'` | Already canonical |
+| `None` / `''` | `None` | Treated as unknown / absent |
+| All other labels | unchanged | e.g. `'PRODUCT'`, `'Place'` |
+
+This normalization is applied in `_make_cluster_id()` (cluster identity) and in
+`_cluster_mentions_unstructured_only()` (type-scoped clustering indices), ensuring that
+mentions extracted with variant labels for the same semantic type are never unintentionally
+split into separate clusters.
+
 ### 15.3 Provenance scope
 
 `source_uri` is propagated as per-mention origin metadata on **edges**, not as a cluster

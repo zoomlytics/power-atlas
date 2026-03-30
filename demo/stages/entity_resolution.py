@@ -233,7 +233,50 @@ _VALID_RESOLUTION_MODES = frozenset({
     _RESOLUTION_MODE_HYBRID,
 })
 
+# Mapping of synonymous/variant entity-type labels to their canonical forms.
+# This table is the single authoritative source of truth for entity-type
+# normalization within this module.
+#
+# Design rationale:
+#   - ``'ORG'`` and ``'Organization'`` are both common outputs from upstream
+#     LLM extraction; they are unified to ``'Organization'``.
+#   - ``'Company'`` is treated as a synonym for ``'Organization'`` because
+#     companies are organizations.  Any mention extracted as ``'Company'``
+#     will share a cluster with ``'Organization'`` / ``'ORG'`` mentions of
+#     the same normalized text.
+#   - ``'PERSON'`` and ``'Person'`` are both produced by upstream extractors;
+#     they are unified to ``'Person'``.
+#   - All other labels are left unchanged, including ``None`` (handled
+#     separately as an empty/unknown type).
+#   - Matching is case-sensitive: ``'org'`` is NOT mapped here; only the
+#     exact casing variants documented below are normalized.  Downstream
+#     callers that produce lower-cased labels should canonicalize casing
+#     before calling this function, or add entries to this table.
+_ENTITY_TYPE_SYNONYMS: dict[str, str] = {
+    "ORG": "Organization",
+    "Company": "Organization",
+    "PERSON": "Person",
+}
 
+
+def _normalize_entity_type(entity_type: str | None) -> str | None:
+    """Return the canonical form of *entity_type*, or ``None`` if absent.
+
+    Synonymous and variant labels produced by upstream LLM extractors are
+    mapped to a single canonical string so that :func:`_make_cluster_id` and
+    the type-scoped clustering indices always see a consistent value:
+
+    * ``'ORG'`` → ``'Organization'``
+    * ``'Company'`` → ``'Organization'``  (companies are organizations)
+    * ``'PERSON'`` → ``'Person'``
+
+    All other non-empty labels are returned unchanged.  ``None`` and ``''``
+    both return ``None`` (the caller of :func:`_make_cluster_id` maps ``None``
+    to an empty string, preserving the existing ``None``/``''`` equivalence).
+    """
+    if not entity_type:
+        return None
+    return _ENTITY_TYPE_SYNONYMS.get(entity_type, entity_type)
 
 
 def _make_cluster_id(
@@ -273,11 +316,16 @@ def _make_cluster_id(
     non-empty *run_id* is required; passing an empty string raises
     :exc:`ValueError` because it would produce IDs indistinguishable across
     runs.
+
+    *entity_type* is normalized via :func:`_normalize_entity_type` before
+    encoding so that synonymous labels (``'ORG'``/``'Organization'``,
+    ``'PERSON'``/``'Person'``, ``'Company'``/``'Organization'``) produce the
+    same cluster_id and are never split into unintended separate clusters.
     """
     if not run_id:
         raise ValueError("run_id must be a non-empty string")
     run_id_enc = _pct_encode(run_id, safe="")
-    entity_type_enc = _pct_encode(entity_type or "", safe="")
+    entity_type_enc = _pct_encode(_normalize_entity_type(entity_type) or "", safe="")
     normalized_text_enc = _pct_encode(normalized_text, safe="")
     return f"cluster::{run_id_enc}::{entity_type_enc}::{normalized_text_enc}"
 
@@ -593,7 +641,7 @@ def _cluster_mentions_unstructured_only(
         name = (mention.get("name") or "").strip()
         normalized = _normalize(name)
         mid = mention["mention_id"]
-        entity_type: str | None = mention.get("entity_type") or None
+        entity_type: str | None = _normalize_entity_type(mention.get("entity_type") or None)
         short_alpha = _RE_NON_ALPHA.sub("", normalized)
 
         # Strategy 1: normalized_exact (type-agnostic).
@@ -734,7 +782,7 @@ def _resolve_mention(
             "mention_id": mention["mention_id"],
             "normalized_text": normalized,
             "mention_name": name,
-            "entity_type": mention.get("entity_type") or None,
+            "entity_type": _normalize_entity_type(mention.get("entity_type") or None),
             "source_uri": mention.get("source_uri") or None,
             "resolution_method": "label_cluster",
             "resolution_confidence": 0.0,
@@ -773,7 +821,7 @@ def _resolve_mention(
         "mention_id": mention["mention_id"],
         "normalized_text": normalized,
         "mention_name": name,
-        "entity_type": mention.get("entity_type") or None,
+        "entity_type": _normalize_entity_type(mention.get("entity_type") or None),
         "source_uri": mention.get("source_uri") or None,
         "resolution_method": "label_cluster",
         "resolution_confidence": 0.0,
