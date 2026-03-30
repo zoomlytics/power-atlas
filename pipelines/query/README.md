@@ -1215,8 +1215,8 @@ entity type, for manual inspection.
 // Clusters whose member mentions span more than one entity_type (all runs)
 MATCH (cluster:ResolvedEntityCluster)<-[:MEMBER_OF]-(m:EntityMention)
 WITH cluster,
-     collect(DISTINCT coalesce(m.entity_type, 'UNKNOWN')) AS types,
-     count(DISTINCT coalesce(m.entity_type, 'UNKNOWN'))   AS type_count
+     collect(DISTINCT coalesce(nullif(trim(m.entity_type), ''), 'UNKNOWN')) AS types,
+     count(DISTINCT coalesce(nullif(trim(m.entity_type), ''), 'UNKNOWN'))   AS type_count
 WHERE type_count > 1
 RETURN cluster.run_id          AS run_id,
        cluster.cluster_id      AS cluster_id,
