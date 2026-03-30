@@ -1264,6 +1264,7 @@ MATCH (canonical:CanonicalEntity)<-[a:ALIGNED_WITH]-(cluster:ResolvedEntityClust
 WHERE a.run_id = $run_id
   AND a.alignment_version = $alignment_version
   AND cluster.run_id = $run_id
+  AND m.run_id = $run_id
 RETURN canonical.name              AS canonical_entity,
        canonical.entity_id         AS entity_id,
        canonical.entity_type       AS entity_type,
