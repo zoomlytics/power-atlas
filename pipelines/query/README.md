@@ -1309,6 +1309,8 @@ is intact (hybrid mode) for a given alignment run.
 MATCH (canonical:CanonicalEntity)<-[a:ALIGNED_WITH]-(cluster:ResolvedEntityCluster)<-[:MEMBER_OF]-(m:EntityMention)
 WHERE a.run_id = $run_id
   AND a.alignment_version = $alignment_version
+  AND cluster.run_id = $run_id
+  AND m.run_id = $run_id
 OPTIONAL MATCH (c:ExtractedClaim {run_id: $run_id})-[:HAS_PARTICIPANT]->(m)
 WITH canonical, count(DISTINCT m) AS mention_count, count(DISTINCT c) AS claim_count
 RETURN canonical.name        AS canonical_entity,
