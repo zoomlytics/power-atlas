@@ -1072,9 +1072,10 @@ edge type to the core schema.
 ## 11. Direct-DB diagnostics — participation coverage, cluster fragmentation, and hybrid alignment
 
 These queries are designed for direct database health checks. Run them after completing a full
-pipeline pass to validate retrieval-graph integrity before running live queries. Each query is
-self-contained (no parameters required) and returns a single aggregate result that can be
-inspected at a glance.
+pipeline pass to validate retrieval-graph integrity before running live queries. Most queries are
+self-contained and can be run as-is; some are scoped variants that accept parameters (for example,
+a specific `$run_id`). Results are returned as either single aggregate values or compact multi-row
+tables that can be inspected at a glance.
 
 > **When to use this section:** after any pipeline run, when troubleshooting low retrieval
 > quality, or as a regression check when schema or pipeline changes are deployed.
@@ -1116,7 +1117,7 @@ linked to any entity mention. This can occur when:
 
 - The extraction LLM left subject/object slots blank.
 - The mention text did not match any `EntityMention` in the same chunk (no exact or
-  normalised match was found).
+  normalized match was found).
 - The claim-participation stage was not run for those claims.
 
 Claims with `participant_edges >= 1` are retrievable via entity-centric traversal.
@@ -1143,8 +1144,8 @@ ORDER BY run_id, role;
 // Mentions with and without a MEMBER_OF edge (all runs)
 MATCH (m:EntityMention)
 OPTIONAL MATCH (m)-[:MEMBER_OF]->(cluster:ResolvedEntityCluster)
-WITH m, cluster IS NOT NULL AS is_clustered
-RETURN is_clustered, count(*) AS mention_count
+WITH m, count(cluster) > 0 AS is_clustered
+RETURN is_clustered, count(DISTINCT m) AS mention_count
 ORDER BY is_clustered DESC;
 ```
 
@@ -1181,7 +1182,9 @@ a single entity type. Clusters with mixed types suggest over-aggressive merging.
 ```cypher
 // For each cluster, count how many distinct entity_type values its member mentions have
 MATCH (cluster:ResolvedEntityCluster)<-[:MEMBER_OF]-(m:EntityMention)
-WITH cluster, collect(DISTINCT m.entity_type) AS types, count(DISTINCT m.entity_type) AS type_count
+WITH cluster,
+     collect(DISTINCT coalesce(m.entity_type, 'UNKNOWN')) AS types,
+     count(DISTINCT coalesce(m.entity_type, 'UNKNOWN'))   AS type_count
 RETURN type_count             AS distinct_types_in_cluster,
        count(cluster)         AS cluster_count
 ORDER BY type_count;
@@ -1199,7 +1202,9 @@ entity type, for manual inspection.
 ```cypher
 // Clusters whose member mentions span more than one entity_type (all runs)
 MATCH (cluster:ResolvedEntityCluster)<-[:MEMBER_OF]-(m:EntityMention)
-WITH cluster, collect(DISTINCT m.entity_type) AS types, count(DISTINCT m.entity_type) AS type_count
+WITH cluster,
+     collect(DISTINCT coalesce(m.entity_type, 'UNKNOWN')) AS types,
+     count(DISTINCT coalesce(m.entity_type, 'UNKNOWN'))   AS type_count
 WHERE type_count > 1
 RETURN cluster.run_id          AS run_id,
        cluster.cluster_id      AS cluster_id,
@@ -1232,9 +1237,11 @@ ORDER BY cluster_count DESC;
 `resolve-entities --resolution-mode hybrid`.
 
 ```cypher
-// Clusters with and without ALIGNED_WITH edges (all runs)
+// Clusters with and without ALIGNED_WITH edges for a given alignment_version
 MATCH (cluster:ResolvedEntityCluster)
 OPTIONAL MATCH (cluster)-[a:ALIGNED_WITH]->(:CanonicalEntity)
+  WHERE a.run_id = cluster.run_id
+    AND a.alignment_version = $alignment_version
 WITH cluster, a IS NOT NULL AS is_aligned
 RETURN is_aligned, count(*) AS cluster_count
 ORDER BY is_aligned DESC;
@@ -1252,8 +1259,12 @@ with `ingest-structured`.
 `CanonicalEntity`, useful for confirming that the structured catalog is contributing to retrieval.
 
 ```cypher
-// Canonical entities ranked by number of aligned clusters and bridged mentions (all runs)
+// Canonical entities ranked by number of aligned clusters and bridged mentions
+// (scoped to $run_id and $alignment_version)
 MATCH (canonical:CanonicalEntity)<-[a:ALIGNED_WITH]-(cluster:ResolvedEntityCluster)<-[:MEMBER_OF]-(m:EntityMention)
+WHERE a.run_id = $run_id
+  AND a.alignment_version = $alignment_version
+  AND cluster.run_id = $run_id
 RETURN canonical.name              AS canonical_entity,
        canonical.entity_id         AS entity_id,
        canonical.entity_type       AS entity_type,
@@ -1266,17 +1277,21 @@ LIMIT 20;
 
 ---
 
-**Unaligned cluster detail** — lists clusters that have no `ALIGNED_WITH` edge for manual
-review, scoped to a single run.
+**Unaligned cluster detail** — lists clusters that have no `ALIGNED_WITH` edge for the current
+alignment generation, scoped to a single run.
 
 ```cypher
-// ResolvedEntityCluster nodes with no ALIGNED_WITH edge, scoped to a run
+// Parameters (set these before running the query)
+// :param run_id           => 'RUN_ID_HERE'
+// :param alignment_version => 'v1.0'
+
+// ResolvedEntityCluster nodes with no ALIGNED_WITH edge for the given run and alignment version
 MATCH (cluster:ResolvedEntityCluster)
 WHERE cluster.run_id = $run_id
-  AND NOT (cluster)-[:ALIGNED_WITH]->(:CanonicalEntity)
-RETURN cluster.cluster_id     AS cluster_id,
-       cluster.canonical_name AS canonical_name,
-       cluster.entity_type    AS entity_type,
+  AND NOT (cluster)-[:ALIGNED_WITH {run_id: $run_id, alignment_version: $alignment_version}]->(:CanonicalEntity)
+RETURN cluster.cluster_id      AS cluster_id,
+       cluster.canonical_name  AS canonical_name,
+       cluster.entity_type     AS entity_type,
        cluster.normalized_text AS normalized_text
 ORDER BY cluster.entity_type, cluster.canonical_name
 LIMIT 50;
@@ -1286,12 +1301,15 @@ LIMIT 50;
 
 **Full alignment-to-claim chain health check** — combines alignment coverage and participation
 coverage in a single query to confirm the end-to-end canonical → cluster → mention → claim path
-is intact (hybrid mode).
+is intact (hybrid mode) for a given alignment run.
 
 ```cypher
-// End-to-end chain: for each CanonicalEntity, count reachable claims via hybrid path (all runs)
-MATCH (canonical:CanonicalEntity)<-[:ALIGNED_WITH]-(:ResolvedEntityCluster)<-[:MEMBER_OF]-(m:EntityMention)
-OPTIONAL MATCH (c:ExtractedClaim)-[:HAS_PARTICIPANT]->(m)
+// End-to-end chain: for each CanonicalEntity, count reachable claims via hybrid path
+// (scoped to $run_id and $alignment_version)
+MATCH (canonical:CanonicalEntity)<-[a:ALIGNED_WITH]-(cluster:ResolvedEntityCluster)<-[:MEMBER_OF]-(m:EntityMention)
+WHERE a.run_id = $run_id
+  AND a.alignment_version = $alignment_version
+OPTIONAL MATCH (c:ExtractedClaim {run_id: $run_id})-[:HAS_PARTICIPANT]->(m)
 WITH canonical, count(DISTINCT m) AS mention_count, count(DISTINCT c) AS claim_count
 RETURN canonical.name        AS canonical_entity,
        canonical.entity_type AS entity_type,
