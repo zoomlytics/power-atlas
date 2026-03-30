@@ -1157,7 +1157,7 @@ verify that `resolve-entities` ran to completion and that its manifest reports
 ---
 
 **Cluster size distribution** — shows the spread of how many mentions each cluster contains,
-which informs whether normalisation and fuzzy-matching are collapsing surface variants as expected.
+which informs whether normalization and fuzzy-matching are collapsing surface variants as expected.
 
 ```cypher
 // Number of member EntityMention nodes per ResolvedEntityCluster (all runs)
@@ -1170,7 +1170,7 @@ ORDER BY member_count;
 **Interpretation:** Clusters with `member_count = 1` are singletons — the entity appeared in
 only one surface form across the corpus. A healthy run should show some multi-member clusters
 (collapsed variants). A distribution that is *entirely* singletons may indicate that
-normalisation / fuzzy-matching thresholds are too strict or that the corpus is small.
+normalization / fuzzy-matching thresholds are too strict or that the corpus is small.
 
 ---
 
@@ -1236,6 +1236,9 @@ ORDER BY cluster_count DESC;
 `resolve-entities --resolution-mode hybrid`.
 
 ```cypher
+// Parameter (set before running the query)
+// :param alignment_version => 'v1.0'
+
 // Clusters with and without ALIGNED_WITH edges for a given alignment_version
 MATCH (cluster:ResolvedEntityCluster)
 OPTIONAL MATCH (cluster)-[a:ALIGNED_WITH]->(:CanonicalEntity)
