@@ -327,9 +327,10 @@ def build_participation_edges(
             # Whole-slot match failed; try splitting on conjunctions/list
             # separators and match each part independently — but ONLY when the
             # whole-slot attempt found zero candidates (method is None).  When
-            # method is _MATCH_OUTCOME_AMBIGUOUS the whole-slot text matched two
-            # or more mentions; splitting it into parts would silently override
-            # that ambiguity signal and could emit misleading edges.
+            # method is MATCH_OUTCOME_AMBIGUOUS (the public ambiguous-outcome
+            # marker) the whole-slot text matched two or more mentions; splitting
+            # it into parts would silently override that ambiguity signal and
+            # could emit misleading edges.
             if method is not None:
                 # Ambiguous whole-slot match — skip list-split entirely.
                 continue
