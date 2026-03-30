@@ -1249,7 +1249,7 @@ MATCH (cluster:ResolvedEntityCluster)
 OPTIONAL MATCH (cluster)-[a:ALIGNED_WITH]->(:CanonicalEntity)
   WHERE a.run_id = cluster.run_id
     AND a.alignment_version = $alignment_version
-WITH cluster, a IS NOT NULL AS is_aligned
+WITH cluster, count(a) > 0 AS is_aligned
 RETURN is_aligned, count(*) AS cluster_count
 ORDER BY is_aligned DESC;
 ```
