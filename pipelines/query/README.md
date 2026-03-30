@@ -677,9 +677,9 @@ on the resolution mode used:
 >   when `resolve-entities --resolution-mode hybrid` is rerun, so canonical-anchored
 >   queries continue to work correctly after incremental alignment updates.
 >
-> Use [section 4](#4-cluster-aware-entity-traversal-post-hybrid) for cluster-level
-> inspection or when hybrid alignment has not yet been applied.  Use [section 12d](#12d-hybrid-alignment-coverage)
-> for alignment coverage diagnostics.
+> Use [section 4](#4-cluster-aware-entity-traversal-post-hybrid) for post-hybrid
+> cluster-level inspection, [section 6](#6-cluster-aware-entity-traversal-pre-hybrid) for
+> pre-hybrid cluster traversal, and [section 12d](#12d-hybrid-alignment-coverage) for alignment coverage diagnostics.
 
 > **Tip:** Set parameters in Neo4j Browser before running these queries:
 >
