@@ -97,10 +97,11 @@ _SLOT_ROLE: dict[str, str] = {
 # Matches conjunction/list separators used to split composite slot values.
 # Conjunctions (and/or/&) require surrounding whitespace so that words
 # containing these strings (e.g. "Anderson", "border") are not split.
-# Commas require only trailing whitespace — they are never ambiguously embedded
-# inside a token, so leading whitespace before the comma is already consumed by
-# the preceding token.
-_LIST_SPLIT_RE = re.compile(r"\s+(?:and|or|&)\s+|,\s+", re.IGNORECASE)
+# The optional leading comma (,?) in the first alternative handles Oxford-comma
+# lists such as "A, B, and C": the ", and " is consumed as a single separator
+# so the last token is correctly "C" rather than "and C".
+# Plain comma-only separators (", ") are handled by the second alternative.
+_LIST_SPLIT_RE = re.compile(r",?\s+(?:and|or|&)\s+|,\s+", re.IGNORECASE)
 
 # ---------------------------------------------------------------------------
 # List-splitting helper
@@ -111,9 +112,11 @@ def split_slot_text(slot_text: str) -> list[str]:
     """Split *slot_text* on conjunction and list separators.
 
     Splits on: ``" and "``, ``" or "``, ``" & "`` (surrounded by whitespace)
-    and ``", "`` (comma followed by at least one space).  The split is
-    case-insensitive so ``"Amazon AND eBay"`` is handled the same as
-    ``"Amazon and eBay"``.
+    and ``", "`` (comma followed by at least one space).  Oxford-comma lists
+    such as ``"A, B, and C"`` are also handled — the ``", and "`` separator is
+    consumed as a single token so the result is ``["A", "B", "C"]`` rather
+    than ``["A", "B", "and C"]``.  The split is case-insensitive so
+    ``"Amazon AND eBay"`` is handled the same as ``"Amazon and eBay"``.
 
     Parameters
     ----------

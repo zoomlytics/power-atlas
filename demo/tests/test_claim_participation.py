@@ -1039,6 +1039,24 @@ class TestSplitSlotText(unittest.TestCase):
         parts = split_slot_text("Google, Apple, Microsoft")
         self.assertEqual(parts, ["Google", "Apple", "Microsoft"])
 
+    def test_oxford_comma_and(self):
+        # "A, B, and C" — the ", and " separator is consumed as a unit so the
+        # last token is "C", not "and C".
+        parts = split_slot_text("Amazon, eBay, and Google")
+        self.assertEqual(parts, ["Amazon", "eBay", "Google"])
+
+    def test_oxford_comma_or(self):
+        parts = split_slot_text("Amazon, eBay, or Google")
+        self.assertEqual(parts, ["Amazon", "eBay", "Google"])
+
+    def test_oxford_comma_ampersand(self):
+        parts = split_slot_text("Amazon, eBay, & Google")
+        self.assertEqual(parts, ["Amazon", "eBay", "Google"])
+
+    def test_oxford_comma_case_insensitive(self):
+        parts = split_slot_text("Amazon, eBay, AND Google")
+        self.assertEqual(parts, ["Amazon", "eBay", "Google"])
+
     # --- no split cases ---
 
     def test_single_entity_returns_empty_list(self):
@@ -1313,3 +1331,32 @@ class TestBuildParticipationEdgesListSplit(unittest.TestCase):
         edges = build_participation_edges(claims, mentions)
         self.assertEqual(len(edges), 3)
         self.assertTrue(all(e["match_method"] == MATCH_METHOD_LIST_SPLIT for e in edges))
+
+    # --- Oxford-comma lists ---
+
+    def test_oxford_comma_and_yields_three_edges(self):
+        # "Amazon, eBay, and Google" — the ", and " separator must be consumed
+        # as a unit so the last part is "Google", not "and Google".
+        mentions = [
+            _mention("Amazon", "m-amazon"),
+            _mention("eBay", "m-ebay"),
+            _mention("Google", "m-google"),
+        ]
+        claims = [_claim("c1", obj="Amazon, eBay, and Google")]
+        edges = build_participation_edges(claims, mentions)
+        self.assertEqual(len(edges), 3)
+        mention_ids = {e["mention_id"] for e in edges}
+        self.assertEqual(mention_ids, {"m-amazon", "m-ebay", "m-google"})
+        self.assertTrue(all(e["match_method"] == MATCH_METHOD_LIST_SPLIT for e in edges))
+
+    def test_oxford_comma_or_yields_three_edges(self):
+        mentions = [
+            _mention("Tesla", "m-tesla"),
+            _mention("Ford", "m-ford"),
+            _mention("GM", "m-gm"),
+        ]
+        claims = [_claim("c1", obj="Tesla, Ford, or GM")]
+        edges = build_participation_edges(claims, mentions)
+        self.assertEqual(len(edges), 3)
+        mention_ids = {e["mention_id"] for e in edges}
+        self.assertEqual(mention_ids, {"m-tesla", "m-ford", "m-gm"})
