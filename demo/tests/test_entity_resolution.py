@@ -23,6 +23,7 @@ from demo.stages.entity_resolution import (
     _is_abbreviation,
     _make_cluster_id,
     _normalize,
+    _normalize_entity_type,
     _resolve_mention,
     _split_aliases,
     run_entity_resolution,
@@ -466,12 +467,13 @@ class TestResolveMention(unittest.TestCase):
         self.assertFalse(result["resolved"])
 
     def test_unresolved_row_carries_entity_type(self):
-        """Unresolved rows (label_cluster) must include entity_type for cluster scoping."""
+        """Unresolved rows (label_cluster) must include normalized entity_type."""
         mention = {"mention_id": "m7", "name": "Nobody Known", "entity_type": "ORG"}
         result = _resolve_mention(mention, self.by_qid, self.by_label, self.by_alias)
         self.assertFalse(result["resolved"])
         self.assertIn("entity_type", result)
-        self.assertEqual(result["entity_type"], "ORG")
+        # "ORG" is normalized to "Organization"
+        self.assertEqual(result["entity_type"], "Organization")
 
     def test_unresolved_qid_row_carries_entity_type(self):
         """Unresolved QID-pattern rows (no canonical match) must include entity_type."""
@@ -1063,7 +1065,8 @@ class TestResolvedEntityCluster(unittest.TestCase):
             unresolved = json.loads(unresolved_path.read_text(encoding="utf-8"))
             self.assertEqual(len(unresolved), 1)
             self.assertIn("entity_type", unresolved[0])
-            self.assertEqual(unresolved[0]["entity_type"], "ORG")
+            # "ORG" is normalized to "Organization"
+            self.assertEqual(unresolved[0]["entity_type"], "Organization")
 
     def test_cross_run_same_text_produces_distinct_cluster_ids(self):
         """Same normalized text in two different runs must yield different cluster_ids."""
@@ -1319,8 +1322,83 @@ class TestResolvedEntityCluster(unittest.TestCase):
             unresolved_run2 = self._load_unresolved_json(Path(tmpdir), "run-iso-002")
             self.assertNotEqual(unresolved_run1[0]["cluster_id"], unresolved_run2[0]["cluster_id"])
 
+    def test_ORG_and_Organization_produce_same_cluster_id(self):
+        """'ORG' and 'Organization' must produce the same cluster_id after normalization."""
+        cid_org = _make_cluster_id("run-A", "ORG", "mercadolibre")
+        cid_organization = _make_cluster_id("run-A", "Organization", "mercadolibre")
+        self.assertEqual(cid_org, cid_organization)
 
-class TestIsAbbreviation(unittest.TestCase):
+    def test_Company_and_Organization_produce_same_cluster_id(self):
+        """'Company' is a synonym for 'Organization' and must produce the same cluster_id.
+
+        Companies are organizations; mapping 'Company' → 'Organization' prevents
+        upstream labeling variance from splitting what should be a single cluster.
+        """
+        cid_company = _make_cluster_id("run-A", "Company", "xapo")
+        cid_organization = _make_cluster_id("run-A", "Organization", "xapo")
+        self.assertEqual(cid_company, cid_organization)
+
+    def test_PERSON_and_Person_produce_same_cluster_id(self):
+        """'PERSON' and 'Person' must produce the same cluster_id after normalization."""
+        cid_person_upper = _make_cluster_id("run-A", "PERSON", "linda rottenberg")
+        cid_person_title = _make_cluster_id("run-A", "Person", "linda rottenberg")
+        self.assertEqual(cid_person_upper, cid_person_title)
+
+    def test_ORG_Organization_Company_all_produce_same_cluster_id(self):
+        """All three organization-type synonyms must converge to the same cluster_id."""
+        cid_org = _make_cluster_id("run-A", "ORG", "endeavor")
+        cid_organization = _make_cluster_id("run-A", "Organization", "endeavor")
+        cid_company = _make_cluster_id("run-A", "Company", "endeavor")
+        self.assertEqual(cid_org, cid_organization)
+        self.assertEqual(cid_org, cid_company)
+
+    def test_organization_type_still_distinct_from_person_type(self):
+        """After normalization, organization and person clusters must still be distinct."""
+        cid_org = _make_cluster_id("run-A", "ORG", "apple")
+        cid_person = _make_cluster_id("run-A", "PERSON", "apple")
+        self.assertNotEqual(cid_org, cid_person)
+
+
+class TestNormalizeEntityType(unittest.TestCase):
+    """Tests for _normalize_entity_type."""
+
+    def test_ORG_maps_to_Organization(self):
+        self.assertEqual(_normalize_entity_type("ORG"), "Organization")
+
+    def test_Organization_unchanged(self):
+        self.assertEqual(_normalize_entity_type("Organization"), "Organization")
+
+    def test_Company_maps_to_Organization(self):
+        """Company is treated as a synonym for Organization."""
+        self.assertEqual(_normalize_entity_type("Company"), "Organization")
+
+    def test_PERSON_maps_to_Person(self):
+        self.assertEqual(_normalize_entity_type("PERSON"), "Person")
+
+    def test_Person_unchanged(self):
+        self.assertEqual(_normalize_entity_type("Person"), "Person")
+
+    def test_unknown_label_returned_unchanged(self):
+        """Labels not in the synonym table are returned as-is."""
+        self.assertEqual(_normalize_entity_type("PRODUCT"), "PRODUCT")
+        self.assertEqual(_normalize_entity_type("Place"), "Place")
+        self.assertEqual(_normalize_entity_type("EVENT"), "EVENT")
+
+    def test_none_returns_none(self):
+        self.assertIsNone(_normalize_entity_type(None))
+
+    def test_empty_string_returns_none(self):
+        self.assertIsNone(_normalize_entity_type(""))
+
+    def test_lowercase_org_is_not_mapped(self):
+        """Matching is case-sensitive; 'org' is NOT a known synonym."""
+        self.assertEqual(_normalize_entity_type("org"), "org")
+
+    def test_lowercase_person_is_not_mapped(self):
+        """Matching is case-sensitive; 'person' (all-lower) stays unchanged."""
+        self.assertEqual(_normalize_entity_type("person"), "person")
+
+
     def test_initialism_match(self):
         self.assertTrue(_is_abbreviation("fbi", "federal bureau of investigation"))
 
@@ -1600,7 +1678,7 @@ class TestClusterMentionsUnstructuredOnly(unittest.TestCase):
         )
 
     def test_output_rows_include_entity_type(self):
-        """Every output row must carry the entity_type from the input mention."""
+        """Every output row must carry the normalized entity_type from the input mention."""
         mentions = [
             {"mention_id": "m1", "name": "Acme", "entity_type": "ORG"},
             {"mention_id": "m2", "name": "Acme", "entity_type": "PRODUCT"},
@@ -1609,7 +1687,8 @@ class TestClusterMentionsUnstructuredOnly(unittest.TestCase):
         result = _cluster_mentions_unstructured_only(mentions)
         by_mid = {r["mention_id"]: r for r in result}
         self.assertIn("entity_type", by_mid["m1"])
-        self.assertEqual(by_mid["m1"]["entity_type"], "ORG")
+        # "ORG" is normalized to "Organization" in the output
+        self.assertEqual(by_mid["m1"]["entity_type"], "Organization")
         self.assertEqual(by_mid["m2"]["entity_type"], "PRODUCT")
         self.assertIsNone(by_mid["m3"]["entity_type"])
 
@@ -1674,7 +1753,51 @@ class TestClusterMentionsUnstructuredOnly(unittest.TestCase):
         result = _cluster_mentions_unstructured_only(mentions)
         self.assertEqual(result[0]["normalized_text"], "re sume")
 
-class TestRunEntityResolutionUnstructuredOnly(unittest.TestCase):
+    def test_ORG_and_Organization_mentions_share_cluster_after_normalization(self):
+        """Mentions with entity_type 'ORG' and 'Organization' must share a type-scoped cluster.
+
+        Before normalization, 'ORG' and 'Organization' were treated as distinct
+        types, splitting fuzzy/abbreviation clustering across them.  After
+        normalization both map to 'Organization', so they use the same type bucket
+        and the same cluster_id.
+        """
+        mentions = [
+            {"mention_id": "m1", "name": "MercadoLibre", "entity_type": "ORG"},
+            {"mention_id": "m2", "name": "MercadoLibre", "entity_type": "Organization"},
+        ]
+        result = _cluster_mentions_unstructured_only(mentions)
+        by_mid = {r["mention_id"]: r for r in result}
+        # Both must resolve to the same normalized_text (which drives cluster_id)
+        self.assertEqual(by_mid["m1"]["normalized_text"], by_mid["m2"]["normalized_text"])
+        # Both must carry the normalized entity_type
+        self.assertEqual(by_mid["m1"]["entity_type"], "Organization")
+        self.assertEqual(by_mid["m2"]["entity_type"], "Organization")
+
+    def test_Company_mentions_cluster_with_Organization_mentions(self):
+        """Mentions with entity_type 'Company' must share a cluster with 'Organization' mentions."""
+        mentions = [
+            {"mention_id": "m1", "name": "Xapo", "entity_type": "Company"},
+            {"mention_id": "m2", "name": "Xapo", "entity_type": "Organization"},
+        ]
+        result = _cluster_mentions_unstructured_only(mentions)
+        by_mid = {r["mention_id"]: r for r in result}
+        self.assertEqual(by_mid["m1"]["normalized_text"], by_mid["m2"]["normalized_text"])
+        self.assertEqual(by_mid["m1"]["entity_type"], "Organization")
+        self.assertEqual(by_mid["m2"]["entity_type"], "Organization")
+
+    def test_PERSON_and_Person_mentions_share_cluster_after_normalization(self):
+        """Mentions with entity_type 'PERSON' and 'Person' must share a type-scoped cluster."""
+        mentions = [
+            {"mention_id": "m1", "name": "Linda Rottenberg", "entity_type": "PERSON"},
+            {"mention_id": "m2", "name": "Linda Rottenberg", "entity_type": "Person"},
+        ]
+        result = _cluster_mentions_unstructured_only(mentions)
+        by_mid = {r["mention_id"]: r for r in result}
+        self.assertEqual(by_mid["m1"]["normalized_text"], by_mid["m2"]["normalized_text"])
+        self.assertEqual(by_mid["m1"]["entity_type"], "Person")
+        self.assertEqual(by_mid["m2"]["entity_type"], "Person")
+
+
     """Tests for run_entity_resolution with resolution_mode='unstructured_only'."""
 
     def _live_config(self, tmp_path: Path) -> Config:
