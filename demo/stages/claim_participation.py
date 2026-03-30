@@ -187,7 +187,7 @@ def match_slot_to_mention(
         return raw_matches[0], MATCH_METHOD_RAW_EXACT
     if len(raw_matches) > 1:
         # Ambiguous — do not create an edge, and do not attempt list-split.
-        return None, _MATCH_OUTCOME_AMBIGUOUS
+        return None, MATCH_OUTCOME_AMBIGUOUS
 
     # Strategy 2: casefold_exact — computed lazily only when raw_exact finds 0 matches.
     slot_cf = slot_stripped.casefold()
@@ -195,7 +195,7 @@ def match_slot_to_mention(
     if len(cf_matches) == 1:
         return cf_matches[0], MATCH_METHOD_CASEFOLD_EXACT
     if len(cf_matches) > 1:
-        return None, _MATCH_OUTCOME_AMBIGUOUS
+        return None, MATCH_OUTCOME_AMBIGUOUS
 
     # Strategy 3: normalized_exact — normalize_mention_text called lazily only when both
     # raw_exact and casefold_exact find 0 matches.  Pre-compute all mention normal forms
@@ -207,7 +207,7 @@ def match_slot_to_mention(
     if len(norm_matches) == 1:
         return norm_matches[0], MATCH_METHOD_NORMALIZED_EXACT
     if len(norm_matches) > 1:
-        return None, _MATCH_OUTCOME_AMBIGUOUS
+        return None, MATCH_OUTCOME_AMBIGUOUS
     # Zero matches across all strategies — no edge, but list-split may be tried.
     return None, None
 
