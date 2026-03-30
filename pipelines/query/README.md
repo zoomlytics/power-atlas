@@ -238,8 +238,8 @@ These queries apply after `resolve-entities --resolution-mode hybrid` has run.
 > post-hybrid validation and stakeholder demos.** Starting from `CanonicalEntity` nodes
 > provides a single, stable entry point anchored in the curated structured catalog, and
 > the `canonical → cluster → mention → claim` chain is the intended post-hybrid query
-> pattern.  Use the queries in this section for cluster-level inspection or when hybrid
-> alignment has not yet run.
+> pattern. Use the queries in this section for post-hybrid cluster-level inspection; for
+> pre-hybrid traversal over resolved entities, see [section 6](#6-resolved-entity-traversal).
 
 > **Tip:** Set parameters in Neo4j Browser before running these queries:
 >
