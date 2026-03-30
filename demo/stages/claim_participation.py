@@ -71,11 +71,13 @@ MATCH_METHOD_CASEFOLD_EXACT = "casefold_exact"
 MATCH_METHOD_NORMALIZED_EXACT = "normalized_exact"
 MATCH_METHOD_LIST_SPLIT = "list_split"
 
-# Private sentinel returned by match_slot_to_mention (as the method value) when
+# Sentinel returned by match_slot_to_mention (as the method value) when
 # two or more candidates match at any strategy level.  Callers that only check
 # ``matched is None`` are unaffected; callers that need to distinguish "no
-# candidates found" from "ambiguous" inspect ``method == _MATCH_OUTCOME_AMBIGUOUS``.
-_MATCH_OUTCOME_AMBIGUOUS = "ambiguous"
+# candidates found" from "ambiguous" inspect ``method == MATCH_OUTCOME_AMBIGUOUS``.
+MATCH_OUTCOME_AMBIGUOUS = "ambiguous"
+# Private alias kept for backwards compatibility.
+_MATCH_OUTCOME_AMBIGUOUS = MATCH_OUTCOME_AMBIGUOUS
 
 #: v0.3 Neo4j relationship type for all claim argument edges.
 #: Role is stored as the ``role`` property on the edge.
@@ -142,8 +144,8 @@ def match_slot_to_mention(
     Strategies are tried in priority order from most restrictive to least
     restrictive.  The first strategy that yields **exactly one** match is used.
     A strategy that yields two or more matches is treated as ambiguous and
-    causes an immediate return with the private sentinel
-    ``(None, _MATCH_OUTCOME_AMBIGUOUS)`` (no edge created).
+    causes an immediate return with ``(None, MATCH_OUTCOME_AMBIGUOUS)``
+    (no edge created).
 
     Parameters
     ----------
@@ -161,7 +163,7 @@ def match_slot_to_mention(
     ``(None, None)`` when *no* candidate matches at any strategy level (zero
     matches throughout — safe to attempt a list-split fallback).
 
-    ``(None, _MATCH_OUTCOME_AMBIGUOUS)`` when two or more candidates match at
+    ``(None, MATCH_OUTCOME_AMBIGUOUS)`` when two or more candidates match at
     some strategy level (ambiguity — do **not** attempt a list-split fallback).
     """
     if not slot_text or not mentions:
@@ -430,6 +432,7 @@ __all__ = [
     "MATCH_METHOD_CASEFOLD_EXACT",
     "MATCH_METHOD_NORMALIZED_EXACT",
     "MATCH_METHOD_LIST_SPLIT",
+    "MATCH_OUTCOME_AMBIGUOUS",
     "EDGE_TYPE_HAS_PARTICIPANT",
     "ROLE_SUBJECT",
     "ROLE_OBJECT",
