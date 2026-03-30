@@ -27,8 +27,8 @@ needed to find a unique match):
    Unicode variant forms such as diacritics (``"Müller"`` → ``"muller"``) and
    typographic substitutions (``ß`` → ``ss``, em-dash → hyphen-minus).
 4. **list_split** — when all three strategies above yield no match *and* the
-   slot text contains conjunction/list separators (`` and ``, `` or ``, `` & ``,
-   or ``, ``), the slot is split into its constituent parts and each part is
+   slot text contains conjunction/list separators such as ``" and "``, ``" or "``,
+   ``" & "``, or ``", "``, the slot is split into its constituent parts and each part is
    matched independently using strategies 1–3.  One :HAS_PARTICIPANT edge is
    emitted per successfully matched part (duplicate mention_ids are deduplicated
    within the same slot).  This covers composite argument spans such as
