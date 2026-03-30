@@ -50,3 +50,7 @@ dist/
 !/pipelines/runs/.gitkeep
 /pipelines/logs/*
 !/pipelines/logs/.gitkeep
+
+# Manifests
+manifest.json
+manifest.md
