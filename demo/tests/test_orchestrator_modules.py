@@ -505,9 +505,20 @@ def test_claim_extraction_live_writes_participation_edges_when_mention_matches(t
     assert "object" in roles
 
     # Each edge must record run_id and match_method provenance.
+    from demo.stages.claim_participation import (
+        MATCH_METHOD_CASEFOLD_EXACT,
+        MATCH_METHOD_LIST_SPLIT,
+        MATCH_METHOD_NORMALIZED_EXACT,
+        MATCH_METHOD_RAW_EXACT,
+    )
     for edge in edge_rows:
         assert edge["run_id"] == "match-run"
-        assert edge["match_method"] in ("raw_exact", "casefold_exact", "normalized_exact")
+        assert edge["match_method"] in (
+            MATCH_METHOD_RAW_EXACT,
+            MATCH_METHOD_CASEFOLD_EXACT,
+            MATCH_METHOD_NORMALIZED_EXACT,
+            MATCH_METHOD_LIST_SPLIT,
+        )
 
 
 def test_retrieval_and_qa_question_recorded_in_manifest(tmp_path: Path):
