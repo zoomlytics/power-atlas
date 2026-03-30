@@ -71,6 +71,12 @@ MATCH_METHOD_CASEFOLD_EXACT = "casefold_exact"
 MATCH_METHOD_NORMALIZED_EXACT = "normalized_exact"
 MATCH_METHOD_LIST_SPLIT = "list_split"
 
+# Private sentinel returned by match_slot_to_mention (as the method value) when
+# two or more candidates match at any strategy level.  Callers that only check
+# ``matched is None`` are unaffected; callers that need to distinguish "no
+# candidates found" from "ambiguous" inspect ``method == _MATCH_OUTCOME_AMBIGUOUS``.
+_MATCH_OUTCOME_AMBIGUOUS = "ambiguous"
+
 #: v0.3 Neo4j relationship type for all claim argument edges.
 #: Role is stored as the ``role`` property on the edge.
 EDGE_TYPE_HAS_PARTICIPANT = "HAS_PARTICIPANT"
@@ -136,7 +142,8 @@ def match_slot_to_mention(
     Strategies are tried in priority order from most restrictive to least
     restrictive.  The first strategy that yields **exactly one** match is used.
     A strategy that yields two or more matches is treated as ambiguous and
-    causes an immediate ``(None, None)`` return (no edge created).
+    causes an immediate return with the private sentinel
+    ``(None, _MATCH_OUTCOME_AMBIGUOUS)`` (no edge created).
 
     Parameters
     ----------
@@ -149,9 +156,13 @@ def match_slot_to_mention(
 
     Returns
     -------
-    ``(mention_row, match_method)`` when exactly one candidate matches, or
-    ``(None, None)`` when there is no match or when two or more candidates
-    match (ambiguity).
+    ``(mention_row, match_method)`` when exactly one candidate matches.
+
+    ``(None, None)`` when *no* candidate matches at any strategy level (zero
+    matches throughout — safe to attempt a list-split fallback).
+
+    ``(None, _MATCH_OUTCOME_AMBIGUOUS)`` when two or more candidates match at
+    some strategy level (ambiguity — do **not** attempt a list-split fallback).
     """
     if not slot_text or not mentions:
         return None, None
@@ -173,8 +184,8 @@ def match_slot_to_mention(
     if len(raw_matches) == 1:
         return raw_matches[0], MATCH_METHOD_RAW_EXACT
     if len(raw_matches) > 1:
-        # Ambiguous — do not create an edge
-        return None, None
+        # Ambiguous — do not create an edge, and do not attempt list-split.
+        return None, _MATCH_OUTCOME_AMBIGUOUS
 
     # Strategy 2: casefold_exact — computed lazily only when raw_exact finds 0 matches.
     slot_cf = slot_stripped.casefold()
@@ -182,7 +193,7 @@ def match_slot_to_mention(
     if len(cf_matches) == 1:
         return cf_matches[0], MATCH_METHOD_CASEFOLD_EXACT
     if len(cf_matches) > 1:
-        return None, None
+        return None, _MATCH_OUTCOME_AMBIGUOUS
 
     # Strategy 3: normalized_exact — normalize_mention_text called lazily only when both
     # raw_exact and casefold_exact find 0 matches.  Pre-compute all mention normal forms
@@ -193,7 +204,9 @@ def match_slot_to_mention(
     norm_matches = [m for m, norm in norm_forms if norm == slot_norm]
     if len(norm_matches) == 1:
         return norm_matches[0], MATCH_METHOD_NORMALIZED_EXACT
-    # Zero or >1 matches — no edge
+    if len(norm_matches) > 1:
+        return None, _MATCH_OUTCOME_AMBIGUOUS
+    # Zero matches across all strategies — no edge, but list-split may be tried.
     return None, None
 
 
@@ -310,7 +323,14 @@ def build_participation_edges(
                 continue
 
             # Whole-slot match failed; try splitting on conjunctions/list
-            # separators and match each part independently.
+            # separators and match each part independently — but ONLY when the
+            # whole-slot attempt found zero candidates (method is None).  When
+            # method is _MATCH_OUTCOME_AMBIGUOUS the whole-slot text matched two
+            # or more mentions; splitting it into parts would silently override
+            # that ambiguity signal and could emit misleading edges.
+            if method is not None:
+                # Ambiguous whole-slot match — skip list-split entirely.
+                continue
             for part in split_slot_text(slot_str):
                 part_matched, _ = match_slot_to_mention(part, flat_mentions)
                 if part_matched is None:

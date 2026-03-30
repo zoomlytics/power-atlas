@@ -15,6 +15,7 @@ from demo.stages.claim_participation import (
     MATCH_METHOD_RAW_EXACT,
     ROLE_OBJECT,
     ROLE_SUBJECT,
+    _MATCH_OUTCOME_AMBIGUOUS,
     build_participation_edges,
     match_slot_to_mention,
     split_slot_text,
@@ -136,10 +137,12 @@ class TestMatchSlotToMention(unittest.TestCase):
 
     def test_raw_exact_ambiguous_returns_none(self):
         # Two mentions with the same name — ambiguous at raw level.
+        # match returns (None, _MATCH_OUTCOME_AMBIGUOUS) to signal ambiguity
+        # (distinct from the zero-match case which returns (None, None)).
         mentions = [_flat("ABC", "m1"), _flat("ABC", "m2")]
         result, method = match_slot_to_mention("ABC", mentions)
         self.assertIsNone(result)
-        self.assertIsNone(method)
+        self.assertEqual(method, _MATCH_OUTCOME_AMBIGUOUS)
 
     # --- casefold_exact: only case differs ---
 
@@ -168,10 +171,11 @@ class TestMatchSlotToMention(unittest.TestCase):
         # Two mentions with different raw names that casefold to the same text
         # — ambiguous at casefold level (raw_exact already found 0 matches).
         # "Hello" and "HELLO" differ in raw form, but both casefold to "hello".
+        # Returns (None, _MATCH_OUTCOME_AMBIGUOUS) to distinguish from zero-match.
         mentions = [_flat("Hello", "m1"), _flat("HELLO", "m2")]
         result, method = match_slot_to_mention("hello", mentions)
         self.assertIsNone(result)
-        self.assertIsNone(method)
+        self.assertEqual(method, _MATCH_OUTCOME_AMBIGUOUS)
 
     # --- normalized_exact: Unicode normalization needed ---
 
@@ -222,10 +226,11 @@ class TestMatchSlotToMention(unittest.TestCase):
         # but neither matches via raw or casefold.
         # "Café" and "CAFÉ" both casefold to "café" (not "cafe") but both
         # normalize to "cafe" — so normalized_exact sees 2 matches → ambiguous.
+        # Returns (None, _MATCH_OUTCOME_AMBIGUOUS) to distinguish from zero-match.
         mentions = [_flat("Café", "m1"), _flat("CAFÉ", "m2")]
         result, method = match_slot_to_mention("cafe", mentions)
         self.assertIsNone(result)
-        self.assertIsNone(method)
+        self.assertEqual(method, _MATCH_OUTCOME_AMBIGUOUS)
 
     # --- no match ---
 
@@ -271,18 +276,21 @@ class TestStrategyPriorityOrder(unittest.TestCase):
 
     def test_raw_ambiguity_stops_search(self):
         # Two identical-name mentions → ambiguous at raw level; no edge.
+        # Returns (None, _MATCH_OUTCOME_AMBIGUOUS) rather than (None, None)
+        # so callers can distinguish "ambiguous" from "no candidates found".
         mentions = [_flat("ABC", "m1"), _flat("ABC", "m2")]
         result, method = match_slot_to_mention("ABC", mentions)
         self.assertIsNone(result)
-        self.assertIsNone(method)
+        self.assertEqual(method, _MATCH_OUTCOME_AMBIGUOUS)
 
     def test_casefold_ambiguity_stops_search(self):
         # Two mentions with different raw names that casefold identically
         # — ambiguous at casefold level; no edge created.
+        # Returns (None, _MATCH_OUTCOME_AMBIGUOUS) rather than (None, None).
         mentions = [_flat("Hello", "m1"), _flat("HELLO", "m2")]
         result, method = match_slot_to_mention("hello", mentions)
         self.assertIsNone(result)
-        self.assertIsNone(method)
+        self.assertEqual(method, _MATCH_OUTCOME_AMBIGUOUS)
 
 
 # ---------------------------------------------------------------------------
@@ -1179,6 +1187,35 @@ class TestBuildParticipationEdgesListSplit(unittest.TestCase):
         self.assertEqual(len(edges), 1)
         self.assertEqual(edges[0]["mention_id"], "m-combined")
         self.assertEqual(edges[0]["match_method"], MATCH_METHOD_RAW_EXACT)
+
+    def test_ambiguous_whole_slot_does_not_trigger_list_split(self):
+        # Two mentions named "Amazon and eBay" → whole-slot match is ambiguous
+        # (_MATCH_OUTCOME_AMBIGUOUS).  list_split must NOT be attempted, so no
+        # individual "Amazon" / "eBay" edges should be created either.
+        mentions = [
+            _mention("Amazon and eBay", "m-combined-1"),
+            _mention("Amazon and eBay", "m-combined-2"),
+            _mention("Amazon", "m-amazon"),
+            _mention("eBay", "m-ebay"),
+        ]
+        claims = [_claim("c1", obj="Amazon and eBay")]
+        edges = build_participation_edges(claims, mentions)
+        # Whole-slot is ambiguous — list-split must NOT fire.
+        self.assertEqual(edges, [])
+
+    def test_ambiguous_whole_slot_casefold_does_not_trigger_list_split(self):
+        # "google and facebook" casefolds to match two mentions ("Google and Facebook"
+        # and "GOOGLE AND FACEBOOK") — whole-slot is casefold-ambiguous.
+        # list_split must NOT be attempted.
+        mentions = [
+            _mention("Google and Facebook", "m-1"),
+            _mention("GOOGLE AND FACEBOOK", "m-2"),
+            _mention("Google", "m-google"),
+            _mention("Facebook", "m-fb"),
+        ]
+        claims = [_claim("c1", subject="google and facebook")]
+        edges = build_participation_edges(claims, mentions)
+        self.assertEqual(edges, [])
 
     # --- list-split with casefold/normalized sub-matching ---
 
