@@ -1729,6 +1729,7 @@ WHERE toLower(canonical.name) CONTAINS $entity_name
 MATCH (c:ExtractedClaim)-[r:HAS_PARTICIPANT]->(m)
 WHERE ($run_id IS NULL OR c.run_id = $run_id)
 RETURN canonical.name        AS canonical_entity,
+       cluster.cluster_id     AS cluster_id,
        cluster.canonical_name AS cluster,
        m.name                 AS mention,
        r.role                 AS role,
@@ -1745,10 +1746,12 @@ ORDER BY role, c.claim_id;
 // Cluster-name traversal — raw text-match; may return fragmented results
 MATCH (cluster:ResolvedEntityCluster)<-[:MEMBER_OF]-(m:EntityMention)
 WHERE toLower(cluster.canonical_name) CONTAINS $entity_name
-  AND cluster.run_id = $run_id AND m.run_id = $run_id
+  AND ($run_id IS NULL OR cluster.run_id = $run_id)
+  AND ($run_id IS NULL OR m.run_id = $run_id)
 MATCH (c:ExtractedClaim)-[r:HAS_PARTICIPANT]->(m)
-WHERE c.run_id = $run_id
-RETURN cluster.canonical_name AS cluster,
+WHERE ($run_id IS NULL OR c.run_id = $run_id)
+RETURN cluster.cluster_id    AS cluster_id,
+       cluster.canonical_name AS cluster,
        cluster.entity_type    AS cluster_type,
        m.name                 AS mention,
        r.role                 AS role,

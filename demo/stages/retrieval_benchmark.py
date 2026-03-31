@@ -363,8 +363,8 @@ WHERE toLower(canonical.name) CONTAINS $entity_name
 MATCH (c:ExtractedClaim)-[r:HAS_PARTICIPANT]->(m)
 WHERE ($run_id IS NULL OR c.run_id = $run_id)
 RETURN canonical.name        AS canonical_entity,
-       cluster.cluster_id     AS cluster,
-       cluster.canonical_name AS cluster_canonical_name,
+       cluster.cluster_id     AS cluster_id,
+       cluster.canonical_name AS cluster,
        m.name                 AS mention,
        r.role                 AS role,
        c.claim_text           AS claim_text,
@@ -382,7 +382,8 @@ WHERE toLower(cluster.canonical_name) CONTAINS $entity_name
   AND ($run_id IS NULL OR (cluster.run_id = $run_id AND m.run_id = $run_id))
 MATCH (c:ExtractedClaim)-[r:HAS_PARTICIPANT]->(m)
 WHERE ($run_id IS NULL OR c.run_id = $run_id)
-RETURN cluster.canonical_name AS cluster,
+RETURN cluster.cluster_id    AS cluster_id,
+       cluster.canonical_name AS cluster,
        cluster.entity_type    AS cluster_type,
        m.name                 AS mention,
        r.role                 AS role,
@@ -717,7 +718,7 @@ def build_benchmark_case_result(
     canonical_claim_count = _count_distinct_claims(canonical_rows)
     cluster_claim_count = _count_distinct_claims(cluster_rows)
     canonical_cluster_count = _count_distinct_clusters(canonical_rows)
-    cluster_name_cluster_count = len(fragmentation_check_rows)
+    cluster_name_cluster_count = _count_distinct(fragmentation_check_rows, "cluster_id")
     fragmentation = _detect_fragmentation(canonical_cluster_count, cluster_name_cluster_count)
 
     return BenchmarkCaseResult(

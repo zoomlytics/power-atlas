@@ -82,6 +82,7 @@ def _make_canonical_rows(n_claims: int, n_clusters: int = 1) -> list[dict[str, A
         rows.append(
             {
                 "canonical_entity": "TestEntity",
+                "cluster_id": f"cluster-id-{cluster_idx}",
                 "cluster": f"TestEntity Cluster {cluster_idx}",
                 "mention": f"mention_{i}",
                 "role": "subject",
@@ -101,6 +102,7 @@ def _make_cluster_rows(n_claims: int, n_clusters: int = 1) -> list[dict[str, Any
         cluster_idx = i % n_clusters
         rows.append(
             {
+                "cluster_id": f"cluster-id-{cluster_idx}",
                 "cluster": f"TestEntity Cluster {cluster_idx}",
                 "cluster_type": "Organization",
                 "mention": f"mention_{i}",
