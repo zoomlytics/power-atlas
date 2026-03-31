@@ -322,7 +322,7 @@ def _normalize_entity_type(entity_type: str | None) -> str | None:
 # Allowlist for the `var` parameter of build_entity_type_cypher_case.
 # A safe Cypher variable reference consists of alphanumeric characters,
 # underscores, and dots (for property access, e.g. "m.entity_type").
-_SAFE_CYPHER_VAR_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_.]*$")
+_SAFE_CYPHER_VAR_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$")
 
 
 def _escape_cypher_string(value: str) -> str:
