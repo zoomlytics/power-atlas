@@ -1723,10 +1723,11 @@ Pairwise cases execute a single bidirectional query starting from `ExtractedClai
 // Canonical traversal — all claims reachable from a CanonicalEntity via hybrid path
 MATCH (canonical:CanonicalEntity)<-[a:ALIGNED_WITH]-(cluster:ResolvedEntityCluster)<-[:MEMBER_OF]-(m:EntityMention)
 WHERE toLower(canonical.name) CONTAINS $entity_name
-  AND a.run_id = $run_id AND a.alignment_version = $alignment_version
-  AND m.run_id = $run_id
+  AND ($run_id IS NULL OR a.run_id = $run_id)
+  AND ($alignment_version IS NULL OR a.alignment_version = $alignment_version)
+  AND ($run_id IS NULL OR m.run_id = $run_id)
 MATCH (c:ExtractedClaim)-[r:HAS_PARTICIPANT]->(m)
-WHERE c.run_id = $run_id
+WHERE ($run_id IS NULL OR c.run_id = $run_id)
 RETURN canonical.name        AS canonical_entity,
        cluster.canonical_name AS cluster,
        m.name                 AS mention,
