@@ -758,6 +758,22 @@ you can apply an additional mapping layer **outside** of `_normalize_entity_type
 `_make_cluster_id()`.  This keeps identity-time normalization minimal and graph-observable
 while still allowing ad hoc groupings in query results or reports.
 
+**Important:** any Cypher that applies entity-type normalization for diagnostic purposes
+(e.g. graph-health type-fragmentation queries) must use the same synonym mapping as
+identity-time normalization, not an independent hardcoded table.  The public helper
+`build_entity_type_cypher_case(var)` in `demo/stages/entity_resolution.py` generates
+the correct Cypher CASE expression directly from `_ENTITY_TYPE_SYNONYMS` and must be
+used for this purpose.  `demo/stages/graph_health.py` uses this helper for the
+`_Q_CLUSTER_TYPE_FRAGMENTATION` query so that graph-health diagnostics are semantically
+consistent with actual cluster-assignment behaviour.
+
+Example usage of the helper:
+```python
+from demo.stages.entity_resolution import build_entity_type_cypher_case
+case_expr = build_entity_type_cypher_case("m.entity_type")
+# case_expr can be embedded directly in a Cypher WITH / RETURN clause.
+```
+
 Example Cypher grouping at reporting time:
 ```cypher
 MATCH (m:EntityMention {run_id: $run_id})
@@ -771,6 +787,11 @@ RETURN
   count(*) AS mentions
 ORDER BY mentions DESC;
 ```
+
+*Note:* the inline CASE above is a static illustration of the current synonym table.
+In production code, always generate the CASE expression via `build_entity_type_cypher_case`
+rather than writing it by hand — this ensures the Cypher automatically stays in sync
+when new synonyms are added to `_ENTITY_TYPE_SYNONYMS`.
 
 ### 16.4 Detecting fragmentation risk from new labels
 

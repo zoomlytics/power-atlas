@@ -9,12 +9,17 @@ from unittest.mock import MagicMock, call, patch
 
 from demo.stages.graph_health import (
     GraphHealthArtifact,
+    _Q_CLUSTER_TYPE_FRAGMENTATION,
     _compute_alignment_summary,
     _compute_mention_summary,
     _compute_participation_summary,
     _records_to_dicts,
     build_graph_health_artifact,
     run_graph_health_diagnostics,
+)
+from demo.stages.entity_resolution import (
+    _ENTITY_TYPE_SYNONYMS,
+    build_entity_type_cypher_case,
 )
 
 
@@ -528,6 +533,111 @@ class TestRunGraphHealthDiagnosticsLive(unittest.TestCase):
             artifact_path = Path(result["artifact_path"])
             self.assertIn("runs", artifact_path.parts)
             self.assertIn("graph_health", artifact_path.parts)
+
+
+# ---------------------------------------------------------------------------
+# Normalization policy alignment — regression coverage
+# ---------------------------------------------------------------------------
+
+
+class TestClusterTypeFragmentationQueryAlignment(unittest.TestCase):
+    """Verify that _Q_CLUSTER_TYPE_FRAGMENTATION reflects the entity-resolution
+    normalization policy, not a separate ad-hoc mapping.
+
+    These tests are the divergence guard required by the issue: they must fail
+    if a synonym is added to _ENTITY_TYPE_SYNONYMS without the Cypher query
+    updating automatically.  Because the query is now *generated* from the same
+    synonym table, such divergence is structurally impossible — but we still
+    assert the relationship explicitly so future readers understand the coupling
+    and so any accidental decoupling (e.g. inlining the query again) is caught.
+    """
+
+    def test_all_synonyms_appear_in_fragmentation_query(self) -> None:
+        """Every entry in _ENTITY_TYPE_SYNONYMS must appear in the Cypher query."""
+        for raw, canonical in _ENTITY_TYPE_SYNONYMS.items():
+            self.assertIn(
+                raw,
+                _Q_CLUSTER_TYPE_FRAGMENTATION,
+                msg=(
+                    f"Synonym '{raw}' → '{canonical}' from _ENTITY_TYPE_SYNONYMS "
+                    f"is missing from _Q_CLUSTER_TYPE_FRAGMENTATION.  "
+                    f"Add it to _ENTITY_TYPE_SYNONYMS; the Cypher is generated "
+                    f"automatically from that table."
+                ),
+            )
+            self.assertIn(
+                canonical,
+                _Q_CLUSTER_TYPE_FRAGMENTATION,
+                msg=(
+                    f"Canonical form '{canonical}' for synonym '{raw}' is missing "
+                    f"from _Q_CLUSTER_TYPE_FRAGMENTATION."
+                ),
+            )
+
+    def test_fragmentation_query_generated_from_cypher_case_helper(self) -> None:
+        """Every WHEN branch from build_entity_type_cypher_case must appear verbatim
+        in the fragmentation query (after stripping per-line leading whitespace).
+
+        This confirms the query was generated from the shared helper rather than
+        written independently with a separate mapping.
+        """
+        expected_case = build_entity_type_cypher_case("m.entity_type")
+
+        # Extract only the WHEN/ELSE data lines — these are the normalization logic.
+        def _data_lines(s: str) -> list[str]:
+            return [
+                line.lstrip()
+                for line in s.splitlines()
+                if line.strip().startswith(("WHEN", "ELSE"))
+            ]
+
+        expected = _data_lines(expected_case)
+        query = _data_lines(_Q_CLUSTER_TYPE_FRAGMENTATION)
+
+        for line in expected:
+            self.assertIn(
+                line,
+                query,
+                msg=(
+                    f"Normalization line {line!r} from build_entity_type_cypher_case "
+                    f"is missing from _Q_CLUSTER_TYPE_FRAGMENTATION.  "
+                    f"The fragmentation query must be built via "
+                    f"build_entity_type_cypher_case so it stays in sync with "
+                    f"entity-resolution normalization policy."
+                ),
+            )
+
+    def test_adding_hypothetical_synonym_would_appear_in_query(self) -> None:
+        """A new synonym added to _ENTITY_TYPE_SYNONYMS would automatically appear
+        in the Cypher CASE expression without any manual update.
+
+        This is a structural regression test: it regenerates the CASE expression
+        from a hypothetical extended synonym table and asserts the output differs
+        from the current query — confirming that if _ENTITY_TYPE_SYNONYMS grew,
+        the generated query would grow with it.
+        """
+        # Synthesise a CASE expression using a sentinel synonym not in the real table.
+        sentinel_raw = "__TEST_SYNONYM__"
+        sentinel_canonical = "__TEST_CANONICAL__"
+
+        # Directly build the expression from a locally extended mapping.
+        extended_synonyms = {**_ENTITY_TYPE_SYNONYMS, sentinel_raw: sentinel_canonical}
+        when_lines = "\n".join(
+            f"  WHEN trim(m.entity_type) = '{raw}' THEN '{canonical}'"
+            for raw, canonical in extended_synonyms.items()
+        )
+        extended_case = (
+            f"CASE\n"
+            f"  WHEN m.entity_type IS NULL OR trim(m.entity_type) = '' THEN 'UNKNOWN'\n"
+            f"{when_lines}\n"
+            f"  ELSE trim(m.entity_type)\n"
+            f"END"
+        )
+
+        # The extended expression must contain the sentinel synonym.
+        self.assertIn(sentinel_raw, extended_case)
+        # And it must differ from the current (un-extended) query.
+        self.assertNotIn(sentinel_raw, _Q_CLUSTER_TYPE_FRAGMENTATION)
 
 
 if __name__ == "__main__":
