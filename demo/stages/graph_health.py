@@ -524,13 +524,14 @@ def run_graph_health_diagnostics(
 
     if getattr(config, "dry_run", False):
         # In dry_run mode, write a file with the same schema as the live artifact
-        # (empty rows) so the on-disk format is stable for downstream tooling.
+        # (empty rows + zero/None summaries) so the on-disk format is stable for
+        # downstream tooling regardless of dry_run state.
         dry_artifact: dict[str, Any] = {
-            "generated_at": datetime.now(UTC).isoformat(),
+            "generated_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "run_id": run_id,
             "alignment_version": alignment_version,
             "participation_role_distribution": [],
-            "claim_edge_coverage": [],
+            "claim_edge_coverage_distribution": [],
             "match_method_distribution": [],
             "mention_clustering": [],
             "cluster_size_distribution": [],
@@ -538,6 +539,9 @@ def run_graph_health_diagnostics(
             "alignment_coverage": [],
             "per_canonical_alignment": [],
             "canonical_chain_health": [],
+            "participation_summary": None,
+            "mention_summary": None,
+            "alignment_summary": None,
         }
         artifact_path.write_text(json.dumps(dry_artifact, indent=2), encoding="utf-8")
         summary: dict[str, Any] = {
@@ -613,7 +617,7 @@ def run_graph_health_diagnostics(
     _logger.info("graph_health: artifact written to %s", artifact_path)
 
     return {
-        "status": "ok",
+        "status": "live",
         "run_id": run_id,
         "alignment_version": alignment_version,
         "artifact_path": str(artifact_path),

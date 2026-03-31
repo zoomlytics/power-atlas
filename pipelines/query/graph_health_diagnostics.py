@@ -150,19 +150,22 @@ def main(argv: list[str] | None = None) -> None:  # pragma: no cover
         print(f"  Edges by role               : {ps['edges_by_role']}")
         print(f"  Total claims                : {ps['total_claims']}")
         print(f"  Claims with zero edges      : {ps['claims_with_zero_edges']}")
-        print(f"  Claim coverage              : {ps['claim_coverage_pct']}%")
+        claim_cov = f"{ps['claim_coverage_pct']}%" if ps['claim_coverage_pct'] is not None else "n/a"
+        print(f"  Claim coverage              : {claim_cov}")
         print()
         print("--- Mention clustering ---")
         print(f"  Total mentions              : {ms['total_mentions']}")
         print(f"  Clustered                   : {ms['clustered_mentions']}")
         print(f"  Unclustered                 : {ms['unclustered_mentions']}")
-        print(f"  Unresolved rate             : {ms['unresolved_rate_pct']}%")
+        unresolved = f"{ms['unresolved_rate_pct']}%" if ms['unresolved_rate_pct'] is not None else "n/a"
+        print(f"  Unresolved rate             : {unresolved}")
         print()
         print("--- Alignment ---")
         print(f"  Total clusters              : {als['total_clusters']}")
         print(f"  Aligned clusters            : {als['aligned_clusters']}")
         print(f"  Unaligned clusters          : {als['unaligned_clusters']}")
-        print(f"  Alignment coverage          : {als['alignment_coverage_pct']}%")
+        align_cov = f"{als['alignment_coverage_pct']}%" if als['alignment_coverage_pct'] is not None else "n/a"
+        print(f"  Alignment coverage          : {align_cov}")
 
     for w in result.get("warnings", []):
         print(f"WARNING: {w}", file=sys.stderr)

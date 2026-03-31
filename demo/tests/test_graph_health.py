@@ -329,9 +329,13 @@ class TestRunGraphHealthDiagnosticsDryRun(unittest.TestCase):
             run_graph_health_diagnostics(config, run_id="run-schema", alignment_version="v1.0")
             path = tmp_path / "runs" / "run-schema" / "graph_health" / "graph_health_diagnostics.json"
             data = json.loads(path.read_text(encoding="utf-8"))
-            # Must contain artifact-schema keys, not the summary-wrapper keys.
+            # Must contain live-artifact-schema keys, not summary-wrapper keys.
             self.assertIn("generated_at", data)
             self.assertIn("participation_role_distribution", data)
+            self.assertIn("claim_edge_coverage_distribution", data)
+            self.assertIn("participation_summary", data)
+            self.assertIn("mention_summary", data)
+            self.assertIn("alignment_summary", data)
             self.assertNotIn("status", data)
             self.assertNotIn("warnings", data)
 
@@ -421,7 +425,7 @@ class TestRunGraphHealthDiagnosticsLive(unittest.TestCase):
                     alignment_version="v1.0",
                 )
 
-            self.assertEqual(result["status"], "ok")
+            self.assertEqual(result["status"], "live")
             self.assertEqual(result["run_id"], "run-live-001")
             artifact_path = Path(result["artifact_path"])
             self.assertTrue(artifact_path.exists())
