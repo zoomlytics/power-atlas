@@ -480,7 +480,9 @@ def build_participation_edges_with_metrics(
             if not slot_text:
                 continue
 
-            slot_str = str(slot_text)
+            slot_str = str(slot_text).strip()
+            if not slot_str:
+                continue
             seen_for_slot: set[str] = set()
             role = _SLOT_ROLE[slot]
             slots_processed += 1
