@@ -293,7 +293,8 @@ _ENTITY_TYPE_SYNONYMS: dict[str, str] = {
 # Reserved sentinel key used in entity_type_report dicts to represent absent or
 # empty entity_type values (None / "").  Using a decorated name makes it
 # practically impossible for a real NLP extractor to emit this label
-# accidentally.  Do NOT change this value without also bumping _CLUSTER_VERSION.
+# accidentally.  Do NOT change this value without also updating any consumers
+# of entity_type_report summaries/artifacts that rely on this sentinel.
 _ENTITY_TYPE_NULL_SENTINEL = "__null__"
 
 
