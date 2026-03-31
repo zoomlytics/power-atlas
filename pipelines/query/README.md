@@ -1533,3 +1533,150 @@ source document, or because the claim-participation stage could not resolve a ma
 > **Tip:** For the signature queries in sections 2–3, replace the `CONTAINS` filter value with
 > any entity name from your dataset.  Entity names come from the raw LLM extraction output and
 > may vary in casing and spelling; `toLower(...) CONTAINS '...'` is a safe starting point.
+
+---
+
+## 13. Repeatable graph-health diagnostics artifact
+
+The queries in section 12 are also available as a repeatable, scriptable diagnostic
+tool.  Running `pipelines/query/graph_health_diagnostics.py` executes all queries
+in one pass and writes a scoped JSON artifact to disk that can be committed,
+compared across runs, and used for regression tracking.
+
+### Generating the artifact
+
+```bash
+# Set Neo4j connection environment variables
+export NEO4J_URI=bolt://localhost:7687
+export NEO4J_USERNAME=neo4j
+export NEO4J_PASSWORD=<your-password>
+export NEO4J_DATABASE=neo4j   # optional, defaults to 'neo4j'
+
+# Scoped to a specific run and alignment version (recommended after each pipeline run)
+python pipelines/query/graph_health_diagnostics.py \
+    --run-id unstructured_ingest-20240601T120000000000Z-abcd1234 \
+    --alignment-version v1.0
+
+# Unscoped — aggregates across all runs in the database
+python pipelines/query/graph_health_diagnostics.py
+```
+
+The artifact is written to:
+
+- **Scoped run:** `pipelines/runs/<run-id>/graph_health/graph_health_diagnostics.json`
+- **Unscoped:** `pipelines/runs/graph_health/graph_health_diagnostics.json`
+
+A documented example output is available at
+`pipelines/runs/graph_health_example_output.json`.
+
+### Artifact structure
+
+The artifact is a JSON document with the following top-level keys:
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `generated_at` | string | ISO-8601 UTC timestamp |
+| `run_id` | string \| null | Pipeline run_id scope (null = all runs) |
+| `alignment_version` | string \| null | Alignment version scope |
+| `participation_role_distribution` | array | Raw rows: `role`, `total` |
+| `claim_edge_coverage_distribution` | array | Raw rows: `participant_edges`, `claim_count` |
+| `match_method_distribution` | array | Raw rows: `match_method`, `total` |
+| `mention_clustering` | array | Raw rows: `is_clustered`, `mention_count` |
+| `cluster_size_distribution` | array | Raw rows: `member_count`, `cluster_count` |
+| `cluster_type_fragmentation` | array | Raw rows: `distinct_types_in_cluster`, `cluster_count` |
+| `alignment_coverage` | array | Raw rows: `is_aligned`, `cluster_count` |
+| `per_canonical_alignment` | array | Top 30 canonical entities with aligned cluster/mention counts |
+| `canonical_chain_health` | array | Top 30 canonicals with end-to-end claim-reachability status |
+| `participation_summary` | object | Derived summary (see below) |
+| `mention_summary` | object | Derived summary (see below) |
+| `alignment_summary` | object | Derived summary (see below) |
+
+**`participation_summary`**
+
+| Field | Description |
+|-------|-------------|
+| `total_edges` | Total `HAS_PARTICIPANT` edges in scope |
+| `edges_by_role` | Edge count keyed by role (`subject`, `object`, …) |
+| `total_claims` | Total `ExtractedClaim` nodes in scope |
+| `claims_with_zero_edges` | Claims with no participation link |
+| `claim_coverage_pct` | Percentage of claims with at least one edge (null if no claims) |
+
+**`mention_summary`**
+
+| Field | Description |
+|-------|-------------|
+| `total_mentions` | Total `EntityMention` nodes in scope |
+| `clustered_mentions` | Mentions with a `MEMBER_OF` edge |
+| `unclustered_mentions` | Mentions without any `MEMBER_OF` edge |
+| `unresolved_rate_pct` | Percentage of unclustered mentions (null if no mentions) |
+
+**`alignment_summary`**
+
+| Field | Description |
+|-------|-------------|
+| `total_clusters` | Total `ResolvedEntityCluster` nodes in scope |
+| `aligned_clusters` | Clusters with an `ALIGNED_WITH` edge for the scoped version |
+| `unaligned_clusters` | Clusters without an `ALIGNED_WITH` edge |
+| `alignment_coverage_pct` | Percentage of aligned clusters (null if no clusters) |
+
+### Interpreting the metrics
+
+| Metric | Healthy signal | Suspicious movement |
+|--------|---------------|---------------------|
+| `claim_coverage_pct` | ≥ 85 % for a well-populated corpus | Drop of > 5 pp between runs |
+| `edges_by_role` — balance | `subject` and `object` counts within ~20 % of each other | One role near zero while the other is large |
+| `match_method_distribution` | `raw_exact` is the dominant method | `list_split` growing rapidly (composite spans proliferating) |
+| `unresolved_rate_pct` | < 10 % in `hybrid` / `unstructured_only` mode | > 30 % may indicate entity-resolution stage did not complete |
+| `cluster_type_fragmentation` — `distinct_types_in_cluster = 1` | All or nearly all clusters | More than a few `> 1` clusters signals over-aggressive fuzzy merging |
+| `cluster_size_distribution` — singletons | Some singletons are normal (rare entities) | > 80 % singletons may indicate normalization thresholds too strict |
+| `alignment_coverage_pct` | Proportional to the size of the structured catalog | 0 % after a hybrid run means the alignment stage did not run |
+| `canonical_chain_health` — `status = 'dark'` | A small number of dark canonicals is normal | Many dark canonicals = structured catalog not contributing to retrieval |
+
+> **Note on `unresolved_rate_pct` in structured-anchor mode:** In
+> `structured_anchor` mode, mentions resolved via `RESOLVES_TO` intentionally
+> have no `MEMBER_OF` edge and will appear as unclustered.  A high
+> unclustered rate in that mode is expected and is *not* a bug.
+
+### Comparing artifacts across runs
+
+The artifact is plain JSON and can be diffed directly:
+
+```bash
+diff \
+  pipelines/runs/run-a/graph_health/graph_health_diagnostics.json \
+  pipelines/runs/run-b/graph_health/graph_health_diagnostics.json
+```
+
+For a focused summary comparison, use `jq`:
+
+```bash
+jq '{run_id, participation_summary, mention_summary, alignment_summary}' \
+  pipelines/runs/<run-id>/graph_health/graph_health_diagnostics.json
+```
+
+### Programmatic usage
+
+The diagnostics are also available as a Python function for use in notebooks
+or custom scripts:
+
+```python
+from demo.contracts.runtime import Config
+from demo.stages.graph_health import run_graph_health_diagnostics
+
+config = Config(
+    dry_run=False,
+    output_dir=Path("pipelines/runs"),
+    neo4j_uri="bolt://localhost:7687",
+    neo4j_username="neo4j",
+    neo4j_password="<password>",
+    neo4j_database="neo4j",
+    openai_model="",
+)
+
+result = run_graph_health_diagnostics(
+    config,
+    run_id="unstructured_ingest-...",
+    alignment_version="v1.0",
+)
+print(result["artifact"]["participation_summary"])
+```
