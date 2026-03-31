@@ -1086,6 +1086,87 @@ class TestSplitSlotText(unittest.TestCase):
         parts = split_slot_text("New York and Los Angeles")
         self.assertEqual(parts, ["New York", "Los Angeles"])
 
+    # --- slash separators (new: supported with surrounding whitespace) ---
+
+    def test_slash_with_spaces_splits_two_entities(self):
+        # "Amazon / eBay" → ["Amazon", "eBay"]
+        parts = split_slot_text("Amazon / eBay")
+        self.assertEqual(parts, ["Amazon", "eBay"])
+
+    def test_slash_with_spaces_splits_three_entities(self):
+        # "Amazon / eBay / Google" → ["Amazon", "eBay", "Google"]
+        parts = split_slot_text("Amazon / eBay / Google")
+        self.assertEqual(parts, ["Amazon", "eBay", "Google"])
+
+    def test_slash_no_spaces_does_not_split(self):
+        # "Amazon/eBay" — bare slash without spaces is NOT a list separator
+        # (avoids splitting URL paths, numeric ratios, etc.).
+        self.assertEqual(split_slot_text("Amazon/eBay"), [])
+
+    def test_slash_only_leading_space_does_not_split(self):
+        # " /eBay" — requires space on BOTH sides; asymmetric space does not split.
+        self.assertEqual(split_slot_text("Amazon /eBay"), [])
+
+    def test_slash_only_trailing_space_does_not_split(self):
+        # "Amazon/ eBay" — requires space on BOTH sides.
+        self.assertEqual(split_slot_text("Amazon/ eBay"), [])
+
+    def test_slash_multiple_spaces_splits(self):
+        # Multiple spaces around slash are also acceptable.
+        parts = split_slot_text("Amazon  /  eBay")
+        self.assertEqual(parts, ["Amazon", "eBay"])
+
+    # --- semicolon separators (new: supported with trailing whitespace) ---
+
+    def test_semicolon_space_splits_two_entities(self):
+        # "Amazon; eBay" → ["Amazon", "eBay"]
+        parts = split_slot_text("Amazon; eBay")
+        self.assertEqual(parts, ["Amazon", "eBay"])
+
+    def test_semicolon_space_splits_three_entities(self):
+        # "Amazon; eBay; Google" → ["Amazon", "eBay", "Google"]
+        parts = split_slot_text("Amazon; eBay; Google")
+        self.assertEqual(parts, ["Amazon", "eBay", "Google"])
+
+    def test_semicolon_no_space_does_not_split(self):
+        # "Amazon;eBay" — bare semicolon without trailing space is NOT a separator
+        # (avoids splitting abbreviations such as "U.S.;").
+        self.assertEqual(split_slot_text("Amazon;eBay"), [])
+
+    def test_semicolon_multiple_spaces_splits(self):
+        parts = split_slot_text("Amazon;  eBay")
+        self.assertEqual(parts, ["Amazon", "eBay"])
+
+    # --- explicitly unsupported forms (documented non-support) ---
+
+    def test_parenthetical_qualifier_splits_but_qualifier_retained(self):
+        # "Amazon (AWS) and Google" splits into ["Amazon (AWS)", "Google"].
+        # The parenthetical form is not stripped; "Amazon (AWS)" will fail
+        # to match a plain "Amazon" mention.  This is intentional: we do not
+        # attempt to recover the base name from parenthetical qualifiers.
+        parts = split_slot_text("Amazon (AWS) and Google")
+        self.assertEqual(parts, ["Amazon (AWS)", "Google"])
+
+    def test_grouped_qualifier_splits_but_qualifier_retained(self):
+        # "Amazon and eBay subsidiaries" splits into ["Amazon", "eBay subsidiaries"].
+        # "eBay subsidiaries" will not match a plain "eBay" mention.
+        parts = split_slot_text("Amazon and eBay subsidiaries")
+        self.assertEqual(parts, ["Amazon", "eBay subsidiaries"])
+
+    def test_appositive_comma_splits_entity_and_descriptor(self):
+        # "Xapo, a digital-assets company" splits via comma into
+        # ["Xapo", "a digital-assets company"].  "Xapo" can match a mention;
+        # the appositive descriptor phrase will typically fail to match.
+        parts = split_slot_text("Xapo, a digital-assets company")
+        self.assertEqual(parts, ["Xapo", "a digital-assets company"])
+
+    def test_nested_qualifier_splits_into_parts(self):
+        # "Amazon, eBay, and Google subsidiaries" splits into
+        # ["Amazon", "eBay", "Google subsidiaries"].
+        # "Google subsidiaries" is intentionally not resolved.
+        parts = split_slot_text("Amazon, eBay, and Google subsidiaries")
+        self.assertEqual(parts, ["Amazon", "eBay", "Google subsidiaries"])
+
 
 # ---------------------------------------------------------------------------
 # Tests for list-split matching in build_participation_edges
@@ -1362,6 +1443,221 @@ class TestBuildParticipationEdgesListSplit(unittest.TestCase):
         self.assertEqual(len(edges), 3)
         mention_ids = {e["mention_id"] for e in edges}
         self.assertEqual(mention_ids, {"m-tesla", "m-ford", "m-gm"})
+
+    # --- slash-delimited lists (new: supported with surrounding whitespace) ---
+
+    def test_slash_delimited_two_entities_yields_two_edges(self):
+        # "Amazon / eBay" → two list_split edges.
+        mentions = [
+            _mention("Amazon", "m-amazon"),
+            _mention("eBay", "m-ebay"),
+        ]
+        claims = [_claim("c1", obj="Amazon / eBay")]
+        edges = build_participation_edges(claims, mentions)
+        self.assertEqual(len(edges), 2)
+        mention_ids = {e["mention_id"] for e in edges}
+        self.assertEqual(mention_ids, {"m-amazon", "m-ebay"})
+        for e in edges:
+            self.assertEqual(e["match_method"], MATCH_METHOD_LIST_SPLIT)
+
+    def test_slash_delimited_three_entities_yields_three_edges(self):
+        # "Amazon / eBay / Google" → three list_split edges.
+        mentions = [
+            _mention("Amazon", "m-amazon"),
+            _mention("eBay", "m-ebay"),
+            _mention("Google", "m-google"),
+        ]
+        claims = [_claim("c1", obj="Amazon / eBay / Google")]
+        edges = build_participation_edges(claims, mentions)
+        self.assertEqual(len(edges), 3)
+        mention_ids = {e["mention_id"] for e in edges}
+        self.assertEqual(mention_ids, {"m-amazon", "m-ebay", "m-google"})
+        self.assertTrue(all(e["match_method"] == MATCH_METHOD_LIST_SPLIT for e in edges))
+
+    def test_slash_without_spaces_does_not_split(self):
+        # "Amazon/eBay" — no spaces around slash → treated as a single slot text;
+        # no edge created because "Amazon/eBay" has no matching mention.
+        mentions = [
+            _mention("Amazon", "m-amazon"),
+            _mention("eBay", "m-ebay"),
+        ]
+        claims = [_claim("c1", obj="Amazon/eBay")]
+        edges = build_participation_edges(claims, mentions)
+        self.assertEqual(edges, [])
+
+    # --- semicolon-delimited lists (new: supported with trailing whitespace) ---
+
+    def test_semicolon_delimited_two_entities_yields_two_edges(self):
+        # "Amazon; eBay" → two list_split edges.
+        mentions = [
+            _mention("Amazon", "m-amazon"),
+            _mention("eBay", "m-ebay"),
+        ]
+        claims = [_claim("c1", obj="Amazon; eBay")]
+        edges = build_participation_edges(claims, mentions)
+        self.assertEqual(len(edges), 2)
+        mention_ids = {e["mention_id"] for e in edges}
+        self.assertEqual(mention_ids, {"m-amazon", "m-ebay"})
+        for e in edges:
+            self.assertEqual(e["match_method"], MATCH_METHOD_LIST_SPLIT)
+
+    def test_semicolon_delimited_three_entities_yields_three_edges(self):
+        # "Amazon; eBay; Google" → three list_split edges.
+        mentions = [
+            _mention("Amazon", "m-amazon"),
+            _mention("eBay", "m-ebay"),
+            _mention("Google", "m-google"),
+        ]
+        claims = [_claim("c1", subject="Amazon; eBay; Google")]
+        edges = build_participation_edges(claims, mentions)
+        self.assertEqual(len(edges), 3)
+        mention_ids = {e["mention_id"] for e in edges}
+        self.assertEqual(mention_ids, {"m-amazon", "m-ebay", "m-google"})
+        self.assertTrue(all(e["match_method"] == MATCH_METHOD_LIST_SPLIT for e in edges))
+
+    def test_semicolon_without_space_does_not_split(self):
+        # "Amazon;eBay" — no trailing space → not a list separator.
+        mentions = [
+            _mention("Amazon", "m-amazon"),
+            _mention("eBay", "m-ebay"),
+        ]
+        claims = [_claim("c1", obj="Amazon;eBay")]
+        edges = build_participation_edges(claims, mentions)
+        self.assertEqual(edges, [])
+
+
+# ---------------------------------------------------------------------------
+# Tests for explicitly unsupported composite argument forms
+# ---------------------------------------------------------------------------
+
+
+class TestBuildParticipationEdgesUnsupportedForms(unittest.TestCase):
+    """Documents explicitly unsupported composite argument patterns.
+
+    These tests verify that the matching pipeline does not silently invent
+    matches for argument patterns that require deeper linguistic analysis
+    (parenthetical qualifiers, grouped qualifiers, appositives, nested
+    qualifiers).  Where partial recovery is the documented behavior (i.e.
+    the entity name is extracted while the qualifying phrase is discarded),
+    the test confirms exactly how many edges are created and which mentions
+    they point to.
+
+    No new matching behavior is added for these forms.  Tests in this class
+    serve as precision regression guards and as machine-readable documentation
+    of the boundary between supported and unsupported patterns.
+    """
+
+    # --- parenthetical qualifiers ---
+
+    def test_parenthetical_qualifier_not_resolved_to_base_mention(self):
+        # "Amazon (AWS) and Google": splits into ["Amazon (AWS)", "Google"].
+        # "Amazon (AWS)" does NOT match mention "Amazon" — parenthetical
+        # qualifier stripping is intentionally unsupported.
+        # "Google" DOES match normally → one edge for Google only.
+        mentions = [
+            _mention("Amazon", "m-amazon"),
+            _mention("Google", "m-google"),
+        ]
+        claims = [_claim("c1", obj="Amazon (AWS) and Google")]
+        edges = build_participation_edges(claims, mentions)
+        # Only Google is recovered; Amazon (AWS) is not resolved.
+        self.assertEqual(len(edges), 1)
+        self.assertEqual(edges[0]["mention_id"], "m-google")
+        self.assertEqual(edges[0]["match_method"], MATCH_METHOD_LIST_SPLIT)
+
+    def test_parenthetical_only_slot_yields_no_edge(self):
+        # "Amazon (AWS)" as the whole slot — no match because the parenthetical
+        # suffix prevents raw/casefold/normalized match against mention "Amazon".
+        mentions = [_mention("Amazon", "m-amazon")]
+        claims = [_claim("c1", obj="Amazon (AWS)")]
+        edges = build_participation_edges(claims, mentions)
+        self.assertEqual(edges, [])
+
+    # --- grouped qualifiers ---
+
+    def test_grouped_qualifier_partial_recovery(self):
+        # "Amazon and eBay subsidiaries": splits into ["Amazon", "eBay subsidiaries"].
+        # "Amazon" matches; "eBay subsidiaries" does NOT match mention "eBay".
+        # Recovering "eBay" from "eBay subsidiaries" is intentionally unsupported.
+        mentions = [
+            _mention("Amazon", "m-amazon"),
+            _mention("eBay", "m-ebay"),
+        ]
+        claims = [_claim("c1", obj="Amazon and eBay subsidiaries")]
+        edges = build_participation_edges(claims, mentions)
+        # Only Amazon is recovered; "eBay subsidiaries" is not resolved.
+        self.assertEqual(len(edges), 1)
+        self.assertEqual(edges[0]["mention_id"], "m-amazon")
+        self.assertEqual(edges[0]["match_method"], MATCH_METHOD_LIST_SPLIT)
+
+    def test_grouped_qualifier_both_sides_qualified_partial_recovery(self):
+        # "U.S. and European regulators" — only the base entity "U.S." matches;
+        # the qualified phrase "European regulators" does not match mention "European".
+        mentions = [
+            _mention("U.S.", "m-us"),
+            _mention("European", "m-eu"),
+        ]
+        claims = [_claim("c1", subject="U.S. and European regulators")]
+        edges = build_participation_edges(claims, mentions)
+        # Partial recovery: "U.S." yields one edge; "European regulators" is not resolved.
+        self.assertEqual(len(edges), 1)
+        self.assertEqual(edges[0]["mention_id"], "m-us")
+
+    # --- appositives ---
+
+    def test_appositive_entity_recovered_descriptor_discarded(self):
+        # "Xapo, a digital-assets company": splits via comma into
+        # ["Xapo", "a digital-assets company"].
+        # "Xapo" matches → one edge.  The appositive descriptor does not match
+        # any mention and is silently skipped (partial-match behavior).
+        mentions = [_mention("Xapo", "m-xapo")]
+        claims = [_claim("c1", subject="Xapo, a digital-assets company")]
+        edges = build_participation_edges(claims, mentions)
+        self.assertEqual(len(edges), 1)
+        self.assertEqual(edges[0]["mention_id"], "m-xapo")
+        self.assertEqual(edges[0]["match_method"], MATCH_METHOD_LIST_SPLIT)
+
+    def test_appositive_mercadolibre_descriptor_discarded(self):
+        # "MercadoLibre, the ecommerce giant": same pattern as above.
+        mentions = [_mention("MercadoLibre", "m-ml")]
+        claims = [_claim("c1", subject="MercadoLibre, the ecommerce giant")]
+        edges = build_participation_edges(claims, mentions)
+        self.assertEqual(len(edges), 1)
+        self.assertEqual(edges[0]["mention_id"], "m-ml")
+        self.assertEqual(edges[0]["match_method"], MATCH_METHOD_LIST_SPLIT)
+
+    # --- nested/mixed constructions ---
+
+    def test_nested_qualifier_entities_recovered_qualified_part_not(self):
+        # "Amazon, eBay, and Google subsidiaries": splits into
+        # ["Amazon", "eBay", "Google subsidiaries"].
+        # "Amazon" and "eBay" match; "Google subsidiaries" does NOT match "Google".
+        mentions = [
+            _mention("Amazon", "m-amazon"),
+            _mention("eBay", "m-ebay"),
+            _mention("Google", "m-google"),
+        ]
+        claims = [_claim("c1", obj="Amazon, eBay, and Google subsidiaries")]
+        edges = build_participation_edges(claims, mentions)
+        self.assertEqual(len(edges), 2)
+        mention_ids = {e["mention_id"] for e in edges}
+        self.assertEqual(mention_ids, {"m-amazon", "m-ebay"})
+        self.assertTrue(all(e["match_method"] == MATCH_METHOD_LIST_SPLIT for e in edges))
+
+    def test_mixed_conjunction_multiple_qualifiers(self):
+        # "MercadoLibre and Nubank investors and advisors":
+        # splits into ["MercadoLibre", "Nubank investors", "advisors"].
+        # "MercadoLibre" matches; "Nubank investors" does NOT match "Nubank";
+        # "advisors" does not match any entity mention.
+        mentions = [
+            _mention("MercadoLibre", "m-ml"),
+            _mention("Nubank", "m-nubank"),
+        ]
+        claims = [_claim("c1", subject="MercadoLibre and Nubank investors and advisors")]
+        edges = build_participation_edges(claims, mentions)
+        # Only MercadoLibre is recovered.
+        self.assertEqual(len(edges), 1)
+        self.assertEqual(edges[0]["mention_id"], "m-ml")
 
 
 # ---------------------------------------------------------------------------

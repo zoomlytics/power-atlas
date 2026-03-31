@@ -196,10 +196,64 @@ up by this same `demo-reset` path and are included in
 
 ---
 
-## 7) Deferred Decisions
+## 7) Composite Argument Form Boundaries
 
-The following are explicitly not decided in this ADR and should be addressed
-in future versions:
+The `list_split` matching strategy handles composite slot values by splitting
+them on recognized list separators.  The table below records the explicit
+support decision for each form encountered in practice.
+
+### Supported composite forms
+
+| Form | Example | Behavior |
+|---|---|---|
+| Conjunction (`and` / `or` / `&`) | `Amazon and eBay` | Splits; each part matched independently |
+| Oxford-comma conjunction | `Amazon, eBay, and Google` | Splits; the `, and ` separator consumed as a unit |
+| Comma-separated list | `Amazon, eBay, Google` | Splits on `", "` |
+| **Slash-delimited list** | `Amazon / eBay / Google` | Splits on `" / "` (whitespace required on both sides) |
+| **Semicolon-delimited list** | `Amazon; eBay; Google` | Splits on `"; "` (trailing whitespace required) |
+
+Slash and semicolon separators require surrounding/trailing whitespace to
+avoid false positives (URL paths, numeric ratios, abbreviations).
+
+### Partial-recovery forms (supported via existing separators)
+
+These patterns use already-supported separators.  The entity name is
+recovered; the qualifying phrase fails to match and is silently skipped.
+This is intentional: partial recovery is preferable to no recovery.
+
+| Form | Example | Behavior |
+|---|---|---|
+| Appositive phrase | `Xapo, a digital-assets company` | Comma split: `Xapo` matched, descriptor phrase discarded |
+| Trailing qualifier in list | `Amazon, eBay, and Google subsidiaries` | `Amazon` and `eBay` matched; `Google subsidiaries` not resolved |
+
+### Intentionally unsupported forms
+
+The following patterns are explicitly **not** supported.  They produce partial
+recovery at best; no special-purpose code is added to handle them.
+
+| Form | Example | Why unsupported |
+|---|---|---|
+| Parenthetical qualifier | `Amazon (AWS) and Google` | `Amazon (AWS)` does not match mention `Amazon`; parenthetical stripping requires NLP |
+| Grouped qualifier (shared suffix) | `Amazon and eBay subsidiaries` | `eBay subsidiaries` ≠ `eBay`; suffix removal is ambiguous |
+| Shared-prefix qualifier | `U.S. and European regulators` | `European regulators` ≠ `European`; same issue |
+| Bare slash | `Amazon/eBay` | Not split — could be URL path or ratio |
+| Bare semicolon | `Amazon;eBay` | Not split — could be abbreviation |
+
+### Architectural rationale
+
+- **Precision over recall**: emitting an incorrect edge is worse than emitting
+  no edge.  Unsupported forms that cannot be resolved without linguistic
+  analysis are left unmatched rather than guessed at.
+- **Deterministic and observable**: every match is reproducible from the same
+  inputs; the `match_method = list_split` value on the edge records that
+  list-splitting was used.
+- **Unstructured-first posture**: complex qualifiers are structural enrichments
+  that belong in future argument-parsing stages, not in the current
+  deterministic text-matching layer.
+
+---
+
+## 8) Deferred Decisions
 
 - **Non-entity arguments** (scalar values, date literals, free-text qualifiers):
   If v0.4+ requires arguments that are not `EntityMention` nodes, the
@@ -216,7 +270,7 @@ in future versions:
 
 ---
 
-## 8) Alignment to Architectural Principles
+## 9) Alignment to Architectural Principles
 
 This decision reinforces:
 
@@ -232,7 +286,7 @@ This decision reinforces:
 
 ---
 
-## 9) Participation Matching Metrics
+## 10) Participation Matching Metrics
 
 ### Overview
 
