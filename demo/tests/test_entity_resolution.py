@@ -1448,6 +1448,7 @@ class TestEntityTypeDriftReport(unittest.TestCase):
         self.assertEqual(report["mapped_variants"], {})
         self.assertEqual(report["passthrough_labels"], [])
         self.assertEqual(report["null_or_empty_count"], 0)
+        self.assertEqual(report["sentinel_label_warnings"], [])
 
     def test_none_entity_type_counted_as_null(self):
         mentions = [{"mention_id": "m1", "name": "Acme"}]  # no entity_type key
@@ -1621,6 +1622,28 @@ class TestEntityTypeDriftReport(unittest.TestCase):
             # one null
             self.assertEqual(rpt["null_or_empty_count"], 1)
             self.assertEqual(rpt["raw_counts"]["ORG"], 1)
+
+    def test_sentinel_collision_surfaces_warning(self):
+        """When extractor emits literal '__null__' and absent types coexist, warn."""
+        mentions = [
+            {"mention_id": "m1", "name": "Acme"},  # entity_type absent → None
+            {"mention_id": "m2", "name": "Weird", "entity_type": "__null__"},  # reserved sentinel
+        ]
+        report = _build_entity_type_report(mentions)
+        # Counts are merged under the sentinel key
+        self.assertEqual(report["raw_counts"]["__null__"], 2)
+        self.assertEqual(report["normalized_counts"]["__null__"], 2)
+        # Warning is surfaced
+        self.assertEqual(len(report["sentinel_label_warnings"]), 1)
+        self.assertIn("__null__", report["sentinel_label_warnings"][0])
+
+    def test_sentinel_label_without_null_input_no_warning(self):
+        """Literal '__null__' label alone (no absent types) produces no warning."""
+        mentions = [
+            {"mention_id": "m1", "name": "Weird", "entity_type": "__null__"},
+        ]
+        report = _build_entity_type_report(mentions)
+        self.assertEqual(report["sentinel_label_warnings"], [])
 
 
 class TestFuzzyRatio(unittest.TestCase):

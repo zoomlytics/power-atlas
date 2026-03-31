@@ -136,8 +136,9 @@ keys (regardless of resolution mode):
     ordered by descending count.  The reserved sentinel key ``"__null__"``
     aggregates all mentions whose ``entity_type`` was ``None`` or ``""``.
   - ``normalized_counts``: ``{canonical_label: count}`` after applying
-    ``_normalize_entity_type()``, ordered by descending count.  Use this to
-    understand post-normalization type distribution.
+    ``_normalize_entity_type()``, ordered by descending count.  The reserved
+    sentinel key ``"__null__"`` aggregates mentions whose normalized type is
+    absent/empty.  Use this to understand post-normalization type distribution.
   - ``mapped_variants``: ``{raw_label: canonical_label}`` for synonym mappings
     from ``_ENTITY_TYPE_SYNONYMS`` that were actually observed this run.
     A non-empty entry here means at least one upstream extractor emitted a
@@ -319,6 +320,11 @@ def _build_entity_type_report(
       the synonym table and are therefore returned unchanged by normalization.
     * **null_or_empty_count** — number of mentions with ``None`` or ``""``
       ``entity_type`` (they produce ``None`` after normalization).
+    * **sentinel_label_warnings** — list of human-readable warning strings (normally
+      empty).  A non-empty entry means an upstream extractor emitted the literal
+      string ``"__null__"``, which is the reserved sentinel; its counts are merged
+      with the null/empty bucket in both ``raw_counts`` and ``normalized_counts``
+      and cannot be distinguished retroactively.
 
     This report is embedded in the entity-resolution summary so that each run
     produces a repeatable, reviewable record of the raw type-label distribution.
@@ -334,6 +340,7 @@ def _build_entity_type_report(
     mapped_variants: dict[str, str] = {}
     passthrough_labels: set[str] = set()
     null_or_empty_count = 0
+    raw_null_sentinel_seen = False  # tracks whether extractor emitted literal "__null__"
 
     for mention in mentions:
         raw = mention.get("entity_type")
@@ -348,6 +355,8 @@ def _build_entity_type_report(
             null_or_empty_count += 1
             norm_key = "__null__"
         else:
+            if raw == "__null__":
+                raw_null_sentinel_seen = True
             canonical = _normalize_entity_type(raw)
             # _normalize_entity_type only returns None when its input is falsy
             # (None or "").  We know raw is a non-empty str here, so canonical
@@ -363,11 +372,21 @@ def _build_entity_type_report(
         normalized_counts[norm_key] = normalized_counts.get(norm_key, 0) + 1
 
     # Serialise raw_counts so None keys become the reserved sentinel "__null__"
-    # for JSON safety.  "__null__" is documented as reserved and will not collide
-    # with any real upstream entity_type label.
+    # for JSON safety.  Counts are summed in the unlikely event that an upstream
+    # extractor also emits the literal string "__null__"; that collision is
+    # surfaced in sentinel_label_warnings below.
     serialized_raw_counts: dict[str, int] = {}
     for k, v in raw_counts.items():
-        serialized_raw_counts["__null__" if k is None else k] = v
+        key = "__null__" if k is None else k
+        serialized_raw_counts[key] = serialized_raw_counts.get(key, 0) + v
+
+    sentinel_label_warnings: list[str] = []
+    if raw_null_sentinel_seen and null_or_empty_count > 0:
+        sentinel_label_warnings.append(
+            'Upstream extractor emitted the reserved sentinel label "__null__"; '
+            "its counts are merged with the absent/empty bucket in raw_counts "
+            "and normalized_counts and cannot be distinguished retroactively."
+        )
 
     return {
         "raw_counts": dict(
@@ -379,6 +398,7 @@ def _build_entity_type_report(
         "mapped_variants": dict(sorted(mapped_variants.items())),
         "passthrough_labels": sorted(passthrough_labels),
         "null_or_empty_count": null_or_empty_count,
+        "sentinel_label_warnings": sentinel_label_warnings,
     }
 
 

@@ -714,7 +714,7 @@ The report contains:
 | Key | Description |
 |---|---|
 | `raw_counts` | `{raw_label: count}` for every distinct raw value seen, ordered by descending count.  The reserved sentinel key `"__null__"` aggregates absent/empty labels. |
-| `normalized_counts` | `{canonical_label: count}` after applying `_normalize_entity_type()`.  Use this to see post-normalization type distribution. |
+| `normalized_counts` | `{canonical_label: count}` after applying `_normalize_entity_type()`.  May also include the reserved `"__null__"` bucket when normalization yields no type (e.g., missing/empty `entity_type`).  Use this to see post-normalization type distribution. |
 | `mapped_variants` | `{raw_label: canonical_label}` for synonym mappings that were actually observed this run. |
 | `passthrough_labels` | Sorted list of non-empty labels that are **not** in the synonym table.  New or unexpected labels appear here. |
 | `null_or_empty_count` | Count of mentions with absent or empty `entity_type`. |
@@ -798,8 +798,9 @@ of more than one distinct `entity_type` aligned to them, which indicates that th
 same entity name is being resolved into separate per-type clusters (type-level fragmentation
 that may stem from a missing synonym mapping):
 ```cypher
-MATCH (cluster:ResolvedEntityCluster)-[:ALIGNED_WITH]->(canonical:CanonicalEntity)
+MATCH (cluster:ResolvedEntityCluster)-[r:ALIGNED_WITH]->(canonical:CanonicalEntity)
 WHERE cluster.run_id = $run_id
+  AND r.alignment_version = $alignment_version
 RETURN canonical.name AS canonical_name,
        collect(DISTINCT cluster.entity_type) AS cluster_entity_types,
        count(DISTINCT cluster.cluster_id) AS aligned_cluster_count
