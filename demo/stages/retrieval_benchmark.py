@@ -365,7 +365,7 @@ BENCHMARK_CASES: list[BenchmarkCaseDefinition] = [
 # Returns all claims reachable via CanonicalEntity ← ALIGNED_WITH ← cluster ← MEMBER_OF ← mention
 _Q_CANONICAL_SINGLE = """\
 MATCH (canonical:CanonicalEntity)<-[a:ALIGNED_WITH]-(cluster:ResolvedEntityCluster)<-[:MEMBER_OF]-(m:EntityMention)
-WHERE toLower(canonical.name) CONTAINS $entity_name
+WHERE toLower(canonical.name) CONTAINS toLower($entity_name)
   AND ($run_id IS NULL OR a.run_id = $run_id)
   AND ($run_id IS NULL OR cluster.run_id = $run_id)
   AND ($run_id IS NULL OR m.run_id = $run_id)
@@ -388,7 +388,7 @@ ORDER BY role, c.claim_id
 # Returns all claims reachable via ResolvedEntityCluster ← MEMBER_OF ← mention
 _Q_CLUSTER_NAME_SINGLE = """\
 MATCH (cluster:ResolvedEntityCluster)<-[:MEMBER_OF]-(m:EntityMention)
-WHERE toLower(cluster.canonical_name) CONTAINS $entity_name
+WHERE toLower(cluster.canonical_name) CONTAINS toLower($entity_name)
   AND ($run_id IS NULL OR (cluster.run_id = $run_id AND m.run_id = $run_id))
 MATCH (c:ExtractedClaim)-[r:HAS_PARTICIPANT]->(m)
 WHERE ($run_id IS NULL OR c.run_id = $run_id)
@@ -408,7 +408,7 @@ ORDER BY cluster, role, c.claim_id
 # Uses OPTIONAL MATCH for claims so that dark mentions (no claims) are visible too.
 _Q_LOWER_LAYER_CHAIN = """\
 MATCH (canonical:CanonicalEntity)<-[a:ALIGNED_WITH]-(cluster:ResolvedEntityCluster)<-[:MEMBER_OF]-(m:EntityMention)
-WHERE toLower(canonical.name) CONTAINS $entity_name
+WHERE toLower(canonical.name) CONTAINS toLower($entity_name)
   AND ($run_id IS NULL OR (a.run_id = $run_id AND cluster.run_id = $run_id AND m.run_id = $run_id))
   AND ($alignment_version IS NULL OR a.alignment_version = $alignment_version)
 OPTIONAL MATCH (c:ExtractedClaim)-[r:HAS_PARTICIPANT]->(m)
@@ -427,7 +427,7 @@ ORDER BY canonical_entity, cluster, mention, role
 # Fragmentation check: how many distinct clusters match a given name text?
 _Q_FRAGMENTATION_CHECK = """\
 MATCH (cluster:ResolvedEntityCluster)
-WHERE toLower(cluster.canonical_name) CONTAINS $entity_name
+WHERE toLower(cluster.canonical_name) CONTAINS toLower($entity_name)
   AND ($run_id IS NULL OR cluster.run_id = $run_id)
 RETURN cluster.cluster_id     AS cluster_id,
        cluster.canonical_name AS canonical_name,
@@ -439,16 +439,16 @@ ORDER BY entity_type, canonical_name
 # Anchored on CanonicalEntity for selectivity — filters on names before joining clusters/mentions.
 _Q_PAIRWISE_CANONICAL = """\
 MATCH (canonSub:CanonicalEntity)
-WHERE toLower(canonSub.name) CONTAINS $entity_a
-   OR toLower(canonSub.name) CONTAINS $entity_b
+WHERE toLower(canonSub.name) CONTAINS toLower($entity_a)
+   OR toLower(canonSub.name) CONTAINS toLower($entity_b)
 MATCH (canonObj:CanonicalEntity)
-WHERE (toLower(canonObj.name) CONTAINS $entity_a
-       OR toLower(canonObj.name) CONTAINS $entity_b)
+WHERE (toLower(canonObj.name) CONTAINS toLower($entity_a)
+       OR toLower(canonObj.name) CONTAINS toLower($entity_b))
   AND id(canonObj) <> id(canonSub)
 WITH canonSub, canonObj
 WHERE
-  (toLower(canonSub.name) CONTAINS $entity_a AND toLower(canonObj.name) CONTAINS $entity_b) OR
-  (toLower(canonSub.name) CONTAINS $entity_b AND toLower(canonObj.name) CONTAINS $entity_a)
+  (toLower(canonSub.name) CONTAINS toLower($entity_a) AND toLower(canonObj.name) CONTAINS toLower($entity_b)) OR
+  (toLower(canonSub.name) CONTAINS toLower($entity_b) AND toLower(canonObj.name) CONTAINS toLower($entity_a))
 MATCH (canonSub)<-[aSub:ALIGNED_WITH]-(clSub:ResolvedEntityCluster)
 WHERE ($run_id IS NULL OR clSub.run_id = $run_id)
   AND ($run_id IS NULL OR aSub.run_id = $run_id)
