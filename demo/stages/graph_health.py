@@ -367,7 +367,7 @@ class GraphHealthArtifact:
 
     def to_json(self, *, indent: int = 2) -> str:
         """Serialise the artifact to a JSON string."""
-        return json.dumps(self.to_dict(), indent=indent, default=str)
+        return json.dumps(self.to_dict(), indent=indent)
 
 
 # ---------------------------------------------------------------------------
