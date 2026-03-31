@@ -204,7 +204,7 @@ support decision for each form encountered in practice.
 
 ### Supported composite forms
 
-| Form | Example | Behaviour |
+| Form | Example | Behavior |
 |---|---|---|
 | Conjunction (`and` / `or` / `&`) | `Amazon and eBay` | Splits; each part matched independently |
 | Oxford-comma conjunction | `Amazon, eBay, and Google` | Splits; the `, and ` separator consumed as a unit |
@@ -221,7 +221,7 @@ These patterns use already-supported separators.  The entity name is
 recovered; the qualifying phrase fails to match and is silently skipped.
 This is intentional: partial recovery is preferable to no recovery.
 
-| Form | Example | Behaviour |
+| Form | Example | Behavior |
 |---|---|---|
 | Appositive phrase | `Xapo, a digital-assets company` | Comma split: `Xapo` matched, descriptor phrase discarded |
 | Trailing qualifier in list | `Amazon, eBay, and Google subsidiaries` | `Amazon` and `eBay` matched; `Google subsidiaries` not resolved |

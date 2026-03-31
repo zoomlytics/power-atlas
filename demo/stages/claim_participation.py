@@ -37,20 +37,24 @@ needed to find a unique match):
    ``"Amazon / eBay / Google"`` (slash-delimited list), or
    ``"Amazon; eBay; Google"`` (semicolon-delimited list).
 
-   **Intentionally unsupported composite forms** (no edge recovery attempted):
+   **Qualified composite forms with no special parsing** — ``list_split``
+   only performs deterministic splitting on separators; it does not attempt
+   to strip or interpret qualifiers.  All split parts are still matched
+   independently, but qualifier-bearing phrases generally fail to match:
 
    - *Parenthetical qualifiers* — ``"Amazon (AWS) and Google"``: the part
-     ``"Amazon (AWS)"`` will not match a plain ``"Amazon"`` mention.  The
-     other parts (e.g. ``"Google"``) are still matched normally.
+     ``"Amazon (AWS)"`` is not reduced to a plain ``"Amazon"`` mention, so
+     matching is attempted only against the full phrase and typically fails.
+     The other parts (e.g. ``"Google"``) are still matched normally.
    - *Grouped qualifiers* — ``"Amazon and eBay subsidiaries"``: ``"eBay
-     subsidiaries"`` will not match a plain ``"eBay"`` mention; only the
+     subsidiaries"`` is not simplified to plain ``"eBay"``; only the
      unqualified part (``"Amazon"``) can be recovered.
    - *Appositives* — ``"Xapo, a digital-assets company"``: the appositive
-     phrase ``"a digital-assets company"`` fails to match any mention; only
+     phrase ``"a digital-assets company"`` is tried and fails to match; only
      the entity name (``"Xapo"``) creates an edge via comma splitting.
    - *Nested qualifiers* — ``"Amazon, eBay, and Google subsidiaries"``:
-     ``"Google subsidiaries"`` is not resolved; ``"Amazon"`` and ``"eBay"``
-     are recovered normally.
+     ``"Google subsidiaries"`` is tried and fails to match; ``"Amazon"`` and
+     ``"eBay"`` are recovered normally.
 
 For each slot, the first strategy that yields **exactly one** matching mention
 is used and an edge row is emitted with ``match_method`` set to the strategy
@@ -144,15 +148,18 @@ def split_slot_text(slot_text: str) -> list[str]:
     case-insensitive so ``"Amazon AND eBay"`` is handled the same as
     ``"Amazon and eBay"``.
 
-    **Intentionally unsupported forms** — these patterns split but may not
-    recover meaningful entity names:
+    **Qualified composite forms with no special parsing** — splitting is still
+    applied, but no qualifier stripping or interpretation is performed.  All
+    resulting parts are tried for matching; qualifier-bearing phrases typically
+    fail to match:
 
     - *Parenthetical qualifiers* — ``"Amazon (AWS) and Google"``: the part
-      ``"Amazon (AWS)"`` will not match a plain ``"Amazon"`` mention.
+      ``"Amazon (AWS)"`` is not reduced to ``"Amazon"``, so matching typically
+      fails for that part.
     - *Grouped qualifiers* — ``"Amazon and eBay subsidiaries"``: the part
-      ``"eBay subsidiaries"`` will not match a plain ``"eBay"`` mention.
+      ``"eBay subsidiaries"`` is not simplified to ``"eBay"``.
     - *Appositives* — ``"Xapo, a digital-assets company"``: only ``"Xapo"``
-      recovers a mention; the appositive descriptor is tried and discarded.
+      recovers a mention; the appositive descriptor is tried and typically fails.
     - *Bare slash (no spaces)* — ``"Amazon/eBay"`` is **not** split (avoids
       URL paths and numeric ratios).
     - *Bare semicolon (no trailing space)* — ``"Inc.;Ltd."`` is **not** split.
