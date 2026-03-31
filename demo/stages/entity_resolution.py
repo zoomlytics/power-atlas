@@ -309,7 +309,7 @@ def _build_entity_type_report(
     key) and produces a structured diagnostic report that surfaces:
 
     * **raw_counts** — ``{raw_label: count}`` for every distinct raw value seen,
-      including the sentinel key ``None`` for absent/empty labels.
+      including the special string key ``"null"`` for absent/empty labels.
     * **normalized_counts** — ``{canonical_label: count}`` after applying
       :func:`_normalize_entity_type`; ``None`` is represented as the string
       ``"null"`` so the mapping is JSON-serializable.
@@ -374,7 +374,7 @@ def _build_entity_type_report(
         "normalized_counts": dict(
             sorted(normalized_counts.items(), key=lambda t: (-t[1], t[0]))
         ),
-        "mapped_variants": mapped_variants,
+        "mapped_variants": dict(sorted(mapped_variants.items())),
         "passthrough_labels": sorted(passthrough_labels),
         "null_or_empty_count": null_or_empty_count,
     }
