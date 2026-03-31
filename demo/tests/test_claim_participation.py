@@ -1590,15 +1590,16 @@ class TestBuildParticipationEdgesUnsupportedForms(unittest.TestCase):
         self.assertEqual(edges[0]["mention_id"], "m-amazon")
         self.assertEqual(edges[0]["match_method"], MATCH_METHOD_LIST_SPLIT)
 
-    def test_grouped_qualifier_both_sides_qualified_yields_no_edge(self):
-        # "U.S. and European regulators" — neither part matches any mention.
+    def test_grouped_qualifier_both_sides_qualified_partial_recovery(self):
+        # "U.S. and European regulators" — only the base entity "U.S." matches;
+        # the qualified phrase "European regulators" does not match mention "European".
         mentions = [
             _mention("U.S.", "m-us"),
             _mention("European", "m-eu"),
         ]
         claims = [_claim("c1", subject="U.S. and European regulators")]
         edges = build_participation_edges(claims, mentions)
-        # "U.S." matches its mention; "European regulators" does not match "European".
+        # Partial recovery: "U.S." yields one edge; "European regulators" is not resolved.
         self.assertEqual(len(edges), 1)
         self.assertEqual(edges[0]["mention_id"], "m-us")
 
