@@ -363,7 +363,8 @@ WHERE toLower(canonical.name) CONTAINS $entity_name
 MATCH (c:ExtractedClaim)-[r:HAS_PARTICIPANT]->(m)
 WHERE ($run_id IS NULL OR c.run_id = $run_id)
 RETURN canonical.name        AS canonical_entity,
-       cluster.canonical_name AS cluster,
+       cluster.cluster_id     AS cluster,
+       cluster.canonical_name AS cluster_canonical_name,
        m.name                 AS mention,
        r.role                 AS role,
        c.claim_text           AS claim_text,
