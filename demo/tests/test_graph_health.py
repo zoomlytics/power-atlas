@@ -320,6 +320,21 @@ class TestRunGraphHealthDiagnosticsDryRun(unittest.TestCase):
             path = tmp_path / "runs" / "run-dry2" / "graph_health" / "graph_health_diagnostics.json"
             self.assertTrue(path.exists(), f"Expected artifact at {path}")
 
+    def test_dry_run_file_has_stable_artifact_schema(self) -> None:
+        """Dry-run artifact file should have the same top-level keys as a live artifact."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            config = self._config(tmp_path)
+            run_graph_health_diagnostics(config, run_id="run-schema", alignment_version="v1.0")
+            path = tmp_path / "runs" / "run-schema" / "graph_health" / "graph_health_diagnostics.json"
+            data = json.loads(path.read_text(encoding="utf-8"))
+            # Must contain artifact-schema keys, not the summary-wrapper keys.
+            self.assertIn("generated_at", data)
+            self.assertIn("participation_role_distribution", data)
+            self.assertNotIn("status", data)
+            self.assertNotIn("warnings", data)
+
     def test_dry_run_no_run_id_uses_runs_graph_health_dir(self) -> None:
         import tempfile
         with tempfile.TemporaryDirectory() as tmp:

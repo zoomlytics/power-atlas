@@ -1660,6 +1660,8 @@ The diagnostics are also available as a Python function for use in notebooks
 or custom scripts:
 
 ```python
+from pathlib import Path
+
 from demo.contracts.runtime import Config
 from demo.stages.graph_health import run_graph_health_diagnostics
 

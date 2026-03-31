@@ -2,7 +2,9 @@
 
 Connects to a running Neo4j instance, runs the full set of graph-health
 diagnostic queries defined in ``demo/stages/graph_health.py``, and writes
-a JSON artifact to ``pipelines/runs/<run_id>/graph_health/``.
+a JSON artifact to ``pipelines/runs/<run_id>/graph_health/`` when
+``--run-id`` is provided, or to ``pipelines/runs/graph_health/`` when it is
+omitted.
 
 When no ``--run-id`` is given the queries aggregate across **all** runs
 in the database (useful for a quick whole-database health check).

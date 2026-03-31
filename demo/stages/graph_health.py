@@ -115,9 +115,10 @@ WITH cluster,
        WHEN m.entity_type IS NULL OR trim(m.entity_type) = '' THEN 'UNKNOWN'
        ELSE
          CASE toUpper(trim(m.entity_type))
-           WHEN 'PERSON'   THEN 'Person'
-           WHEN 'ORG'      THEN 'Organization'
-           WHEN 'COMPANY'  THEN 'Organization'
+           WHEN 'PERSON'        THEN 'Person'
+           WHEN 'ORG'           THEN 'Organization'
+           WHEN 'COMPANY'       THEN 'Organization'
+           WHEN 'ORGANIZATION'  THEN 'Organization'
            ELSE trim(m.entity_type)
          END
      END AS normalized_type
@@ -292,9 +293,11 @@ def _compute_alignment_summary(
 class GraphHealthArtifact:
     """Structured container for a single graph-health diagnostics run.
 
-    All fields are JSON-serialisable.  ``None`` values in ``alignment_*``
-    fields indicate that alignment metrics were not collected (typically
-    because no ``ALIGNED_WITH`` edges exist for the given scope).
+    All fields are JSON-serialisable.  ``alignment_*`` fields are usually
+    populated (often with empty lists and an ``alignment_coverage_pct`` of
+    0.0); ``None`` values mainly indicate that no clustering/alignment data
+    exists for the given scope.  ``alignment_version`` is ``None`` when no
+    alignment version was requested.
 
     Attributes
     ----------
@@ -467,7 +470,7 @@ def run_graph_health_diagnostics(
     Connects to Neo4j using credentials from *config*, runs the full set of
     diagnostic read queries, and persists the result as a JSON artifact under
     ``<output_dir>/runs/<run_id>/graph_health/graph_health_diagnostics.json``
-    (or ``<output_dir>/graph_health/graph_health_diagnostics.json`` when no
+    (or ``<output_dir>/runs/graph_health/graph_health_diagnostics.json`` when no
     ``run_id`` is given).
 
     Parameters
@@ -520,6 +523,23 @@ def run_graph_health_diagnostics(
     artifact_path = artifact_dir / "graph_health_diagnostics.json"
 
     if getattr(config, "dry_run", False):
+        # In dry_run mode, write a file with the same schema as the live artifact
+        # (empty rows) so the on-disk format is stable for downstream tooling.
+        dry_artifact: dict[str, Any] = {
+            "generated_at": datetime.now(UTC).isoformat(),
+            "run_id": run_id,
+            "alignment_version": alignment_version,
+            "participation_role_distribution": [],
+            "claim_edge_coverage": [],
+            "match_method_distribution": [],
+            "mention_clustering": [],
+            "cluster_size_distribution": [],
+            "cluster_type_fragmentation": [],
+            "alignment_coverage": [],
+            "per_canonical_alignment": [],
+            "canonical_chain_health": [],
+        }
+        artifact_path.write_text(json.dumps(dry_artifact, indent=2), encoding="utf-8")
         summary: dict[str, Any] = {
             "status": "dry_run",
             "run_id": run_id,
@@ -528,7 +548,6 @@ def run_graph_health_diagnostics(
             "artifact": None,
             "warnings": ["graph health diagnostics skipped in dry_run mode"],
         }
-        artifact_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
         return summary
 
     params: dict[str, Any] = {
