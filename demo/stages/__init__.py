@@ -9,6 +9,7 @@ __all__ = [
     "run_claim_and_mention_extraction",
     "run_claim_participation",
     "run_entity_resolution",
+    "run_graph_health_diagnostics",
     "run_interactive_qa",
     "run_pdf_ingest",
     "run_retrieval_and_qa",
@@ -27,6 +28,8 @@ def __getattr__(name: str) -> Any:  # pragma: no cover - thin import proxy
         module = import_module("demo.stages.claim_participation")
     elif name == "run_entity_resolution":
         module = import_module("demo.stages.entity_resolution")
+    elif name == "run_graph_health_diagnostics":
+        module = import_module("demo.stages.graph_health")
     elif name in {"run_retrieval_and_qa", "run_interactive_qa"}:
         module = import_module("demo.stages.retrieval_and_qa")
     else:
