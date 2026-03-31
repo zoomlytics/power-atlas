@@ -366,7 +366,9 @@ BENCHMARK_CASES: list[BenchmarkCaseDefinition] = [
 _Q_CANONICAL_SINGLE = """\
 MATCH (canonical:CanonicalEntity)<-[a:ALIGNED_WITH]-(cluster:ResolvedEntityCluster)<-[:MEMBER_OF]-(m:EntityMention)
 WHERE toLower(canonical.name) CONTAINS $entity_name
-  AND ($run_id IS NULL OR (a.run_id = $run_id AND m.run_id = $run_id))
+  AND ($run_id IS NULL OR a.run_id = $run_id)
+  AND ($run_id IS NULL OR cluster.run_id = $run_id)
+  AND ($run_id IS NULL OR m.run_id = $run_id)
   AND ($alignment_version IS NULL OR a.alignment_version = $alignment_version)
 MATCH (c:ExtractedClaim)-[r:HAS_PARTICIPANT]->(m)
 WHERE ($run_id IS NULL OR c.run_id = $run_id)
@@ -459,9 +461,8 @@ MATCH (mSub:EntityMention)-[:MEMBER_OF]->(clSub)
 WHERE ($run_id IS NULL OR mSub.run_id = $run_id)
 MATCH (mObj:EntityMention)-[:MEMBER_OF]->(clObj)
 WHERE ($run_id IS NULL OR mObj.run_id = $run_id)
-MATCH (c:ExtractedClaim)
+MATCH (mSub)<-[:HAS_PARTICIPANT {role: 'subject'}]-(c:ExtractedClaim)
 WHERE ($run_id IS NULL OR c.run_id = $run_id)
-MATCH (c)-[:HAS_PARTICIPANT {role: 'subject'}]->(mSub)
 MATCH (c)-[:HAS_PARTICIPANT {role: 'object'}]->(mObj)
 WITH DISTINCT c, mSub, mObj, canonSub, canonObj,
      CASE WHEN toLower(canonSub.name) CONTAINS $entity_a THEN 'A→B' ELSE 'B→A' END AS direction
