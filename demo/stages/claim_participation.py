@@ -359,7 +359,110 @@ def build_participation_edges(
         per-run matching instrumentation (counts by method, unmatched/ambiguous
         slot diagnostics, and representative sample IDs).
     """
-    edge_rows, _ = build_participation_edges_with_metrics(claim_rows, mention_rows)
+    # Index mentions by (run_id, chunk_id) for O(1) scoped lookup.
+    # Scoping by run_id prevents cross-run contamination: chunk_id values are
+    # only unique within a single run (see extraction_utils.py write logic).
+    mentions_by_run_chunk: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for mention_row in mention_rows:
+        m_run_id = mention_row.get("run_id", "")
+        for cid in (mention_row.get("chunk_ids") or []):
+            key = (m_run_id, cid)
+            mentions_by_run_chunk.setdefault(key, []).append(mention_row)
+
+    edge_rows: list[dict[str, Any]] = []
+
+    for claim_row in claim_rows:
+        claim_chunk_ids: list[str] = claim_row.get("chunk_ids") or []
+        if not claim_chunk_ids:
+            continue
+
+        claim_id: str = claim_row.get("claim_id", "")
+        run_id: str = claim_row.get("run_id", "")
+        source_uri: str | None = claim_row.get("source_uri")
+        props: dict[str, Any] = claim_row.get("properties", {})
+
+        # Collect candidate mentions: any mention sharing at least one
+        # (run_id, chunk_id) pair with this claim.  Deduplicate by mention_id.
+        seen_mention_ids: set[str] = set()
+        candidate_mentions: list[dict[str, Any]] = []
+        for cid in claim_chunk_ids:
+            for m in mentions_by_run_chunk.get((run_id, cid), []):
+                mid = m.get("mention_id", "")
+                if mid not in seen_mention_ids:
+                    seen_mention_ids.add(mid)
+                    candidate_mentions.append(m)
+
+        if not candidate_mentions:
+            continue
+
+        # Flatten candidate mentions into dicts with a "name" key for the
+        # matching function, carrying mention_id for result identification.
+        # Computed once per claim (shared across subject and object slots).
+        flat_mentions = [
+            {
+                "mention_id": m.get("mention_id", ""),
+                "name": m.get("properties", {}).get("name", ""),
+            }
+            for m in candidate_mentions
+        ]
+
+        for slot in ("subject", "object"):
+            slot_text = props.get(slot)
+            if not slot_text:
+                continue
+
+            slot_str = str(slot_text).strip()
+            if not slot_str:
+                continue
+            seen_for_slot: set[str] = set()
+
+            matched, method = match_slot_to_mention(slot_str, flat_mentions)
+            if matched is not None:
+                edge_rows.append(
+                    {
+                        "claim_id": claim_id,
+                        "mention_id": matched["mention_id"],
+                        "run_id": run_id,
+                        "source_uri": source_uri,
+                        "slot": slot,
+                        "role": _SLOT_ROLE[slot],
+                        "match_method": method,
+                        "edge_type": EDGE_TYPE_HAS_PARTICIPANT,
+                    }
+                )
+                continue
+
+            # Whole-slot match failed; try splitting on conjunctions/list
+            # separators and match each part independently — but ONLY when the
+            # whole-slot attempt found zero candidates (method is None).  When
+            # method is MATCH_OUTCOME_AMBIGUOUS (the public ambiguous-outcome
+            # marker) the whole-slot text matched two or more mentions; splitting
+            # it into parts would silently override that ambiguity signal and
+            # could emit misleading edges.
+            if method is not None:
+                # Ambiguous whole-slot match — skip list-split entirely.
+                continue
+            for part in split_slot_text(slot_str):
+                part_matched, _ = match_slot_to_mention(part, flat_mentions)
+                if part_matched is None:
+                    continue
+                mid = part_matched["mention_id"]
+                if mid in seen_for_slot:
+                    continue  # deduplicate: same mention already linked for this slot
+                seen_for_slot.add(mid)
+                edge_rows.append(
+                    {
+                        "claim_id": claim_id,
+                        "mention_id": mid,
+                        "run_id": run_id,
+                        "source_uri": source_uri,
+                        "slot": slot,
+                        "role": _SLOT_ROLE[slot],
+                        "match_method": MATCH_METHOD_LIST_SPLIT,
+                        "edge_type": EDGE_TYPE_HAS_PARTICIPANT,
+                    }
+                )
+
     return edge_rows
 
 

@@ -257,7 +257,7 @@ is written (with `"match_metrics": null`).
 | `edges_by_method` | Edge count by `match_method` (`raw_exact` / `casefold_exact` / `normalized_exact` / `list_split`) |
 | `edges_by_role` | Edge count by role (`subject` / `object`) |
 | `edges_by_role_and_method` | Two-level breakdown: `{role: {match_method: count}}` |
-| `unmatched_slots` | Slots that produced no edge and whose whole-slot attempt returned zero candidates |
+| `unmatched_slots` | Slots that produced no edge and whose whole-slot attempt found no matching candidate mention |
 | `unmatched_by_role` | `unmatched_slots` broken down by role |
 | `ambiguous_slots` | Slots whose whole-slot attempt matched two or more candidates (`MATCH_OUTCOME_AMBIGUOUS`) |
 | `ambiguous_by_role` | `ambiguous_slots` broken down by role |
