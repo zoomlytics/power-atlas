@@ -1568,6 +1568,47 @@ class TestEntityTypeDriftReport(unittest.TestCase):
         report = _build_entity_type_report(mentions)
         self.assertEqual(report["passthrough_labels"], sorted(report["passthrough_labels"]))
 
+    def test_raw_counts_sorted_by_descending_count_then_label(self):
+        """raw_counts must be ordered by descending count, then alphabetically on ties."""
+        mentions = [
+            {"mention_id": "m1", "name": "a", "entity_type": "Person"},   # count 3
+            {"mention_id": "m2", "name": "b", "entity_type": "Person"},
+            {"mention_id": "m3", "name": "c", "entity_type": "Person"},
+            {"mention_id": "m4", "name": "d", "entity_type": "PRODUCT"},  # count 2
+            {"mention_id": "m5", "name": "e", "entity_type": "PRODUCT"},
+            {"mention_id": "m6", "name": "f", "entity_type": "Event"},    # count 2 (tie with PRODUCT)
+            {"mention_id": "m7", "name": "g", "entity_type": "Event"},
+            {"mention_id": "m8", "name": "h", "entity_type": "Zorg"},     # count 1
+        ]
+        report = _build_entity_type_report(mentions)
+        keys = list(report["raw_counts"].keys())
+        # Person (3) must come first
+        self.assertEqual(keys[0], "Person")
+        # Tie between Event (2) and PRODUCT (2): alphabetical → Event before PRODUCT
+        self.assertEqual(keys[1], "Event")
+        self.assertEqual(keys[2], "PRODUCT")
+        # Zorg (1) last
+        self.assertEqual(keys[3], "Zorg")
+
+    def test_normalized_counts_sorted_by_descending_count_then_label(self):
+        """normalized_counts must be ordered by descending count, then alphabetically on ties."""
+        mentions = [
+            # ORG and Company both normalize to Organization → combined count 3
+            {"mention_id": "m1", "name": "a", "entity_type": "ORG"},
+            {"mention_id": "m2", "name": "b", "entity_type": "ORG"},
+            {"mention_id": "m3", "name": "c", "entity_type": "Company"},
+            # Person passthrough count 2
+            {"mention_id": "m4", "name": "d", "entity_type": "Person"},
+            {"mention_id": "m5", "name": "e", "entity_type": "Person"},
+            # PRODUCT passthrough count 1
+            {"mention_id": "m6", "name": "f", "entity_type": "PRODUCT"},
+        ]
+        report = _build_entity_type_report(mentions)
+        keys = list(report["normalized_counts"].keys())
+        self.assertEqual(keys[0], "Organization")  # 3
+        self.assertEqual(keys[1], "Person")         # 2
+        self.assertEqual(keys[2], "PRODUCT")        # 1
+
     def test_report_is_json_serializable(self):
         """The report dict must be safely JSON-serializable (no None keys)."""
         mentions = [
