@@ -232,11 +232,90 @@ This decision reinforces:
 
 ---
 
+## 9) Participation Matching Metrics
+
+### Overview
+
+Each pipeline run that executes the `claim-participation` stage produces two
+artifacts under `<output_dir>/runs/<run_id>/claim_participation/`:
+
+| File | Contents |
+|---|---|
+| `claim_participation_summary.json` | High-level run summary (edges written, role breakdown, embedded `match_metrics`) |
+| `participation_metrics.json` | Full `ParticipationMatchMetrics` object for offline analysis |
+
+Both files are written by `run_claim_participation` and are available
+immediately after the stage completes.  In `dry_run` mode only the summary
+is written (with `"match_metrics": null`).
+
+### `ParticipationMatchMetrics` fields
+
+| Field | Description |
+|---|---|
+| `claims_processed` | Total claim rows supplied to the matcher |
+| `slots_processed` | (Claim, slot) pairs where slot text was non-empty and at least one candidate mention was available |
+| `edges_by_method` | Edge count by `match_method` (`raw_exact` / `casefold_exact` / `normalized_exact` / `list_split`) |
+| `edges_by_role` | Edge count by role (`subject` / `object`) |
+| `edges_by_role_and_method` | Two-level breakdown: `{role: {match_method: count}}` |
+| `unmatched_slots` | Slots that produced no edge and whose whole-slot attempt returned zero candidates |
+| `unmatched_by_role` | `unmatched_slots` broken down by role |
+| `ambiguous_slots` | Slots whose whole-slot attempt matched two or more candidates (`MATCH_OUTCOME_AMBIGUOUS`) |
+| `ambiguous_by_role` | `ambiguous_slots` broken down by role |
+| `list_split_suppressed` | Slots where list-split was not attempted because the whole-slot match was ambiguous (always equals `ambiguous_slots`) |
+| `list_split_suppressed_by_role` | `list_split_suppressed` broken down by role |
+| `claims_with_any_edge` | Claims with at least one participation edge emitted |
+| `claims_with_no_edges` | `claims_processed` minus `claims_with_any_edge` |
+| `sample_list_split_claim_ids` | Up to 20 claim IDs that contributed a `list_split` edge |
+| `sample_unmatched_claim_ids` | Up to 20 claim IDs with at least one unmatched slot |
+| `sample_ambiguous_claim_ids` | Up to 20 claim IDs with at least one ambiguous whole-slot match |
+
+### Interpreting movement in metrics after pipeline changes
+
+| Signal | Interpretation |
+|---|---|
+| `edges_by_method["list_split"]` increases | More composite/list-valued slots are now matched; verify samples are semantically correct |
+| `unmatched_slots` decreases | Coverage improved; check whether precision was preserved |
+| `ambiguous_slots` increases | More mention-name collisions; may indicate extraction producing redundant mentions |
+| `list_split_suppressed` stays equal to `ambiguous_slots` | Architectural guardrail is intact — list-split is never attempted over ambiguous whole-slot matches |
+| `claims_with_no_edges` decreases | More claims now have at least one linked argument mention |
+
+### Suggested validation queries
+
+```cypher
+// Match-method distribution for a specific run
+MATCH (:ExtractedClaim)-[r:HAS_PARTICIPANT]->(:EntityMention)
+WHERE r.run_id = $run_id
+RETURN r.match_method AS match_method, count(*) AS edges
+ORDER BY edges DESC;
+```
+
+```cypher
+// Claim edge-coverage distribution
+MATCH (c:ExtractedClaim)
+WHERE c.run_id = $run_id
+OPTIONAL MATCH (c)-[r:HAS_PARTICIPANT]->(:EntityMention)
+WITH c, count(r) AS participant_edges
+RETURN participant_edges, count(*) AS claim_count
+ORDER BY participant_edges;
+```
+
+```cypher
+// Sample list_split results
+MATCH (c:ExtractedClaim)-[r:HAS_PARTICIPANT]->(m:EntityMention)
+WHERE c.run_id = $run_id
+  AND r.match_method = 'list_split'
+RETURN c.claim_id, c.claim_text, r.role, m.name, r.match_method
+ORDER BY c.claim_id
+LIMIT 100;
+```
+
+---
+
 ## Closing Note
 
 This ADR is the canonical record of the v0.3 claim argument model decision.
 Any downstream code that reads or writes participation edges should reference
-the `:HAS_PARTICIPANT {role}` pattern as authoritative. The v0.2 edge types
+the `:HAS_PARTICIPANT {role}` pattern as authoritative.  The v0.2 edge types
 (`HAS_SUBJECT_MENTION`, `HAS_OBJECT_MENTION`) are retired and should be
 treated as stale in any graph written before this version.
 
