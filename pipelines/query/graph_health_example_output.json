@@ -1,0 +1,105 @@
+{
+  "generated_at": "2024-06-01T12:00:00Z",
+  "run_id": "unstructured_ingest-20240601T120000000000Z-abcd1234",
+  "alignment_version": "v1.0",
+  "participation_role_distribution": [
+    {"role": "subject", "total": 142},
+    {"role": "object",  "total": 118}
+  ],
+  "claim_edge_coverage_distribution": [
+    {"participant_edges": 0, "claim_count": 14},
+    {"participant_edges": 1, "claim_count": 87},
+    {"participant_edges": 2, "claim_count": 53},
+    {"participant_edges": 3, "claim_count": 6}
+  ],
+  "match_method_distribution": [
+    {"match_method": "raw_exact",        "total": 198},
+    {"match_method": "casefold_exact",   "total": 34},
+    {"match_method": "normalized_exact", "total": 19},
+    {"match_method": "list_split",       "total": 9}
+  ],
+  "mention_clustering": [
+    {"is_clustered": true,  "mention_count": 262},
+    {"is_clustered": false, "mention_count": 11}
+  ],
+  "cluster_size_distribution": [
+    {"member_count": 1, "cluster_count": 104},
+    {"member_count": 2, "cluster_count": 47},
+    {"member_count": 3, "cluster_count": 22},
+    {"member_count": 4, "cluster_count": 12},
+    {"member_count": 5, "cluster_count": 7},
+    {"member_count": 6, "cluster_count": 3},
+    {"member_count": 8, "cluster_count": 2}
+  ],
+  "cluster_type_fragmentation": [
+    {"distinct_types_in_cluster": 1, "cluster_count": 194},
+    {"distinct_types_in_cluster": 2, "cluster_count": 3}
+  ],
+  "alignment_coverage": [
+    {"is_aligned": true,  "cluster_count": 23},
+    {"is_aligned": false, "cluster_count": 174}
+  ],
+  "per_canonical_alignment": [
+    {
+      "canonical_entity": "Acme Corporation",
+      "entity_id": "Q12345",
+      "entity_type": "Organization",
+      "aligned_cluster_count": 3,
+      "bridged_mention_count": 12,
+      "sample_methods": ["label_exact"]
+    },
+    {
+      "canonical_entity": "Jane Smith",
+      "entity_id": "Q67890",
+      "entity_type": "Person",
+      "aligned_cluster_count": 2,
+      "bridged_mention_count": 7,
+      "sample_methods": ["alias_exact"]
+    }
+  ],
+  "canonical_chain_health": [
+    {
+      "canonical_entity": "Acme Corporation",
+      "entity_type": "Organization",
+      "mention_count": 12,
+      "claim_count": 8,
+      "status": "active"
+    },
+    {
+      "canonical_entity": "Jane Smith",
+      "entity_type": "Person",
+      "mention_count": 7,
+      "claim_count": 5,
+      "status": "active"
+    },
+    {
+      "canonical_entity": "Beta Industries",
+      "entity_type": "Organization",
+      "mention_count": 4,
+      "claim_count": 0,
+      "status": "dark"
+    }
+  ],
+  "participation_summary": {
+    "total_edges": 260,
+    "edges_by_role": {
+      "subject": 142,
+      "object": 118
+    },
+    "total_claims": 160,
+    "claims_with_zero_edges": 14,
+    "claim_coverage_pct": 91.25
+  },
+  "mention_summary": {
+    "total_mentions": 273,
+    "clustered_mentions": 262,
+    "unclustered_mentions": 11,
+    "unresolved_rate_pct": 4.03
+  },
+  "alignment_summary": {
+    "total_clusters": 197,
+    "aligned_clusters": 23,
+    "unaligned_clusters": 174,
+    "alignment_coverage_pct": 11.68
+  }
+}

@@ -1567,7 +1567,7 @@ The artifact is written to:
 - **Unscoped:** `pipelines/runs/graph_health/graph_health_diagnostics.json`
 
 A documented example output is available at
-`pipelines/runs/graph_health_example_output.json`.
+`pipelines/query/graph_health_example_output.json`.
 
 ### Artifact structure
 
