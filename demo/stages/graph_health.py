@@ -35,8 +35,8 @@ See ``pipelines/query/graph_health_diagnostics.py`` for a CLI wrapper.
 Usage (programmatic)
 --------------------
 >>> from demo.stages.graph_health import run_graph_health_diagnostics
->>> artifact = run_graph_health_diagnostics(config, run_id="unstructured_ingest-...", alignment_version="v1.0")
->>> print(artifact["summary"])
+>>> result = run_graph_health_diagnostics(config, run_id="unstructured_ingest-...", alignment_version="v1.0")
+>>> print(result["artifact"]["participation_summary"])
 """
 
 from __future__ import annotations
@@ -485,7 +485,9 @@ def run_graph_health_diagnostics(
         ``"v1.0"``).  Pass ``None`` to aggregate across all alignment
         versions — or when no ``ALIGNED_WITH`` edges exist.
     output_dir:
-        Root directory for artifact output.  Defaults to
+        Base output directory.  Artifacts are written under
+        ``<output_dir>/runs/<run_id>/graph_health/`` (scoped) or
+        ``<output_dir>/runs/graph_health/`` (unscoped).  Defaults to
         ``config.output_dir``.
 
     Returns
@@ -497,10 +499,23 @@ def run_graph_health_diagnostics(
     effective_output_dir = Path(effective_output_dir)
 
     # Determine artifact output path.
+    # Unscoped diagnostics still live under "runs/" to align with the repository's
+    # artifact layout convention (stage outputs are always under <output_dir>/runs/).
+    runs_root = (effective_output_dir / "runs").resolve()
     if run_id:
-        artifact_dir = effective_output_dir / "runs" / run_id / "graph_health"
+        run_id_path = Path(run_id)
+        if run_id_path.is_absolute() or ".." in run_id_path.parts or run_id_path.name != run_id:
+            raise ValueError(
+                f"Invalid run_id {run_id!r}: must be a simple relative name without path separators or '..'."
+            )
+        run_root = (runs_root / run_id_path).resolve()
+        if run_root == runs_root or runs_root not in run_root.parents:
+            raise ValueError(
+                f"Invalid run_id {run_id!r}: must resolve to a subdirectory of the runs directory."
+            )
+        artifact_dir = run_root / "graph_health"
     else:
-        artifact_dir = effective_output_dir / "graph_health"
+        artifact_dir = runs_root / "graph_health"
     artifact_dir.mkdir(parents=True, exist_ok=True)
     artifact_path = artifact_dir / "graph_health_diagnostics.json"
 

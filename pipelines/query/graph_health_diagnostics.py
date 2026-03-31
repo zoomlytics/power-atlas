@@ -43,9 +43,9 @@ if str(_REPO_ROOT) not in sys.path:
 from demo.contracts.runtime import Config  # noqa: E402
 from demo.stages.graph_health import run_graph_health_diagnostics  # noqa: E402
 
-# Artifact output root — relative to the pipelines/ directory so it lands in
-# pipelines/runs/ in line with the project convention for pipeline artifacts.
-_PIPELINES_RUNS_DIR = Path(__file__).resolve().parent.parent / "runs"
+# Base output directory — the parent of `runs/`, matching Config.output_dir conventions.
+# Artifacts land in <_PIPELINES_DIR>/runs/<run_id>/graph_health/ by default.
+_PIPELINES_DIR = Path(__file__).resolve().parent.parent
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -93,12 +93,11 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=_PIPELINES_RUNS_DIR,
+        default=_PIPELINES_DIR,
         help=(
-            "Root directory for artifact output "
-            "(default: pipelines/runs/).  "
-            "The artifact is written under <output_dir>/<run_id>/graph_health/ "
-            "when --run-id is given, or <output_dir>/graph_health/ otherwise."
+            "Base output directory (default: pipelines/).  "
+            "Artifacts are written under <output_dir>/runs/<run_id>/graph_health/ "
+            "when --run-id is given, or <output_dir>/runs/graph_health/ otherwise."
         ),
     )
     return parser.parse_args(argv)

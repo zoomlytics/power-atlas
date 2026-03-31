@@ -302,28 +302,46 @@ class TestRunGraphHealthDiagnosticsDryRun(unittest.TestCase):
         cfg.neo4j_database = "neo4j"
         return cfg
 
-    def test_dry_run_returns_status_dry_run(self, tmp_path: Path = Path("/tmp/gh_test_dry")) -> None:
-        tmp_path.mkdir(parents=True, exist_ok=True)
-        config = self._config(tmp_path)
-        result = run_graph_health_diagnostics(config, run_id="run-dry", alignment_version="v1.0")
-        self.assertEqual(result["status"], "dry_run")
-        self.assertIsNone(result["artifact"])
+    def test_dry_run_returns_status_dry_run(self) -> None:
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            config = self._config(tmp_path)
+            result = run_graph_health_diagnostics(config, run_id="run-dry", alignment_version="v1.0")
+            self.assertEqual(result["status"], "dry_run")
+            self.assertIsNone(result["artifact"])
 
-    def test_dry_run_writes_artifact_file(self, tmp_path: Path = Path("/tmp/gh_test_dry2")) -> None:
-        tmp_path.mkdir(parents=True, exist_ok=True)
-        config = self._config(tmp_path)
-        run_graph_health_diagnostics(config, run_id="run-dry2", alignment_version=None)
-        path = tmp_path / "runs" / "run-dry2" / "graph_health" / "graph_health_diagnostics.json"
-        self.assertTrue(path.exists(), f"Expected artifact at {path}")
+    def test_dry_run_writes_artifact_file(self) -> None:
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            config = self._config(tmp_path)
+            run_graph_health_diagnostics(config, run_id="run-dry2", alignment_version=None)
+            path = tmp_path / "runs" / "run-dry2" / "graph_health" / "graph_health_diagnostics.json"
+            self.assertTrue(path.exists(), f"Expected artifact at {path}")
 
-    def test_dry_run_no_run_id_uses_graph_health_dir(
-        self, tmp_path: Path = Path("/tmp/gh_test_dry3")
-    ) -> None:
-        tmp_path.mkdir(parents=True, exist_ok=True)
-        config = self._config(tmp_path)
-        run_graph_health_diagnostics(config, run_id=None)
-        path = tmp_path / "graph_health" / "graph_health_diagnostics.json"
-        self.assertTrue(path.exists(), f"Expected artifact at {path}")
+    def test_dry_run_no_run_id_uses_runs_graph_health_dir(self) -> None:
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            config = self._config(tmp_path)
+            run_graph_health_diagnostics(config, run_id=None)
+            path = tmp_path / "runs" / "graph_health" / "graph_health_diagnostics.json"
+            self.assertTrue(path.exists(), f"Expected artifact at {path}")
+
+    def test_invalid_run_id_absolute_path_rejected(self) -> None:
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            config = self._config(Path(tmp))
+            with self.assertRaises(ValueError):
+                run_graph_health_diagnostics(config, run_id="/etc/passwd")
+
+    def test_invalid_run_id_dotdot_rejected(self) -> None:
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            config = self._config(Path(tmp))
+            with self.assertRaises(ValueError):
+                run_graph_health_diagnostics(config, run_id="../escape")
 
 
 # ---------------------------------------------------------------------------
@@ -459,7 +477,7 @@ class TestRunGraphHealthDiagnosticsLive(unittest.TestCase):
             self.assertIn("my-special-run", result["artifact_path"])
             self.assertIn("graph_health", result["artifact_path"])
 
-    def test_no_run_id_uses_global_path(self) -> None:
+    def test_no_run_id_uses_runs_graph_health_path(self) -> None:
         import tempfile
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
@@ -474,8 +492,10 @@ class TestRunGraphHealthDiagnosticsLive(unittest.TestCase):
                     config, run_id=None, alignment_version=None
                 )
 
-            # Should not contain "runs/" in path when run_id is None
-            self.assertNotIn("/runs/", result["artifact_path"])
+            # Unscoped artifacts should still be under "runs/" to align with
+            # the repo's artifact layout conventions.
+            self.assertIn("/runs/", result["artifact_path"])
+            self.assertIn("graph_health", result["artifact_path"])
 
 
 if __name__ == "__main__":

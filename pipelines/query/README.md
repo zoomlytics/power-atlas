@@ -1665,7 +1665,7 @@ from demo.stages.graph_health import run_graph_health_diagnostics
 
 config = Config(
     dry_run=False,
-    output_dir=Path("pipelines/runs"),
+    output_dir=Path("pipelines"),
     neo4j_uri="bolt://localhost:7687",
     neo4j_username="neo4j",
     neo4j_password="<password>",
