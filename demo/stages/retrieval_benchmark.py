@@ -477,8 +477,11 @@ def _count_distinct_claims(rows: list[dict[str, Any]]) -> int:
 
 
 def _count_distinct_clusters(rows: list[dict[str, Any]]) -> int:
-    """Count distinct cluster values across *rows* (works for both canonical and cluster paths)."""
-    # canonical path has 'cluster' key; cluster path has 'cluster' key too
+    """Count distinct clusters across *rows*, preferring cluster_id when available."""
+    # Prefer the true cluster identity key when present to avoid canonical-name collisions.
+    if any("cluster_id" in r for r in rows):
+        return _count_distinct(rows, "cluster_id")
+    # Fallback for legacy row shapes that only expose 'cluster' (e.g., canonical_name).
     return _count_distinct(rows, "cluster")
 
 
