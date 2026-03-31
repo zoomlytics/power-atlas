@@ -1682,3 +1682,264 @@ result = run_graph_health_diagnostics(
 )
 print(result["artifact"]["participation_summary"])
 ```
+
+---
+
+## 14. Post-hybrid retrieval benchmark
+
+The retrieval benchmark is a repeatable, scriptable evaluation suite that
+validates canonical post-hybrid traversal quality.  It answers four empirical
+questions:
+
+- Does canonical traversal reduce misleading fragmentation in practice?
+- Does it expose more complete claim participation after hybrid alignment?
+- Does it remain explainable through cluster and mention layers?
+- Does it ever hide lower-layer structural problems that still need inspection?
+
+### Benchmark case types
+
+| Case type | Description |
+|-----------|-------------|
+| `single_entity` | Single-entity canonical traversal (MercadoLibre, Xapo, Endeavor, Linda Rottenberg) |
+| `pairwise_entity` | Pairwise canonical claim lookup (Amazon ↔ eBay) |
+| `fragmented_entity` | Entities known to fragment under raw cluster-name traversal |
+| `composite_claim` | Entities with list-valued subject/object slots (list-split path) |
+| `canonical_vs_cluster` | Side-by-side canonical vs. cluster-name claim-count comparison |
+
+### Benchmark queries
+
+Each non-pairwise case executes four queries per entity:
+
+1. **Canonical traversal** — `CanonicalEntity ← ALIGNED_WITH ← cluster ← MEMBER_OF ← mention ← HAS_PARTICIPANT ← claim`
+2. **Cluster-name traversal** — `cluster ← MEMBER_OF ← mention ← HAS_PARTICIPANT ← claim` (no canonical deduplication; fragmentation risk)
+3. **Lower-layer chain** — same as (1) but with `OPTIONAL MATCH` for claims so that dark mentions (no claims) are visible
+4. **Fragmentation check** — counts distinct clusters matching the entity name text
+
+Pairwise cases execute a single bidirectional query starting from `ExtractedClaim` nodes.
+
+### Single-entity canonical traversal
+
+```cypher
+// Canonical traversal — all claims reachable from a CanonicalEntity via hybrid path
+MATCH (canonical:CanonicalEntity)<-[a:ALIGNED_WITH]-(cluster:ResolvedEntityCluster)<-[:MEMBER_OF]-(m:EntityMention)
+WHERE toLower(canonical.name) CONTAINS $entity_name
+  AND a.run_id = $run_id AND a.alignment_version = $alignment_version
+  AND m.run_id = $run_id
+MATCH (c:ExtractedClaim)-[r:HAS_PARTICIPANT]->(m)
+WHERE c.run_id = $run_id
+RETURN canonical.name        AS canonical_entity,
+       cluster.canonical_name AS cluster,
+       m.name                 AS mention,
+       r.role                 AS role,
+       c.claim_text,
+       c.predicate,
+       r.match_method,
+       c.claim_id
+ORDER BY role, c.claim_id;
+```
+
+### Cluster-name traversal (comparison path)
+
+```cypher
+// Cluster-name traversal — raw text-match; may return fragmented results
+MATCH (cluster:ResolvedEntityCluster)<-[:MEMBER_OF]-(m:EntityMention)
+WHERE toLower(cluster.canonical_name) CONTAINS $entity_name
+  AND cluster.run_id = $run_id AND m.run_id = $run_id
+MATCH (c:ExtractedClaim)-[r:HAS_PARTICIPANT]->(m)
+WHERE c.run_id = $run_id
+RETURN cluster.canonical_name AS cluster,
+       cluster.entity_type    AS cluster_type,
+       m.name                 AS mention,
+       r.role                 AS role,
+       c.claim_text,
+       c.predicate,
+       r.match_method,
+       c.claim_id
+ORDER BY cluster, role, c.claim_id;
+```
+
+### Lower-layer chain inspection (canonical → cluster → mention → claim)
+
+```cypher
+// Full lower-layer inspection — OPTIONAL MATCH exposes dark mentions (no claims)
+MATCH (canonical:CanonicalEntity)<-[a:ALIGNED_WITH]-(cluster:ResolvedEntityCluster)<-[:MEMBER_OF]-(m:EntityMention)
+WHERE toLower(canonical.name) CONTAINS $entity_name
+  AND a.run_id = $run_id AND a.alignment_version = $alignment_version
+  AND m.run_id = $run_id
+OPTIONAL MATCH (c:ExtractedClaim)-[r:HAS_PARTICIPANT]->(m)
+WHERE c.run_id = $run_id
+RETURN canonical.name        AS canonical_entity,
+       cluster.canonical_name AS cluster,
+       cluster.entity_type    AS cluster_type,
+       m.name                 AS mention,
+       m.entity_type          AS mention_type,
+       r.role                 AS role,
+       c.claim_id,
+       c.claim_text
+ORDER BY canonical_entity, cluster, mention, role;
+```
+
+### Fragmentation check
+
+```cypher
+// Fragmentation check — how many distinct clusters match the entity name text?
+MATCH (cluster:ResolvedEntityCluster)
+WHERE toLower(cluster.canonical_name) CONTAINS $entity_name
+  AND cluster.run_id = $run_id
+RETURN cluster.cluster_id     AS cluster_id,
+       cluster.canonical_name AS canonical_name,
+       cluster.entity_type    AS entity_type
+ORDER BY entity_type, canonical_name;
+```
+
+**Fragmentation is detected** when the number of rows returned by the fragmentation
+check exceeds the number of distinct clusters visible through the canonical path.
+This signals that the raw cluster-name view exposes entity-type or spelling splits
+that the canonical traversal collapses.
+
+### Pairwise canonical claim lookup
+
+```cypher
+// Bidirectional pairwise — either canonical entity in either role
+MATCH (c:ExtractedClaim)
+WHERE c.run_id = $run_id
+MATCH (c)-[rSub:HAS_PARTICIPANT {role: 'subject'}]->(mSub:EntityMention)
+WHERE mSub.run_id = $run_id
+MATCH (c)-[rObj:HAS_PARTICIPANT {role: 'object'}]->(mObj:EntityMention)
+WHERE mObj.run_id = $run_id
+MATCH (mSub)-[:MEMBER_OF]->(clSub:ResolvedEntityCluster)-[aSub:ALIGNED_WITH]->(canonSub:CanonicalEntity)
+WHERE aSub.run_id = $run_id AND aSub.alignment_version = $alignment_version
+MATCH (mObj)-[:MEMBER_OF]->(clObj:ResolvedEntityCluster)-[aObj:ALIGNED_WITH]->(canonObj:CanonicalEntity)
+WHERE aObj.run_id = $run_id AND aObj.alignment_version = $alignment_version
+  AND (
+    (toLower(canonSub.name) CONTAINS $entity_a AND toLower(canonObj.name) CONTAINS $entity_b) OR
+    (toLower(canonSub.name) CONTAINS $entity_b AND toLower(canonObj.name) CONTAINS $entity_a)
+  )
+WITH DISTINCT c, mSub, mObj, canonSub, canonObj,
+     CASE WHEN toLower(canonSub.name) CONTAINS $entity_a THEN 'A→B' ELSE 'B→A' END AS direction
+RETURN c.claim_id             AS claim_id,
+       c.claim_text           AS claim_text,
+       c.predicate            AS predicate,
+       mSub.name              AS subject_mention,
+       mObj.name              AS object_mention,
+       canonSub.name          AS subject_canonical,
+       canonObj.name          AS object_canonical,
+       direction
+ORDER BY direction, c.claim_id;
+```
+
+### Generating the benchmark artifact
+
+```bash
+# Set Neo4j connection environment variables
+export NEO4J_URI=bolt://localhost:7687
+export NEO4J_USERNAME=neo4j
+export NEO4J_PASSWORD=<your-password>
+export NEO4J_DATABASE=neo4j   # optional, defaults to 'neo4j'
+
+# Scoped to a specific run and alignment version (recommended after each pipeline run)
+python pipelines/query/retrieval_benchmark.py \
+    --run-id unstructured_ingest-20240601T120000000000Z-abcd1234 \
+    --alignment-version v1.0
+
+# Unscoped — aggregates across all runs in the database
+python pipelines/query/retrieval_benchmark.py
+```
+
+The artifact is written to:
+
+- **Scoped run:** `pipelines/runs/<run-id>/retrieval_benchmark/retrieval_benchmark.json`
+- **Unscoped:** `pipelines/runs/retrieval_benchmark/retrieval_benchmark.json`
+
+### Artifact structure
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `generated_at` | string | ISO-8601 UTC timestamp |
+| `run_id` | string \| null | Pipeline run_id scope (null = all runs) |
+| `alignment_version` | string \| null | Alignment version scope |
+| `case_results` | array | Results for single-entity, fragmented-entity, composite-claim, and canonical-vs-cluster cases |
+| `pairwise_results` | array | Results for pairwise-entity cases |
+| `benchmark_summary` | object | Aggregate summary (see below) |
+
+Each entry in `case_results` includes:
+
+| Field | Description |
+|-------|-------------|
+| `case_id` | Unique benchmark case identifier |
+| `case_type` | One of the five benchmark case types |
+| `entity_names` | Entity name fragments used as query parameters |
+| `description` | Human-readable case description |
+| `expected_shape` | What a good result looks like |
+| `failure_modes` | Known failure patterns to watch for |
+| `canonical_rows` | Rows returned by canonical traversal |
+| `cluster_rows` | Rows returned by cluster-name traversal |
+| `lower_layer_rows` | Rows from full chain inspection |
+| `fragmentation_check_rows` | Cluster fragmentation check rows |
+| `canonical_claim_count` | Distinct claims via canonical path |
+| `cluster_claim_count` | Distinct claims via cluster-name path |
+| `canonical_cluster_count` | Distinct clusters via canonical path |
+| `cluster_name_cluster_count` | Distinct clusters via cluster-name text search |
+| `fragmentation_detected` | `true` when cluster-name path returns more clusters |
+
+**`benchmark_summary`**
+
+| Field | Description |
+|-------|-------------|
+| `total_cases` | Total benchmark cases run |
+| `single_and_comparison_cases` | Non-pairwise case count |
+| `pairwise_cases` | Pairwise case count |
+| `fragmentation_detected_count` | Cases where fragmentation was detected |
+| `entities_with_claims_canonical` | Cases with ≥ 1 claim via canonical path |
+| `entities_with_claims_cluster` | Cases with ≥ 1 claim via cluster-name path |
+| `total_canonical_claims` | Sum of canonical claim counts across cases |
+| `total_cluster_claims` | Sum of cluster-name claim counts across cases |
+| `total_pairwise_claims` | Sum of pairwise claim counts |
+
+### Interpreting benchmark results
+
+| Signal | Healthy | Suspicious |
+|--------|---------|------------|
+| `fragmentation_detected_count` | 0 for all cases | > 0 — entity-type or spelling splits exist |
+| `entities_with_claims_canonical` | Equal to `single_and_comparison_cases` | Any entity with 0 canonical claims — alignment gap |
+| `canonical_claim_count` vs `cluster_claim_count` | Canonical ≥ cluster (deduplication working) | Canonical < cluster — alignment is missing some clusters |
+| `lower_layer_rows` with `claim_id = null` | Few dark mentions | Many dark mentions — participation coverage gap |
+| `cluster_name_cluster_count > 1` for single entity | At most 1 clean cluster | Multiple clusters — fragmentation risk |
+
+### Architectural guardrails
+
+- **Chunk-first evidence anchoring is preserved** — the benchmark queries never
+  skip the `HAS_PARTICIPANT` edge or treat claims as reachable without a
+  participation edge.
+- **Canonical alignment is additive** — the benchmark records both canonical
+  and cluster-name results side-by-side, so canonical traversal can never silently
+  hide cluster-level structural problems.
+- **Observable and explainable** — the lower-layer chain query (`lower_layer_rows`)
+  exposes every step of the `canonical → cluster → mention → claim` path, making
+  the resolution model inspectable at any layer.
+
+### Programmatic usage
+
+```python
+from pathlib import Path
+
+from demo.contracts.runtime import Config
+from demo.stages.retrieval_benchmark import run_retrieval_benchmark
+
+config = Config(
+    dry_run=False,
+    output_dir=Path("pipelines"),
+    neo4j_uri="bolt://localhost:7687",
+    neo4j_username="neo4j",
+    neo4j_password="<password>",
+    neo4j_database="neo4j",
+    openai_model="",
+)
+
+result = run_retrieval_benchmark(
+    config,
+    run_id="unstructured_ingest-...",
+    alignment_version="v1.0",
+)
+print(result["artifact"]["benchmark_summary"])
+```
