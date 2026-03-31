@@ -553,10 +553,18 @@ class TestClusterTypeFragmentationQueryAlignment(unittest.TestCase):
     """
 
     def test_all_synonyms_appear_in_fragmentation_query(self) -> None:
-        """Every entry in _ENTITY_TYPE_SYNONYMS must appear in the Cypher query."""
+        """Every entry in _ENTITY_TYPE_SYNONYMS must appear in the Cypher query.
+
+        Comparisons use the Cypher-escaped form of each literal (single-quote
+        doubled: ``'`` becomes ``''``) so that the assertions remain correct if
+        a future synonym value contains a single quote — the query will embed the
+        escaped form, not the raw value.
+        """
         for raw, canonical in _ENTITY_TYPE_SYNONYMS.items():
+            escaped_raw = raw.replace("'", "''")
+            escaped_canonical = canonical.replace("'", "''")
             self.assertIn(
-                raw,
+                escaped_raw,
                 _Q_CLUSTER_TYPE_FRAGMENTATION,
                 msg=(
                     f"Synonym '{raw}' → '{canonical}' from _ENTITY_TYPE_SYNONYMS "
@@ -569,11 +577,11 @@ class TestClusterTypeFragmentationQueryAlignment(unittest.TestCase):
                 ),
             )
             self.assertIn(
-                canonical,
+                escaped_canonical,
                 _Q_CLUSTER_TYPE_FRAGMENTATION,
                 msg=(
-                    f"Canonical form '{canonical}' for synonym '{raw}' is missing "
-                    f"from _Q_CLUSTER_TYPE_FRAGMENTATION."
+                    f"Canonical form '{canonical}' (escaped: '{escaped_canonical}') "
+                    f"for synonym '{raw}' is missing from _Q_CLUSTER_TYPE_FRAGMENTATION."
                 ),
             )
 
@@ -614,32 +622,29 @@ class TestClusterTypeFragmentationQueryAlignment(unittest.TestCase):
         """A new synonym added to _ENTITY_TYPE_SYNONYMS would automatically appear
         in the Cypher CASE expression without any manual update.
 
-        This is a structural regression test: it regenerates the CASE expression
-        from a hypothetical extended synonym table and asserts the output differs
-        from the current query — confirming that if _ENTITY_TYPE_SYNONYMS grew,
-        the generated query would grow with it.
+        This is a structural regression test: it temporarily extends the
+        module-global synonym table via patch.dict, regenerates the CASE expression
+        via the real production helper, and asserts the output differs from the
+        current query — confirming that if _ENTITY_TYPE_SYNONYMS grew, the
+        generated query would grow with it.
         """
-        # Synthesise a CASE expression using a sentinel synonym not in the real table.
         sentinel_raw = "__TEST_SYNONYM__"
         sentinel_canonical = "__TEST_CANONICAL__"
 
-        # Directly build the expression from a locally extended mapping.
-        extended_synonyms = {**_ENTITY_TYPE_SYNONYMS, sentinel_raw: sentinel_canonical}
-        when_lines = "\n".join(
-            f"  WHEN m.entity_type = '{raw}' THEN '{canonical}'"
-            for raw, canonical in extended_synonyms.items()
-        )
-        extended_case = (
-            f"CASE\n"
-            f"  WHEN m.entity_type IS NULL OR m.entity_type = '' THEN 'UNKNOWN'\n"
-            f"{when_lines}\n"
-            f"  ELSE m.entity_type\n"
-            f"END"
-        )
+        # Extend the real module-global synonym table for the duration of this test
+        # and regenerate the CASE expression via the production helper.
+        with patch.dict(
+            _ENTITY_TYPE_SYNONYMS,
+            {sentinel_raw: sentinel_canonical},
+            clear=False,
+        ):
+            extended_case = build_entity_type_cypher_case("m.entity_type")
 
-        # The extended expression must contain the sentinel synonym.
+        # The regenerated expression must contain the sentinel synonym and its
+        # canonical form, demonstrating that it is wired to the synonym table.
         self.assertIn(sentinel_raw, extended_case)
-        # And it must differ from the current (un-extended) query.
+        self.assertIn(sentinel_canonical, extended_case)
+        # The current (un-extended) query must not contain the sentinel.
         self.assertNotIn(sentinel_raw, _Q_CLUSTER_TYPE_FRAGMENTATION)
 
 
