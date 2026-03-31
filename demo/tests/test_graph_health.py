@@ -561,8 +561,11 @@ class TestClusterTypeFragmentationQueryAlignment(unittest.TestCase):
                 msg=(
                     f"Synonym '{raw}' → '{canonical}' from _ENTITY_TYPE_SYNONYMS "
                     f"is missing from _Q_CLUSTER_TYPE_FRAGMENTATION.  "
-                    f"Add it to _ENTITY_TYPE_SYNONYMS; the Cypher is generated "
-                    f"automatically from that table."
+                    f"This indicates the fragmentation query was not regenerated "
+                    f"from build_entity_type_cypher_case.  Ensure "
+                    f"_Q_CLUSTER_TYPE_FRAGMENTATION is built via "
+                    f"build_entity_type_cypher_case (and that query regeneration "
+                    f"is not bypassed) so it stays in sync with _ENTITY_TYPE_SYNONYMS."
                 ),
             )
             self.assertIn(
@@ -623,14 +626,14 @@ class TestClusterTypeFragmentationQueryAlignment(unittest.TestCase):
         # Directly build the expression from a locally extended mapping.
         extended_synonyms = {**_ENTITY_TYPE_SYNONYMS, sentinel_raw: sentinel_canonical}
         when_lines = "\n".join(
-            f"  WHEN trim(m.entity_type) = '{raw}' THEN '{canonical}'"
+            f"  WHEN m.entity_type = '{raw}' THEN '{canonical}'"
             for raw, canonical in extended_synonyms.items()
         )
         extended_case = (
             f"CASE\n"
-            f"  WHEN m.entity_type IS NULL OR trim(m.entity_type) = '' THEN 'UNKNOWN'\n"
+            f"  WHEN m.entity_type IS NULL OR m.entity_type = '' THEN 'UNKNOWN'\n"
             f"{when_lines}\n"
-            f"  ELSE trim(m.entity_type)\n"
+            f"  ELSE m.entity_type\n"
             f"END"
         )
 

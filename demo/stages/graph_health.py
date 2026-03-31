@@ -123,15 +123,17 @@ def _build_cluster_type_fragmentation_query() -> str:
     _indent = "     "  # aligns continuation lines under the opening CASE keyword
     case_expr = _build_entity_type_cypher_case("m.entity_type")
     indented_case = case_expr.replace("\n", "\n" + _indent)
-    return (
-        "MATCH (cluster:ResolvedEntityCluster)<-[:MEMBER_OF]-(m:EntityMention)\n"
-        "WHERE ($run_id IS NULL OR cluster.run_id = $run_id)\n"
-        f"WITH cluster,\n"
-        f"{_indent}{indented_case} AS normalized_type\n"
-        "WITH cluster,\n"
-        "     count(DISTINCT normalized_type) AS type_count\n"
-        "RETURN type_count AS distinct_types_in_cluster, count(cluster) AS cluster_count\n"
-        "ORDER BY type_count\n"
+    return "".join(
+        [
+            "MATCH (cluster:ResolvedEntityCluster)<-[:MEMBER_OF]-(m:EntityMention)\n",
+            "WHERE ($run_id IS NULL OR cluster.run_id = $run_id)\n",
+            "WITH cluster,\n",
+            f"{_indent}{indented_case} AS normalized_type\n",
+            "WITH cluster,\n",
+            "     count(DISTINCT normalized_type) AS type_count\n",
+            "RETURN type_count AS distinct_types_in_cluster, count(cluster) AS cluster_count\n",
+            "ORDER BY type_count\n",
+        ]
     )
 
 

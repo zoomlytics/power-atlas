@@ -325,6 +325,16 @@ def _normalize_entity_type(entity_type: str | None) -> str | None:
 _SAFE_CYPHER_VAR_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_.]*$")
 
 
+def _escape_cypher_string(value: str) -> str:
+    """Escape a string value for embedding in a single-quoted Cypher literal.
+
+    Replaces each ``'`` with ``''`` (the Cypher escaping convention) so that
+    the caller can safely wrap the result in single quotes without producing
+    invalid Cypher or enabling injection.
+    """
+    return value.replace("'", "''")
+
+
 def build_entity_type_cypher_case(var: str, unknown_label: str = "UNKNOWN") -> str:
     """Return a Cypher CASE expression that mirrors :func:`_normalize_entity_type`.
 
@@ -335,7 +345,9 @@ def build_entity_type_cypher_case(var: str, unknown_label: str = "UNKNOWN") -> s
     diagnostics) so that the Cypher semantics stay automatically in sync with
     the Python policy.
 
-    Matching is **case-sensitive**, exactly mirroring :func:`_normalize_entity_type`.
+    Matching is **case-sensitive** and does **not** strip whitespace, exactly
+    mirroring :func:`_normalize_entity_type` (which compares raw values directly
+    without trimming).
 
     Parameters
     ----------
@@ -345,9 +357,9 @@ def build_entity_type_cypher_case(var: str, unknown_label: str = "UNKNOWN") -> s
         of alphanumeric characters, underscores, and dots — arbitrary
         expressions are not permitted to prevent Cypher injection.
     unknown_label:
-        The literal string to emit when *var* is ``NULL`` or an empty string
+        The literal string to emit when *var* is ``NULL`` or the empty string
         (i.e. when :func:`_normalize_entity_type` would return ``None``).
-        Defaults to ``"UNKNOWN"``.
+        Defaults to ``"UNKNOWN"``.  Single-quotes are escaped automatically.
 
     Returns
     -------
@@ -366,11 +378,11 @@ def build_entity_type_cypher_case(var: str, unknown_label: str = "UNKNOWN") -> s
     ``var="m.entity_type"`` is equivalent to::
 
         CASE
-          WHEN m.entity_type IS NULL OR trim(m.entity_type) = '' THEN 'UNKNOWN'
-          WHEN trim(m.entity_type) = 'ORG' THEN 'Organization'
-          WHEN trim(m.entity_type) = 'Company' THEN 'Organization'
-          WHEN trim(m.entity_type) = 'PERSON' THEN 'Person'
-          ELSE trim(m.entity_type)
+          WHEN m.entity_type IS NULL OR m.entity_type = '' THEN 'UNKNOWN'
+          WHEN m.entity_type = 'ORG' THEN 'Organization'
+          WHEN m.entity_type = 'Company' THEN 'Organization'
+          WHEN m.entity_type = 'PERSON' THEN 'Person'
+          ELSE m.entity_type
         END
     """
     if not _SAFE_CYPHER_VAR_RE.fullmatch(var):
@@ -378,15 +390,16 @@ def build_entity_type_cypher_case(var: str, unknown_label: str = "UNKNOWN") -> s
             f"Unsafe Cypher variable reference {var!r}: must match "
             f"[A-Za-z_][A-Za-z0-9_.]*  (only alphanumerics, underscores, and dots)."
         )
+    escaped_unknown = _escape_cypher_string(unknown_label)
     when_lines = "\n".join(
-        f"  WHEN trim({var}) = '{raw}' THEN '{canonical}'"
+        f"  WHEN {var} = '{_escape_cypher_string(raw)}' THEN '{_escape_cypher_string(canonical)}'"
         for raw, canonical in _ENTITY_TYPE_SYNONYMS.items()
     )
     return (
         f"CASE\n"
-        f"  WHEN {var} IS NULL OR trim({var}) = '' THEN '{unknown_label}'\n"
+        f"  WHEN {var} IS NULL OR {var} = '' THEN '{escaped_unknown}'\n"
         f"{when_lines}\n"
-        f"  ELSE trim({var})\n"
+        f"  ELSE {var}\n"
         f"END"
     )
 
