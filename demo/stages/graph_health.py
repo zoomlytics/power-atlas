@@ -545,9 +545,9 @@ def run_graph_health_diagnostics(
             "alignment_coverage": [],
             "per_canonical_alignment": [],
             "canonical_chain_health": [],
-            "participation_summary": None,
-            "mention_summary": None,
-            "alignment_summary": None,
+            "participation_summary": {},
+            "mention_summary": {},
+            "alignment_summary": {},
         }
         artifact_path.write_text(json.dumps(dry_artifact, indent=2), encoding="utf-8")
         summary: dict[str, Any] = {
