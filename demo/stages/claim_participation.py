@@ -28,12 +28,29 @@ needed to find a unique match):
    typographic substitutions (``ß`` → ``ss``, em-dash → hyphen-minus).
 4. **list_split** — when all three strategies above yield no match *and* the
    slot text contains conjunction/list separators such as ``" and "``, ``" or "``,
-   ``" & "``, or ``", "``, the slot is split into its constituent parts and each part is
-   matched independently using strategies 1–3.  One :HAS_PARTICIPANT edge is
-   emitted per successfully matched part (duplicate mention_ids are deduplicated
-   within the same slot).  This covers composite argument spans such as
-   ``"Amazon and eBay"`` (two entities) or ``"Xapo, Company"`` (entity + type
-   qualifier).
+   ``" & "``, ``", "``, ``" / "`` (slash with surrounding whitespace), or
+   ``"; "`` (semicolon followed by whitespace), the slot is split into its
+   constituent parts and each part is matched independently using strategies
+   1–3.  One :HAS_PARTICIPANT edge is emitted per successfully matched part
+   (duplicate mention_ids are deduplicated within the same slot).  This covers
+   composite argument spans such as ``"Amazon and eBay"`` (two entities),
+   ``"Amazon / eBay / Google"`` (slash-delimited list), or
+   ``"Amazon; eBay; Google"`` (semicolon-delimited list).
+
+   **Intentionally unsupported composite forms** (no edge recovery attempted):
+
+   - *Parenthetical qualifiers* — ``"Amazon (AWS) and Google"``: the part
+     ``"Amazon (AWS)"`` will not match a plain ``"Amazon"`` mention.  The
+     other parts (e.g. ``"Google"``) are still matched normally.
+   - *Grouped qualifiers* — ``"Amazon and eBay subsidiaries"``: ``"eBay
+     subsidiaries"`` will not match a plain ``"eBay"`` mention; only the
+     unqualified part (``"Amazon"``) can be recovered.
+   - *Appositives* — ``"Xapo, a digital-assets company"``: the appositive
+     phrase ``"a digital-assets company"`` fails to match any mention; only
+     the entity name (``"Xapo"``) creates an edge via comma splitting.
+   - *Nested qualifiers* — ``"Amazon, eBay, and Google subsidiaries"``:
+     ``"Google subsidiaries"`` is not resolved; ``"Amazon"`` and ``"eBay"``
+     are recovered normally.
 
 For each slot, the first strategy that yields **exactly one** matching mention
 is used and an edge row is emitted with ``match_method`` set to the strategy
@@ -103,7 +120,11 @@ _SLOT_ROLE: dict[str, str] = {
 # lists such as "A, B, and C": the ", and " is consumed as a single separator
 # so the last token is correctly "C" rather than "and C".
 # Plain comma-only separators (", ") are handled by the second alternative.
-_LIST_SPLIT_RE = re.compile(r",?\s+(?:and|or|&)\s+|,\s+", re.IGNORECASE)
+# Slash separators (" / ") require whitespace on both sides to avoid splitting
+# URL paths or numeric ratios (e.g. "Q1/Q2").
+# Semicolon separators ("; ") require at least one trailing space to avoid
+# splitting abbreviations (e.g. "U.S.;").
+_LIST_SPLIT_RE = re.compile(r",?\s+(?:and|or|&)\s+|,\s+|\s+/\s+|;\s+", re.IGNORECASE)
 
 # ---------------------------------------------------------------------------
 # List-splitting helper
@@ -113,12 +134,28 @@ _LIST_SPLIT_RE = re.compile(r",?\s+(?:and|or|&)\s+|,\s+", re.IGNORECASE)
 def split_slot_text(slot_text: str) -> list[str]:
     """Split *slot_text* on conjunction and list separators.
 
-    Splits on: ``" and "``, ``" or "``, ``" & "`` (surrounded by whitespace)
-    and ``", "`` (comma followed by at least one space).  Oxford-comma lists
-    such as ``"A, B, and C"`` are also handled — the ``", and "`` separator is
-    consumed as a single token so the result is ``["A", "B", "C"]`` rather
-    than ``["A", "B", "and C"]``.  The split is case-insensitive so
-    ``"Amazon AND eBay"`` is handled the same as ``"Amazon and eBay"``.
+    Splits on: ``" and "``, ``" or "``, ``" & "`` (surrounded by whitespace),
+    ``", "`` (comma followed by at least one space),
+    ``" / "`` (slash with at least one space on each side), and
+    ``"; "`` (semicolon followed by at least one space).
+    Oxford-comma lists such as ``"A, B, and C"`` are also handled — the
+    ``", and "`` separator is consumed as a single token so the result is
+    ``["A", "B", "C"]`` rather than ``["A", "B", "and C"]``.  The split is
+    case-insensitive so ``"Amazon AND eBay"`` is handled the same as
+    ``"Amazon and eBay"``.
+
+    **Intentionally unsupported forms** — these patterns split but may not
+    recover meaningful entity names:
+
+    - *Parenthetical qualifiers* — ``"Amazon (AWS) and Google"``: the part
+      ``"Amazon (AWS)"`` will not match a plain ``"Amazon"`` mention.
+    - *Grouped qualifiers* — ``"Amazon and eBay subsidiaries"``: the part
+      ``"eBay subsidiaries"`` will not match a plain ``"eBay"`` mention.
+    - *Appositives* — ``"Xapo, a digital-assets company"``: only ``"Xapo"``
+      recovers a mention; the appositive descriptor is tried and discarded.
+    - *Bare slash (no spaces)* — ``"Amazon/eBay"`` is **not** split (avoids
+      URL paths and numeric ratios).
+    - *Bare semicolon (no trailing space)* — ``"Inc.;Ltd."`` is **not** split.
 
     Parameters
     ----------
