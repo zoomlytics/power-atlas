@@ -1452,20 +1452,20 @@ class TestEntityTypeDriftReport(unittest.TestCase):
     def test_none_entity_type_counted_as_null(self):
         mentions = [{"mention_id": "m1", "name": "Acme"}]  # no entity_type key
         report = _build_entity_type_report(mentions)
-        self.assertEqual(report["raw_counts"].get("null"), 1)
+        self.assertEqual(report["raw_counts"].get("__null__"), 1)
         self.assertEqual(report["null_or_empty_count"], 1)
-        self.assertEqual(report["normalized_counts"].get("null"), 1)
+        self.assertEqual(report["normalized_counts"].get("__null__"), 1)
 
     def test_explicit_none_entity_type_counted_as_null(self):
         mentions = [{"mention_id": "m1", "name": "Acme", "entity_type": None}]
         report = _build_entity_type_report(mentions)
-        self.assertEqual(report["raw_counts"].get("null"), 1)
+        self.assertEqual(report["raw_counts"].get("__null__"), 1)
         self.assertEqual(report["null_or_empty_count"], 1)
 
     def test_empty_string_entity_type_counted_as_null(self):
         mentions = [{"mention_id": "m1", "name": "Acme", "entity_type": ""}]
         report = _build_entity_type_report(mentions)
-        self.assertEqual(report["raw_counts"].get("null"), 1)
+        self.assertEqual(report["raw_counts"].get("__null__"), 1)
         self.assertEqual(report["null_or_empty_count"], 1)
 
     def test_mapped_synonym_ORG_appears_in_mapped_variants(self):
@@ -1578,7 +1578,7 @@ class TestEntityTypeDriftReport(unittest.TestCase):
         serialized = json.dumps(report)
         parsed = json.loads(serialized)
         self.assertIn("raw_counts", parsed)
-        self.assertIn("null", parsed["raw_counts"])
+        self.assertIn("__null__", parsed["raw_counts"])
 
     def test_dry_run_summary_includes_entity_type_report(self):
         """dry_run summary must include an entity_type_report key."""

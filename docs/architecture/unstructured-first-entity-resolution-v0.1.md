@@ -713,7 +713,7 @@ The report contains:
 
 | Key | Description |
 |---|---|
-| `raw_counts` | `{raw_label: count}` for every distinct raw value seen, ordered by descending count.  The special key `"null"` aggregates absent/empty labels. |
+| `raw_counts` | `{raw_label: count}` for every distinct raw value seen, ordered by descending count.  The reserved sentinel key `"__null__"` aggregates absent/empty labels. |
 | `normalized_counts` | `{canonical_label: count}` after applying `_normalize_entity_type()`.  Use this to see post-normalization type distribution. |
 | `mapped_variants` | `{raw_label: canonical_label}` for synonym mappings that were actually observed this run. |
 | `passthrough_labels` | Sorted list of non-empty labels that are **not** in the synonym table.  New or unexpected labels appear here. |
@@ -793,8 +793,10 @@ RETURN m.entity_type AS raw_entity_type, count(*) AS mentions
 ORDER BY mentions DESC, raw_entity_type;
 ```
 
-**Cluster fragmentation by type** — identifies clusters that contain mentions with
-more than one distinct `entity_type` (which may indicate a missing synonym mapping):
+**Cluster fragmentation by type** — identifies canonical entities that have clusters
+of more than one distinct `entity_type` aligned to them, which indicates that the
+same entity name is being resolved into separate per-type clusters (type-level fragmentation
+that may stem from a missing synonym mapping):
 ```cypher
 MATCH (cluster:ResolvedEntityCluster)-[:ALIGNED_WITH]->(canonical:CanonicalEntity)
 WHERE cluster.run_id = $run_id

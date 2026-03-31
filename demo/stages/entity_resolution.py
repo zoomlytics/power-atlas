@@ -133,8 +133,8 @@ keys (regardless of resolution mode):
   Contains the following sub-keys:
 
   - ``raw_counts``: ``{raw_label: count}`` for every distinct raw value seen,
-    ordered by descending count.  The special key ``"null"`` aggregates all
-    mentions whose ``entity_type`` was ``None`` or ``""``.
+    ordered by descending count.  The reserved sentinel key ``"__null__"``
+    aggregates all mentions whose ``entity_type`` was ``None`` or ``""``.
   - ``normalized_counts``: ``{canonical_label: count}`` after applying
     ``_normalize_entity_type()``, ordered by descending count.  Use this to
     understand post-normalization type distribution.
@@ -309,10 +309,10 @@ def _build_entity_type_report(
     key) and produces a structured diagnostic report that surfaces:
 
     * **raw_counts** — ``{raw_label: count}`` for every distinct raw value seen,
-      including the special string key ``"null"`` for absent/empty labels.
+      including the reserved sentinel key ``"__null__"`` for absent/empty labels.
     * **normalized_counts** — ``{canonical_label: count}`` after applying
-      :func:`_normalize_entity_type`; ``None`` is represented as the string
-      ``"null"`` so the mapping is JSON-serializable.
+      :func:`_normalize_entity_type`; absent/empty values are represented as
+      the reserved sentinel key ``"__null__"`` so the mapping is JSON-serializable.
     * **mapped_variants** — ``{raw_label: canonical_label}`` for synonym mappings
       (i.e. ``_ENTITY_TYPE_SYNONYMS`` entries) that were actually observed this run.
     * **passthrough_labels** — sorted list of non-empty labels that are *not* in
@@ -346,7 +346,7 @@ def _build_entity_type_report(
 
         if raw is None:
             null_or_empty_count += 1
-            norm_key = "null"
+            norm_key = "__null__"
         else:
             canonical = _normalize_entity_type(raw)
             # _normalize_entity_type only returns None when its input is falsy
@@ -362,10 +362,12 @@ def _build_entity_type_report(
                 norm_key = raw
         normalized_counts[norm_key] = normalized_counts.get(norm_key, 0) + 1
 
-    # Serialise raw_counts so None keys become the string "null" for JSON safety.
+    # Serialise raw_counts so None keys become the reserved sentinel "__null__"
+    # for JSON safety.  "__null__" is documented as reserved and will not collide
+    # with any real upstream entity_type label.
     serialized_raw_counts: dict[str, int] = {}
     for k, v in raw_counts.items():
-        serialized_raw_counts["null" if k is None else k] = v
+        serialized_raw_counts["__null__" if k is None else k] = v
 
     return {
         "raw_counts": dict(
