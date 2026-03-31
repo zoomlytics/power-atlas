@@ -513,8 +513,9 @@ class TestRunGraphHealthDiagnosticsLive(unittest.TestCase):
 
             # Unscoped artifacts should still be under "runs/" to align with
             # the repo's artifact layout conventions.
-            self.assertIn("/runs/", result["artifact_path"])
-            self.assertIn("graph_health", result["artifact_path"])
+            artifact_path = Path(result["artifact_path"])
+            self.assertIn("runs", artifact_path.parts)
+            self.assertIn("graph_health", artifact_path.parts)
 
 
 if __name__ == "__main__":
