@@ -104,11 +104,17 @@ class BenchmarkCaseDefinition:
 
     case_id: str
     case_type: str
-    entity_names: list[str]
+    entity_names: tuple[str, ...]
     description: str
     expected_shape: str
-    failure_modes: list[str]
-    lower_layer_checks: list[str]
+    failure_modes: tuple[str, ...]
+    lower_layer_checks: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        # Coerce mutable lists to immutable tuples so callers can pass either.
+        object.__setattr__(self, "entity_names", tuple(self.entity_names))
+        object.__setattr__(self, "failure_modes", tuple(self.failure_modes))
+        object.__setattr__(self, "lower_layer_checks", tuple(self.lower_layer_checks))
 
 
 #: Default benchmark cases derived from the benchmark specification.
@@ -401,7 +407,7 @@ ORDER BY cluster, role, c.claim_id
 _Q_LOWER_LAYER_CHAIN = """\
 MATCH (canonical:CanonicalEntity)<-[a:ALIGNED_WITH]-(cluster:ResolvedEntityCluster)<-[:MEMBER_OF]-(m:EntityMention)
 WHERE toLower(canonical.name) CONTAINS $entity_name
-  AND ($run_id IS NULL OR (a.run_id = $run_id AND m.run_id = $run_id))
+  AND ($run_id IS NULL OR (a.run_id = $run_id AND cluster.run_id = $run_id AND m.run_id = $run_id))
   AND ($alignment_version IS NULL OR a.alignment_version = $alignment_version)
 OPTIONAL MATCH (c:ExtractedClaim)-[r:HAS_PARTICIPANT]->(m)
 WHERE ($run_id IS NULL OR c.run_id = $run_id)
@@ -428,23 +434,35 @@ ORDER BY entity_type, canonical_name
 """
 
 # Pairwise canonical claim lookup — bidirectional
+# Anchored on CanonicalEntity for selectivity — filters on names before joining clusters/mentions.
 _Q_PAIRWISE_CANONICAL = """\
+MATCH (canonSub:CanonicalEntity)
+WHERE toLower(canonSub.name) CONTAINS $entity_a
+   OR toLower(canonSub.name) CONTAINS $entity_b
+MATCH (canonObj:CanonicalEntity)
+WHERE (toLower(canonObj.name) CONTAINS $entity_a
+       OR toLower(canonObj.name) CONTAINS $entity_b)
+  AND id(canonObj) <> id(canonSub)
+WITH canonSub, canonObj
+WHERE
+  (toLower(canonSub.name) CONTAINS $entity_a AND toLower(canonObj.name) CONTAINS $entity_b) OR
+  (toLower(canonSub.name) CONTAINS $entity_b AND toLower(canonObj.name) CONTAINS $entity_a)
+MATCH (canonSub)<-[aSub:ALIGNED_WITH]-(clSub:ResolvedEntityCluster)
+WHERE ($run_id IS NULL OR clSub.run_id = $run_id)
+  AND ($run_id IS NULL OR aSub.run_id = $run_id)
+  AND ($alignment_version IS NULL OR aSub.alignment_version = $alignment_version)
+MATCH (canonObj)<-[aObj:ALIGNED_WITH]-(clObj:ResolvedEntityCluster)
+WHERE ($run_id IS NULL OR clObj.run_id = $run_id)
+  AND ($run_id IS NULL OR aObj.run_id = $run_id)
+  AND ($alignment_version IS NULL OR aObj.alignment_version = $alignment_version)
+MATCH (mSub:EntityMention)-[:MEMBER_OF]->(clSub)
+WHERE ($run_id IS NULL OR mSub.run_id = $run_id)
+MATCH (mObj:EntityMention)-[:MEMBER_OF]->(clObj)
+WHERE ($run_id IS NULL OR mObj.run_id = $run_id)
 MATCH (c:ExtractedClaim)
 WHERE ($run_id IS NULL OR c.run_id = $run_id)
-MATCH (c)-[rSub:HAS_PARTICIPANT {role: 'subject'}]->(mSub:EntityMention)
-WHERE ($run_id IS NULL OR mSub.run_id = $run_id)
-MATCH (c)-[rObj:HAS_PARTICIPANT {role: 'object'}]->(mObj:EntityMention)
-WHERE ($run_id IS NULL OR mObj.run_id = $run_id)
-MATCH (mSub)-[:MEMBER_OF]->(clSub:ResolvedEntityCluster)-[aSub:ALIGNED_WITH]->(canonSub:CanonicalEntity)
-WHERE ($run_id IS NULL OR aSub.run_id = $run_id)
-  AND ($alignment_version IS NULL OR aSub.alignment_version = $alignment_version)
-MATCH (mObj)-[:MEMBER_OF]->(clObj:ResolvedEntityCluster)-[aObj:ALIGNED_WITH]->(canonObj:CanonicalEntity)
-WHERE ($run_id IS NULL OR aObj.run_id = $run_id)
-  AND ($alignment_version IS NULL OR aObj.alignment_version = $alignment_version)
-  AND (
-    (toLower(canonSub.name) CONTAINS $entity_a AND toLower(canonObj.name) CONTAINS $entity_b) OR
-    (toLower(canonSub.name) CONTAINS $entity_b AND toLower(canonObj.name) CONTAINS $entity_a)
-  )
+MATCH (c)-[:HAS_PARTICIPANT {role: 'subject'}]->(mSub)
+MATCH (c)-[:HAS_PARTICIPANT {role: 'object'}]->(mObj)
 WITH DISTINCT c, mSub, mObj, canonSub, canonObj,
      CASE WHEN toLower(canonSub.name) CONTAINS $entity_a THEN 'A→B' ELSE 'B→A' END AS direction
 RETURN c.claim_id             AS claim_id,
