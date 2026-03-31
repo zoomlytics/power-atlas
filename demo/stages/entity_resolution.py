@@ -353,9 +353,10 @@ def build_entity_type_cypher_case(var: str, unknown_label: str = "UNKNOWN") -> s
     ----------
     var:
         The Cypher variable or property expression whose value is the raw
-        ``entity_type`` string, e.g. ``"m.entity_type"``.  Must consist only
-        of alphanumeric characters, underscores, and dots — arbitrary
-        expressions are not permitted to prevent Cypher injection.
+        ``entity_type`` string, e.g. ``"m.entity_type"``.  Must be a
+        dot-separated sequence of valid identifiers
+        (``[A-Za-z_][A-Za-z0-9_]*``); trailing dots and empty segments are
+        rejected to prevent Cypher injection.
     unknown_label:
         The literal string to emit when *var* is ``NULL`` or the empty string
         (i.e. when :func:`_normalize_entity_type` would return ``None``).
@@ -369,8 +370,10 @@ def build_entity_type_cypher_case(var: str, unknown_label: str = "UNKNOWN") -> s
     Raises
     ------
     ValueError
-        If *var* contains characters outside the safe allowlist
-        (``[A-Za-z_][A-Za-z0-9_.]*``).
+        If *var* does not match the safe allowlist pattern
+        ``[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*``
+        (dot-separated identifier segments; trailing dots and empty segments
+        are rejected).
 
     Example
     -------
@@ -388,7 +391,8 @@ def build_entity_type_cypher_case(var: str, unknown_label: str = "UNKNOWN") -> s
     if not _SAFE_CYPHER_VAR_RE.fullmatch(var):
         raise ValueError(
             f"Unsafe Cypher variable reference {var!r}: must match "
-            f"[A-Za-z_][A-Za-z0-9_.]*  (only alphanumerics, underscores, and dots)."
+            f"[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)* "
+            f"(dot-separated identifier segments; only alphanumerics and underscores)."
         )
     escaped_unknown = _escape_cypher_string(unknown_label)
     when_lines = "\n".join(
