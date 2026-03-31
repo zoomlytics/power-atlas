@@ -718,6 +718,7 @@ The report contains:
 | `mapped_variants` | `{raw_label: canonical_label}` for synonym mappings that were actually observed this run. |
 | `passthrough_labels` | Sorted list of non-empty labels that are **not** in the synonym table.  New or unexpected labels appear here. |
 | `null_or_empty_count` | Count of mentions with absent or empty `entity_type`. |
+| `sentinel_label_warnings` | List of human-readable warnings when the reserved `"__null__"` sentinel bucket collides with a real upstream label (i.e., an extractor emitted the literal string `"__null__"`).  Empty in the common case. |
 
 The report is diagnostic only.  It does not modify any mention, cluster, or graph node.
 
@@ -765,7 +766,7 @@ RETURN
     WHEN 'ORG'          THEN 'Organization'
     WHEN 'Company'      THEN 'Organization'
     WHEN 'PERSON'       THEN 'Person'
-    ELSE coalesce(m.entity_type, 'unknown')
+    ELSE coalesce(nullif(m.entity_type, ''), 'unknown')
   END AS grouped_type,
   count(*) AS mentions
 ORDER BY mentions DESC;

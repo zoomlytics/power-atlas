@@ -150,6 +150,10 @@ keys (regardless of resolution mode):
   - ``null_or_empty_count``: Number of mentions with absent/empty
     ``entity_type``.  A non-zero value indicates extractor output that carries
     no type signal.
+  - ``sentinel_label_warnings``: List of human-readable warnings (normally
+    empty).  A non-empty list means an upstream extractor emitted the reserved
+    sentinel string ``"__null__"`` alongside absent/empty mentions; the counts
+    are merged and cannot be distinguished retroactively.
 * ``warnings``: List of non-fatal issues encountered during resolution.
 
 In modes that perform text-based clustering
