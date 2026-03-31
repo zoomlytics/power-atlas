@@ -505,7 +505,13 @@ def run_graph_health_diagnostics(
     # Unscoped diagnostics still live under "runs/" to align with the repository's
     # artifact layout convention (stage outputs are always under <output_dir>/runs/).
     runs_root = (effective_output_dir / "runs").resolve()
-    if run_id:
+
+    # Treat only None as "unscoped". Reject the empty string to avoid ambiguity
+    # between an explicitly empty run_id and a genuinely unscoped artifact.
+    if run_id == "":
+        raise ValueError("run_id must be None or a non-empty string.")
+
+    if run_id is not None:
         run_id_path = Path(run_id)
         if run_id_path.is_absolute() or ".." in run_id_path.parts or run_id_path.name != run_id:
             raise ValueError(
