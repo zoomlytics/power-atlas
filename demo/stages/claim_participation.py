@@ -52,8 +52,10 @@ evidence is absent or contradictory.
 """
 from __future__ import annotations
 
+import dataclasses
 import json
 import re
+from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
@@ -216,6 +218,101 @@ def match_slot_to_mention(
 
 
 # ---------------------------------------------------------------------------
+# Metrics dataclass
+# ---------------------------------------------------------------------------
+
+#: Maximum number of representative claim IDs collected per outcome class in
+#: :class:`ParticipationMatchMetrics` samples.  Kept small to bound artifact
+#: size while still providing concrete examples for auditing.
+_METRICS_SAMPLE_SIZE = 20
+
+
+@dataclasses.dataclass
+class ParticipationMatchMetrics:
+    """Per-run instrumentation for participation edge matching outcomes.
+
+    Produced by :func:`build_participation_edges_with_metrics` and written as
+    ``participation_metrics.json`` by :func:`run_claim_participation`.
+
+    All counts are for a single call (i.e. a single pipeline run).
+
+    Attributes
+    ----------
+    claims_processed:
+        Number of claim rows supplied to the matcher (includes rows with no
+        candidate mentions — those never enter the slot loop).
+    slots_processed:
+        Total (claim, slot) pairs where the slot text was non-empty and at
+        least one candidate mention was available.
+    edges_by_method:
+        Edge count keyed by ``match_method``
+        (``raw_exact`` / ``casefold_exact`` / ``normalized_exact`` /
+        ``list_split``).  Each emitted edge is counted once.
+    edges_by_role:
+        Edge count keyed by role (``"subject"`` / ``"object"``).
+    edges_by_role_and_method:
+        Two-level breakdown: ``{role: {match_method: count}}``.
+    unmatched_slots:
+        Slots that produced no edge and whose whole-slot attempt returned zero
+        candidates (``method is None``).  Includes slots where
+        :func:`split_slot_text` found no separator *and* slots where all
+        list-split parts also failed to match.
+    unmatched_by_role:
+        ``unmatched_slots`` broken down by role.
+    ambiguous_slots:
+        Slots whose whole-slot attempt returned
+        :data:`MATCH_OUTCOME_AMBIGUOUS` (two or more candidates matched).
+        List-split is suppressed for these slots.
+    ambiguous_by_role:
+        ``ambiguous_slots`` broken down by role.
+    list_split_suppressed:
+        Slots where list-split was *not* attempted because the whole-slot
+        match was ambiguous.  This is always equal to ``ambiguous_slots``;
+        it is provided as a separate field so the suppression decision is
+        legible in the artifact without requiring the reader to cross-reference
+        the ambiguity count.
+    list_split_suppressed_by_role:
+        ``list_split_suppressed`` broken down by role.
+    claims_with_any_edge:
+        Number of distinct claims for which at least one participation edge was
+        emitted (regardless of slot or method).
+    claims_with_no_edges:
+        ``claims_processed`` minus ``claims_with_any_edge``.
+    sample_list_split_claim_ids:
+        Up to :data:`_METRICS_SAMPLE_SIZE` claim IDs that contributed at least
+        one ``list_split`` edge — useful for auditing composite/list-valued
+        argument spans.
+    sample_unmatched_claim_ids:
+        Up to :data:`_METRICS_SAMPLE_SIZE` claim IDs with at least one
+        unmatched slot — useful for identifying extraction gaps.
+    sample_ambiguous_claim_ids:
+        Up to :data:`_METRICS_SAMPLE_SIZE` claim IDs with at least one
+        ambiguous whole-slot match — useful for auditing mention-name collisions.
+    """
+
+    claims_processed: int
+    slots_processed: int
+    edges_by_method: dict[str, int]
+    edges_by_role: dict[str, int]
+    edges_by_role_and_method: dict[str, dict[str, int]]
+    unmatched_slots: int
+    unmatched_by_role: dict[str, int]
+    ambiguous_slots: int
+    ambiguous_by_role: dict[str, int]
+    list_split_suppressed: int
+    list_split_suppressed_by_role: dict[str, int]
+    claims_with_any_edge: int
+    claims_with_no_edges: int
+    sample_list_split_claim_ids: list[str]
+    sample_unmatched_claim_ids: list[str]
+    sample_ambiguous_claim_ids: list[str]
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return a JSON-serialisable dict representation of the metrics."""
+        return dataclasses.asdict(self)
+
+
+# ---------------------------------------------------------------------------
 # Edge row construction
 # ---------------------------------------------------------------------------
 
@@ -255,6 +352,50 @@ def build_participation_edges(
     ``claim_id``, ``mention_id``, ``run_id``, ``source_uri``, ``slot``,
     ``role``, ``match_method``, and ``edge_type``
     (always ``EDGE_TYPE_HAS_PARTICIPANT``).
+
+    .. tip::
+
+        Use :func:`build_participation_edges_with_metrics` when you also need
+        per-run matching instrumentation (counts by method, unmatched/ambiguous
+        slot diagnostics, and representative sample IDs).
+    """
+    edge_rows, _ = build_participation_edges_with_metrics(claim_rows, mention_rows)
+    return edge_rows
+
+
+def build_participation_edges_with_metrics(
+    claim_rows: list[dict[str, Any]],
+    mention_rows: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], ParticipationMatchMetrics]:
+    """Build participation edge rows **and** collect per-run matching metrics.
+
+    This is the instrumented counterpart of :func:`build_participation_edges`.
+    It applies the same matching logic and emits the same edge rows, while
+    additionally counting outcomes by match method, role, and failure mode.
+
+    Matching rules are identical to :func:`build_participation_edges`:
+
+    - Whole-slot match (raw_exact → casefold_exact → normalized_exact) takes
+      precedence over list-split.
+    - Ambiguous whole-slot matches (:data:`MATCH_OUTCOME_AMBIGUOUS`) suppress
+      list-split entirely and are counted separately.
+    - Zero-match slots (``method is None``) are eligible for list-split;
+      all remaining zero-match slots (including those where no split is
+      possible or all split parts failed) are counted as unmatched.
+
+    Parameters
+    ----------
+    claim_rows:
+        Same as :func:`build_participation_edges`.
+    mention_rows:
+        Same as :func:`build_participation_edges`.
+
+    Returns
+    -------
+    A tuple ``(edge_rows, metrics)`` where *edge_rows* is the same list
+    returned by :func:`build_participation_edges` and *metrics* is a
+    :class:`ParticipationMatchMetrics` instance capturing outcome counts and
+    representative sample IDs.
     """
     # Index mentions by (run_id, chunk_id) for O(1) scoped lookup.
     # Scoping by run_id prevents cross-run contamination: chunk_id values are
@@ -267,6 +408,35 @@ def build_participation_edges(
             mentions_by_run_chunk.setdefault(key, []).append(mention_row)
 
     edge_rows: list[dict[str, Any]] = []
+
+    # Metrics accumulators.
+    edges_by_method: dict[str, int] = defaultdict(int)
+    edges_by_role: dict[str, int] = defaultdict(int)
+    edges_by_role_and_method: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    unmatched_slots = 0
+    unmatched_by_role: dict[str, int] = defaultdict(int)
+    ambiguous_slots = 0
+    ambiguous_by_role: dict[str, int] = defaultdict(int)
+    list_split_suppressed = 0
+    list_split_suppressed_by_role: dict[str, int] = defaultdict(int)
+    claims_with_edge_set: set[str] = set()
+    slots_processed = 0
+
+    # Sample collectors — bounded by _METRICS_SAMPLE_SIZE to keep artifact small.
+    # Each list has a companion set for O(1) duplicate detection (the linear
+    # scan over the list would also work given the tiny cap, but the set is
+    # cleaner and avoids any ordering-dependent behaviour).
+    sample_list_split: list[str] = []
+    _sample_list_split_seen: set[str] = set()
+    sample_unmatched: list[str] = []
+    _sample_unmatched_seen: set[str] = set()
+    sample_ambiguous: list[str] = []
+    _sample_ambiguous_seen: set[str] = set()
+
+    def _add_sample(bucket: list[str], seen: set[str], claim_id: str) -> None:
+        if len(bucket) < _METRICS_SAMPLE_SIZE and claim_id not in seen:
+            seen.add(claim_id)
+            bucket.append(claim_id)
 
     for claim_row in claim_rows:
         claim_chunk_ids: list[str] = claim_row.get("chunk_ids") or []
@@ -303,13 +473,19 @@ def build_participation_edges(
             for m in candidate_mentions
         ]
 
+        edges_before_claim = len(edge_rows)
+
         for slot in ("subject", "object"):
             slot_text = props.get(slot)
             if not slot_text:
                 continue
 
-            slot_str = str(slot_text)
+            slot_str = str(slot_text).strip()
+            if not slot_str:
+                continue
             seen_for_slot: set[str] = set()
+            role = _SLOT_ROLE[slot]
+            slots_processed += 1
 
             matched, method = match_slot_to_mention(slot_str, flat_mentions)
             if matched is not None:
@@ -320,11 +496,16 @@ def build_participation_edges(
                         "run_id": run_id,
                         "source_uri": source_uri,
                         "slot": slot,
-                        "role": _SLOT_ROLE[slot],
+                        "role": role,
                         "match_method": method,
                         "edge_type": EDGE_TYPE_HAS_PARTICIPANT,
                     }
                 )
+                # Record metrics for the successful whole-slot match.
+                assert method is not None  # narrowing; always true when matched is not None
+                edges_by_method[method] += 1
+                edges_by_role[role] += 1
+                edges_by_role_and_method[role][method] += 1
                 continue
 
             # Whole-slot match failed; try splitting on conjunctions/list
@@ -336,8 +517,17 @@ def build_participation_edges(
             # could emit misleading edges.
             if method is not None:
                 # Ambiguous whole-slot match — skip list-split entirely.
+                ambiguous_slots += 1
+                ambiguous_by_role[role] += 1
+                list_split_suppressed += 1
+                list_split_suppressed_by_role[role] += 1
+                _add_sample(sample_ambiguous, _sample_ambiguous_seen, claim_id)
                 continue
-            for part in split_slot_text(slot_str):
+
+            # method is None — zero candidates from whole-slot, try list-split.
+            list_split_parts = split_slot_text(slot_str)
+            slot_had_list_split_edge = False
+            for part in list_split_parts:
                 part_matched, _ = match_slot_to_mention(part, flat_mentions)
                 if part_matched is None:
                     continue
@@ -352,13 +542,49 @@ def build_participation_edges(
                         "run_id": run_id,
                         "source_uri": source_uri,
                         "slot": slot,
-                        "role": _SLOT_ROLE[slot],
+                        "role": role,
                         "match_method": MATCH_METHOD_LIST_SPLIT,
                         "edge_type": EDGE_TYPE_HAS_PARTICIPANT,
                     }
                 )
+                edges_by_method[MATCH_METHOD_LIST_SPLIT] += 1
+                edges_by_role[role] += 1
+                edges_by_role_and_method[role][MATCH_METHOD_LIST_SPLIT] += 1
+                slot_had_list_split_edge = True
+                _add_sample(sample_list_split, _sample_list_split_seen, claim_id)
 
-    return edge_rows
+            if not slot_had_list_split_edge:
+                # No edge was produced for this slot: either no splittable
+                # separator was found or all split parts failed to match.
+                unmatched_slots += 1
+                unmatched_by_role[role] += 1
+                _add_sample(sample_unmatched, _sample_unmatched_seen, claim_id)
+
+        if len(edge_rows) > edges_before_claim:
+            claims_with_edge_set.add(claim_id)
+
+    claims_processed = len(claim_rows)
+    claims_with_any_edge = len(claims_with_edge_set)
+
+    metrics = ParticipationMatchMetrics(
+        claims_processed=claims_processed,
+        slots_processed=slots_processed,
+        edges_by_method=dict(edges_by_method),
+        edges_by_role=dict(edges_by_role),
+        edges_by_role_and_method={r: dict(m) for r, m in edges_by_role_and_method.items()},
+        unmatched_slots=unmatched_slots,
+        unmatched_by_role=dict(unmatched_by_role),
+        ambiguous_slots=ambiguous_slots,
+        ambiguous_by_role=dict(ambiguous_by_role),
+        list_split_suppressed=list_split_suppressed,
+        list_split_suppressed_by_role=dict(list_split_suppressed_by_role),
+        claims_with_any_edge=claims_with_any_edge,
+        claims_with_no_edges=claims_processed - claims_with_any_edge,
+        sample_list_split_claim_ids=sample_list_split,
+        sample_unmatched_claim_ids=sample_unmatched,
+        sample_ambiguous_claim_ids=sample_ambiguous,
+    )
+    return edge_rows, metrics
 
 
 # ---------------------------------------------------------------------------
@@ -440,9 +666,11 @@ __all__ = [
     "EDGE_TYPE_HAS_PARTICIPANT",
     "ROLE_SUBJECT",
     "ROLE_OBJECT",
+    "ParticipationMatchMetrics",
     "split_slot_text",
     "match_slot_to_mention",
     "build_participation_edges",
+    "build_participation_edges_with_metrics",
     "write_participation_edges",
     "run_claim_participation",
 ]
@@ -482,7 +710,10 @@ def run_claim_participation(
     Returns
     -------
     A summary dict with ``status``, ``run_id``, ``edges_written``,
-    ``subject_edges``, ``object_edges``, and ``warnings``.
+    ``subject_edges``, ``object_edges``, ``match_metrics``, and ``warnings``.
+    The ``match_metrics`` key contains a serialised :class:`ParticipationMatchMetrics`
+    dict.  A separate ``participation_metrics.json`` file is also written to
+    ``<output_dir>/runs/<run_id>/claim_participation/`` for offline inspection.
     """
     # Validate run_id to prevent path traversal outside the runs directory.
     # Mirrors the same check used in run_entity_resolution.
@@ -501,6 +732,7 @@ def run_claim_participation(
     participation_dir = run_root / "claim_participation"
     participation_dir.mkdir(parents=True, exist_ok=True)
     summary_path = participation_dir / "claim_participation_summary.json"
+    metrics_path = participation_dir / "participation_metrics.json"
 
     if config.dry_run:
         summary: dict[str, Any] = {
@@ -510,6 +742,7 @@ def run_claim_participation(
             "edges_written": 0,
             "subject_edges": 0,
             "object_edges": 0,
+            "match_metrics": None,
             "warnings": ["claim participation skipped in dry_run mode"],
         }
         summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
@@ -578,11 +811,13 @@ def run_claim_participation(
         ]
 
         # 3. Build and persist participation edges.
-        edge_rows = build_participation_edges(claim_rows, mention_rows)
+        edge_rows, match_metrics = build_participation_edges_with_metrics(claim_rows, mention_rows)
         write_participation_edges(driver, neo4j_database=config.neo4j_database, edge_rows=edge_rows)
 
     subject_edges = sum(1 for e in edge_rows if e["role"] == ROLE_SUBJECT)
     object_edges = sum(1 for e in edge_rows if e["role"] == ROLE_OBJECT)
+    metrics_dict = match_metrics.to_dict()
+    metrics_path.write_text(json.dumps(metrics_dict, indent=2), encoding="utf-8")
     summary = {
         "status": "live",
         "run_id": run_id,
@@ -592,6 +827,7 @@ def run_claim_participation(
         "edges_written": len(edge_rows),
         "subject_edges": subject_edges,
         "object_edges": object_edges,
+        "match_metrics": metrics_dict,
         "warnings": [],
     }
     summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
