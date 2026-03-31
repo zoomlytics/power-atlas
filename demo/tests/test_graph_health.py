@@ -338,6 +338,18 @@ class TestRunGraphHealthDiagnosticsDryRun(unittest.TestCase):
             self.assertIn("alignment_summary", data)
             self.assertNotIn("status", data)
             self.assertNotIn("warnings", data)
+            # Summaries must have the same structure as live artifacts (proper keys,
+            # not empty {} or null), computed from empty row lists.
+            ps = data["participation_summary"]
+            self.assertIn("total_edges", ps)
+            self.assertIn("edges_by_role", ps)
+            self.assertIn("claim_coverage_pct", ps)
+            ms = data["mention_summary"]
+            self.assertIn("total_mentions", ms)
+            self.assertIn("unresolved_rate_pct", ms)
+            als = data["alignment_summary"]
+            self.assertIn("total_clusters", als)
+            self.assertIn("alignment_coverage_pct", als)
 
     def test_dry_run_no_run_id_uses_runs_graph_health_dir(self) -> None:
         import tempfile

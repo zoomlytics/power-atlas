@@ -530,26 +530,23 @@ def run_graph_health_diagnostics(
 
     if getattr(config, "dry_run", False):
         # In dry_run mode, write a file with the same schema as the live artifact
-        # (empty rows + zero/None summaries) so the on-disk format is stable for
-        # downstream tooling regardless of dry_run state.
-        dry_artifact: dict[str, Any] = {
-            "generated_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
-            "run_id": run_id,
-            "alignment_version": alignment_version,
-            "participation_role_distribution": [],
-            "claim_edge_coverage_distribution": [],
-            "match_method_distribution": [],
-            "mention_clustering": [],
-            "cluster_size_distribution": [],
-            "cluster_type_fragmentation": [],
-            "alignment_coverage": [],
-            "per_canonical_alignment": [],
-            "canonical_chain_health": [],
-            "participation_summary": {},
-            "mention_summary": {},
-            "alignment_summary": {},
-        }
-        artifact_path.write_text(json.dumps(dry_artifact, indent=2), encoding="utf-8")
+        # by building a real GraphHealthArtifact from empty row lists.  This
+        # ensures the on-disk format is fully stable — including all summary
+        # keys — regardless of dry_run state.
+        dry_artifact_obj = build_graph_health_artifact(
+            run_id=run_id,
+            alignment_version=alignment_version,
+            participation_role_distribution=[],
+            claim_edge_coverage_distribution=[],
+            match_method_distribution=[],
+            mention_clustering=[],
+            cluster_size_distribution=[],
+            cluster_type_fragmentation=[],
+            alignment_coverage=[],
+            per_canonical_alignment=[],
+            canonical_chain_health=[],
+        )
+        artifact_path.write_text(dry_artifact_obj.to_json(), encoding="utf-8")
         summary: dict[str, Any] = {
             "status": "dry_run",
             "run_id": run_id,
