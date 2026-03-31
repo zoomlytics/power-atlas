@@ -115,6 +115,8 @@ class BenchmarkCaseDefinition:
 #: Covers the five case types specified in the issue:
 #:   single-entity, pairwise-entity, fragmented-entity, composite-claim,
 #:   and canonical-vs-cluster comparison.
+#: 9 entries: 4 single-entity, 1 pairwise-entity, 1 fragmented-entity,
+#:            1 composite-claim, 2 canonical-vs-cluster.
 BENCHMARK_CASES: list[BenchmarkCaseDefinition] = [
     # ------------------------------------------------------------------
     # 1. Single-entity retrieval
@@ -895,6 +897,10 @@ def run_retrieval_benchmark(
         pairwise_results: list[PairwiseCaseResult] = []
 
         for case_def in cases:
+            if not case_def.entity_names:
+                raise ValueError(
+                    f"retrieval_benchmark: case {case_def.case_id!r} has empty entity_names"
+                )
             entity_name = case_def.entity_names[0]
 
             if case_def.case_type == "pairwise_entity":

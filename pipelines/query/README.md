@@ -1768,10 +1768,11 @@ ORDER BY cluster, role, c.claim_id;
 // Full lower-layer inspection — OPTIONAL MATCH exposes dark mentions (no claims)
 MATCH (canonical:CanonicalEntity)<-[a:ALIGNED_WITH]-(cluster:ResolvedEntityCluster)<-[:MEMBER_OF]-(m:EntityMention)
 WHERE toLower(canonical.name) CONTAINS $entity_name
-  AND a.run_id = $run_id AND a.alignment_version = $alignment_version
-  AND m.run_id = $run_id
+  AND ($run_id IS NULL OR a.run_id = $run_id)
+  AND ($alignment_version IS NULL OR a.alignment_version = $alignment_version)
+  AND ($run_id IS NULL OR m.run_id = $run_id)
 OPTIONAL MATCH (c:ExtractedClaim)-[r:HAS_PARTICIPANT]->(m)
-WHERE c.run_id = $run_id
+WHERE ($run_id IS NULL OR c.run_id = $run_id)
 RETURN canonical.name        AS canonical_entity,
        cluster.canonical_name AS cluster,
        cluster.entity_type    AS cluster_type,
@@ -1789,7 +1790,7 @@ ORDER BY canonical_entity, cluster, mention, role;
 // Fragmentation check — how many distinct clusters match the entity name text?
 MATCH (cluster:ResolvedEntityCluster)
 WHERE toLower(cluster.canonical_name) CONTAINS $entity_name
-  AND cluster.run_id = $run_id
+  AND ($run_id IS NULL OR cluster.run_id = $run_id)
 RETURN cluster.cluster_id     AS cluster_id,
        cluster.canonical_name AS canonical_name,
        cluster.entity_type    AS entity_type
@@ -1806,15 +1807,17 @@ that the canonical traversal collapses.
 ```cypher
 // Bidirectional pairwise — either canonical entity in either role
 MATCH (c:ExtractedClaim)
-WHERE c.run_id = $run_id
+WHERE ($run_id IS NULL OR c.run_id = $run_id)
 MATCH (c)-[rSub:HAS_PARTICIPANT {role: 'subject'}]->(mSub:EntityMention)
-WHERE mSub.run_id = $run_id
+WHERE ($run_id IS NULL OR mSub.run_id = $run_id)
 MATCH (c)-[rObj:HAS_PARTICIPANT {role: 'object'}]->(mObj:EntityMention)
-WHERE mObj.run_id = $run_id
+WHERE ($run_id IS NULL OR mObj.run_id = $run_id)
 MATCH (mSub)-[:MEMBER_OF]->(clSub:ResolvedEntityCluster)-[aSub:ALIGNED_WITH]->(canonSub:CanonicalEntity)
-WHERE aSub.run_id = $run_id AND aSub.alignment_version = $alignment_version
+WHERE ($run_id IS NULL OR aSub.run_id = $run_id)
+  AND ($alignment_version IS NULL OR aSub.alignment_version = $alignment_version)
 MATCH (mObj)-[:MEMBER_OF]->(clObj:ResolvedEntityCluster)-[aObj:ALIGNED_WITH]->(canonObj:CanonicalEntity)
-WHERE aObj.run_id = $run_id AND aObj.alignment_version = $alignment_version
+WHERE ($run_id IS NULL OR aObj.run_id = $run_id)
+  AND ($alignment_version IS NULL OR aObj.alignment_version = $alignment_version)
   AND (
     (toLower(canonSub.name) CONTAINS $entity_a AND toLower(canonObj.name) CONTAINS $entity_b) OR
     (toLower(canonSub.name) CONTAINS $entity_b AND toLower(canonObj.name) CONTAINS $entity_a)

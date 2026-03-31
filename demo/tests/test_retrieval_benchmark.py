@@ -65,15 +65,6 @@ from demo.stages.retrieval_benchmark import (
 # Shared fixtures
 # ---------------------------------------------------------------------------
 
-_ALLOWED_CASE_TYPES = {
-    "single_entity",
-    "pairwise_entity",
-    "fragmented_entity",
-    "composite_claim",
-    "canonical_vs_cluster",
-}
-
-
 def _make_canonical_rows(n_claims: int, n_clusters: int = 1) -> list[dict[str, Any]]:
     """Return *n_claims* synthetic canonical traversal rows."""
     rows = []
