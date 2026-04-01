@@ -643,10 +643,17 @@ def build_participation_edges_with_metrics(
             list_split_parts = split_slot_text(slot_str)
             slot_part_total = len(list_split_parts)
             slot_part_matched = 0
+            slot_part_ambiguous = 0
             matched_part_texts: list[str] = []
             unmatched_part_texts: list[str] = []
+            ambiguous_part_texts: list[str] = []
             for part in list_split_parts:
-                part_matched, _ = match_slot_to_mention(part, flat_mentions)
+                part_matched, part_method = match_slot_to_mention(part, flat_mentions)
+                # Distinguish truly unmatched parts from ambiguous matches.
+                if part_method == MATCH_OUTCOME_AMBIGUOUS:
+                    ambiguous_part_texts.append(part)
+                    slot_part_ambiguous += 1
+                    continue
                 if part_matched is None:
                     unmatched_part_texts.append(part)
                     continue
