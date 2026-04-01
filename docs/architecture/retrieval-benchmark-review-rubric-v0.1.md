@@ -86,13 +86,14 @@ The number of cases where `cluster_name_cluster_count > canonical_cluster_count`
 
 ### `entities_with_claims_canonical`
 
-How many cases returned at least one claim via the canonical path.
+How many non-pairwise cases (single-entity and comparison) returned at least one claim via the canonical path.
+Pairwise cases are excluded because they use a different query path and are tracked separately under `total_pairwise_claims`.
 
 | Movement | Interpretation |
 |----------|---------------|
-| 🟢 **8 (all cases)** | Every entity is reachable through the canonical chain. |
-| 🟡 **7** | One entity lost canonical coverage.  Run the single-entity case manually and inspect `lower_layer_rows` for the dark path. |
-| 🔴 **≤ 6** | Multiple entities dropped off.  Likely an alignment stage failure or a broken `ALIGNED_WITH` edge set. |
+| 🟢 **8 (all non-pairwise cases)** | Every single-entity and comparison case is reachable through the canonical chain. |
+| 🟡 **7** | One non-pairwise case lost canonical coverage.  Run the affected single-entity or comparison case manually and inspect `lower_layer_rows` for the dark path. |
+| 🔴 **≤ 6** | Multiple non-pairwise cases dropped off.  Likely an alignment stage failure or a broken `ALIGNED_WITH` edge set. |
 
 ### `total_canonical_claims` vs `total_cluster_claims`
 

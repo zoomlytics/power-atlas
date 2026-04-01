@@ -1916,7 +1916,7 @@ Each entry in `case_results` includes:
 
 ### Baseline artifact
 
-A representative baseline artifact from a post-hybrid run is committed at:
+A representative baseline artifact (synthetic example data reflecting a post-hybrid run) is committed at:
 
 ```
 pipelines/query/retrieval_benchmark_example_output.json
