@@ -339,7 +339,7 @@ Each entry in `residual_list_split_partial` describes one partial-success slot a
 |---|---|
 | `claim_id` | The claim that owns the slot |
 | `slot` | Slot name (`"subject"` or `"object"`) |
-| `slot_text` | Original, un-modified slot text as written in the claim |
+| `slot_text` | Normalized slot text (`slot_str` as used by the pipeline, e.g. trimmed/standardized) on which `split_slot_text` operates |
 | `parts` | All constituent parts produced by `split_slot_text` |
 | `matched_parts` | Subset of `parts` for which a matching mention was found |
 | `unmatched_parts` | Subset of `parts` for which no matching mention was found |
