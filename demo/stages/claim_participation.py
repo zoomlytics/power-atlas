@@ -701,7 +701,7 @@ def build_participation_edges_with_metrics(
                             {
                                 "claim_id": claim_id,
                                 "slot": slot,
-                                "slot_text": slot_str,
+                                "slot_text": slot_text,
                                 "parts": list(list_split_parts),
                                 "matched_parts": matched_part_texts,
                                 "unmatched_parts": unmatched_part_texts,
