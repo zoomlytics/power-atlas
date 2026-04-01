@@ -12,19 +12,28 @@ against the committed baseline.  It covers:
 
 ## Baseline artifact
 
-The representative baseline artifact from a post-hybrid run is committed at:
+### Real reviewed baseline (primary regression reference)
+
+The real reviewed baseline artifact — derived from an actual post-hybrid run —
+is committed at:
 
 ```
-pipelines/query/retrieval_benchmark_example_output.json
+pipelines/runs/unstructured_ingest-20260401T184420771950Z-ee78cf8c/retrieval_benchmark/retrieval_benchmark.json
 ```
 
-**Run coordinates embedded in the baseline:**
+See the accompanying provenance document at:
+
+```
+pipelines/runs/unstructured_ingest-20260401T184420771950Z-ee78cf8c/retrieval_benchmark/PROVENANCE.md
+```
+
+**Run coordinates:**
 
 | Field | Value |
 |-------|-------|
-| `run_id` | `unstructured_ingest-20240601T120000000000Z-abcd1234` |
+| `run_id` | `unstructured_ingest-20260401T184420771950Z-ee78cf8c` |
 | `alignment_version` | `v1.0` |
-| `generated_at` | `2024-06-01T12:00:00Z` |
+| `generated_at` | `2026-04-01T20:38:01Z` |
 
 **Baseline summary figures:**
 
@@ -33,16 +42,41 @@ pipelines/query/retrieval_benchmark_example_output.json
 | `total_cases` | 9 |
 | `single_and_comparison_cases` | 8 |
 | `pairwise_cases` | 1 |
-| `fragmentation_detected_count` | 2 |
-| `entities_with_claims_canonical` | 8 |
+| `fragmentation_detected_count` | 4 |
+| `entities_with_claims_canonical` | 6 |
 | `entities_with_claims_cluster` | 8 |
-| `total_canonical_claims` | 38 |
-| `total_cluster_claims` | 40 |
+| `total_canonical_claims` | 34 |
+| `total_cluster_claims` | 54 |
 | `total_pairwise_claims` | 0 |
 
-The baseline was generated from representative synthetic post-hybrid data that
-reflects the graph topology produced by a complete pipeline run (extraction →
-clustering → alignment → participation).
+**Notable baseline conditions (see PROVENANCE.md for full details):**
+
+- `mercadolibre_single` — canonical path returns zero rows (MercadoLibre absent
+  from structured catalog); fragmentation detected via `Organization` /
+  `organization` entity-type split.
+- `endeavor_single` / `endeavor_composite` — fragmentation detected;
+  `cluster_name_cluster_count=4` (two name variants × two entity-type case variants).
+- `linda_rottenberg_single` — one dark mention (`claim_id=null`) present in
+  `lower_layer_rows`.
+- `amazon_ebay_pairwise` — zero pairwise rows; acceptable under expected-shape
+  contract.
+
+### Illustrative example artifact (schema reference only)
+
+A synthetic illustrative example is also committed at:
+
+```
+pipelines/query/retrieval_benchmark_example_output.json
+```
+
+This artifact is **not** derived from a real pipeline run.  It is useful for:
+
+- artifact shape / schema stability checking
+- documentation and review training
+- demonstrating interpretation conventions
+
+Use the **real reviewed baseline** above for regression comparison.  Do not
+use the illustrative example as a regression reference.
 
 ---
 
@@ -80,9 +114,9 @@ The number of cases where `cluster_name_cluster_count > canonical_cluster_count`
 
 | Movement | Interpretation |
 |----------|---------------|
-| 🟢 **Same as baseline (2)** | Fragmentation is stable; canonical deduplication is working as before. |
-| 🟡 **Increased (e.g. 3–4)** | New entity-type or spelling splits appeared.  Inspect `fragmentation_check_rows` for the new cases — could be intentional data growth or a new alignment gap. |
-| 🔴 **Decreased below baseline (0–1)** | Fragmentation no longer detected on previously-fragmented entities.  Either the alignment improved (good) or the entity is missing from the graph entirely (bad).  Verify `canonical_rows` is non-empty. |
+| 🟢 **Same as baseline (4)** | Fragmentation is stable; canonical deduplication is working as before. |
+| 🟡 **Increased (e.g. 5–6)** | New entity-type or spelling splits appeared.  Inspect `fragmentation_check_rows` for the new cases — could be intentional data growth or a new alignment gap. |
+| 🔴 **Decreased below baseline (0–3)** | Fragmentation no longer detected on previously-fragmented entities.  Either the alignment improved (good) or the entity is missing from the graph entirely (bad).  Verify `canonical_rows` is non-empty. |
 
 ### `entities_with_claims_canonical`
 
@@ -91,9 +125,10 @@ Pairwise cases are excluded because they use a different query path and are trac
 
 | Movement | Interpretation |
 |----------|---------------|
-| 🟢 **8 (all non-pairwise cases)** | Every single-entity and comparison case is reachable through the canonical chain. |
-| 🟡 **7** | One non-pairwise case lost canonical coverage.  Run the affected single-entity or comparison case manually and inspect `lower_layer_rows` for the dark path. |
-| 🔴 **≤ 6** | Multiple non-pairwise cases dropped off.  Likely an alignment stage failure or a broken `ALIGNED_WITH` edge set. |
+| 🟢 **6 (baseline)** | Matches the baseline: two cases (`mercadolibre_single` and `mercadolibre_fragmentation`) have empty canonical rows because MercadoLibre is absent from the structured catalog in this run. |
+| 🟡 **5** | One additional non-pairwise case lost canonical coverage.  Run the affected case manually and inspect `lower_layer_rows` for the dark path. |
+| 🔴 **≤ 4** | Multiple non-pairwise cases dropped off.  Likely an alignment stage failure or a broken `ALIGNED_WITH` edge set. |
+| 🟡 **7–8** | Canonical coverage improved beyond baseline (MercadoLibre may now be in the catalog).  Verify the extra canonical rows are correct and update the baseline if intentional. |
 
 ### `total_canonical_claims` vs `total_cluster_claims`
 
@@ -131,23 +166,27 @@ a dataset that does not contain cross-entity subject/object claims.
 **Exercises:** canonical → cluster → mention → claim for MercadoLibre, an org that
 may appear under multiple surface forms and clusters.
 
-**Baseline figures:** canonical_claim_count=4, cluster_claim_count=5,
-canonical_cluster_count=2, cluster_name_cluster_count=3, fragmentation_detected=**True**
+**Baseline figures:** canonical_claim_count=0, cluster_claim_count=8,
+canonical_cluster_count=0, cluster_name_cluster_count=2, fragmentation_detected=**True**
 
 **Review notes:**
 
-- `fragmentation_detected=True` is **expected** here.  MercadoLibre has both an
-  Organization and a Person cluster in the baseline graph.  The canonical path still
-  works correctly; it routes through a single `CanonicalEntity` node and deduplicates.
-- Expect `lower_layer_rows` to contain one dark mention (`claim_id=null`) for
-  `mercadolibre.com`.  An increase in dark mentions signals a participation gap.
+- `canonical_rows` is **empty** in the real baseline.  MercadoLibre is not
+  present in the structured catalog for the baseline run, so the canonical path
+  returns zero rows.  An increase in `canonical_claim_count` from 0 means
+  MercadoLibre was added to the catalog (check alignment stage).
+- `fragmentation_detected=True` is **expected** here.  The baseline graph
+  contains both an `Organization` and an `organization` (lowercase) cluster for
+  MercadoLibre — a case-sensitivity entity-type split.
+- `lower_layer_rows` is empty because canonical traversal returns no results
+  without a `CanonicalEntity` node.
 
 | Signal | 🟢 Green | 🟡 Yellow | 🔴 Red |
 |--------|---------|----------|--------|
-| `canonical_claim_count` | 4 ± 2 | +/– 3–10 | 0 or > 3× baseline |
-| `canonical_cluster_count` | 2 | 1 or 3 | 0 |
+| `canonical_claim_count` | 0 (baseline: not in catalog) | 1–4 (verify catalog addition) | Unexplained jump to > 4 |
+| `cluster_claim_count` | 8 ± 3 | +/– 4–12 | 0 |
 | `fragmentation_detected` | True | — | False **and** cluster_claim_count = 0 |
-| dark mentions in `lower_layer_rows` | 0–1 | 2–3 | > 3 |
+| dark mentions in `lower_layer_rows` | 0 (empty, expected) | — | — |
 
 ---
 
@@ -156,19 +195,18 @@ canonical_cluster_count=2, cluster_name_cluster_count=3, fragmentation_detected=
 **Exercises:** canonical traversal for Xapo — a fintech entity that may appear
 under abbreviated and full-name surface forms.
 
-**Baseline figures:** canonical_claim_count=5, cluster_claim_count=5,
+**Baseline figures:** canonical_claim_count=3, cluster_claim_count=3,
 canonical_cluster_count=1, cluster_name_cluster_count=1, fragmentation_detected=**False**
 
 **Review notes:**
 
-- Xapo appears under "Xapo" and "Xapo Bank" mentions, both within the same cluster.
-  If a new run produces `canonical_cluster_count=2`, verify the ALIGNED_WITH edges
-  still point to a single CanonicalEntity node.
+- Equal claim counts across both paths is the healthy baseline state (no
+  fragmentation, no alignment gap).
 - `fragmentation_detected=False` is the healthy state.
 
 | Signal | 🟢 Green | 🟡 Yellow | 🔴 Red |
 |--------|---------|----------|--------|
-| `canonical_claim_count` | 5 ± 2 | +/– 3–8 | 0 |
+| `canonical_claim_count` | 3 ± 2 | +/– 2–6 | 0 |
 | `cluster_name_cluster_count` | 1 | 2 | ≥ 3 |
 | `fragmentation_detected` | False | — | True |
 
@@ -177,22 +215,28 @@ canonical_cluster_count=1, cluster_name_cluster_count=1, fragmentation_detected=
 ### Case `endeavor_single` (single_entity)
 
 **Exercises:** canonical traversal for Endeavor — a well-known organisation
-with alias mentions ("Endeavor Global").
+with alias mentions ("Endeavor Argentina").
 
-**Baseline figures:** canonical_claim_count=6, cluster_claim_count=6,
-canonical_cluster_count=1, cluster_name_cluster_count=1, fragmentation_detected=**False**
+**Baseline figures:** canonical_claim_count=10, cluster_claim_count=12,
+canonical_cluster_count=2, cluster_name_cluster_count=4, fragmentation_detected=**True**
 
 **Review notes:**
 
-- All claims route through a single cluster.  A second cluster appearing would
-  indicate a new "Endeavor" alias cluster was created outside the aligned canonical.
-- Monitor for co-occurrence claims (e.g. "Endeavor and MercadoLibre co-hosted…")
-  to verify list-split edges are generated (see `endeavor_composite`).
+- `fragmentation_detected=True` is expected in the baseline.  The baseline graph
+  contains both `Organization` and `organization` (lowercase) clusters for
+  "Endeavor" and "Endeavor Argentina" — four distinct cluster variants in total.
+- `canonical_cluster_count=2` because the canonical entity resolves through both
+  the "Endeavor" and "Endeavor Argentina" clusters.
+- `cluster_claim_count > canonical_claim_count` is expected here due to
+  fragmentation: cluster-name traversal picks up claims from the lowercase
+  `organization` clusters that are not aligned to the canonical entity.
 
 | Signal | 🟢 Green | 🟡 Yellow | 🔴 Red |
 |--------|---------|----------|--------|
-| `canonical_claim_count` | 6 ± 3 | +/– 4–10 | 0 |
-| `fragmentation_detected` | False | — | True |
+| `canonical_claim_count` | 10 ± 3 | +/– 7–14 | 0 |
+| `canonical_cluster_count` | 2 | 1 or 3 | 0 |
+| `fragmentation_detected` | True | — | False **and** cluster_claim_count unchanged |
+| dark mentions in `lower_layer_rows` | 0–1 | 2–3 | > 3 |
 
 ---
 
@@ -208,13 +252,15 @@ canonical_cluster_count=1, cluster_name_cluster_count=1, fragmentation_detected=
 
 - All `cluster_type` values in `cluster_rows` should be `"Person"`.  If `"Organization"`
   appears, an entity_type normalisation regression occurred.
-- Fewer claims than orgs is expected for a named individual in this dataset.
+- One dark mention (`claim_id=null`) exists in `lower_layer_rows` in the baseline.
+  An increase in dark mentions signals a participation gap.
 
 | Signal | 🟢 Green | 🟡 Yellow | 🔴 Red |
 |--------|---------|----------|--------|
 | `canonical_claim_count` | 4 ± 2 | +/– 3–6 | 0 |
 | `cluster_type` values | "Person" only | "Person" + 1 other | "Organization" only |
 | `fragmentation_detected` | False | — | True |
+| dark mentions in `lower_layer_rows` | 1 (baseline) | 2–3 | > 3 |
 
 ---
 
@@ -247,8 +293,8 @@ canonical_cluster_count=1, cluster_name_cluster_count=1, fragmentation_detected=
 **Exercises:** explicit fragmentation check for MercadoLibre — the canonical
 fragmentation regression case.
 
-**Baseline figures:** canonical_claim_count=4, cluster_claim_count=5,
-canonical_cluster_count=2, cluster_name_cluster_count=3, fragmentation_detected=**True**
+**Baseline figures:** canonical_claim_count=0, cluster_claim_count=8,
+canonical_cluster_count=0, cluster_name_cluster_count=2, fragmentation_detected=**True**
 
 **Review notes:**
 
@@ -256,15 +302,18 @@ canonical_cluster_count=2, cluster_name_cluster_count=3, fragmentation_detected=
   separate named case so that fragmentation detection is reported explicitly in
   the `benchmark_summary.fragmentation_detected_count` figure.
 - `fragmentation_detected=True` here means the tool is correctly detecting the
-  known entity-type split.  A change to `False` means either the fragmentation was
-  resolved (investigate whether the Person cluster was merged/removed) or an entity
-  disappeared from the graph.
+  known entity-type split (`Organization` vs `organization`).
+- `canonical_rows` is empty (same as `mercadolibre_single`) because MercadoLibre
+  is absent from the structured catalog in the baseline run.
+- A change to `fragmentation_detected=False` means either the fragmentation was
+  resolved (investigate whether the duplicate clusters were merged/removed) or an
+  entity disappeared from the graph.
 
 | Signal | 🟢 Green | 🟡 Yellow | 🔴 Red |
 |--------|---------|----------|--------|
 | `fragmentation_detected` | True | — | False (verify canonical coverage) |
-| `cluster_name_cluster_count` | 3 | 2 or 4 | 0 |
-| `fragmentation_check_rows` entity_type values | Organization + Person | Organization only | empty |
+| `cluster_name_cluster_count` | 2 | 1 or 3 | 0 |
+| `fragmentation_check_rows` entity_type values | Organization + organization | Organization only | empty |
 
 ---
 
@@ -273,22 +322,25 @@ canonical_cluster_count=2, cluster_name_cluster_count=3, fragmentation_detected=
 **Exercises:** list-split match path — claims where a subject or object slot is
 a compound expression joined by "and", "or", "/", etc.
 
-**Baseline figures:** canonical_claim_count=6, cluster_claim_count=6,
-fragmentation_detected=**False**; `match_method="list_split"` present in
-`canonical_rows` for the co-hosted claim.
+**Baseline figures:** canonical_claim_count=10, cluster_claim_count=12,
+canonical_cluster_count=2, cluster_name_cluster_count=4,
+fragmentation_detected=**True**; `match_method="list_split"` present in
+`canonical_rows` for the composite-slot claim.
 
 **Review notes:**
 
 - The primary health signal is `match_method="list_split"` appearing in at least one
   row of `canonical_rows`.  If it disappears, the list-split participation path may
   have regressed (check `participation_metrics.json` → `list_split_suppressed`).
-- A change from `list_split` to `raw_exact` is informative if the source text was
-  edited to use a non-compound form; not necessarily a bug.
+- Counts match `endeavor_single` because the same entity is queried; this case
+  focuses on the presence of `match_method="list_split"` as the regression signal.
+- Fragmentation behaviour is the same as `endeavor_single` — see that case for
+  fragmentation interpretation.
 
 | Signal | 🟢 Green | 🟡 Yellow | 🔴 Red |
 |--------|---------|----------|--------|
 | `match_method="list_split"` present | Yes | Only in `cluster_rows`, not `canonical_rows` | Not present at all |
-| `canonical_claim_count` | 6 ± 3 | +/– 4–8 | 0 |
+| `canonical_claim_count` | 10 ± 3 | +/– 7–14 | 0 |
 
 ---
 
@@ -297,7 +349,7 @@ fragmentation_detected=**False**; `match_method="list_split"` present in
 **Exercises:** side-by-side claim-count comparison for Xapo — the primary
 deduplication regression metric.
 
-**Baseline figures:** canonical_claim_count=5, cluster_claim_count=5,
+**Baseline figures:** canonical_claim_count=3, cluster_claim_count=3,
 canonical_cluster_count=1, cluster_name_cluster_count=1, fragmentation_detected=**False**
 
 **Review notes:**
@@ -405,16 +457,23 @@ new entities added to the structured catalog), update the baseline artifact as p
 of your PR:
 
 1. Run the benchmark against the new representative run.
-2. Copy the new artifact to `pipelines/query/retrieval_benchmark_example_output.json`.
-3. Update the **Baseline summary figures** table in this rubric to reflect the new
-   expected values.
-4. Add a brief note in your PR description explaining what changed and why.
+2. Copy the new artifact to
+   `pipelines/runs/<new-run-id>/retrieval_benchmark/retrieval_benchmark.json`.
+3. Add a `PROVENANCE.md` in the same directory documenting run provenance,
+   redaction status, and why the run is considered representative.
+4. Update the **Baseline artifact** section in this rubric to point to the new
+   run directory and reflect the new expected values.
+5. Update the **Baseline artifact** section in `pipelines/query/README.md`
+   similarly.
+6. Add a brief note in your PR description explaining what changed and why.
 
 ---
 
 ## References
 
-- Baseline artifact: [`pipelines/query/retrieval_benchmark_example_output.json`](../../pipelines/query/retrieval_benchmark_example_output.json)
+- Real reviewed baseline artifact: [`pipelines/runs/unstructured_ingest-20260401T184420771950Z-ee78cf8c/retrieval_benchmark/retrieval_benchmark.json`](../../pipelines/runs/unstructured_ingest-20260401T184420771950Z-ee78cf8c/retrieval_benchmark/retrieval_benchmark.json)
+- Baseline provenance: [`pipelines/runs/unstructured_ingest-20260401T184420771950Z-ee78cf8c/retrieval_benchmark/PROVENANCE.md`](../../pipelines/runs/unstructured_ingest-20260401T184420771950Z-ee78cf8c/retrieval_benchmark/PROVENANCE.md)
+- Illustrative example artifact (schema reference only): [`pipelines/query/retrieval_benchmark_example_output.json`](../../pipelines/query/retrieval_benchmark_example_output.json)
 - Benchmark stage: [`demo/stages/retrieval_benchmark.py`](../../demo/stages/retrieval_benchmark.py)
 - CLI runner: [`pipelines/query/retrieval_benchmark.py`](../../pipelines/query/retrieval_benchmark.py)
 - Query workbook section 14: [`pipelines/query/README.md`](../../pipelines/query/README.md#14-post-hybrid-retrieval-benchmark)

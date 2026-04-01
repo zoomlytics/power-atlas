@@ -1916,24 +1916,47 @@ Each entry in `case_results` includes:
 
 ### Baseline artifact
 
-A representative baseline artifact (synthetic example data reflecting a post-hybrid run) is committed at:
+#### Real reviewed baseline (primary regression reference)
+
+A real reviewed baseline artifact — derived from an actual post-hybrid run — is
+committed at:
+
+```
+pipelines/runs/unstructured_ingest-20260401T184420771950Z-ee78cf8c/retrieval_benchmark/retrieval_benchmark.json
+```
+
+Run provenance is documented in:
+
+```
+pipelines/runs/unstructured_ingest-20260401T184420771950Z-ee78cf8c/retrieval_benchmark/PROVENANCE.md
+```
+
+**Baseline summary figures** (run `unstructured_ingest-20260401T184420771950Z-ee78cf8c`, alignment `v1.0`):
+
+| Metric | Baseline |
+|--------|---------|
+| `total_cases` | 9 |
+| `fragmentation_detected_count` | 4 |
+| `entities_with_claims_canonical` | 6 |
+| `entities_with_claims_cluster` | 8 |
+| `total_canonical_claims` | 34 |
+| `total_cluster_claims` | 54 |
+| `total_pairwise_claims` | 0 |
+
+Use this artifact as the regression reference when comparing future benchmark runs.
+
+#### Illustrative example artifact (schema reference only)
+
+A synthetic illustrative example is also committed at:
 
 ```
 pipelines/query/retrieval_benchmark_example_output.json
 ```
 
-**Baseline summary figures** (run `unstructured_ingest-20240601T120000000000Z-abcd1234`, alignment `v1.0`):
+This artifact is **not** derived from a real pipeline run.  It is useful for
+artifact shape stability, documentation, and review training.  Do **not** use it
+as a regression reference.
 
-| Metric | Baseline |
-|--------|---------|
-| `total_cases` | 9 |
-| `fragmentation_detected_count` | 2 |
-| `entities_with_claims_canonical` | 8 |
-| `total_canonical_claims` | 38 |
-| `total_cluster_claims` | 40 |
-| `total_pairwise_claims` | 0 |
-
-Use this artifact as a regression reference when comparing future benchmark runs.
 For detailed per-case review thresholds and red/yellow/green movement guidance, see
 the **[Retrieval Benchmark Review Rubric](../../docs/architecture/retrieval-benchmark-review-rubric-v0.1.md)**.
 

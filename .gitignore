@@ -48,6 +48,10 @@ dist/
 # Pipeline run artifacts
 /pipelines/runs/*
 !/pipelines/runs/.gitkeep
+!/pipelines/runs/unstructured_ingest-20260401T184420771950Z-ee78cf8c/
+!/pipelines/runs/unstructured_ingest-20260401T184420771950Z-ee78cf8c/retrieval_benchmark/
+!/pipelines/runs/unstructured_ingest-20260401T184420771950Z-ee78cf8c/retrieval_benchmark/retrieval_benchmark.json
+!/pipelines/runs/unstructured_ingest-20260401T184420771950Z-ee78cf8c/retrieval_benchmark/PROVENANCE.md
 /pipelines/logs/*
 !/pipelines/logs/.gitkeep
 
