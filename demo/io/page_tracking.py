@@ -168,7 +168,7 @@ class PageTrackingPdfLoader(PdfLoader):
     Overrides ``run()`` to extract text and compute page-start character offsets
     in a **single** ``pypdf`` pass, avoiding the double I/O that would result
     from calling ``super().run()`` and then re-parsing the file for offsets.
-    The ``PdfDocument`` returned is identical to the vendor implementation.
+    The ``LoadedDocument`` returned is identical to the vendor implementation.
     """
 
     async def run(  # type: ignore[override]
