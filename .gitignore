@@ -46,10 +46,10 @@ dist/
 *.tmp
 
 # Pipeline run artifacts
-#/pipelines/runs/*
-#!/pipelines/runs/.gitkeep
-#/pipelines/logs/*
-#!/pipelines/logs/.gitkeep
+/pipelines/runs/*
+!/pipelines/runs/.gitkeep
+/pipelines/logs/*
+!/pipelines/logs/.gitkeep
 
 # Manifests
 #manifest.json
