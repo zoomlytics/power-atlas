@@ -563,11 +563,14 @@ class TestClusterTypeFragmentationQueryAlignment(unittest.TestCase):
         for raw, canonical in _ENTITY_TYPE_SYNONYMS.items():
             escaped_raw = raw.replace("'", "''")
             escaped_canonical = canonical.replace("'", "''")
+            # Assert on the single-quoted Cypher literal (e.g. "'ORG'") rather
+            # than the bare string to avoid false positives where the raw form
+            # is a substring of the canonical form (e.g. "ORG" ⊂ "Organization").
             self.assertIn(
-                escaped_raw,
+                f"'{escaped_raw}'",
                 _Q_CLUSTER_TYPE_FRAGMENTATION,
                 msg=(
-                    f"Synonym '{raw}' → '{canonical}' from _ENTITY_TYPE_SYNONYMS "
+                    f"Quoted synonym literal '{escaped_raw}' from _ENTITY_TYPE_SYNONYMS "
                     f"is missing from _Q_CLUSTER_TYPE_FRAGMENTATION.  "
                     f"This indicates the fragmentation query was not regenerated "
                     f"from build_entity_type_cypher_case.  Ensure "
@@ -577,11 +580,11 @@ class TestClusterTypeFragmentationQueryAlignment(unittest.TestCase):
                 ),
             )
             self.assertIn(
-                escaped_canonical,
+                f"'{escaped_canonical}'",
                 _Q_CLUSTER_TYPE_FRAGMENTATION,
                 msg=(
-                    f"Canonical form '{canonical}' (escaped: '{escaped_canonical}') "
-                    f"for synonym '{raw}' is missing from _Q_CLUSTER_TYPE_FRAGMENTATION."
+                    f"Quoted canonical literal '{escaped_canonical}' "
+                    f"(for synonym '{raw}') is missing from _Q_CLUSTER_TYPE_FRAGMENTATION."
                 ),
             )
 
