@@ -97,14 +97,19 @@ Pairwise cases are excluded because they use a different query path and are trac
 
 ### `total_canonical_claims` vs `total_cluster_claims`
 
-Canonical should be ≤ cluster (canonical deduplicates; cluster-name may return extras
-from unaligned or spuriously-named clusters).
+Canonical should be ≥ cluster (canonical traversal should see at least what cluster-name
+traversal sees, and may pick up additional claims via alignment).  When
+`fragmentation_detected_count > 0`, the global total may show canonical < cluster because
+cluster-name traversal picks up claims attached to spurious fragment clusters that are not
+aligned to the canonical entity.  In that scenario, check per-case
+`canonical_claim_count` vs `cluster_claim_count` alongside `fragmentation_detected`
+for precise diagnosis.
 
 | Movement | Interpretation |
 |----------|---------------|
-| 🟢 **canonical ≤ cluster, delta ≤ 10** | Normal; delta represents fragmentation caught by canonical deduplication. |
-| 🟡 **canonical > cluster** | Canonical path is returning claims not visible via cluster-name traversal.  This is unexpected — verify canonical entities have matching cluster canonical_name values. |
-| 🔴 **cluster drops sharply (> 20% decrease)** | Participation coverage may have regressed.  Check `participation_metrics.json` and `HAS_PARTICIPANT` edge counts. |
+| 🟢 **canonical ≥ cluster, delta ≤ 10** | Normal; small deltas represent minor alignment gaps or noise between canonical and cluster-name traversal. |
+| 🟡 **canonical < cluster** | Cluster-name traversal is returning claims not visible via the canonical path.  This is unexpected — investigate for fragmentation or spuriously-named clusters. |
+| 🔴 **canonical drops sharply (> 20% decrease)** | Participation coverage may have regressed.  Check `participation_metrics.json` and `HAS_PARTICIPANT` edge counts. |
 
 ### `total_pairwise_claims`
 

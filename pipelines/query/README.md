@@ -1943,7 +1943,7 @@ the **[Retrieval Benchmark Review Rubric](../../docs/architecture/retrieval-benc
 |--------|---------|------------|
 | `fragmentation_detected_count` | 0 for all cases | > 0 — entity-type or spelling splits exist |
 | `entities_with_claims_canonical` | Equal to `single_and_comparison_cases` | Any entity with 0 canonical claims — alignment gap |
-| `canonical_claim_count` vs `cluster_claim_count` | Canonical ≥ cluster (deduplication working) | Canonical < cluster — alignment is missing some clusters |
+| `canonical_claim_count` vs `cluster_claim_count` | Canonical ≥ cluster per case (deduplication working); global total may be lower when `fragmentation_detected_count > 0` because fragmented entities expose fragment-only claims via cluster-name | Canonical < cluster on a non-fragmented case — alignment is missing some clusters |
 | `lower_layer_rows` with `claim_id = null` | Few dark mentions | Many dark mentions — participation coverage gap |
 | `cluster_name_cluster_count > 1` for single entity | At most 1 clean cluster | Multiple clusters — fragmentation risk |
 
