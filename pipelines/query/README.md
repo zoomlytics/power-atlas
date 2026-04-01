@@ -1554,7 +1554,7 @@ export NEO4J_DATABASE=neo4j   # optional, defaults to 'neo4j'
 
 # Scoped to a specific run and alignment version (recommended after each pipeline run)
 python pipelines/query/graph_health_diagnostics.py \
-    --run-id unstructured_ingest-20240601T120000000000Z-abcd1234 \
+    --run-id <run-id> \
     --alignment-version v1.0
 
 # Unscoped — aggregates across all runs in the database
@@ -1857,7 +1857,7 @@ export NEO4J_DATABASE=neo4j   # optional, defaults to 'neo4j'
 
 # Scoped to a specific run and alignment version (recommended after each pipeline run)
 python pipelines/query/retrieval_benchmark.py \
-    --run-id unstructured_ingest-20240601T120000000000Z-abcd1234 \
+    --run-id <run-id> \
     --alignment-version v1.0
 
 # Unscoped — aggregates across all runs in the database

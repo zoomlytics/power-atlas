@@ -116,7 +116,7 @@ The number of cases where `cluster_name_cluster_count > canonical_cluster_count`
 |----------|---------------|
 | 🟢 **Same as baseline (4)** | Fragmentation is stable; canonical deduplication is working as before. |
 | 🟡 **Increased (e.g. 5–6)** | New entity-type or spelling splits appeared.  Inspect `fragmentation_check_rows` for the new cases — could be intentional data growth or a new alignment gap. |
-| 🔴 **Decreased below baseline (0–3)** | Fragmentation no longer detected on previously-fragmented entities.  Either the alignment improved (good) or the entity is missing from the graph entirely (bad).  Verify `canonical_rows` is non-empty. |
+| 🔴 **Decreased below baseline (0–3)** | Fragmentation no longer detected on previously-fragmented entities.  Either the alignment improved (good) or the entity is missing from the graph entirely (bad).  For entities that should have canonical coverage, verify `canonical_rows` is non-empty; for known empty-canonical baseline cases (e.g., MercadoLibre in this baseline), confirm the `cluster_name` path still returns rows and that the lack of canonical rows is still expected. |
 
 ### `entities_with_claims_canonical`
 
