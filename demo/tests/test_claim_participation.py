@@ -1997,9 +1997,16 @@ class TestBuildParticipationEdgesWithMetrics(unittest.TestCase):
             "ambiguous_by_role",
             "list_split_suppressed",
             "list_split_suppressed_by_role",
+            "list_split_full_success",
+            "list_split_partial_success",
+            "list_split_no_success",
+            "list_split_total_parts",
+            "list_split_matched_parts",
+            "list_split_unmatched_parts",
             "claims_with_any_edge",
             "claims_with_no_edges",
             "sample_list_split_claim_ids",
+            "sample_list_split_partial_claim_ids",
             "sample_unmatched_claim_ids",
             "sample_ambiguous_claim_ids",
         }
@@ -2025,3 +2032,145 @@ class TestBuildParticipationEdgesWithMetrics(unittest.TestCase):
         self.assertEqual(metrics.edges_by_method, {})
         # The claim had no candidate mentions → slots_processed == 0
         self.assertEqual(metrics.slots_processed, 0)
+
+    # --- list_split_full_success / list_split_partial_success / list_split_no_success ---
+
+    def test_list_split_full_success_all_parts_match(self):
+        # "Amazon and eBay" — both parts match → full success.
+        mentions = [_mention("Amazon", "m-a"), _mention("eBay", "m-e")]
+        claims = [_claim("c1", obj="Amazon and eBay")]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertEqual(metrics.list_split_full_success, 1)
+        self.assertEqual(metrics.list_split_partial_success, 0)
+        self.assertEqual(metrics.list_split_no_success, 0)
+
+    def test_list_split_full_success_three_parts(self):
+        # "A, B, and C" — all three parts match → full success counted once.
+        mentions = [
+            _mention("Google", "m-g"),
+            _mention("Apple", "m-a"),
+            _mention("Amazon", "m-amz"),
+        ]
+        claims = [_claim("c1", obj="Google, Apple, and Amazon")]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertEqual(metrics.list_split_full_success, 1)
+        self.assertEqual(metrics.list_split_partial_success, 0)
+        self.assertEqual(metrics.list_split_no_success, 0)
+
+    def test_list_split_partial_success_one_of_two_parts_matches(self):
+        # "Amazon and UnknownCo" — only Amazon matches → partial success.
+        mentions = [_mention("Amazon", "m-a")]
+        claims = [_claim("c1", obj="Amazon and UnknownCo")]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertEqual(metrics.list_split_partial_success, 1)
+        self.assertEqual(metrics.list_split_full_success, 0)
+        self.assertEqual(metrics.list_split_no_success, 0)
+        # Partial success → slot is NOT unmatched.
+        self.assertEqual(metrics.unmatched_slots, 0)
+
+    def test_list_split_partial_success_two_of_three_parts_match(self):
+        # "A, B, and Unknown" — A and B match, Unknown does not → partial.
+        mentions = [_mention("Google", "m-g"), _mention("Apple", "m-a")]
+        claims = [_claim("c1", obj="Google, Apple, and Unknown")]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertEqual(metrics.list_split_partial_success, 1)
+        self.assertEqual(metrics.list_split_full_success, 0)
+
+    def test_list_split_no_success_all_parts_fail(self):
+        # "X and Y" — neither part matches → no success (and unmatched).
+        mentions = [_mention("Amazon", "m-a")]
+        claims = [_claim("c1", obj="X and Y")]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertEqual(metrics.list_split_no_success, 1)
+        self.assertEqual(metrics.list_split_full_success, 0)
+        self.assertEqual(metrics.list_split_partial_success, 0)
+        # Zero-success slot is also counted as unmatched.
+        self.assertEqual(metrics.unmatched_slots, 1)
+
+    def test_list_split_no_split_possible_not_counted_in_outcomes(self):
+        # Slot text contains no separator → split_slot_text returns [] →
+        # none of full/partial/no_success should be incremented.
+        mentions = [_mention("Amazon", "m-a")]
+        claims = [_claim("c1", obj="UnknownEntity")]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertEqual(metrics.list_split_full_success, 0)
+        self.assertEqual(metrics.list_split_partial_success, 0)
+        self.assertEqual(metrics.list_split_no_success, 0)
+        # Still counts as unmatched (no edge produced).
+        self.assertEqual(metrics.unmatched_slots, 1)
+
+    # --- list_split part totals ---
+
+    def test_list_split_total_parts_two_part_slot(self):
+        mentions = [_mention("Amazon", "m-a"), _mention("eBay", "m-e")]
+        claims = [_claim("c1", obj="Amazon and eBay")]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertEqual(metrics.list_split_total_parts, 2)
+        self.assertEqual(metrics.list_split_matched_parts, 2)
+        self.assertEqual(metrics.list_split_unmatched_parts, 0)
+
+    def test_list_split_total_parts_partial(self):
+        # "Amazon and UnknownCo" → 2 parts, 1 matched, 1 unmatched.
+        mentions = [_mention("Amazon", "m-a")]
+        claims = [_claim("c1", obj="Amazon and UnknownCo")]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertEqual(metrics.list_split_total_parts, 2)
+        self.assertEqual(metrics.list_split_matched_parts, 1)
+        self.assertEqual(metrics.list_split_unmatched_parts, 1)
+
+    def test_list_split_total_parts_zero_when_no_split(self):
+        # No separator → split_slot_text returns [] → part totals are 0.
+        mentions = [_mention("Amazon", "m-a")]
+        claims = [_claim("c1", obj="Unknown")]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertEqual(metrics.list_split_total_parts, 0)
+        self.assertEqual(metrics.list_split_matched_parts, 0)
+        self.assertEqual(metrics.list_split_unmatched_parts, 0)
+
+    def test_list_split_parts_accumulate_across_multiple_slots(self):
+        # Slot 1: "A and B" (both match) → 2 total, 2 matched.
+        # Slot 2: "C and Unknown" (one match) → 2 total, 1 matched.
+        # Grand total: 4 total, 3 matched, 1 unmatched.
+        mentions = [
+            _mention("Google", "m-g"),
+            _mention("Apple", "m-a"),
+            _mention("Amazon", "m-amz"),
+        ]
+        claims = [_claim("c1", subject="Google and Apple", obj="Amazon and Unknown")]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertEqual(metrics.list_split_total_parts, 4)
+        self.assertEqual(metrics.list_split_matched_parts, 3)
+        self.assertEqual(metrics.list_split_unmatched_parts, 1)
+        self.assertEqual(
+            metrics.list_split_matched_parts + metrics.list_split_unmatched_parts,
+            metrics.list_split_total_parts,
+        )
+
+    # --- sample_list_split_partial_claim_ids ---
+
+    def test_sample_list_split_partial_claim_ids_populated(self):
+        # "Amazon and UnknownCo" → partial success → ID added.
+        mentions = [_mention("Amazon", "m-a")]
+        claims = [_claim("c-partial", obj="Amazon and UnknownCo")]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertIn("c-partial", metrics.sample_list_split_partial_claim_ids)
+
+    def test_sample_list_split_partial_claim_ids_not_populated_for_full_success(self):
+        # Full success slot → NOT in partial sample.
+        mentions = [_mention("Amazon", "m-a"), _mention("eBay", "m-e")]
+        claims = [_claim("c-full", obj="Amazon and eBay")]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertNotIn("c-full", metrics.sample_list_split_partial_claim_ids)
+
+    def test_sample_list_split_partial_not_duplicated(self):
+        # Claim has two partial-success slots; its ID appears only once.
+        mentions = [_mention("Google", "m-g"), _mention("Amazon", "m-amz")]
+        claims = [
+            _claim("c1", subject="Google and Missing1", obj="Amazon and Missing2")
+        ]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertEqual(
+            len(metrics.sample_list_split_partial_claim_ids),
+            len(set(metrics.sample_list_split_partial_claim_ids)),
+        )
+        self.assertIn("c1", metrics.sample_list_split_partial_claim_ids)

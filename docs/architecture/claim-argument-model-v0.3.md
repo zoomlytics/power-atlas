@@ -317,9 +317,16 @@ is written (with `"match_metrics": null`).
 | `ambiguous_by_role` | `ambiguous_slots` broken down by role |
 | `list_split_suppressed` | Slots where list-split was not attempted because the whole-slot match was ambiguous (always equals `ambiguous_slots`) |
 | `list_split_suppressed_by_role` | `list_split_suppressed` broken down by role |
+| `list_split_full_success` | Slots where list-split was attempted (≥ 2 parts) and **all** parts matched (full composite recovery) |
+| `list_split_partial_success` | Slots where list-split was attempted (≥ 2 parts) and **some but not all** parts matched (partial composite recovery) |
+| `list_split_no_success` | Slots where list-split was attempted (≥ 2 parts) but **no** parts matched; also counted in `unmatched_slots` |
+| `list_split_total_parts` | Total individual parts examined across all split-eligible slots |
+| `list_split_matched_parts` | Total parts (across all split-eligible slots) that found a matching mention |
+| `list_split_unmatched_parts` | Total parts (across all split-eligible slots) that failed to find a matching mention; equals `list_split_total_parts − list_split_matched_parts` |
 | `claims_with_any_edge` | Claims with at least one participation edge emitted |
 | `claims_with_no_edges` | `claims_processed` minus `claims_with_any_edge` |
 | `sample_list_split_claim_ids` | Up to 20 claim IDs that contributed a `list_split` edge |
+| `sample_list_split_partial_claim_ids` | Up to 20 claim IDs with at least one partial-success `list_split` slot (some parts matched, some did not) |
 | `sample_unmatched_claim_ids` | Up to 20 claim IDs with at least one unmatched slot |
 | `sample_ambiguous_claim_ids` | Up to 20 claim IDs with at least one ambiguous whole-slot match |
 
@@ -328,6 +335,10 @@ is written (with `"match_metrics": null`).
 | Signal | Interpretation |
 |---|---|
 | `edges_by_method["list_split"]` increases | More composite/list-valued slots are now matched; verify samples are semantically correct |
+| `list_split_full_success` increases | More composite slots are now fully recovered; all constituent entities found matches |
+| `list_split_partial_success` increases | More composite slots have partial recovery; inspect `sample_list_split_partial_claim_ids` to identify residual unmatched spans |
+| `list_split_no_success` increases | More composite slots attempted a split but found zero matches; may indicate extraction gaps for constituent entities |
+| `list_split_matched_parts / list_split_total_parts` (ratio) | Part-level recall for split-eligible slots; lower ratio indicates more residual unmatched constituents |
 | `unmatched_slots` decreases | Coverage improved; check whether precision was preserved |
 | `ambiguous_slots` increases | More mention-name collisions; may indicate extraction producing redundant mentions |
 | `list_split_suppressed` stays equal to `ambiguous_slots` | Architectural guardrail is intact — list-split is never attempted over ambiguous whole-slot matches |
