@@ -692,3 +692,153 @@ future `cluster_scope` parameter (e.g. `cluster_scope="per_source"`) could be ad
 
 **This mode is not implemented in v0.1.**  It is documented here as a future extension
 point so that callers with strict source-isolation requirements have a clear upgrade path.
+## 16) Entity-type drift tracking and normalization policy
+
+### 16.1 Why track raw entity_type values
+
+Upstream LLM extractors are not guaranteed to emit consistent `entity_type` labels across
+versions, models, or prompts.  The same semantic category can appear as `"ORG"`,
+`"Organization"`, or `"Company"` depending on the extractor used.  Without explicit
+visibility, new variant labels silently reintroduce cluster fragmentation:
+two mentions of "IBM" with types `"ORG"` and `"ORGANIZATION"` would land in different
+`:ResolvedEntityCluster` nodes, producing spurious splits.
+
+### 16.2 Per-run entity_type report
+
+Every call to `run_entity_resolution()` embeds an `entity_type_report` key in the returned
+summary dict (and in the written `entity_resolution_summary.json` artifact).  The report is
+also available as a standalone helper via `_build_entity_type_report(mentions)`.
+
+The report contains:
+
+| Key | Description |
+|---|---|
+| `raw_counts` | `{raw_label: count}` for every distinct raw value seen, ordered by descending count.  The reserved sentinel key `"__null__"` aggregates absent/empty labels. |
+| `normalized_counts` | `{canonical_label: count}` after applying `_normalize_entity_type()`.  May also include the reserved `"__null__"` bucket when normalization yields no type (e.g., missing/empty `entity_type`).  Use this to see post-normalization type distribution. |
+| `mapped_variants` | `{raw_label: canonical_label}` for synonym mappings that were actually observed this run. |
+| `passthrough_labels` | Sorted list of non-empty labels that are **not** in the synonym table.  New or unexpected labels appear here. |
+| `null_or_empty_count` | Count of mentions with absent or empty `entity_type`. |
+| `sentinel_label_warnings` | List of human-readable warnings when the reserved `"__null__"` sentinel bucket collides with a real upstream label (i.e., an extractor emitted the literal string `"__null__"`).  Empty in the common case. |
+
+The report is diagnostic only.  It does not modify any mention, cluster, or graph node.
+
+### 16.3 Normalization policy
+
+#### What belongs in identity-time normalization
+
+A raw label should be added to `_ENTITY_TYPE_SYNONYMS` (identity-time normalization) when
+**all** of the following hold:
+
+1. The label is produced by at least one real upstream extractor as a variant for an
+   existing canonical type (evidence: observed in `mapped_variants` or `passthrough_labels`
+   across multiple runs).
+2. Merging mentions with this label into the existing canonical type cluster is semantically
+   correct — not merely convenient.
+3. The new synonym has been reviewed and approved in a PR or issue, with a comment
+   explaining the mapping rationale.
+
+Example: `"ORG"` → `"Organization"` satisfies all three criteria.
+
+#### What should remain distinct
+
+Labels must **not** be merged when:
+
+- They represent semantically different categories even if they look similar
+  (e.g. `"GPE"` — geopolitical entity — and `"Location"` are different enough to warrant
+  separate clusters in most graph reasoning contexts).
+- Merging them would collapse distinctions needed by downstream retrieval, reasoning, or
+  diagnostics (e.g. merging `"PRODUCT"` into `"Organization"` to improve metrics would be
+  incorrect).
+- The mapping would be lossy and unrecoverable from the graph.
+
+#### Analytics/reporting-time grouping
+
+For diagnostic dashboards or aggregate statistics where a coarser grouping is acceptable,
+you can apply an additional mapping layer **outside** of `_normalize_entity_type()` and
+`_make_cluster_id()`.  This keeps identity-time normalization minimal and graph-observable
+while still allowing ad hoc groupings in query results or reports.
+
+**Important:** any Cypher that applies entity-type normalization for diagnostic purposes
+(e.g. graph-health type-fragmentation queries) must use the same synonym mapping as
+identity-time normalization, not an independent hardcoded table.  The public helper
+`build_entity_type_cypher_case(var)` in `demo/stages/entity_resolution.py` generates
+the correct Cypher CASE expression directly from `_ENTITY_TYPE_SYNONYMS` and must be
+used for this purpose.  `demo/stages/graph_health.py` uses this helper for the
+`_Q_CLUSTER_TYPE_FRAGMENTATION` query so that graph-health diagnostics are semantically
+consistent with actual cluster-assignment behaviour.
+
+Example usage of the helper:
+```python
+from demo.stages.entity_resolution import build_entity_type_cypher_case
+case_expr = build_entity_type_cypher_case("m.entity_type")
+# case_expr can be embedded directly in a Cypher WITH / RETURN clause.
+```
+
+Example Cypher grouping at reporting time:
+```cypher
+MATCH (m:EntityMention {run_id: $run_id})
+RETURN
+  CASE m.entity_type
+    WHEN 'ORG'          THEN 'Organization'
+    WHEN 'Company'      THEN 'Organization'
+    WHEN 'PERSON'       THEN 'Person'
+    ELSE coalesce(nullif(m.entity_type, ''), 'unknown')
+  END AS grouped_type,
+  count(*) AS mentions
+ORDER BY mentions DESC;
+```
+
+*Note:* the inline CASE above is a static illustration of the current synonym table.
+In production code, always generate the CASE expression via `build_entity_type_cypher_case`
+rather than writing it by hand — this ensures the Cypher automatically stays in sync
+when new synonyms are added to `_ENTITY_TYPE_SYNONYMS`.
+
+### 16.4 Detecting fragmentation risk from new labels
+
+After each run, inspect `passthrough_labels` in the `entity_type_report`.  A label that
+appears there for the first time may indicate:
+
+- A new extractor version that emits a variant not yet in `_ENTITY_TYPE_SYNONYMS`.
+- A one-off extraction artifact (e.g. a hallucinated type string).
+
+To check whether a new label actually causes cluster fragmentation, run the diagnostic
+query from §16.5 and compare cluster membership for mentions that share normalized text.
+
+### 16.5 Diagnostic queries
+
+**Raw entity_type distribution per run** — identifies the observed type-label mix and
+frequency directly from graph state:
+```cypher
+MATCH (m:EntityMention)
+WHERE m.run_id = $run_id
+RETURN m.entity_type AS raw_entity_type, count(*) AS mentions
+ORDER BY mentions DESC, raw_entity_type;
+```
+
+**Cluster fragmentation by type** — identifies canonical entities that have clusters
+of more than one distinct `entity_type` aligned to them, which indicates that the
+same entity name is being resolved into separate per-type clusters (type-level fragmentation
+that may stem from a missing synonym mapping):
+```cypher
+MATCH (cluster:ResolvedEntityCluster)-[r:ALIGNED_WITH]->(canonical:CanonicalEntity)
+WHERE cluster.run_id = $run_id
+  AND r.alignment_version = $alignment_version
+RETURN canonical.name AS canonical_name,
+       collect(DISTINCT cluster.entity_type) AS cluster_entity_types,
+       count(DISTINCT cluster.cluster_id) AS aligned_cluster_count
+ORDER BY aligned_cluster_count DESC;
+```
+
+### 16.6 Guardrails
+
+- **Additive only**: adding a new synonym to `_ENTITY_TYPE_SYNONYMS` is a
+  forward-only operation.  Removing or changing an existing mapping would alter
+  cluster identity for historical runs and must be treated as a breaking change
+  requiring a new `_CLUSTER_VERSION`.
+- **Non-destructive**: normalization must never collapse semantically distinct categories.
+  The canonical form should always be the more descriptive label (e.g. `"Organization"`,
+  not `"ORG"`).
+- **Observable**: the `entity_type_report` in the run summary must always be persisted so
+  that label drift can be detected retroactively by comparing summaries across runs.
+- **Explicit policy over ad hoc accumulation**: new synonym entries require a documented
+  rationale.  Do not add entries just to improve aggregate type-match metrics.

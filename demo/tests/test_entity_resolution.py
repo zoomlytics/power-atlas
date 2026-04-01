@@ -17,6 +17,7 @@ from demo.stages.entity_resolution import (
     _RESOLUTION_MODE_HYBRID,
     _RESOLUTION_MODE_UNSTRUCTURED_ONLY,
     _align_clusters_to_canonical,
+    _build_entity_type_report,
     _build_lookup_tables,
     _cluster_mentions_unstructured_only,
     _fuzzy_ratio,
@@ -1435,6 +1436,256 @@ class TestNormalizeEntityType(unittest.TestCase):
     def test_long_form_mid_punctuation_on_token(self):
         # Mid-sentence punctuation on a long_form word must also be stripped.
         self.assertTrue(_is_abbreviation("fbi", "federal bureau, of investigation"))
+
+
+class TestEntityTypeDriftReport(unittest.TestCase):
+    """Tests for _build_entity_type_report."""
+
+    def test_empty_mentions_returns_empty_report(self):
+        report = _build_entity_type_report([])
+        self.assertEqual(report["raw_counts"], {})
+        self.assertEqual(report["normalized_counts"], {})
+        self.assertEqual(report["mapped_variants"], {})
+        self.assertEqual(report["passthrough_labels"], [])
+        self.assertEqual(report["null_or_empty_count"], 0)
+        self.assertEqual(report["sentinel_label_warnings"], [])
+
+    def test_none_entity_type_counted_as_null(self):
+        mentions = [{"mention_id": "m1", "name": "Acme"}]  # no entity_type key
+        report = _build_entity_type_report(mentions)
+        self.assertEqual(report["raw_counts"].get("__null__"), 1)
+        self.assertEqual(report["null_or_empty_count"], 1)
+        self.assertEqual(report["normalized_counts"].get("__null__"), 1)
+
+    def test_explicit_none_entity_type_counted_as_null(self):
+        mentions = [{"mention_id": "m1", "name": "Acme", "entity_type": None}]
+        report = _build_entity_type_report(mentions)
+        self.assertEqual(report["raw_counts"].get("__null__"), 1)
+        self.assertEqual(report["null_or_empty_count"], 1)
+
+    def test_empty_string_entity_type_counted_as_null(self):
+        mentions = [{"mention_id": "m1", "name": "Acme", "entity_type": ""}]
+        report = _build_entity_type_report(mentions)
+        self.assertEqual(report["raw_counts"].get("__null__"), 1)
+        self.assertEqual(report["null_or_empty_count"], 1)
+
+    def test_mapped_synonym_ORG_appears_in_mapped_variants(self):
+        mentions = [{"mention_id": "m1", "name": "IBM", "entity_type": "ORG"}]
+        report = _build_entity_type_report(mentions)
+        self.assertIn("ORG", report["mapped_variants"])
+        self.assertEqual(report["mapped_variants"]["ORG"], "Organization")
+        self.assertNotIn("ORG", report["passthrough_labels"])
+
+    def test_mapped_synonym_Company_appears_in_mapped_variants(self):
+        mentions = [{"mention_id": "m1", "name": "Acme", "entity_type": "Company"}]
+        report = _build_entity_type_report(mentions)
+        self.assertIn("Company", report["mapped_variants"])
+        self.assertEqual(report["mapped_variants"]["Company"], "Organization")
+
+    def test_mapped_synonym_PERSON_appears_in_mapped_variants(self):
+        mentions = [{"mention_id": "m1", "name": "Alice", "entity_type": "PERSON"}]
+        report = _build_entity_type_report(mentions)
+        self.assertIn("PERSON", report["mapped_variants"])
+        self.assertEqual(report["mapped_variants"]["PERSON"], "Person")
+
+    def test_canonical_label_Organization_is_passthrough(self):
+        """The canonical label 'Organization' is not a synonym and must be passthrough."""
+        mentions = [{"mention_id": "m1", "name": "IBM", "entity_type": "Organization"}]
+        report = _build_entity_type_report(mentions)
+        self.assertIn("Organization", report["passthrough_labels"])
+        self.assertNotIn("Organization", report["mapped_variants"])
+
+    def test_canonical_label_Person_is_passthrough(self):
+        mentions = [{"mention_id": "m1", "name": "Alice", "entity_type": "Person"}]
+        report = _build_entity_type_report(mentions)
+        self.assertIn("Person", report["passthrough_labels"])
+        self.assertNotIn("Person", report["mapped_variants"])
+
+    def test_unknown_label_is_passthrough(self):
+        """Unrecognised labels not in the synonym table must appear in passthrough_labels."""
+        mentions = [{"mention_id": "m1", "name": "Widget", "entity_type": "PRODUCT"}]
+        report = _build_entity_type_report(mentions)
+        self.assertIn("PRODUCT", report["passthrough_labels"])
+        self.assertNotIn("PRODUCT", report["mapped_variants"])
+
+    def test_raw_counts_reflect_actual_input_frequencies(self):
+        mentions = [
+            {"mention_id": "m1", "name": "IBM", "entity_type": "ORG"},
+            {"mention_id": "m2", "name": "Apple", "entity_type": "ORG"},
+            {"mention_id": "m3", "name": "Alice", "entity_type": "Person"},
+        ]
+        report = _build_entity_type_report(mentions)
+        self.assertEqual(report["raw_counts"]["ORG"], 2)
+        self.assertEqual(report["raw_counts"]["Person"], 1)
+
+    def test_normalized_counts_merge_synonyms(self):
+        """ORG and Organization must both contribute to the 'Organization' bucket."""
+        mentions = [
+            {"mention_id": "m1", "name": "IBM", "entity_type": "ORG"},
+            {"mention_id": "m2", "name": "Apple", "entity_type": "Organization"},
+            {"mention_id": "m3", "name": "Acme", "entity_type": "Company"},
+        ]
+        report = _build_entity_type_report(mentions)
+        # All three map to "Organization" after normalization
+        self.assertEqual(report["normalized_counts"].get("Organization"), 3)
+        # ORG and Company are synonyms; Organization is passthrough
+        self.assertEqual(set(report["mapped_variants"].keys()), {"ORG", "Company"})
+        self.assertIn("Organization", report["passthrough_labels"])
+
+    def test_normalized_counts_person_synonyms_merged(self):
+        """PERSON and Person must both contribute to the 'Person' bucket."""
+        mentions = [
+            {"mention_id": "m1", "name": "Alice", "entity_type": "PERSON"},
+            {"mention_id": "m2", "name": "Bob", "entity_type": "Person"},
+        ]
+        report = _build_entity_type_report(mentions)
+        self.assertEqual(report["normalized_counts"].get("Person"), 2)
+
+    def test_mixed_mentions_passthrough_and_mapped_and_null(self):
+        """A realistic mix of all three categories is tracked correctly."""
+        mentions = [
+            {"mention_id": "m1", "name": "IBM", "entity_type": "ORG"},
+            {"mention_id": "m2", "name": "Alice", "entity_type": "Person"},
+            {"mention_id": "m3", "name": "Widget", "entity_type": "PRODUCT"},
+            {"mention_id": "m4", "name": "Unknown"},
+        ]
+        report = _build_entity_type_report(mentions)
+        # mapped
+        self.assertIn("ORG", report["mapped_variants"])
+        # passthrough
+        self.assertIn("Person", report["passthrough_labels"])
+        self.assertIn("PRODUCT", report["passthrough_labels"])
+        # null
+        self.assertEqual(report["null_or_empty_count"], 1)
+
+    def test_passthrough_labels_sorted(self):
+        """passthrough_labels must be returned in sorted order for stable output."""
+        mentions = [
+            {"mention_id": "m1", "name": "x", "entity_type": "PRODUCT"},
+            {"mention_id": "m2", "name": "y", "entity_type": "Event"},
+            {"mention_id": "m3", "name": "z", "entity_type": "Place"},
+        ]
+        report = _build_entity_type_report(mentions)
+        self.assertEqual(report["passthrough_labels"], sorted(report["passthrough_labels"]))
+
+    def test_raw_counts_sorted_by_descending_count_then_label(self):
+        """raw_counts must be ordered by descending count, then alphabetically on ties."""
+        mentions = [
+            {"mention_id": "m1", "name": "a", "entity_type": "Person"},   # count 3
+            {"mention_id": "m2", "name": "b", "entity_type": "Person"},
+            {"mention_id": "m3", "name": "c", "entity_type": "Person"},
+            {"mention_id": "m4", "name": "d", "entity_type": "PRODUCT"},  # count 2
+            {"mention_id": "m5", "name": "e", "entity_type": "PRODUCT"},
+            {"mention_id": "m6", "name": "f", "entity_type": "Event"},    # count 2 (tie with PRODUCT)
+            {"mention_id": "m7", "name": "g", "entity_type": "Event"},
+            {"mention_id": "m8", "name": "h", "entity_type": "Zorg"},     # count 1
+        ]
+        report = _build_entity_type_report(mentions)
+        keys = list(report["raw_counts"].keys())
+        # Person (3) must come first
+        self.assertEqual(keys[0], "Person")
+        # Tie between Event (2) and PRODUCT (2): alphabetical → Event before PRODUCT
+        self.assertEqual(keys[1], "Event")
+        self.assertEqual(keys[2], "PRODUCT")
+        # Zorg (1) last
+        self.assertEqual(keys[3], "Zorg")
+
+    def test_normalized_counts_sorted_by_descending_count_then_label(self):
+        """normalized_counts must be ordered by descending count, then alphabetically on ties."""
+        mentions = [
+            # ORG and Company both normalize to Organization → combined count 3
+            {"mention_id": "m1", "name": "a", "entity_type": "ORG"},
+            {"mention_id": "m2", "name": "b", "entity_type": "ORG"},
+            {"mention_id": "m3", "name": "c", "entity_type": "Company"},
+            # Person passthrough count 2
+            {"mention_id": "m4", "name": "d", "entity_type": "Person"},
+            {"mention_id": "m5", "name": "e", "entity_type": "Person"},
+            # PRODUCT passthrough count 1
+            {"mention_id": "m6", "name": "f", "entity_type": "PRODUCT"},
+        ]
+        report = _build_entity_type_report(mentions)
+        keys = list(report["normalized_counts"].keys())
+        self.assertEqual(keys[0], "Organization")  # 3
+        self.assertEqual(keys[1], "Person")         # 2
+        self.assertEqual(keys[2], "PRODUCT")        # 1
+
+    def test_report_is_json_serializable(self):
+        """The report dict must be safely JSON-serializable (no None keys)."""
+        mentions = [
+            {"mention_id": "m1", "name": "Acme", "entity_type": "ORG"},
+            {"mention_id": "m2", "name": "Nobody"},
+        ]
+        report = _build_entity_type_report(mentions)
+        # This must not raise
+        serialized = json.dumps(report)
+        parsed = json.loads(serialized)
+        self.assertIn("raw_counts", parsed)
+        self.assertIn("__null__", parsed["raw_counts"])
+
+    def test_dry_run_summary_includes_entity_type_report(self):
+        """dry_run summary must include an entity_type_report key."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = _dry_run_config(Path(tmpdir))
+            result = run_entity_resolution(config, run_id="drift-dry-001", source_uri=None)
+            self.assertIn("entity_type_report", result)
+            rpt = result["entity_type_report"]
+            self.assertIn("raw_counts", rpt)
+            self.assertIn("normalized_counts", rpt)
+            self.assertIn("mapped_variants", rpt)
+            self.assertIn("passthrough_labels", rpt)
+            self.assertIn("null_or_empty_count", rpt)
+
+    def test_live_summary_includes_entity_type_report(self):
+        """live summary must include an entity_type_report that reflects observed mentions."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = _live_config(Path(tmpdir))
+            mentions = [
+                {"mention_id": "m1", "name": "IBM", "entity_type": "ORG"},
+                {"mention_id": "m2", "name": "Alice", "entity_type": "Person"},
+                {"mention_id": "m3", "name": "Mystery", "entity_type": None},
+            ]
+            canonicals: list[dict] = []
+            driver = _make_neo4j_test_driver(mentions, canonicals)
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                result = run_entity_resolution(
+                    config,
+                    run_id="drift-live-001",
+                    source_uri=None,
+                    resolution_mode="structured_anchor",
+                )
+            self.assertIn("entity_type_report", result)
+            rpt = result["entity_type_report"]
+            # ORG is a mapped synonym
+            self.assertIn("ORG", rpt["mapped_variants"])
+            self.assertEqual(rpt["mapped_variants"]["ORG"], "Organization")
+            # Person is passthrough
+            self.assertIn("Person", rpt["passthrough_labels"])
+            # one null
+            self.assertEqual(rpt["null_or_empty_count"], 1)
+            self.assertEqual(rpt["raw_counts"]["ORG"], 1)
+
+    def test_sentinel_collision_surfaces_warning(self):
+        """When extractor emits literal '__null__' and absent types coexist, warn."""
+        mentions = [
+            {"mention_id": "m1", "name": "Acme"},  # entity_type absent → None
+            {"mention_id": "m2", "name": "Weird", "entity_type": "__null__"},  # reserved sentinel
+        ]
+        report = _build_entity_type_report(mentions)
+        # Counts are merged under the sentinel key
+        self.assertEqual(report["raw_counts"]["__null__"], 2)
+        self.assertEqual(report["normalized_counts"]["__null__"], 2)
+        # Warning is surfaced
+        self.assertEqual(len(report["sentinel_label_warnings"]), 1)
+        self.assertIn("__null__", report["sentinel_label_warnings"][0])
+
+    def test_sentinel_label_without_null_input_no_warning(self):
+        """Literal '__null__' label alone (no absent types) produces no warning."""
+        mentions = [
+            {"mention_id": "m1", "name": "Weird", "entity_type": "__null__"},
+        ]
+        report = _build_entity_type_report(mentions)
+        self.assertEqual(report["sentinel_label_warnings"], [])
+
 
 class TestFuzzyRatio(unittest.TestCase):
     def test_identical_strings_return_one(self):

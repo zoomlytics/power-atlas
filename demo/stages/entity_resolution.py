@@ -128,6 +128,38 @@ keys (regardless of resolution mode):
   reused in this run.
 * ``resolution_breakdown``: Mapping from resolution strategy name to the
   number of mentions whose cluster assignment was decided by that strategy.
+* ``entity_type_report``: Per-run diagnostic summary of observed raw
+  ``entity_type`` values.  Always present (empty report in ``dry_run`` mode).
+  Contains the following sub-keys:
+
+  - ``raw_counts``: ``{raw_label: count}`` for every distinct raw value seen,
+    ordered by descending count.  The reserved sentinel key ``"__null__"``
+    aggregates all mentions whose ``entity_type`` was ``None`` or ``""`` **and**
+    any mentions where an upstream extractor emitted the literal string
+    ``"__null__"``.  When this collision occurs, the merged/ambiguous nature of
+    the bucket is indicated via ``sentinel_label_warnings`` (see below).
+  - ``normalized_counts``: ``{canonical_label: count}`` after applying
+    ``_normalize_entity_type()``, ordered by descending count.  The reserved
+    sentinel key ``"__null__"`` aggregates mentions whose normalized type is
+    absent/empty, as well as any whose normalized label is the literal
+    ``"__null__"``.  As with ``raw_counts``, such collisions are flagged via
+    ``sentinel_label_warnings``.  Use this to understand post-normalization type
+    distribution.
+  - ``mapped_variants``: ``{raw_label: canonical_label}`` for synonym mappings
+    from ``_ENTITY_TYPE_SYNONYMS`` that were actually observed this run.
+    A non-empty entry here means at least one upstream extractor emitted a
+    non-canonical label that was silently unified.
+  - ``passthrough_labels``: Sorted list of non-empty labels that are **not** in
+    the synonym table and are therefore returned unchanged (i.e. passed through
+    as-is).  New or unexpected labels appear here and should be reviewed to
+    determine whether they require a synonym mapping or remain distinct.
+  - ``null_or_empty_count``: Number of mentions with absent/empty
+    ``entity_type``.  A non-zero value indicates extractor output that carries
+    no type signal.
+  - ``sentinel_label_warnings``: List of human-readable warnings (normally
+    empty).  A non-empty list means an upstream extractor emitted the reserved
+    sentinel string ``"__null__"`` alongside absent/empty mentions; the counts
+    are merged and cannot be distinguished retroactively.
 * ``warnings``: List of non-fatal issues encountered during resolution.
 
 In modes that perform text-based clustering
@@ -258,6 +290,14 @@ _ENTITY_TYPE_SYNONYMS: dict[str, str] = {
     "PERSON": "Person",
 }
 
+# Reserved sentinel key used in entity_type_report dicts to represent absent or
+# empty entity_type values (None / "").  The decorated name is chosen to make
+# it unlikely (but not impossible) for a real NLP extractor to emit this label
+# accidentally; if it does, collisions are detected and reported via
+# sentinel_label_warnings.  Do NOT change this value without also updating any
+# consumers of entity_type_report summaries/artifacts that rely on this sentinel.
+_ENTITY_TYPE_NULL_SENTINEL = "__null__"
+
 
 def _normalize_entity_type(entity_type: str | None) -> str | None:
     """Return the canonical form of *entity_type*, or ``None`` if absent.
@@ -277,6 +317,197 @@ def _normalize_entity_type(entity_type: str | None) -> str | None:
     if not entity_type:
         return None
     return _ENTITY_TYPE_SYNONYMS.get(entity_type, entity_type)
+
+
+# Allowlist for the `var` parameter of build_entity_type_cypher_case.
+# A safe Cypher variable reference consists of alphanumeric characters,
+# underscores, and dots (for property access, e.g. "m.entity_type").
+_SAFE_CYPHER_VAR_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$")
+
+
+def _escape_cypher_string(value: str) -> str:
+    """Escape a string value for embedding in a single-quoted Cypher literal.
+
+    Replaces each ``'`` with ``''`` (the Cypher escaping convention) so that
+    the caller can safely wrap the result in single quotes without producing
+    invalid Cypher or enabling injection.
+    """
+    return value.replace("'", "''")
+
+
+def build_entity_type_cypher_case(var: str, unknown_label: str = "UNKNOWN") -> str:
+    """Return a Cypher CASE expression that mirrors :func:`_normalize_entity_type`.
+
+    The generated expression is derived directly from :data:`_ENTITY_TYPE_SYNONYMS`
+    and therefore reflects the same normalization policy that determines cluster
+    identity during entity resolution.  Use this whenever a Cypher query needs
+    to apply entity-type normalization (e.g. graph-health type-fragmentation
+    diagnostics) so that the Cypher semantics stay automatically in sync with
+    the Python policy.
+
+    Matching is **case-sensitive** and does **not** strip whitespace, exactly
+    mirroring :func:`_normalize_entity_type` (which compares raw values directly
+    without trimming).
+
+    Parameters
+    ----------
+    var:
+        The Cypher variable or property expression whose value is the raw
+        ``entity_type`` string, e.g. ``"m.entity_type"``.  Must be a
+        dot-separated sequence of valid identifiers
+        (``[A-Za-z_][A-Za-z0-9_]*``); trailing dots and empty segments are
+        rejected to prevent Cypher injection.
+    unknown_label:
+        The literal string to emit when *var* is ``NULL`` or the empty string
+        (i.e. when :func:`_normalize_entity_type` would return ``None``).
+        Defaults to ``"UNKNOWN"``.  Single-quotes are escaped automatically.
+
+    Returns
+    -------
+    A Cypher expression string (without a trailing newline) suitable for use
+    in a ``WITH`` or ``RETURN`` clause.
+
+    Raises
+    ------
+    ValueError
+        If *var* does not match the safe allowlist pattern
+        ``[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*``
+        (dot-separated identifier segments; trailing dots and empty segments
+        are rejected).
+
+    Example
+    -------
+    With the default synonym table the expression produced for
+    ``var="m.entity_type"`` is equivalent to::
+
+        CASE
+          WHEN m.entity_type IS NULL OR m.entity_type = '' THEN 'UNKNOWN'
+          WHEN m.entity_type = 'ORG' THEN 'Organization'
+          WHEN m.entity_type = 'Company' THEN 'Organization'
+          WHEN m.entity_type = 'PERSON' THEN 'Person'
+          ELSE m.entity_type
+        END
+    """
+    if not _SAFE_CYPHER_VAR_RE.fullmatch(var):
+        raise ValueError(
+            f"Unsafe Cypher variable reference {var!r}: must match "
+            f"[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)* "
+            f"(dot-separated identifier segments; only alphanumerics and underscores)."
+        )
+    escaped_unknown = _escape_cypher_string(unknown_label)
+    when_lines = "\n".join(
+        f"  WHEN {var} = '{_escape_cypher_string(raw)}' THEN '{_escape_cypher_string(canonical)}'"
+        for raw, canonical in _ENTITY_TYPE_SYNONYMS.items()
+    )
+    return (
+        f"CASE\n"
+        f"  WHEN {var} IS NULL OR {var} = '' THEN '{escaped_unknown}'\n"
+        f"{when_lines}\n"
+        f"  ELSE {var}\n"
+        f"END"
+    )
+
+
+def _build_entity_type_report(
+    mentions: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Build a per-run summary of observed raw ``entity_type`` values.
+
+    Iterates over *mentions* (each a ``dict`` with an optional ``"entity_type"``
+    key) and produces a structured diagnostic report that surfaces:
+
+    * **raw_counts** — ``{raw_label: count}`` for every distinct raw value seen,
+      including the reserved sentinel key ``"__null__"`` for absent/empty labels.
+    * **normalized_counts** — ``{canonical_label: count}`` after applying
+      :func:`_normalize_entity_type`; absent/empty values are represented as
+      the reserved sentinel key ``"__null__"`` so the mapping is JSON-serializable.
+    * **mapped_variants** — ``{raw_label: canonical_label}`` for synonym mappings
+      (i.e. ``_ENTITY_TYPE_SYNONYMS`` entries) that were actually observed this run.
+    * **passthrough_labels** — sorted list of non-empty labels that are *not* in
+      the synonym table and are therefore returned unchanged by normalization.
+    * **null_or_empty_count** — number of mentions with ``None`` or ``""``
+      ``entity_type`` (they produce ``None`` after normalization).
+    * **sentinel_label_warnings** — list of human-readable warning strings (normally
+      empty).  A non-empty entry means an upstream extractor emitted the literal
+      string ``"__null__"``, which is the reserved sentinel; its counts are merged
+      with the null/empty bucket in both ``raw_counts`` and ``normalized_counts``
+      and cannot be distinguished retroactively.
+
+    This report is embedded in the entity-resolution summary so that each run
+    produces a repeatable, reviewable record of the raw type-label distribution.
+    Unexpected new labels (potential upstream drift) appear in
+    ``passthrough_labels`` and can be compared across runs to detect whether a
+    new extractor variant would reintroduce cluster fragmentation.
+
+    The report is **diagnostic only**; it does not alter any mention, cluster, or
+    graph state.
+    """
+    raw_counts: dict[str | None, int] = {}
+    normalized_counts: dict[str, int] = {}
+    mapped_variants: dict[str, str] = {}
+    passthrough_labels: set[str] = set()
+    null_or_empty_count = 0
+    raw_null_sentinel_seen = False  # tracks whether extractor emitted literal "__null__"
+
+    for mention in mentions:
+        raw = mention.get("entity_type")
+        # Normalise empty string to None so counts are consistent with how
+        # _normalize_entity_type treats the two values identically.
+        if raw == "":
+            raw = None
+
+        raw_counts[raw] = raw_counts.get(raw, 0) + 1
+
+        if raw is None:
+            null_or_empty_count += 1
+            norm_key = _ENTITY_TYPE_NULL_SENTINEL
+        else:
+            if raw == _ENTITY_TYPE_NULL_SENTINEL:
+                raw_null_sentinel_seen = True
+            canonical = _normalize_entity_type(raw)
+            # _normalize_entity_type only returns None when its input is falsy
+            # (None or "").  We know raw is a non-empty str here, so canonical
+            # is guaranteed to be a str.
+            assert canonical is not None
+            if canonical != raw:
+                # raw was a mapped synonym
+                mapped_variants[raw] = canonical
+                norm_key = canonical
+            else:
+                passthrough_labels.add(raw)
+                norm_key = raw
+        normalized_counts[norm_key] = normalized_counts.get(norm_key, 0) + 1
+
+    # Serialise raw_counts so None keys become the reserved sentinel "__null__"
+    # for JSON safety.  Counts are summed in the unlikely event that an upstream
+    # extractor also emits the literal string "__null__"; that collision is
+    # surfaced in sentinel_label_warnings below.
+    serialized_raw_counts: dict[str, int] = {}
+    for k, v in raw_counts.items():
+        key = _ENTITY_TYPE_NULL_SENTINEL if k is None else k
+        serialized_raw_counts[key] = serialized_raw_counts.get(key, 0) + v
+
+    sentinel_label_warnings: list[str] = []
+    if raw_null_sentinel_seen and null_or_empty_count > 0:
+        sentinel_label_warnings.append(
+            f"Upstream extractor emitted the reserved sentinel label "
+            f"{_ENTITY_TYPE_NULL_SENTINEL!r}; "
+            "its counts are merged with the absent/empty bucket in raw_counts "
+            "and normalized_counts and cannot be distinguished retroactively."
+        )
+
+    return {
+        "raw_counts": dict(
+            sorted(serialized_raw_counts.items(), key=lambda t: (-t[1], t[0]))
+        ),
+        "normalized_counts": dict(
+            sorted(normalized_counts.items(), key=lambda t: (-t[1], t[0]))
+        ),
+        "mapped_variants": dict(sorted(mapped_variants.items())),
+        "passthrough_labels": sorted(passthrough_labels),
+        "null_or_empty_count": null_or_empty_count,
+        "sentinel_label_warnings": sentinel_label_warnings,
+    }
 
 
 def _make_cluster_id(
@@ -1211,6 +1442,7 @@ def run_entity_resolution(
             "unresolved": 0,
             "clusters_created": 0,
             "resolution_breakdown": {},
+            "entity_type_report": _build_entity_type_report([]),
             "warnings": ["entity resolution skipped in dry_run mode"],
         }
         if resolution_mode in (_RESOLUTION_MODE_UNSTRUCTURED_ONLY, _RESOLUTION_MODE_HYBRID):
@@ -1535,6 +1767,7 @@ def run_entity_resolution(
         "unresolved": len(unresolved_rows),
         "clusters_created": clusters_created,
         "resolution_breakdown": resolution_breakdown,
+        "entity_type_report": _build_entity_type_report(mentions),
         "entity_resolution_summary_path": str(summary_path),
         "unresolved_mentions_path": str(unresolved_path),
         "warnings": [],
@@ -1564,7 +1797,9 @@ def run_entity_resolution(
 
 
 __all__ = [
+    "build_entity_type_cypher_case",
     "run_entity_resolution",
+    "_build_entity_type_report",
     "_RESOLUTION_MODE_STRUCTURED_ANCHOR",
     "_RESOLUTION_MODE_UNSTRUCTURED_ONLY",
     "_RESOLUTION_MODE_HYBRID",

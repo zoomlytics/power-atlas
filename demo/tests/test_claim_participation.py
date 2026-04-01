@@ -16,7 +16,9 @@ from demo.stages.claim_participation import (
     MATCH_OUTCOME_AMBIGUOUS,
     ROLE_OBJECT,
     ROLE_SUBJECT,
+    ParticipationMatchMetrics,
     build_participation_edges,
+    build_participation_edges_with_metrics,
     match_slot_to_mention,
     split_slot_text,
     write_participation_edges,
@@ -1084,6 +1086,87 @@ class TestSplitSlotText(unittest.TestCase):
         parts = split_slot_text("New York and Los Angeles")
         self.assertEqual(parts, ["New York", "Los Angeles"])
 
+    # --- slash separators (new: supported with surrounding whitespace) ---
+
+    def test_slash_with_spaces_splits_two_entities(self):
+        # "Amazon / eBay" → ["Amazon", "eBay"]
+        parts = split_slot_text("Amazon / eBay")
+        self.assertEqual(parts, ["Amazon", "eBay"])
+
+    def test_slash_with_spaces_splits_three_entities(self):
+        # "Amazon / eBay / Google" → ["Amazon", "eBay", "Google"]
+        parts = split_slot_text("Amazon / eBay / Google")
+        self.assertEqual(parts, ["Amazon", "eBay", "Google"])
+
+    def test_slash_no_spaces_does_not_split(self):
+        # "Amazon/eBay" — bare slash without spaces is NOT a list separator
+        # (avoids splitting URL paths, numeric ratios, etc.).
+        self.assertEqual(split_slot_text("Amazon/eBay"), [])
+
+    def test_slash_only_leading_space_does_not_split(self):
+        # " /eBay" — requires space on BOTH sides; asymmetric space does not split.
+        self.assertEqual(split_slot_text("Amazon /eBay"), [])
+
+    def test_slash_only_trailing_space_does_not_split(self):
+        # "Amazon/ eBay" — requires space on BOTH sides.
+        self.assertEqual(split_slot_text("Amazon/ eBay"), [])
+
+    def test_slash_multiple_spaces_splits(self):
+        # Multiple spaces around slash are also acceptable.
+        parts = split_slot_text("Amazon  /  eBay")
+        self.assertEqual(parts, ["Amazon", "eBay"])
+
+    # --- semicolon separators (new: supported with trailing whitespace) ---
+
+    def test_semicolon_space_splits_two_entities(self):
+        # "Amazon; eBay" → ["Amazon", "eBay"]
+        parts = split_slot_text("Amazon; eBay")
+        self.assertEqual(parts, ["Amazon", "eBay"])
+
+    def test_semicolon_space_splits_three_entities(self):
+        # "Amazon; eBay; Google" → ["Amazon", "eBay", "Google"]
+        parts = split_slot_text("Amazon; eBay; Google")
+        self.assertEqual(parts, ["Amazon", "eBay", "Google"])
+
+    def test_semicolon_no_space_does_not_split(self):
+        # "Amazon;eBay" — bare semicolon without trailing space is NOT a separator
+        # (avoids splitting abbreviations such as "U.S.;").
+        self.assertEqual(split_slot_text("Amazon;eBay"), [])
+
+    def test_semicolon_multiple_spaces_splits(self):
+        parts = split_slot_text("Amazon;  eBay")
+        self.assertEqual(parts, ["Amazon", "eBay"])
+
+    # --- explicitly unsupported forms (documented non-support) ---
+
+    def test_parenthetical_qualifier_splits_but_qualifier_retained(self):
+        # "Amazon (AWS) and Google" splits into ["Amazon (AWS)", "Google"].
+        # The parenthetical form is not stripped; "Amazon (AWS)" will fail
+        # to match a plain "Amazon" mention.  This is intentional: we do not
+        # attempt to recover the base name from parenthetical qualifiers.
+        parts = split_slot_text("Amazon (AWS) and Google")
+        self.assertEqual(parts, ["Amazon (AWS)", "Google"])
+
+    def test_grouped_qualifier_splits_but_qualifier_retained(self):
+        # "Amazon and eBay subsidiaries" splits into ["Amazon", "eBay subsidiaries"].
+        # "eBay subsidiaries" will not match a plain "eBay" mention.
+        parts = split_slot_text("Amazon and eBay subsidiaries")
+        self.assertEqual(parts, ["Amazon", "eBay subsidiaries"])
+
+    def test_appositive_comma_splits_entity_and_descriptor(self):
+        # "Xapo, a digital-assets company" splits via comma into
+        # ["Xapo", "a digital-assets company"].  "Xapo" can match a mention;
+        # the appositive descriptor phrase will typically fail to match.
+        parts = split_slot_text("Xapo, a digital-assets company")
+        self.assertEqual(parts, ["Xapo", "a digital-assets company"])
+
+    def test_nested_qualifier_splits_into_parts(self):
+        # "Amazon, eBay, and Google subsidiaries" splits into
+        # ["Amazon", "eBay", "Google subsidiaries"].
+        # "Google subsidiaries" is intentionally not resolved.
+        parts = split_slot_text("Amazon, eBay, and Google subsidiaries")
+        self.assertEqual(parts, ["Amazon", "eBay", "Google subsidiaries"])
+
 
 # ---------------------------------------------------------------------------
 # Tests for list-split matching in build_participation_edges
@@ -1360,3 +1443,734 @@ class TestBuildParticipationEdgesListSplit(unittest.TestCase):
         self.assertEqual(len(edges), 3)
         mention_ids = {e["mention_id"] for e in edges}
         self.assertEqual(mention_ids, {"m-tesla", "m-ford", "m-gm"})
+
+    # --- slash-delimited lists (new: supported with surrounding whitespace) ---
+
+    def test_slash_delimited_two_entities_yields_two_edges(self):
+        # "Amazon / eBay" → two list_split edges.
+        mentions = [
+            _mention("Amazon", "m-amazon"),
+            _mention("eBay", "m-ebay"),
+        ]
+        claims = [_claim("c1", obj="Amazon / eBay")]
+        edges = build_participation_edges(claims, mentions)
+        self.assertEqual(len(edges), 2)
+        mention_ids = {e["mention_id"] for e in edges}
+        self.assertEqual(mention_ids, {"m-amazon", "m-ebay"})
+        for e in edges:
+            self.assertEqual(e["match_method"], MATCH_METHOD_LIST_SPLIT)
+
+    def test_slash_delimited_three_entities_yields_three_edges(self):
+        # "Amazon / eBay / Google" → three list_split edges.
+        mentions = [
+            _mention("Amazon", "m-amazon"),
+            _mention("eBay", "m-ebay"),
+            _mention("Google", "m-google"),
+        ]
+        claims = [_claim("c1", obj="Amazon / eBay / Google")]
+        edges = build_participation_edges(claims, mentions)
+        self.assertEqual(len(edges), 3)
+        mention_ids = {e["mention_id"] for e in edges}
+        self.assertEqual(mention_ids, {"m-amazon", "m-ebay", "m-google"})
+        self.assertTrue(all(e["match_method"] == MATCH_METHOD_LIST_SPLIT for e in edges))
+
+    def test_slash_without_spaces_does_not_split(self):
+        # "Amazon/eBay" — no spaces around slash → treated as a single slot text;
+        # no edge created because "Amazon/eBay" has no matching mention.
+        mentions = [
+            _mention("Amazon", "m-amazon"),
+            _mention("eBay", "m-ebay"),
+        ]
+        claims = [_claim("c1", obj="Amazon/eBay")]
+        edges = build_participation_edges(claims, mentions)
+        self.assertEqual(edges, [])
+
+    # --- semicolon-delimited lists (new: supported with trailing whitespace) ---
+
+    def test_semicolon_delimited_two_entities_yields_two_edges(self):
+        # "Amazon; eBay" → two list_split edges.
+        mentions = [
+            _mention("Amazon", "m-amazon"),
+            _mention("eBay", "m-ebay"),
+        ]
+        claims = [_claim("c1", obj="Amazon; eBay")]
+        edges = build_participation_edges(claims, mentions)
+        self.assertEqual(len(edges), 2)
+        mention_ids = {e["mention_id"] for e in edges}
+        self.assertEqual(mention_ids, {"m-amazon", "m-ebay"})
+        for e in edges:
+            self.assertEqual(e["match_method"], MATCH_METHOD_LIST_SPLIT)
+
+    def test_semicolon_delimited_three_entities_yields_three_edges(self):
+        # "Amazon; eBay; Google" → three list_split edges.
+        mentions = [
+            _mention("Amazon", "m-amazon"),
+            _mention("eBay", "m-ebay"),
+            _mention("Google", "m-google"),
+        ]
+        claims = [_claim("c1", subject="Amazon; eBay; Google")]
+        edges = build_participation_edges(claims, mentions)
+        self.assertEqual(len(edges), 3)
+        mention_ids = {e["mention_id"] for e in edges}
+        self.assertEqual(mention_ids, {"m-amazon", "m-ebay", "m-google"})
+        self.assertTrue(all(e["match_method"] == MATCH_METHOD_LIST_SPLIT for e in edges))
+
+    def test_semicolon_without_space_does_not_split(self):
+        # "Amazon;eBay" — no trailing space → not a list separator.
+        mentions = [
+            _mention("Amazon", "m-amazon"),
+            _mention("eBay", "m-ebay"),
+        ]
+        claims = [_claim("c1", obj="Amazon;eBay")]
+        edges = build_participation_edges(claims, mentions)
+        self.assertEqual(edges, [])
+
+
+# ---------------------------------------------------------------------------
+# Tests for explicitly unsupported composite argument forms
+# ---------------------------------------------------------------------------
+
+
+class TestBuildParticipationEdgesUnsupportedForms(unittest.TestCase):
+    """Documents explicitly unsupported composite argument patterns.
+
+    These tests verify that the matching pipeline does not silently invent
+    matches for argument patterns that require deeper linguistic analysis
+    (parenthetical qualifiers, grouped qualifiers, appositives, nested
+    qualifiers).  Where partial recovery is the documented behavior (i.e.
+    the entity name is extracted while the qualifying phrase is discarded),
+    the test confirms exactly how many edges are created and which mentions
+    they point to.
+
+    No new matching behavior is added for these forms.  Tests in this class
+    serve as precision regression guards and as machine-readable documentation
+    of the boundary between supported and unsupported patterns.
+    """
+
+    # --- parenthetical qualifiers ---
+
+    def test_parenthetical_qualifier_not_resolved_to_base_mention(self):
+        # "Amazon (AWS) and Google": splits into ["Amazon (AWS)", "Google"].
+        # "Amazon (AWS)" does NOT match mention "Amazon" — parenthetical
+        # qualifier stripping is intentionally unsupported.
+        # "Google" DOES match normally → one edge for Google only.
+        mentions = [
+            _mention("Amazon", "m-amazon"),
+            _mention("Google", "m-google"),
+        ]
+        claims = [_claim("c1", obj="Amazon (AWS) and Google")]
+        edges = build_participation_edges(claims, mentions)
+        # Only Google is recovered; Amazon (AWS) is not resolved.
+        self.assertEqual(len(edges), 1)
+        self.assertEqual(edges[0]["mention_id"], "m-google")
+        self.assertEqual(edges[0]["match_method"], MATCH_METHOD_LIST_SPLIT)
+
+    def test_parenthetical_only_slot_yields_no_edge(self):
+        # "Amazon (AWS)" as the whole slot — no match because the parenthetical
+        # suffix prevents raw/casefold/normalized match against mention "Amazon".
+        mentions = [_mention("Amazon", "m-amazon")]
+        claims = [_claim("c1", obj="Amazon (AWS)")]
+        edges = build_participation_edges(claims, mentions)
+        self.assertEqual(edges, [])
+
+    # --- grouped qualifiers ---
+
+    def test_grouped_qualifier_partial_recovery(self):
+        # "Amazon and eBay subsidiaries": splits into ["Amazon", "eBay subsidiaries"].
+        # "Amazon" matches; "eBay subsidiaries" does NOT match mention "eBay".
+        # Recovering "eBay" from "eBay subsidiaries" is intentionally unsupported.
+        mentions = [
+            _mention("Amazon", "m-amazon"),
+            _mention("eBay", "m-ebay"),
+        ]
+        claims = [_claim("c1", obj="Amazon and eBay subsidiaries")]
+        edges = build_participation_edges(claims, mentions)
+        # Only Amazon is recovered; "eBay subsidiaries" is not resolved.
+        self.assertEqual(len(edges), 1)
+        self.assertEqual(edges[0]["mention_id"], "m-amazon")
+        self.assertEqual(edges[0]["match_method"], MATCH_METHOD_LIST_SPLIT)
+
+    def test_grouped_qualifier_both_sides_qualified_partial_recovery(self):
+        # "U.S. and European regulators" — only the base entity "U.S." matches;
+        # the qualified phrase "European regulators" does not match mention "European".
+        mentions = [
+            _mention("U.S.", "m-us"),
+            _mention("European", "m-eu"),
+        ]
+        claims = [_claim("c1", subject="U.S. and European regulators")]
+        edges = build_participation_edges(claims, mentions)
+        # Partial recovery: "U.S." yields one edge; "European regulators" is not resolved.
+        self.assertEqual(len(edges), 1)
+        self.assertEqual(edges[0]["mention_id"], "m-us")
+
+    # --- appositives ---
+
+    def test_appositive_entity_recovered_descriptor_discarded(self):
+        # "Xapo, a digital-assets company": splits via comma into
+        # ["Xapo", "a digital-assets company"].
+        # "Xapo" matches → one edge.  The appositive descriptor does not match
+        # any mention and is silently skipped (partial-match behavior).
+        mentions = [_mention("Xapo", "m-xapo")]
+        claims = [_claim("c1", subject="Xapo, a digital-assets company")]
+        edges = build_participation_edges(claims, mentions)
+        self.assertEqual(len(edges), 1)
+        self.assertEqual(edges[0]["mention_id"], "m-xapo")
+        self.assertEqual(edges[0]["match_method"], MATCH_METHOD_LIST_SPLIT)
+
+    def test_appositive_mercadolibre_descriptor_discarded(self):
+        # "MercadoLibre, the ecommerce giant": same pattern as above.
+        mentions = [_mention("MercadoLibre", "m-ml")]
+        claims = [_claim("c1", subject="MercadoLibre, the ecommerce giant")]
+        edges = build_participation_edges(claims, mentions)
+        self.assertEqual(len(edges), 1)
+        self.assertEqual(edges[0]["mention_id"], "m-ml")
+        self.assertEqual(edges[0]["match_method"], MATCH_METHOD_LIST_SPLIT)
+
+    # --- nested/mixed constructions ---
+
+    def test_nested_qualifier_entities_recovered_qualified_part_not(self):
+        # "Amazon, eBay, and Google subsidiaries": splits into
+        # ["Amazon", "eBay", "Google subsidiaries"].
+        # "Amazon" and "eBay" match; "Google subsidiaries" does NOT match "Google".
+        mentions = [
+            _mention("Amazon", "m-amazon"),
+            _mention("eBay", "m-ebay"),
+            _mention("Google", "m-google"),
+        ]
+        claims = [_claim("c1", obj="Amazon, eBay, and Google subsidiaries")]
+        edges = build_participation_edges(claims, mentions)
+        self.assertEqual(len(edges), 2)
+        mention_ids = {e["mention_id"] for e in edges}
+        self.assertEqual(mention_ids, {"m-amazon", "m-ebay"})
+        self.assertTrue(all(e["match_method"] == MATCH_METHOD_LIST_SPLIT for e in edges))
+
+    def test_mixed_conjunction_multiple_qualifiers(self):
+        # "MercadoLibre and Nubank investors and advisors":
+        # splits into ["MercadoLibre", "Nubank investors", "advisors"].
+        # "MercadoLibre" matches; "Nubank investors" does NOT match "Nubank";
+        # "advisors" does not match any entity mention.
+        mentions = [
+            _mention("MercadoLibre", "m-ml"),
+            _mention("Nubank", "m-nubank"),
+        ]
+        claims = [_claim("c1", subject="MercadoLibre and Nubank investors and advisors")]
+        edges = build_participation_edges(claims, mentions)
+        # Only MercadoLibre is recovered.
+        self.assertEqual(len(edges), 1)
+        self.assertEqual(edges[0]["mention_id"], "m-ml")
+
+
+# ---------------------------------------------------------------------------
+# Tests for build_participation_edges_with_metrics and ParticipationMatchMetrics
+# ---------------------------------------------------------------------------
+
+
+class TestBuildParticipationEdgesWithMetrics(unittest.TestCase):
+    """Unit tests for build_participation_edges_with_metrics.
+
+    Verifies that the edge rows returned are identical to build_participation_edges
+    and that the ParticipationMatchMetrics fields correctly reflect matching outcomes.
+    """
+
+    # --- return type and parity with build_participation_edges ---
+
+    def test_returns_tuple_of_edges_and_metrics(self):
+        mentions = [_mention("Google", "m-google")]
+        claims = [_claim("c1", subject="Google")]
+        result = build_participation_edges_with_metrics(claims, mentions)
+        self.assertIsInstance(result, tuple)
+        self.assertEqual(len(result), 2)
+        edge_rows, metrics = result
+        self.assertIsInstance(edge_rows, list)
+        self.assertIsInstance(metrics, ParticipationMatchMetrics)
+
+    def test_edge_rows_identical_to_build_participation_edges(self):
+        # The edge rows returned by the instrumented version must be exactly
+        # the same as those returned by the non-instrumented version.
+        mentions = [
+            _mention("Google", "m-google"),
+            _mention("Apple", "m-apple"),
+        ]
+        claims = [
+            _claim("c1", subject="Google", obj="Apple"),
+            _claim("c2", subject="nobody"),
+        ]
+        plain_rows = build_participation_edges(claims, mentions)
+        instrumented_rows, _ = build_participation_edges_with_metrics(claims, mentions)
+        self.assertEqual(plain_rows, instrumented_rows)
+
+    def test_empty_inputs_return_empty_edges_and_zero_metrics(self):
+        edge_rows, metrics = build_participation_edges_with_metrics([], [])
+        self.assertEqual(edge_rows, [])
+        self.assertEqual(metrics.claims_processed, 0)
+        self.assertEqual(metrics.slots_processed, 0)
+        self.assertEqual(metrics.edges_by_method, {})
+        self.assertEqual(metrics.unmatched_slots, 0)
+        self.assertEqual(metrics.ambiguous_slots, 0)
+        self.assertEqual(metrics.list_split_suppressed, 0)
+        self.assertEqual(metrics.claims_with_any_edge, 0)
+        self.assertEqual(metrics.claims_with_no_edges, 0)
+
+    # --- claims_processed and claims_with_any_edge ---
+
+    def test_claims_processed_counts_all_supplied_claim_rows(self):
+        # Two claims; one has a matching mention, the other does not.
+        mentions = [_mention("Google", "m-g")]
+        claims = [
+            _claim("c1", subject="Google"),
+            _claim("c2", subject="nobody"),
+        ]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertEqual(metrics.claims_processed, 2)
+
+    def test_claims_with_any_edge_and_no_edges(self):
+        mentions = [_mention("Google", "m-g")]
+        claims = [
+            _claim("c1", subject="Google"),   # will get an edge
+            _claim("c2", subject="nobody"),   # no matching mention
+        ]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertEqual(metrics.claims_with_any_edge, 1)
+        self.assertEqual(metrics.claims_with_no_edges, 1)
+
+    def test_claims_with_no_edges_equals_processed_minus_any_edge(self):
+        mentions = [_mention("IBM", "m-ibm"), _mention("Apple", "m-apple")]
+        claims = [
+            _claim("c1", subject="IBM"),
+            _claim("c2", subject="Apple"),
+            _claim("c3", subject="Absent"),
+        ]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertEqual(
+            metrics.claims_with_no_edges,
+            metrics.claims_processed - metrics.claims_with_any_edge,
+        )
+
+    # --- slots_processed ---
+
+    def test_slots_processed_counts_non_empty_slots_with_candidates(self):
+        # One claim with both subject and object → 2 slots; only claims with
+        # candidate mentions enter the slot loop.
+        mentions = [_mention("Google", "m-g"), _mention("revenue", "m-r")]
+        claims = [_claim("c1", subject="Google", obj="revenue")]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertEqual(metrics.slots_processed, 2)
+
+    def test_claim_with_no_candidate_mentions_contributes_zero_slots(self):
+        # Mention is in chunk-99; claim is in chunk-1 → no candidates.
+        mentions = [_mention("Google", "m-g", chunk_ids=["chunk-99"])]
+        claims = [_claim("c1", subject="Google", chunk_ids=["chunk-1"])]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertEqual(metrics.slots_processed, 0)
+
+    # --- edges_by_method ---
+
+    def test_edges_by_method_raw_exact(self):
+        mentions = [_mention("IBM", "m-ibm")]
+        claims = [_claim("c1", subject="IBM")]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertEqual(metrics.edges_by_method.get(MATCH_METHOD_RAW_EXACT, 0), 1)
+        self.assertEqual(metrics.edges_by_method.get(MATCH_METHOD_CASEFOLD_EXACT, 0), 0)
+
+    def test_edges_by_method_casefold_exact(self):
+        mentions = [_mention("IBM", "m-ibm")]
+        claims = [_claim("c1", subject="ibm")]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertEqual(metrics.edges_by_method.get(MATCH_METHOD_CASEFOLD_EXACT, 0), 1)
+
+    def test_edges_by_method_normalized_exact(self):
+        mentions = [_mention("Müller", "m1")]
+        claims = [_claim("c1", subject="Muller")]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertEqual(metrics.edges_by_method.get(MATCH_METHOD_NORMALIZED_EXACT, 0), 1)
+
+    def test_edges_by_method_list_split(self):
+        mentions = [_mention("Amazon", "m-a"), _mention("eBay", "m-e")]
+        claims = [_claim("c1", obj="Amazon and eBay")]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertEqual(metrics.edges_by_method.get(MATCH_METHOD_LIST_SPLIT, 0), 2)
+
+    def test_edges_by_method_mixed_methods(self):
+        # Subject: raw_exact; Object: list_split (2 edges).
+        mentions = [
+            _mention("Google", "m-g"),
+            _mention("Amazon", "m-a"),
+            _mention("eBay", "m-e"),
+        ]
+        claims = [_claim("c1", subject="Google", obj="Amazon and eBay")]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertEqual(metrics.edges_by_method.get(MATCH_METHOD_RAW_EXACT, 0), 1)
+        self.assertEqual(metrics.edges_by_method.get(MATCH_METHOD_LIST_SPLIT, 0), 2)
+
+    # --- edges_by_role ---
+
+    def test_edges_by_role_subject_only(self):
+        mentions = [_mention("Google", "m-g")]
+        claims = [_claim("c1", subject="Google")]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertEqual(metrics.edges_by_role.get(ROLE_SUBJECT, 0), 1)
+        self.assertEqual(metrics.edges_by_role.get(ROLE_OBJECT, 0), 0)
+
+    def test_edges_by_role_object_only(self):
+        mentions = [_mention("revenue", "m-r")]
+        claims = [_claim("c1", obj="revenue")]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertEqual(metrics.edges_by_role.get(ROLE_OBJECT, 0), 1)
+        self.assertEqual(metrics.edges_by_role.get(ROLE_SUBJECT, 0), 0)
+
+    def test_edges_by_role_subject_and_object(self):
+        mentions = [_mention("Google", "m-g"), _mention("Apple", "m-a")]
+        claims = [_claim("c1", subject="Google", obj="Apple")]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertEqual(metrics.edges_by_role.get(ROLE_SUBJECT, 0), 1)
+        self.assertEqual(metrics.edges_by_role.get(ROLE_OBJECT, 0), 1)
+
+    # --- edges_by_role_and_method ---
+
+    def test_edges_by_role_and_method_structure(self):
+        mentions = [_mention("IBM", "m-ibm"), _mention("revenue", "m-r")]
+        claims = [_claim("c1", subject="IBM", obj="revenue")]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertIn(ROLE_SUBJECT, metrics.edges_by_role_and_method)
+        self.assertIn(ROLE_OBJECT, metrics.edges_by_role_and_method)
+        self.assertEqual(
+            metrics.edges_by_role_and_method[ROLE_SUBJECT].get(MATCH_METHOD_RAW_EXACT, 0), 1
+        )
+        self.assertEqual(
+            metrics.edges_by_role_and_method[ROLE_OBJECT].get(MATCH_METHOD_RAW_EXACT, 0), 1
+        )
+
+    def test_edges_by_role_and_method_list_split_subject(self):
+        mentions = [_mention("Google", "m-g"), _mention("Apple", "m-a")]
+        claims = [_claim("c1", subject="Google and Apple")]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertEqual(
+            metrics.edges_by_role_and_method.get(ROLE_SUBJECT, {}).get(MATCH_METHOD_LIST_SPLIT, 0),
+            2,
+        )
+
+    # --- unmatched_slots ---
+
+    def test_unmatched_slots_when_no_mention_found(self):
+        mentions = [_mention("OpenAI", "m1")]
+        claims = [_claim("c1", subject="Google")]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertEqual(metrics.unmatched_slots, 1)
+        self.assertEqual(metrics.unmatched_by_role.get(ROLE_SUBJECT, 0), 1)
+
+    def test_unmatched_by_role_object(self):
+        mentions = [_mention("OpenAI", "m1")]
+        claims = [_claim("c1", obj="unknown entity")]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertEqual(metrics.unmatched_slots, 1)
+        self.assertEqual(metrics.unmatched_by_role.get(ROLE_OBJECT, 0), 1)
+
+    def test_no_unmatched_when_all_slots_matched(self):
+        mentions = [_mention("Google", "m-g"), _mention("Apple", "m-a")]
+        claims = [_claim("c1", subject="Google", obj="Apple")]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertEqual(metrics.unmatched_slots, 0)
+        self.assertEqual(metrics.unmatched_by_role, {})
+
+    def test_unmatched_after_list_split_parts_all_fail(self):
+        # "X and Y" — no parts match → unmatched
+        mentions = [_mention("Amazon", "m-a")]
+        claims = [_claim("c1", obj="X and Y")]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertEqual(metrics.unmatched_slots, 1)
+        self.assertEqual(metrics.unmatched_by_role.get(ROLE_OBJECT, 0), 1)
+
+    def test_partial_list_split_success_not_counted_as_unmatched(self):
+        # "Amazon and UnknownCo": Amazon matches → slot has at least one edge
+        # → not counted as unmatched.
+        mentions = [_mention("Amazon", "m-a")]
+        claims = [_claim("c1", obj="Amazon and UnknownCo")]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertEqual(metrics.unmatched_slots, 0)
+
+    # --- ambiguous_slots and list_split_suppressed ---
+
+    def test_ambiguous_slot_counted(self):
+        # Two mentions named identically → raw_exact ambiguous
+        mentions = [_mention("ABC", "m1"), _mention("ABC", "m2")]
+        claims = [_claim("c1", subject="ABC")]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertEqual(metrics.ambiguous_slots, 1)
+        self.assertEqual(metrics.ambiguous_by_role.get(ROLE_SUBJECT, 0), 1)
+
+    def test_ambiguous_slot_suppresses_list_split(self):
+        # Ambiguous whole-slot → list_split_suppressed incremented, not unmatched.
+        mentions = [
+            _mention("Amazon and eBay", "m-comb-1"),
+            _mention("Amazon and eBay", "m-comb-2"),
+            _mention("Amazon", "m-a"),
+            _mention("eBay", "m-e"),
+        ]
+        claims = [_claim("c1", obj="Amazon and eBay")]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertEqual(metrics.ambiguous_slots, 1)
+        self.assertEqual(metrics.list_split_suppressed, 1)
+        self.assertEqual(metrics.list_split_suppressed_by_role.get(ROLE_OBJECT, 0), 1)
+        # Ambiguous slot must NOT be counted as unmatched.
+        self.assertEqual(metrics.unmatched_slots, 0)
+
+    def test_list_split_suppressed_equals_ambiguous_slots(self):
+        # By definition: every ambiguous slot suppresses a list-split attempt.
+        mentions = [
+            _mention("Hello", "m1"),
+            _mention("HELLO", "m2"),
+            _mention("profit", "m-p"),
+        ]
+        claims = [_claim("c1", subject="hello", obj="profit")]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        # Subject is ambiguous; object matches uniquely.
+        self.assertEqual(metrics.ambiguous_slots, metrics.list_split_suppressed)
+
+    def test_no_ambiguity_when_all_slots_uniquely_matched(self):
+        mentions = [_mention("IBM", "m-ibm")]
+        claims = [_claim("c1", subject="IBM")]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertEqual(metrics.ambiguous_slots, 0)
+        self.assertEqual(metrics.list_split_suppressed, 0)
+
+    # --- sample IDs ---
+
+    def test_sample_list_split_claim_ids_populated(self):
+        mentions = [_mention("Amazon", "m-a"), _mention("eBay", "m-e")]
+        claims = [_claim("c1", obj="Amazon and eBay")]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertIn("c1", metrics.sample_list_split_claim_ids)
+
+    def test_sample_unmatched_claim_ids_populated(self):
+        mentions = [_mention("OpenAI", "m1")]
+        claims = [_claim("c-unmatched", subject="Google")]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertIn("c-unmatched", metrics.sample_unmatched_claim_ids)
+
+    def test_sample_ambiguous_claim_ids_populated(self):
+        mentions = [_mention("ABC", "m1"), _mention("ABC", "m2")]
+        claims = [_claim("c-amb", subject="ABC")]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertIn("c-amb", metrics.sample_ambiguous_claim_ids)
+
+    def test_sample_ids_not_duplicated(self):
+        # Same claim contributes two list_split slots; its ID must appear once
+        # in the sample list (no duplicates).
+        mentions = [
+            _mention("Google", "m-g"),
+            _mention("Apple", "m-a"),
+            _mention("Amazon", "m-amz"),
+            _mention("eBay", "m-e"),
+        ]
+        claims = [_claim("c1", subject="Google and Apple", obj="Amazon and eBay")]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertEqual(
+            len(metrics.sample_list_split_claim_ids),
+            len(set(metrics.sample_list_split_claim_ids)),
+        )
+
+    # --- to_dict ---
+
+    def test_to_dict_returns_json_serialisable_dict(self):
+        import json
+        mentions = [_mention("IBM", "m-ibm")]
+        claims = [_claim("c1", subject="IBM")]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        d = metrics.to_dict()
+        self.assertIsInstance(d, dict)
+        # Must be serialisable without raising.
+        serialised = json.dumps(d)
+        self.assertIn("edges_by_method", serialised)
+
+    def test_to_dict_includes_all_expected_keys(self):
+        _, metrics = build_participation_edges_with_metrics([], [])
+        d = metrics.to_dict()
+        expected_keys = {
+            "claims_processed",
+            "slots_processed",
+            "edges_by_method",
+            "edges_by_role",
+            "edges_by_role_and_method",
+            "unmatched_slots",
+            "unmatched_by_role",
+            "ambiguous_slots",
+            "ambiguous_by_role",
+            "list_split_suppressed",
+            "list_split_suppressed_by_role",
+            "list_split_full_success",
+            "list_split_partial_success",
+            "list_split_no_success",
+            "list_split_total_parts",
+            "list_split_matched_parts",
+            "list_split_unmatched_parts",
+            "claims_with_any_edge",
+            "claims_with_no_edges",
+            "sample_list_split_claim_ids",
+            "sample_list_split_partial_claim_ids",
+            "sample_unmatched_claim_ids",
+            "sample_ambiguous_claim_ids",
+        }
+        self.assertTrue(expected_keys.issubset(d.keys()))
+
+    # --- idempotency ---
+
+    def test_metrics_idempotent_across_repeated_calls(self):
+        mentions = [_mention("Google", "m-g"), _mention("revenue", "m-r")]
+        claims = [_claim("c1", subject="Google", obj="revenue")]
+        _, m1 = build_participation_edges_with_metrics(claims, mentions)
+        _, m2 = build_participation_edges_with_metrics(claims, mentions)
+        self.assertEqual(m1.to_dict(), m2.to_dict())
+
+    # --- run_id scoping preserved ---
+
+    def test_metrics_respect_run_id_scoping(self):
+        # Mention in run-B must not match claim in run-A.
+        mentions = [_mention("Google", "m-g", run_id="run-B")]
+        claims = [_claim("c1", subject="Google", run_id="run-A")]
+        edges, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertEqual(edges, [])
+        self.assertEqual(metrics.edges_by_method, {})
+        # The claim had no candidate mentions → slots_processed == 0
+        self.assertEqual(metrics.slots_processed, 0)
+
+    # --- list_split_full_success / list_split_partial_success / list_split_no_success ---
+
+    def test_list_split_full_success_all_parts_match(self):
+        # "Amazon and eBay" — both parts match → full success.
+        mentions = [_mention("Amazon", "m-a"), _mention("eBay", "m-e")]
+        claims = [_claim("c1", obj="Amazon and eBay")]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertEqual(metrics.list_split_full_success, 1)
+        self.assertEqual(metrics.list_split_partial_success, 0)
+        self.assertEqual(metrics.list_split_no_success, 0)
+
+    def test_list_split_full_success_three_parts(self):
+        # "A, B, and C" — all three parts match → full success counted once.
+        mentions = [
+            _mention("Google", "m-g"),
+            _mention("Apple", "m-a"),
+            _mention("Amazon", "m-amz"),
+        ]
+        claims = [_claim("c1", obj="Google, Apple, and Amazon")]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertEqual(metrics.list_split_full_success, 1)
+        self.assertEqual(metrics.list_split_partial_success, 0)
+        self.assertEqual(metrics.list_split_no_success, 0)
+
+    def test_list_split_partial_success_one_of_two_parts_matches(self):
+        # "Amazon and UnknownCo" — only Amazon matches → partial success.
+        mentions = [_mention("Amazon", "m-a")]
+        claims = [_claim("c1", obj="Amazon and UnknownCo")]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertEqual(metrics.list_split_partial_success, 1)
+        self.assertEqual(metrics.list_split_full_success, 0)
+        self.assertEqual(metrics.list_split_no_success, 0)
+        # Partial success → slot is NOT unmatched.
+        self.assertEqual(metrics.unmatched_slots, 0)
+
+    def test_list_split_partial_success_two_of_three_parts_match(self):
+        # "A, B, and Unknown" — A and B match, Unknown does not → partial.
+        mentions = [_mention("Google", "m-g"), _mention("Apple", "m-a")]
+        claims = [_claim("c1", obj="Google, Apple, and Unknown")]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertEqual(metrics.list_split_partial_success, 1)
+        self.assertEqual(metrics.list_split_full_success, 0)
+
+    def test_list_split_no_success_all_parts_fail(self):
+        # "X and Y" — neither part matches → no success (and unmatched).
+        mentions = [_mention("Amazon", "m-a")]
+        claims = [_claim("c1", obj="X and Y")]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertEqual(metrics.list_split_no_success, 1)
+        self.assertEqual(metrics.list_split_full_success, 0)
+        self.assertEqual(metrics.list_split_partial_success, 0)
+        # Zero-success slot is also counted as unmatched.
+        self.assertEqual(metrics.unmatched_slots, 1)
+
+    def test_list_split_no_split_possible_not_counted_in_outcomes(self):
+        # Slot text contains no separator → split_slot_text returns [] →
+        # none of full/partial/no_success should be incremented.
+        mentions = [_mention("Amazon", "m-a")]
+        claims = [_claim("c1", obj="UnknownEntity")]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertEqual(metrics.list_split_full_success, 0)
+        self.assertEqual(metrics.list_split_partial_success, 0)
+        self.assertEqual(metrics.list_split_no_success, 0)
+        # Still counts as unmatched (no edge produced).
+        self.assertEqual(metrics.unmatched_slots, 1)
+
+    # --- list_split part totals ---
+
+    def test_list_split_total_parts_two_part_slot(self):
+        mentions = [_mention("Amazon", "m-a"), _mention("eBay", "m-e")]
+        claims = [_claim("c1", obj="Amazon and eBay")]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertEqual(metrics.list_split_total_parts, 2)
+        self.assertEqual(metrics.list_split_matched_parts, 2)
+        self.assertEqual(metrics.list_split_unmatched_parts, 0)
+
+    def test_list_split_total_parts_partial(self):
+        # "Amazon and UnknownCo" → 2 parts, 1 matched, 1 unmatched.
+        mentions = [_mention("Amazon", "m-a")]
+        claims = [_claim("c1", obj="Amazon and UnknownCo")]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertEqual(metrics.list_split_total_parts, 2)
+        self.assertEqual(metrics.list_split_matched_parts, 1)
+        self.assertEqual(metrics.list_split_unmatched_parts, 1)
+
+    def test_list_split_total_parts_zero_when_no_split(self):
+        # No separator → split_slot_text returns [] → part totals are 0.
+        mentions = [_mention("Amazon", "m-a")]
+        claims = [_claim("c1", obj="Unknown")]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertEqual(metrics.list_split_total_parts, 0)
+        self.assertEqual(metrics.list_split_matched_parts, 0)
+        self.assertEqual(metrics.list_split_unmatched_parts, 0)
+
+    def test_list_split_parts_accumulate_across_multiple_slots(self):
+        # Slot 1: "A and B" (both match) → 2 total, 2 matched.
+        # Slot 2: "C and Unknown" (one match) → 2 total, 1 matched.
+        # Grand total: 4 total, 3 matched, 1 unmatched.
+        mentions = [
+            _mention("Google", "m-g"),
+            _mention("Apple", "m-a"),
+            _mention("Amazon", "m-amz"),
+        ]
+        claims = [_claim("c1", subject="Google and Apple", obj="Amazon and Unknown")]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertEqual(metrics.list_split_total_parts, 4)
+        self.assertEqual(metrics.list_split_matched_parts, 3)
+        self.assertEqual(metrics.list_split_unmatched_parts, 1)
+        self.assertEqual(
+            metrics.list_split_matched_parts + metrics.list_split_unmatched_parts,
+            metrics.list_split_total_parts,
+        )
+
+    # --- sample_list_split_partial_claim_ids ---
+
+    def test_sample_list_split_partial_claim_ids_populated(self):
+        # "Amazon and UnknownCo" → partial success → ID added.
+        mentions = [_mention("Amazon", "m-a")]
+        claims = [_claim("c-partial", obj="Amazon and UnknownCo")]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertIn("c-partial", metrics.sample_list_split_partial_claim_ids)
+
+    def test_sample_list_split_partial_claim_ids_not_populated_for_full_success(self):
+        # Full success slot → NOT in partial sample.
+        mentions = [_mention("Amazon", "m-a"), _mention("eBay", "m-e")]
+        claims = [_claim("c-full", obj="Amazon and eBay")]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertNotIn("c-full", metrics.sample_list_split_partial_claim_ids)
+
+    def test_sample_list_split_partial_not_duplicated(self):
+        # Claim has two partial-success slots; its ID appears only once.
+        mentions = [_mention("Google", "m-g"), _mention("Amazon", "m-amz")]
+        claims = [
+            _claim("c1", subject="Google and Missing1", obj="Amazon and Missing2")
+        ]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertEqual(
+            len(metrics.sample_list_split_partial_claim_ids),
+            len(set(metrics.sample_list_split_partial_claim_ids)),
+        )
+        self.assertIn("c1", metrics.sample_list_split_partial_claim_ids)
