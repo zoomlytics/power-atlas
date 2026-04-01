@@ -1914,13 +1914,36 @@ Each entry in `case_results` includes:
 | `total_cluster_claims` | Sum of cluster-name claim counts across cases |
 | `total_pairwise_claims` | Sum of pairwise claim counts |
 
+### Baseline artifact
+
+A representative baseline artifact (synthetic example data reflecting a post-hybrid run) is committed at:
+
+```
+pipelines/query/retrieval_benchmark_example_output.json
+```
+
+**Baseline summary figures** (run `unstructured_ingest-20240601T120000000000Z-abcd1234`, alignment `v1.0`):
+
+| Metric | Baseline |
+|--------|---------|
+| `total_cases` | 9 |
+| `fragmentation_detected_count` | 2 |
+| `entities_with_claims_canonical` | 8 |
+| `total_canonical_claims` | 38 |
+| `total_cluster_claims` | 40 |
+| `total_pairwise_claims` | 0 |
+
+Use this artifact as a regression reference when comparing future benchmark runs.
+For detailed per-case review thresholds and red/yellow/green movement guidance, see
+the **[Retrieval Benchmark Review Rubric](../../docs/architecture/retrieval-benchmark-review-rubric-v0.1.md)**.
+
 ### Interpreting benchmark results
 
 | Signal | Healthy | Suspicious |
 |--------|---------|------------|
 | `fragmentation_detected_count` | 0 for all cases | > 0 — entity-type or spelling splits exist |
 | `entities_with_claims_canonical` | Equal to `single_and_comparison_cases` | Any entity with 0 canonical claims — alignment gap |
-| `canonical_claim_count` vs `cluster_claim_count` | Canonical ≥ cluster (deduplication working) | Canonical < cluster — alignment is missing some clusters |
+| `canonical_claim_count` vs `cluster_claim_count` | For non-fragmented cases (`fragmentation_detected = false` and `cluster_name_cluster_count ≤ canonical_cluster_count`): canonical ≥ cluster per case (deduplication working). For fragmented cases, canonical may be < cluster because fragmented entities expose fragment-only claims via cluster-name; interpret any `<` alongside fragmentation signals rather than as universally suspicious. | Canonical < cluster on a non-fragmented case — alignment is missing some clusters |
 | `lower_layer_rows` with `claim_id = null` | Few dark mentions | Many dark mentions — participation coverage gap |
 | `cluster_name_cluster_count > 1` for single entity | At most 1 clean cluster | Multiple clusters — fragmentation risk |
 

@@ -1,0 +1,1564 @@
+{
+  "generated_at": "2024-06-01T12:00:00Z",
+  "run_id": "unstructured_ingest-20240601T120000000000Z-abcd1234",
+  "alignment_version": "v1.0",
+  "case_results": [
+    {
+      "case_id": "mercadolibre_single",
+      "case_type": "single_entity",
+      "entity_names": [
+        "mercadolibre"
+      ],
+      "description": "Single-entity canonical traversal for MercadoLibre. Exercises the canonical → cluster → mention → claim path for a well-known organization that may appear under multiple surface forms.",
+      "expected_shape": "At least one row with canonical_entity='MercadoLibre', one or more distinct cluster values, and claims with role='subject' or role='object'. The canonical path should return a single canonical_entity value with claims deduplicated across surface-form variants.",
+      "failure_modes": [
+        "canonical_rows empty — CanonicalEntity not present or ALIGNED_WITH edges missing",
+        "lower_layer_rows shows cluster with zero claims — participation stage gap",
+        "fragmentation_detected — cluster-name path returns more clusters than canonical"
+      ],
+      "canonical_rows": [
+        {
+          "canonical_entity": "MercadoLibre",
+          "cluster_id": "abcd1234::Organization::mercadolibre",
+          "cluster": "MercadoLibre",
+          "mention": "MercadoLibre",
+          "role": "subject",
+          "claim_text": "MercadoLibre acquired Kangu to expand its logistics footprint.",
+          "predicate": "acquired",
+          "match_method": "label_exact",
+          "claim_id": "claim-ml-001"
+        },
+        {
+          "canonical_entity": "MercadoLibre",
+          "cluster_id": "abcd1234::Organization::mercadolibre",
+          "cluster": "MercadoLibre",
+          "mention": "MercadoLibre",
+          "role": "object",
+          "claim_text": "SoftBank invested in MercadoLibre.",
+          "predicate": "invested_in",
+          "match_method": "label_exact",
+          "claim_id": "claim-ml-002"
+        },
+        {
+          "canonical_entity": "MercadoLibre",
+          "cluster_id": "abcd1234::Organization::mercadolibre-inc",
+          "cluster": "MercadoLibre Inc",
+          "mention": "MercadoLibre Inc.",
+          "role": "subject",
+          "claim_text": "MercadoLibre Inc. launched its shipping and fulfillment unit Mercado Envios.",
+          "predicate": "launched",
+          "match_method": "alias_exact",
+          "claim_id": "claim-ml-003"
+        },
+        {
+          "canonical_entity": "MercadoLibre",
+          "cluster_id": "abcd1234::Organization::mercadolibre-inc",
+          "cluster": "MercadoLibre Inc",
+          "mention": "MercadoLibre Inc.",
+          "role": "object",
+          "claim_text": "Andreessen Horowitz backed MercadoLibre Inc. in its Series D.",
+          "predicate": "backed",
+          "match_method": "alias_exact",
+          "claim_id": "claim-ml-004"
+        }
+      ],
+      "cluster_rows": [
+        {
+          "cluster_id": "abcd1234::Organization::mercadolibre",
+          "cluster": "MercadoLibre",
+          "cluster_type": "Organization",
+          "mention": "MercadoLibre",
+          "role": "subject",
+          "claim_text": "MercadoLibre acquired Kangu to expand its logistics footprint.",
+          "predicate": "acquired",
+          "match_method": "label_exact",
+          "claim_id": "claim-ml-001"
+        },
+        {
+          "cluster_id": "abcd1234::Organization::mercadolibre",
+          "cluster": "MercadoLibre",
+          "cluster_type": "Organization",
+          "mention": "MercadoLibre",
+          "role": "object",
+          "claim_text": "SoftBank invested in MercadoLibre.",
+          "predicate": "invested_in",
+          "match_method": "label_exact",
+          "claim_id": "claim-ml-002"
+        },
+        {
+          "cluster_id": "abcd1234::Organization::mercadolibre-inc",
+          "cluster": "MercadoLibre Inc",
+          "cluster_type": "Organization",
+          "mention": "MercadoLibre Inc.",
+          "role": "subject",
+          "claim_text": "MercadoLibre Inc. launched its shipping and fulfillment unit Mercado Envios.",
+          "predicate": "launched",
+          "match_method": "alias_exact",
+          "claim_id": "claim-ml-003"
+        },
+        {
+          "cluster_id": "abcd1234::Organization::mercadolibre-inc",
+          "cluster": "MercadoLibre Inc",
+          "cluster_type": "Organization",
+          "mention": "MercadoLibre Inc.",
+          "role": "object",
+          "claim_text": "Andreessen Horowitz backed MercadoLibre Inc. in its Series D.",
+          "predicate": "backed",
+          "match_method": "alias_exact",
+          "claim_id": "claim-ml-004"
+        },
+        {
+          "cluster_id": "abcd1234::Person::mercadolibre",
+          "cluster": "MercadoLibre",
+          "cluster_type": "Person",
+          "mention": "MercadoLibre",
+          "role": "subject",
+          "claim_text": "MercadoLibre was frequently cited as a regional startup model.",
+          "predicate": "cited_as",
+          "match_method": "casefold_exact",
+          "claim_id": "claim-ml-005"
+        }
+      ],
+      "lower_layer_rows": [
+        {
+          "canonical_entity": "MercadoLibre",
+          "cluster": "MercadoLibre",
+          "cluster_type": "Organization",
+          "mention": "MercadoLibre",
+          "mention_type": "Organization",
+          "role": "subject",
+          "claim_id": "claim-ml-001",
+          "claim_text": "MercadoLibre acquired Kangu to expand its logistics footprint."
+        },
+        {
+          "canonical_entity": "MercadoLibre",
+          "cluster": "MercadoLibre",
+          "cluster_type": "Organization",
+          "mention": "MercadoLibre",
+          "mention_type": "Organization",
+          "role": "object",
+          "claim_id": "claim-ml-002",
+          "claim_text": "SoftBank invested in MercadoLibre."
+        },
+        {
+          "canonical_entity": "MercadoLibre",
+          "cluster": "MercadoLibre Inc",
+          "cluster_type": "Organization",
+          "mention": "MercadoLibre Inc.",
+          "mention_type": "Organization",
+          "role": "subject",
+          "claim_id": "claim-ml-003",
+          "claim_text": "MercadoLibre Inc. launched its shipping and fulfillment unit Mercado Envios."
+        },
+        {
+          "canonical_entity": "MercadoLibre",
+          "cluster": "MercadoLibre Inc",
+          "cluster_type": "Organization",
+          "mention": "MercadoLibre Inc.",
+          "mention_type": "Organization",
+          "role": "object",
+          "claim_id": "claim-ml-004",
+          "claim_text": "Andreessen Horowitz backed MercadoLibre Inc. in its Series D."
+        },
+        {
+          "canonical_entity": "MercadoLibre",
+          "cluster": "MercadoLibre",
+          "cluster_type": "Organization",
+          "mention": "mercadolibre.com",
+          "mention_type": "Organization",
+          "role": null,
+          "claim_id": null,
+          "claim_text": null
+        }
+      ],
+      "fragmentation_check_rows": [
+        {
+          "cluster_id": "abcd1234::Organization::mercadolibre",
+          "canonical_name": "MercadoLibre",
+          "entity_type": "Organization"
+        },
+        {
+          "cluster_id": "abcd1234::Organization::mercadolibre-inc",
+          "canonical_name": "MercadoLibre Inc",
+          "entity_type": "Organization"
+        },
+        {
+          "cluster_id": "abcd1234::Person::mercadolibre",
+          "canonical_name": "MercadoLibre",
+          "entity_type": "Person"
+        }
+      ],
+      "canonical_claim_count": 4,
+      "cluster_claim_count": 5,
+      "canonical_cluster_count": 2,
+      "cluster_name_cluster_count": 3,
+      "fragmentation_detected": true
+    },
+    {
+      "case_id": "xapo_single",
+      "case_type": "single_entity",
+      "entity_names": [
+        "xapo"
+      ],
+      "description": "Single-entity canonical traversal for Xapo. Tests retrieval for a fintech entity that may appear under abbreviated and full-name surface forms.",
+      "expected_shape": "Rows with canonical_entity containing 'Xapo', claims grouped under a single canonical entry point regardless of surface-form variation.",
+      "failure_modes": [
+        "canonical_rows empty — Xapo not in structured catalog or alignment failed",
+        "cluster_rows returns zero results — entity not mentioned in unstructured source",
+        "multiple canonical_entity values — duplicate CanonicalEntity nodes"
+      ],
+      "canonical_rows": [
+        {
+          "canonical_entity": "Xapo",
+          "cluster_id": "abcd1234::Organization::xapo",
+          "cluster": "Xapo",
+          "mention": "Xapo",
+          "role": "subject",
+          "claim_text": "Xapo launched a bitcoin vault for institutional clients.",
+          "predicate": "launched",
+          "match_method": "label_exact",
+          "claim_id": "claim-xp-001"
+        },
+        {
+          "canonical_entity": "Xapo",
+          "cluster_id": "abcd1234::Organization::xapo",
+          "cluster": "Xapo",
+          "mention": "Xapo",
+          "role": "object",
+          "claim_text": "Sequoia Capital invested in Xapo.",
+          "predicate": "invested_in",
+          "match_method": "label_exact",
+          "claim_id": "claim-xp-002"
+        },
+        {
+          "canonical_entity": "Xapo",
+          "cluster_id": "abcd1234::Organization::xapo",
+          "cluster": "Xapo",
+          "mention": "Xapo Bank",
+          "role": "subject",
+          "claim_text": "Xapo Bank obtained a banking licence in Gibraltar.",
+          "predicate": "obtained",
+          "match_method": "alias_exact",
+          "claim_id": "claim-xp-003"
+        },
+        {
+          "canonical_entity": "Xapo",
+          "cluster_id": "abcd1234::Organization::xapo",
+          "cluster": "Xapo",
+          "mention": "Xapo",
+          "role": "subject",
+          "claim_text": "Xapo partnered with Visa for its debit card.",
+          "predicate": "partnered_with",
+          "match_method": "label_exact",
+          "claim_id": "claim-xp-004"
+        },
+        {
+          "canonical_entity": "Xapo",
+          "cluster_id": "abcd1234::Organization::xapo",
+          "cluster": "Xapo",
+          "mention": "Xapo",
+          "role": "object",
+          "claim_text": "WCG provided regulatory oversight for Xapo.",
+          "predicate": "provided_oversight_for",
+          "match_method": "label_exact",
+          "claim_id": "claim-xp-005"
+        }
+      ],
+      "cluster_rows": [
+        {
+          "cluster_id": "abcd1234::Organization::xapo",
+          "cluster": "Xapo",
+          "cluster_type": "Organization",
+          "mention": "Xapo",
+          "role": "subject",
+          "claim_text": "Xapo launched a bitcoin vault for institutional clients.",
+          "predicate": "launched",
+          "match_method": "label_exact",
+          "claim_id": "claim-xp-001"
+        },
+        {
+          "cluster_id": "abcd1234::Organization::xapo",
+          "cluster": "Xapo",
+          "cluster_type": "Organization",
+          "mention": "Xapo",
+          "role": "object",
+          "claim_text": "Sequoia Capital invested in Xapo.",
+          "predicate": "invested_in",
+          "match_method": "label_exact",
+          "claim_id": "claim-xp-002"
+        },
+        {
+          "cluster_id": "abcd1234::Organization::xapo",
+          "cluster": "Xapo",
+          "cluster_type": "Organization",
+          "mention": "Xapo Bank",
+          "role": "subject",
+          "claim_text": "Xapo Bank obtained a banking licence in Gibraltar.",
+          "predicate": "obtained",
+          "match_method": "alias_exact",
+          "claim_id": "claim-xp-003"
+        },
+        {
+          "cluster_id": "abcd1234::Organization::xapo",
+          "cluster": "Xapo",
+          "cluster_type": "Organization",
+          "mention": "Xapo",
+          "role": "subject",
+          "claim_text": "Xapo partnered with Visa for its debit card.",
+          "predicate": "partnered_with",
+          "match_method": "label_exact",
+          "claim_id": "claim-xp-004"
+        },
+        {
+          "cluster_id": "abcd1234::Organization::xapo",
+          "cluster": "Xapo",
+          "cluster_type": "Organization",
+          "mention": "Xapo",
+          "role": "object",
+          "claim_text": "WCG provided regulatory oversight for Xapo.",
+          "predicate": "provided_oversight_for",
+          "match_method": "label_exact",
+          "claim_id": "claim-xp-005"
+        }
+      ],
+      "lower_layer_rows": [
+        {
+          "canonical_entity": "Xapo",
+          "cluster": "Xapo",
+          "cluster_type": "Organization",
+          "mention": "Xapo",
+          "mention_type": "Organization",
+          "role": "subject",
+          "claim_id": "claim-xp-001",
+          "claim_text": "Xapo launched a bitcoin vault for institutional clients."
+        },
+        {
+          "canonical_entity": "Xapo",
+          "cluster": "Xapo",
+          "cluster_type": "Organization",
+          "mention": "Xapo",
+          "mention_type": "Organization",
+          "role": "object",
+          "claim_id": "claim-xp-002",
+          "claim_text": "Sequoia Capital invested in Xapo."
+        },
+        {
+          "canonical_entity": "Xapo",
+          "cluster": "Xapo",
+          "cluster_type": "Organization",
+          "mention": "Xapo Bank",
+          "mention_type": "Organization",
+          "role": "subject",
+          "claim_id": "claim-xp-003",
+          "claim_text": "Xapo Bank obtained a banking licence in Gibraltar."
+        },
+        {
+          "canonical_entity": "Xapo",
+          "cluster": "Xapo",
+          "cluster_type": "Organization",
+          "mention": "Xapo",
+          "mention_type": "Organization",
+          "role": "subject",
+          "claim_id": "claim-xp-004",
+          "claim_text": "Xapo partnered with Visa for its debit card."
+        },
+        {
+          "canonical_entity": "Xapo",
+          "cluster": "Xapo",
+          "cluster_type": "Organization",
+          "mention": "Xapo",
+          "mention_type": "Organization",
+          "role": "object",
+          "claim_id": "claim-xp-005",
+          "claim_text": "WCG provided regulatory oversight for Xapo."
+        }
+      ],
+      "fragmentation_check_rows": [
+        {
+          "cluster_id": "abcd1234::Organization::xapo",
+          "canonical_name": "Xapo",
+          "entity_type": "Organization"
+        }
+      ],
+      "canonical_claim_count": 5,
+      "cluster_claim_count": 5,
+      "canonical_cluster_count": 1,
+      "cluster_name_cluster_count": 1,
+      "fragmentation_detected": false
+    },
+    {
+      "case_id": "endeavor_single",
+      "case_type": "single_entity",
+      "entity_names": [
+        "endeavor"
+      ],
+      "description": "Single-entity canonical traversal for Endeavor. Tests retrieval for a known entity present in the structured catalog and likely mentioned in unstructured sources.",
+      "expected_shape": "Rows with canonical_entity containing 'Endeavor', at least one participating mention, and at least one associated claim.",
+      "failure_modes": [
+        "canonical_rows empty — Endeavor not in structured catalog",
+        "lower_layer_rows shows zero claims — participation coverage gap"
+      ],
+      "canonical_rows": [
+        {
+          "canonical_entity": "Endeavor",
+          "cluster_id": "abcd1234::Organization::endeavor",
+          "cluster": "Endeavor",
+          "mention": "Endeavor",
+          "role": "subject",
+          "claim_text": "Endeavor selected 12 new high-impact entrepreneurs.",
+          "predicate": "selected",
+          "match_method": "label_exact",
+          "claim_id": "claim-en-001"
+        },
+        {
+          "canonical_entity": "Endeavor",
+          "cluster_id": "abcd1234::Organization::endeavor",
+          "cluster": "Endeavor",
+          "mention": "Endeavor",
+          "role": "object",
+          "claim_text": "The IFC provided funding to Endeavor.",
+          "predicate": "provided_funding_to",
+          "match_method": "label_exact",
+          "claim_id": "claim-en-002"
+        },
+        {
+          "canonical_entity": "Endeavor",
+          "cluster_id": "abcd1234::Organization::endeavor",
+          "cluster": "Endeavor",
+          "mention": "Endeavor Global",
+          "role": "subject",
+          "claim_text": "Endeavor Global expanded its network to Brazil and Argentina.",
+          "predicate": "expanded_to",
+          "match_method": "alias_exact",
+          "claim_id": "claim-en-003"
+        },
+        {
+          "canonical_entity": "Endeavor",
+          "cluster_id": "abcd1234::Organization::endeavor",
+          "cluster": "Endeavor",
+          "mention": "Endeavor",
+          "role": "subject",
+          "claim_text": "Endeavor launched an accelerator programme in Jordan.",
+          "predicate": "launched",
+          "match_method": "label_exact",
+          "claim_id": "claim-en-004"
+        },
+        {
+          "canonical_entity": "Endeavor",
+          "cluster_id": "abcd1234::Organization::endeavor",
+          "cluster": "Endeavor",
+          "mention": "Endeavor",
+          "role": "object",
+          "claim_text": "Reid Hoffman joined the board of Endeavor.",
+          "predicate": "joined_board_of",
+          "match_method": "label_exact",
+          "claim_id": "claim-en-005"
+        },
+        {
+          "canonical_entity": "Endeavor",
+          "cluster_id": "abcd1234::Organization::endeavor",
+          "cluster": "Endeavor",
+          "mention": "Endeavor",
+          "role": "subject",
+          "claim_text": "Endeavor and MercadoLibre co-hosted an entrepreneurship summit.",
+          "predicate": "co_hosted",
+          "match_method": "list_split",
+          "claim_id": "claim-en-006"
+        }
+      ],
+      "cluster_rows": [
+        {
+          "cluster_id": "abcd1234::Organization::endeavor",
+          "cluster": "Endeavor",
+          "cluster_type": "Organization",
+          "mention": "Endeavor",
+          "role": "subject",
+          "claim_text": "Endeavor selected 12 new high-impact entrepreneurs.",
+          "predicate": "selected",
+          "match_method": "label_exact",
+          "claim_id": "claim-en-001"
+        },
+        {
+          "cluster_id": "abcd1234::Organization::endeavor",
+          "cluster": "Endeavor",
+          "cluster_type": "Organization",
+          "mention": "Endeavor",
+          "role": "object",
+          "claim_text": "The IFC provided funding to Endeavor.",
+          "predicate": "provided_funding_to",
+          "match_method": "label_exact",
+          "claim_id": "claim-en-002"
+        },
+        {
+          "cluster_id": "abcd1234::Organization::endeavor",
+          "cluster": "Endeavor",
+          "cluster_type": "Organization",
+          "mention": "Endeavor Global",
+          "role": "subject",
+          "claim_text": "Endeavor Global expanded its network to Brazil and Argentina.",
+          "predicate": "expanded_to",
+          "match_method": "alias_exact",
+          "claim_id": "claim-en-003"
+        },
+        {
+          "cluster_id": "abcd1234::Organization::endeavor",
+          "cluster": "Endeavor",
+          "cluster_type": "Organization",
+          "mention": "Endeavor",
+          "role": "subject",
+          "claim_text": "Endeavor launched an accelerator programme in Jordan.",
+          "predicate": "launched",
+          "match_method": "label_exact",
+          "claim_id": "claim-en-004"
+        },
+        {
+          "cluster_id": "abcd1234::Organization::endeavor",
+          "cluster": "Endeavor",
+          "cluster_type": "Organization",
+          "mention": "Endeavor",
+          "role": "object",
+          "claim_text": "Reid Hoffman joined the board of Endeavor.",
+          "predicate": "joined_board_of",
+          "match_method": "label_exact",
+          "claim_id": "claim-en-005"
+        },
+        {
+          "cluster_id": "abcd1234::Organization::endeavor",
+          "cluster": "Endeavor",
+          "cluster_type": "Organization",
+          "mention": "Endeavor",
+          "role": "subject",
+          "claim_text": "Endeavor and MercadoLibre co-hosted an entrepreneurship summit.",
+          "predicate": "co_hosted",
+          "match_method": "list_split",
+          "claim_id": "claim-en-006"
+        }
+      ],
+      "lower_layer_rows": [
+        {
+          "canonical_entity": "Endeavor",
+          "cluster": "Endeavor",
+          "cluster_type": "Organization",
+          "mention": "Endeavor",
+          "mention_type": "Organization",
+          "role": "subject",
+          "claim_id": "claim-en-001",
+          "claim_text": "Endeavor selected 12 new high-impact entrepreneurs."
+        },
+        {
+          "canonical_entity": "Endeavor",
+          "cluster": "Endeavor",
+          "cluster_type": "Organization",
+          "mention": "Endeavor",
+          "mention_type": "Organization",
+          "role": "object",
+          "claim_id": "claim-en-002",
+          "claim_text": "The IFC provided funding to Endeavor."
+        },
+        {
+          "canonical_entity": "Endeavor",
+          "cluster": "Endeavor",
+          "cluster_type": "Organization",
+          "mention": "Endeavor Global",
+          "mention_type": "Organization",
+          "role": "subject",
+          "claim_id": "claim-en-003",
+          "claim_text": "Endeavor Global expanded its network to Brazil and Argentina."
+        },
+        {
+          "canonical_entity": "Endeavor",
+          "cluster": "Endeavor",
+          "cluster_type": "Organization",
+          "mention": "Endeavor",
+          "mention_type": "Organization",
+          "role": "subject",
+          "claim_id": "claim-en-004",
+          "claim_text": "Endeavor launched an accelerator programme in Jordan."
+        },
+        {
+          "canonical_entity": "Endeavor",
+          "cluster": "Endeavor",
+          "cluster_type": "Organization",
+          "mention": "Endeavor",
+          "mention_type": "Organization",
+          "role": "object",
+          "claim_id": "claim-en-005",
+          "claim_text": "Reid Hoffman joined the board of Endeavor."
+        },
+        {
+          "canonical_entity": "Endeavor",
+          "cluster": "Endeavor",
+          "cluster_type": "Organization",
+          "mention": "Endeavor",
+          "mention_type": "Organization",
+          "role": "subject",
+          "claim_id": "claim-en-006",
+          "claim_text": "Endeavor and MercadoLibre co-hosted an entrepreneurship summit."
+        }
+      ],
+      "fragmentation_check_rows": [
+        {
+          "cluster_id": "abcd1234::Organization::endeavor",
+          "canonical_name": "Endeavor",
+          "entity_type": "Organization"
+        }
+      ],
+      "canonical_claim_count": 6,
+      "cluster_claim_count": 6,
+      "canonical_cluster_count": 1,
+      "cluster_name_cluster_count": 1,
+      "fragmentation_detected": false
+    },
+    {
+      "case_id": "linda_rottenberg_single",
+      "case_type": "single_entity",
+      "entity_names": [
+        "linda rottenberg"
+      ],
+      "description": "Single-entity canonical traversal for Linda Rottenberg (Person). Tests retrieval for a named individual, verifying the person-entity path works symmetrically with org-entity cases.",
+      "expected_shape": "Rows with canonical_entity containing 'Linda Rottenberg', entity_type='Person', claims where she appears as subject or object.",
+      "failure_modes": [
+        "canonical_rows empty — Linda Rottenberg not in structured catalog",
+        "entity_type mismatch — mention clustered as Organization instead of Person",
+        "lower_layer_rows shows cluster with zero claims"
+      ],
+      "canonical_rows": [
+        {
+          "canonical_entity": "Linda Rottenberg",
+          "cluster_id": "abcd1234::Person::linda-rottenberg",
+          "cluster": "Linda Rottenberg",
+          "mention": "Linda Rottenberg",
+          "role": "subject",
+          "claim_text": "Linda Rottenberg co-founded Endeavor in 1997.",
+          "predicate": "co_founded",
+          "match_method": "label_exact",
+          "claim_id": "claim-lr-001"
+        },
+        {
+          "canonical_entity": "Linda Rottenberg",
+          "cluster_id": "abcd1234::Person::linda-rottenberg",
+          "cluster": "Linda Rottenberg",
+          "mention": "Linda Rottenberg",
+          "role": "object",
+          "claim_text": "Forbes named Linda Rottenberg an impact entrepreneur of the decade.",
+          "predicate": "named",
+          "match_method": "label_exact",
+          "claim_id": "claim-lr-002"
+        },
+        {
+          "canonical_entity": "Linda Rottenberg",
+          "cluster_id": "abcd1234::Person::linda-rottenberg",
+          "cluster": "Linda Rottenberg",
+          "mention": "Linda Rottenberg",
+          "role": "subject",
+          "claim_text": "Linda Rottenberg authored 'Crazy Is a Compliment'.",
+          "predicate": "authored",
+          "match_method": "label_exact",
+          "claim_id": "claim-lr-003"
+        },
+        {
+          "canonical_entity": "Linda Rottenberg",
+          "cluster_id": "abcd1234::Person::linda-rottenberg",
+          "cluster": "Linda Rottenberg",
+          "mention": "Linda Rottenberg",
+          "role": "subject",
+          "claim_text": "Linda Rottenberg spoke at the World Economic Forum in Davos.",
+          "predicate": "spoke_at",
+          "match_method": "label_exact",
+          "claim_id": "claim-lr-004"
+        }
+      ],
+      "cluster_rows": [
+        {
+          "cluster_id": "abcd1234::Person::linda-rottenberg",
+          "cluster": "Linda Rottenberg",
+          "cluster_type": "Person",
+          "mention": "Linda Rottenberg",
+          "role": "subject",
+          "claim_text": "Linda Rottenberg co-founded Endeavor in 1997.",
+          "predicate": "co_founded",
+          "match_method": "label_exact",
+          "claim_id": "claim-lr-001"
+        },
+        {
+          "cluster_id": "abcd1234::Person::linda-rottenberg",
+          "cluster": "Linda Rottenberg",
+          "cluster_type": "Person",
+          "mention": "Linda Rottenberg",
+          "role": "object",
+          "claim_text": "Forbes named Linda Rottenberg an impact entrepreneur of the decade.",
+          "predicate": "named",
+          "match_method": "label_exact",
+          "claim_id": "claim-lr-002"
+        },
+        {
+          "cluster_id": "abcd1234::Person::linda-rottenberg",
+          "cluster": "Linda Rottenberg",
+          "cluster_type": "Person",
+          "mention": "Linda Rottenberg",
+          "role": "subject",
+          "claim_text": "Linda Rottenberg authored 'Crazy Is a Compliment'.",
+          "predicate": "authored",
+          "match_method": "label_exact",
+          "claim_id": "claim-lr-003"
+        },
+        {
+          "cluster_id": "abcd1234::Person::linda-rottenberg",
+          "cluster": "Linda Rottenberg",
+          "cluster_type": "Person",
+          "mention": "Linda Rottenberg",
+          "role": "subject",
+          "claim_text": "Linda Rottenberg spoke at the World Economic Forum in Davos.",
+          "predicate": "spoke_at",
+          "match_method": "label_exact",
+          "claim_id": "claim-lr-004"
+        }
+      ],
+      "lower_layer_rows": [
+        {
+          "canonical_entity": "Linda Rottenberg",
+          "cluster": "Linda Rottenberg",
+          "cluster_type": "Person",
+          "mention": "Linda Rottenberg",
+          "mention_type": "Person",
+          "role": "subject",
+          "claim_id": "claim-lr-001",
+          "claim_text": "Linda Rottenberg co-founded Endeavor in 1997."
+        },
+        {
+          "canonical_entity": "Linda Rottenberg",
+          "cluster": "Linda Rottenberg",
+          "cluster_type": "Person",
+          "mention": "Linda Rottenberg",
+          "mention_type": "Person",
+          "role": "object",
+          "claim_id": "claim-lr-002",
+          "claim_text": "Forbes named Linda Rottenberg an impact entrepreneur of the decade."
+        },
+        {
+          "canonical_entity": "Linda Rottenberg",
+          "cluster": "Linda Rottenberg",
+          "cluster_type": "Person",
+          "mention": "Linda Rottenberg",
+          "mention_type": "Person",
+          "role": "subject",
+          "claim_id": "claim-lr-003",
+          "claim_text": "Linda Rottenberg authored 'Crazy Is a Compliment'."
+        },
+        {
+          "canonical_entity": "Linda Rottenberg",
+          "cluster": "Linda Rottenberg",
+          "cluster_type": "Person",
+          "mention": "Linda Rottenberg",
+          "mention_type": "Person",
+          "role": "subject",
+          "claim_id": "claim-lr-004",
+          "claim_text": "Linda Rottenberg spoke at the World Economic Forum in Davos."
+        }
+      ],
+      "fragmentation_check_rows": [
+        {
+          "cluster_id": "abcd1234::Person::linda-rottenberg",
+          "canonical_name": "Linda Rottenberg",
+          "entity_type": "Person"
+        }
+      ],
+      "canonical_claim_count": 4,
+      "cluster_claim_count": 4,
+      "canonical_cluster_count": 1,
+      "cluster_name_cluster_count": 1,
+      "fragmentation_detected": false
+    },
+    {
+      "case_id": "mercadolibre_fragmentation",
+      "case_type": "fragmented_entity",
+      "entity_names": [
+        "mercadolibre"
+      ],
+      "description": "Fragmentation check for MercadoLibre. Compares the number of distinct clusters returned by cluster-name traversal vs. canonical traversal. MercadoLibre is a known candidate for entity-type splits (e.g., appearing as both Organization and Person clusters under the same name text).",
+      "expected_shape": "Canonical traversal returns a single canonical_entity value. Cluster-name traversal may return multiple rows if fragmentation exists; fragmentation_detected=True is the expected failure signal.",
+      "failure_modes": [
+        "fragmentation_detected=True — cluster-name returns more clusters than canonical",
+        "canonical_rows empty — CanonicalEntity not present"
+      ],
+      "canonical_rows": [
+        {
+          "canonical_entity": "MercadoLibre",
+          "cluster_id": "abcd1234::Organization::mercadolibre",
+          "cluster": "MercadoLibre",
+          "mention": "MercadoLibre",
+          "role": "subject",
+          "claim_text": "MercadoLibre acquired Kangu to expand its logistics footprint.",
+          "predicate": "acquired",
+          "match_method": "label_exact",
+          "claim_id": "claim-ml-001"
+        },
+        {
+          "canonical_entity": "MercadoLibre",
+          "cluster_id": "abcd1234::Organization::mercadolibre",
+          "cluster": "MercadoLibre",
+          "mention": "MercadoLibre",
+          "role": "object",
+          "claim_text": "SoftBank invested in MercadoLibre.",
+          "predicate": "invested_in",
+          "match_method": "label_exact",
+          "claim_id": "claim-ml-002"
+        },
+        {
+          "canonical_entity": "MercadoLibre",
+          "cluster_id": "abcd1234::Organization::mercadolibre-inc",
+          "cluster": "MercadoLibre Inc",
+          "mention": "MercadoLibre Inc.",
+          "role": "subject",
+          "claim_text": "MercadoLibre Inc. launched its shipping and fulfillment unit Mercado Envios.",
+          "predicate": "launched",
+          "match_method": "alias_exact",
+          "claim_id": "claim-ml-003"
+        },
+        {
+          "canonical_entity": "MercadoLibre",
+          "cluster_id": "abcd1234::Organization::mercadolibre-inc",
+          "cluster": "MercadoLibre Inc",
+          "mention": "MercadoLibre Inc.",
+          "role": "object",
+          "claim_text": "Andreessen Horowitz backed MercadoLibre Inc. in its Series D.",
+          "predicate": "backed",
+          "match_method": "alias_exact",
+          "claim_id": "claim-ml-004"
+        }
+      ],
+      "cluster_rows": [
+        {
+          "cluster_id": "abcd1234::Organization::mercadolibre",
+          "cluster": "MercadoLibre",
+          "cluster_type": "Organization",
+          "mention": "MercadoLibre",
+          "role": "subject",
+          "claim_text": "MercadoLibre acquired Kangu to expand its logistics footprint.",
+          "predicate": "acquired",
+          "match_method": "label_exact",
+          "claim_id": "claim-ml-001"
+        },
+        {
+          "cluster_id": "abcd1234::Organization::mercadolibre",
+          "cluster": "MercadoLibre",
+          "cluster_type": "Organization",
+          "mention": "MercadoLibre",
+          "role": "object",
+          "claim_text": "SoftBank invested in MercadoLibre.",
+          "predicate": "invested_in",
+          "match_method": "label_exact",
+          "claim_id": "claim-ml-002"
+        },
+        {
+          "cluster_id": "abcd1234::Organization::mercadolibre-inc",
+          "cluster": "MercadoLibre Inc",
+          "cluster_type": "Organization",
+          "mention": "MercadoLibre Inc.",
+          "role": "subject",
+          "claim_text": "MercadoLibre Inc. launched its shipping and fulfillment unit Mercado Envios.",
+          "predicate": "launched",
+          "match_method": "alias_exact",
+          "claim_id": "claim-ml-003"
+        },
+        {
+          "cluster_id": "abcd1234::Organization::mercadolibre-inc",
+          "cluster": "MercadoLibre Inc",
+          "cluster_type": "Organization",
+          "mention": "MercadoLibre Inc.",
+          "role": "object",
+          "claim_text": "Andreessen Horowitz backed MercadoLibre Inc. in its Series D.",
+          "predicate": "backed",
+          "match_method": "alias_exact",
+          "claim_id": "claim-ml-004"
+        },
+        {
+          "cluster_id": "abcd1234::Person::mercadolibre",
+          "cluster": "MercadoLibre",
+          "cluster_type": "Person",
+          "mention": "MercadoLibre",
+          "role": "subject",
+          "claim_text": "MercadoLibre was frequently cited as a regional startup model.",
+          "predicate": "cited_as",
+          "match_method": "casefold_exact",
+          "claim_id": "claim-ml-005"
+        }
+      ],
+      "lower_layer_rows": [
+        {
+          "canonical_entity": "MercadoLibre",
+          "cluster": "MercadoLibre",
+          "cluster_type": "Organization",
+          "mention": "MercadoLibre",
+          "mention_type": "Organization",
+          "role": "subject",
+          "claim_id": "claim-ml-001",
+          "claim_text": "MercadoLibre acquired Kangu to expand its logistics footprint."
+        },
+        {
+          "canonical_entity": "MercadoLibre",
+          "cluster": "MercadoLibre",
+          "cluster_type": "Organization",
+          "mention": "MercadoLibre",
+          "mention_type": "Organization",
+          "role": "object",
+          "claim_id": "claim-ml-002",
+          "claim_text": "SoftBank invested in MercadoLibre."
+        },
+        {
+          "canonical_entity": "MercadoLibre",
+          "cluster": "MercadoLibre Inc",
+          "cluster_type": "Organization",
+          "mention": "MercadoLibre Inc.",
+          "mention_type": "Organization",
+          "role": "subject",
+          "claim_id": "claim-ml-003",
+          "claim_text": "MercadoLibre Inc. launched its shipping and fulfillment unit Mercado Envios."
+        },
+        {
+          "canonical_entity": "MercadoLibre",
+          "cluster": "MercadoLibre Inc",
+          "cluster_type": "Organization",
+          "mention": "MercadoLibre Inc.",
+          "mention_type": "Organization",
+          "role": "object",
+          "claim_id": "claim-ml-004",
+          "claim_text": "Andreessen Horowitz backed MercadoLibre Inc. in its Series D."
+        },
+        {
+          "canonical_entity": "MercadoLibre",
+          "cluster": "MercadoLibre",
+          "cluster_type": "Organization",
+          "mention": "mercadolibre.com",
+          "mention_type": "Organization",
+          "role": null,
+          "claim_id": null,
+          "claim_text": null
+        }
+      ],
+      "fragmentation_check_rows": [
+        {
+          "cluster_id": "abcd1234::Organization::mercadolibre",
+          "canonical_name": "MercadoLibre",
+          "entity_type": "Organization"
+        },
+        {
+          "cluster_id": "abcd1234::Organization::mercadolibre-inc",
+          "canonical_name": "MercadoLibre Inc",
+          "entity_type": "Organization"
+        },
+        {
+          "cluster_id": "abcd1234::Person::mercadolibre",
+          "canonical_name": "MercadoLibre",
+          "entity_type": "Person"
+        }
+      ],
+      "canonical_claim_count": 4,
+      "cluster_claim_count": 5,
+      "canonical_cluster_count": 2,
+      "cluster_name_cluster_count": 3,
+      "fragmentation_detected": true
+    },
+    {
+      "case_id": "endeavor_composite",
+      "case_type": "composite_claim",
+      "entity_names": [
+        "endeavor"
+      ],
+      "description": "Composite/list-valued claim case for Endeavor. Looks for claims where the subject or object slot contains a list-valued expression (joined by 'and', 'or', '/', etc.) that was resolved via the list-split match path. This exercises the claim_participation list-split fallback.",
+      "expected_shape": "Rows where match_method='list_split' appear in canonical_rows or cluster_rows, or match_method='normalized_exact' for sub-tokens. If no list-split edges exist for this entity, the case is informative rather than a failure.",
+      "failure_modes": [
+        "match_method only shows raw_exact — list-split path was not exercised",
+        "canonical_rows empty — Endeavor not reachable via canonical path"
+      ],
+      "canonical_rows": [
+        {
+          "canonical_entity": "Endeavor",
+          "cluster_id": "abcd1234::Organization::endeavor",
+          "cluster": "Endeavor",
+          "mention": "Endeavor",
+          "role": "subject",
+          "claim_text": "Endeavor selected 12 new high-impact entrepreneurs.",
+          "predicate": "selected",
+          "match_method": "label_exact",
+          "claim_id": "claim-en-001"
+        },
+        {
+          "canonical_entity": "Endeavor",
+          "cluster_id": "abcd1234::Organization::endeavor",
+          "cluster": "Endeavor",
+          "mention": "Endeavor",
+          "role": "object",
+          "claim_text": "The IFC provided funding to Endeavor.",
+          "predicate": "provided_funding_to",
+          "match_method": "label_exact",
+          "claim_id": "claim-en-002"
+        },
+        {
+          "canonical_entity": "Endeavor",
+          "cluster_id": "abcd1234::Organization::endeavor",
+          "cluster": "Endeavor",
+          "mention": "Endeavor Global",
+          "role": "subject",
+          "claim_text": "Endeavor Global expanded its network to Brazil and Argentina.",
+          "predicate": "expanded_to",
+          "match_method": "alias_exact",
+          "claim_id": "claim-en-003"
+        },
+        {
+          "canonical_entity": "Endeavor",
+          "cluster_id": "abcd1234::Organization::endeavor",
+          "cluster": "Endeavor",
+          "mention": "Endeavor",
+          "role": "subject",
+          "claim_text": "Endeavor launched an accelerator programme in Jordan.",
+          "predicate": "launched",
+          "match_method": "label_exact",
+          "claim_id": "claim-en-004"
+        },
+        {
+          "canonical_entity": "Endeavor",
+          "cluster_id": "abcd1234::Organization::endeavor",
+          "cluster": "Endeavor",
+          "mention": "Endeavor",
+          "role": "object",
+          "claim_text": "Reid Hoffman joined the board of Endeavor.",
+          "predicate": "joined_board_of",
+          "match_method": "label_exact",
+          "claim_id": "claim-en-005"
+        },
+        {
+          "canonical_entity": "Endeavor",
+          "cluster_id": "abcd1234::Organization::endeavor",
+          "cluster": "Endeavor",
+          "mention": "Endeavor",
+          "role": "subject",
+          "claim_text": "Endeavor and MercadoLibre co-hosted an entrepreneurship summit.",
+          "predicate": "co_hosted",
+          "match_method": "list_split",
+          "claim_id": "claim-en-006"
+        }
+      ],
+      "cluster_rows": [
+        {
+          "cluster_id": "abcd1234::Organization::endeavor",
+          "cluster": "Endeavor",
+          "cluster_type": "Organization",
+          "mention": "Endeavor",
+          "role": "subject",
+          "claim_text": "Endeavor selected 12 new high-impact entrepreneurs.",
+          "predicate": "selected",
+          "match_method": "label_exact",
+          "claim_id": "claim-en-001"
+        },
+        {
+          "cluster_id": "abcd1234::Organization::endeavor",
+          "cluster": "Endeavor",
+          "cluster_type": "Organization",
+          "mention": "Endeavor",
+          "role": "object",
+          "claim_text": "The IFC provided funding to Endeavor.",
+          "predicate": "provided_funding_to",
+          "match_method": "label_exact",
+          "claim_id": "claim-en-002"
+        },
+        {
+          "cluster_id": "abcd1234::Organization::endeavor",
+          "cluster": "Endeavor",
+          "cluster_type": "Organization",
+          "mention": "Endeavor Global",
+          "role": "subject",
+          "claim_text": "Endeavor Global expanded its network to Brazil and Argentina.",
+          "predicate": "expanded_to",
+          "match_method": "alias_exact",
+          "claim_id": "claim-en-003"
+        },
+        {
+          "cluster_id": "abcd1234::Organization::endeavor",
+          "cluster": "Endeavor",
+          "cluster_type": "Organization",
+          "mention": "Endeavor",
+          "role": "subject",
+          "claim_text": "Endeavor launched an accelerator programme in Jordan.",
+          "predicate": "launched",
+          "match_method": "label_exact",
+          "claim_id": "claim-en-004"
+        },
+        {
+          "cluster_id": "abcd1234::Organization::endeavor",
+          "cluster": "Endeavor",
+          "cluster_type": "Organization",
+          "mention": "Endeavor",
+          "role": "object",
+          "claim_text": "Reid Hoffman joined the board of Endeavor.",
+          "predicate": "joined_board_of",
+          "match_method": "label_exact",
+          "claim_id": "claim-en-005"
+        },
+        {
+          "cluster_id": "abcd1234::Organization::endeavor",
+          "cluster": "Endeavor",
+          "cluster_type": "Organization",
+          "mention": "Endeavor",
+          "role": "subject",
+          "claim_text": "Endeavor and MercadoLibre co-hosted an entrepreneurship summit.",
+          "predicate": "co_hosted",
+          "match_method": "list_split",
+          "claim_id": "claim-en-006"
+        }
+      ],
+      "lower_layer_rows": [
+        {
+          "canonical_entity": "Endeavor",
+          "cluster": "Endeavor",
+          "cluster_type": "Organization",
+          "mention": "Endeavor",
+          "mention_type": "Organization",
+          "role": "subject",
+          "claim_id": "claim-en-001",
+          "claim_text": "Endeavor selected 12 new high-impact entrepreneurs."
+        },
+        {
+          "canonical_entity": "Endeavor",
+          "cluster": "Endeavor",
+          "cluster_type": "Organization",
+          "mention": "Endeavor",
+          "mention_type": "Organization",
+          "role": "object",
+          "claim_id": "claim-en-002",
+          "claim_text": "The IFC provided funding to Endeavor."
+        },
+        {
+          "canonical_entity": "Endeavor",
+          "cluster": "Endeavor",
+          "cluster_type": "Organization",
+          "mention": "Endeavor Global",
+          "mention_type": "Organization",
+          "role": "subject",
+          "claim_id": "claim-en-003",
+          "claim_text": "Endeavor Global expanded its network to Brazil and Argentina."
+        },
+        {
+          "canonical_entity": "Endeavor",
+          "cluster": "Endeavor",
+          "cluster_type": "Organization",
+          "mention": "Endeavor",
+          "mention_type": "Organization",
+          "role": "subject",
+          "claim_id": "claim-en-004",
+          "claim_text": "Endeavor launched an accelerator programme in Jordan."
+        },
+        {
+          "canonical_entity": "Endeavor",
+          "cluster": "Endeavor",
+          "cluster_type": "Organization",
+          "mention": "Endeavor",
+          "mention_type": "Organization",
+          "role": "object",
+          "claim_id": "claim-en-005",
+          "claim_text": "Reid Hoffman joined the board of Endeavor."
+        },
+        {
+          "canonical_entity": "Endeavor",
+          "cluster": "Endeavor",
+          "cluster_type": "Organization",
+          "mention": "Endeavor",
+          "mention_type": "Organization",
+          "role": "subject",
+          "claim_id": "claim-en-006",
+          "claim_text": "Endeavor and MercadoLibre co-hosted an entrepreneurship summit."
+        }
+      ],
+      "fragmentation_check_rows": [
+        {
+          "cluster_id": "abcd1234::Organization::endeavor",
+          "canonical_name": "Endeavor",
+          "entity_type": "Organization"
+        }
+      ],
+      "canonical_claim_count": 6,
+      "cluster_claim_count": 6,
+      "canonical_cluster_count": 1,
+      "cluster_name_cluster_count": 1,
+      "fragmentation_detected": false
+    },
+    {
+      "case_id": "xapo_canonical_vs_cluster",
+      "case_type": "canonical_vs_cluster",
+      "entity_names": [
+        "xapo"
+      ],
+      "description": "Canonical-traversal vs. cluster-name-traversal comparison for Xapo. Records the claim counts and cluster counts from both paths so that the delta can be tracked as a regression metric.",
+      "expected_shape": "canonical_claim_count >= cluster_claim_count (canonical deduplicates) or both counts equal (no fragmentation). cluster_name_cluster_count >= canonical_cluster_count (fragmentation is additive). fragmentation_detected=False is the healthy state.",
+      "failure_modes": [
+        "canonical_claim_count < cluster_claim_count — canonical path misses claims (alignment gap; investigate ALIGNED_WITH coverage for this entity)",
+        "fragmentation_detected=True — cluster-name path returns spurious extra clusters"
+      ],
+      "canonical_rows": [
+        {
+          "canonical_entity": "Xapo",
+          "cluster_id": "abcd1234::Organization::xapo",
+          "cluster": "Xapo",
+          "mention": "Xapo",
+          "role": "subject",
+          "claim_text": "Xapo launched a bitcoin vault for institutional clients.",
+          "predicate": "launched",
+          "match_method": "label_exact",
+          "claim_id": "claim-xp-001"
+        },
+        {
+          "canonical_entity": "Xapo",
+          "cluster_id": "abcd1234::Organization::xapo",
+          "cluster": "Xapo",
+          "mention": "Xapo",
+          "role": "object",
+          "claim_text": "Sequoia Capital invested in Xapo.",
+          "predicate": "invested_in",
+          "match_method": "label_exact",
+          "claim_id": "claim-xp-002"
+        },
+        {
+          "canonical_entity": "Xapo",
+          "cluster_id": "abcd1234::Organization::xapo",
+          "cluster": "Xapo",
+          "mention": "Xapo Bank",
+          "role": "subject",
+          "claim_text": "Xapo Bank obtained a banking licence in Gibraltar.",
+          "predicate": "obtained",
+          "match_method": "alias_exact",
+          "claim_id": "claim-xp-003"
+        },
+        {
+          "canonical_entity": "Xapo",
+          "cluster_id": "abcd1234::Organization::xapo",
+          "cluster": "Xapo",
+          "mention": "Xapo",
+          "role": "subject",
+          "claim_text": "Xapo partnered with Visa for its debit card.",
+          "predicate": "partnered_with",
+          "match_method": "label_exact",
+          "claim_id": "claim-xp-004"
+        },
+        {
+          "canonical_entity": "Xapo",
+          "cluster_id": "abcd1234::Organization::xapo",
+          "cluster": "Xapo",
+          "mention": "Xapo",
+          "role": "object",
+          "claim_text": "WCG provided regulatory oversight for Xapo.",
+          "predicate": "provided_oversight_for",
+          "match_method": "label_exact",
+          "claim_id": "claim-xp-005"
+        }
+      ],
+      "cluster_rows": [
+        {
+          "cluster_id": "abcd1234::Organization::xapo",
+          "cluster": "Xapo",
+          "cluster_type": "Organization",
+          "mention": "Xapo",
+          "role": "subject",
+          "claim_text": "Xapo launched a bitcoin vault for institutional clients.",
+          "predicate": "launched",
+          "match_method": "label_exact",
+          "claim_id": "claim-xp-001"
+        },
+        {
+          "cluster_id": "abcd1234::Organization::xapo",
+          "cluster": "Xapo",
+          "cluster_type": "Organization",
+          "mention": "Xapo",
+          "role": "object",
+          "claim_text": "Sequoia Capital invested in Xapo.",
+          "predicate": "invested_in",
+          "match_method": "label_exact",
+          "claim_id": "claim-xp-002"
+        },
+        {
+          "cluster_id": "abcd1234::Organization::xapo",
+          "cluster": "Xapo",
+          "cluster_type": "Organization",
+          "mention": "Xapo Bank",
+          "role": "subject",
+          "claim_text": "Xapo Bank obtained a banking licence in Gibraltar.",
+          "predicate": "obtained",
+          "match_method": "alias_exact",
+          "claim_id": "claim-xp-003"
+        },
+        {
+          "cluster_id": "abcd1234::Organization::xapo",
+          "cluster": "Xapo",
+          "cluster_type": "Organization",
+          "mention": "Xapo",
+          "role": "subject",
+          "claim_text": "Xapo partnered with Visa for its debit card.",
+          "predicate": "partnered_with",
+          "match_method": "label_exact",
+          "claim_id": "claim-xp-004"
+        },
+        {
+          "cluster_id": "abcd1234::Organization::xapo",
+          "cluster": "Xapo",
+          "cluster_type": "Organization",
+          "mention": "Xapo",
+          "role": "object",
+          "claim_text": "WCG provided regulatory oversight for Xapo.",
+          "predicate": "provided_oversight_for",
+          "match_method": "label_exact",
+          "claim_id": "claim-xp-005"
+        }
+      ],
+      "lower_layer_rows": [
+        {
+          "canonical_entity": "Xapo",
+          "cluster": "Xapo",
+          "cluster_type": "Organization",
+          "mention": "Xapo",
+          "mention_type": "Organization",
+          "role": "subject",
+          "claim_id": "claim-xp-001",
+          "claim_text": "Xapo launched a bitcoin vault for institutional clients."
+        },
+        {
+          "canonical_entity": "Xapo",
+          "cluster": "Xapo",
+          "cluster_type": "Organization",
+          "mention": "Xapo",
+          "mention_type": "Organization",
+          "role": "object",
+          "claim_id": "claim-xp-002",
+          "claim_text": "Sequoia Capital invested in Xapo."
+        },
+        {
+          "canonical_entity": "Xapo",
+          "cluster": "Xapo",
+          "cluster_type": "Organization",
+          "mention": "Xapo Bank",
+          "mention_type": "Organization",
+          "role": "subject",
+          "claim_id": "claim-xp-003",
+          "claim_text": "Xapo Bank obtained a banking licence in Gibraltar."
+        },
+        {
+          "canonical_entity": "Xapo",
+          "cluster": "Xapo",
+          "cluster_type": "Organization",
+          "mention": "Xapo",
+          "mention_type": "Organization",
+          "role": "subject",
+          "claim_id": "claim-xp-004",
+          "claim_text": "Xapo partnered with Visa for its debit card."
+        },
+        {
+          "canonical_entity": "Xapo",
+          "cluster": "Xapo",
+          "cluster_type": "Organization",
+          "mention": "Xapo",
+          "mention_type": "Organization",
+          "role": "object",
+          "claim_id": "claim-xp-005",
+          "claim_text": "WCG provided regulatory oversight for Xapo."
+        }
+      ],
+      "fragmentation_check_rows": [
+        {
+          "cluster_id": "abcd1234::Organization::xapo",
+          "canonical_name": "Xapo",
+          "entity_type": "Organization"
+        }
+      ],
+      "canonical_claim_count": 5,
+      "cluster_claim_count": 5,
+      "canonical_cluster_count": 1,
+      "cluster_name_cluster_count": 1,
+      "fragmentation_detected": false
+    },
+    {
+      "case_id": "linda_rottenberg_canonical_vs_cluster",
+      "case_type": "canonical_vs_cluster",
+      "entity_names": [
+        "linda rottenberg"
+      ],
+      "description": "Canonical-traversal vs. cluster-name-traversal comparison for Linda Rottenberg. Validates that Person-type entities also benefit from canonical deduplication.",
+      "expected_shape": "canonical_claim_count >= cluster_claim_count. fragmentation_detected=False is the healthy state for a named individual.",
+      "failure_modes": [
+        "fragmentation_detected=True — entity_type split produced both Person and Org clusters",
+        "canonical_rows empty — Linda Rottenberg not in structured catalog"
+      ],
+      "canonical_rows": [
+        {
+          "canonical_entity": "Linda Rottenberg",
+          "cluster_id": "abcd1234::Person::linda-rottenberg",
+          "cluster": "Linda Rottenberg",
+          "mention": "Linda Rottenberg",
+          "role": "subject",
+          "claim_text": "Linda Rottenberg co-founded Endeavor in 1997.",
+          "predicate": "co_founded",
+          "match_method": "label_exact",
+          "claim_id": "claim-lr-001"
+        },
+        {
+          "canonical_entity": "Linda Rottenberg",
+          "cluster_id": "abcd1234::Person::linda-rottenberg",
+          "cluster": "Linda Rottenberg",
+          "mention": "Linda Rottenberg",
+          "role": "object",
+          "claim_text": "Forbes named Linda Rottenberg an impact entrepreneur of the decade.",
+          "predicate": "named",
+          "match_method": "label_exact",
+          "claim_id": "claim-lr-002"
+        },
+        {
+          "canonical_entity": "Linda Rottenberg",
+          "cluster_id": "abcd1234::Person::linda-rottenberg",
+          "cluster": "Linda Rottenberg",
+          "mention": "Linda Rottenberg",
+          "role": "subject",
+          "claim_text": "Linda Rottenberg authored 'Crazy Is a Compliment'.",
+          "predicate": "authored",
+          "match_method": "label_exact",
+          "claim_id": "claim-lr-003"
+        },
+        {
+          "canonical_entity": "Linda Rottenberg",
+          "cluster_id": "abcd1234::Person::linda-rottenberg",
+          "cluster": "Linda Rottenberg",
+          "mention": "Linda Rottenberg",
+          "role": "subject",
+          "claim_text": "Linda Rottenberg spoke at the World Economic Forum in Davos.",
+          "predicate": "spoke_at",
+          "match_method": "label_exact",
+          "claim_id": "claim-lr-004"
+        }
+      ],
+      "cluster_rows": [
+        {
+          "cluster_id": "abcd1234::Person::linda-rottenberg",
+          "cluster": "Linda Rottenberg",
+          "cluster_type": "Person",
+          "mention": "Linda Rottenberg",
+          "role": "subject",
+          "claim_text": "Linda Rottenberg co-founded Endeavor in 1997.",
+          "predicate": "co_founded",
+          "match_method": "label_exact",
+          "claim_id": "claim-lr-001"
+        },
+        {
+          "cluster_id": "abcd1234::Person::linda-rottenberg",
+          "cluster": "Linda Rottenberg",
+          "cluster_type": "Person",
+          "mention": "Linda Rottenberg",
+          "role": "object",
+          "claim_text": "Forbes named Linda Rottenberg an impact entrepreneur of the decade.",
+          "predicate": "named",
+          "match_method": "label_exact",
+          "claim_id": "claim-lr-002"
+        },
+        {
+          "cluster_id": "abcd1234::Person::linda-rottenberg",
+          "cluster": "Linda Rottenberg",
+          "cluster_type": "Person",
+          "mention": "Linda Rottenberg",
+          "role": "subject",
+          "claim_text": "Linda Rottenberg authored 'Crazy Is a Compliment'.",
+          "predicate": "authored",
+          "match_method": "label_exact",
+          "claim_id": "claim-lr-003"
+        },
+        {
+          "cluster_id": "abcd1234::Person::linda-rottenberg",
+          "cluster": "Linda Rottenberg",
+          "cluster_type": "Person",
+          "mention": "Linda Rottenberg",
+          "role": "subject",
+          "claim_text": "Linda Rottenberg spoke at the World Economic Forum in Davos.",
+          "predicate": "spoke_at",
+          "match_method": "label_exact",
+          "claim_id": "claim-lr-004"
+        }
+      ],
+      "lower_layer_rows": [
+        {
+          "canonical_entity": "Linda Rottenberg",
+          "cluster": "Linda Rottenberg",
+          "cluster_type": "Person",
+          "mention": "Linda Rottenberg",
+          "mention_type": "Person",
+          "role": "subject",
+          "claim_id": "claim-lr-001",
+          "claim_text": "Linda Rottenberg co-founded Endeavor in 1997."
+        },
+        {
+          "canonical_entity": "Linda Rottenberg",
+          "cluster": "Linda Rottenberg",
+          "cluster_type": "Person",
+          "mention": "Linda Rottenberg",
+          "mention_type": "Person",
+          "role": "object",
+          "claim_id": "claim-lr-002",
+          "claim_text": "Forbes named Linda Rottenberg an impact entrepreneur of the decade."
+        },
+        {
+          "canonical_entity": "Linda Rottenberg",
+          "cluster": "Linda Rottenberg",
+          "cluster_type": "Person",
+          "mention": "Linda Rottenberg",
+          "mention_type": "Person",
+          "role": "subject",
+          "claim_id": "claim-lr-003",
+          "claim_text": "Linda Rottenberg authored 'Crazy Is a Compliment'."
+        },
+        {
+          "canonical_entity": "Linda Rottenberg",
+          "cluster": "Linda Rottenberg",
+          "cluster_type": "Person",
+          "mention": "Linda Rottenberg",
+          "mention_type": "Person",
+          "role": "subject",
+          "claim_id": "claim-lr-004",
+          "claim_text": "Linda Rottenberg spoke at the World Economic Forum in Davos."
+        }
+      ],
+      "fragmentation_check_rows": [
+        {
+          "cluster_id": "abcd1234::Person::linda-rottenberg",
+          "canonical_name": "Linda Rottenberg",
+          "entity_type": "Person"
+        }
+      ],
+      "canonical_claim_count": 4,
+      "cluster_claim_count": 4,
+      "canonical_cluster_count": 1,
+      "cluster_name_cluster_count": 1,
+      "fragmentation_detected": false
+    }
+  ],
+  "pairwise_results": [
+    {
+      "case_id": "amazon_ebay_pairwise",
+      "entity_names": [
+        "amazon",
+        "ebay"
+      ],
+      "description": "Pairwise canonical claim lookup for Amazon and eBay. Finds claims where both entities appear as participants (subject and/or object), verifying that pairwise canonical resolution works for two distinct organization entities.",
+      "expected_shape": "Zero or more rows each carrying both subject_canonical and object_canonical resolved to the correct canonical entities. Zero rows is acceptable if no cross-entity claims were extracted; what matters is the query returns without error and the canonical chain is traversable for both entities.",
+      "failure_modes": [
+        "query returns error — ALIGNED_WITH or MEMBER_OF edges missing for one entity",
+        "result mixes unrelated entities — toLower CONTAINS filter too broad"
+      ],
+      "pairwise_rows": [],
+      "pairwise_claim_count": 0
+    }
+  ],
+  "benchmark_summary": {
+    "total_cases": 9,
+    "single_and_comparison_cases": 8,
+    "pairwise_cases": 1,
+    "fragmentation_detected_count": 2,
+    "entities_with_claims_canonical": 8,
+    "entities_with_claims_cluster": 8,
+    "total_canonical_claims": 38,
+    "total_cluster_claims": 40,
+    "total_pairwise_claims": 0
+  }
+}
