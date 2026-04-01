@@ -306,8 +306,11 @@ canonical_cluster_count=1, cluster_name_cluster_count=1, fragmentation_detected=
   fragmentation, no alignment gap).
 - `canonical_claim_count < cluster_claim_count` indicates the canonical path is
   missing some claims — investigate `ALIGNED_WITH` coverage for Xapo.
-- `canonical_claim_count > cluster_claim_count` is unexpected and may indicate a
-  cluster canonical_name mismatch or a stale alignment version.
+- `canonical_claim_count > cluster_claim_count` can occur when canonical traversal
+  picks up additional aligned claims that the cluster-name query misses; treat this
+  as a potential alignment improvement, but verify the extra canonical-only claims
+  are correct and expected for the current alignment version (and not caused by a
+  `cluster.canonical_name` mismatch or stale alignment).
 
 | Signal | 🟢 Green | 🟡 Yellow | 🔴 Red |
 |--------|---------|----------|--------|
