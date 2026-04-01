@@ -145,7 +145,7 @@ def test_page_tracking_loader_fallback_leaves_coordinator_empty_on_import_error(
         return _original_import(name, *args, **kwargs)
 
     with patch(
-        "neo4j_graphrag.experimental.components.pdf_loader.PdfLoader.run",
+        "neo4j_graphrag.experimental.components.data_loader.PdfLoader.run",
         new_callable=AsyncMock,
         return_value=vendor_result,
     ):
@@ -170,7 +170,7 @@ def test_page_tracking_loader_fallback_leaves_coordinator_empty_on_exception():
 
     vendor_result = MagicMock()
     with patch(
-        "neo4j_graphrag.experimental.components.pdf_loader.PdfLoader.run",
+        "neo4j_graphrag.experimental.components.data_loader.PdfLoader.run",
         new_callable=AsyncMock,
         return_value=vendor_result,
     ):
@@ -183,7 +183,7 @@ def test_page_tracking_loader_fallback_leaves_coordinator_empty_on_exception():
 
 
 def test_page_tracking_loader_clears_coordinator_on_late_failure():
-    """Coordinator is cleared when PdfDocument construction fails after offsets are computed.
+    """Coordinator is cleared when LoadedDocument construction fails after offsets are computed.
 
     Guards against the scenario where get_document_metadata() (or any other
     step after offset computation) raises an exception, which must not leave
@@ -205,7 +205,7 @@ def test_page_tracking_loader_clears_coordinator_on_late_failure():
 
     vendor_result = MagicMock()
     with patch(
-        "neo4j_graphrag.experimental.components.pdf_loader.PdfLoader.run",
+        "neo4j_graphrag.experimental.components.data_loader.PdfLoader.run",
         new_callable=AsyncMock,
         return_value=vendor_result,
     ):

@@ -21,16 +21,20 @@ from typing import Any, Dict, Optional, Union
 import fsspec
 from fsspec import AbstractFileSystem  # type: ignore[import]
 from fsspec.implementations.local import LocalFileSystem  # type: ignore[import]
-from neo4j_graphrag.experimental.components.pdf_loader import (
-    DocumentInfo,
-    PdfDocument,
+from neo4j_graphrag.experimental.components.data_loader import (
     PdfLoader,
     is_default_fs,
 )
 from neo4j_graphrag.experimental.components.text_splitters.fixed_size_splitter import (
     FixedSizeSplitter,
 )
-from neo4j_graphrag.experimental.components.types import TextChunk, TextChunks
+from neo4j_graphrag.experimental.components.types import (
+    DocumentInfo,
+    DocumentType,
+    LoadedDocument,
+    TextChunk,
+    TextChunks,
+)
 
 # ---------------------------------------------------------------------------
 # Local copies of the vendor's word-boundary helpers.
@@ -172,7 +176,7 @@ class PageTrackingPdfLoader(PdfLoader):
         filepath: Union[str, Path],
         metadata: Optional[Dict[str, str]] = None,
         fs: Optional[Union[AbstractFileSystem, str]] = None,
-    ) -> PdfDocument:
+    ) -> LoadedDocument:
         _coordinator.clear()
         if not isinstance(filepath, str):
             filepath = str(filepath)
@@ -200,15 +204,15 @@ class PageTrackingPdfLoader(PdfLoader):
                     # +1 accounts for the '\n' that joins pages (mirrors vendor logic).
                     cumulative += len(page_text) + 1
             full_text = "\n".join(text_parts)
-            doc = PdfDocument(
+            doc = LoadedDocument(
                 text=full_text,
                 document_info=DocumentInfo(
                     path=filepath,
                     metadata=self.get_document_metadata(full_text, metadata),
-                    document_type="pdf",
+                    document_type=DocumentType.PDF,
                 ),
             )
-            # Only set the coordinator *after* PdfDocument is fully built so
+            # Only set the coordinator *after* LoadedDocument is fully built so
             # that a failure in get_document_metadata() does not leak stale
             # offsets into the subsequent fallback run.
             _coordinator.set(offsets)
