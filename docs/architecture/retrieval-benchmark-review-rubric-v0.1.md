@@ -97,18 +97,18 @@ Pairwise cases are excluded because they use a different query path and are trac
 
 ### `total_canonical_claims` vs `total_cluster_claims`
 
-Canonical should be ≥ cluster (canonical traversal should see at least what cluster-name
-traversal sees, and may pick up additional claims via alignment).  When
-`fragmentation_detected_count > 0`, the global total may show canonical < cluster because
-cluster-name traversal picks up claims attached to spurious fragment clusters that are not
-aligned to the canonical entity.  In that scenario, check per-case
-`canonical_claim_count` vs `cluster_claim_count` alongside `fragmentation_detected`
-for precise diagnosis.
+Typically, for non-fragmented entities, canonical should be ≥ cluster: canonical traversal should
+see at least what cluster-name traversal sees, and may pick up additional claims via alignment.
+However, when `fragmentation_detected_count > 0`, the global total may legitimately show
+`total_canonical_claims < total_cluster_claims` because cluster-name traversal can pick up claims
+attached to spurious fragment clusters that are not aligned to the canonical entity.  In that
+scenario, check per-case `canonical_claim_count` vs `cluster_claim_count` alongside
+`fragmentation_detected` to distinguish healthy fragmentation effects from true regressions.
 
 | Movement | Interpretation |
 |----------|---------------|
 | 🟢 **canonical ≥ cluster, delta ≤ 10** | Normal; small deltas represent minor alignment gaps or noise between canonical and cluster-name traversal. |
-| 🟡 **canonical < cluster** | Cluster-name traversal is returning claims not visible via the canonical path.  This is unexpected — investigate for fragmentation or spuriously-named clusters. |
+| 🟡 **canonical < cluster** | Cluster-name traversal is returning claims not visible via the canonical path.  First check `fragmentation_detected_count` and per-case metrics; if not explained by expected fragmentation, investigate for fragmentation regressions or spuriously-named clusters. |
 | 🔴 **canonical drops sharply (> 20% decrease)** | Participation coverage may have regressed.  Check `participation_metrics.json` and `HAS_PARTICIPANT` edge counts. |
 
 ### `total_pairwise_claims`
