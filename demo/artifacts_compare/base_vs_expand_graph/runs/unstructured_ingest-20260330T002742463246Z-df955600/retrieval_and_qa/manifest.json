@@ -1,0 +1,2221 @@
+{
+  "config": {
+    "dry_run": false,
+    "neo4j_database": "neo4j",
+    "openai_model": "gpt-5.4"
+  },
+  "created_at": "2026-03-30T00:47:26.182054+00:00",
+  "finished_at": "2026-03-30T00:47:26.182020+00:00",
+  "run_id": "unstructured_ingest-20260330T002742463246Z-df955600",
+  "run_scopes": {
+    "batch_mode": "single_independent_run",
+    "unstructured_ingest_run_id": "unstructured_ingest-20260330T002742463246Z-df955600"
+  },
+  "stages": {
+    "retrieval_and_qa": {
+      "all_answers_cited": true,
+      "answer": "The document says Endeavor is a nonprofit founded by Linda Rottenberg and Peter Kellner, framed as entrepreneurship for emerging markets, especially Latin America. [CITATION|chunk_id=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:0|run_id=unstructured_ingest-20260330T002742463246Z-df955600|source_uri=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf|chunk_index=0|page=1|start_char=0|end_char=992]\n\nIt also says Endeavor was portrayed as more than a simple nonprofit, acting as a relay point linking financiers, tech executives, political operators, and ambitious founders across the Americas, and elsewhere suggests it operated as a \u201cmultiplier system as much as an accelerator.\u201d [CITATION|chunk_id=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:2|run_id=unstructured_ingest-20260330T002742463246Z-df955600|source_uri=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf|chunk_index=2|page=1|start_char=1600|end_char=2597] [CITATION|chunk_id=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:8|run_id=unstructured_ingest-20260330T002742463246Z-df955600|source_uri=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf|chunk_index=8|page=2|start_char=6400|end_char=7396]\n\nRegarding Argentina, the document says Argentina became one of the clearest stages for this network, and Endeavor Argentina drew in Marcos Galperin of MercadoLibre. [CITATION|chunk_id=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:2|run_id=unstructured_ingest-20260330T002742463246Z-df955600|source_uri=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf|chunk_index=2|page=1|start_char=1600|end_char=2597]\n\nAbout MercadoLibre, the document says Galperin\u2019s MercadoLibre became the most visible success story and describes it as an e-commerce and payments giant often compared to Amazon and eBay. [CITATION|chunk_id=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:2|run_id=unstructured_ingest-20260330T002742463246Z-df955600|source_uri=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf|chunk_index=2|page=1|start_char=1600|end_char=2597]\n\nThe document further says MercadoPago extended MercadoLibre\u2019s reach, including into digital payments and crypto-adjacent finance. [CITATION|chunk_id=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:2|run_id=unstructured_ingest-20260330T002742463246Z-df955600|source_uri=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf|chunk_index=2|page=1|start_char=1600|end_char=2597] [CITATION|chunk_id=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:3|run_id=unstructured_ingest-20260330T002742463246Z-df955600|source_uri=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf|chunk_index=3|page=1|start_char=2389|end_char=3385]\n\nIt also says the article tied MercadoLibre to Paxos, PYUSD, Ripio, and Mercado Bitcoin, within a wider payments-and-stablecoin corridor running through Argentina and Brazil. [CITATION|chunk_id=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:3|run_id=unstructured_ingest-20260330T002742463246Z-df955600|source_uri=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf|chunk_index=3|page=1|start_char=2389|end_char=3385]\n\nThe document also presents Endeavor and MercadoLibre as part of the same broader networked narrative, including a path where a founder might meet mentors through Endeavor Argentina and later sit on boards linked to MercadoLibre. [CITATION|chunk_id=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:8|run_id=unstructured_ingest-20260330T002742463246Z-df955600|source_uri=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf|chunk_index=8|page=2|start_char=6400|end_char=7396]",
+      "citation_example": {
+        "chunk_id": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:2",
+        "chunk_index": 2,
+        "end_char": 2597,
+        "page": 1,
+        "run_id": "unstructured_ingest-20260330T002742463246Z-df955600",
+        "source_uri": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf",
+        "start_char": 1600
+      },
+      "citation_fallback_applied": false,
+      "citation_object_example": {
+        "chunk_id": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:2",
+        "chunk_index": 2,
+        "end_char": 2597,
+        "page": 1,
+        "run_id": "unstructured_ingest-20260330T002742463246Z-df955600",
+        "source_uri": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf",
+        "start_char": 1600
+      },
+      "citation_quality": {
+        "all_cited": true,
+        "citation_warnings": [],
+        "evidence_level": "full",
+        "raw_answer_all_cited": true,
+        "warning_count": 0
+      },
+      "citation_repair_applied": false,
+      "citation_repair_attempted": false,
+      "citation_repair_source_chunk_id": null,
+      "citation_repair_strategy": null,
+      "citation_token_example": "[CITATION|chunk_id=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:2|run_id=unstructured_ingest-20260330T002742463246Z-df955600|source_uri=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf|chunk_index=2|page=1|start_char=1600|end_char=2597]",
+      "cluster_aware": false,
+      "debug_view": {
+        "all_cited": true,
+        "citation_fallback_applied": false,
+        "citation_repair_applied": false,
+        "citation_repair_attempted": false,
+        "citation_warnings": [],
+        "evidence_level": "full",
+        "malformed_diagnostics_count": 0,
+        "raw_answer_all_cited": true,
+        "warning_count": 0
+      },
+      "expand_graph": true,
+      "hits": 10,
+      "interactive_mode": false,
+      "malformed_diagnostics_count": 0,
+      "message_history_enabled": false,
+      "qa": "GraphRAG run-scoped citations",
+      "qa_model": "gpt-5.4",
+      "qa_prompt_version": "qa_v3",
+      "question": "What does the document say about Endeavor and MercadoLibre?",
+      "raw_answer": "The document says Endeavor is a nonprofit founded by Linda Rottenberg and Peter Kellner, framed as entrepreneurship for emerging markets, especially Latin America. [CITATION|chunk_id=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:0|run_id=unstructured_ingest-20260330T002742463246Z-df955600|source_uri=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf|chunk_index=0|page=1|start_char=0|end_char=992]\n\nIt also says Endeavor was portrayed as more than a simple nonprofit, acting as a relay point linking financiers, tech executives, political operators, and ambitious founders across the Americas, and elsewhere suggests it operated as a \u201cmultiplier system as much as an accelerator.\u201d [CITATION|chunk_id=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:2|run_id=unstructured_ingest-20260330T002742463246Z-df955600|source_uri=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf|chunk_index=2|page=1|start_char=1600|end_char=2597] [CITATION|chunk_id=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:8|run_id=unstructured_ingest-20260330T002742463246Z-df955600|source_uri=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf|chunk_index=8|page=2|start_char=6400|end_char=7396]\n\nRegarding Argentina, the document says Argentina became one of the clearest stages for this network, and Endeavor Argentina drew in Marcos Galperin of MercadoLibre. [CITATION|chunk_id=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:2|run_id=unstructured_ingest-20260330T002742463246Z-df955600|source_uri=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf|chunk_index=2|page=1|start_char=1600|end_char=2597]\n\nAbout MercadoLibre, the document says Galperin\u2019s MercadoLibre became the most visible success story and describes it as an e-commerce and payments giant often compared to Amazon and eBay. [CITATION|chunk_id=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:2|run_id=unstructured_ingest-20260330T002742463246Z-df955600|source_uri=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf|chunk_index=2|page=1|start_char=1600|end_char=2597]\n\nThe document further says MercadoPago extended MercadoLibre\u2019s reach, including into digital payments and crypto-adjacent finance. [CITATION|chunk_id=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:2|run_id=unstructured_ingest-20260330T002742463246Z-df955600|source_uri=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf|chunk_index=2|page=1|start_char=1600|end_char=2597] [CITATION|chunk_id=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:3|run_id=unstructured_ingest-20260330T002742463246Z-df955600|source_uri=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf|chunk_index=3|page=1|start_char=2389|end_char=3385]\n\nIt also says the article tied MercadoLibre to Paxos, PYUSD, Ripio, and Mercado Bitcoin, within a wider payments-and-stablecoin corridor running through Argentina and Brazil. [CITATION|chunk_id=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:3|run_id=unstructured_ingest-20260330T002742463246Z-df955600|source_uri=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf|chunk_index=3|page=1|start_char=2389|end_char=3385]\n\nThe document also presents Endeavor and MercadoLibre as part of the same broader networked narrative, including a path where a founder might meet mentors through Endeavor Argentina and later sit on boards linked to MercadoLibre. [CITATION|chunk_id=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:8|run_id=unstructured_ingest-20260330T002742463246Z-df955600|source_uri=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf|chunk_index=8|page=2|start_char=6400|end_char=7396]",
+      "raw_answer_all_cited": true,
+      "retrieval_path_summary": "=== Retrieval Path Summary ===\n\nHit 1: chunk_id='file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:2'  score=0.7960\n  HAS_PARTICIPANT edges (claims with participation):\n    \u2022 \"MercadoPago extended MercadoLibre's reach.\" [subject='MercadoPago' (match: raw_exact)]\n    \u2022 \"Martin Migoya was of Globant.\" [subject='Martin Migoya' (match: raw_exact), object='Globant' (match: raw_exact)]\n    \u2022 \"Marcos Galperin was of MercadoLibre.\" [subject='Marcos Galperin' (match: raw_exact), object='MercadoLibre' (match: raw_exact)]\n    \u2022 \"Institutions around the network included the Council on Foreign Relations, the W...\" [no resolved roles]\n    \u2022 \"Endeavor was portrayed as less a simple nonprofit than a relay point linking fin...\" [subject='Endeavor' (match: raw_exact)]\n    \u2022 \"Guibert Englebienne was of Globant.\" [subject='Guibert Englebienne' (match: raw_exact), object='Globant' (match: raw_exact)]\n    \u2022 \"Endeavor Argentina drew in Marcos Galperin of MercadoLibre, Guibert Englebienne ...\" [subject='Endeavor Argentina' (match: raw_exact)]\n    \u2022 \"Galperin's MercadoLibre became the most visible success story.\" [subject='MercadoLibre' (match: raw_exact)]\n    \u2022 \"MercadoLibre is an e-commerce and payments giant often compared to Amazon and eB...\" [subject='MercadoLibre' (match: raw_exact)]\n    \u2022 \"Argentina became one of the clearest stages for this network.\" [subject='Argentina' (match: raw_exact)]\n  RESOLVES_TO canonical entities: (none)\n  Cluster memberships (MEMBER_OF): (none)\n  Canonical via ALIGNED_WITH: (none)\n\nHit 2: chunk_id='file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:8'  score=0.7686\n  HAS_PARTICIPANT edges (claims with participation):\n    \u2022 \"A founder might raise capital from investors in New York or San Francisco.\" [subject='A founder' (match: raw_exact)]\n    \u2022 \"A founder might later sit on boards linked to Microsoft, MercadoLibre, Globant, ...\" [subject='A founder' (match: raw_exact)]\n    \u2022 \"A founder might begin in Buenos Aires.\" [subject='A founder' (match: raw_exact), object='Buenos Aires' (match: raw_exact)]\n    \u2022 \"A founder might sell to Santander.\" [subject='A founder' (match: raw_exact), object='Santander' (match: raw_exact)]\n    \u2022 \"A founder might appear at the Llao Llao Forum with Eduardo Elzstain and Javier M...\" [subject='A founder' (match: raw_exact)]\n    \u2022 \"A founder might partner with eBay or PayPal.\" [subject='A founder' (match: raw_exact)]\n    \u2022 \"A founder might meet mentors through Endeavor Argentina.\" [subject='A founder' (match: raw_exact), object='Endeavor Argentina' (match: raw_exact)]\n    \u2022 \"Endeavor operated as a multiplier system as much as an accelerator.\" [subject='Endeavor' (match: raw_exact)]\n  RESOLVES_TO canonical entities: (none)\n  Cluster memberships (MEMBER_OF): (none)\n  Canonical via ALIGNED_WITH: (none)\n\nHit 3: chunk_id='file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:3'  score=0.7628\n  HAS_PARTICIPANT edges (claims with participation):\n    \u2022 \"MercadoPago extends its reach into digital payments and crypto-adjacent finance.\" [subject='MercadoPago' (match: raw_exact)]\n    \u2022 \"A wider payments-and-stablecoin corridor ran through Argentina and Brazil.\" [no resolved roles]\n    \u2022 \"Galperin\u2019s MercadoLibre became the most visible success story.\" [subject='Galperin' (match: raw_exact), object='MercadoLibre' (match: raw_exact)]\n    \u2022 \"Patagon was later sold to Santander.\" [subject='Patagon' (match: raw_exact), object='Santander' (match: raw_exact)]\n    \u2022 \"The article tied MercadoLibre to Paxos, PYUSD, Ripio, and Mercado Bitcoin.\" [subject='MercadoLibre' (match: raw_exact)]\n    \u2022 \"Another branch of the story ran through Wences Casares, Patagon, and later Xapo.\" [no resolved roles]\n    \u2022 \"Banco Hipotecario and IRSA were both associated with Elzstain.\" [object='Elzstain' (match: raw_exact)]\n    \u2022 \"Endeavor helped arrange roadshows that introduced Casares to investors in New Yo...\" [subject='Endeavor' (match: raw_exact)]\n    \u2022 \"Business elites, startup founders, and political figures gathered at the Llao Ll...\" [object='Llao Llao Forum' (match: raw_exact)]\n    \u2022 \"MercadoLibre is an e-commerce and payments giant often compared to Amazon and eB...\" [subject='MercadoLibre' (match: raw_exact)]\n  RESOLVES_TO canonical entities: (none)\n  Cluster memberships (MEMBER_OF): (none)\n  Canonical via ALIGNED_WITH: (none)\n\nHit 4: chunk_id='file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:0'  score=0.7514\n  HAS_PARTICIPANT edges (claims with participation):\n    \u2022 \"Rottenberg moved through circles connected to Ashoka.\" [subject='Linda Rottenberg' (match: raw_exact), object='Ashoka' (match: raw_exact)]\n    \u2022 \"Endeavor was founded by Linda Rottenberg.\" [subject='Endeavor' (match: raw_exact), object='Linda Rottenberg' (match: raw_exact)]\n    \u2022 \"Endeavor was founded by Peter Kellner.\" [subject='Endeavor' (match: raw_exact), object='Peter Kellner' (match: raw_exact)]\n    \u2022 \"The project was framed as entrepreneurship for emerging markets, especially Lati...\" [object='Latin America' (match: raw_exact)]\n    \u2022 \"The cast around Endeavor stretched from Buenos Aires to Santiago, New York, Wash...\" [no resolved roles]\n    \u2022 \"The Endeavor Network narrative mentions Endeavor.\" [object='Endeavor' (match: raw_exact)]\n    \u2022 \"Rottenberg moved through circles connected to Bill Drayton.\" [subject='Linda Rottenberg' (match: raw_exact), object='Bill Drayton' (match: raw_exact)]\n    \u2022 \"Rottenberg had worked in Argentina.\" [subject='Linda Rottenberg' (match: raw_exact), object='Argentina' (match: raw_exact)]\n  RESOLVES_TO canonical entities: (none)\n  Cluster memberships (MEMBER_OF): (none)\n  Canonical via ALIGNED_WITH: (none)\n\nHit 5: chunk_id='file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:5'  score=0.7205\n  HAS_PARTICIPANT edges (claims with participation):\n    \u2022 \"Martin Migoya spoke about preparing institutions for a digital and cognitive fut...\" [subject='Martin Migoya' (match: raw_exact)]\n    \u2022 \"Globant serves clients such as Google, Disney, Electronic Arts, Nestle, American...\" [subject='Globant' (match: raw_exact)]\n    \u2022 \"Globant shared a stage with MercadoLibre.\" [subject='Globant' (match: raw_exact), object='MercadoLibre' (match: raw_exact)]\n    \u2022 \"Globant was founded in Buenos Aires.\" [subject='Globant' (match: raw_exact), object='Buenos Aires' (match: raw_exact)]\n    \u2022 \"A graph built from this material could connect Globant to Argentina, California,...\" [subject='Globant' (match: raw_exact)]\n    \u2022 \"The company\u2019s leadership appeared beside Endeavor, the Council of the Americas, ...\" [no resolved roles]\n  RESOLVES_TO canonical entities: (none)\n  Cluster memberships (MEMBER_OF): (none)\n  Canonical via ALIGNED_WITH: (none)\n\nHit 6: chunk_id='file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:1'  score=0.7171\n  HAS_PARTICIPANT edges (claims with participation):\n    \u2022 \"Kellner moved through Princeton, Harvard Business School, Yale Law School, and t...\" [subject='Kellner' (match: raw_exact)]\n    \u2022 \"Rottenberg presented Endeavor as a bridge for founders who were too ambitious fo...\" [subject='Rottenberg' (match: raw_exact)]\n    \u2022 \"Around them were institutions such as the Council on Foreign Relations, the Worl...\" [no resolved roles]\n    \u2022 \"Kellner helped turn that idea into a durable network of mentors, investors, boar...\" [subject='Kellner' (match: raw_exact)]\n    \u2022 \"Rottenberg had worked in Argentina.\" [subject='Rottenberg' (match: raw_exact), object='Argentina' (match: raw_exact)]\n    \u2022 \"Pierre Omidyar and the Omidyar Network supplied major funding.\" [no resolved roles]\n    \u2022 \"As Endeavor expanded, names from elite finance and technology kept appearing aro...\" [object='Endeavor' (match: raw_exact)]\n    \u2022 \"Reid Hoffman, connected to PayPal, LinkedIn, Greylock, Microsoft, and the broade...\" [subject='Reid Hoffman' (match: raw_exact)]\n    \u2022 \"Edgar Bronfman Jr. became a central force in shaping the group\u2019s board and strat...\" [subject='Edgar Bronfman Jr.' (match: raw_exact)]\n    \u2022 \"Rottenberg moved through circles connected to Ashoka and Bill Drayton.\" [subject='Rottenberg' (match: raw_exact)]\n  RESOLVES_TO canonical entities: (none)\n  Cluster memberships (MEMBER_OF): (none)\n  Canonical via ALIGNED_WITH: (none)\n\nHit 7: chunk_id='file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:9'  score=0.7117\n  HAS_PARTICIPANT edges (claims with participation):\n    \u2022 \"Suggested entity targets in this sample include people, companies, investors, co...\" [no resolved roles]\n    \u2022 \"Linda Rottenberg, Peter Kellner, Edgar Bronfman Jr., Pierre Omidyar, Reid Hoffma...\" [no resolved roles]\n    \u2022 \"The text mentions boards linked to Microsoft, MercadoLibre, Globant, Xapo, Ripio...\" [no resolved roles]\n    \u2022 \"Useful relations include founded, funded, advised, partnered_with, sat_on_board_...\" [no resolved roles]\n  RESOLVES_TO canonical entities: (none)\n  Cluster memberships (MEMBER_OF): (none)\n  Canonical via ALIGNED_WITH: (none)\n\nHit 8: chunk_id='file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:4'  score=0.6875\n  HAS_PARTICIPANT edges (claims with participation):\n    \u2022 \"Globant added a second pillar to the network.\" [subject='Globant' (match: raw_exact)]\n    \u2022 \"Globant was founded in Buenos Aires.\" [subject='Globant' (match: raw_exact), object='Buenos Aires' (match: raw_exact)]\n    \u2022 \"Casares was introduced to investors in New York, Boston, and San Francisco throu...\" [subject='Casares' (match: raw_exact)]\n    \u2022 \"Patagon was later sold to Santander.\" [subject='Patagon' (match: raw_exact), object='Santander' (match: raw_exact)]\n    \u2022 \"Globant served clients such as Google, Disney, Electronic Arts, Nestle, and Amer...\" [subject='Globant' (match: raw_exact)]\n    \u2022 \"The companies were different, but the board members, mentors, sponsors, and conf...\" [no resolved roles]\n    \u2022 \"Globant grew into a software, AI, and digital transformation company.\" [subject='Globant' (match: raw_exact)]\n    \u2022 \"The Southern Cone felt like an unusually dense cluster of founders, venture vehi...\" [subject='Southern Cone' (match: raw_exact)]\n    \u2022 \"Casares looks like a hinge connecting Argentine entrepreneurship, Wall Street ca...\" [subject='Casares' (match: raw_exact)]\n    \u2022 \"The same narrative current also carried Sebasti\u00e1n Serrano of Ripio, Rodrigo Benz...\" [no resolved roles]\n  RESOLVES_TO canonical entities: (none)\n  Cluster memberships (MEMBER_OF): (none)\n  Canonical via ALIGNED_WITH: (none)\n\nHit 9: chunk_id='file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:6'  score=0.6599\n  HAS_PARTICIPANT edges (claims with participation):\n    \u2022 \"Digital identity efforts were mentioned in places such as Sierra Leone.\" [object='Sierra Leone' (match: raw_exact)]\n    \u2022 \"Hoffman linked venture capital, political influence, and platform power.\" [subject='Hoffman' (match: raw_exact)]\n    \u2022 \"Omidyar\u2019s ecosystem linked eBay and PayPal to later nonprofit and policy initiat...\" [no resolved roles]\n    \u2022 \"Companies such as In-Q-tel-backed firms, Palantir-adjacent networks, or surveill...\" [no resolved roles]\n    \u2022 \"Kiva, Better Than Cash Alliance, the United Nations, the Rockefeller Foundation,...\" [no resolved roles]\n    \u2022 \"The article mentioned Howard Cox, George Tenet, Mayo Shattuck III, and Larry Sum...\" [no resolved roles]\n  RESOLVES_TO canonical entities: (none)\n  Cluster memberships (MEMBER_OF): (none)\n  Canonical via ALIGNED_WITH: (none)\n\nHit 10: chunk_id='file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:7'  score=0.6338\n  HAS_PARTICIPANT edges (claims with participation):\n    \u2022 \"Emiliano Kargieman\u2019s Satellogic appeared with Steve Mnuchin, Joe Dunford, Howard...\" [subject='Satellogic' (match: raw_exact)]\n  RESOLVES_TO canonical entities: (none)\n  Cluster memberships (MEMBER_OF): (none)\n  Canonical via ALIGNED_WITH: (none)",
+      "retrieval_query_contract": "WITH node AS c, score\nWHERE c.run_id = $run_id\n  AND ($source_uri IS NULL OR c.source_uri = $source_uri)\nWITH c, score,\n     [(c)<-[:SUPPORTED_BY]-(claim:ExtractedClaim) WHERE claim.run_id = $run_id |\n         {claim_text: claim.claim_text,\n          roles: [(claim)-[r:HAS_PARTICIPANT]->(m:EntityMention) | {role: r.role, mention_name: m.name, match_method: r.match_method}]}\n     ] AS claim_details\nRETURN c.text AS chunk_text,\n       c.chunk_id AS chunk_id,\n       c.run_id AS run_id,\n       c.source_uri AS source_uri,\n       c.chunk_index AS chunk_index,\n       coalesce(c.page_number, c.page) AS page,\n       c.start_char AS start_char,\n       c.end_char AS end_char,\n       score AS similarityScore,\n       [cd IN claim_details | cd.claim_text] AS claims,\n       [(c)<-[:MENTIONED_IN]-(mention:EntityMention) WHERE mention.run_id = $run_id | mention.name] AS mentions,\n       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:RESOLVES_TO]->(canonical) WHERE mention.run_id = $run_id | canonical.name] AS canonical_entities,\n       claim_details",
+      "retrieval_results": [
+        {
+          "content": "broader PayPal mafia, became another recurring figure. Around them were institutions\nsuch as the Council on Foreign Relations, the World Economic Forum, the Aspen Institute, Bain Capital,\nGoldman Sachs, J.P . Morgan, eBay, PayPal, and In-Q-tel. The story moved easily between philanthropy,\nventure capital, public policy, and digital infrastructure, creating the impression that Endeavor was less a\nsimple nonprofit than a relay point linking financiers, tech executives, political operators, and ambitious\nfounders across the Americas.\nArgentina became one of the clearest stages for this network. Endeavor Argentina drew in Marcos Galperin\nof MercadoLibre, Guibert Englebienne and Martin Migoya of Globant, Maria Julia Bearzi, Eduardo Elzstain,\nand later figures orbiting Javier Milei\u2019s business-friendly circles. Galperin\u2019s MercadoLibre became the most\nvisible  success  story:  an  e-commerce  and  payments  giant  often  compared  to  Amazon  and  eBay,  with\nMercadoPago extending its reach \n[Claim context \u2014 explicit roles via participation edges]\n  \u2022 MercadoPago extended MercadoLibre's reach. [subject='MercadoPago' (match: raw_exact)]\n  \u2022 Martin Migoya was of Globant. [subject='Martin Migoya' (match: raw_exact), object='Globant' (match: raw_exact)]\n  \u2022 Marcos Galperin was of MercadoLibre. [subject='Marcos Galperin' (match: raw_exact), object='MercadoLibre' (match: raw_exact)]\n  \u2022 Institutions around the network included the Council on Foreign Relations, the World Economic Forum, the Aspen Institute, Bain Capital, Goldman Sachs, J.P. Morgan, eBay, PayPal, and In-Q-tel.\n  \u2022 Endeavor was portrayed as less a simple nonprofit than a relay point linking financiers, tech executives, political operators, and ambitious founders across the Americas. [subject='Endeavor' (match: raw_exact)]\n  \u2022 Guibert Englebienne was of Globant. [subject='Guibert Englebienne' (match: raw_exact), object='Globant' (match: raw_exact)]\n  \u2022 Endeavor Argentina drew in Marcos Galperin of MercadoLibre, Guibert Englebienne and Martin Migoya of Globant, Maria Julia Bearzi, Eduardo Elzstain, and later figures orbiting Javier Milei's business-friendly circles. [subject='Endeavor Argentina' (match: raw_exact)]\n  \u2022 Galperin's MercadoLibre became the most visible success story. [subject='MercadoLibre' (match: raw_exact)]\n  \u2022 MercadoLibre is an e-commerce and payments giant often compared to Amazon and eBay. [subject='MercadoLibre' (match: raw_exact)]\n  \u2022 Argentina became one of the clearest stages for this network. [subject='Argentina' (match: raw_exact)]\n[CITATION|chunk_id=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:2|run_id=unstructured_ingest-20260330T002742463246Z-df955600|source_uri=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf|chunk_index=2|page=1|start_char=1600|end_char=2597]",
+          "metadata": {
+            "canonical_entities": [],
+            "chunk_id": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:2",
+            "chunk_index": 2,
+            "citation_object": {
+              "chunk_id": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:2",
+              "chunk_index": 2,
+              "end_char": 2597,
+              "page": 1,
+              "run_id": "unstructured_ingest-20260330T002742463246Z-df955600",
+              "source_uri": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf",
+              "start_char": 1600
+            },
+            "citation_token": "[CITATION|chunk_id=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:2|run_id=unstructured_ingest-20260330T002742463246Z-df955600|source_uri=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf|chunk_index=2|page=1|start_char=1600|end_char=2597]",
+            "claim_details": [
+              {
+                "claim_text": "MercadoPago extended MercadoLibre's reach.",
+                "roles": [
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "MercadoPago",
+                    "role": "subject"
+                  }
+                ]
+              },
+              {
+                "claim_text": "Martin Migoya was of Globant.",
+                "roles": [
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "Globant",
+                    "role": "object"
+                  },
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "Martin Migoya",
+                    "role": "subject"
+                  }
+                ]
+              },
+              {
+                "claim_text": "Marcos Galperin was of MercadoLibre.",
+                "roles": [
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "MercadoLibre",
+                    "role": "object"
+                  },
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "Marcos Galperin",
+                    "role": "subject"
+                  }
+                ]
+              },
+              {
+                "claim_text": "Institutions around the network included the Council on Foreign Relations, the World Economic Forum, the Aspen Institute, Bain Capital, Goldman Sachs, J.P. Morgan, eBay, PayPal, and In-Q-tel.",
+                "roles": []
+              },
+              {
+                "claim_text": "Endeavor was portrayed as less a simple nonprofit than a relay point linking financiers, tech executives, political operators, and ambitious founders across the Americas.",
+                "roles": [
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "Endeavor",
+                    "role": "subject"
+                  }
+                ]
+              },
+              {
+                "claim_text": "Guibert Englebienne was of Globant.",
+                "roles": [
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "Globant",
+                    "role": "object"
+                  },
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "Guibert Englebienne",
+                    "role": "subject"
+                  }
+                ]
+              },
+              {
+                "claim_text": "Endeavor Argentina drew in Marcos Galperin of MercadoLibre, Guibert Englebienne and Martin Migoya of Globant, Maria Julia Bearzi, Eduardo Elzstain, and later figures orbiting Javier Milei's business-friendly circles.",
+                "roles": [
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "Endeavor Argentina",
+                    "role": "subject"
+                  }
+                ]
+              },
+              {
+                "claim_text": "Galperin's MercadoLibre became the most visible success story.",
+                "roles": [
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "MercadoLibre",
+                    "role": "subject"
+                  }
+                ]
+              },
+              {
+                "claim_text": "MercadoLibre is an e-commerce and payments giant often compared to Amazon and eBay.",
+                "roles": [
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "MercadoLibre",
+                    "role": "subject"
+                  }
+                ]
+              },
+              {
+                "claim_text": "Argentina became one of the clearest stages for this network.",
+                "roles": [
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "Argentina",
+                    "role": "subject"
+                  }
+                ]
+              }
+            ],
+            "claims": [
+              "MercadoPago extended MercadoLibre's reach.",
+              "Martin Migoya was of Globant.",
+              "Marcos Galperin was of MercadoLibre.",
+              "Institutions around the network included the Council on Foreign Relations, the World Economic Forum, the Aspen Institute, Bain Capital, Goldman Sachs, J.P. Morgan, eBay, PayPal, and In-Q-tel.",
+              "Endeavor was portrayed as less a simple nonprofit than a relay point linking financiers, tech executives, political operators, and ambitious founders across the Americas.",
+              "Guibert Englebienne was of Globant.",
+              "Endeavor Argentina drew in Marcos Galperin of MercadoLibre, Guibert Englebienne and Martin Migoya of Globant, Maria Julia Bearzi, Eduardo Elzstain, and later figures orbiting Javier Milei's business-friendly circles.",
+              "Galperin's MercadoLibre became the most visible success story.",
+              "MercadoLibre is an e-commerce and payments giant often compared to Amazon and eBay.",
+              "Argentina became one of the clearest stages for this network."
+            ],
+            "empty_chunk_text": false,
+            "end_char": 2597,
+            "mentions": [
+              "Endeavor Argentina",
+              "J.P. Morgan",
+              "Martin Migoya",
+              "Endeavor",
+              "MercadoLibre",
+              "PayPal mafia",
+              "Bain Capital",
+              "Globant",
+              "Maria Julia Bearzi",
+              "eBay",
+              "MercadoPago",
+              "PayPal",
+              "Amazon",
+              "Goldman Sachs",
+              "Argentina",
+              "In-Q-tel",
+              "Javier Milei",
+              "World Economic Forum",
+              "Aspen Institute",
+              "Eduardo Elzstain",
+              "Marcos Galperin",
+              "Council on Foreign Relations",
+              "Guibert Englebienne"
+            ],
+            "page": 1,
+            "retrieval_path_diagnostics": {
+              "canonical_via_resolves_to": [],
+              "cluster_canonical_via_aligned_with": [],
+              "cluster_memberships": [],
+              "has_participant_edges": [
+                {
+                  "claim_text": "MercadoPago extended MercadoLibre's reach.",
+                  "roles": [
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "MercadoPago",
+                      "role": "subject"
+                    }
+                  ]
+                },
+                {
+                  "claim_text": "Martin Migoya was of Globant.",
+                  "roles": [
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "Martin Migoya",
+                      "role": "subject"
+                    },
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "Globant",
+                      "role": "object"
+                    }
+                  ]
+                },
+                {
+                  "claim_text": "Marcos Galperin was of MercadoLibre.",
+                  "roles": [
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "Marcos Galperin",
+                      "role": "subject"
+                    },
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "MercadoLibre",
+                      "role": "object"
+                    }
+                  ]
+                },
+                {
+                  "claim_text": "Institutions around the network included the Council on Foreign Relations, the World Economic Forum, the Aspen Institute, Bain Capital, Goldman Sachs, J.P. Morgan, eBay, PayPal, and In-Q-tel.",
+                  "roles": []
+                },
+                {
+                  "claim_text": "Endeavor was portrayed as less a simple nonprofit than a relay point linking financiers, tech executives, political operators, and ambitious founders across the Americas.",
+                  "roles": [
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "Endeavor",
+                      "role": "subject"
+                    }
+                  ]
+                },
+                {
+                  "claim_text": "Guibert Englebienne was of Globant.",
+                  "roles": [
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "Guibert Englebienne",
+                      "role": "subject"
+                    },
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "Globant",
+                      "role": "object"
+                    }
+                  ]
+                },
+                {
+                  "claim_text": "Endeavor Argentina drew in Marcos Galperin of MercadoLibre, Guibert Englebienne and Martin Migoya of Globant, Maria Julia Bearzi, Eduardo Elzstain, and later figures orbiting Javier Milei's business-friendly circles.",
+                  "roles": [
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "Endeavor Argentina",
+                      "role": "subject"
+                    }
+                  ]
+                },
+                {
+                  "claim_text": "Galperin's MercadoLibre became the most visible success story.",
+                  "roles": [
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "MercadoLibre",
+                      "role": "subject"
+                    }
+                  ]
+                },
+                {
+                  "claim_text": "MercadoLibre is an e-commerce and payments giant often compared to Amazon and eBay.",
+                  "roles": [
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "MercadoLibre",
+                      "role": "subject"
+                    }
+                  ]
+                },
+                {
+                  "claim_text": "Argentina became one of the clearest stages for this network.",
+                  "roles": [
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "Argentina",
+                      "role": "subject"
+                    }
+                  ]
+                }
+              ]
+            },
+            "run_id": "unstructured_ingest-20260330T002742463246Z-df955600",
+            "score": 0.7959775924682617,
+            "source_uri": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf",
+            "start_char": 1600
+          }
+        },
+        {
+          "content": "ork, and the World Economic Forum sat near founders\nbuilding payments companies, crypto exchanges, AI consultancies, and e-commerce platforms. For a graph\ndatabase demo, that mixture is useful because a user can jump from a person to an organization, from an\norganization to an investor , from an investor to a country, and from a country to a sector such as crypto, AI,\nlogistics, or digital identity.\nRead as a condensed narrative, the story suggests that Endeavor operated as a multiplier system as much\nas an accelerator . A founder might begin in Buenos Aires, meet mentors through Endeavor Argentina, raise\ncapital from investors in New York or San Francisco, sell to Santander , partner with eBay or PayPal, appear\nat the Llao Llao Forum with Eduardo Elzstain and Javier Milei, and later sit on boards linked to Microsoft,\nMercadoLibre, Globant, Xapo, Ripio, Kaszek, or Tether-connected ventures. Linda Rottenberg, Peter Kellner ,\nEdgar Bronfman Jr ., Pierre Omidyar , Reid Hoffman, Marcos \n[Claim context \u2014 explicit roles via participation edges]\n  \u2022 A founder might raise capital from investors in New York or San Francisco. [subject='A founder' (match: raw_exact)]\n  \u2022 A founder might later sit on boards linked to Microsoft, MercadoLibre, Globant, Xapo, Ripio, Kaszek, or Tether-connected ventures. [subject='A founder' (match: raw_exact)]\n  \u2022 A founder might begin in Buenos Aires. [subject='A founder' (match: raw_exact), object='Buenos Aires' (match: raw_exact)]\n  \u2022 A founder might sell to Santander. [subject='A founder' (match: raw_exact), object='Santander' (match: raw_exact)]\n  \u2022 A founder might appear at the Llao Llao Forum with Eduardo Elzstain and Javier Milei. [subject='A founder' (match: raw_exact)]\n  \u2022 A founder might partner with eBay or PayPal. [subject='A founder' (match: raw_exact)]\n  \u2022 A founder might meet mentors through Endeavor Argentina. [subject='A founder' (match: raw_exact), object='Endeavor Argentina' (match: raw_exact)]\n  \u2022 Endeavor operated as a multiplier system as much as an accelerator. [subject='Endeavor' (match: raw_exact)]\n[CITATION|chunk_id=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:8|run_id=unstructured_ingest-20260330T002742463246Z-df955600|source_uri=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf|chunk_index=8|page=2|start_char=6400|end_char=7396]",
+          "metadata": {
+            "canonical_entities": [],
+            "chunk_id": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:8",
+            "chunk_index": 8,
+            "citation_object": {
+              "chunk_id": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:8",
+              "chunk_index": 8,
+              "end_char": 7396,
+              "page": 2,
+              "run_id": "unstructured_ingest-20260330T002742463246Z-df955600",
+              "source_uri": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf",
+              "start_char": 6400
+            },
+            "citation_token": "[CITATION|chunk_id=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:8|run_id=unstructured_ingest-20260330T002742463246Z-df955600|source_uri=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf|chunk_index=8|page=2|start_char=6400|end_char=7396]",
+            "claim_details": [
+              {
+                "claim_text": "A founder might raise capital from investors in New York or San Francisco.",
+                "roles": [
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "A founder",
+                    "role": "subject"
+                  }
+                ]
+              },
+              {
+                "claim_text": "A founder might later sit on boards linked to Microsoft, MercadoLibre, Globant, Xapo, Ripio, Kaszek, or Tether-connected ventures.",
+                "roles": [
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "A founder",
+                    "role": "subject"
+                  }
+                ]
+              },
+              {
+                "claim_text": "A founder might begin in Buenos Aires.",
+                "roles": [
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "Buenos Aires",
+                    "role": "object"
+                  },
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "A founder",
+                    "role": "subject"
+                  }
+                ]
+              },
+              {
+                "claim_text": "A founder might sell to Santander.",
+                "roles": [
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "A founder",
+                    "role": "subject"
+                  },
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "Santander",
+                    "role": "object"
+                  }
+                ]
+              },
+              {
+                "claim_text": "A founder might appear at the Llao Llao Forum with Eduardo Elzstain and Javier Milei.",
+                "roles": [
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "A founder",
+                    "role": "subject"
+                  }
+                ]
+              },
+              {
+                "claim_text": "A founder might partner with eBay or PayPal.",
+                "roles": [
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "A founder",
+                    "role": "subject"
+                  }
+                ]
+              },
+              {
+                "claim_text": "A founder might meet mentors through Endeavor Argentina.",
+                "roles": [
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "Endeavor Argentina",
+                    "role": "object"
+                  },
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "A founder",
+                    "role": "subject"
+                  }
+                ]
+              },
+              {
+                "claim_text": "Endeavor operated as a multiplier system as much as an accelerator.",
+                "roles": [
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "Endeavor",
+                    "role": "subject"
+                  }
+                ]
+              }
+            ],
+            "claims": [
+              "A founder might raise capital from investors in New York or San Francisco.",
+              "A founder might later sit on boards linked to Microsoft, MercadoLibre, Globant, Xapo, Ripio, Kaszek, or Tether-connected ventures.",
+              "A founder might begin in Buenos Aires.",
+              "A founder might sell to Santander.",
+              "A founder might appear at the Llao Llao Forum with Eduardo Elzstain and Javier Milei.",
+              "A founder might partner with eBay or PayPal.",
+              "A founder might meet mentors through Endeavor Argentina.",
+              "Endeavor operated as a multiplier system as much as an accelerator."
+            ],
+            "empty_chunk_text": false,
+            "end_char": 7396,
+            "mentions": [
+              "Microsoft",
+              "Ripio",
+              "investors",
+              "Buenos Aires",
+              "PayPal",
+              "San Francisco",
+              "Llao Llao Forum",
+              "mentors",
+              "Eduardo Elzstain",
+              "MercadoLibre",
+              "Santander",
+              "Globant",
+              "eBay",
+              "Endeavor",
+              "Tether-connected ventures",
+              "New York",
+              "Xapo",
+              "A founder",
+              "boards",
+              "Endeavor Argentina",
+              "Kaszek",
+              "Javier Milei"
+            ],
+            "page": 2,
+            "retrieval_path_diagnostics": {
+              "canonical_via_resolves_to": [],
+              "cluster_canonical_via_aligned_with": [],
+              "cluster_memberships": [],
+              "has_participant_edges": [
+                {
+                  "claim_text": "A founder might raise capital from investors in New York or San Francisco.",
+                  "roles": [
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "A founder",
+                      "role": "subject"
+                    }
+                  ]
+                },
+                {
+                  "claim_text": "A founder might later sit on boards linked to Microsoft, MercadoLibre, Globant, Xapo, Ripio, Kaszek, or Tether-connected ventures.",
+                  "roles": [
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "A founder",
+                      "role": "subject"
+                    }
+                  ]
+                },
+                {
+                  "claim_text": "A founder might begin in Buenos Aires.",
+                  "roles": [
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "A founder",
+                      "role": "subject"
+                    },
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "Buenos Aires",
+                      "role": "object"
+                    }
+                  ]
+                },
+                {
+                  "claim_text": "A founder might sell to Santander.",
+                  "roles": [
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "A founder",
+                      "role": "subject"
+                    },
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "Santander",
+                      "role": "object"
+                    }
+                  ]
+                },
+                {
+                  "claim_text": "A founder might appear at the Llao Llao Forum with Eduardo Elzstain and Javier Milei.",
+                  "roles": [
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "A founder",
+                      "role": "subject"
+                    }
+                  ]
+                },
+                {
+                  "claim_text": "A founder might partner with eBay or PayPal.",
+                  "roles": [
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "A founder",
+                      "role": "subject"
+                    }
+                  ]
+                },
+                {
+                  "claim_text": "A founder might meet mentors through Endeavor Argentina.",
+                  "roles": [
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "A founder",
+                      "role": "subject"
+                    },
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "Endeavor Argentina",
+                      "role": "object"
+                    }
+                  ]
+                },
+                {
+                  "claim_text": "Endeavor operated as a multiplier system as much as an accelerator.",
+                  "roles": [
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "Endeavor",
+                      "role": "subject"
+                    }
+                  ]
+                }
+              ]
+            },
+            "run_id": "unstructured_ingest-20260330T002742463246Z-df955600",
+            "score": 0.7685725092887878,
+            "source_uri": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf",
+            "start_char": 6400
+          }
+        },
+        {
+          "content": "business-friendly circles. Galperin\u2019s MercadoLibre became the most\nvisible  success  story:  an  e-commerce  and  payments  giant  often  compared  to  Amazon  and  eBay,  with\nMercadoPago extending its reach into digital payments and crypto-adjacent finance. The article also tied\nMercadoLibre  to  Paxos,  PYUSD,  Ripio,  Mercado  Bitcoin,  and  a  wider  payments-and-stablecoin  corridor\nrunning  through  Argentina  and  Brazil.  Nearby  sat  Banco  Hipotecario  and  IRSA,  both  associated  with\nElzstain, along with the Llao Llao Forum, where business elites, startup founders, and political figures\ngathered in Patagonia to discuss cryptocurrency, artificial intelligence, and generational change.\nAnother  branch  of  the  story  ran  through  Wences  Casares,  Patagon,  and  later  Xapo.  Endeavor  helped\narrange roadshows that introduced Casares to investors in New York, Boston, and San Francisco, and\nPatagon was later sold to Santander . In this compressed version, Casares looks \n[Claim context \u2014 explicit roles via participation edges]\n  \u2022 MercadoPago extends its reach into digital payments and crypto-adjacent finance. [subject='MercadoPago' (match: raw_exact)]\n  \u2022 A wider payments-and-stablecoin corridor ran through Argentina and Brazil.\n  \u2022 Galperin\u2019s MercadoLibre became the most visible success story. [subject='Galperin' (match: raw_exact), object='MercadoLibre' (match: raw_exact)]\n  \u2022 Patagon was later sold to Santander. [subject='Patagon' (match: raw_exact), object='Santander' (match: raw_exact)]\n  \u2022 The article tied MercadoLibre to Paxos, PYUSD, Ripio, and Mercado Bitcoin. [subject='MercadoLibre' (match: raw_exact)]\n  \u2022 Another branch of the story ran through Wences Casares, Patagon, and later Xapo.\n  \u2022 Banco Hipotecario and IRSA were both associated with Elzstain. [object='Elzstain' (match: raw_exact)]\n  \u2022 Endeavor helped arrange roadshows that introduced Casares to investors in New York, Boston, and San Francisco. [subject='Endeavor' (match: raw_exact)]\n  \u2022 Business elites, startup founders, and political figures gathered at the Llao Llao Forum in Patagonia to discuss cryptocurrency, artificial intelligence, and generational change. [object='Llao Llao Forum' (match: raw_exact)]\n  \u2022 MercadoLibre is an e-commerce and payments giant often compared to Amazon and eBay. [subject='MercadoLibre' (match: raw_exact)]\n[CITATION|chunk_id=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:3|run_id=unstructured_ingest-20260330T002742463246Z-df955600|source_uri=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf|chunk_index=3|page=1|start_char=2389|end_char=3385]",
+          "metadata": {
+            "canonical_entities": [],
+            "chunk_id": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:3",
+            "chunk_index": 3,
+            "citation_object": {
+              "chunk_id": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:3",
+              "chunk_index": 3,
+              "end_char": 3385,
+              "page": 1,
+              "run_id": "unstructured_ingest-20260330T002742463246Z-df955600",
+              "source_uri": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf",
+              "start_char": 2389
+            },
+            "citation_token": "[CITATION|chunk_id=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:3|run_id=unstructured_ingest-20260330T002742463246Z-df955600|source_uri=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf|chunk_index=3|page=1|start_char=2389|end_char=3385]",
+            "claim_details": [
+              {
+                "claim_text": "MercadoPago extends its reach into digital payments and crypto-adjacent finance.",
+                "roles": [
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "MercadoPago",
+                    "role": "subject"
+                  }
+                ]
+              },
+              {
+                "claim_text": "A wider payments-and-stablecoin corridor ran through Argentina and Brazil.",
+                "roles": []
+              },
+              {
+                "claim_text": "Galperin\u2019s MercadoLibre became the most visible success story.",
+                "roles": [
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "Galperin",
+                    "role": "subject"
+                  },
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "MercadoLibre",
+                    "role": "object"
+                  }
+                ]
+              },
+              {
+                "claim_text": "Patagon was later sold to Santander.",
+                "roles": [
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "Patagon",
+                    "role": "subject"
+                  },
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "Santander",
+                    "role": "object"
+                  }
+                ]
+              },
+              {
+                "claim_text": "The article tied MercadoLibre to Paxos, PYUSD, Ripio, and Mercado Bitcoin.",
+                "roles": [
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "MercadoLibre",
+                    "role": "subject"
+                  }
+                ]
+              },
+              {
+                "claim_text": "Another branch of the story ran through Wences Casares, Patagon, and later Xapo.",
+                "roles": []
+              },
+              {
+                "claim_text": "Banco Hipotecario and IRSA were both associated with Elzstain.",
+                "roles": [
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "Elzstain",
+                    "role": "object"
+                  }
+                ]
+              },
+              {
+                "claim_text": "Endeavor helped arrange roadshows that introduced Casares to investors in New York, Boston, and San Francisco.",
+                "roles": [
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "Endeavor",
+                    "role": "subject"
+                  }
+                ]
+              },
+              {
+                "claim_text": "Business elites, startup founders, and political figures gathered at the Llao Llao Forum in Patagonia to discuss cryptocurrency, artificial intelligence, and generational change.",
+                "roles": [
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "Llao Llao Forum",
+                    "role": "object"
+                  }
+                ]
+              },
+              {
+                "claim_text": "MercadoLibre is an e-commerce and payments giant often compared to Amazon and eBay.",
+                "roles": [
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "MercadoLibre",
+                    "role": "subject"
+                  }
+                ]
+              }
+            ],
+            "claims": [
+              "MercadoPago extends its reach into digital payments and crypto-adjacent finance.",
+              "A wider payments-and-stablecoin corridor ran through Argentina and Brazil.",
+              "Galperin\u2019s MercadoLibre became the most visible success story.",
+              "Patagon was later sold to Santander.",
+              "The article tied MercadoLibre to Paxos, PYUSD, Ripio, and Mercado Bitcoin.",
+              "Another branch of the story ran through Wences Casares, Patagon, and later Xapo.",
+              "Banco Hipotecario and IRSA were both associated with Elzstain.",
+              "Endeavor helped arrange roadshows that introduced Casares to investors in New York, Boston, and San Francisco.",
+              "Business elites, startup founders, and political figures gathered at the Llao Llao Forum in Patagonia to discuss cryptocurrency, artificial intelligence, and generational change.",
+              "MercadoLibre is an e-commerce and payments giant often compared to Amazon and eBay."
+            ],
+            "empty_chunk_text": false,
+            "end_char": 3385,
+            "mentions": [
+              "Llao Llao Forum",
+              "Elzstain",
+              "Endeavor",
+              "Banco Hipotecario",
+              "IRSA",
+              "Ripio",
+              "Amazon",
+              "PYUSD",
+              "MercadoPago",
+              "Mercado Bitcoin",
+              "Patagon",
+              "Argentina",
+              "Patagonia",
+              "artificial intelligence",
+              "eBay",
+              "New York",
+              "Paxos",
+              "Brazil",
+              "Galperin",
+              "MercadoLibre",
+              "Wences Casares",
+              "Santander",
+              "Boston",
+              "generational change",
+              "Xapo",
+              "San Francisco",
+              "cryptocurrency"
+            ],
+            "page": 1,
+            "retrieval_path_diagnostics": {
+              "canonical_via_resolves_to": [],
+              "cluster_canonical_via_aligned_with": [],
+              "cluster_memberships": [],
+              "has_participant_edges": [
+                {
+                  "claim_text": "MercadoPago extends its reach into digital payments and crypto-adjacent finance.",
+                  "roles": [
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "MercadoPago",
+                      "role": "subject"
+                    }
+                  ]
+                },
+                {
+                  "claim_text": "A wider payments-and-stablecoin corridor ran through Argentina and Brazil.",
+                  "roles": []
+                },
+                {
+                  "claim_text": "Galperin\u2019s MercadoLibre became the most visible success story.",
+                  "roles": [
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "Galperin",
+                      "role": "subject"
+                    },
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "MercadoLibre",
+                      "role": "object"
+                    }
+                  ]
+                },
+                {
+                  "claim_text": "Patagon was later sold to Santander.",
+                  "roles": [
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "Patagon",
+                      "role": "subject"
+                    },
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "Santander",
+                      "role": "object"
+                    }
+                  ]
+                },
+                {
+                  "claim_text": "The article tied MercadoLibre to Paxos, PYUSD, Ripio, and Mercado Bitcoin.",
+                  "roles": [
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "MercadoLibre",
+                      "role": "subject"
+                    }
+                  ]
+                },
+                {
+                  "claim_text": "Another branch of the story ran through Wences Casares, Patagon, and later Xapo.",
+                  "roles": []
+                },
+                {
+                  "claim_text": "Banco Hipotecario and IRSA were both associated with Elzstain.",
+                  "roles": [
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "Elzstain",
+                      "role": "object"
+                    }
+                  ]
+                },
+                {
+                  "claim_text": "Endeavor helped arrange roadshows that introduced Casares to investors in New York, Boston, and San Francisco.",
+                  "roles": [
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "Endeavor",
+                      "role": "subject"
+                    }
+                  ]
+                },
+                {
+                  "claim_text": "Business elites, startup founders, and political figures gathered at the Llao Llao Forum in Patagonia to discuss cryptocurrency, artificial intelligence, and generational change.",
+                  "roles": [
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "Llao Llao Forum",
+                      "role": "object"
+                    }
+                  ]
+                },
+                {
+                  "claim_text": "MercadoLibre is an e-commerce and payments giant often compared to Amazon and eBay.",
+                  "roles": [
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "MercadoLibre",
+                      "role": "subject"
+                    }
+                  ]
+                }
+              ]
+            },
+            "run_id": "unstructured_ingest-20260330T002742463246Z-df955600",
+            "score": 0.7628051042556763,
+            "source_uri": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf",
+            "start_char": 2389
+          }
+        },
+        {
+          "content": "The Endeavor Network: A Simplified Narrative for\nGraph Demo Ingestion\nCondensed unstructured sample adapted from the attached source article\nDemo note: This version is intentionally simplified and lightly fictionalized for entity extraction, relationship\nextraction, and graph retrieval testing. It preserves many of the people, companies, places, and institutional\nlinks mentioned in the source while keeping a narrative, article-like style.\nIn  the  late  1990s,  a  network  began  to  take  shape  around  Endeavor ,  the  nonprofit  founded  by  Linda\nRottenberg and Peter Kellner . The project was framed as entrepreneurship for emerging markets, especially\nLatin America, but the cast around it quickly stretched from Buenos Aires and Santiago to New York,\nWashington, Silicon Valley, and Davos. Rottenberg, who had worked in Argentina and moved through circles\nconnected  to  Ashoka  and  Bill  Drayton,  presented  Endeavor  as  a  bridge  for  founders  who  were  too\nambitious for \n[Claim context \u2014 explicit roles via participation edges]\n  \u2022 Rottenberg moved through circles connected to Ashoka. [subject='Linda Rottenberg' (match: raw_exact), object='Ashoka' (match: raw_exact)]\n  \u2022 Endeavor was founded by Linda Rottenberg. [subject='Endeavor' (match: raw_exact), object='Linda Rottenberg' (match: raw_exact)]\n  \u2022 Endeavor was founded by Peter Kellner. [subject='Endeavor' (match: raw_exact), object='Peter Kellner' (match: raw_exact)]\n  \u2022 The project was framed as entrepreneurship for emerging markets, especially Latin America. [object='Latin America' (match: raw_exact)]\n  \u2022 The cast around Endeavor stretched from Buenos Aires to Santiago, New York, Washington, Silicon Valley, and Davos.\n  \u2022 The Endeavor Network narrative mentions Endeavor. [object='Endeavor' (match: raw_exact)]\n  \u2022 Rottenberg moved through circles connected to Bill Drayton. [subject='Linda Rottenberg' (match: raw_exact), object='Bill Drayton' (match: raw_exact)]\n  \u2022 Rottenberg had worked in Argentina. [subject='Linda Rottenberg' (match: raw_exact), object='Argentina' (match: raw_exact)]\n[CITATION|chunk_id=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:0|run_id=unstructured_ingest-20260330T002742463246Z-df955600|source_uri=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf|chunk_index=0|page=1|start_char=0|end_char=992]",
+          "metadata": {
+            "canonical_entities": [],
+            "chunk_id": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:0",
+            "chunk_index": 0,
+            "citation_object": {
+              "chunk_id": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:0",
+              "chunk_index": 0,
+              "end_char": 992,
+              "page": 1,
+              "run_id": "unstructured_ingest-20260330T002742463246Z-df955600",
+              "source_uri": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf",
+              "start_char": 0
+            },
+            "citation_token": "[CITATION|chunk_id=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:0|run_id=unstructured_ingest-20260330T002742463246Z-df955600|source_uri=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf|chunk_index=0|page=1|start_char=0|end_char=992]",
+            "claim_details": [
+              {
+                "claim_text": "Rottenberg moved through circles connected to Ashoka.",
+                "roles": [
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "Ashoka",
+                    "role": "object"
+                  },
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "Linda Rottenberg",
+                    "role": "subject"
+                  }
+                ]
+              },
+              {
+                "claim_text": "Endeavor was founded by Linda Rottenberg.",
+                "roles": [
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "Linda Rottenberg",
+                    "role": "object"
+                  },
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "Endeavor",
+                    "role": "subject"
+                  }
+                ]
+              },
+              {
+                "claim_text": "Endeavor was founded by Peter Kellner.",
+                "roles": [
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "Peter Kellner",
+                    "role": "object"
+                  },
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "Endeavor",
+                    "role": "subject"
+                  }
+                ]
+              },
+              {
+                "claim_text": "The project was framed as entrepreneurship for emerging markets, especially Latin America.",
+                "roles": [
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "Latin America",
+                    "role": "object"
+                  }
+                ]
+              },
+              {
+                "claim_text": "The cast around Endeavor stretched from Buenos Aires to Santiago, New York, Washington, Silicon Valley, and Davos.",
+                "roles": []
+              },
+              {
+                "claim_text": "The Endeavor Network narrative mentions Endeavor.",
+                "roles": [
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "Endeavor",
+                    "role": "object"
+                  }
+                ]
+              },
+              {
+                "claim_text": "Rottenberg moved through circles connected to Bill Drayton.",
+                "roles": [
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "Linda Rottenberg",
+                    "role": "subject"
+                  },
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "Bill Drayton",
+                    "role": "object"
+                  }
+                ]
+              },
+              {
+                "claim_text": "Rottenberg had worked in Argentina.",
+                "roles": [
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "Argentina",
+                    "role": "object"
+                  },
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "Linda Rottenberg",
+                    "role": "subject"
+                  }
+                ]
+              }
+            ],
+            "claims": [
+              "Rottenberg moved through circles connected to Ashoka.",
+              "Endeavor was founded by Linda Rottenberg.",
+              "Endeavor was founded by Peter Kellner.",
+              "The project was framed as entrepreneurship for emerging markets, especially Latin America.",
+              "The cast around Endeavor stretched from Buenos Aires to Santiago, New York, Washington, Silicon Valley, and Davos.",
+              "The Endeavor Network narrative mentions Endeavor.",
+              "Rottenberg moved through circles connected to Bill Drayton.",
+              "Rottenberg had worked in Argentina."
+            ],
+            "empty_chunk_text": false,
+            "end_char": 992,
+            "mentions": [
+              "Washington",
+              "Santiago",
+              "New York",
+              "Argentina",
+              "Peter Kellner",
+              "The Endeavor Network",
+              "Buenos Aires",
+              "Endeavor",
+              "Bill Drayton",
+              "Silicon Valley",
+              "Ashoka",
+              "Linda Rottenberg",
+              "Davos",
+              "Latin America"
+            ],
+            "page": 1,
+            "retrieval_path_diagnostics": {
+              "canonical_via_resolves_to": [],
+              "cluster_canonical_via_aligned_with": [],
+              "cluster_memberships": [],
+              "has_participant_edges": [
+                {
+                  "claim_text": "Rottenberg moved through circles connected to Ashoka.",
+                  "roles": [
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "Linda Rottenberg",
+                      "role": "subject"
+                    },
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "Ashoka",
+                      "role": "object"
+                    }
+                  ]
+                },
+                {
+                  "claim_text": "Endeavor was founded by Linda Rottenberg.",
+                  "roles": [
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "Endeavor",
+                      "role": "subject"
+                    },
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "Linda Rottenberg",
+                      "role": "object"
+                    }
+                  ]
+                },
+                {
+                  "claim_text": "Endeavor was founded by Peter Kellner.",
+                  "roles": [
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "Endeavor",
+                      "role": "subject"
+                    },
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "Peter Kellner",
+                      "role": "object"
+                    }
+                  ]
+                },
+                {
+                  "claim_text": "The project was framed as entrepreneurship for emerging markets, especially Latin America.",
+                  "roles": [
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "Latin America",
+                      "role": "object"
+                    }
+                  ]
+                },
+                {
+                  "claim_text": "The cast around Endeavor stretched from Buenos Aires to Santiago, New York, Washington, Silicon Valley, and Davos.",
+                  "roles": []
+                },
+                {
+                  "claim_text": "The Endeavor Network narrative mentions Endeavor.",
+                  "roles": [
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "Endeavor",
+                      "role": "object"
+                    }
+                  ]
+                },
+                {
+                  "claim_text": "Rottenberg moved through circles connected to Bill Drayton.",
+                  "roles": [
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "Linda Rottenberg",
+                      "role": "subject"
+                    },
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "Bill Drayton",
+                      "role": "object"
+                    }
+                  ]
+                },
+                {
+                  "claim_text": "Rottenberg had worked in Argentina.",
+                  "roles": [
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "Linda Rottenberg",
+                      "role": "subject"
+                    },
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "Argentina",
+                      "role": "object"
+                    }
+                  ]
+                }
+              ]
+            },
+            "run_id": "unstructured_ingest-20260330T002742463246Z-df955600",
+            "score": 0.7513734698295593,
+            "source_uri": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf",
+            "start_char": 0
+          }
+        },
+        {
+          "content": "pillar to the network. Founded in Buenos Aires, it grew into a software, AI, and\ndigital transformation company serving clients such as Google, Disney, Electronic Arts, Nestle, American\nExpress, and Santander Bank. Martin Migoya spoke about preparing institutions for a digital and cognitive\nfuture, while the company\u2019s leadership appeared beside Endeavor , the Council of the Americas, Microsoft,\nand major banks. In the source material, Globant did not stand alone; it shared a stage with MercadoLibre\nand  with  public-sector  modernization,  turning  the  company  into  a  useful  node  for  demos  about  how\ncorporate service firms sit between governments, platforms, cloud vendors, and the AI boom. A graph built\nfrom this material could connect Globant not just to Argentina but to California, New York, London, and\nMadrid through clients, investors, directors, and policy networks.\nThe  cast  widened  further  with  Kiva,  Better  Than  Cash  Alliance,  the  United  Nations,  the  \n[Claim context \u2014 explicit roles via participation edges]\n  \u2022 Martin Migoya spoke about preparing institutions for a digital and cognitive future. [subject='Martin Migoya' (match: raw_exact)]\n  \u2022 Globant serves clients such as Google, Disney, Electronic Arts, Nestle, American Express, and Santander Bank. [subject='Globant' (match: raw_exact)]\n  \u2022 Globant shared a stage with MercadoLibre. [subject='Globant' (match: raw_exact), object='MercadoLibre' (match: raw_exact)]\n  \u2022 Globant was founded in Buenos Aires. [subject='Globant' (match: raw_exact), object='Buenos Aires' (match: raw_exact)]\n  \u2022 A graph built from this material could connect Globant to Argentina, California, New York, London, and Madrid through clients, investors, directors, and policy networks. [subject='Globant' (match: raw_exact)]\n  \u2022 The company\u2019s leadership appeared beside Endeavor, the Council of the Americas, Microsoft, and major banks.\n[CITATION|chunk_id=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:5|run_id=unstructured_ingest-20260330T002742463246Z-df955600|source_uri=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf|chunk_index=5|page=2|start_char=3999|end_char=4991]",
+          "metadata": {
+            "canonical_entities": [],
+            "chunk_id": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:5",
+            "chunk_index": 5,
+            "citation_object": {
+              "chunk_id": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:5",
+              "chunk_index": 5,
+              "end_char": 4991,
+              "page": 2,
+              "run_id": "unstructured_ingest-20260330T002742463246Z-df955600",
+              "source_uri": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf",
+              "start_char": 3999
+            },
+            "citation_token": "[CITATION|chunk_id=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:5|run_id=unstructured_ingest-20260330T002742463246Z-df955600|source_uri=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf|chunk_index=5|page=2|start_char=3999|end_char=4991]",
+            "claim_details": [
+              {
+                "claim_text": "Martin Migoya spoke about preparing institutions for a digital and cognitive future.",
+                "roles": [
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "Martin Migoya",
+                    "role": "subject"
+                  }
+                ]
+              },
+              {
+                "claim_text": "Globant serves clients such as Google, Disney, Electronic Arts, Nestle, American Express, and Santander Bank.",
+                "roles": [
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "Globant",
+                    "role": "subject"
+                  }
+                ]
+              },
+              {
+                "claim_text": "Globant shared a stage with MercadoLibre.",
+                "roles": [
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "Globant",
+                    "role": "subject"
+                  },
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "MercadoLibre",
+                    "role": "object"
+                  }
+                ]
+              },
+              {
+                "claim_text": "Globant was founded in Buenos Aires.",
+                "roles": [
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "Globant",
+                    "role": "subject"
+                  },
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "Buenos Aires",
+                    "role": "object"
+                  }
+                ]
+              },
+              {
+                "claim_text": "A graph built from this material could connect Globant to Argentina, California, New York, London, and Madrid through clients, investors, directors, and policy networks.",
+                "roles": [
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "Globant",
+                    "role": "subject"
+                  }
+                ]
+              },
+              {
+                "claim_text": "The company\u2019s leadership appeared beside Endeavor, the Council of the Americas, Microsoft, and major banks.",
+                "roles": []
+              }
+            ],
+            "claims": [
+              "Martin Migoya spoke about preparing institutions for a digital and cognitive future.",
+              "Globant serves clients such as Google, Disney, Electronic Arts, Nestle, American Express, and Santander Bank.",
+              "Globant shared a stage with MercadoLibre.",
+              "Globant was founded in Buenos Aires.",
+              "A graph built from this material could connect Globant to Argentina, California, New York, London, and Madrid through clients, investors, directors, and policy networks.",
+              "The company\u2019s leadership appeared beside Endeavor, the Council of the Americas, Microsoft, and major banks."
+            ],
+            "empty_chunk_text": false,
+            "end_char": 4991,
+            "mentions": [
+              "Endeavor",
+              "Council of the Americas",
+              "Buenos Aires",
+              "Better Than Cash Alliance",
+              "Microsoft",
+              "American Express",
+              "MercadoLibre",
+              "Google",
+              "New York",
+              "Disney",
+              "Globant",
+              "Madrid",
+              "Martin Migoya",
+              "Nestle",
+              "California",
+              "Argentina",
+              "United Nations",
+              "Electronic Arts",
+              "London",
+              "Kiva",
+              "Santander Bank"
+            ],
+            "page": 2,
+            "retrieval_path_diagnostics": {
+              "canonical_via_resolves_to": [],
+              "cluster_canonical_via_aligned_with": [],
+              "cluster_memberships": [],
+              "has_participant_edges": [
+                {
+                  "claim_text": "Martin Migoya spoke about preparing institutions for a digital and cognitive future.",
+                  "roles": [
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "Martin Migoya",
+                      "role": "subject"
+                    }
+                  ]
+                },
+                {
+                  "claim_text": "Globant serves clients such as Google, Disney, Electronic Arts, Nestle, American Express, and Santander Bank.",
+                  "roles": [
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "Globant",
+                      "role": "subject"
+                    }
+                  ]
+                },
+                {
+                  "claim_text": "Globant shared a stage with MercadoLibre.",
+                  "roles": [
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "Globant",
+                      "role": "subject"
+                    },
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "MercadoLibre",
+                      "role": "object"
+                    }
+                  ]
+                },
+                {
+                  "claim_text": "Globant was founded in Buenos Aires.",
+                  "roles": [
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "Globant",
+                      "role": "subject"
+                    },
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "Buenos Aires",
+                      "role": "object"
+                    }
+                  ]
+                },
+                {
+                  "claim_text": "A graph built from this material could connect Globant to Argentina, California, New York, London, and Madrid through clients, investors, directors, and policy networks.",
+                  "roles": [
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "Globant",
+                      "role": "subject"
+                    }
+                  ]
+                },
+                {
+                  "claim_text": "The company\u2019s leadership appeared beside Endeavor, the Council of the Americas, Microsoft, and major banks.",
+                  "roles": []
+                }
+              ]
+            },
+            "run_id": "unstructured_ingest-20260330T002742463246Z-df955600",
+            "score": 0.7205243706703186,
+            "source_uri": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf",
+            "start_char": 3999
+          }
+        },
+        {
+          "content": "Davos. Rottenberg, who had worked in Argentina and moved through circles\nconnected  to  Ashoka  and  Bill  Drayton,  presented  Endeavor  as  a  bridge  for  founders  who  were  too\nambitious for microfinance and too far from old family money. Kellner , who moved through Princeton,\nHarvard  Business  School,  Yale  Law  School,  and  the  Aspen  orbit,  helped  turn  that  idea  into  a  durable\nnetwork of mentors, investors, board members, and favored companies.\nAs  Endeavor  expanded,  names  from  elite  finance  and  technology  kept  appearing  around  it.  Edgar\nBronfman Jr . became a central force in shaping the group\u2019s board and strategy. Pierre Omidyar and the\nOmidyar  Network  supplied  major  funding.  Reid  Hoffman,  connected  to  PayPal,  LinkedIn,  Greylock,\nMicrosoft, and the broader PayPal mafia, became another recurring figure. Around them were institutions\nsuch as the Council on Foreign Relations, the World Economic Forum, the Aspen Institute, Bain Capital,\nGoldman \n[Claim context \u2014 explicit roles via participation edges]\n  \u2022 Kellner moved through Princeton, Harvard Business School, Yale Law School, and the Aspen orbit. [subject='Kellner' (match: raw_exact)]\n  \u2022 Rottenberg presented Endeavor as a bridge for founders who were too ambitious for microfinance and too far from old family money. [subject='Rottenberg' (match: raw_exact)]\n  \u2022 Around them were institutions such as the Council on Foreign Relations, the World Economic Forum, the Aspen Institute, Bain Capital, and Goldman.\n  \u2022 Kellner helped turn that idea into a durable network of mentors, investors, board members, and favored companies. [subject='Kellner' (match: raw_exact)]\n  \u2022 Rottenberg had worked in Argentina. [subject='Rottenberg' (match: raw_exact), object='Argentina' (match: raw_exact)]\n  \u2022 Pierre Omidyar and the Omidyar Network supplied major funding.\n  \u2022 As Endeavor expanded, names from elite finance and technology kept appearing around it. [object='Endeavor' (match: raw_exact)]\n  \u2022 Reid Hoffman, connected to PayPal, LinkedIn, Greylock, Microsoft, and the broader PayPal mafia, became another recurring figure. [subject='Reid Hoffman' (match: raw_exact)]\n  \u2022 Edgar Bronfman Jr. became a central force in shaping the group\u2019s board and strategy. [subject='Edgar Bronfman Jr.' (match: raw_exact)]\n  \u2022 Rottenberg moved through circles connected to Ashoka and Bill Drayton. [subject='Rottenberg' (match: raw_exact)]\n[CITATION|chunk_id=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:1|run_id=unstructured_ingest-20260330T002742463246Z-df955600|source_uri=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf|chunk_index=1|page=1|start_char=796|end_char=1795]",
+          "metadata": {
+            "canonical_entities": [],
+            "chunk_id": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:1",
+            "chunk_index": 1,
+            "citation_object": {
+              "chunk_id": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:1",
+              "chunk_index": 1,
+              "end_char": 1795,
+              "page": 1,
+              "run_id": "unstructured_ingest-20260330T002742463246Z-df955600",
+              "source_uri": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf",
+              "start_char": 796
+            },
+            "citation_token": "[CITATION|chunk_id=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:1|run_id=unstructured_ingest-20260330T002742463246Z-df955600|source_uri=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf|chunk_index=1|page=1|start_char=796|end_char=1795]",
+            "claim_details": [
+              {
+                "claim_text": "Kellner moved through Princeton, Harvard Business School, Yale Law School, and the Aspen orbit.",
+                "roles": [
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "Kellner",
+                    "role": "subject"
+                  }
+                ]
+              },
+              {
+                "claim_text": "Rottenberg presented Endeavor as a bridge for founders who were too ambitious for microfinance and too far from old family money.",
+                "roles": [
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "Rottenberg",
+                    "role": "subject"
+                  }
+                ]
+              },
+              {
+                "claim_text": "Around them were institutions such as the Council on Foreign Relations, the World Economic Forum, the Aspen Institute, Bain Capital, and Goldman.",
+                "roles": []
+              },
+              {
+                "claim_text": "Kellner helped turn that idea into a durable network of mentors, investors, board members, and favored companies.",
+                "roles": [
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "Kellner",
+                    "role": "subject"
+                  }
+                ]
+              },
+              {
+                "claim_text": "Rottenberg had worked in Argentina.",
+                "roles": [
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "Rottenberg",
+                    "role": "subject"
+                  },
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "Argentina",
+                    "role": "object"
+                  }
+                ]
+              },
+              {
+                "claim_text": "Pierre Omidyar and the Omidyar Network supplied major funding.",
+                "roles": []
+              },
+              {
+                "claim_text": "As Endeavor expanded, names from elite finance and technology kept appearing around it.",
+                "roles": [
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "Endeavor",
+                    "role": "object"
+                  }
+                ]
+              },
+              {
+                "claim_text": "Reid Hoffman, connected to PayPal, LinkedIn, Greylock, Microsoft, and the broader PayPal mafia, became another recurring figure.",
+                "roles": [
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "Reid Hoffman",
+                    "role": "subject"
+                  }
+                ]
+              },
+              {
+                "claim_text": "Edgar Bronfman Jr. became a central force in shaping the group\u2019s board and strategy.",
+                "roles": [
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "Edgar Bronfman Jr.",
+                    "role": "subject"
+                  }
+                ]
+              },
+              {
+                "claim_text": "Rottenberg moved through circles connected to Ashoka and Bill Drayton.",
+                "roles": [
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "Rottenberg",
+                    "role": "subject"
+                  }
+                ]
+              }
+            ],
+            "claims": [
+              "Kellner moved through Princeton, Harvard Business School, Yale Law School, and the Aspen orbit.",
+              "Rottenberg presented Endeavor as a bridge for founders who were too ambitious for microfinance and too far from old family money.",
+              "Around them were institutions such as the Council on Foreign Relations, the World Economic Forum, the Aspen Institute, Bain Capital, and Goldman.",
+              "Kellner helped turn that idea into a durable network of mentors, investors, board members, and favored companies.",
+              "Rottenberg had worked in Argentina.",
+              "Pierre Omidyar and the Omidyar Network supplied major funding.",
+              "As Endeavor expanded, names from elite finance and technology kept appearing around it.",
+              "Reid Hoffman, connected to PayPal, LinkedIn, Greylock, Microsoft, and the broader PayPal mafia, became another recurring figure.",
+              "Edgar Bronfman Jr. became a central force in shaping the group\u2019s board and strategy.",
+              "Rottenberg moved through circles connected to Ashoka and Bill Drayton."
+            ],
+            "empty_chunk_text": false,
+            "end_char": 1795,
+            "mentions": [
+              "founders",
+              "Kellner",
+              "Council on Foreign Relations",
+              "Davos",
+              "funding",
+              "strategy",
+              "mentors",
+              "Aspen",
+              "Greylock",
+              "Aspen Institute",
+              "Edgar Bronfman Jr.",
+              "Harvard Business School",
+              "Goldman",
+              "investors",
+              "board members",
+              "board",
+              "old family money",
+              "Bill Drayton",
+              "Bain Capital",
+              "Princeton",
+              "PayPal",
+              "Yale Law School",
+              "Reid Hoffman",
+              "favored companies",
+              "PayPal mafia",
+              "Rottenberg",
+              "microfinance",
+              "Omidyar Network",
+              "LinkedIn",
+              "Ashoka",
+              "Endeavor",
+              "World Economic Forum",
+              "Argentina",
+              "Microsoft",
+              "Pierre Omidyar"
+            ],
+            "page": 1,
+            "retrieval_path_diagnostics": {
+              "canonical_via_resolves_to": [],
+              "cluster_canonical_via_aligned_with": [],
+              "cluster_memberships": [],
+              "has_participant_edges": [
+                {
+                  "claim_text": "Kellner moved through Princeton, Harvard Business School, Yale Law School, and the Aspen orbit.",
+                  "roles": [
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "Kellner",
+                      "role": "subject"
+                    }
+                  ]
+                },
+                {
+                  "claim_text": "Rottenberg presented Endeavor as a bridge for founders who were too ambitious for microfinance and too far from old family money.",
+                  "roles": [
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "Rottenberg",
+                      "role": "subject"
+                    }
+                  ]
+                },
+                {
+                  "claim_text": "Around them were institutions such as the Council on Foreign Relations, the World Economic Forum, the Aspen Institute, Bain Capital, and Goldman.",
+                  "roles": []
+                },
+                {
+                  "claim_text": "Kellner helped turn that idea into a durable network of mentors, investors, board members, and favored companies.",
+                  "roles": [
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "Kellner",
+                      "role": "subject"
+                    }
+                  ]
+                },
+                {
+                  "claim_text": "Rottenberg had worked in Argentina.",
+                  "roles": [
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "Rottenberg",
+                      "role": "subject"
+                    },
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "Argentina",
+                      "role": "object"
+                    }
+                  ]
+                },
+                {
+                  "claim_text": "Pierre Omidyar and the Omidyar Network supplied major funding.",
+                  "roles": []
+                },
+                {
+                  "claim_text": "As Endeavor expanded, names from elite finance and technology kept appearing around it.",
+                  "roles": [
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "Endeavor",
+                      "role": "object"
+                    }
+                  ]
+                },
+                {
+                  "claim_text": "Reid Hoffman, connected to PayPal, LinkedIn, Greylock, Microsoft, and the broader PayPal mafia, became another recurring figure.",
+                  "roles": [
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "Reid Hoffman",
+                      "role": "subject"
+                    }
+                  ]
+                },
+                {
+                  "claim_text": "Edgar Bronfman Jr. became a central force in shaping the group\u2019s board and strategy.",
+                  "roles": [
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "Edgar Bronfman Jr.",
+                      "role": "subject"
+                    }
+                  ]
+                },
+                {
+                  "claim_text": "Rottenberg moved through circles connected to Ashoka and Bill Drayton.",
+                  "roles": [
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "Rottenberg",
+                      "role": "subject"
+                    }
+                  ]
+                }
+              ]
+            },
+            "run_id": "unstructured_ingest-20260330T002742463246Z-df955600",
+            "score": 0.7170791625976562,
+            "source_uri": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf",
+            "start_char": 796
+          }
+        },
+        {
+          "content": "on boards linked to Microsoft,\nMercadoLibre, Globant, Xapo, Ripio, Kaszek, or Tether-connected ventures. Linda Rottenberg, Peter Kellner ,\nEdgar Bronfman Jr ., Pierre Omidyar , Reid Hoffman, Marcos Galperin, Martin Migoya, Wences Casares, Maria\nJulia Bearzi, Guibert Englebienne, Sebasti\u00e1n Serrano, and Emiliano Kargieman all become retrievable nodes\nin  the  same  narrative  web.  That  is  what  makes  the  document  suitable  for  LLM  extraction  and  graph\nretrieval:  it  is  messy,  unstructured,  name-dense,  geographically  distributed,  and  full  of  repeated\nrelationships across people, companies, boards, conferences, investors, and states.\n2\nSuggested entity targets in this sample include people, companies, investors, countries, cities, nonprofits,\nforums,  government  bodies,  financial  institutions,  products,  and  technologies.  Useful  relations  include\nfounded,  funded,  advised,  partnered_with,  sat_on_board_of,  invested_in,  based_in,  operated_in,\nconnected_to, \n[Claim context \u2014 explicit roles via participation edges]\n  \u2022 Suggested entity targets in this sample include people, companies, investors, countries, cities, nonprofits, forums, government bodies, financial institutions, products, and technologies.\n  \u2022 Linda Rottenberg, Peter Kellner, Edgar Bronfman Jr., Pierre Omidyar, Reid Hoffman, Marcos Galperin, Martin Migoya, Wences Casares, Maria Julia Bearzi, Guibert Englebienne, Sebasti\u00e1n Serrano, and Emiliano Kargieman all become retrievable nodes in the same narrative web.\n  \u2022 The text mentions boards linked to Microsoft, MercadoLibre, Globant, Xapo, Ripio, Kaszek, or Tether-connected ventures.\n  \u2022 Useful relations include founded, funded, advised, partnered_with, sat_on_board_of, invested_in, based_in, operated_in, connected_to.\n[CITATION|chunk_id=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:9|run_id=unstructured_ingest-20260330T002742463246Z-df955600|source_uri=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf|chunk_index=9|page=2|start_char=7199|end_char=8197]",
+          "metadata": {
+            "canonical_entities": [],
+            "chunk_id": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:9",
+            "chunk_index": 9,
+            "citation_object": {
+              "chunk_id": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:9",
+              "chunk_index": 9,
+              "end_char": 8197,
+              "page": 2,
+              "run_id": "unstructured_ingest-20260330T002742463246Z-df955600",
+              "source_uri": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf",
+              "start_char": 7199
+            },
+            "citation_token": "[CITATION|chunk_id=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:9|run_id=unstructured_ingest-20260330T002742463246Z-df955600|source_uri=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf|chunk_index=9|page=2|start_char=7199|end_char=8197]",
+            "claim_details": [
+              {
+                "claim_text": "Suggested entity targets in this sample include people, companies, investors, countries, cities, nonprofits, forums, government bodies, financial institutions, products, and technologies.",
+                "roles": []
+              },
+              {
+                "claim_text": "Linda Rottenberg, Peter Kellner, Edgar Bronfman Jr., Pierre Omidyar, Reid Hoffman, Marcos Galperin, Martin Migoya, Wences Casares, Maria Julia Bearzi, Guibert Englebienne, Sebasti\u00e1n Serrano, and Emiliano Kargieman all become retrievable nodes in the same narrative web.",
+                "roles": []
+              },
+              {
+                "claim_text": "The text mentions boards linked to Microsoft, MercadoLibre, Globant, Xapo, Ripio, Kaszek, or Tether-connected ventures.",
+                "roles": []
+              },
+              {
+                "claim_text": "Useful relations include founded, funded, advised, partnered_with, sat_on_board_of, invested_in, based_in, operated_in, connected_to.",
+                "roles": []
+              }
+            ],
+            "claims": [
+              "Suggested entity targets in this sample include people, companies, investors, countries, cities, nonprofits, forums, government bodies, financial institutions, products, and technologies.",
+              "Linda Rottenberg, Peter Kellner, Edgar Bronfman Jr., Pierre Omidyar, Reid Hoffman, Marcos Galperin, Martin Migoya, Wences Casares, Maria Julia Bearzi, Guibert Englebienne, Sebasti\u00e1n Serrano, and Emiliano Kargieman all become retrievable nodes in the same narrative web.",
+              "The text mentions boards linked to Microsoft, MercadoLibre, Globant, Xapo, Ripio, Kaszek, or Tether-connected ventures.",
+              "Useful relations include founded, funded, advised, partnered_with, sat_on_board_of, invested_in, based_in, operated_in, connected_to."
+            ],
+            "empty_chunk_text": false,
+            "end_char": 8197,
+            "mentions": [
+              "Peter Kellner",
+              "Ripio",
+              "Sebasti\u00e1n Serrano",
+              "Microsoft",
+              "MercadoLibre",
+              "Wences Casares",
+              "Maria Julia Bearzi",
+              "Reid Hoffman",
+              "Globant",
+              "Edgar Bronfman Jr.",
+              "Linda Rottenberg",
+              "Tether-connected ventures",
+              "Kaszek",
+              "Xapo",
+              "Marcos Galperin",
+              "Guibert Englebienne",
+              "Martin Migoya",
+              "Emiliano Kargieman",
+              "Pierre Omidyar"
+            ],
+            "page": 2,
+            "retrieval_path_diagnostics": {
+              "canonical_via_resolves_to": [],
+              "cluster_canonical_via_aligned_with": [],
+              "cluster_memberships": [],
+              "has_participant_edges": [
+                {
+                  "claim_text": "Suggested entity targets in this sample include people, companies, investors, countries, cities, nonprofits, forums, government bodies, financial institutions, products, and technologies.",
+                  "roles": []
+                },
+                {
+                  "claim_text": "Linda Rottenberg, Peter Kellner, Edgar Bronfman Jr., Pierre Omidyar, Reid Hoffman, Marcos Galperin, Martin Migoya, Wences Casares, Maria Julia Bearzi, Guibert Englebienne, Sebasti\u00e1n Serrano, and Emiliano Kargieman all become retrievable nodes in the same narrative web.",
+                  "roles": []
+                },
+                {
+                  "claim_text": "The text mentions boards linked to Microsoft, MercadoLibre, Globant, Xapo, Ripio, Kaszek, or Tether-connected ventures.",
+                  "roles": []
+                },
+                {
+                  "claim_text": "Useful relations include founded, funded, advised, partnered_with, sat_on_board_of, invested_in, based_in, operated_in, connected_to.",
+                  "roles": []
+                }
+              ]
+            },
+            "run_id": "unstructured_ingest-20260330T002742463246Z-df955600",
+            "score": 0.7117141485214233,
+            "source_uri": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf",
+            "start_char": 7199
+          }
+        },
+        {
+          "content": "helped\narrange roadshows that introduced Casares to investors in New York, Boston, and San Francisco, and\nPatagon was later sold to Santander . In this compressed version, Casares looks like a hinge connecting\nArgentine entrepreneurship, Wall Street capital, Silicon Valley prestige, and the early mythology of Bitcoin\ncustody.  The  same  narrative  current  also  carried  Sebasti\u00e1n  Serrano  of  Ripio,  Rodrigo  Benzaquen  of\nMoneero,  Andy  Freire,  Nicolas  Szekasy,  and  Kaszek  Ventures,  making  the  Southern  Cone  feel  like  an\n1\nunusually  dense  cluster  of  founders,  venture  vehicles,  and  crypto  infrastructure  firms.  Even  when  the\ncompanies  were  different,  the  board  members,  mentors,  sponsors,  and  conference  circuits  kept\noverlapping.\nGlobant added a second pillar to the network. Founded in Buenos Aires, it grew into a software, AI, and\ndigital transformation company serving clients such as Google, Disney, Electronic Arts, Nestle, American\nExpress, and \n[Claim context \u2014 explicit roles via participation edges]\n  \u2022 Globant added a second pillar to the network. [subject='Globant' (match: raw_exact)]\n  \u2022 Globant was founded in Buenos Aires. [subject='Globant' (match: raw_exact), object='Buenos Aires' (match: raw_exact)]\n  \u2022 Casares was introduced to investors in New York, Boston, and San Francisco through roadshows. [subject='Casares' (match: raw_exact)]\n  \u2022 Patagon was later sold to Santander. [subject='Patagon' (match: raw_exact), object='Santander' (match: raw_exact)]\n  \u2022 Globant served clients such as Google, Disney, Electronic Arts, Nestle, and American Express. [subject='Globant' (match: raw_exact)]\n  \u2022 The companies were different, but the board members, mentors, sponsors, and conference circuits kept overlapping.\n  \u2022 Globant grew into a software, AI, and digital transformation company. [subject='Globant' (match: raw_exact)]\n  \u2022 The Southern Cone felt like an unusually dense cluster of founders, venture vehicles, and crypto infrastructure firms. [subject='Southern Cone' (match: raw_exact)]\n  \u2022 Casares looks like a hinge connecting Argentine entrepreneurship, Wall Street capital, Silicon Valley prestige, and the early mythology of Bitcoin custody. [subject='Casares' (match: raw_exact)]\n  \u2022 The same narrative current also carried Sebasti\u00e1n Serrano of Ripio, Rodrigo Benzaquen of Moneero, Andy Freire, Nicolas Szekasy, and Kaszek Ventures.\n[CITATION|chunk_id=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:4|run_id=unstructured_ingest-20260330T002742463246Z-df955600|source_uri=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf|chunk_index=4|page=1|start_char=3200|end_char=4197]",
+          "metadata": {
+            "canonical_entities": [],
+            "chunk_id": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:4",
+            "chunk_index": 4,
+            "citation_object": {
+              "chunk_id": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:4",
+              "chunk_index": 4,
+              "end_char": 4197,
+              "page": 1,
+              "run_id": "unstructured_ingest-20260330T002742463246Z-df955600",
+              "source_uri": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf",
+              "start_char": 3200
+            },
+            "citation_token": "[CITATION|chunk_id=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:4|run_id=unstructured_ingest-20260330T002742463246Z-df955600|source_uri=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf|chunk_index=4|page=1|start_char=3200|end_char=4197]",
+            "claim_details": [
+              {
+                "claim_text": "Globant added a second pillar to the network.",
+                "roles": [
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "Globant",
+                    "role": "subject"
+                  }
+                ]
+              },
+              {
+                "claim_text": "Globant was founded in Buenos Aires.",
+                "roles": [
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "Globant",
+                    "role": "subject"
+                  },
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "Buenos Aires",
+                    "role": "object"
+                  }
+                ]
+              },
+              {
+                "claim_text": "Casares was introduced to investors in New York, Boston, and San Francisco through roadshows.",
+                "roles": [
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "Casares",
+                    "role": "subject"
+                  }
+                ]
+              },
+              {
+                "claim_text": "Patagon was later sold to Santander.",
+                "roles": [
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "Patagon",
+                    "role": "subject"
+                  },
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "Santander",
+                    "role": "object"
+                  }
+                ]
+              },
+              {
+                "claim_text": "Globant served clients such as Google, Disney, Electronic Arts, Nestle, and American Express.",
+                "roles": [
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "Globant",
+                    "role": "subject"
+                  }
+                ]
+              },
+              {
+                "claim_text": "The companies were different, but the board members, mentors, sponsors, and conference circuits kept overlapping.",
+                "roles": []
+              },
+              {
+                "claim_text": "Globant grew into a software, AI, and digital transformation company.",
+                "roles": [
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "Globant",
+                    "role": "subject"
+                  }
+                ]
+              },
+              {
+                "claim_text": "The Southern Cone felt like an unusually dense cluster of founders, venture vehicles, and crypto infrastructure firms.",
+                "roles": [
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "Southern Cone",
+                    "role": "subject"
+                  }
+                ]
+              },
+              {
+                "claim_text": "Casares looks like a hinge connecting Argentine entrepreneurship, Wall Street capital, Silicon Valley prestige, and the early mythology of Bitcoin custody.",
+                "roles": [
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "Casares",
+                    "role": "subject"
+                  }
+                ]
+              },
+              {
+                "claim_text": "The same narrative current also carried Sebasti\u00e1n Serrano of Ripio, Rodrigo Benzaquen of Moneero, Andy Freire, Nicolas Szekasy, and Kaszek Ventures.",
+                "roles": []
+              }
+            ],
+            "claims": [
+              "Globant added a second pillar to the network.",
+              "Globant was founded in Buenos Aires.",
+              "Casares was introduced to investors in New York, Boston, and San Francisco through roadshows.",
+              "Patagon was later sold to Santander.",
+              "Globant served clients such as Google, Disney, Electronic Arts, Nestle, and American Express.",
+              "The companies were different, but the board members, mentors, sponsors, and conference circuits kept overlapping.",
+              "Globant grew into a software, AI, and digital transformation company.",
+              "The Southern Cone felt like an unusually dense cluster of founders, venture vehicles, and crypto infrastructure firms.",
+              "Casares looks like a hinge connecting Argentine entrepreneurship, Wall Street capital, Silicon Valley prestige, and the early mythology of Bitcoin custody.",
+              "The same narrative current also carried Sebasti\u00e1n Serrano of Ripio, Rodrigo Benzaquen of Moneero, Andy Freire, Nicolas Szekasy, and Kaszek Ventures."
+            ],
+            "empty_chunk_text": false,
+            "end_char": 4197,
+            "mentions": [
+              "Ripio",
+              "Santander",
+              "Southern Cone",
+              "Silicon Valley prestige",
+              "American Express",
+              "software, AI, and digital transformation company",
+              "Disney",
+              "Moneero",
+              "Casares",
+              "San Francisco",
+              "New York",
+              "board members",
+              "Globant",
+              "Bitcoin custody",
+              "mentors",
+              "Electronic Arts",
+              "Sebasti\u00e1n Serrano",
+              "Kaszek Ventures",
+              "Argentine entrepreneurship",
+              "Patagon",
+              "Andy Freire",
+              "Buenos Aires",
+              "conference circuits",
+              "Google",
+              "Boston",
+              "sponsors",
+              "Nicolas Szekasy",
+              "Wall Street capital",
+              "Nestle",
+              "Rodrigo Benzaquen"
+            ],
+            "page": 1,
+            "retrieval_path_diagnostics": {
+              "canonical_via_resolves_to": [],
+              "cluster_canonical_via_aligned_with": [],
+              "cluster_memberships": [],
+              "has_participant_edges": [
+                {
+                  "claim_text": "Globant added a second pillar to the network.",
+                  "roles": [
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "Globant",
+                      "role": "subject"
+                    }
+                  ]
+                },
+                {
+                  "claim_text": "Globant was founded in Buenos Aires.",
+                  "roles": [
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "Globant",
+                      "role": "subject"
+                    },
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "Buenos Aires",
+                      "role": "object"
+                    }
+                  ]
+                },
+                {
+                  "claim_text": "Casares was introduced to investors in New York, Boston, and San Francisco through roadshows.",
+                  "roles": [
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "Casares",
+                      "role": "subject"
+                    }
+                  ]
+                },
+                {
+                  "claim_text": "Patagon was later sold to Santander.",
+                  "roles": [
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "Patagon",
+                      "role": "subject"
+                    },
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "Santander",
+                      "role": "object"
+                    }
+                  ]
+                },
+                {
+                  "claim_text": "Globant served clients such as Google, Disney, Electronic Arts, Nestle, and American Express.",
+                  "roles": [
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "Globant",
+                      "role": "subject"
+                    }
+                  ]
+                },
+                {
+                  "claim_text": "The companies were different, but the board members, mentors, sponsors, and conference circuits kept overlapping.",
+                  "roles": []
+                },
+                {
+                  "claim_text": "Globant grew into a software, AI, and digital transformation company.",
+                  "roles": [
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "Globant",
+                      "role": "subject"
+                    }
+                  ]
+                },
+                {
+                  "claim_text": "The Southern Cone felt like an unusually dense cluster of founders, venture vehicles, and crypto infrastructure firms.",
+                  "roles": [
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "Southern Cone",
+                      "role": "subject"
+                    }
+                  ]
+                },
+                {
+                  "claim_text": "Casares looks like a hinge connecting Argentine entrepreneurship, Wall Street capital, Silicon Valley prestige, and the early mythology of Bitcoin custody.",
+                  "roles": [
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "Casares",
+                      "role": "subject"
+                    }
+                  ]
+                },
+                {
+                  "claim_text": "The same narrative current also carried Sebasti\u00e1n Serrano of Ripio, Rodrigo Benzaquen of Moneero, Andy Freire, Nicolas Szekasy, and Kaszek Ventures.",
+                  "roles": []
+                }
+              ]
+            },
+            "run_id": "unstructured_ingest-20260330T002742463246Z-df955600",
+            "score": 0.6874677538871765,
+            "source_uri": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf",
+            "start_char": 3200
+          }
+        },
+        {
+          "content": "California, New York, London, and\nMadrid through clients, investors, directors, and policy networks.\nThe  cast  widened  further  with  Kiva,  Better  Than  Cash  Alliance,  the  United  Nations,  the  Rockefeller\nFoundation, the Gates Foundation, Co-Develop, and digital identity efforts in places such as Sierra Leone. In\nthe simplified telling, these names form another layer of the same map: fintech for the unbanked, digital\nIDs, blockchain rails, and payment modernization in the Global South. Omidyar\u2019s ecosystem linked eBay and\nPayPal to later nonprofit and policy initiatives, while Hoffman linked venture capital, political influence, and\nplatform power . The article also mentioned Howard Cox, George Tenet, Mayo Shattuck III, Larry Summers,\nand other figures who made the boundary between finance, intelligence, and technology feel porous,\nespecially  when  companies  such  as  In-Q-tel-backed  firms,  Palantir-adjacent  networks,  or  surveillance-\noriented platforms appeared in the \n[Claim context \u2014 explicit roles via participation edges]\n  \u2022 Digital identity efforts were mentioned in places such as Sierra Leone. [object='Sierra Leone' (match: raw_exact)]\n  \u2022 Hoffman linked venture capital, political influence, and platform power. [subject='Hoffman' (match: raw_exact)]\n  \u2022 Omidyar\u2019s ecosystem linked eBay and PayPal to later nonprofit and policy initiatives.\n  \u2022 Companies such as In-Q-tel-backed firms, Palantir-adjacent networks, or surveillance-oriented platforms appeared in the article context.\n  \u2022 Kiva, Better Than Cash Alliance, the United Nations, the Rockefeller Foundation, the Gates Foundation, and Co-Develop were part of a widened cast connected to fintech for the unbanked, digital IDs, blockchain rails, and payment modernization in the Global South.\n  \u2022 The article mentioned Howard Cox, George Tenet, Mayo Shattuck III, and Larry Summers as figures making the boundary between finance, intelligence, and technology feel porous.\n[CITATION|chunk_id=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:6|run_id=unstructured_ingest-20260330T002742463246Z-df955600|source_uri=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf|chunk_index=6|page=2|start_char=4790|end_char=5788]",
+          "metadata": {
+            "canonical_entities": [],
+            "chunk_id": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:6",
+            "chunk_index": 6,
+            "citation_object": {
+              "chunk_id": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:6",
+              "chunk_index": 6,
+              "end_char": 5788,
+              "page": 2,
+              "run_id": "unstructured_ingest-20260330T002742463246Z-df955600",
+              "source_uri": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf",
+              "start_char": 4790
+            },
+            "citation_token": "[CITATION|chunk_id=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:6|run_id=unstructured_ingest-20260330T002742463246Z-df955600|source_uri=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf|chunk_index=6|page=2|start_char=4790|end_char=5788]",
+            "claim_details": [
+              {
+                "claim_text": "Digital identity efforts were mentioned in places such as Sierra Leone.",
+                "roles": [
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "Sierra Leone",
+                    "role": "object"
+                  }
+                ]
+              },
+              {
+                "claim_text": "Hoffman linked venture capital, political influence, and platform power.",
+                "roles": [
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "Hoffman",
+                    "role": "subject"
+                  }
+                ]
+              },
+              {
+                "claim_text": "Omidyar\u2019s ecosystem linked eBay and PayPal to later nonprofit and policy initiatives.",
+                "roles": []
+              },
+              {
+                "claim_text": "Companies such as In-Q-tel-backed firms, Palantir-adjacent networks, or surveillance-oriented platforms appeared in the article context.",
+                "roles": []
+              },
+              {
+                "claim_text": "Kiva, Better Than Cash Alliance, the United Nations, the Rockefeller Foundation, the Gates Foundation, and Co-Develop were part of a widened cast connected to fintech for the unbanked, digital IDs, blockchain rails, and payment modernization in the Global South.",
+                "roles": []
+              },
+              {
+                "claim_text": "The article mentioned Howard Cox, George Tenet, Mayo Shattuck III, and Larry Summers as figures making the boundary between finance, intelligence, and technology feel porous.",
+                "roles": []
+              }
+            ],
+            "claims": [
+              "Digital identity efforts were mentioned in places such as Sierra Leone.",
+              "Hoffman linked venture capital, political influence, and platform power.",
+              "Omidyar\u2019s ecosystem linked eBay and PayPal to later nonprofit and policy initiatives.",
+              "Companies such as In-Q-tel-backed firms, Palantir-adjacent networks, or surveillance-oriented platforms appeared in the article context.",
+              "Kiva, Better Than Cash Alliance, the United Nations, the Rockefeller Foundation, the Gates Foundation, and Co-Develop were part of a widened cast connected to fintech for the unbanked, digital IDs, blockchain rails, and payment modernization in the Global South.",
+              "The article mentioned Howard Cox, George Tenet, Mayo Shattuck III, and Larry Summers as figures making the boundary between finance, intelligence, and technology feel porous."
+            ],
+            "empty_chunk_text": false,
+            "end_char": 5788,
+            "mentions": [
+              "Global South",
+              "Gates Foundation",
+              "New York",
+              "Rockefeller Foundation",
+              "Sierra Leone",
+              "Larry Summers",
+              "London",
+              "Howard Cox",
+              "Mayo Shattuck III",
+              "Madrid",
+              "Kiva",
+              "California",
+              "Omidyar",
+              "eBay",
+              "Co-Develop",
+              "surveillance-oriented platforms",
+              "PayPal",
+              "United Nations",
+              "In-Q-tel-backed firms",
+              "Better Than Cash Alliance",
+              "Palantir-adjacent networks",
+              "Hoffman",
+              "George Tenet"
+            ],
+            "page": 2,
+            "retrieval_path_diagnostics": {
+              "canonical_via_resolves_to": [],
+              "cluster_canonical_via_aligned_with": [],
+              "cluster_memberships": [],
+              "has_participant_edges": [
+                {
+                  "claim_text": "Digital identity efforts were mentioned in places such as Sierra Leone.",
+                  "roles": [
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "Sierra Leone",
+                      "role": "object"
+                    }
+                  ]
+                },
+                {
+                  "claim_text": "Hoffman linked venture capital, political influence, and platform power.",
+                  "roles": [
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "Hoffman",
+                      "role": "subject"
+                    }
+                  ]
+                },
+                {
+                  "claim_text": "Omidyar\u2019s ecosystem linked eBay and PayPal to later nonprofit and policy initiatives.",
+                  "roles": []
+                },
+                {
+                  "claim_text": "Companies such as In-Q-tel-backed firms, Palantir-adjacent networks, or surveillance-oriented platforms appeared in the article context.",
+                  "roles": []
+                },
+                {
+                  "claim_text": "Kiva, Better Than Cash Alliance, the United Nations, the Rockefeller Foundation, the Gates Foundation, and Co-Develop were part of a widened cast connected to fintech for the unbanked, digital IDs, blockchain rails, and payment modernization in the Global South.",
+                  "roles": []
+                },
+                {
+                  "claim_text": "The article mentioned Howard Cox, George Tenet, Mayo Shattuck III, and Larry Summers as figures making the boundary between finance, intelligence, and technology feel porous.",
+                  "roles": []
+                }
+              ]
+            },
+            "run_id": "unstructured_ingest-20260330T002742463246Z-df955600",
+            "score": 0.6598634719848633,
+            "source_uri": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf",
+            "start_char": 4790
+          }
+        },
+        {
+          "content": "intelligence, and technology feel porous,\nespecially  when  companies  such  as  In-Q-tel-backed  firms,  Palantir-adjacent  networks,  or  surveillance-\noriented platforms appeared in the background.\nBy the time the narrative reached more recent years, the map included satellites, stablecoins, and national\npolitics. Emiliano Kargieman\u2019s Satellogic appeared with Steve Mnuchin, Joe Dunford, Howard Lutnick, Tether\nInvestments,  Brock  Pierce,  and  Cantor  Fitzgerald.  The  regional  conversation  touched  Argentina,  Brazil,\nUruguay, Chile, Mexico, and the broader Latin American market, but it also kept circling back to New York,\nWashington,  Silicon  Valley,  Israel,  and  global  institutions.  Figures  associated  with  the  World  Jewish\nCongress, AIPAC, the Aspen Global Leadership Network, and the World Economic Forum sat near founders\nbuilding payments companies, crypto exchanges, AI consultancies, and e-commerce platforms. For a graph\ndatabase demo, that mixture is useful because\n[Claim context \u2014 explicit roles via participation edges]\n  \u2022 Emiliano Kargieman\u2019s Satellogic appeared with Steve Mnuchin, Joe Dunford, Howard Lutnick, Tether Investments, Brock Pierce, and Cantor Fitzgerald. [subject='Satellogic' (match: raw_exact)]\n[CITATION|chunk_id=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:7|run_id=unstructured_ingest-20260330T002742463246Z-df955600|source_uri=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf|chunk_index=7|page=2|start_char=5600|end_char=6599]",
+          "metadata": {
+            "canonical_entities": [],
+            "chunk_id": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:7",
+            "chunk_index": 7,
+            "citation_object": {
+              "chunk_id": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:7",
+              "chunk_index": 7,
+              "end_char": 6599,
+              "page": 2,
+              "run_id": "unstructured_ingest-20260330T002742463246Z-df955600",
+              "source_uri": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf",
+              "start_char": 5600
+            },
+            "citation_token": "[CITATION|chunk_id=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf:7|run_id=unstructured_ingest-20260330T002742463246Z-df955600|source_uri=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf|chunk_index=7|page=2|start_char=5600|end_char=6599]",
+            "claim_details": [
+              {
+                "claim_text": "Emiliano Kargieman\u2019s Satellogic appeared with Steve Mnuchin, Joe Dunford, Howard Lutnick, Tether Investments, Brock Pierce, and Cantor Fitzgerald.",
+                "roles": [
+                  {
+                    "match_method": "raw_exact",
+                    "mention_name": "Satellogic",
+                    "role": "subject"
+                  }
+                ]
+              }
+            ],
+            "claims": [
+              "Emiliano Kargieman\u2019s Satellogic appeared with Steve Mnuchin, Joe Dunford, Howard Lutnick, Tether Investments, Brock Pierce, and Cantor Fitzgerald."
+            ],
+            "empty_chunk_text": false,
+            "end_char": 6599,
+            "mentions": [
+              "Joe Dunford",
+              "Steve Mnuchin",
+              "Satellogic",
+              "Mexico",
+              "Israel",
+              "Howard Lutnick",
+              "Emiliano Kargieman",
+              "Uruguay",
+              "Chile",
+              "AIPAC",
+              "Cantor Fitzgerald",
+              "Aspen Global Leadership Network",
+              "New York",
+              "Brock Pierce",
+              "Argentina",
+              "Brazil",
+              "Silicon Valley",
+              "World Jewish Congress",
+              "World Economic Forum",
+              "Latin American market",
+              "Washington",
+              "Tether Investments"
+            ],
+            "page": 2,
+            "retrieval_path_diagnostics": {
+              "canonical_via_resolves_to": [],
+              "cluster_canonical_via_aligned_with": [],
+              "cluster_memberships": [],
+              "has_participant_edges": [
+                {
+                  "claim_text": "Emiliano Kargieman\u2019s Satellogic appeared with Steve Mnuchin, Joe Dunford, Howard Lutnick, Tether Investments, Brock Pierce, and Cantor Fitzgerald.",
+                  "roles": [
+                    {
+                      "match_method": "raw_exact",
+                      "mention_name": "Satellogic",
+                      "role": "subject"
+                    }
+                  ]
+                }
+              ]
+            },
+            "run_id": "unstructured_ingest-20260330T002742463246Z-df955600",
+            "score": 0.6338385343551636,
+            "source_uri": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf",
+            "start_char": 5600
+          }
+        }
+      ],
+      "retrieval_scope": {
+        "all_runs": false,
+        "run_id": "unstructured_ingest-20260330T002742463246Z-df955600",
+        "scope_widened": false,
+        "source_uri": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf"
+      },
+      "retriever_index_name": "demo_chunk_embedding_index",
+      "retriever_type": "VectorCypherRetriever",
+      "retrievers": [
+        "VectorCypherRetriever",
+        "graph expansion"
+      ],
+      "run_id": "unstructured_ingest-20260330T002742463246Z-df955600",
+      "source_uri": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/unstructured/chain_of_custody.pdf",
+      "status": "live",
+      "top_k": 10,
+      "warnings": []
+    }
+  },
+  "started_at": "2026-03-30T00:47:10.490146+00:00"
+}
