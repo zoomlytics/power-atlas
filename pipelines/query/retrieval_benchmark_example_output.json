@@ -530,7 +530,7 @@
           "role": "subject",
           "claim_text": "Endeavor and MercadoLibre co-hosted an entrepreneurship summit.",
           "predicate": "co_hosted",
-          "match_method": "label_exact",
+          "match_method": "list_split",
           "claim_id": "claim-en-006"
         }
       ],
