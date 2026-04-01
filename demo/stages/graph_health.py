@@ -50,6 +50,8 @@ from typing import Any
 
 import neo4j
 
+from demo.stages.entity_resolution import build_entity_type_cypher_case as _build_entity_type_cypher_case
+
 _logger = logging.getLogger(__name__)
 
 __all__ = [
@@ -107,26 +109,35 @@ RETURN member_count, count(cluster) AS cluster_count
 ORDER BY member_count
 """
 
-_Q_CLUSTER_TYPE_FRAGMENTATION = """\
-MATCH (cluster:ResolvedEntityCluster)<-[:MEMBER_OF]-(m:EntityMention)
-WHERE ($run_id IS NULL OR cluster.run_id = $run_id)
-WITH cluster,
-     CASE
-       WHEN m.entity_type IS NULL OR trim(m.entity_type) = '' THEN 'UNKNOWN'
-       ELSE
-         CASE toUpper(trim(m.entity_type))
-           WHEN 'PERSON'        THEN 'Person'
-           WHEN 'ORG'           THEN 'Organization'
-           WHEN 'COMPANY'       THEN 'Organization'
-           WHEN 'ORGANIZATION'  THEN 'Organization'
-           ELSE trim(m.entity_type)
-         END
-     END AS normalized_type
-WITH cluster,
-     count(DISTINCT normalized_type) AS type_count
-RETURN type_count AS distinct_types_in_cluster, count(cluster) AS cluster_count
-ORDER BY type_count
-"""
+
+def _build_cluster_type_fragmentation_query() -> str:
+    """Build the cluster type-fragmentation Cypher query.
+
+    The normalization applied to ``m.entity_type`` inside the query is derived
+    directly from :func:`~demo.stages.entity_resolution.build_entity_type_cypher_case`,
+    which reflects the same :data:`~demo.stages.entity_resolution._ENTITY_TYPE_SYNONYMS`
+    table used by entity resolution at cluster-assignment time.  This ensures that
+    graph-health fragmentation diagnostics are semantically consistent with actual
+    clustering behaviour.
+    """
+    _indent = "     "  # aligns continuation lines under the opening CASE keyword
+    case_expr = _build_entity_type_cypher_case("m.entity_type")
+    indented_case = case_expr.replace("\n", "\n" + _indent)
+    return "".join(
+        [
+            "MATCH (cluster:ResolvedEntityCluster)<-[:MEMBER_OF]-(m:EntityMention)\n",
+            "WHERE ($run_id IS NULL OR cluster.run_id = $run_id)\n",
+            "WITH cluster,\n",
+            f"{_indent}{indented_case} AS normalized_type\n",
+            "WITH cluster,\n",
+            "     count(DISTINCT normalized_type) AS type_count\n",
+            "RETURN type_count AS distinct_types_in_cluster, count(cluster) AS cluster_count\n",
+            "ORDER BY type_count\n",
+        ]
+    )
+
+
+_Q_CLUSTER_TYPE_FRAGMENTATION = _build_cluster_type_fragmentation_query()
 
 _Q_ALIGNMENT_COVERAGE = """\
 MATCH (cluster:ResolvedEntityCluster)

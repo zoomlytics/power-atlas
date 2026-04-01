@@ -319,6 +319,95 @@ def _normalize_entity_type(entity_type: str | None) -> str | None:
     return _ENTITY_TYPE_SYNONYMS.get(entity_type, entity_type)
 
 
+# Allowlist for the `var` parameter of build_entity_type_cypher_case.
+# A safe Cypher variable reference consists of alphanumeric characters,
+# underscores, and dots (for property access, e.g. "m.entity_type").
+_SAFE_CYPHER_VAR_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$")
+
+
+def _escape_cypher_string(value: str) -> str:
+    """Escape a string value for embedding in a single-quoted Cypher literal.
+
+    Replaces each ``'`` with ``''`` (the Cypher escaping convention) so that
+    the caller can safely wrap the result in single quotes without producing
+    invalid Cypher or enabling injection.
+    """
+    return value.replace("'", "''")
+
+
+def build_entity_type_cypher_case(var: str, unknown_label: str = "UNKNOWN") -> str:
+    """Return a Cypher CASE expression that mirrors :func:`_normalize_entity_type`.
+
+    The generated expression is derived directly from :data:`_ENTITY_TYPE_SYNONYMS`
+    and therefore reflects the same normalization policy that determines cluster
+    identity during entity resolution.  Use this whenever a Cypher query needs
+    to apply entity-type normalization (e.g. graph-health type-fragmentation
+    diagnostics) so that the Cypher semantics stay automatically in sync with
+    the Python policy.
+
+    Matching is **case-sensitive** and does **not** strip whitespace, exactly
+    mirroring :func:`_normalize_entity_type` (which compares raw values directly
+    without trimming).
+
+    Parameters
+    ----------
+    var:
+        The Cypher variable or property expression whose value is the raw
+        ``entity_type`` string, e.g. ``"m.entity_type"``.  Must be a
+        dot-separated sequence of valid identifiers
+        (``[A-Za-z_][A-Za-z0-9_]*``); trailing dots and empty segments are
+        rejected to prevent Cypher injection.
+    unknown_label:
+        The literal string to emit when *var* is ``NULL`` or the empty string
+        (i.e. when :func:`_normalize_entity_type` would return ``None``).
+        Defaults to ``"UNKNOWN"``.  Single-quotes are escaped automatically.
+
+    Returns
+    -------
+    A Cypher expression string (without a trailing newline) suitable for use
+    in a ``WITH`` or ``RETURN`` clause.
+
+    Raises
+    ------
+    ValueError
+        If *var* does not match the safe allowlist pattern
+        ``[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*``
+        (dot-separated identifier segments; trailing dots and empty segments
+        are rejected).
+
+    Example
+    -------
+    With the default synonym table the expression produced for
+    ``var="m.entity_type"`` is equivalent to::
+
+        CASE
+          WHEN m.entity_type IS NULL OR m.entity_type = '' THEN 'UNKNOWN'
+          WHEN m.entity_type = 'ORG' THEN 'Organization'
+          WHEN m.entity_type = 'Company' THEN 'Organization'
+          WHEN m.entity_type = 'PERSON' THEN 'Person'
+          ELSE m.entity_type
+        END
+    """
+    if not _SAFE_CYPHER_VAR_RE.fullmatch(var):
+        raise ValueError(
+            f"Unsafe Cypher variable reference {var!r}: must match "
+            f"[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)* "
+            f"(dot-separated identifier segments; only alphanumerics and underscores)."
+        )
+    escaped_unknown = _escape_cypher_string(unknown_label)
+    when_lines = "\n".join(
+        f"  WHEN {var} = '{_escape_cypher_string(raw)}' THEN '{_escape_cypher_string(canonical)}'"
+        for raw, canonical in _ENTITY_TYPE_SYNONYMS.items()
+    )
+    return (
+        f"CASE\n"
+        f"  WHEN {var} IS NULL OR {var} = '' THEN '{escaped_unknown}'\n"
+        f"{when_lines}\n"
+        f"  ELSE {var}\n"
+        f"END"
+    )
+
+
 def _build_entity_type_report(
     mentions: list[dict[str, Any]],
 ) -> dict[str, Any]:
@@ -1708,6 +1797,7 @@ def run_entity_resolution(
 
 
 __all__ = [
+    "build_entity_type_cypher_case",
     "run_entity_resolution",
     "_build_entity_type_report",
     "_RESOLUTION_MODE_STRUCTURED_ANCHOR",
