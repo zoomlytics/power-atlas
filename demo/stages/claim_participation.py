@@ -317,6 +317,30 @@ class ParticipationMatchMetrics:
         the ambiguity count.
     list_split_suppressed_by_role:
         ``list_split_suppressed`` broken down by role.
+    list_split_full_success:
+        Slots where :func:`split_slot_text` yielded at least two parts **and**
+        every part found a matching mention (full composite recovery).  A slot
+        like ``"Amazon and eBay"`` where both ``"Amazon"`` and ``"eBay"`` match
+        counts here.
+    list_split_partial_success:
+        Slots where :func:`split_slot_text` yielded at least two parts, at
+        least one part matched, but at least one part also failed to match
+        (partial composite recovery).  A slot like ``"Amazon and UnknownCo"``
+        where only ``"Amazon"`` matches counts here.
+    list_split_no_success:
+        Slots where :func:`split_slot_text` yielded at least two parts but
+        **no** part found a matching mention (zero recovery after split).
+        These slots are also counted in ``unmatched_slots``.
+    list_split_total_parts:
+        Total number of individual parts examined across all split-eligible
+        slots (those where :func:`split_slot_text` returned ≥ 2 parts).
+    list_split_matched_parts:
+        Total number of parts (across all split-eligible slots) that found a
+        matching mention.  Always satisfies
+        ``list_split_matched_parts + list_split_unmatched_parts == list_split_total_parts``.
+    list_split_unmatched_parts:
+        Total number of parts (across all split-eligible slots) that failed to
+        find a matching mention.
     claims_with_any_edge:
         Number of distinct claims for which at least one participation edge was
         emitted (regardless of slot or method).
@@ -326,6 +350,11 @@ class ParticipationMatchMetrics:
         Up to :data:`_METRICS_SAMPLE_SIZE` claim IDs that contributed at least
         one ``list_split`` edge — useful for auditing composite/list-valued
         argument spans.
+    sample_list_split_partial_claim_ids:
+        Up to :data:`_METRICS_SAMPLE_SIZE` claim IDs with at least one
+        partial-success ``list_split`` slot (some parts matched, some did not)
+        — useful for identifying residual unmatched spans in composite
+        arguments.
     sample_unmatched_claim_ids:
         Up to :data:`_METRICS_SAMPLE_SIZE` claim IDs with at least one
         unmatched slot — useful for identifying extraction gaps.
@@ -345,9 +374,16 @@ class ParticipationMatchMetrics:
     ambiguous_by_role: dict[str, int]
     list_split_suppressed: int
     list_split_suppressed_by_role: dict[str, int]
+    list_split_full_success: int
+    list_split_partial_success: int
+    list_split_no_success: int
+    list_split_total_parts: int
+    list_split_matched_parts: int
+    list_split_unmatched_parts: int
     claims_with_any_edge: int
     claims_with_no_edges: int
     sample_list_split_claim_ids: list[str]
+    sample_list_split_partial_claim_ids: list[str]
     sample_unmatched_claim_ids: list[str]
     sample_ambiguous_claim_ids: list[str]
 
@@ -466,12 +502,21 @@ def build_participation_edges_with_metrics(
     claims_with_edge_set: set[str] = set()
     slots_processed = 0
 
+    list_split_full_success = 0
+    list_split_partial_success = 0
+    list_split_no_success = 0
+    list_split_total_parts = 0
+    list_split_matched_parts = 0
+    list_split_unmatched_parts = 0
+
     # Sample collectors — bounded by _METRICS_SAMPLE_SIZE to keep artifact small.
     # Each list has a companion set for O(1) duplicate detection (the linear
     # scan over the list would also work given the tiny cap, but the set is
     # cleaner and avoids any ordering-dependent behaviour).
     sample_list_split: list[str] = []
     _sample_list_split_seen: set[str] = set()
+    sample_list_split_partial: list[str] = []
+    _sample_list_split_partial_seen: set[str] = set()
     sample_unmatched: list[str] = []
     _sample_unmatched_seen: set[str] = set()
     sample_ambiguous: list[str] = []
@@ -570,11 +615,13 @@ def build_participation_edges_with_metrics(
 
             # method is None — zero candidates from whole-slot, try list-split.
             list_split_parts = split_slot_text(slot_str)
-            slot_had_list_split_edge = False
+            slot_part_total = len(list_split_parts)
+            slot_part_matched = 0
             for part in list_split_parts:
                 part_matched, _ = match_slot_to_mention(part, flat_mentions)
                 if part_matched is None:
                     continue
+                slot_part_matched += 1
                 mid = part_matched["mention_id"]
                 if mid in seen_for_slot:
                     continue  # deduplicate: same mention already linked for this slot
@@ -594,10 +641,28 @@ def build_participation_edges_with_metrics(
                 edges_by_method[MATCH_METHOD_LIST_SPLIT] += 1
                 edges_by_role[role] += 1
                 edges_by_role_and_method[role][MATCH_METHOD_LIST_SPLIT] += 1
-                slot_had_list_split_edge = True
                 _add_sample(sample_list_split, _sample_list_split_seen, claim_id)
 
-            if not slot_had_list_split_edge:
+            # Accumulate part-level totals for split-eligible slots.
+            list_split_total_parts += slot_part_total
+            list_split_matched_parts += slot_part_matched
+            list_split_unmatched_parts += slot_part_total - slot_part_matched
+
+            # Slot-level list-split outcome (only when split yielded ≥ 2 parts).
+            if slot_part_total >= 2:
+                if slot_part_matched == slot_part_total:
+                    list_split_full_success += 1
+                elif slot_part_matched > 0:
+                    list_split_partial_success += 1
+                    _add_sample(
+                        sample_list_split_partial,
+                        _sample_list_split_partial_seen,
+                        claim_id,
+                    )
+                else:
+                    list_split_no_success += 1
+
+            if slot_part_matched == 0:
                 # No edge was produced for this slot: either no splittable
                 # separator was found or all split parts failed to match.
                 unmatched_slots += 1
@@ -622,9 +687,16 @@ def build_participation_edges_with_metrics(
         ambiguous_by_role=dict(ambiguous_by_role),
         list_split_suppressed=list_split_suppressed,
         list_split_suppressed_by_role=dict(list_split_suppressed_by_role),
+        list_split_full_success=list_split_full_success,
+        list_split_partial_success=list_split_partial_success,
+        list_split_no_success=list_split_no_success,
+        list_split_total_parts=list_split_total_parts,
+        list_split_matched_parts=list_split_matched_parts,
+        list_split_unmatched_parts=list_split_unmatched_parts,
         claims_with_any_edge=claims_with_any_edge,
         claims_with_no_edges=claims_processed - claims_with_any_edge,
         sample_list_split_claim_ids=sample_list_split,
+        sample_list_split_partial_claim_ids=sample_list_split_partial,
         sample_unmatched_claim_ids=sample_unmatched,
         sample_ambiguous_claim_ids=sample_ambiguous,
     )
