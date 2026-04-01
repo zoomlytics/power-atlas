@@ -355,6 +355,30 @@ class ParticipationMatchMetrics:
         partial-success ``list_split`` slot (some parts matched, some did not)
         — useful for identifying residual unmatched spans in composite
         arguments.
+    residual_list_split_partial:
+        Up to :data:`_METRICS_SAMPLE_SIZE` per-slot residual diagnostics for
+        partial-success ``list_split`` cases.  Each entry is a dict with keys:
+
+        ``claim_id``
+            The claim that owns the slot.
+        ``slot``
+            The slot name (``"subject"`` or ``"object"``).
+        ``slot_text``
+            The original, un-modified slot text as written in the claim.
+        ``parts``
+            All constituent parts produced by :func:`split_slot_text`.
+        ``matched_parts``
+            The subset of *parts* for which a matching mention was found.
+        ``unmatched_parts``
+            The subset of *parts* for which no matching mention was found.
+
+        These diagnostics allow reviewers to inspect *which* split
+        constituents failed without reconstructing them from claim text alone.
+        The list is populated **only** for partial-success slots (i.e. those
+        where at least one part matched *and* at least one part did not).
+        Entries are bounded by :data:`_METRICS_SAMPLE_SIZE` to keep the
+        artifact size small.  This field is purely observational and does not
+        affect any matching behaviour.
     sample_unmatched_claim_ids:
         Up to :data:`_METRICS_SAMPLE_SIZE` claim IDs with at least one
         unmatched slot — useful for identifying extraction gaps.
@@ -384,6 +408,7 @@ class ParticipationMatchMetrics:
     claims_with_no_edges: int
     sample_list_split_claim_ids: list[str]
     sample_list_split_partial_claim_ids: list[str]
+    residual_list_split_partial: list[dict[str, Any]]
     sample_unmatched_claim_ids: list[str]
     sample_ambiguous_claim_ids: list[str]
 
@@ -517,6 +542,7 @@ def build_participation_edges_with_metrics(
     _sample_list_split_seen: set[str] = set()
     sample_list_split_partial: list[str] = []
     _sample_list_split_partial_seen: set[str] = set()
+    residual_list_split_partial: list[dict[str, Any]] = []
     sample_unmatched: list[str] = []
     _sample_unmatched_seen: set[str] = set()
     sample_ambiguous: list[str] = []
@@ -617,10 +643,14 @@ def build_participation_edges_with_metrics(
             list_split_parts = split_slot_text(slot_str)
             slot_part_total = len(list_split_parts)
             slot_part_matched = 0
+            matched_part_texts: list[str] = []
+            unmatched_part_texts: list[str] = []
             for part in list_split_parts:
                 part_matched, _ = match_slot_to_mention(part, flat_mentions)
                 if part_matched is None:
+                    unmatched_part_texts.append(part)
                     continue
+                matched_part_texts.append(part)
                 slot_part_matched += 1
                 mid = part_matched["mention_id"]
                 if mid in seen_for_slot:
@@ -659,6 +689,17 @@ def build_participation_edges_with_metrics(
                         _sample_list_split_partial_seen,
                         claim_id,
                     )
+                    if len(residual_list_split_partial) < _METRICS_SAMPLE_SIZE:
+                        residual_list_split_partial.append(
+                            {
+                                "claim_id": claim_id,
+                                "slot": slot,
+                                "slot_text": slot_str,
+                                "parts": list(list_split_parts),
+                                "matched_parts": matched_part_texts,
+                                "unmatched_parts": unmatched_part_texts,
+                            }
+                        )
                 else:
                     list_split_no_success += 1
 
@@ -697,6 +738,7 @@ def build_participation_edges_with_metrics(
         claims_with_no_edges=claims_processed - claims_with_any_edge,
         sample_list_split_claim_ids=sample_list_split,
         sample_list_split_partial_claim_ids=sample_list_split_partial,
+        residual_list_split_partial=residual_list_split_partial,
         sample_unmatched_claim_ids=sample_unmatched,
         sample_ambiguous_claim_ids=sample_ambiguous,
     )

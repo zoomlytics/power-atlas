@@ -2007,6 +2007,7 @@ class TestBuildParticipationEdgesWithMetrics(unittest.TestCase):
             "claims_with_no_edges",
             "sample_list_split_claim_ids",
             "sample_list_split_partial_claim_ids",
+            "residual_list_split_partial",
             "sample_unmatched_claim_ids",
             "sample_ambiguous_claim_ids",
         }
@@ -2174,3 +2175,166 @@ class TestBuildParticipationEdgesWithMetrics(unittest.TestCase):
             len(set(metrics.sample_list_split_partial_claim_ids)),
         )
         self.assertIn("c1", metrics.sample_list_split_partial_claim_ids)
+
+
+# ---------------------------------------------------------------------------
+# TestResidualListSplitPartial
+# ---------------------------------------------------------------------------
+
+
+class TestResidualListSplitPartial(unittest.TestCase):
+    """residual_list_split_partial diagnostics for partial-success list-split slots."""
+
+    # --- basic population ---
+
+    def test_partial_success_slot_populates_residual(self):
+        # "Amazon and UnknownCo" — Amazon matches, UnknownCo does not → one entry.
+        mentions = [_mention("Amazon", "m-a")]
+        claims = [_claim("c-partial", obj="Amazon and UnknownCo")]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertEqual(len(metrics.residual_list_split_partial), 1)
+
+    def test_residual_entry_has_correct_claim_id(self):
+        mentions = [_mention("Amazon", "m-a")]
+        claims = [_claim("c-partial", obj="Amazon and UnknownCo")]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertEqual(metrics.residual_list_split_partial[0]["claim_id"], "c-partial")
+
+    def test_residual_entry_has_correct_slot_name(self):
+        mentions = [_mention("Amazon", "m-a")]
+        claims = [_claim("c-partial", obj="Amazon and UnknownCo")]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertEqual(metrics.residual_list_split_partial[0]["slot"], "object")
+
+    def test_residual_entry_has_correct_slot_text(self):
+        mentions = [_mention("Amazon", "m-a")]
+        claims = [_claim("c-partial", obj="Amazon and UnknownCo")]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertEqual(
+            metrics.residual_list_split_partial[0]["slot_text"], "Amazon and UnknownCo"
+        )
+
+    def test_residual_entry_has_all_parts(self):
+        mentions = [_mention("Amazon", "m-a")]
+        claims = [_claim("c-partial", obj="Amazon and UnknownCo")]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        entry = metrics.residual_list_split_partial[0]
+        self.assertIn("Amazon", entry["parts"])
+        self.assertIn("UnknownCo", entry["parts"])
+
+    def test_residual_entry_matched_parts_contains_matching_part(self):
+        mentions = [_mention("Amazon", "m-a")]
+        claims = [_claim("c-partial", obj="Amazon and UnknownCo")]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        entry = metrics.residual_list_split_partial[0]
+        self.assertIn("Amazon", entry["matched_parts"])
+        self.assertNotIn("UnknownCo", entry["matched_parts"])
+
+    def test_residual_entry_unmatched_parts_contains_failing_part(self):
+        mentions = [_mention("Amazon", "m-a")]
+        claims = [_claim("c-partial", obj="Amazon and UnknownCo")]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        entry = metrics.residual_list_split_partial[0]
+        self.assertIn("UnknownCo", entry["unmatched_parts"])
+        self.assertNotIn("Amazon", entry["unmatched_parts"])
+
+    def test_residual_entry_subject_slot(self):
+        # Partial success on subject slot → slot field should be "subject".
+        mentions = [_mention("Google", "m-g")]
+        claims = [_claim("c-subj", subject="Google and Ghost")]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertEqual(len(metrics.residual_list_split_partial), 1)
+        self.assertEqual(metrics.residual_list_split_partial[0]["slot"], "subject")
+
+    # --- full/no success not included ---
+
+    def test_full_success_does_not_populate_residual(self):
+        # Both parts match → full success, no residual entry.
+        mentions = [_mention("Amazon", "m-a"), _mention("eBay", "m-e")]
+        claims = [_claim("c-full", obj="Amazon and eBay")]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertEqual(metrics.residual_list_split_partial, [])
+
+    def test_no_success_does_not_populate_residual(self):
+        # Neither part matches → no success (and unmatched), no residual entry.
+        mentions = [_mention("Amazon", "m-a")]
+        claims = [_claim("c-none", obj="X and Y")]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertEqual(metrics.residual_list_split_partial, [])
+
+    def test_no_split_possible_does_not_populate_residual(self):
+        # No separator → list-split not attempted → no residual entry.
+        mentions = [_mention("Amazon", "m-a")]
+        claims = [_claim("c-nosplit", obj="Unknown")]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertEqual(metrics.residual_list_split_partial, [])
+
+    # --- multiple partial-success slots across claims ---
+
+    def test_multiple_partial_slots_produce_multiple_residual_entries(self):
+        # Claim c1: obj partial; claim c2: obj partial → two entries.
+        mentions = [_mention("Amazon", "m-a"), _mention("Google", "m-g")]
+        claims = [
+            _claim("c1", obj="Amazon and Missing1"),
+            _claim("c2", obj="Google and Missing2"),
+        ]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertEqual(len(metrics.residual_list_split_partial), 2)
+        claim_ids = {e["claim_id"] for e in metrics.residual_list_split_partial}
+        self.assertIn("c1", claim_ids)
+        self.assertIn("c2", claim_ids)
+
+    def test_claim_with_two_partial_slots_produces_two_residual_entries(self):
+        # One claim with both subject and object partially matching → two entries.
+        mentions = [_mention("Google", "m-g"), _mention("Amazon", "m-a")]
+        claims = [
+            _claim("c1", subject="Google and Missing1", obj="Amazon and Missing2")
+        ]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertEqual(len(metrics.residual_list_split_partial), 2)
+        slots = {e["slot"] for e in metrics.residual_list_split_partial}
+        self.assertIn("subject", slots)
+        self.assertIn("object", slots)
+
+    def test_three_part_split_with_two_matched(self):
+        # "A, B, and Unknown" — A and B match, Unknown does not.
+        mentions = [_mention("Google", "m-g"), _mention("Apple", "m-a")]
+        claims = [_claim("c1", obj="Google, Apple, and Unknown")]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertEqual(len(metrics.residual_list_split_partial), 1)
+        entry = metrics.residual_list_split_partial[0]
+        self.assertEqual(len(entry["matched_parts"]), 2)
+        self.assertEqual(len(entry["unmatched_parts"]), 1)
+        self.assertIn("Unknown", entry["unmatched_parts"])
+
+    # --- bounded sampling ---
+
+    def test_residual_list_split_partial_capped_at_sample_size(self):
+        from demo.stages.claim_participation import _METRICS_SAMPLE_SIZE
+        # Produce more than _METRICS_SAMPLE_SIZE partial-success slots.
+        mentions = [_mention(f"Entity{i}", f"m-{i}") for i in range(_METRICS_SAMPLE_SIZE + 5)]
+        claims = [
+            _claim(f"c{i}", obj=f"Entity{i} and UnknownX{i}")
+            for i in range(_METRICS_SAMPLE_SIZE + 5)
+        ]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        self.assertLessEqual(
+            len(metrics.residual_list_split_partial),
+            _METRICS_SAMPLE_SIZE,
+        )
+
+    # --- to_dict round-trip ---
+
+    def test_residual_list_split_partial_survives_to_dict(self):
+        import json
+        mentions = [_mention("Amazon", "m-a")]
+        claims = [_claim("c-partial", obj="Amazon and UnknownCo")]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        d = metrics.to_dict()
+        self.assertIn("residual_list_split_partial", d)
+        self.assertEqual(len(d["residual_list_split_partial"]), 1)
+        # Must be JSON-serialisable.
+        serialised = json.dumps(d)
+        self.assertIn("residual_list_split_partial", serialised)
+        self.assertIn("UnknownCo", serialised)
+
