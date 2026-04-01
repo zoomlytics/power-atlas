@@ -459,13 +459,19 @@ of your PR:
 1. Run the benchmark against the new representative run.
 2. Copy the new artifact to
    `pipelines/runs/<new-run-id>/retrieval_benchmark/retrieval_benchmark.json`.
-3. Add a `PROVENANCE.md` in the same directory documenting run provenance,
+3. Ensure the baseline path is **not** excluded by `.gitignore`.  Note that
+   `/pipelines/runs/*` is ignored by default, so you will need to update
+   `.gitignore` to add explicit negation exceptions for the new run directory
+   and its files (see the pattern already set for the current baseline).
+   Confirm with `git status` that the new baseline and its `PROVENANCE.md`
+   are tracked before committing.
+4. Add a `PROVENANCE.md` in the same directory documenting run provenance,
    redaction status, and why the run is considered representative.
-4. Update the **Baseline artifact** section in this rubric to point to the new
+5. Update the **Baseline artifact** section in this rubric to point to the new
    run directory and reflect the new expected values.
-5. Update the **Baseline artifact** section in `pipelines/query/README.md`
+6. Update the **Baseline artifact** section in `pipelines/query/README.md`
    similarly.
-6. Add a brief note in your PR description explaining what changed and why.
+7. Add a brief note in your PR description explaining what changed and why.
 
 ---
 

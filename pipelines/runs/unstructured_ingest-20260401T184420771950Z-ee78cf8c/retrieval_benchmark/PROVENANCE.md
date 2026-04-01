@@ -16,14 +16,18 @@
 - Source text is the `chain_of_custody.pdf` fixture included in
   `demo/fixtures/unstructured/`, so the run is fully reproducible from the
   committed fixture set.
-- Covers all nine benchmark case types: single_entity, fragmented_entity,
-  composite_claim, pairwise_entity, and canonical_vs_cluster comparisons.
+- Covers all five benchmark case types across nine cases: single_entity,
+  fragmented_entity, composite_claim, pairwise_entity, and
+  canonical_vs_cluster comparisons.
 
 ## Redaction
 
-No redaction was applied.  All `claim_id` values are `file://` URIs
-referencing the committed fixture PDF; no external or sensitive data is
-present.
+No redaction was applied.  All `claim_id` values are `file://` URIs that may
+include machine-specific absolute paths (for example, a local filesystem
+path) but contain no external or sensitive data and are treated as opaque
+identifiers; all content is derived from the committed `chain_of_custody.pdf`
+fixture.  The committed artifact normalizes these paths to repo-relative
+`file:///demo/fixtures/...` URIs.
 
 ## Benchmark summary
 
