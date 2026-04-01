@@ -1914,6 +1914,29 @@ Each entry in `case_results` includes:
 | `total_cluster_claims` | Sum of cluster-name claim counts across cases |
 | `total_pairwise_claims` | Sum of pairwise claim counts |
 
+### Baseline artifact
+
+A representative baseline artifact from a post-hybrid run is committed at:
+
+```
+pipelines/query/retrieval_benchmark_example_output.json
+```
+
+**Baseline summary figures** (run `unstructured_ingest-20240601T120000000000Z-abcd1234`, alignment `v1.0`):
+
+| Metric | Baseline |
+|--------|---------|
+| `total_cases` | 9 |
+| `fragmentation_detected_count` | 2 |
+| `entities_with_claims_canonical` | 8 |
+| `total_canonical_claims` | 38 |
+| `total_cluster_claims` | 40 |
+| `total_pairwise_claims` | 0 |
+
+Use this artifact as a regression reference when comparing future benchmark runs.
+For detailed per-case review thresholds and red/yellow/green movement guidance, see
+the **[Retrieval Benchmark Review Rubric](../../docs/architecture/retrieval-benchmark-review-rubric-v0.1.md)**.
+
 ### Interpreting benchmark results
 
 | Signal | Healthy | Suspicious |
