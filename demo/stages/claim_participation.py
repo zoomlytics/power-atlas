@@ -364,13 +364,18 @@ class ParticipationMatchMetrics:
         ``slot``
             The slot name (``"subject"`` or ``"object"``).
         ``slot_text``
-            The original, un-modified slot text as written in the claim.
+            The normalized/trimmed slot text (``slot_str``) used for splitting
+            — i.e. the value passed to :func:`split_slot_text`.  Leading and
+            trailing whitespace is stripped; the value is always a plain string.
         ``parts``
             All constituent parts produced by :func:`split_slot_text`.
         ``matched_parts``
             The subset of *parts* for which a matching mention was found.
         ``unmatched_parts``
-            The subset of *parts* for which no matching mention was found.
+            The subset of *parts* for which no matching mention was found,
+            including parts whose match was ambiguous (two or more candidates).
+            Ambiguous parts produce no edge and are treated as unmatched for
+            residual purposes to keep entries self-consistent.
 
         These diagnostics allow reviewers to inspect *which* split
         constituents failed without reconstructing them from claim text alone.
@@ -643,17 +648,16 @@ def build_participation_edges_with_metrics(
             list_split_parts = split_slot_text(slot_str)
             slot_part_total = len(list_split_parts)
             slot_part_matched = 0
-            slot_part_ambiguous = 0
             matched_part_texts: list[str] = []
             unmatched_part_texts: list[str] = []
-            ambiguous_part_texts: list[str] = []
             for part in list_split_parts:
                 part_matched, part_method = match_slot_to_mention(part, flat_mentions)
-                # Distinguish truly unmatched parts from ambiguous matches.
-                if part_method == MATCH_OUTCOME_AMBIGUOUS:
-                    ambiguous_part_texts.append(part)
-                    slot_part_ambiguous += 1
-                    continue
+                # Ambiguous part-level matches (MATCH_OUTCOME_AMBIGUOUS) produce no
+                # edge — treat them as unmatched for both residual diagnostics and
+                # part-level totals.  This keeps residual entries self-consistent
+                # (unmatched_parts is never empty when matched_parts is non-empty)
+                # and avoids surfacing separate ambiguous-part bookkeeping that
+                # would complicate residual interpretation.
                 if part_matched is None:
                     unmatched_part_texts.append(part)
                     continue
@@ -701,7 +705,7 @@ def build_participation_edges_with_metrics(
                             {
                                 "claim_id": claim_id,
                                 "slot": slot,
-                                "slot_text": slot_text,
+                                "slot_text": slot_str,
                                 "parts": list(list_split_parts),
                                 "matched_parts": matched_part_texts,
                                 "unmatched_parts": unmatched_part_texts,
