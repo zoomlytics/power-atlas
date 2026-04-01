@@ -107,9 +107,9 @@ scenario, check per-case `canonical_claim_count` vs `cluster_claim_count` alongs
 
 | Movement | Interpretation |
 |----------|---------------|
-| 🟢 **canonical ≥ cluster, delta ≤ 10** | Normal; small deltas represent minor alignment gaps or noise between canonical and cluster-name traversal. |
-| 🟡 **canonical < cluster** | Cluster-name traversal is returning claims not visible via the canonical path.  First check `fragmentation_detected_count` and per-case metrics; if not explained by expected fragmentation, investigate for fragmentation regressions or spuriously-named clusters. |
-| 🔴 **canonical drops sharply (> 20% decrease)** | Participation coverage may have regressed.  Check `participation_metrics.json` and `HAS_PARTICIPANT` edge counts. |
+| 🟢 **canonical ≥ cluster, delta within baseline range** | Normal; matches the baseline gap between canonical and cluster-name traversal (including any known fragmentation in the baseline). |
+| 🟡 **canonical < cluster with a materially larger gap than baseline and `fragmentation_detected_count` not increased** | Cluster-name traversal is returning more claims than the canonical path beyond what the baseline already shows.  This is unexpected — investigate for new fragmentation or spuriously-named clusters. |
+| 🔴 **canonical drops sharply (> 20% additional decrease vs baseline)** | Participation coverage may have regressed materially relative to baseline.  Check `participation_metrics.json` and `HAS_PARTICIPANT` edge counts. |
 
 ### `total_pairwise_claims`
 
