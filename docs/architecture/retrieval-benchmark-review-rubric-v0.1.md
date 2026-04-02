@@ -37,7 +37,7 @@ pipelines/runs/unstructured_ingest-20260401T184420771950Z-ee78cf8c/retrieval_ben
 > tables in this rubric, do **not** treat a lower `fragmentation_detected_count`
 > as suspicious if the decrease is explained by this PR-#433 normalization
 > change and the accompanying disappearance of `entity_type_case_split` hints.
-> See `PROVENANCE.md` § *Relationship to PR-#433* for details.
+> See `PROVENANCE.md` § *Relationship to PR #433 — normalization hardening* for details.
 
 **Run coordinates:**
 
