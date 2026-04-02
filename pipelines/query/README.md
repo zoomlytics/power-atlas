@@ -1951,7 +1951,7 @@ pipelines/runs/unstructured_ingest-20260401T184420771950Z-ee78cf8c/retrieval_ben
 | `total_pairwise_claims` | 0 |
 
 Use this artifact as the regression reference when comparing future benchmark runs.
-A reduction in `fragmentation_detected_count` after #433 is expected and not a
+A reduction in `fragmentation_detected_count` after PR #433 is expected and not a
 regression signal.
 
 #### Illustrative example artifact (schema reference only)
