@@ -708,8 +708,7 @@ class BenchmarkCaseResult:
     canonical_catalog_present:
         ``True`` when at least one ``CanonicalEntity`` node matched the entity
         name in the catalog existence check.  ``False`` when the entity is
-        absent from the structured catalog or when ``catalog_check_rows`` was
-        not populated.
+        absent from the structured catalog.
     """
 
     case_id: str
@@ -873,7 +872,7 @@ def build_benchmark_case_result(
     cluster_rows: list[dict[str, Any]],
     lower_layer_rows: list[dict[str, Any]],
     fragmentation_check_rows: list[dict[str, Any]],
-    catalog_check_rows: list[dict[str, Any]] | None = None,
+    catalog_check_rows: list[dict[str, Any]],
 ) -> BenchmarkCaseResult:
     """Build a :class:`BenchmarkCaseResult` from pre-fetched query rows.
 
@@ -895,9 +894,12 @@ def build_benchmark_case_result(
         Rows from the fragmentation check query.
     catalog_check_rows:
         Rows from the catalog existence check query (``CanonicalEntity`` nodes
-        matching the entity name).  When provided, enables the ``"catalog_absent"``
-        / ``"alignment_gap"`` hint distinction.  When ``None`` (default), the
-        ambiguous ``"catalog_absent_or_alignment_gap"`` token is emitted.
+        matching the entity name).  An empty list means no ``CanonicalEntity``
+        was found; a non-empty list means at least one node exists.  Always
+        provide this argument — pass ``[]`` when the catalog check returned no
+        results.  When this list is empty, the ``"catalog_absent"`` hint is
+        emitted (provided the canonical-empty / cluster-populated condition also
+        holds); when non-empty, the ``"alignment_gap"`` hint is emitted instead.
     """
     canonical_claim_count = _count_distinct_claims(canonical_rows)
     cluster_claim_count = _count_distinct_claims(cluster_rows)
@@ -908,7 +910,7 @@ def build_benchmark_case_result(
     fragmentation_type_hints = _classify_fragmentation_type(
         fragmentation_check_rows, canonical_rows, cluster_rows, catalog_check_rows
     )
-    canonical_catalog_present = bool(catalog_check_rows) if catalog_check_rows is not None else False
+    canonical_catalog_present = bool(catalog_check_rows)
 
     return BenchmarkCaseResult(
         case_id=case_def.case_id,
@@ -928,7 +930,7 @@ def build_benchmark_case_result(
         fragmentation_detected=fragmentation,
         canonical_empty_cluster_populated=canonical_empty_cluster_populated,
         fragmentation_type_hints=fragmentation_type_hints,
-        catalog_check_rows=catalog_check_rows if catalog_check_rows is not None else [],
+        catalog_check_rows=catalog_check_rows,
         canonical_catalog_present=canonical_catalog_present,
     )
 

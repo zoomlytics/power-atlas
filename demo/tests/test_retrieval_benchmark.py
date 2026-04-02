@@ -587,6 +587,7 @@ class TestBuildBenchmarkCaseResult(unittest.TestCase):
             cluster_rows=[],
             lower_layer_rows=[],
             fragmentation_check_rows=[],
+            catalog_check_rows=[],
         )
         self.assertIsInstance(result, BenchmarkCaseResult)
 
@@ -598,6 +599,7 @@ class TestBuildBenchmarkCaseResult(unittest.TestCase):
             cluster_rows=[],
             lower_layer_rows=[],
             fragmentation_check_rows=[],
+            catalog_check_rows=[],
         )
         self.assertEqual(result.canonical_claim_count, 5)
 
@@ -609,6 +611,7 @@ class TestBuildBenchmarkCaseResult(unittest.TestCase):
             cluster_rows=cluster_rows,
             lower_layer_rows=[],
             fragmentation_check_rows=[],
+            catalog_check_rows=[],
         )
         self.assertEqual(result.cluster_claim_count, 7)
 
@@ -621,6 +624,7 @@ class TestBuildBenchmarkCaseResult(unittest.TestCase):
             cluster_rows=[],
             lower_layer_rows=[],
             fragmentation_check_rows=frag_rows,
+            catalog_check_rows=[],
         )
         self.assertFalse(result.fragmentation_detected)
         self.assertEqual(result.cluster_name_cluster_count, 2)
@@ -635,6 +639,7 @@ class TestBuildBenchmarkCaseResult(unittest.TestCase):
             cluster_rows=[],
             lower_layer_rows=[],
             fragmentation_check_rows=frag_rows,
+            catalog_check_rows=[],
         )
         self.assertTrue(result.fragmentation_detected)
         self.assertEqual(result.canonical_cluster_count, 1)
@@ -648,6 +653,7 @@ class TestBuildBenchmarkCaseResult(unittest.TestCase):
             cluster_rows=[],
             lower_layer_rows=[],
             fragmentation_check_rows=[],
+            catalog_check_rows=[],
         )
         self.assertEqual(result.case_id, "my_case")
         self.assertEqual(result.case_type, "composite_claim")
@@ -663,6 +669,7 @@ class TestBuildBenchmarkCaseResult(unittest.TestCase):
             cluster_rows=[],
             lower_layer_rows=ll_rows,
             fragmentation_check_rows=[],
+            catalog_check_rows=[],
         )
         self.assertEqual(result.lower_layer_rows, ll_rows)
 
@@ -673,6 +680,7 @@ class TestBuildBenchmarkCaseResult(unittest.TestCase):
             cluster_rows=_make_cluster_rows(2),
             lower_layer_rows=_make_lower_layer_rows(2),
             fragmentation_check_rows=_make_frag_rows(1),
+            catalog_check_rows=[],
         )
         d = result.to_dict()
         serialised = json.dumps(d)
@@ -687,6 +695,7 @@ class TestBuildBenchmarkCaseResult(unittest.TestCase):
             cluster_rows=cluster_rows,
             lower_layer_rows=[],
             fragmentation_check_rows=[],
+            catalog_check_rows=[],
         )
         self.assertTrue(result.canonical_empty_cluster_populated)
 
@@ -699,6 +708,7 @@ class TestBuildBenchmarkCaseResult(unittest.TestCase):
             cluster_rows=cluster_rows,
             lower_layer_rows=[],
             fragmentation_check_rows=[],
+            catalog_check_rows=[],
         )
         self.assertFalse(result.canonical_empty_cluster_populated)
 
@@ -709,12 +719,13 @@ class TestBuildBenchmarkCaseResult(unittest.TestCase):
             cluster_rows=[],
             lower_layer_rows=[],
             fragmentation_check_rows=[],
+            catalog_check_rows=[],
         )
         self.assertFalse(result.canonical_empty_cluster_populated)
 
     def test_fragmentation_type_hints_entity_type_case_split(self) -> None:
         # Organization vs organization → case-split hint expected.
-        # No catalog_check_rows provided → ambiguous combined token expected too.
+        # catalog_check_rows=[] (catalog absent) → catalog_absent hint also expected.
         frag_rows = [
             {"cluster_id": "c1", "canonical_name": "ML", "entity_type": "Organization"},
             {"cluster_id": "c2", "canonical_name": "ML", "entity_type": "organization"},
@@ -725,9 +736,10 @@ class TestBuildBenchmarkCaseResult(unittest.TestCase):
             cluster_rows=_make_cluster_rows(2),
             lower_layer_rows=[],
             fragmentation_check_rows=frag_rows,
+            catalog_check_rows=[],
         )
         self.assertIn("entity_type_case_split", result.fragmentation_type_hints)
-        self.assertIn("catalog_absent_or_alignment_gap", result.fragmentation_type_hints)
+        self.assertIn("catalog_absent", result.fragmentation_type_hints)
 
     def test_fragmentation_type_hints_empty_when_healthy(self) -> None:
         canonical_rows = _make_canonical_rows(n_claims=3)
@@ -740,6 +752,7 @@ class TestBuildBenchmarkCaseResult(unittest.TestCase):
             cluster_rows=_make_cluster_rows(3),
             lower_layer_rows=[],
             fragmentation_check_rows=frag_rows,
+            catalog_check_rows=_make_catalog_check_rows(present=True),
         )
         self.assertEqual(result.fragmentation_type_hints, [])
 
@@ -750,6 +763,7 @@ class TestBuildBenchmarkCaseResult(unittest.TestCase):
             cluster_rows=[],
             lower_layer_rows=[],
             fragmentation_check_rows=[],
+            catalog_check_rows=[],
         )
         d = result.to_dict()
         self.assertIn("fragmentation_type_hints", d)
@@ -760,17 +774,6 @@ class TestBuildBenchmarkCaseResult(unittest.TestCase):
     # ------------------------------------------------------------------
     # canonical_catalog_present
     # ------------------------------------------------------------------
-
-    def test_canonical_catalog_present_false_when_catalog_check_rows_none(self) -> None:
-        # When catalog_check_rows is not provided, canonical_catalog_present defaults False.
-        result = build_benchmark_case_result(
-            case_def=_make_case_def(),
-            canonical_rows=[],
-            cluster_rows=[],
-            lower_layer_rows=[],
-            fragmentation_check_rows=[],
-        )
-        self.assertFalse(result.canonical_catalog_present)
 
     def test_canonical_catalog_present_false_when_catalog_check_rows_empty(self) -> None:
         result = build_benchmark_case_result(
@@ -805,17 +808,6 @@ class TestBuildBenchmarkCaseResult(unittest.TestCase):
             catalog_check_rows=catalog_rows,
         )
         self.assertEqual(result.catalog_check_rows, catalog_rows)
-
-    def test_catalog_check_rows_defaults_to_empty_list_when_none(self) -> None:
-        result = build_benchmark_case_result(
-            case_def=_make_case_def(),
-            canonical_rows=[],
-            cluster_rows=[],
-            lower_layer_rows=[],
-            fragmentation_check_rows=[],
-            catalog_check_rows=None,
-        )
-        self.assertEqual(result.catalog_check_rows, [])
 
     def test_alignment_gap_hint_when_catalog_present_and_canonical_empty(self) -> None:
         # canonical empty, cluster populated, catalog present → alignment_gap
