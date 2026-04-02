@@ -65,10 +65,10 @@ pipelines/runs/unstructured_ingest-20260401T184420771950Z-ee78cf8c/retrieval_ben
 
 **Notable baseline conditions (see PROVENANCE.md for full details):**
 
-- `mercadolibre_single` — canonical path returns zero rows (catalog absent or
-  alignment/name-filter gap); fragmentation detected via `Organization` /
-  `organization` entity-type split (**pre-#433 case-split condition**);
-  `canonical_empty_cluster_populated=True`,
+- `mercadolibre_single` — canonical path returns zero rows because MercadoLibre
+  is absent from the structured catalog for this run; fragmentation detected via
+  `Organization` / `organization` entity-type split (**pre-#433 case-split
+  condition**); `canonical_empty_cluster_populated=True`,
   `fragmentation_type_hints=["entity_type_case_split", "catalog_absent_or_alignment_gap"]`.
 - `endeavor_single` / `endeavor_composite` — fragmentation detected;
   `cluster_name_cluster_count=4` (two name variants × two entity-type case variants,
