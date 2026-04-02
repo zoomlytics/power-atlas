@@ -1719,8 +1719,36 @@ class TestEntityTypeDriftReport(unittest.TestCase):
         report = _build_entity_type_report(mentions)
         self.assertEqual(report["sentinel_label_warnings"], [])
 
+    def test_padded_sentinel_sets_raw_null_sentinel_seen(self):
+        """A padded sentinel like ' __null__ ' collides with the __null__ bucket.
 
-class TestFuzzyRatio(unittest.TestCase):
+        Regression test: sentinel collision detection must strip the raw value
+        before comparing so that padded forms are caught and the warning is
+        raised when null/empty mentions also exist.
+        """
+        mentions = [
+            {"mention_id": "m1", "name": "Acme"},  # entity_type absent → None
+            {"mention_id": "m2", "name": "Weird", "entity_type": " __null__ "},  # padded sentinel
+        ]
+        report = _build_entity_type_report(mentions)
+        # Padded sentinel merges into __null__ bucket in raw_counts
+        self.assertEqual(report["raw_counts"].get("__null__"), 2)
+        # Also merges in normalized_counts
+        self.assertEqual(report["normalized_counts"].get("__null__"), 2)
+        # Warning must be surfaced (collision between extractor-emitted sentinel and absent type)
+        self.assertEqual(len(report["sentinel_label_warnings"]), 1)
+        self.assertIn("__null__", report["sentinel_label_warnings"][0])
+
+    def test_padded_sentinel_alone_no_warning(self):
+        """A padded sentinel with no absent types should not produce a warning."""
+        mentions = [
+            {"mention_id": "m1", "name": "Weird", "entity_type": " __null__ "},
+        ]
+        report = _build_entity_type_report(mentions)
+        self.assertEqual(report["raw_counts"].get("__null__"), 1)
+        self.assertEqual(report["sentinel_label_warnings"], [])
+
+
     def test_identical_strings_return_one(self):
         self.assertAlmostEqual(_fuzzy_ratio("alice", "alice"), 1.0)
 

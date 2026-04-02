@@ -487,7 +487,7 @@ def _build_entity_type_report(
             null_or_empty_count += 1
             norm_key = _ENTITY_TYPE_NULL_SENTINEL
         else:
-            if raw == _ENTITY_TYPE_NULL_SENTINEL:
+            if raw.strip() == _ENTITY_TYPE_NULL_SENTINEL:
                 raw_null_sentinel_seen = True
             canonical = _normalize_entity_type(raw)
             # _normalize_entity_type returns None only for falsy or whitespace-only
@@ -510,7 +510,12 @@ def _build_entity_type_report(
     # surfaced in sentinel_label_warnings below.
     serialized_raw_counts: dict[str, int] = {}
     for k, v in raw_counts.items():
-        key = _ENTITY_TYPE_NULL_SENTINEL if k is None else k
+        # Collapse None, exact sentinel, and padded-sentinel (e.g. " __null__ ")
+        # into a single "__null__" bucket so raw_counts is collision-free.
+        if k is None or (isinstance(k, str) and k.strip() == _ENTITY_TYPE_NULL_SENTINEL):
+            key = _ENTITY_TYPE_NULL_SENTINEL
+        else:
+            key = k
         serialized_raw_counts[key] = serialized_raw_counts.get(key, 0) + v
 
     sentinel_label_warnings: list[str] = []
