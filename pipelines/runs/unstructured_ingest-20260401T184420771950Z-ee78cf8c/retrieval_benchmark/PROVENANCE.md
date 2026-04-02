@@ -112,7 +112,7 @@ or produce split hints.
 | Metric | Pre-#433 baseline value | Expected direction after #433 |
 |--------|------------------------|-------------------------------|
 | `fragmentation_detected_count` | 4 | May decrease (case-split clusters collapse) |
-| `canonical_empty_cluster_populated_count` | 2 | May decrease if MercadoLibre's entity_type normalizes out of the split |
+| `canonical_empty_cluster_populated_count` | 2 | Expected to remain unchanged from case normalization alone; only changes if canonical traversal starts matching MercadoLibre for non-normalization reasons (e.g., catalog/name-filter/alignment changes) |
 | `fragmentation_type_hints` containing `"entity_type_case_split"` | Present for `mercadolibre_single`, `mercadolibre_fragmentation`, `endeavor_single`, `endeavor_composite` | Expected to clear for cases where the only fragmentation was a case variant |
 
 A reduction in any of these figures in a post-#433 run is **expected
