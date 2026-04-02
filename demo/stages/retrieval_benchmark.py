@@ -763,7 +763,9 @@ def _compute_benchmark_summary(
     total_cluster_claims = sum(r.cluster_claim_count for r in case_results)
     total_pairwise_claims = sum(r.pairwise_claim_count for r in pairwise_results)
     canonical_empty_cluster_populated_count = sum(
-        1 for r in case_results if r.canonical_empty_cluster_populated
+        1
+        for r in case_results
+        if r.canonical_claim_count == 0 and r.cluster_claim_count > 0
     )
 
     return {
