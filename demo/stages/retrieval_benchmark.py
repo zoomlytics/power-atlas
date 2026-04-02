@@ -446,11 +446,14 @@ ORDER BY entity_type, canonical_name
 # Catalog existence check: does a CanonicalEntity node exist for this entity name?
 # Read-only, no joins to clusters or mentions.  Used to distinguish "catalog absent"
 # from "alignment gap" in the canonical-empty / cluster-populated result class.
+# Keep enough rows for diagnostics, but bound the result set so broad CONTAINS
+# matches do not cause excessive query time or oversized benchmark artifacts.
 _Q_CATALOG_EXISTENCE_CHECK = """\
 MATCH (ce:CanonicalEntity)
 WHERE toLower(ce.name) CONTAINS toLower($entity_name)
 RETURN ce.name AS canonical_entity_name
 ORDER BY ce.name
+LIMIT 100
 """
 
 # Pairwise canonical claim lookup — bidirectional
