@@ -1931,7 +1931,14 @@ Run provenance is documented in:
 pipelines/runs/unstructured_ingest-20260401T184420771950Z-ee78cf8c/retrieval_benchmark/PROVENANCE.md
 ```
 
-**Baseline summary figures** (run `unstructured_ingest-20260401T184420771950Z-ee78cf8c`, alignment `v1.0`):
+> **⚠️ Pre-PR-#433 reference point.**  This baseline was generated before PR **#433**
+> hardened `entity_type` normalization.  The `fragmentation_detected_count=4` and
+> all `entity_type_case_split` hints in this artifact reflect a now-addressed
+> normalization gap.  A post-PR-#433 run is expected to produce lower fragmentation
+> counts.  See `PROVENANCE.md` § *Relationship to PR #433* for the full impact
+> table.
+
+**Baseline summary figures** (run `unstructured_ingest-20260401T184420771950Z-ee78cf8c`, alignment `v1.0`, **pre-PR-#433**):
 
 | Metric | Baseline |
 |--------|---------|
@@ -1944,6 +1951,8 @@ pipelines/runs/unstructured_ingest-20260401T184420771950Z-ee78cf8c/retrieval_ben
 | `total_pairwise_claims` | 0 |
 
 Use this artifact as the regression reference when comparing future benchmark runs.
+A reduction in `fragmentation_detected_count` after PR #433 is expected and not a
+regression signal.
 
 #### Illustrative example artifact (schema reference only)
 
