@@ -651,7 +651,7 @@ def build_participation_edges_with_metrics(
             matched_part_texts: list[str] = []
             unmatched_part_texts: list[str] = []
             for part in list_split_parts:
-                part_matched, part_method = match_slot_to_mention(part, flat_mentions)
+                part_matched, _part_method = match_slot_to_mention(part, flat_mentions)
                 # Ambiguous part-level matches (MATCH_OUTCOME_AMBIGUOUS) produce no
                 # edge — treat them as unmatched for both residual diagnostics and
                 # part-level totals.  This keeps residual entries self-consistent
