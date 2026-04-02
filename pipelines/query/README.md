@@ -1938,7 +1938,7 @@ pipelines/runs/unstructured_ingest-20260401T184420771950Z-ee78cf8c/retrieval_ben
 > counts.  See `PROVENANCE.md` § *Relationship to PR #433* for the full impact
 > table.
 
-**Baseline summary figures** (run `unstructured_ingest-20260401T184420771950Z-ee78cf8c`, alignment `v1.0`, **pre-#433**):
+**Baseline summary figures** (run `unstructured_ingest-20260401T184420771950Z-ee78cf8c`, alignment `v1.0`, **pre-PR-#433**):
 
 | Metric | Baseline |
 |--------|---------|
