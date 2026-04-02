@@ -33,6 +33,10 @@ Structure
     documented contracts (all required fields non-empty, case_type values
     from the allowed set, entity_names non-empty, pairwise cases have two
     names, etc.).
+
+``TestCypherQueryHygiene``
+    Asserts that Cypher query constants do not use deprecated Neo4j functions
+    (e.g. ``id()``).
 """
 from __future__ import annotations
 
