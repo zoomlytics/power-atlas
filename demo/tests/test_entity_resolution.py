@@ -1484,6 +1484,24 @@ class TestEntityTypeDriftReport(unittest.TestCase):
         self.assertEqual(report["raw_counts"].get("__null__"), 1)
         self.assertEqual(report["null_or_empty_count"], 1)
 
+    def test_whitespace_only_entity_type_counted_as_null(self):
+        """Whitespace-only entity_type is treated as absent (null_or_empty bucket).
+
+        Regression test: _normalize_entity_type now strips whitespace and returns
+        None for whitespace-only inputs, so _build_entity_type_report must normalize
+        whitespace-only raw values to None before calling it to avoid a failed assert.
+        """
+        for ws in ("   ", "\t", " \t "):
+            with self.subTest(entity_type=repr(ws)):
+                mentions = [{"mention_id": "m1", "name": "Acme", "entity_type": ws}]
+                report = _build_entity_type_report(mentions)
+                self.assertEqual(report["raw_counts"].get("__null__"), 1,
+                                 msg=f"raw_counts should use __null__ sentinel for {ws!r}")
+                self.assertEqual(report["null_or_empty_count"], 1,
+                                 msg=f"null_or_empty_count should be 1 for {ws!r}")
+                self.assertEqual(report["normalized_counts"].get("__null__"), 1,
+                                 msg=f"normalized_counts should use __null__ sentinel for {ws!r}")
+
     def test_mapped_synonym_ORG_appears_in_mapped_variants(self):
         mentions = [{"mention_id": "m1", "name": "IBM", "entity_type": "ORG"}]
         report = _build_entity_type_report(mentions)

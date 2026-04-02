@@ -449,8 +449,8 @@ def _build_entity_type_report(
       (i.e. ``_ENTITY_TYPE_SYNONYMS`` entries) that were actually observed this run.
     * **passthrough_labels** — sorted list of non-empty labels that are *not* in
       the synonym table and are therefore returned unchanged by normalization.
-    * **null_or_empty_count** — number of mentions with ``None`` or ``""``
-      ``entity_type`` (they produce ``None`` after normalization).
+    * **null_or_empty_count** — number of mentions with ``None``, ``""``, or
+      whitespace-only ``entity_type`` (they produce ``None`` after normalization).
     * **sentinel_label_warnings** — list of human-readable warning strings (normally
       empty).  A non-empty entry means an upstream extractor emitted the literal
       string ``"__null__"``, which is the reserved sentinel; its counts are merged
@@ -475,9 +475,10 @@ def _build_entity_type_report(
 
     for mention in mentions:
         raw = mention.get("entity_type")
-        # Normalise empty string to None so counts are consistent with how
-        # _normalize_entity_type treats the two values identically.
-        if raw == "":
+        # Normalise empty and whitespace-only strings to None so counts are
+        # consistent with how _normalize_entity_type treats them: both are
+        # stripped to "" and return None.
+        if isinstance(raw, str) and not raw.strip():
             raw = None
 
         raw_counts[raw] = raw_counts.get(raw, 0) + 1
@@ -489,9 +490,10 @@ def _build_entity_type_report(
             if raw == _ENTITY_TYPE_NULL_SENTINEL:
                 raw_null_sentinel_seen = True
             canonical = _normalize_entity_type(raw)
-            # _normalize_entity_type only returns None when its input is falsy
-            # (None or "").  We know raw is a non-empty str here, so canonical
-            # is guaranteed to be a str.
+            # _normalize_entity_type returns None only for falsy or whitespace-only
+            # inputs.  The whitespace-only check above already normalized such raws
+            # to None, so raw here is always a non-empty non-whitespace str and
+            # canonical is guaranteed to be a str.
             assert canonical is not None
             if canonical != raw:
                 # raw was a mapped synonym
