@@ -206,7 +206,7 @@ but is invisible to the canonical (structured catalog) traversal path.  It is
 **not automatically a bug** — it is expected whenever an entity is absent from the
 structured catalog.
 
-### How to read `canonical_empty_cluster_populated` and `fragmentation_type_hints`
+### How to read the canonical-empty / cluster-populated diagnostic fields
 
 Each `BenchmarkCaseResult` now carries four classification fields:
 

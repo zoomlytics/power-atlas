@@ -183,8 +183,8 @@ def _make_case_result(
     canonical_empty_cluster_populated: bool = False,
     fragmentation_type_hints: list[str] | None = None,
     catalog_check_rows: list[dict[str, Any]] | None = None,
-    canonical_catalog_present: bool = False,
 ) -> BenchmarkCaseResult:
+    resolved_catalog_rows = catalog_check_rows if catalog_check_rows is not None else []
     return BenchmarkCaseResult(
         case_id=case_id,
         case_type="single_entity",
@@ -203,8 +203,8 @@ def _make_case_result(
         fragmentation_detected=fragmentation_detected,
         canonical_empty_cluster_populated=canonical_empty_cluster_populated,
         fragmentation_type_hints=fragmentation_type_hints if fragmentation_type_hints is not None else [],
-        catalog_check_rows=catalog_check_rows if catalog_check_rows is not None else [],
-        canonical_catalog_present=canonical_catalog_present,
+        catalog_check_rows=resolved_catalog_rows,
+        canonical_catalog_present=bool(resolved_catalog_rows),
     )
 
 
