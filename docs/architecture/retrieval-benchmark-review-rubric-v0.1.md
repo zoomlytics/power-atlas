@@ -28,16 +28,16 @@ pipelines/runs/unstructured_ingest-20260401T184420771950Z-ee78cf8c/retrieval_ben
 ```
 
 > **⚠️ Pre-PR-#433 reference point.**  This baseline was generated *before*
-> PR **#433** hardened `entity_type` normalization (lowercase-variant mapping,
+> PR-#433 hardened `entity_type` normalization (lowercase-variant mapping,
 > whitespace stripping, Cypher/Python policy sync).  The `entity_type_case_split`
 > fragmentation signals present in this artifact reflect a now-addressed
 > normalization gap.  A reduction in `fragmentation_detected_count` or the
-> clearing of `entity_type_case_split` hints in a post-#433 run is **expected
+> clearing of `entity_type_case_split` hints in a post-PR-#433 run is **expected
 > normalization fallout, not a regression**.  When reviewing later movement
 > tables in this rubric, do **not** treat a lower `fragmentation_detected_count`
 > as suspicious if the decrease is explained by this PR-#433 normalization
 > change and the accompanying disappearance of `entity_type_case_split` hints.
-> See `PROVENANCE.md` § *Relationship to PR #433* for details.
+> See `PROVENANCE.md` § *Relationship to PR-#433* for details.
 
 **Run coordinates:**
 
