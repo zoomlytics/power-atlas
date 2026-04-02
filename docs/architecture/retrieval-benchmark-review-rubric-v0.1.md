@@ -67,12 +67,12 @@ pipelines/runs/unstructured_ingest-20260401T184420771950Z-ee78cf8c/retrieval_ben
 
 - `mercadolibre_single` — canonical path returns zero rows because MercadoLibre
   is absent from the structured catalog for this run; fragmentation detected via
-  `Organization` / `organization` entity-type split (**pre-#433 case-split
+  `Organization` / `organization` entity-type split (**pre-PR-#433 case-split
   condition**); `canonical_empty_cluster_populated=True`,
   `fragmentation_type_hints=["entity_type_case_split", "catalog_absent_or_alignment_gap"]`.
 - `endeavor_single` / `endeavor_composite` — fragmentation detected;
   `cluster_name_cluster_count=4` (two name variants × two entity-type case variants,
-  **pre-#433 case-split condition**);
+  **pre-PR-#433 case-split condition**);
   `canonical_empty_cluster_populated=False` (canonical coverage is present).
 - `linda_rottenberg_single` — one dark mention (`claim_id=null`) present in
   `lower_layer_rows`.

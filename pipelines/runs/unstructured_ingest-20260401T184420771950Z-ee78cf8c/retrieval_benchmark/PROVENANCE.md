@@ -103,21 +103,21 @@ clusters for the same conceptual entity type.  Those separate clusters are
 what drive the `entity_type_case_split` fragmentation signals visible in the
 Notable conditions section above.  Note that raw `EntityMention.entity_type`
 values sourced from the extraction stage may still be mixed-case even after
-#433; what #433 fixes is normalization at cluster-assignment and Cypher query
+PR #433; what PR #433 fixes is normalization at cluster-assignment and Cypher query
 time, so that mixed-case mentions no longer fragment into separate clusters
 or produce split hints.
 
 ### What this means for interpreting count movement
 
-| Metric | pre-PR-#433 baseline value | Expected direction after #433 |
-|--------|---------------------------|-------------------------------|
+| Metric | pre-PR-#433 baseline value | Expected direction after PR #433 |
+|--------|---------------------------|----------------------------------|
 | `fragmentation_detected_count` | 4 | May decrease (case-split clusters collapse) |
 | `canonical_empty_cluster_populated_count` | 2 | Expected to remain unchanged from case normalization alone; only changes if canonical traversal starts matching MercadoLibre for non-normalization reasons (e.g., catalog/name-filter/alignment changes) |
 | `fragmentation_type_hints` containing `"entity_type_case_split"` | Present for `mercadolibre_single`, `mercadolibre_fragmentation`, `endeavor_single`, `endeavor_composite` | Expected to clear for cases where the only fragmentation was a case variant |
 
 A reduction in `fragmentation_detected_count` or in
 `fragmentation_type_hints` containing `"entity_type_case_split"` in a
-post-#433 run is **expected normalization fallout, not a regression**.
+post-PR-#433 run is **expected normalization fallout, not a regression**.
 Movement in `canonical_empty_cluster_populated_count` is **not** expected
 from case normalization alone and should be interpreted separately.  An
 increase in the fragmentation-related figures would indicate a new
@@ -125,14 +125,14 @@ fragmentation condition and warrants review.
 
 ### Refreshing this baseline
 
-If you re-run the benchmark after #433 merges and the figures change
+If you re-run the benchmark after PR #433 merges and the figures change
 materially, commit the new artifact under a new run-ID directory and update:
 
 - `docs/architecture/retrieval-benchmark-review-rubric-v0.1.md` — baseline
   summary table and per-case expected values;
 - `pipelines/query/README.md` — baseline summary figures.
 
-Until a post-#433 baseline is committed, treat this artifact as the
+Until a post-PR-#433 baseline is committed, treat this artifact as the
 **authoritative regression reference** while acknowledging that the
 `entity_type_case_split` signals it contains reflect a now-addressed
 normalization gap.
