@@ -96,10 +96,16 @@ PR **#433** hardened shared `entity_type` normalization in
 - keeping `build_entity_type_cypher_case` Cypher semantics in sync with the
   Python normalization policy.
 
-Because this run was executed **before** those changes landed, the graph
-still contained mixed-case `entity_type` values, producing the
-`entity_type_case_split` fragmentation signals visible in the Notable
-conditions section above.
+Because this run was executed **before** those changes landed,
+`ResolvedEntityCluster.entity_type` values were persisted with mixed casing
+(e.g., `"organization"` alongside `"Organization"`), producing separate
+clusters for the same conceptual entity type.  Those separate clusters are
+what drive the `entity_type_case_split` fragmentation signals visible in the
+Notable conditions section above.  Note that raw `EntityMention.entity_type`
+values sourced from the extraction stage may still be mixed-case even after
+#433; what #433 fixes is normalization at cluster-assignment and Cypher query
+time, so that mixed-case mentions no longer fragment into separate clusters
+or produce split hints.
 
 ### What this means for interpreting count movement
 

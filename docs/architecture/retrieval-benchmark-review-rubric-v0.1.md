@@ -33,8 +33,11 @@ pipelines/runs/unstructured_ingest-20260401T184420771950Z-ee78cf8c/retrieval_ben
 > fragmentation signals present in this artifact reflect a now-addressed
 > normalization gap.  A reduction in `fragmentation_detected_count` or the
 > clearing of `entity_type_case_split` hints in a post-#433 run is **expected
-> normalization fallout, not a regression**.  See
-> `PROVENANCE.md` § *Relationship to PR #433* for details.
+> normalization fallout, not a regression**.  When reviewing later movement
+> tables in this rubric, do **not** treat a lower `fragmentation_detected_count`
+> as suspicious if the decrease is explained by this PR-#433 normalization
+> change and the accompanying disappearance of `entity_type_case_split` hints.
+> See `PROVENANCE.md` § *Relationship to PR #433* for details.
 
 **Run coordinates:**
 
@@ -43,7 +46,7 @@ pipelines/runs/unstructured_ingest-20260401T184420771950Z-ee78cf8c/retrieval_ben
 | `run_id` | `unstructured_ingest-20260401T184420771950Z-ee78cf8c` |
 | `alignment_version` | `v1.0` |
 | `generated_at` | `2026-04-01T20:38:01Z` |
-| Normalization baseline | **pre-PR-#433** (entity_type case-split present) |
+| `Normalization baseline` | **pre-PR-#433** (entity_type case-split present) |
 
 **Baseline summary figures:**
 
