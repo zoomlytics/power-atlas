@@ -27,6 +27,15 @@ See the accompanying provenance document at:
 pipelines/runs/unstructured_ingest-20260401T184420771950Z-ee78cf8c/retrieval_benchmark/PROVENANCE.md
 ```
 
+> **⚠️ Pre-PR-#433 reference point.**  This baseline was generated *before*
+> PR **#433** hardened `entity_type` normalization (lowercase-variant mapping,
+> whitespace stripping, Cypher/Python policy sync).  The `entity_type_case_split`
+> fragmentation signals present in this artifact reflect a now-addressed
+> normalization gap.  A reduction in `fragmentation_detected_count` or the
+> clearing of `entity_type_case_split` hints in a post-#433 run is **expected
+> normalization fallout, not a regression**.  See
+> `PROVENANCE.md` § *Relationship to PR #433* for details.
+
 **Run coordinates:**
 
 | Field | Value |
@@ -34,6 +43,7 @@ pipelines/runs/unstructured_ingest-20260401T184420771950Z-ee78cf8c/retrieval_ben
 | `run_id` | `unstructured_ingest-20260401T184420771950Z-ee78cf8c` |
 | `alignment_version` | `v1.0` |
 | `generated_at` | `2026-04-01T20:38:01Z` |
+| Normalization baseline | **pre-PR-#433** (entity_type case-split present) |
 
 **Baseline summary figures:**
 
@@ -54,11 +64,12 @@ pipelines/runs/unstructured_ingest-20260401T184420771950Z-ee78cf8c/retrieval_ben
 
 - `mercadolibre_single` — canonical path returns zero rows (MercadoLibre absent
   from structured catalog); fragmentation detected via `Organization` /
-  `organization` entity-type split;
+  `organization` entity-type split (**pre-#433 case-split condition**);
   `canonical_empty_cluster_populated=True`,
   `fragmentation_type_hints=["entity_type_case_split", "catalog_absent_or_alignment_gap"]`.
 - `endeavor_single` / `endeavor_composite` — fragmentation detected;
-  `cluster_name_cluster_count=4` (two name variants × two entity-type case variants);
+  `cluster_name_cluster_count=4` (two name variants × two entity-type case variants,
+  **pre-#433 case-split condition**);
   `canonical_empty_cluster_populated=False` (canonical coverage is present).
 - `linda_rottenberg_single` — one dark mention (`claim_id=null`) present in
   `lower_layer_rows`.

@@ -82,6 +82,51 @@ python pipelines/query/retrieval_benchmark.py \
 Output will be written to
 `pipelines/runs/unstructured_ingest-20260401T184420771950Z-ee78cf8c/retrieval_benchmark/retrieval_benchmark.json`.
 
+## Relationship to PR #433 — normalization hardening
+
+**This baseline is a pre-PR-#433 reference point.**
+
+PR **#433** hardened shared `entity_type` normalization in
+`demo/stages/entity_resolution.py` and the companion Cypher helpers by:
+
+- mapping lowercase casing variants (`organization → Organization`,
+  `person → Person`, etc.) via `_normalize_entity_type` /
+  `_ENTITY_TYPE_SYNONYMS`;
+- stripping leading/trailing whitespace before normalization;
+- keeping `build_entity_type_cypher_case` Cypher semantics in sync with the
+  Python normalization policy.
+
+Because this run was executed **before** those changes landed, the graph
+still contained mixed-case `entity_type` values, producing the
+`entity_type_case_split` fragmentation signals visible in the Notable
+conditions section above.
+
+### What this means for interpreting count movement
+
+| Metric | Pre-#433 baseline value | Expected direction after #433 |
+|--------|------------------------|-------------------------------|
+| `fragmentation_detected_count` | 4 | May decrease (case-split clusters collapse) |
+| `canonical_empty_cluster_populated_count` | 2 | May decrease if MercadoLibre's entity_type normalizes out of the split |
+| `fragmentation_type_hints` containing `"entity_type_case_split"` | Present for `mercadolibre_single`, `mercadolibre_fragmentation`, `endeavor_single`, `endeavor_composite` | Expected to clear for cases where the only fragmentation was a case variant |
+
+A reduction in any of these figures in a post-#433 run is **expected
+normalization fallout, not a regression**.  An increase would indicate a
+new fragmentation condition and warrants review.
+
+### Refreshing this baseline
+
+If you re-run the benchmark after #433 merges and the figures change
+materially, commit the new artifact under a new run-ID directory and update:
+
+- `docs/architecture/retrieval-benchmark-review-rubric-v0.1.md` — baseline
+  summary table and per-case expected values;
+- `pipelines/query/README.md` — baseline summary figures.
+
+Until a post-#433 baseline is committed, treat this artifact as the
+**authoritative regression reference** while acknowledging that the
+`entity_type_case_split` signals it contains reflect a now-addressed
+normalization gap.
+
 ## Relationship to the illustrative example artifact
 
 The file at `pipelines/query/retrieval_benchmark_example_output.json` is a
