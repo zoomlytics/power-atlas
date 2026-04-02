@@ -66,7 +66,6 @@ __all__ = [
     "BenchmarkCaseDefinition",
     "BenchmarkCaseResult",
     "RetrievalBenchmarkArtifact",
-    "_classify_fragmentation_type",
     "build_benchmark_case_result",
     "build_benchmark_artifact",
     "run_retrieval_benchmark",
