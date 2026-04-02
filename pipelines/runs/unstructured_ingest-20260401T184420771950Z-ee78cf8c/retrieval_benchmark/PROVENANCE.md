@@ -37,6 +37,7 @@ fixture.  The committed artifact normalizes these paths to repo-relative
 | `single_and_comparison_cases` | 8 |
 | `pairwise_cases` | 1 |
 | `fragmentation_detected_count` | 4 |
+| `canonical_empty_cluster_populated_count` | 2 |
 | `entities_with_claims_canonical` | 6 |
 | `entities_with_claims_cluster` | 8 |
 | `total_canonical_claims` | 34 |
@@ -49,9 +50,16 @@ fixture.  The committed artifact normalizes these paths to repo-relative
   is populated.  MercadoLibre is not present in the structured catalog for this
   run, so the canonical path returns zero rows.  Fragmentation is still
   detected (`entity_type` split between `Organization` and `organization`).
+  Classification: `canonical_empty_cluster_populated=True`,
+  `fragmentation_type_hints=["entity_type_case_split", "catalog_absent_or_alignment_gap"]`.
+- **`mercadolibre_fragmentation`** — Same queries as `mercadolibre_single`;
+  `canonical_empty_cluster_populated=True` with the same hints.  This case
+  contributes to `canonical_empty_cluster_populated_count=2` in the baseline.
 - **`endeavor_single` / `endeavor_composite`** — Fragmentation detected:
   `organization` (lowercase) and `Organization` clusters exist in parallel;
   `cluster_name_cluster_count=4` (two name variants × two case variants).
+  `canonical_empty_cluster_populated=False` (canonical coverage is present);
+  `fragmentation_type_hints=["entity_type_case_split"]`.
 - **`linda_rottenberg_single`** — One dark mention (`claim_id=null`) in
   `lower_layer_rows` is present; all other mentions are fully participatory.
 - **`amazon_ebay_pairwise`** — Zero pairwise rows returned; acceptable under

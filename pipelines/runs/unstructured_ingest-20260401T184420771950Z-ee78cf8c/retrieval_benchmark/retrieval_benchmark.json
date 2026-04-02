@@ -9,12 +9,12 @@
       "entity_names": [
         "mercadolibre"
       ],
-      "description": "Single-entity canonical traversal for MercadoLibre. Exercises the canonical → cluster → mention → claim path for a well-known organization that may appear under multiple surface forms.",
+      "description": "Single-entity canonical traversal for MercadoLibre. Exercises the canonical \u2192 cluster \u2192 mention \u2192 claim path for a well-known organization that may appear under multiple surface forms.",
       "expected_shape": "For this baseline run: canonical_rows is empty (MercadoLibre is absent from the structured catalog), so canonical_claim_count=0 is expected. cluster_rows is populated with claims from the cluster-name path. fragmentation_detected=True is expected (entity_type split between Organization and organization). In a run where MercadoLibre is present in the catalog, expect at least one row with canonical_entity='MercadoLibre' and claims deduplicated across surface-form variants.",
       "failure_modes": [
-        "canonical_rows empty — expected for this baseline (MercadoLibre absent from structured catalog); in a future run with MercadoLibre in the catalog, canonical_rows empty indicates missing CanonicalEntity or ALIGNED_WITH edges",
-        "lower_layer_rows shows cluster with zero claims — participation stage gap",
-        "fragmentation_detected — cluster-name path returns more clusters than canonical"
+        "canonical_rows empty \u2014 expected for this baseline (MercadoLibre absent from structured catalog); in a future run with MercadoLibre in the catalog, canonical_rows empty indicates missing CanonicalEntity or ALIGNED_WITH edges",
+        "lower_layer_rows shows cluster with zero claims \u2014 participation stage gap",
+        "fragmentation_detected \u2014 cluster-name path returns more clusters than canonical"
       ],
       "canonical_rows": [],
       "cluster_rows": [
@@ -24,7 +24,7 @@
           "cluster_type": "organization",
           "mention": "MercadoLibre",
           "role": "object",
-          "claim_text": "Endeavor Argentina drew in Marcos Galperin of MercadoLibre, Guibert Englebienne and Martin Migoya of Globant, Maria Julia Bearzi, Eduardo Elzstain, and later figures orbiting Javier Milei’s business-friendly circles.",
+          "claim_text": "Endeavor Argentina drew in Marcos Galperin of MercadoLibre, Guibert Englebienne and Martin Migoya of Globant, Maria Julia Bearzi, Eduardo Elzstain, and later figures orbiting Javier Milei\u2019s business-friendly circles.",
           "predicate": "drew in",
           "match_method": "list_split",
           "claim_id": "file:///demo/fixtures/unstructured/chain_of_custody.pdf:2:26"
@@ -68,7 +68,7 @@
           "cluster_type": "organization",
           "mention": "MercadoLibre",
           "role": "subject",
-          "claim_text": "Galperin’s MercadoLibre became the most visible success story: an e-commerce and payments giant often compared to Amazon and eBay, with MercadoPago extending its reach.",
+          "claim_text": "Galperin\u2019s MercadoLibre became the most visible success story: an e-commerce and payments giant often compared to Amazon and eBay, with MercadoPago extending its reach.",
           "predicate": "became",
           "match_method": "raw_exact",
           "claim_id": "file:///demo/fixtures/unstructured/chain_of_custody.pdf:2:27"
@@ -79,7 +79,7 @@
           "cluster_type": "Organization",
           "mention": "MercadoLibre",
           "role": "subject",
-          "claim_text": "Galperin’s MercadoLibre became the most visible success story.",
+          "claim_text": "Galperin\u2019s MercadoLibre became the most visible success story.",
           "predicate": "became",
           "match_method": "raw_exact",
           "claim_id": "file:///demo/fixtures/unstructured/chain_of_custody.pdf:3:25"
@@ -124,7 +124,12 @@
       "cluster_claim_count": 8,
       "canonical_cluster_count": 0,
       "cluster_name_cluster_count": 2,
-      "fragmentation_detected": true
+      "fragmentation_detected": true,
+      "canonical_empty_cluster_populated": true,
+      "fragmentation_type_hints": [
+        "entity_type_case_split",
+        "catalog_absent_or_alignment_gap"
+      ]
     },
     {
       "case_id": "xapo_single",
@@ -135,9 +140,9 @@
       "description": "Single-entity canonical traversal for Xapo. Tests retrieval for a fintech entity that may appear under abbreviated and full-name surface forms.",
       "expected_shape": "Rows with canonical_entity containing 'Xapo', claims grouped under a single canonical entry point regardless of surface-form variation.",
       "failure_modes": [
-        "canonical_rows empty — Xapo not in structured catalog or alignment failed",
-        "cluster_rows returns zero results — entity not mentioned in unstructured source",
-        "multiple canonical_entity values — duplicate CanonicalEntity nodes"
+        "canonical_rows empty \u2014 Xapo not in structured catalog or alignment failed",
+        "cluster_rows returns zero results \u2014 entity not mentioned in unstructured source",
+        "multiple canonical_entity values \u2014 duplicate CanonicalEntity nodes"
       ],
       "canonical_rows": [
         {
@@ -252,7 +257,9 @@
       "cluster_claim_count": 3,
       "canonical_cluster_count": 1,
       "cluster_name_cluster_count": 1,
-      "fragmentation_detected": false
+      "fragmentation_detected": false,
+      "canonical_empty_cluster_populated": false,
+      "fragmentation_type_hints": []
     },
     {
       "case_id": "endeavor_single",
@@ -263,8 +270,8 @@
       "description": "Single-entity canonical traversal for Endeavor. Tests retrieval for a known entity present in the structured catalog and likely mentioned in unstructured sources.",
       "expected_shape": "Rows with canonical_entity containing 'Endeavor', at least one participating mention, and at least one associated claim.",
       "failure_modes": [
-        "canonical_rows empty — Endeavor not in structured catalog",
-        "lower_layer_rows shows zero claims — participation coverage gap"
+        "canonical_rows empty \u2014 Endeavor not in structured catalog",
+        "lower_layer_rows shows zero claims \u2014 participation coverage gap"
       ],
       "canonical_rows": [
         {
@@ -317,7 +324,7 @@
           "cluster": "Endeavor",
           "mention": "Endeavor",
           "role": "object",
-          "claim_text": "The company’s leadership appeared beside Endeavor, the Council of the Americas, Microsoft, and major banks.",
+          "claim_text": "The company\u2019s leadership appeared beside Endeavor, the Council of the Americas, Microsoft, and major banks.",
           "predicate": "appeared beside",
           "match_method": "list_split",
           "claim_id": "file:///demo/fixtures/unstructured/chain_of_custody.pdf:5:27"
@@ -429,7 +436,7 @@
           "cluster_type": "Organization",
           "mention": "Endeavor",
           "role": "object",
-          "claim_text": "The company’s leadership appeared beside Endeavor, the Council of the Americas, Microsoft, and major banks.",
+          "claim_text": "The company\u2019s leadership appeared beside Endeavor, the Council of the Americas, Microsoft, and major banks.",
           "predicate": "appeared beside",
           "match_method": "list_split",
           "claim_id": "file:///demo/fixtures/unstructured/chain_of_custody.pdf:5:27"
@@ -506,7 +513,7 @@
           "cluster_type": "organization",
           "mention": "Endeavor Argentina",
           "role": "subject",
-          "claim_text": "Endeavor Argentina drew in Marcos Galperin of MercadoLibre, Guibert Englebienne and Martin Migoya of Globant, Maria Julia Bearzi, Eduardo Elzstain, and later figures orbiting Javier Milei’s business-friendly circles.",
+          "claim_text": "Endeavor Argentina drew in Marcos Galperin of MercadoLibre, Guibert Englebienne and Martin Migoya of Globant, Maria Julia Bearzi, Eduardo Elzstain, and later figures orbiting Javier Milei\u2019s business-friendly circles.",
           "predicate": "drew in",
           "match_method": "raw_exact",
           "claim_id": "file:///demo/fixtures/unstructured/chain_of_custody.pdf:2:26"
@@ -561,7 +568,7 @@
           "mention_type": "Organization",
           "role": "object",
           "claim_id": "file:///demo/fixtures/unstructured/chain_of_custody.pdf:5:27",
-          "claim_text": "The company’s leadership appeared beside Endeavor, the Council of the Americas, Microsoft, and major banks."
+          "claim_text": "The company\u2019s leadership appeared beside Endeavor, the Council of the Americas, Microsoft, and major banks."
         },
         {
           "canonical_entity": "Endeavor",
@@ -640,7 +647,11 @@
       "cluster_claim_count": 12,
       "canonical_cluster_count": 2,
       "cluster_name_cluster_count": 4,
-      "fragmentation_detected": true
+      "fragmentation_detected": true,
+      "canonical_empty_cluster_populated": false,
+      "fragmentation_type_hints": [
+        "entity_type_case_split"
+      ]
     },
     {
       "case_id": "linda_rottenberg_single",
@@ -651,8 +662,8 @@
       "description": "Single-entity canonical traversal for Linda Rottenberg (Person). Tests retrieval for a named individual, verifying the person-entity path works symmetrically with org-entity cases.",
       "expected_shape": "Rows with canonical_entity containing 'Linda Rottenberg', entity_type='Person', claims where she appears as subject or object.",
       "failure_modes": [
-        "canonical_rows empty — Linda Rottenberg not in structured catalog",
-        "entity_type mismatch — mention clustered as Organization instead of Person",
+        "canonical_rows empty \u2014 Linda Rottenberg not in structured catalog",
+        "entity_type mismatch \u2014 mention clustered as Organization instead of Person",
         "lower_layer_rows shows cluster with zero claims"
       ],
       "canonical_rows": [
@@ -695,7 +706,7 @@
           "cluster": "Linda Rottenberg",
           "mention": "Linda Rottenberg",
           "role": "subject",
-          "claim_text": "Linda Rottenberg, Peter Kellner, Edgar Bronfman Jr., Pierre Omidyar, Reid Hoffman, Marcos Galperin, Martin Migoya, Wences Casares, Maria Julia Bearzi, Guibert Englebienne, Sebastián Serrano, and Emiliano Kargieman all become retrievable nodes in the same narrative web.",
+          "claim_text": "Linda Rottenberg, Peter Kellner, Edgar Bronfman Jr., Pierre Omidyar, Reid Hoffman, Marcos Galperin, Martin Migoya, Wences Casares, Maria Julia Bearzi, Guibert Englebienne, Sebasti\u00e1n Serrano, and Emiliano Kargieman all become retrievable nodes in the same narrative web.",
           "predicate": "become retrievable nodes in",
           "match_method": "list_split",
           "claim_id": "file:///demo/fixtures/unstructured/chain_of_custody.pdf:9:20"
@@ -741,7 +752,7 @@
           "cluster_type": "Person",
           "mention": "Linda Rottenberg",
           "role": "subject",
-          "claim_text": "Linda Rottenberg, Peter Kellner, Edgar Bronfman Jr., Pierre Omidyar, Reid Hoffman, Marcos Galperin, Martin Migoya, Wences Casares, Maria Julia Bearzi, Guibert Englebienne, Sebastián Serrano, and Emiliano Kargieman all become retrievable nodes in the same narrative web.",
+          "claim_text": "Linda Rottenberg, Peter Kellner, Edgar Bronfman Jr., Pierre Omidyar, Reid Hoffman, Marcos Galperin, Martin Migoya, Wences Casares, Maria Julia Bearzi, Guibert Englebienne, Sebasti\u00e1n Serrano, and Emiliano Kargieman all become retrievable nodes in the same narrative web.",
           "predicate": "become retrievable nodes in",
           "match_method": "list_split",
           "claim_id": "file:///demo/fixtures/unstructured/chain_of_custody.pdf:9:20"
@@ -786,7 +797,7 @@
           "mention_type": "Person",
           "role": "subject",
           "claim_id": "file:///demo/fixtures/unstructured/chain_of_custody.pdf:9:20",
-          "claim_text": "Linda Rottenberg, Peter Kellner, Edgar Bronfman Jr., Pierre Omidyar, Reid Hoffman, Marcos Galperin, Martin Migoya, Wences Casares, Maria Julia Bearzi, Guibert Englebienne, Sebastián Serrano, and Emiliano Kargieman all become retrievable nodes in the same narrative web."
+          "claim_text": "Linda Rottenberg, Peter Kellner, Edgar Bronfman Jr., Pierre Omidyar, Reid Hoffman, Marcos Galperin, Martin Migoya, Wences Casares, Maria Julia Bearzi, Guibert Englebienne, Sebasti\u00e1n Serrano, and Emiliano Kargieman all become retrievable nodes in the same narrative web."
         },
         {
           "canonical_entity": "Linda Rottenberg",
@@ -810,7 +821,9 @@
       "cluster_claim_count": 4,
       "canonical_cluster_count": 1,
       "cluster_name_cluster_count": 1,
-      "fragmentation_detected": false
+      "fragmentation_detected": false,
+      "canonical_empty_cluster_populated": false,
+      "fragmentation_type_hints": []
     },
     {
       "case_id": "mercadolibre_fragmentation",
@@ -821,8 +834,8 @@
       "description": "Fragmentation check for MercadoLibre. Compares the number of distinct clusters returned by cluster-name traversal vs. canonical traversal. MercadoLibre is a known candidate for entity-type splits (e.g., appearing as both Organization and Person clusters under the same name text).",
       "expected_shape": "Canonical traversal returns a single canonical_entity value. Cluster-name traversal may return multiple rows if fragmentation exists; fragmentation_detected=True is the expected failure signal.",
       "failure_modes": [
-        "fragmentation_detected=True — expected and correct for this baseline (entity_type split between Organization and organization); a change to False means fragmentation was resolved or entity disappeared",
-        "canonical_rows empty — expected for this baseline (MercadoLibre absent from structured catalog)"
+        "fragmentation_detected=True \u2014 expected and correct for this baseline (entity_type split between Organization and organization); a change to False means fragmentation was resolved or entity disappeared",
+        "canonical_rows empty \u2014 expected for this baseline (MercadoLibre absent from structured catalog)"
       ],
       "canonical_rows": [],
       "cluster_rows": [
@@ -832,7 +845,7 @@
           "cluster_type": "organization",
           "mention": "MercadoLibre",
           "role": "object",
-          "claim_text": "Endeavor Argentina drew in Marcos Galperin of MercadoLibre, Guibert Englebienne and Martin Migoya of Globant, Maria Julia Bearzi, Eduardo Elzstain, and later figures orbiting Javier Milei’s business-friendly circles.",
+          "claim_text": "Endeavor Argentina drew in Marcos Galperin of MercadoLibre, Guibert Englebienne and Martin Migoya of Globant, Maria Julia Bearzi, Eduardo Elzstain, and later figures orbiting Javier Milei\u2019s business-friendly circles.",
           "predicate": "drew in",
           "match_method": "list_split",
           "claim_id": "file:///demo/fixtures/unstructured/chain_of_custody.pdf:2:26"
@@ -876,7 +889,7 @@
           "cluster_type": "organization",
           "mention": "MercadoLibre",
           "role": "subject",
-          "claim_text": "Galperin’s MercadoLibre became the most visible success story: an e-commerce and payments giant often compared to Amazon and eBay, with MercadoPago extending its reach.",
+          "claim_text": "Galperin\u2019s MercadoLibre became the most visible success story: an e-commerce and payments giant often compared to Amazon and eBay, with MercadoPago extending its reach.",
           "predicate": "became",
           "match_method": "raw_exact",
           "claim_id": "file:///demo/fixtures/unstructured/chain_of_custody.pdf:2:27"
@@ -887,7 +900,7 @@
           "cluster_type": "Organization",
           "mention": "MercadoLibre",
           "role": "subject",
-          "claim_text": "Galperin’s MercadoLibre became the most visible success story.",
+          "claim_text": "Galperin\u2019s MercadoLibre became the most visible success story.",
           "predicate": "became",
           "match_method": "raw_exact",
           "claim_id": "file:///demo/fixtures/unstructured/chain_of_custody.pdf:3:25"
@@ -932,7 +945,12 @@
       "cluster_claim_count": 8,
       "canonical_cluster_count": 0,
       "cluster_name_cluster_count": 2,
-      "fragmentation_detected": true
+      "fragmentation_detected": true,
+      "canonical_empty_cluster_populated": true,
+      "fragmentation_type_hints": [
+        "entity_type_case_split",
+        "catalog_absent_or_alignment_gap"
+      ]
     },
     {
       "case_id": "endeavor_composite",
@@ -943,8 +961,8 @@
       "description": "Composite/list-valued claim case for Endeavor. Looks for claims where the subject or object slot contains a list-valued expression (joined by 'and', 'or', '/', etc.) that was resolved via the list-split match path. This exercises the claim_participation list-split fallback.",
       "expected_shape": "Rows where match_method='list_split' appear in canonical_rows or cluster_rows, or match_method='normalized_exact' for sub-tokens. If no list-split edges exist for this entity, the case is informative rather than a failure.",
       "failure_modes": [
-        "match_method only shows raw_exact — list-split path was not exercised",
-        "canonical_rows empty — Endeavor not reachable via canonical path"
+        "match_method only shows raw_exact \u2014 list-split path was not exercised",
+        "canonical_rows empty \u2014 Endeavor not reachable via canonical path"
       ],
       "canonical_rows": [
         {
@@ -997,7 +1015,7 @@
           "cluster": "Endeavor",
           "mention": "Endeavor",
           "role": "object",
-          "claim_text": "The company’s leadership appeared beside Endeavor, the Council of the Americas, Microsoft, and major banks.",
+          "claim_text": "The company\u2019s leadership appeared beside Endeavor, the Council of the Americas, Microsoft, and major banks.",
           "predicate": "appeared beside",
           "match_method": "list_split",
           "claim_id": "file:///demo/fixtures/unstructured/chain_of_custody.pdf:5:27"
@@ -1109,7 +1127,7 @@
           "cluster_type": "Organization",
           "mention": "Endeavor",
           "role": "object",
-          "claim_text": "The company’s leadership appeared beside Endeavor, the Council of the Americas, Microsoft, and major banks.",
+          "claim_text": "The company\u2019s leadership appeared beside Endeavor, the Council of the Americas, Microsoft, and major banks.",
           "predicate": "appeared beside",
           "match_method": "list_split",
           "claim_id": "file:///demo/fixtures/unstructured/chain_of_custody.pdf:5:27"
@@ -1186,7 +1204,7 @@
           "cluster_type": "organization",
           "mention": "Endeavor Argentina",
           "role": "subject",
-          "claim_text": "Endeavor Argentina drew in Marcos Galperin of MercadoLibre, Guibert Englebienne and Martin Migoya of Globant, Maria Julia Bearzi, Eduardo Elzstain, and later figures orbiting Javier Milei’s business-friendly circles.",
+          "claim_text": "Endeavor Argentina drew in Marcos Galperin of MercadoLibre, Guibert Englebienne and Martin Migoya of Globant, Maria Julia Bearzi, Eduardo Elzstain, and later figures orbiting Javier Milei\u2019s business-friendly circles.",
           "predicate": "drew in",
           "match_method": "raw_exact",
           "claim_id": "file:///demo/fixtures/unstructured/chain_of_custody.pdf:2:26"
@@ -1241,7 +1259,7 @@
           "mention_type": "Organization",
           "role": "object",
           "claim_id": "file:///demo/fixtures/unstructured/chain_of_custody.pdf:5:27",
-          "claim_text": "The company’s leadership appeared beside Endeavor, the Council of the Americas, Microsoft, and major banks."
+          "claim_text": "The company\u2019s leadership appeared beside Endeavor, the Council of the Americas, Microsoft, and major banks."
         },
         {
           "canonical_entity": "Endeavor",
@@ -1320,7 +1338,11 @@
       "cluster_claim_count": 12,
       "canonical_cluster_count": 2,
       "cluster_name_cluster_count": 4,
-      "fragmentation_detected": true
+      "fragmentation_detected": true,
+      "canonical_empty_cluster_populated": false,
+      "fragmentation_type_hints": [
+        "entity_type_case_split"
+      ]
     },
     {
       "case_id": "xapo_canonical_vs_cluster",
@@ -1331,8 +1353,8 @@
       "description": "Canonical-traversal vs. cluster-name-traversal comparison for Xapo. Records the claim counts and cluster counts from both paths so that the delta can be tracked as a regression metric.",
       "expected_shape": "canonical_claim_count >= cluster_claim_count (canonical deduplicates) or both counts equal (no fragmentation). cluster_name_cluster_count >= canonical_cluster_count (fragmentation is additive). fragmentation_detected=False is the healthy state.",
       "failure_modes": [
-        "canonical_claim_count < cluster_claim_count — canonical path misses claims (alignment gap; investigate ALIGNED_WITH coverage for this entity)",
-        "fragmentation_detected=True — cluster-name path returns spurious extra clusters"
+        "canonical_claim_count < cluster_claim_count \u2014 canonical path misses claims (alignment gap; investigate ALIGNED_WITH coverage for this entity)",
+        "fragmentation_detected=True \u2014 cluster-name path returns spurious extra clusters"
       ],
       "canonical_rows": [
         {
@@ -1447,7 +1469,9 @@
       "cluster_claim_count": 3,
       "canonical_cluster_count": 1,
       "cluster_name_cluster_count": 1,
-      "fragmentation_detected": false
+      "fragmentation_detected": false,
+      "canonical_empty_cluster_populated": false,
+      "fragmentation_type_hints": []
     },
     {
       "case_id": "linda_rottenberg_canonical_vs_cluster",
@@ -1458,8 +1482,8 @@
       "description": "Canonical-traversal vs. cluster-name-traversal comparison for Linda Rottenberg. Validates that Person-type entities also benefit from canonical deduplication.",
       "expected_shape": "canonical_claim_count >= cluster_claim_count. fragmentation_detected=False is the healthy state for a named individual.",
       "failure_modes": [
-        "fragmentation_detected=True — entity_type split produced both Person and Org clusters",
-        "canonical_rows empty — Linda Rottenberg not in structured catalog"
+        "fragmentation_detected=True \u2014 entity_type split produced both Person and Org clusters",
+        "canonical_rows empty \u2014 Linda Rottenberg not in structured catalog"
       ],
       "canonical_rows": [
         {
@@ -1501,7 +1525,7 @@
           "cluster": "Linda Rottenberg",
           "mention": "Linda Rottenberg",
           "role": "subject",
-          "claim_text": "Linda Rottenberg, Peter Kellner, Edgar Bronfman Jr., Pierre Omidyar, Reid Hoffman, Marcos Galperin, Martin Migoya, Wences Casares, Maria Julia Bearzi, Guibert Englebienne, Sebastián Serrano, and Emiliano Kargieman all become retrievable nodes in the same narrative web.",
+          "claim_text": "Linda Rottenberg, Peter Kellner, Edgar Bronfman Jr., Pierre Omidyar, Reid Hoffman, Marcos Galperin, Martin Migoya, Wences Casares, Maria Julia Bearzi, Guibert Englebienne, Sebasti\u00e1n Serrano, and Emiliano Kargieman all become retrievable nodes in the same narrative web.",
           "predicate": "become retrievable nodes in",
           "match_method": "list_split",
           "claim_id": "file:///demo/fixtures/unstructured/chain_of_custody.pdf:9:20"
@@ -1547,7 +1571,7 @@
           "cluster_type": "Person",
           "mention": "Linda Rottenberg",
           "role": "subject",
-          "claim_text": "Linda Rottenberg, Peter Kellner, Edgar Bronfman Jr., Pierre Omidyar, Reid Hoffman, Marcos Galperin, Martin Migoya, Wences Casares, Maria Julia Bearzi, Guibert Englebienne, Sebastián Serrano, and Emiliano Kargieman all become retrievable nodes in the same narrative web.",
+          "claim_text": "Linda Rottenberg, Peter Kellner, Edgar Bronfman Jr., Pierre Omidyar, Reid Hoffman, Marcos Galperin, Martin Migoya, Wences Casares, Maria Julia Bearzi, Guibert Englebienne, Sebasti\u00e1n Serrano, and Emiliano Kargieman all become retrievable nodes in the same narrative web.",
           "predicate": "become retrievable nodes in",
           "match_method": "list_split",
           "claim_id": "file:///demo/fixtures/unstructured/chain_of_custody.pdf:9:20"
@@ -1592,7 +1616,7 @@
           "mention_type": "Person",
           "role": "subject",
           "claim_id": "file:///demo/fixtures/unstructured/chain_of_custody.pdf:9:20",
-          "claim_text": "Linda Rottenberg, Peter Kellner, Edgar Bronfman Jr., Pierre Omidyar, Reid Hoffman, Marcos Galperin, Martin Migoya, Wences Casares, Maria Julia Bearzi, Guibert Englebienne, Sebastián Serrano, and Emiliano Kargieman all become retrievable nodes in the same narrative web."
+          "claim_text": "Linda Rottenberg, Peter Kellner, Edgar Bronfman Jr., Pierre Omidyar, Reid Hoffman, Marcos Galperin, Martin Migoya, Wences Casares, Maria Julia Bearzi, Guibert Englebienne, Sebasti\u00e1n Serrano, and Emiliano Kargieman all become retrievable nodes in the same narrative web."
         },
         {
           "canonical_entity": "Linda Rottenberg",
@@ -1616,7 +1640,9 @@
       "cluster_claim_count": 4,
       "canonical_cluster_count": 1,
       "cluster_name_cluster_count": 1,
-      "fragmentation_detected": false
+      "fragmentation_detected": false,
+      "canonical_empty_cluster_populated": false,
+      "fragmentation_type_hints": []
     }
   ],
   "pairwise_results": [
@@ -1629,8 +1655,8 @@
       "description": "Pairwise canonical claim lookup for Amazon and eBay. Finds claims where both entities appear as participants (subject and/or object), verifying that pairwise canonical resolution works for two distinct organization entities.",
       "expected_shape": "Zero or more rows each carrying both subject_canonical and object_canonical resolved to the correct canonical entities. Zero rows is acceptable if no cross-entity claims were extracted; what matters is the query returns without error and the canonical chain is traversable for both entities.",
       "failure_modes": [
-        "query returns error — ALIGNED_WITH or MEMBER_OF edges missing for one entity",
-        "result mixes unrelated entities — toLower CONTAINS filter too broad"
+        "query returns error \u2014 ALIGNED_WITH or MEMBER_OF edges missing for one entity",
+        "result mixes unrelated entities \u2014 toLower CONTAINS filter too broad"
       ],
       "pairwise_rows": [],
       "pairwise_claim_count": 0
@@ -1645,6 +1671,7 @@
     "entities_with_claims_cluster": 8,
     "total_canonical_claims": 34,
     "total_cluster_claims": 54,
-    "total_pairwise_claims": 0
+    "total_pairwise_claims": 0,
+    "canonical_empty_cluster_populated_count": 2
   }
 }

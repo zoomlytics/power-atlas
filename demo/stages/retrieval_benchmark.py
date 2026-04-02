@@ -520,6 +520,63 @@ def _detect_fragmentation(
     return cluster_name_cluster_count > canonical_cluster_count
 
 
+def _classify_fragmentation_type(
+    fragmentation_check_rows: list[dict[str, Any]],
+    canonical_rows: list[dict[str, Any]],
+    cluster_rows: list[dict[str, Any]],
+) -> list[str]:
+    """Return a list of hint strings classifying the cause of a canonical-empty or fragmented result.
+
+    The hints are machine-readable tokens intended for reviewers and downstream
+    tooling.  More than one hint may be returned when multiple causes apply.
+    An empty list means neither condition was detected.
+
+    Returns
+    -------
+    List of zero or more of the following tokens:
+
+    ``"entity_type_case_split"``
+        At least two ``entity_type`` values appear in ``fragmentation_check_rows``
+        whose lower-cased forms are identical (e.g., ``"Organization"`` and
+        ``"organization"``).  This is the raw entity_type normalisation signal:
+        the same conceptual type was persisted under two different case variants,
+        producing distinct clusters that are not collapsed by the canonical path.
+
+    ``"catalog_absent_or_alignment_gap"``
+        ``canonical_rows`` is empty while ``cluster_rows`` is non-empty.  The
+        entity is reachable via cluster-name traversal (evidence exists in the
+        graph) but is invisible to the canonical path.  The cause may be either
+        (a) the entity has no ``CanonicalEntity`` node in the structured catalog,
+        or (b) the entity is in the catalog but ``ALIGNED_WITH`` edges are absent
+        or the canonical name does not satisfy the ``toLower CONTAINS`` filter.
+        This function cannot distinguish between these sub-causes; callers should
+        use a dedicated ``CanonicalEntity`` existence check and then inspect
+        ``ALIGNED_WITH`` (or equivalent alignment) coverage and graph health
+        diagnostics to determine which applies.
+    """
+    hints: list[str] = []
+
+    # Detect entity_type case-sensitivity split:
+    # Collect non-null entity_type values and check whether any pair of values
+    # differs only by case normalization.
+    entity_types = [
+        r.get("entity_type")
+        for r in fragmentation_check_rows
+        if r.get("entity_type") is not None
+    ]
+    unique_types = set(entity_types)
+    unique_lower = {et.lower() for et in unique_types}
+    if len(unique_lower) < len(unique_types):
+        hints.append("entity_type_case_split")
+
+    # Detect canonical-empty / cluster-populated condition:
+    # canonical path returned no rows but cluster-name path returned at least one.
+    if not canonical_rows and cluster_rows:
+        hints.append("catalog_absent_or_alignment_gap")
+
+    return hints
+
+
 # ---------------------------------------------------------------------------
 # Artifact dataclasses
 # ---------------------------------------------------------------------------
@@ -561,6 +618,20 @@ class BenchmarkCaseResult:
         Number of distinct clusters matched by cluster-name text search.
     fragmentation_detected:
         ``True`` when ``cluster_name_cluster_count > canonical_cluster_count``.
+    canonical_empty_cluster_populated:
+        ``True`` when ``canonical_claim_count == 0`` and ``cluster_claim_count > 0``.
+        Signals the "canonical-empty / cluster-populated" result class: the entity is
+        reachable via cluster-name traversal but absent from the canonical path.
+        Reviewers should consult ``fragmentation_type_hints`` to understand why.
+    fragmentation_type_hints:
+        List of machine-readable cause tokens derived by
+        :func:`_classify_fragmentation_type`.  Possible values:
+
+        - ``"entity_type_case_split"`` — entity_type values differ only by case
+          (e.g., ``"Organization"`` vs ``"organization"``), producing distinct clusters.
+        - ``"catalog_absent_or_alignment_gap"`` — canonical path returns no rows
+          while the cluster-name path does; the entity is either absent from the
+          structured catalog or its ``ALIGNED_WITH`` edges are missing.
     """
 
     case_id: str
@@ -578,6 +649,8 @@ class BenchmarkCaseResult:
     canonical_cluster_count: int
     cluster_name_cluster_count: int
     fragmentation_detected: bool
+    canonical_empty_cluster_populated: bool
+    fragmentation_type_hints: list[str]
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serialisable dict representation."""
@@ -690,12 +763,16 @@ def _compute_benchmark_summary(
     total_canonical_claims = sum(r.canonical_claim_count for r in case_results)
     total_cluster_claims = sum(r.cluster_claim_count for r in case_results)
     total_pairwise_claims = sum(r.pairwise_claim_count for r in pairwise_results)
+    canonical_empty_cluster_populated_count = sum(
+        1 for r in case_results if r.canonical_empty_cluster_populated
+    )
 
     return {
         "total_cases": total_cases,
         "single_and_comparison_cases": len(case_results),
         "pairwise_cases": len(pairwise_results),
         "fragmentation_detected_count": fragmentation_detected_count,
+        "canonical_empty_cluster_populated_count": canonical_empty_cluster_populated_count,
         "entities_with_claims_canonical": entities_with_claims_canonical,
         "entities_with_claims_cluster": entities_with_claims_cluster,
         "total_canonical_claims": total_canonical_claims,
@@ -741,6 +818,10 @@ def build_benchmark_case_result(
     canonical_cluster_count = _count_distinct_clusters(canonical_rows)
     cluster_name_cluster_count = _count_distinct(fragmentation_check_rows, "cluster_id")
     fragmentation = _detect_fragmentation(canonical_cluster_count, cluster_name_cluster_count)
+    canonical_empty_cluster_populated = canonical_claim_count == 0 and cluster_claim_count > 0
+    fragmentation_type_hints = _classify_fragmentation_type(
+        fragmentation_check_rows, canonical_rows, cluster_rows
+    )
 
     return BenchmarkCaseResult(
         case_id=case_def.case_id,
@@ -758,6 +839,8 @@ def build_benchmark_case_result(
         canonical_cluster_count=canonical_cluster_count,
         cluster_name_cluster_count=cluster_name_cluster_count,
         fragmentation_detected=fragmentation,
+        canonical_empty_cluster_populated=canonical_empty_cluster_populated,
+        fragmentation_type_hints=fragmentation_type_hints,
     )
 
 
