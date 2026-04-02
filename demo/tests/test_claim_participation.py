@@ -2238,6 +2238,28 @@ class TestResidualListSplitPartial(unittest.TestCase):
         self.assertIn("UnknownCo", entry["unmatched_parts"])
         self.assertNotIn("Amazon", entry["unmatched_parts"])
 
+    def test_residual_entry_unmatched_parts_includes_ambiguous_part(self):
+        # One part ("Amazon") has two candidate mentions → ambiguous.
+        # The other part ("Google") has a single candidate → unique match.
+        mentions = [
+            _mention("Amazon", "m-a1"),
+            _mention("Amazon", "m-a2"),
+            _mention("Google", "m-g"),
+        ]
+        claims = [_claim("c-ambig", obj="Amazon and Google")]
+        _, metrics = build_participation_edges_with_metrics(claims, mentions)
+        # Still a partial success overall → residual entry should exist.
+        self.assertEqual(len(metrics.residual_list_split_partial), 1)
+        entry = metrics.residual_list_split_partial[0]
+        # The ambiguous part should be reported as unmatched.
+        self.assertIn("Amazon", entry["unmatched_parts"])
+        self.assertNotIn("Amazon", entry["matched_parts"])
+        # The uniquely matched part should be in matched_parts, not unmatched_parts.
+        self.assertIn("Google", entry["matched_parts"])
+        self.assertNotIn("Google", entry["unmatched_parts"])
+        # All parts should still be listed in parts.
+        self.assertIn("Amazon", entry["parts"])
+        self.assertIn("Google", entry["parts"])
     def test_residual_entry_subject_slot(self):
         # Partial success on subject slot → slot field should be "subject".
         mentions = [_mention("Google", "m-g")]
