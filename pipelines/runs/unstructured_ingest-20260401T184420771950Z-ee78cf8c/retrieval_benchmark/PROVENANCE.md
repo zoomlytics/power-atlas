@@ -115,9 +115,13 @@ or produce split hints.
 | `canonical_empty_cluster_populated_count` | 2 | Expected to remain unchanged from case normalization alone; only changes if canonical traversal starts matching MercadoLibre for non-normalization reasons (e.g., catalog/name-filter/alignment changes) |
 | `fragmentation_type_hints` containing `"entity_type_case_split"` | Present for `mercadolibre_single`, `mercadolibre_fragmentation`, `endeavor_single`, `endeavor_composite` | Expected to clear for cases where the only fragmentation was a case variant |
 
-A reduction in any of these figures in a post-#433 run is **expected
-normalization fallout, not a regression**.  An increase would indicate a
-new fragmentation condition and warrants review.
+A reduction in `fragmentation_detected_count` or in
+`fragmentation_type_hints` containing `"entity_type_case_split"` in a
+post-#433 run is **expected normalization fallout, not a regression**.
+Movement in `canonical_empty_cluster_populated_count` is **not** expected
+from case normalization alone and should be interpreted separately.  An
+increase in the fragmentation-related figures would indicate a new
+fragmentation condition and warrants review.
 
 ### Refreshing this baseline
 
