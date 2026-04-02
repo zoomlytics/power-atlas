@@ -1391,13 +1391,28 @@ class TestNormalizeEntityType(unittest.TestCase):
     def test_empty_string_returns_none(self):
         self.assertIsNone(_normalize_entity_type(""))
 
+    def test_whitespace_only_returns_none(self):
+        """Whitespace-only strings are treated as absent (same as None / '')."""
+        self.assertIsNone(_normalize_entity_type("   "))
+        self.assertIsNone(_normalize_entity_type("\t"))
+
+    def test_whitespace_stripped_before_lookup(self):
+        """Leading/trailing whitespace is stripped before the synonym lookup."""
+        self.assertEqual(_normalize_entity_type(" Organization "), "Organization")
+        self.assertEqual(_normalize_entity_type("  ORG  "), "Organization")
+        self.assertEqual(_normalize_entity_type(" Person "), "Person")
+
     def test_lowercase_org_is_not_mapped(self):
-        """Matching is case-sensitive; 'org' is NOT a known synonym."""
+        """'org' is an abbreviation, not a casing variant; it is NOT mapped."""
         self.assertEqual(_normalize_entity_type("org"), "org")
 
-    def test_lowercase_person_is_not_mapped(self):
-        """Matching is case-sensitive; 'person' (all-lower) stays unchanged."""
-        self.assertEqual(_normalize_entity_type("person"), "person")
+    def test_lowercase_organization_maps_to_Organization(self):
+        """'organization' (all-lowercase) is a casing variant of 'Organization'."""
+        self.assertEqual(_normalize_entity_type("organization"), "Organization")
+
+    def test_lowercase_person_maps_to_Person(self):
+        """'person' (all-lowercase) is a casing variant of 'Person'."""
+        self.assertEqual(_normalize_entity_type("person"), "Person")
 
 
     def test_initialism_match(self):
