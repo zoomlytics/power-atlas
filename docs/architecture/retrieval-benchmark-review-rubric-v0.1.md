@@ -208,32 +208,45 @@ structured catalog.
 
 ### How to read `canonical_empty_cluster_populated` and `fragmentation_type_hints`
 
-Each `BenchmarkCaseResult` now carries two classification fields:
+Each `BenchmarkCaseResult` now carries four classification fields:
 
 | Field | Type | Meaning |
 |-------|------|---------|
 | `canonical_empty_cluster_populated` | `bool` | `True` ↔ the case is in the canonical-empty / cluster-populated class |
 | `fragmentation_type_hints` | `list[str]` | Zero or more cause tokens (see below) |
+| `catalog_check_rows` | `list[dict]` | Rows from a direct `CanonicalEntity` existence check; empty = no node found |
+| `canonical_catalog_present` | `bool` | `True` ↔ at least one `CanonicalEntity` node matches this entity name |
 
 **Cause tokens in `fragmentation_type_hints`:**
 
 | Token | Cause | Recommended action |
 |-------|-------|--------------------|
 | `"entity_type_case_split"` | Two or more `entity_type` values in `fragmentation_check_rows` differ only by case (e.g., `"Organization"` vs `"organization"`).  The same conceptual entity type was persisted under two case variants, producing separate clusters that are not collapsed by the canonical path. | Ensure the observed `entity_type` variants are covered by normalization (via `_normalize_entity_type` / `_ENTITY_TYPE_SYNONYMS`) and re-run entity resolution. If the mapping already exists, investigate why clusters were persisted with mixed-case `entity_type` and correct the underlying normalization or persistence issue. |
-| `"catalog_absent_or_alignment_gap"` | `canonical_rows` is empty while `cluster_rows` is non-empty.  The entity exists in the graph at the cluster level but is either (a) absent from the structured catalog (no `CanonicalEntity` node), or (b) in the catalog but without `ALIGNED_WITH` edges connecting it to the cluster. | First, run a direct existence check for a `CanonicalEntity` node for this entity (for example via a targeted graph query or the graph health diagnostics). If no `CanonicalEntity` exists, the entity needs to be added to the structured catalog. If a `CanonicalEntity` does exist, separately inspect `ALIGNED_WITH` coverage between that node and the relevant clusters/mentions (for example using `lower_layer_rows` or the graph health diagnostics) to identify and correct alignment gaps. |
+| `"catalog_absent"` | `canonical_rows` is empty while `cluster_rows` is non-empty, **and** `catalog_check_rows` is empty — confirming no `CanonicalEntity` node exists for this entity name.  The entity is genuinely absent from the structured catalog. | Add a `CanonicalEntity` node for this entity and create the corresponding `ALIGNED_WITH` edges to the relevant clusters. |
+| `"alignment_gap"` | `canonical_rows` is empty while `cluster_rows` is non-empty, **and** `catalog_check_rows` is non-empty — confirming a `CanonicalEntity` node exists but the canonical traversal still returns no rows.  The gap is caused by missing or incomplete `ALIGNED_WITH` edges. | Inspect `ALIGNED_WITH` edge coverage between the `CanonicalEntity` node and the relevant `ResolvedEntityCluster` nodes (use `lower_layer_rows` or the graph health diagnostics).  Re-run the alignment stage or add the missing edges. |
+| `"catalog_absent_or_alignment_gap"` | Legacy fallback token.  Emitted only when no catalog existence check was available (i.e., the benchmark was run against an older build that did not include the catalog check query).  When the current benchmark is used, this token is replaced by `"catalog_absent"` or `"alignment_gap"`. | Treat as `"catalog_absent"` until a full catalog existence check is available. |
 
-Multiple tokens may be present simultaneously.  The `mercadolibre_single` case
-in the baseline carries **both** tokens: there is an `entity_type_case_split`
-(`Organization`/`organization`) **and** the entity is catalog-absent
-(`catalog_absent_or_alignment_gap`).
+**`catalog_absent` and `alignment_gap` are mutually exclusive.**  Only one of
+the two specific tokens will appear for any given case.  Both are more actionable
+than the legacy `catalog_absent_or_alignment_gap` combined token.
+
+Multiple tokens from different categories may be present simultaneously (e.g.,
+`entity_type_case_split` and `catalog_absent` may both appear if both conditions
+hold).
+
+**Baseline note:** The baseline artifact was produced before the catalog existence
+check was added, so baseline cases that previously showed
+`"catalog_absent_or_alignment_gap"` will show `"catalog_absent"` in new runs
+once the catalog check query is executed.  This is an expected diagnostic
+improvement, not a regression.
 
 ### Classification of the baseline cases
 
-| Case | `canonical_empty_cluster_populated` | `fragmentation_type_hints` | Classification |
-|------|-------------------------------------|---------------------------|----------------|
-| `mercadolibre_single` | `True` | `["entity_type_case_split", "catalog_absent_or_alignment_gap"]` | **Expected** — MercadoLibre is absent from the structured catalog; the type-case split is a known entity_resolution condition. |
-| `mercadolibre_fragmentation` | `True` | `["entity_type_case_split", "catalog_absent_or_alignment_gap"]` | **Expected** — same entity as above; this case exists to make fragmentation explicit in the summary count. |
-| All other cases | `False` | `[]` or `["entity_type_case_split"]` | Canonical path is present; any fragmentation is captured only by the `fragmentation_detected` signal. |
+| Case | `canonical_empty_cluster_populated` | `canonical_catalog_present` | `fragmentation_type_hints` (new runs) | Classification |
+|------|-------------------------------------|-----------------------------|---------------------------------------|----------------|
+| `mercadolibre_single` | `True` | `False` | `["entity_type_case_split", "catalog_absent"]` | **Expected** — MercadoLibre is absent from the structured catalog; the type-case split is a known entity_resolution condition. |
+| `mercadolibre_fragmentation` | `True` | `False` | `["entity_type_case_split", "catalog_absent"]` | **Expected** — same entity as above; this case exists to make fragmentation explicit in the summary count. |
+| All other cases | `False` | `True` (if in catalog) | `[]` or `["entity_type_case_split"]` | Canonical path is present; any fragmentation is captured only by the `fragmentation_detected` signal. |
 
 ### Guidance for reviewers
 
@@ -244,7 +257,10 @@ in the baseline carries **both** tokens: there is an `entity_type_case_split`
 2. **If `canonical_empty_cluster_populated_count` increased:**
    A previously-canonical case lost canonical coverage.  For the newly-affected
    cases, inspect:
-   - `fragmentation_type_hints` to classify the cause.
+   - `fragmentation_type_hints` to classify the cause:
+     - `"catalog_absent"` → the entity is missing from the structured catalog; add it.
+     - `"alignment_gap"` → the entity is in the catalog but `ALIGNED_WITH` edges are missing; repair alignment.
+     - `"catalog_absent_or_alignment_gap"` → legacy token; re-run the benchmark to get the specific token.
    - `lower_layer_rows` to check for dark mentions or a missing canonical link.
    - Graph health diagnostics for `ALIGNED_WITH` coverage.
 
@@ -256,9 +272,22 @@ in the baseline carries **both** tokens: there is an `entity_type_case_split`
    by extending `_ENTITY_TYPE_SYNONYMS` in a follow-up.
 
 4. **If `fragmentation_type_hints` contains `"catalog_absent_or_alignment_gap"`
-   but `canonical_empty_cluster_populated` is expected to be `False`:**
+   (legacy token) but `canonical_empty_cluster_populated` is expected to be `False`:**
    An entity that should be in the catalog is missing or its alignment is broken.
    This is a **regression** — open an issue and investigate the alignment stage.
+   Re-run the benchmark to get the specific `"catalog_absent"` or `"alignment_gap"` token.
+
+5. **If `fragmentation_type_hints` contains `"alignment_gap"` and
+   `canonical_catalog_present` is `True`:**
+   The `CanonicalEntity` node exists but is not connected via `ALIGNED_WITH` edges
+   to the clusters that carry the relevant claims.  This is a direct alignment
+   defect.  Inspect `ALIGNED_WITH` edge coverage and re-run the alignment stage.
+
+6. **If `fragmentation_type_hints` contains `"catalog_absent"` and
+   `canonical_catalog_present` is `False`:**
+   The entity is genuinely absent from the structured catalog.  This is expected
+   for catalog-absent entities (e.g., MercadoLibre in the baseline) and is a
+   regression only if the entity was previously in the catalog.
 
 ---
 

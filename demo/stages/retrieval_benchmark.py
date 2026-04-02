@@ -26,9 +26,16 @@ For each case the artifact records:
 - ``lower_layer_rows`` — rows from the full
   ``canonical → cluster → mention → claim`` inspection chain.
 - ``fragmentation_check_rows`` — cluster-level fragmentation check rows.
+- ``catalog_check_rows`` — rows from a direct ``CanonicalEntity`` existence
+  check (used to distinguish *catalog absent* from *alignment gap*).
 - Derived counts: ``canonical_claim_count``, ``cluster_claim_count``,
   ``canonical_cluster_count``, ``cluster_name_cluster_count``,
   ``fragmentation_detected``.
+- ``canonical_catalog_present`` — ``True`` when a ``CanonicalEntity`` node
+  exists for the entity name (derived from ``catalog_check_rows``).
+- ``fragmentation_type_hints`` — machine-readable cause tokens including the
+  precise ``"catalog_absent"`` / ``"alignment_gap"`` sub-tokens that replace
+  the ambiguous ``"catalog_absent_or_alignment_gap"`` token.
 
 All queries use ``routing_=neo4j.RoutingControl.READ`` and never mutate graph
 state.
@@ -69,6 +76,7 @@ __all__ = [
     "build_benchmark_case_result",
     "build_benchmark_artifact",
     "run_retrieval_benchmark",
+    "_Q_CATALOG_EXISTENCE_CHECK",
 ]
 
 # ---------------------------------------------------------------------------
@@ -435,6 +443,16 @@ RETURN cluster.cluster_id     AS cluster_id,
 ORDER BY entity_type, canonical_name
 """
 
+# Catalog existence check: does a CanonicalEntity node exist for this entity name?
+# Read-only, no joins to clusters or mentions.  Used to distinguish "catalog absent"
+# from "alignment gap" in the canonical-empty / cluster-populated result class.
+_Q_CATALOG_EXISTENCE_CHECK = """\
+MATCH (ce:CanonicalEntity)
+WHERE toLower(ce.name) CONTAINS toLower($entity_name)
+RETURN ce.name AS canonical_entity_name
+ORDER BY ce.name
+"""
+
 # Pairwise canonical claim lookup — bidirectional
 # Anchored on CanonicalEntity for selectivity — filters on names before joining clusters/mentions.
 _Q_PAIRWISE_CANONICAL = """\
@@ -524,12 +542,30 @@ def _classify_fragmentation_type(
     fragmentation_check_rows: list[dict[str, Any]],
     canonical_rows: list[dict[str, Any]],
     cluster_rows: list[dict[str, Any]],
+    catalog_check_rows: list[dict[str, Any]] | None = None,
 ) -> list[str]:
     """Return a list of hint strings classifying the cause of a canonical-empty or fragmented result.
 
     The hints are machine-readable tokens intended for reviewers and downstream
     tooling.  More than one hint may be returned when multiple causes apply.
     An empty list means neither condition was detected.
+
+    Parameters
+    ----------
+    fragmentation_check_rows:
+        Rows from the fragmentation check query (``ResolvedEntityCluster`` nodes
+        matching the entity name).  Used to detect entity_type case-sensitivity
+        splits.
+    canonical_rows:
+        Rows from the canonical traversal query.
+    cluster_rows:
+        Rows from the cluster-name traversal query.
+    catalog_check_rows:
+        Rows from the catalog existence check query (``CanonicalEntity`` nodes
+        matching the entity name).  When provided, this enables the specific
+        ``"catalog_absent"`` / ``"alignment_gap"`` distinction.  When ``None``
+        (the default), the ambiguous ``"catalog_absent_or_alignment_gap"`` token
+        is emitted instead.
 
     Returns
     -------
@@ -542,17 +578,25 @@ def _classify_fragmentation_type(
         the same conceptual type was persisted under two different case variants,
         producing distinct clusters that are not collapsed by the canonical path.
 
+    ``"catalog_absent"``
+        ``canonical_rows`` is empty while ``cluster_rows`` is non-empty, **and**
+        ``catalog_check_rows`` is empty — confirming no ``CanonicalEntity`` node
+        exists for this entity name.  The entity is absent from the structured
+        catalog; adding it (and the corresponding ``ALIGNED_WITH`` edges) would
+        enable canonical retrieval.
+
+    ``"alignment_gap"``
+        ``canonical_rows`` is empty while ``cluster_rows`` is non-empty, **and**
+        ``catalog_check_rows`` is non-empty — confirming a ``CanonicalEntity``
+        node exists but the canonical traversal still returns no rows.  The gap
+        is caused by missing or incomplete ``ALIGNED_WITH`` edges between the
+        catalog entry and the relevant clusters.
+
     ``"catalog_absent_or_alignment_gap"``
-        ``canonical_rows`` is empty while ``cluster_rows`` is non-empty.  The
-        entity is reachable via cluster-name traversal (evidence exists in the
-        graph) but is invisible to the canonical path.  The cause may be either
-        (a) the entity has no ``CanonicalEntity`` node in the structured catalog,
-        or (b) the entity is in the catalog but ``ALIGNED_WITH`` edges are absent
-        or the canonical name does not satisfy the ``toLower CONTAINS`` filter.
-        This function cannot distinguish between these sub-causes; callers should
-        use a dedicated ``CanonicalEntity`` existence check and then inspect
-        ``ALIGNED_WITH`` (or equivalent alignment) coverage and graph health
-        diagnostics to determine which applies.
+        ``canonical_rows`` is empty while ``cluster_rows`` is non-empty, but
+        ``catalog_check_rows`` was not provided (``None``), so the specific
+        sub-cause cannot be determined.  This token is the backwards-compatible
+        fallback when no catalog existence check was performed.
     """
     hints: list[str] = []
 
@@ -569,10 +613,19 @@ def _classify_fragmentation_type(
     if len(unique_lower) < len(unique_types):
         hints.append("entity_type_case_split")
 
-    # Detect canonical-empty / cluster-populated condition:
-    # canonical path returned no rows but cluster-name path returned at least one.
+    # Detect canonical-empty / cluster-populated condition and distinguish
+    # catalog absence from alignment gap when catalog_check_rows is available.
     if not canonical_rows and cluster_rows:
-        hints.append("catalog_absent_or_alignment_gap")
+        if catalog_check_rows is None:
+            # No catalog existence check available; fall back to the ambiguous
+            # combined token for backwards compatibility.
+            hints.append("catalog_absent_or_alignment_gap")
+        elif catalog_check_rows:
+            # CanonicalEntity exists — ALIGNED_WITH coverage is missing.
+            hints.append("alignment_gap")
+        else:
+            # No CanonicalEntity node found in the structured catalog.
+            hints.append("catalog_absent")
 
     return hints
 
@@ -632,6 +685,28 @@ class BenchmarkCaseResult:
         - ``"catalog_absent_or_alignment_gap"`` — canonical path returns no rows
           while the cluster-name path does; the entity is either absent from the
           structured catalog or its ``ALIGNED_WITH`` edges are missing.
+          This token is emitted only when no ``catalog_check_rows`` are available
+          to distinguish the sub-causes.  When ``catalog_check_rows`` are
+          provided, the more specific ``"catalog_absent"`` or ``"alignment_gap"``
+          token is emitted instead.
+        - ``"catalog_absent"`` — canonical path returns no rows, cluster-name
+          path does, and the catalog existence check confirms no ``CanonicalEntity``
+          node matches this entity name.  The entity is genuinely absent from the
+          structured catalog.
+        - ``"alignment_gap"`` — canonical path returns no rows, cluster-name path
+          does, but the catalog existence check confirms a ``CanonicalEntity`` node
+          exists for this entity name.  The gap is caused by missing or incomplete
+          ``ALIGNED_WITH`` edges between the catalog entry and the relevant clusters.
+    catalog_check_rows:
+        Rows returned by the catalog existence check query
+        (``CanonicalEntity`` nodes matching the entity name).  An empty list
+        means no ``CanonicalEntity`` was found.  Non-empty means at least one
+        node exists.  Used to compute ``canonical_catalog_present``.
+    canonical_catalog_present:
+        ``True`` when at least one ``CanonicalEntity`` node matched the entity
+        name in the catalog existence check.  ``False`` when the entity is
+        absent from the structured catalog or when ``catalog_check_rows`` was
+        not populated.
     """
 
     case_id: str
@@ -651,6 +726,8 @@ class BenchmarkCaseResult:
     fragmentation_detected: bool
     canonical_empty_cluster_populated: bool
     fragmentation_type_hints: list[str]
+    catalog_check_rows: list[dict[str, Any]]
+    canonical_catalog_present: bool
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serialisable dict representation."""
@@ -793,6 +870,7 @@ def build_benchmark_case_result(
     cluster_rows: list[dict[str, Any]],
     lower_layer_rows: list[dict[str, Any]],
     fragmentation_check_rows: list[dict[str, Any]],
+    catalog_check_rows: list[dict[str, Any]] | None = None,
 ) -> BenchmarkCaseResult:
     """Build a :class:`BenchmarkCaseResult` from pre-fetched query rows.
 
@@ -812,6 +890,11 @@ def build_benchmark_case_result(
         Rows from the lower-layer chain inspection query.
     fragmentation_check_rows:
         Rows from the fragmentation check query.
+    catalog_check_rows:
+        Rows from the catalog existence check query (``CanonicalEntity`` nodes
+        matching the entity name).  When provided, enables the ``"catalog_absent"``
+        / ``"alignment_gap"`` hint distinction.  When ``None`` (default), the
+        ambiguous ``"catalog_absent_or_alignment_gap"`` token is emitted.
     """
     canonical_claim_count = _count_distinct_claims(canonical_rows)
     cluster_claim_count = _count_distinct_claims(cluster_rows)
@@ -820,8 +903,9 @@ def build_benchmark_case_result(
     fragmentation = _detect_fragmentation(canonical_cluster_count, cluster_name_cluster_count)
     canonical_empty_cluster_populated = canonical_claim_count == 0 and cluster_claim_count > 0
     fragmentation_type_hints = _classify_fragmentation_type(
-        fragmentation_check_rows, canonical_rows, cluster_rows
+        fragmentation_check_rows, canonical_rows, cluster_rows, catalog_check_rows
     )
+    canonical_catalog_present = bool(catalog_check_rows) if catalog_check_rows is not None else False
 
     return BenchmarkCaseResult(
         case_id=case_def.case_id,
@@ -841,6 +925,8 @@ def build_benchmark_case_result(
         fragmentation_detected=fragmentation,
         canonical_empty_cluster_populated=canonical_empty_cluster_populated,
         fragmentation_type_hints=fragmentation_type_hints,
+        catalog_check_rows=catalog_check_rows if catalog_check_rows is not None else [],
+        canonical_catalog_present=canonical_catalog_present,
     )
 
 
@@ -1053,6 +1139,9 @@ def run_retrieval_benchmark(
                 fragmentation_check_rows = _query(
                     _Q_FRAGMENTATION_CHECK, {"entity_name": entity_name}
                 )
+                catalog_check_rows = _query(
+                    _Q_CATALOG_EXISTENCE_CHECK, {"entity_name": entity_name}
+                )
                 case_results.append(
                     build_benchmark_case_result(
                         case_def=case_def,
@@ -1060,6 +1149,7 @@ def run_retrieval_benchmark(
                         cluster_rows=cluster_rows,
                         lower_layer_rows=lower_layer_rows,
                         fragmentation_check_rows=fragmentation_check_rows,
+                        catalog_check_rows=catalog_check_rows,
                     )
                 )
 
