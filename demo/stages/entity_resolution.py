@@ -278,16 +278,28 @@ _VALID_RESOLUTION_MODES = frozenset({
 #     the same normalized text.
 #   - ``'PERSON'`` and ``'Person'`` are both produced by upstream extractors;
 #     they are unified to ``'Person'``.
+#   - ``'organization'`` (all-lowercase) is mapped to ``'Organization'``.
+#     Real-run benchmark evidence (run unstructured_ingest-20260401T184420771950Z)
+#     showed that lowercase ``'organization'`` and title-case ``'Organization'``
+#     were producing separate cluster identities for the same entity family,
+#     causing benchmark-visible canonical-empty / cluster-populated fragmentation.
+#   - ``'person'`` (all-lowercase) is mapped to ``'Person'`` for the same reason:
+#     consistent treatment of the all-lowercase casing variant that LLM extractors
+#     sometimes emit.
+#   - Note: ``'org'`` is still NOT mapped here — it is an abbreviation, not a
+#     casing variant, and its correct canonical form cannot be assumed without
+#     additional context.
 #   - All other labels are left unchanged, including ``None`` (handled
 #     separately as an empty/unknown type).
-#   - Matching is case-sensitive: ``'org'`` is NOT mapped here; only the
-#     exact casing variants documented below are normalized.  Downstream
-#     callers that produce lower-cased labels should canonicalize casing
-#     before calling this function, or add entries to this table.
+#   - Leading/trailing whitespace is stripped before this lookup is applied
+#     (see ``_normalize_entity_type``), so ``' Organization '`` resolves
+#     correctly even though no explicit entry exists for the padded form.
 _ENTITY_TYPE_SYNONYMS: dict[str, str] = {
     "ORG": "Organization",
     "Company": "Organization",
+    "organization": "Organization",
     "PERSON": "Person",
+    "person": "Person",
 }
 
 # Reserved sentinel key used in entity_type_report dicts to represent absent or
@@ -308,12 +320,20 @@ def _normalize_entity_type(entity_type: str | None) -> str | None:
 
     * ``'ORG'`` → ``'Organization'``
     * ``'Company'`` → ``'Organization'``  (companies are organizations)
+    * ``'organization'`` → ``'Organization'``  (all-lowercase casing variant)
     * ``'PERSON'`` → ``'Person'``
+    * ``'person'`` → ``'Person'``  (all-lowercase casing variant)
 
-    All other non-empty labels are returned unchanged.  ``None`` and ``''``
-    both return ``None`` (the caller of :func:`_make_cluster_id` maps ``None``
+    Leading and trailing whitespace is stripped before the synonym lookup, so
+    ``' Organization '`` resolves to ``'Organization'`` even though no padded
+    form is listed in the table.
+
+    All other non-empty labels are returned with whitespace stripped but
+    otherwise unchanged.  ``None``, ``''``, and whitespace-only strings all
+    return ``None`` (the caller of :func:`_make_cluster_id` maps ``None``
     to an empty string, preserving the existing ``None``/``''`` equivalence).
     """
+    entity_type = (entity_type or "").strip()
     if not entity_type:
         return None
     return _ENTITY_TYPE_SYNONYMS.get(entity_type, entity_type)
@@ -345,9 +365,10 @@ def build_entity_type_cypher_case(var: str, unknown_label: str = "UNKNOWN") -> s
     diagnostics) so that the Cypher semantics stay automatically in sync with
     the Python policy.
 
-    Matching is **case-sensitive** and does **not** strip whitespace, exactly
-    mirroring :func:`_normalize_entity_type` (which compares raw values directly
-    without trimming).
+    Matching is **case-sensitive** and applies ``trim()`` to strip leading/trailing
+    whitespace before comparison, mirroring the ``.strip()`` applied by
+    :func:`_normalize_entity_type`.  ``NULL``, whitespace-only strings, and
+    empty strings all resolve to *unknown_label*.
 
     Parameters
     ----------
@@ -358,8 +379,9 @@ def build_entity_type_cypher_case(var: str, unknown_label: str = "UNKNOWN") -> s
         (``[A-Za-z_][A-Za-z0-9_]*``); trailing dots and empty segments are
         rejected to prevent Cypher injection.
     unknown_label:
-        The literal string to emit when *var* is ``NULL`` or the empty string
-        (i.e. when :func:`_normalize_entity_type` would return ``None``).
+        The literal string to emit when *var* is ``NULL``, the empty string,
+        or a whitespace-only string (i.e. when :func:`_normalize_entity_type`
+        would return ``None``).
         Defaults to ``"UNKNOWN"``.  Single-quotes are escaped automatically.
 
     Returns
@@ -381,11 +403,13 @@ def build_entity_type_cypher_case(var: str, unknown_label: str = "UNKNOWN") -> s
     ``var="m.entity_type"`` is equivalent to::
 
         CASE
-          WHEN m.entity_type IS NULL OR m.entity_type = '' THEN 'UNKNOWN'
-          WHEN m.entity_type = 'ORG' THEN 'Organization'
-          WHEN m.entity_type = 'Company' THEN 'Organization'
-          WHEN m.entity_type = 'PERSON' THEN 'Person'
-          ELSE m.entity_type
+          WHEN m.entity_type IS NULL OR trim(m.entity_type) = '' THEN 'UNKNOWN'
+          WHEN trim(m.entity_type) = 'ORG' THEN 'Organization'
+          WHEN trim(m.entity_type) = 'Company' THEN 'Organization'
+          WHEN trim(m.entity_type) = 'organization' THEN 'Organization'
+          WHEN trim(m.entity_type) = 'PERSON' THEN 'Person'
+          WHEN trim(m.entity_type) = 'person' THEN 'Person'
+          ELSE trim(m.entity_type)
         END
     """
     if not _SAFE_CYPHER_VAR_RE.fullmatch(var):
@@ -396,14 +420,14 @@ def build_entity_type_cypher_case(var: str, unknown_label: str = "UNKNOWN") -> s
         )
     escaped_unknown = _escape_cypher_string(unknown_label)
     when_lines = "\n".join(
-        f"  WHEN {var} = '{_escape_cypher_string(raw)}' THEN '{_escape_cypher_string(canonical)}'"
+        f"  WHEN trim({var}) = '{_escape_cypher_string(raw)}' THEN '{_escape_cypher_string(canonical)}'"
         for raw, canonical in _ENTITY_TYPE_SYNONYMS.items()
     )
     return (
         f"CASE\n"
-        f"  WHEN {var} IS NULL OR {var} = '' THEN '{escaped_unknown}'\n"
+        f"  WHEN {var} IS NULL OR trim({var}) = '' THEN '{escaped_unknown}'\n"
         f"{when_lines}\n"
-        f"  ELSE {var}\n"
+        f"  ELSE trim({var})\n"
         f"END"
     )
 
@@ -425,8 +449,8 @@ def _build_entity_type_report(
       (i.e. ``_ENTITY_TYPE_SYNONYMS`` entries) that were actually observed this run.
     * **passthrough_labels** — sorted list of non-empty labels that are *not* in
       the synonym table and are therefore returned unchanged by normalization.
-    * **null_or_empty_count** — number of mentions with ``None`` or ``""``
-      ``entity_type`` (they produce ``None`` after normalization).
+    * **null_or_empty_count** — number of mentions with ``None``, ``""``, or
+      whitespace-only ``entity_type`` (they produce ``None`` after normalization).
     * **sentinel_label_warnings** — list of human-readable warning strings (normally
       empty).  A non-empty entry means an upstream extractor emitted the literal
       string ``"__null__"``, which is the reserved sentinel; its counts are merged
@@ -451,9 +475,10 @@ def _build_entity_type_report(
 
     for mention in mentions:
         raw = mention.get("entity_type")
-        # Normalise empty string to None so counts are consistent with how
-        # _normalize_entity_type treats the two values identically.
-        if raw == "":
+        # Normalise empty and whitespace-only strings to None so counts are
+        # consistent with how _normalize_entity_type treats them: both are
+        # stripped to "" and return None.
+        if isinstance(raw, str) and not raw.strip():
             raw = None
 
         raw_counts[raw] = raw_counts.get(raw, 0) + 1
@@ -462,12 +487,13 @@ def _build_entity_type_report(
             null_or_empty_count += 1
             norm_key = _ENTITY_TYPE_NULL_SENTINEL
         else:
-            if raw == _ENTITY_TYPE_NULL_SENTINEL:
+            if raw.strip() == _ENTITY_TYPE_NULL_SENTINEL:
                 raw_null_sentinel_seen = True
             canonical = _normalize_entity_type(raw)
-            # _normalize_entity_type only returns None when its input is falsy
-            # (None or "").  We know raw is a non-empty str here, so canonical
-            # is guaranteed to be a str.
+            # _normalize_entity_type returns None only for falsy or whitespace-only
+            # inputs.  The whitespace-only check above already normalized such raws
+            # to None, so raw here is always a non-empty non-whitespace str and
+            # canonical is guaranteed to be a str.
             assert canonical is not None
             if canonical != raw:
                 # raw was a mapped synonym
@@ -484,7 +510,12 @@ def _build_entity_type_report(
     # surfaced in sentinel_label_warnings below.
     serialized_raw_counts: dict[str, int] = {}
     for k, v in raw_counts.items():
-        key = _ENTITY_TYPE_NULL_SENTINEL if k is None else k
+        # Collapse None, exact sentinel, and padded-sentinel (e.g. " __null__ ")
+        # into a single "__null__" bucket so raw_counts is collision-free.
+        if k is None or (isinstance(k, str) and k.strip() == _ENTITY_TYPE_NULL_SENTINEL):
+            key = _ENTITY_TYPE_NULL_SENTINEL
+        else:
+            key = k
         serialized_raw_counts[key] = serialized_raw_counts.get(key, 0) + v
 
     sentinel_label_warnings: list[str] = []

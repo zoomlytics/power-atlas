@@ -648,11 +648,16 @@ The following three dimensions uniquely identify a `:ResolvedEntityCluster` node
 |---|---|---|
 | `'ORG'` | `'Organization'` | Common LLM extraction shorthand |
 | `'Company'` | `'Organization'` | Companies are organizations |
+| `'organization'` | `'Organization'` | All-lowercase casing variant (real-run fragmentation evidence) |
 | `'Organization'` | `'Organization'` | Already canonical |
 | `'PERSON'` | `'Person'` | Common LLM extraction all-caps variant |
+| `'person'` | `'Person'` | All-lowercase casing variant |
 | `'Person'` | `'Person'` | Already canonical |
-| `None` / `''` | `None` | Treated as unknown / absent |
-| All other labels | unchanged | e.g. `'PRODUCT'`, `'Place'` |
+| `None` / `''` / whitespace-only | `None` | Treated as unknown / absent |
+| All other labels | whitespace-stripped, otherwise unchanged | e.g. `'PRODUCT'`, `'Place'` |
+
+Leading/trailing whitespace is stripped before the synonym lookup, so `' Organization '`
+resolves correctly to `'Organization'` even though no padded form is listed in the table.
 
 This normalization is applied in `_make_cluster_id()` (cluster identity) and in
 `_cluster_mentions_unstructured_only()` (type-scoped clustering indices), ensuring that
@@ -739,6 +744,14 @@ A raw label should be added to `_ENTITY_TYPE_SYNONYMS` (identity-time normalizat
 
 Example: `"ORG"` → `"Organization"` satisfies all three criteria.
 
+All-lowercase casing variants of canonical types (`"organization"`, `"person"`) were added
+because real-run benchmark evidence (run `unstructured_ingest-20260401T184420771950Z`)
+showed benchmark-visible canonical-empty / cluster-populated fragmentation caused by
+`"organization"` and `"Organization"` being treated as separate cluster identities.
+
+Additionally, leading/trailing whitespace is stripped before the synonym lookup (`entity_type.strip()`),
+so padded forms like `" Organization "` resolve correctly without requiring explicit table entries.
+
 #### What should remain distinct
 
 Labels must **not** be merged when:
@@ -750,6 +763,9 @@ Labels must **not** be merged when:
   diagnostics (e.g. merging `"PRODUCT"` into `"Organization"` to improve metrics would be
   incorrect).
 - The mapping would be lossy and unrecoverable from the graph.
+
+Note: `"org"` is intentionally **not** mapped — it is an abbreviation, not a casing variant,
+and its correct canonical form cannot be safely assumed.
 
 #### Analytics/reporting-time grouping
 
@@ -767,6 +783,9 @@ used for this purpose.  `demo/stages/graph_health.py` uses this helper for the
 `_Q_CLUSTER_TYPE_FRAGMENTATION` query so that graph-health diagnostics are semantically
 consistent with actual cluster-assignment behaviour.
 
+The generated Cypher uses `trim()` on the raw value to match the Python-side whitespace
+stripping, so whitespace-padded raw values are handled consistently in both paths.
+
 Example usage of the helper:
 ```python
 from demo.stages.entity_resolution import build_entity_type_cypher_case
@@ -778,11 +797,14 @@ Example Cypher grouping at reporting time:
 ```cypher
 MATCH (m:EntityMention {run_id: $run_id})
 RETURN
-  CASE m.entity_type
-    WHEN 'ORG'          THEN 'Organization'
-    WHEN 'Company'      THEN 'Organization'
-    WHEN 'PERSON'       THEN 'Person'
-    ELSE coalesce(nullif(m.entity_type, ''), 'unknown')
+  CASE
+    WHEN m.entity_type IS NULL OR trim(m.entity_type) = '' THEN 'unknown'
+    WHEN trim(m.entity_type) = 'ORG'          THEN 'Organization'
+    WHEN trim(m.entity_type) = 'Company'       THEN 'Organization'
+    WHEN trim(m.entity_type) = 'organization'  THEN 'Organization'
+    WHEN trim(m.entity_type) = 'PERSON'        THEN 'Person'
+    WHEN trim(m.entity_type) = 'person'        THEN 'Person'
+    ELSE trim(m.entity_type)
   END AS grouped_type,
   count(*) AS mentions
 ORDER BY mentions DESC;

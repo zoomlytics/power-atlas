@@ -1391,13 +1391,28 @@ class TestNormalizeEntityType(unittest.TestCase):
     def test_empty_string_returns_none(self):
         self.assertIsNone(_normalize_entity_type(""))
 
+    def test_whitespace_only_returns_none(self):
+        """Whitespace-only strings are treated as absent (same as None / '')."""
+        self.assertIsNone(_normalize_entity_type("   "))
+        self.assertIsNone(_normalize_entity_type("\t"))
+
+    def test_whitespace_stripped_before_lookup(self):
+        """Leading/trailing whitespace is stripped before the synonym lookup."""
+        self.assertEqual(_normalize_entity_type(" Organization "), "Organization")
+        self.assertEqual(_normalize_entity_type("  ORG  "), "Organization")
+        self.assertEqual(_normalize_entity_type(" Person "), "Person")
+
     def test_lowercase_org_is_not_mapped(self):
-        """Matching is case-sensitive; 'org' is NOT a known synonym."""
+        """'org' is an abbreviation, not a casing variant; it is NOT mapped."""
         self.assertEqual(_normalize_entity_type("org"), "org")
 
-    def test_lowercase_person_is_not_mapped(self):
-        """Matching is case-sensitive; 'person' (all-lower) stays unchanged."""
-        self.assertEqual(_normalize_entity_type("person"), "person")
+    def test_lowercase_organization_maps_to_Organization(self):
+        """'organization' (all-lowercase) is a casing variant of 'Organization'."""
+        self.assertEqual(_normalize_entity_type("organization"), "Organization")
+
+    def test_lowercase_person_maps_to_Person(self):
+        """'person' (all-lowercase) is a casing variant of 'Person'."""
+        self.assertEqual(_normalize_entity_type("person"), "Person")
 
 
     def test_initialism_match(self):
@@ -1468,6 +1483,24 @@ class TestEntityTypeDriftReport(unittest.TestCase):
         report = _build_entity_type_report(mentions)
         self.assertEqual(report["raw_counts"].get("__null__"), 1)
         self.assertEqual(report["null_or_empty_count"], 1)
+
+    def test_whitespace_only_entity_type_counted_as_null(self):
+        """Whitespace-only entity_type is treated as absent (null_or_empty bucket).
+
+        Regression test: _normalize_entity_type now strips whitespace and returns
+        None for whitespace-only inputs, so _build_entity_type_report must normalize
+        whitespace-only raw values to None before calling it to avoid a failed assert.
+        """
+        for ws in ("   ", "\t", " \t "):
+            with self.subTest(entity_type=repr(ws)):
+                mentions = [{"mention_id": "m1", "name": "Acme", "entity_type": ws}]
+                report = _build_entity_type_report(mentions)
+                self.assertEqual(report["raw_counts"].get("__null__"), 1,
+                                 msg=f"raw_counts should use __null__ sentinel for {ws!r}")
+                self.assertEqual(report["null_or_empty_count"], 1,
+                                 msg=f"null_or_empty_count should be 1 for {ws!r}")
+                self.assertEqual(report["normalized_counts"].get("__null__"), 1,
+                                 msg=f"normalized_counts should use __null__ sentinel for {ws!r}")
 
     def test_mapped_synonym_ORG_appears_in_mapped_variants(self):
         mentions = [{"mention_id": "m1", "name": "IBM", "entity_type": "ORG"}]
@@ -1686,8 +1719,36 @@ class TestEntityTypeDriftReport(unittest.TestCase):
         report = _build_entity_type_report(mentions)
         self.assertEqual(report["sentinel_label_warnings"], [])
 
+    def test_padded_sentinel_sets_raw_null_sentinel_seen(self):
+        """A padded sentinel like ' __null__ ' collides with the __null__ bucket.
 
-class TestFuzzyRatio(unittest.TestCase):
+        Regression test: sentinel collision detection must strip the raw value
+        before comparing so that padded forms are caught and the warning is
+        raised when null/empty mentions also exist.
+        """
+        mentions = [
+            {"mention_id": "m1", "name": "Acme"},  # entity_type absent → None
+            {"mention_id": "m2", "name": "Weird", "entity_type": " __null__ "},  # padded sentinel
+        ]
+        report = _build_entity_type_report(mentions)
+        # Padded sentinel merges into __null__ bucket in raw_counts
+        self.assertEqual(report["raw_counts"].get("__null__"), 2)
+        # Also merges in normalized_counts
+        self.assertEqual(report["normalized_counts"].get("__null__"), 2)
+        # Warning must be surfaced (collision between extractor-emitted sentinel and absent type)
+        self.assertEqual(len(report["sentinel_label_warnings"]), 1)
+        self.assertIn("__null__", report["sentinel_label_warnings"][0])
+
+    def test_padded_sentinel_alone_no_warning(self):
+        """A padded sentinel with no absent types should not produce a warning."""
+        mentions = [
+            {"mention_id": "m1", "name": "Weird", "entity_type": " __null__ "},
+        ]
+        report = _build_entity_type_report(mentions)
+        self.assertEqual(report["raw_counts"].get("__null__"), 1)
+        self.assertEqual(report["sentinel_label_warnings"], [])
+
+
     def test_identical_strings_return_one(self):
         self.assertAlmostEqual(_fuzzy_ratio("alice", "alice"), 1.0)
 
