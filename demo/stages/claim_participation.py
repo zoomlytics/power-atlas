@@ -364,7 +364,7 @@ class ParticipationMatchMetrics:
         ``slot``
             The slot name (``"subject"`` or ``"object"``).
         ``slot_text``
-            The normalized/trimmed slot text (``slot_str``) used for splitting
+            The whitespace-trimmed slot text (``slot_str``) used for splitting
             — i.e. the value passed to :func:`split_slot_text`.  Leading and
             trailing whitespace is stripped; the value is always a plain string.
         ``parts``
