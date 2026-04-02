@@ -1934,7 +1934,7 @@ pipelines/runs/unstructured_ingest-20260401T184420771950Z-ee78cf8c/retrieval_ben
 > **⚠️ Pre-PR-#433 reference point.**  This baseline was generated before PR **#433**
 > hardened `entity_type` normalization.  The `fragmentation_detected_count=4` and
 > all `entity_type_case_split` hints in this artifact reflect a now-addressed
-> normalization gap.  A post-#433 run is expected to produce lower fragmentation
+> normalization gap.  A post-PR-#433 run is expected to produce lower fragmentation
 > counts.  See `PROVENANCE.md` § *Relationship to PR #433* for the full impact
 > table.
 
