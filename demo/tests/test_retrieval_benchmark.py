@@ -33,6 +33,10 @@ Structure
     documented contracts (all required fields non-empty, case_type values
     from the allowed set, entity_names non-empty, pairwise cases have two
     names, etc.).
+
+``TestCypherQueryHygiene``
+    Asserts that Cypher query constants do not use deprecated Neo4j functions
+    (e.g. ``id()``).
 """
 from __future__ import annotations
 
@@ -49,6 +53,7 @@ from demo.stages.retrieval_benchmark import (
     BenchmarkCaseResult,
     PairwiseCaseResult,
     RetrievalBenchmarkArtifact,
+    _Q_PAIRWISE_CANONICAL,
     _compute_benchmark_summary,
     _count_distinct,
     _count_distinct_claims,
@@ -888,3 +893,23 @@ class TestBenchmarkCasesContract(unittest.TestCase):
         case = BENCHMARK_CASES[0]
         with self.assertRaises((AttributeError, TypeError)):
             case.case_id = "mutated"  # type: ignore[misc]
+
+
+# ---------------------------------------------------------------------------
+# Cypher query hygiene — no deprecated Neo4j id() usage
+# ---------------------------------------------------------------------------
+
+class TestCypherQueryHygiene(unittest.TestCase):
+    """Verify that retrieval benchmark Cypher queries do not use deprecated functions."""
+
+    def test_pairwise_canonical_query_does_not_use_deprecated_id(self) -> None:
+        import re
+
+        # Match the standalone id() Neo4j function call (case-insensitive).
+        # This must not appear in the pairwise query.
+        pattern = re.compile(r"\bid\s*\(", re.IGNORECASE)
+        self.assertIsNone(
+            pattern.search(_Q_PAIRWISE_CANONICAL),
+            "Deprecated Neo4j id() function found in _Q_PAIRWISE_CANONICAL; "
+            "use direct node comparison (canonObj <> canonSub) instead.",
+        )

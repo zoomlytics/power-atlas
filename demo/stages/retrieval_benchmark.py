@@ -444,7 +444,7 @@ WHERE toLower(canonSub.name) CONTAINS toLower($entity_a)
 MATCH (canonObj:CanonicalEntity)
 WHERE (toLower(canonObj.name) CONTAINS toLower($entity_a)
        OR toLower(canonObj.name) CONTAINS toLower($entity_b))
-  AND id(canonObj) <> id(canonSub)
+  AND canonObj <> canonSub
 WITH canonSub, canonObj
 WHERE
   (toLower(canonSub.name) CONTAINS toLower($entity_a) AND toLower(canonObj.name) CONTAINS toLower($entity_b)) OR
