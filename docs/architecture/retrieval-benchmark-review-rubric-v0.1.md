@@ -205,7 +205,7 @@ Each `BenchmarkCaseResult` now carries two classification fields:
 
 | Token | Cause | Recommended action |
 |-------|-------|--------------------|
-| `"entity_type_case_split"` | Two or more `entity_type` values in `fragmentation_check_rows` differ only by case (e.g., `"Organization"` vs `"organization"`).  The same conceptual entity type was persisted under two case variants, producing separate clusters that are not collapsed by the canonical path. | Add the missing case variant to `_ENTITY_TYPE_SYNONYMS` in `entity_resolution.py` and re-run entity resolution.  This is the narrowest correct implementation seam for this class of fragmentation. |
+| `"entity_type_case_split"` | Two or more `entity_type` values in `fragmentation_check_rows` differ only by case (e.g., `"Organization"` vs `"organization"`).  The same conceptual entity type was persisted under two case variants, producing separate clusters that are not collapsed by the canonical path. | Ensure the observed `entity_type` variants are covered by normalization (via `_normalize_entity_type` / `_ENTITY_TYPE_SYNONYMS`) and re-run entity resolution. If the mapping already exists, investigate why clusters were persisted with mixed-case `entity_type` and correct the underlying normalization or persistence issue. |
 | `"catalog_absent_or_alignment_gap"` | `canonical_rows` is empty while `cluster_rows` is non-empty.  The entity exists in the graph at the cluster level but is either (a) absent from the structured catalog (no `CanonicalEntity` node), or (b) in the catalog but without `ALIGNED_WITH` edges connecting it to the cluster. | Inspect `lower_layer_rows` to check whether a `CanonicalEntity` node exists.  If it does not, the entity needs to be added to the structured catalog.  If it does, check `ALIGNED_WITH` coverage with the graph health diagnostics script. |
 
 Multiple tokens may be present simultaneously.  The `mercadolibre_single` case
@@ -280,7 +280,7 @@ fragmentation_type_hints=`["entity_type_case_split", "catalog_absent_or_alignmen
 | `canonical_claim_count` | 0 (baseline: not in catalog) | 1–4 (verify catalog addition) | Unexplained jump to > 4 |
 | `cluster_claim_count` | 8 ± 3 | +/– 4–12 | 0 |
 | `fragmentation_detected` | True | — | False **and** cluster_claim_count = 0 |
-| `canonical_empty_cluster_populated` | True | — | False **and** cluster_claim_count = 0 |
+| `canonical_empty_cluster_populated` | True | False **and** cluster_claim_count > 0 (canonical coverage improved; verify catalog/alignment change) | False **and** cluster_claim_count = 0 |
 | dark mentions in `lower_layer_rows` | 0 (empty, expected) | — | — |
 
 ---
@@ -420,7 +420,7 @@ fragmentation_type_hints=`["entity_type_case_split", "catalog_absent_or_alignmen
 | Signal | 🟢 Green | 🟡 Yellow | 🔴 Red |
 |--------|---------|----------|--------|
 | `fragmentation_detected` | True | — | False (verify canonical coverage) |
-| `canonical_empty_cluster_populated` | True | — | False **and** cluster_claim_count = 0 |
+| `canonical_empty_cluster_populated` | True | False **and** cluster_claim_count > 0 (canonical coverage improved; verify catalog/alignment change) | False **and** cluster_claim_count = 0 |
 | `cluster_name_cluster_count` | 2 | 1 or 3 | 0 |
 | `fragmentation_check_rows` entity_type values | Organization + organization | Organization only | empty |
 
