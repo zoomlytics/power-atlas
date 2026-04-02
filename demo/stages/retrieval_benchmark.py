@@ -549,8 +549,10 @@ def _classify_fragmentation_type(
         (a) the entity has no ``CanonicalEntity`` node in the structured catalog,
         or (b) the entity is in the catalog but ``ALIGNED_WITH`` edges are absent
         or the canonical name does not satisfy the ``toLower CONTAINS`` filter.
-        Use ``lower_layer_rows`` and graph health diagnostics to distinguish
-        between sub-causes.
+        This function cannot distinguish between these sub-causes; callers should
+        use a dedicated ``CanonicalEntity`` existence check and then inspect
+        ``ALIGNED_WITH`` (or equivalent alignment) coverage and graph health
+        diagnostics to determine which applies.
     """
     hints: list[str] = []
 
