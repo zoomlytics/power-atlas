@@ -43,6 +43,7 @@ pipelines/runs/unstructured_ingest-20260401T184420771950Z-ee78cf8c/retrieval_ben
 | `single_and_comparison_cases` | 8 |
 | `pairwise_cases` | 1 |
 | `fragmentation_detected_count` | 4 |
+| `canonical_empty_cluster_populated_count` | 2 |
 | `entities_with_claims_canonical` | 6 |
 | `entities_with_claims_cluster` | 8 |
 | `total_canonical_claims` | 34 |
@@ -53,9 +54,12 @@ pipelines/runs/unstructured_ingest-20260401T184420771950Z-ee78cf8c/retrieval_ben
 
 - `mercadolibre_single` — canonical path returns zero rows (MercadoLibre absent
   from structured catalog); fragmentation detected via `Organization` /
-  `organization` entity-type split.
+  `organization` entity-type split;
+  `canonical_empty_cluster_populated=True`,
+  `fragmentation_type_hints=["entity_type_case_split", "catalog_absent_or_alignment_gap"]`.
 - `endeavor_single` / `endeavor_composite` — fragmentation detected;
-  `cluster_name_cluster_count=4` (two name variants × two entity-type case variants).
+  `cluster_name_cluster_count=4` (two name variants × two entity-type case variants);
+  `canonical_empty_cluster_populated=False` (canonical coverage is present).
 - `linda_rottenberg_single` — one dark mention (`claim_id=null`) present in
   `lower_layer_rows`.
 - `amazon_ebay_pairwise` — zero pairwise rows; acceptable under expected-shape
@@ -118,6 +122,23 @@ The number of cases where `cluster_name_cluster_count > canonical_cluster_count`
 | 🟡 **Increased (e.g. 5–6)** | New entity-type or spelling splits appeared.  Inspect `fragmentation_check_rows` for the new cases — could be intentional data growth or a new alignment gap. |
 | 🔴 **Decreased below baseline (0–3)** | Fragmentation no longer detected on previously-fragmented entities.  Either the alignment improved (good) or the entity is missing from the graph entirely (bad).  For entities that should have canonical coverage, verify `canonical_rows` is non-empty; for known empty-canonical baseline cases (e.g., MercadoLibre in this baseline), confirm the `cluster_name` path still returns rows and that the lack of canonical rows is still expected. |
 
+### `canonical_empty_cluster_populated_count`
+
+The number of non-pairwise cases where `canonical_claim_count == 0` **and**
+`cluster_claim_count > 0`.  This is the primary signal for the
+**canonical-empty / cluster-populated** result class described in the
+[Canonical-empty / cluster-populated result class](#canonical-empty--cluster-populated-result-class)
+section below.
+
+**Baseline value: 2** (`mercadolibre_single` and `mercadolibre_fragmentation`).
+
+| Movement | Interpretation |
+|----------|---------------|
+| 🟢 **2 (baseline)** | Both known empty-canonical cases remain in their expected state. |
+| 🟡 **3–4** | One or two additional cases have lost canonical coverage.  Inspect `fragmentation_type_hints` on the affected cases to classify the cause. |
+| 🔴 **≥ 5** | Widespread canonical coverage loss — likely an alignment stage failure or broken `ALIGNED_WITH` edges across multiple entities. |
+| 🟡 **1 or 0** | MercadoLibre may now be in the structured catalog (canonical coverage improved).  Verify the new canonical rows are correct and update the baseline if intentional. |
+
 ### `entities_with_claims_canonical`
 
 How many non-pairwise cases (single-entity and comparison) returned at least one claim via the canonical path.
@@ -159,6 +180,74 @@ a dataset that does not contain cross-entity subject/object claims.
 
 ---
 
+## Canonical-empty / cluster-populated result class
+
+A case is in the **canonical-empty / cluster-populated** result class when:
+
+- `canonical_claim_count == 0` (canonical path returned no claims), **and**
+- `cluster_claim_count > 0` (cluster-name path returned at least one claim).
+
+This pattern means the entity is reachable through unstructured cluster evidence
+but is invisible to the canonical (structured catalog) traversal path.  It is
+**not automatically a bug** — it is expected whenever an entity is absent from the
+structured catalog.
+
+### How to read `canonical_empty_cluster_populated` and `fragmentation_type_hints`
+
+Each `BenchmarkCaseResult` now carries two classification fields:
+
+| Field | Type | Meaning |
+|-------|------|---------|
+| `canonical_empty_cluster_populated` | `bool` | `True` ↔ the case is in the canonical-empty / cluster-populated class |
+| `fragmentation_type_hints` | `list[str]` | Zero or more cause tokens (see below) |
+
+**Cause tokens in `fragmentation_type_hints`:**
+
+| Token | Cause | Recommended action |
+|-------|-------|--------------------|
+| `"entity_type_case_split"` | Two or more `entity_type` values in `fragmentation_check_rows` differ only by case (e.g., `"Organization"` vs `"organization"`).  The same conceptual entity type was persisted under two case variants, producing separate clusters that are not collapsed by the canonical path. | Add the missing case variant to `_ENTITY_TYPE_SYNONYMS` in `entity_resolution.py` and re-run entity resolution.  This is the narrowest correct implementation seam for this class of fragmentation. |
+| `"catalog_absent_or_alignment_gap"` | `canonical_rows` is empty while `cluster_rows` is non-empty.  The entity exists in the graph at the cluster level but is either (a) absent from the structured catalog (no `CanonicalEntity` node), or (b) in the catalog but without `ALIGNED_WITH` edges connecting it to the cluster. | Inspect `lower_layer_rows` to check whether a `CanonicalEntity` node exists.  If it does not, the entity needs to be added to the structured catalog.  If it does, check `ALIGNED_WITH` coverage with the graph health diagnostics script. |
+
+Multiple tokens may be present simultaneously.  The `mercadolibre_single` case
+in the baseline carries **both** tokens: there is an `entity_type_case_split`
+(`Organization`/`organization`) **and** the entity is catalog-absent
+(`catalog_absent_or_alignment_gap`).
+
+### Classification of the baseline cases
+
+| Case | `canonical_empty_cluster_populated` | `fragmentation_type_hints` | Classification |
+|------|-------------------------------------|---------------------------|----------------|
+| `mercadolibre_single` | `True` | `["entity_type_case_split", "catalog_absent_or_alignment_gap"]` | **Expected** — MercadoLibre is absent from the structured catalog; the type-case split is a known entity_resolution condition. |
+| `mercadolibre_fragmentation` | `True` | `["entity_type_case_split", "catalog_absent_or_alignment_gap"]` | **Expected** — same entity as above; this case exists to make fragmentation explicit in the summary count. |
+| All other cases | `False` | `[]` or `["entity_type_case_split"]` | Canonical path is present; any fragmentation is captured only by the `fragmentation_detected` signal. |
+
+### Guidance for reviewers
+
+1. **If `canonical_empty_cluster_populated_count` matches the baseline (2):**
+   Both known empty-canonical cases remain stable.  No action required unless
+   other signals changed.
+
+2. **If `canonical_empty_cluster_populated_count` increased:**
+   A previously-canonical case lost canonical coverage.  For the newly-affected
+   cases, inspect:
+   - `fragmentation_type_hints` to classify the cause.
+   - `lower_layer_rows` to check for dark mentions or a missing canonical link.
+   - Graph health diagnostics for `ALIGNED_WITH` coverage.
+
+3. **If `fragmentation_type_hints` contains only `"entity_type_case_split"` but
+   `canonical_empty_cluster_populated` is `False`:**
+   The entity has canonical coverage; the case-split is detectable at the cluster
+   layer but the canonical path absorbs it.  This is **acceptable but noisy** —
+   the entity_type normalisation gap is a known condition and should be addressed
+   by extending `_ENTITY_TYPE_SYNONYMS` in a follow-up.
+
+4. **If `fragmentation_type_hints` contains `"catalog_absent_or_alignment_gap"`
+   but `canonical_empty_cluster_populated` is expected to be `False`:**
+   An entity that should be in the catalog is missing or its alignment is broken.
+   This is a **regression** — open an issue and investigate the alignment stage.
+
+---
+
 ## Per-case review guide
 
 ### Case `mercadolibre_single` (single_entity)
@@ -167,7 +256,9 @@ a dataset that does not contain cross-entity subject/object claims.
 may appear under multiple surface forms and clusters.
 
 **Baseline figures:** canonical_claim_count=0, cluster_claim_count=8,
-canonical_cluster_count=0, cluster_name_cluster_count=2, fragmentation_detected=**True**
+canonical_cluster_count=0, cluster_name_cluster_count=2, fragmentation_detected=**True**,
+canonical_empty_cluster_populated=**True**,
+fragmentation_type_hints=`["entity_type_case_split", "catalog_absent_or_alignment_gap"]`
 
 **Review notes:**
 
@@ -178,6 +269,9 @@ canonical_cluster_count=0, cluster_name_cluster_count=2, fragmentation_detected=
 - `fragmentation_detected=True` is **expected** here.  The baseline graph
   contains both an `Organization` and an `organization` (lowercase) cluster for
   MercadoLibre — a case-sensitivity entity-type split.
+- `canonical_empty_cluster_populated=True` is **expected** — see the
+  [Canonical-empty / cluster-populated result class](#canonical-empty--cluster-populated-result-class)
+  section above for the full classification.
 - `lower_layer_rows` is empty because canonical traversal returns no results
   without a `CanonicalEntity` node.
 
@@ -186,6 +280,7 @@ canonical_cluster_count=0, cluster_name_cluster_count=2, fragmentation_detected=
 | `canonical_claim_count` | 0 (baseline: not in catalog) | 1–4 (verify catalog addition) | Unexplained jump to > 4 |
 | `cluster_claim_count` | 8 ± 3 | +/– 4–12 | 0 |
 | `fragmentation_detected` | True | — | False **and** cluster_claim_count = 0 |
+| `canonical_empty_cluster_populated` | True | — | False **and** cluster_claim_count = 0 |
 | dark mentions in `lower_layer_rows` | 0 (empty, expected) | — | — |
 
 ---
@@ -218,7 +313,9 @@ canonical_cluster_count=1, cluster_name_cluster_count=1, fragmentation_detected=
 with alias mentions ("Endeavor Argentina").
 
 **Baseline figures:** canonical_claim_count=10, cluster_claim_count=12,
-canonical_cluster_count=2, cluster_name_cluster_count=4, fragmentation_detected=**True**
+canonical_cluster_count=2, cluster_name_cluster_count=4, fragmentation_detected=**True**,
+canonical_empty_cluster_populated=**False**,
+fragmentation_type_hints=`["entity_type_case_split"]`
 
 **Review notes:**
 
@@ -230,12 +327,17 @@ canonical_cluster_count=2, cluster_name_cluster_count=4, fragmentation_detected=
 - `cluster_claim_count > canonical_claim_count` is expected here due to
   fragmentation: cluster-name traversal picks up claims from the lowercase
   `organization` clusters that are not aligned to the canonical entity.
+- `canonical_empty_cluster_populated=False` because canonical coverage is present;
+  this case is in the **fragmented-but-covered** class, not the canonical-empty class.
+- `fragmentation_type_hints=["entity_type_case_split"]` confirms the fragmentation
+  is caused by the `Organization`/`organization` case-sensitivity split.
 
 | Signal | 🟢 Green | 🟡 Yellow | 🔴 Red |
 |--------|---------|----------|--------|
 | `canonical_claim_count` | 10 ± 3 | +/– 7–14 | 0 |
 | `canonical_cluster_count` | 2 | 1 or 3 | 0 |
 | `fragmentation_detected` | True | — | False **and** cluster_claim_count unchanged |
+| `canonical_empty_cluster_populated` | False | — | True |
 | dark mentions in `lower_layer_rows` | 0–1 | 2–3 | > 3 |
 
 ---
@@ -294,7 +396,9 @@ canonical_cluster_count=1, cluster_name_cluster_count=1, fragmentation_detected=
 fragmentation regression case.
 
 **Baseline figures:** canonical_claim_count=0, cluster_claim_count=8,
-canonical_cluster_count=0, cluster_name_cluster_count=2, fragmentation_detected=**True**
+canonical_cluster_count=0, cluster_name_cluster_count=2, fragmentation_detected=**True**,
+canonical_empty_cluster_populated=**True**,
+fragmentation_type_hints=`["entity_type_case_split", "catalog_absent_or_alignment_gap"]`
 
 **Review notes:**
 
@@ -305,6 +409,10 @@ canonical_cluster_count=0, cluster_name_cluster_count=2, fragmentation_detected=
   known entity-type split (`Organization` vs `organization`).
 - `canonical_rows` is empty (same as `mercadolibre_single`) because MercadoLibre
   is absent from the structured catalog in the baseline run.
+- `canonical_empty_cluster_populated=True` and `fragmentation_type_hints` carry
+  both cause tokens — this is the expected baseline state.  See the
+  [Canonical-empty / cluster-populated result class](#canonical-empty--cluster-populated-result-class)
+  section for a full explanation.
 - A change to `fragmentation_detected=False` means either the fragmentation was
   resolved (investigate whether the duplicate clusters were merged/removed) or an
   entity disappeared from the graph.
@@ -312,6 +420,7 @@ canonical_cluster_count=0, cluster_name_cluster_count=2, fragmentation_detected=
 | Signal | 🟢 Green | 🟡 Yellow | 🔴 Red |
 |--------|---------|----------|--------|
 | `fragmentation_detected` | True | — | False (verify canonical coverage) |
+| `canonical_empty_cluster_populated` | True | — | False **and** cluster_claim_count = 0 |
 | `cluster_name_cluster_count` | 2 | 1 or 3 | 0 |
 | `fragmentation_check_rows` entity_type values | Organization + organization | Organization only | empty |
 

@@ -54,6 +54,7 @@ from demo.stages.retrieval_benchmark import (
     PairwiseCaseResult,
     RetrievalBenchmarkArtifact,
     _Q_PAIRWISE_CANONICAL,
+    _classify_fragmentation_type,
     _compute_benchmark_summary,
     _count_distinct,
     _count_distinct_claims,
@@ -164,6 +165,8 @@ def _make_case_result(
     canonical_cluster_count: int = 1,
     cluster_name_cluster_count: int = 1,
     fragmentation_detected: bool = False,
+    canonical_empty_cluster_populated: bool = False,
+    fragmentation_type_hints: list[str] | None = None,
 ) -> BenchmarkCaseResult:
     return BenchmarkCaseResult(
         case_id=case_id,
@@ -181,6 +184,8 @@ def _make_case_result(
         canonical_cluster_count=canonical_cluster_count,
         cluster_name_cluster_count=cluster_name_cluster_count,
         fragmentation_detected=fragmentation_detected,
+        canonical_empty_cluster_populated=canonical_empty_cluster_populated,
+        fragmentation_type_hints=fragmentation_type_hints if fragmentation_type_hints is not None else [],
     )
 
 
@@ -268,6 +273,90 @@ class TestCountHelpers(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# TestClassifyFragmentationType
+# ---------------------------------------------------------------------------
+
+
+class TestClassifyFragmentationType(unittest.TestCase):
+    """Unit tests for _classify_fragmentation_type."""
+
+    def test_empty_returns_no_hints(self) -> None:
+        hints = _classify_fragmentation_type([], [], [])
+        self.assertEqual(hints, [])
+
+    def test_entity_type_case_split_detected(self) -> None:
+        # "Organization" and "organization" differ only by case.
+        frag_rows = [
+            {"cluster_id": "c1", "canonical_name": "Acme", "entity_type": "Organization"},
+            {"cluster_id": "c2", "canonical_name": "Acme", "entity_type": "organization"},
+        ]
+        hints = _classify_fragmentation_type(frag_rows, [], [])
+        self.assertIn("entity_type_case_split", hints)
+
+    def test_entity_type_case_split_not_detected_when_types_genuinely_differ(self) -> None:
+        # "Organization" and "Person" do not share a common lowercased form.
+        frag_rows = [
+            {"cluster_id": "c1", "canonical_name": "Acme", "entity_type": "Organization"},
+            {"cluster_id": "c2", "canonical_name": "Acme", "entity_type": "Person"},
+        ]
+        hints = _classify_fragmentation_type(frag_rows, [], [])
+        self.assertNotIn("entity_type_case_split", hints)
+
+    def test_entity_type_case_split_not_detected_when_single_type(self) -> None:
+        frag_rows = [
+            {"cluster_id": "c1", "canonical_name": "Acme", "entity_type": "Organization"},
+        ]
+        hints = _classify_fragmentation_type(frag_rows, [], [])
+        self.assertNotIn("entity_type_case_split", hints)
+
+    def test_catalog_absent_or_alignment_gap_detected(self) -> None:
+        # canonical empty, cluster non-empty → alignment gap or catalog absent
+        canonical_rows: list[dict] = []
+        cluster_rows = _make_cluster_rows(n_claims=3)
+        hints = _classify_fragmentation_type([], canonical_rows, cluster_rows)
+        self.assertIn("catalog_absent_or_alignment_gap", hints)
+
+    def test_catalog_absent_or_alignment_gap_not_detected_when_canonical_present(self) -> None:
+        canonical_rows = _make_canonical_rows(n_claims=2)
+        cluster_rows = _make_cluster_rows(n_claims=3)
+        hints = _classify_fragmentation_type([], canonical_rows, cluster_rows)
+        self.assertNotIn("catalog_absent_or_alignment_gap", hints)
+
+    def test_catalog_absent_or_alignment_gap_not_detected_when_both_empty(self) -> None:
+        hints = _classify_fragmentation_type([], [], [])
+        self.assertNotIn("catalog_absent_or_alignment_gap", hints)
+
+    def test_multiple_hints_when_both_conditions_present(self) -> None:
+        # Case-split AND canonical empty with cluster populated.
+        frag_rows = [
+            {"cluster_id": "c1", "canonical_name": "Acme", "entity_type": "Organization"},
+            {"cluster_id": "c2", "canonical_name": "Acme", "entity_type": "organization"},
+        ]
+        cluster_rows = _make_cluster_rows(n_claims=2)
+        hints = _classify_fragmentation_type(frag_rows, [], cluster_rows)
+        self.assertIn("entity_type_case_split", hints)
+        self.assertIn("catalog_absent_or_alignment_gap", hints)
+
+    def test_null_entity_type_ignored(self) -> None:
+        # Rows with null entity_type should not trigger a false case-split detection.
+        frag_rows = [
+            {"cluster_id": "c1", "canonical_name": "Acme", "entity_type": None},
+            {"cluster_id": "c2", "canonical_name": "Acme", "entity_type": None},
+        ]
+        hints = _classify_fragmentation_type(frag_rows, [], [])
+        self.assertNotIn("entity_type_case_split", hints)
+
+    def test_mixed_null_and_case_variant_still_detected(self) -> None:
+        frag_rows = [
+            {"cluster_id": "c1", "canonical_name": "Acme", "entity_type": "Organization"},
+            {"cluster_id": "c2", "canonical_name": "Acme", "entity_type": "organization"},
+            {"cluster_id": "c3", "canonical_name": "Acme", "entity_type": None},
+        ]
+        hints = _classify_fragmentation_type(frag_rows, [], [])
+        self.assertIn("entity_type_case_split", hints)
+
+
+# ---------------------------------------------------------------------------
 # TestComputeBenchmarkSummary
 # ---------------------------------------------------------------------------
 
@@ -316,6 +405,36 @@ class TestComputeBenchmarkSummary(unittest.TestCase):
         self.assertEqual(s["total_cases"], 4)
         self.assertEqual(s["single_and_comparison_cases"], 2)
         self.assertEqual(s["pairwise_cases"], 2)
+
+    def test_canonical_empty_cluster_populated_count_zero_by_default(self) -> None:
+        cases = [
+            _make_case_result("a", canonical_claim_count=3, cluster_claim_count=3),
+            _make_case_result("b", canonical_claim_count=0, cluster_claim_count=0),
+        ]
+        s = _compute_benchmark_summary(cases, [])
+        self.assertEqual(s["canonical_empty_cluster_populated_count"], 0)
+
+    def test_canonical_empty_cluster_populated_count_nonzero(self) -> None:
+        cases = [
+            _make_case_result(
+                "a",
+                canonical_claim_count=0,
+                cluster_claim_count=8,
+                canonical_empty_cluster_populated=True,
+            ),
+            _make_case_result(
+                "b",
+                canonical_claim_count=3,
+                cluster_claim_count=3,
+                canonical_empty_cluster_populated=False,
+            ),
+        ]
+        s = _compute_benchmark_summary(cases, [])
+        self.assertEqual(s["canonical_empty_cluster_populated_count"], 1)
+
+    def test_canonical_empty_cluster_populated_count_in_summary_keys(self) -> None:
+        s = _compute_benchmark_summary([], [])
+        self.assertIn("canonical_empty_cluster_populated_count", s)
 
 
 # ---------------------------------------------------------------------------
@@ -421,6 +540,82 @@ class TestBuildBenchmarkCaseResult(unittest.TestCase):
         d = result.to_dict()
         serialised = json.dumps(d)
         self.assertIn("canonical_claim_count", serialised)
+
+    def test_canonical_empty_cluster_populated_true_when_canonical_empty(self) -> None:
+        # canonical_rows empty but cluster_rows populated → flag set
+        cluster_rows = _make_cluster_rows(n_claims=4)
+        result = build_benchmark_case_result(
+            case_def=_make_case_def(),
+            canonical_rows=[],
+            cluster_rows=cluster_rows,
+            lower_layer_rows=[],
+            fragmentation_check_rows=[],
+        )
+        self.assertTrue(result.canonical_empty_cluster_populated)
+
+    def test_canonical_empty_cluster_populated_false_when_canonical_present(self) -> None:
+        canonical_rows = _make_canonical_rows(n_claims=3)
+        cluster_rows = _make_cluster_rows(n_claims=3)
+        result = build_benchmark_case_result(
+            case_def=_make_case_def(),
+            canonical_rows=canonical_rows,
+            cluster_rows=cluster_rows,
+            lower_layer_rows=[],
+            fragmentation_check_rows=[],
+        )
+        self.assertFalse(result.canonical_empty_cluster_populated)
+
+    def test_canonical_empty_cluster_populated_false_when_both_empty(self) -> None:
+        result = build_benchmark_case_result(
+            case_def=_make_case_def(),
+            canonical_rows=[],
+            cluster_rows=[],
+            lower_layer_rows=[],
+            fragmentation_check_rows=[],
+        )
+        self.assertFalse(result.canonical_empty_cluster_populated)
+
+    def test_fragmentation_type_hints_entity_type_case_split(self) -> None:
+        # Organization vs organization → case-split hint expected
+        frag_rows = [
+            {"cluster_id": "c1", "canonical_name": "ML", "entity_type": "Organization"},
+            {"cluster_id": "c2", "canonical_name": "ML", "entity_type": "organization"},
+        ]
+        result = build_benchmark_case_result(
+            case_def=_make_case_def(),
+            canonical_rows=[],
+            cluster_rows=_make_cluster_rows(2),
+            lower_layer_rows=[],
+            fragmentation_check_rows=frag_rows,
+        )
+        self.assertIn("entity_type_case_split", result.fragmentation_type_hints)
+        self.assertIn("catalog_absent_or_alignment_gap", result.fragmentation_type_hints)
+
+    def test_fragmentation_type_hints_empty_when_healthy(self) -> None:
+        canonical_rows = _make_canonical_rows(n_claims=3)
+        frag_rows = [
+            {"cluster_id": "c1", "canonical_name": "TestEntity", "entity_type": "Organization"},
+        ]
+        result = build_benchmark_case_result(
+            case_def=_make_case_def(),
+            canonical_rows=canonical_rows,
+            cluster_rows=_make_cluster_rows(3),
+            lower_layer_rows=[],
+            fragmentation_check_rows=frag_rows,
+        )
+        self.assertEqual(result.fragmentation_type_hints, [])
+
+    def test_fragmentation_type_hints_in_to_dict(self) -> None:
+        result = build_benchmark_case_result(
+            case_def=_make_case_def(),
+            canonical_rows=[],
+            cluster_rows=[],
+            lower_layer_rows=[],
+            fragmentation_check_rows=[],
+        )
+        d = result.to_dict()
+        self.assertIn("fragmentation_type_hints", d)
+        self.assertIn("canonical_empty_cluster_populated", d)
 
 
 # ---------------------------------------------------------------------------
@@ -587,6 +782,7 @@ class TestRunRetrievalBenchmarkDryRun(unittest.TestCase):
             s = data["benchmark_summary"]
             self.assertIn("total_cases", s)
             self.assertIn("fragmentation_detected_count", s)
+            self.assertIn("canonical_empty_cluster_populated_count", s)
             self.assertIn("total_canonical_claims", s)
             self.assertIn("total_pairwise_claims", s)
 
