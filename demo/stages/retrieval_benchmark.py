@@ -34,8 +34,8 @@ For each case the artifact records:
 - ``canonical_catalog_present`` — ``True`` when a ``CanonicalEntity`` node
   exists for the entity name (derived from ``catalog_check_rows``).
 - ``fragmentation_type_hints`` — machine-readable cause tokens including the
-  precise ``"catalog_absent"`` / ``"alignment_gap"`` sub-tokens that replace
-  the ambiguous ``"catalog_absent_or_alignment_gap"`` token.
+  precise ``"catalog_absent"`` / ``"catalog_present_canonical_empty"`` sub-tokens
+  that replace the ambiguous ``"catalog_absent_or_alignment_gap"`` token.
 
 All queries use ``routing_=neo4j.RoutingControl.READ`` and never mutate graph
 state.
@@ -566,7 +566,7 @@ def _classify_fragmentation_type(
     catalog_check_rows:
         Rows from the catalog existence check query (``CanonicalEntity`` nodes
         matching the entity name).  When provided, this enables the specific
-        ``"catalog_absent"`` / ``"alignment_gap"`` distinction.  When ``None``
+        ``"catalog_absent"`` / ``"catalog_present_canonical_empty"`` distinction.  When ``None``
         (the default), the ambiguous ``"catalog_absent_or_alignment_gap"`` token
         is emitted instead.
 
@@ -588,12 +588,14 @@ def _classify_fragmentation_type(
         catalog; adding it (and the corresponding ``ALIGNED_WITH`` edges) would
         enable canonical retrieval.
 
-    ``"alignment_gap"``
+    ``"catalog_present_canonical_empty"``
         ``canonical_rows`` is empty while ``cluster_rows`` is non-empty, **and**
         ``catalog_check_rows`` is non-empty — confirming a ``CanonicalEntity``
-        node exists but the canonical traversal still returns no rows.  The gap
-        is caused by missing or incomplete ``ALIGNED_WITH`` edges between the
-        catalog entry and the relevant clusters.
+        node exists but the canonical traversal still returns no rows.  The
+        specific root cause (e.g., missing ``ALIGNED_WITH`` edges, canonical-name
+        filter mismatch, or ambiguous catalog entries) is not determined by this
+        token; it reflects only that the catalog is present and canonical
+        retrieval returned no results.
 
     ``"catalog_absent_or_alignment_gap"``
         ``canonical_rows`` is empty while ``cluster_rows`` is non-empty, but
@@ -624,8 +626,10 @@ def _classify_fragmentation_type(
             # combined token for backwards compatibility.
             hints.append("catalog_absent_or_alignment_gap")
         elif catalog_check_rows:
-            # CanonicalEntity exists — ALIGNED_WITH coverage is missing.
-            hints.append("alignment_gap")
+            # CanonicalEntity exists but canonical traversal returned no rows.
+            # The specific root cause is not determined here; use graph health
+            # diagnostics to investigate ALIGNED_WITH coverage.
+            hints.append("catalog_present_canonical_empty")
         else:
             # No CanonicalEntity node found in the structured catalog.
             hints.append("catalog_absent")
@@ -690,16 +694,18 @@ class BenchmarkCaseResult:
           structured catalog or its ``ALIGNED_WITH`` edges are missing.
           This token is emitted only when no ``catalog_check_rows`` are available
           to distinguish the sub-causes.  When ``catalog_check_rows`` are
-          provided, the more specific ``"catalog_absent"`` or ``"alignment_gap"``
-          token is emitted instead.
+          provided, the more specific ``"catalog_absent"`` or
+          ``"catalog_present_canonical_empty"`` token is emitted instead.
         - ``"catalog_absent"`` — canonical path returns no rows, cluster-name
           path does, and the catalog existence check confirms no ``CanonicalEntity``
           node matches this entity name.  The entity is genuinely absent from the
           structured catalog.
-        - ``"alignment_gap"`` — canonical path returns no rows, cluster-name path
-          does, but the catalog existence check confirms a ``CanonicalEntity`` node
-          exists for this entity name.  The gap is caused by missing or incomplete
-          ``ALIGNED_WITH`` edges between the catalog entry and the relevant clusters.
+        - ``"catalog_present_canonical_empty"`` — canonical path returns no rows,
+          cluster-name path does, and the catalog existence check confirms a
+          ``CanonicalEntity`` node exists for this entity name.  The specific root
+          cause (e.g., missing ``ALIGNED_WITH`` edges, canonical-name filter
+          mismatch, or ambiguous catalog entries) requires further investigation
+          using graph health diagnostics.
     catalog_check_rows:
         Rows returned by the catalog existence check query
         (``CanonicalEntity`` nodes matching the entity name).  An empty list
@@ -899,7 +905,7 @@ def build_benchmark_case_result(
         provide this argument — pass ``[]`` when the catalog check returned no
         results.  When this list is empty, the ``"catalog_absent"`` hint is
         emitted (provided the canonical-empty / cluster-populated condition also
-        holds); when non-empty, the ``"alignment_gap"`` hint is emitted instead.
+        holds); when non-empty, the ``"catalog_present_canonical_empty"`` hint is emitted instead.
     """
     canonical_claim_count = _count_distinct_claims(canonical_rows)
     cluster_claim_count = _count_distinct_claims(cluster_rows)
