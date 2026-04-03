@@ -335,7 +335,7 @@ BENCHMARK_CASES: list[BenchmarkCaseDefinition] = [
         ),
         failure_modes=[
             "canonical_claim_count < cluster_claim_count — canonical path misses claims "
-            "(alignment gap; investigate ALIGNED_WITH coverage for this entity)",
+            "(catalog-present-but-canonical-empty; investigate ALIGNED_WITH coverage for this entity)",
             "fragmentation_detected=True — cluster-name path returns spurious extra clusters",
         ],
         lower_layer_checks=[
@@ -446,7 +446,7 @@ ORDER BY entity_type, canonical_name
 
 # Catalog existence check: does a CanonicalEntity node exist for this entity name?
 # Read-only, no joins to clusters or mentions.  Used to distinguish "catalog absent"
-# from "alignment gap" in the canonical-empty / cluster-populated result class.
+# from "catalog present but canonical empty" in the canonical-empty / cluster-populated result class.
 # Keep enough rows for diagnostics, but bound the result set so broad CONTAINS
 # matches do not cause excessive query time or oversized benchmark artifacts.
 _Q_CATALOG_EXISTENCE_CHECK = """\
