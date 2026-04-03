@@ -335,7 +335,7 @@ BENCHMARK_CASES: list[BenchmarkCaseDefinition] = [
         ),
         failure_modes=[
             "canonical_claim_count < cluster_claim_count — canonical path misses claims "
-            "(catalog-present-but-canonical-empty; investigate ALIGNED_WITH coverage for this entity)",
+            "(investigate ALIGNED_WITH coverage; if canonical rows are entirely absent see catalog_present_canonical_empty hint)",
             "fragmentation_detected=True — cluster-name path returns spurious extra clusters",
         ],
         lower_layer_checks=[
