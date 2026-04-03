@@ -391,44 +391,44 @@ class TestClassifyFragmentationType(unittest.TestCase):
         self.assertNotIn("catalog_absent", hints)
 
     # ------------------------------------------------------------------
-    # alignment_gap (catalog_check_rows provided and non-empty)
+    # catalog_present_canonical_empty (catalog_check_rows provided and non-empty)
     # ------------------------------------------------------------------
 
-    def test_alignment_gap_emitted_when_canonical_entity_exists_but_no_canonical_rows(self) -> None:
-        # canonical empty, cluster non-empty, catalog_check_rows non-empty → alignment_gap
+    def test_catalog_present_canonical_empty_emitted_when_canonical_entity_exists_but_no_canonical_rows(self) -> None:
+        # canonical empty, cluster non-empty, catalog_check_rows non-empty → catalog_present_canonical_empty
         cluster_rows = _make_cluster_rows(n_claims=3)
         catalog_check_rows = _make_catalog_check_rows(present=True)
         hints = _classify_fragmentation_type([], [], cluster_rows, catalog_check_rows)
-        self.assertIn("alignment_gap", hints)
+        self.assertIn("catalog_present_canonical_empty", hints)
 
-    def test_alignment_gap_not_emitted_when_canonical_rows_present(self) -> None:
+    def test_catalog_present_canonical_empty_not_emitted_when_canonical_rows_present(self) -> None:
         canonical_rows = _make_canonical_rows(n_claims=2)
         cluster_rows = _make_cluster_rows(n_claims=3)
         catalog_check_rows = _make_catalog_check_rows(present=True)
         hints = _classify_fragmentation_type([], canonical_rows, cluster_rows, catalog_check_rows)
-        self.assertNotIn("alignment_gap", hints)
+        self.assertNotIn("catalog_present_canonical_empty", hints)
 
-    def test_alignment_gap_not_emitted_when_no_canonical_entity(self) -> None:
+    def test_catalog_present_canonical_empty_not_emitted_when_no_canonical_entity(self) -> None:
         cluster_rows = _make_cluster_rows(n_claims=3)
         catalog_check_rows = _make_catalog_check_rows(present=False)
         hints = _classify_fragmentation_type([], [], cluster_rows, catalog_check_rows)
-        self.assertNotIn("alignment_gap", hints)
+        self.assertNotIn("catalog_present_canonical_empty", hints)
 
-    def test_alignment_gap_not_emitted_when_both_empty(self) -> None:
+    def test_catalog_present_canonical_empty_not_emitted_when_both_empty(self) -> None:
         catalog_check_rows = _make_catalog_check_rows(present=True)
         hints = _classify_fragmentation_type([], [], [], catalog_check_rows)
-        self.assertNotIn("alignment_gap", hints)
+        self.assertNotIn("catalog_present_canonical_empty", hints)
 
     # ------------------------------------------------------------------
-    # mutual exclusivity: catalog_absent vs alignment_gap
+    # mutual exclusivity: catalog_absent vs catalog_present_canonical_empty
     # ------------------------------------------------------------------
 
-    def test_catalog_absent_and_alignment_gap_are_mutually_exclusive(self) -> None:
+    def test_catalog_absent_and_catalog_present_canonical_empty_are_mutually_exclusive(self) -> None:
         cluster_rows = _make_cluster_rows(n_claims=2)
         for present in (True, False):
             catalog_check_rows = _make_catalog_check_rows(present=present)
             hints = _classify_fragmentation_type([], [], cluster_rows, catalog_check_rows)
-            both = "catalog_absent" in hints and "alignment_gap" in hints
+            both = "catalog_absent" in hints and "catalog_present_canonical_empty" in hints
             self.assertFalse(both, f"Both tokens present when catalog present={present}")
 
     def test_catalog_absent_or_alignment_gap_not_emitted_when_catalog_check_provided(self) -> None:
@@ -445,7 +445,7 @@ class TestClassifyFragmentationType(unittest.TestCase):
             )
 
     # ------------------------------------------------------------------
-    # entity_type_case_split combined with catalog_absent / alignment_gap
+    # entity_type_case_split combined with catalog_absent / catalog_present_canonical_empty
     # ------------------------------------------------------------------
 
     def test_case_split_and_catalog_absent_both_present(self) -> None:
@@ -459,7 +459,7 @@ class TestClassifyFragmentationType(unittest.TestCase):
         self.assertIn("entity_type_case_split", hints)
         self.assertIn("catalog_absent", hints)
 
-    def test_case_split_and_alignment_gap_both_present(self) -> None:
+    def test_case_split_and_catalog_present_canonical_empty_both_present(self) -> None:
         frag_rows = [
             {"cluster_id": "c1", "canonical_name": "Acme", "entity_type": "Organization"},
             {"cluster_id": "c2", "canonical_name": "Acme", "entity_type": "organization"},
@@ -468,7 +468,7 @@ class TestClassifyFragmentationType(unittest.TestCase):
         catalog_check_rows = _make_catalog_check_rows(present=True)
         hints = _classify_fragmentation_type(frag_rows, [], cluster_rows, catalog_check_rows)
         self.assertIn("entity_type_case_split", hints)
-        self.assertIn("alignment_gap", hints)
+        self.assertIn("catalog_present_canonical_empty", hints)
 
     # ------------------------------------------------------------------
     # null / mixed entity_type handling (unchanged)
@@ -809,8 +809,8 @@ class TestBuildBenchmarkCaseResult(unittest.TestCase):
         )
         self.assertEqual(result.catalog_check_rows, catalog_rows)
 
-    def test_alignment_gap_hint_when_catalog_present_and_canonical_empty(self) -> None:
-        # canonical empty, cluster populated, catalog present → alignment_gap
+    def test_catalog_present_canonical_empty_hint_when_catalog_present_and_canonical_empty(self) -> None:
+        # canonical empty, cluster populated, catalog present → catalog_present_canonical_empty
         cluster_rows = _make_cluster_rows(n_claims=3)
         catalog_rows = _make_catalog_check_rows(present=True)
         result = build_benchmark_case_result(
@@ -821,7 +821,7 @@ class TestBuildBenchmarkCaseResult(unittest.TestCase):
             fragmentation_check_rows=[],
             catalog_check_rows=catalog_rows,
         )
-        self.assertIn("alignment_gap", result.fragmentation_type_hints)
+        self.assertIn("catalog_present_canonical_empty", result.fragmentation_type_hints)
         self.assertTrue(result.canonical_catalog_present)
 
     def test_catalog_absent_hint_when_no_catalog_entity_and_canonical_empty(self) -> None:
@@ -1220,7 +1220,7 @@ class TestRunRetrievalBenchmarkLive(unittest.TestCase):
             self.assertIn("catalog_check_rows", cr)
             self.assertIn("canonical_catalog_present", cr)
             self.assertTrue(cr["canonical_catalog_present"])
-            self.assertIn("alignment_gap", cr["fragmentation_type_hints"])
+            self.assertIn("catalog_present_canonical_empty", cr["fragmentation_type_hints"])
 
     def test_live_catalog_absent_hint_when_no_canonical_entity(self) -> None:
         # canonical empty, cluster populated, catalog_check empty → catalog_absent hint

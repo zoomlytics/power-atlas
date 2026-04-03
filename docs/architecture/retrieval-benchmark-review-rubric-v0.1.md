@@ -223,10 +223,10 @@ Each `BenchmarkCaseResult` now carries four classification fields:
 |-------|-------|--------------------|
 | `"entity_type_case_split"` | Two or more `entity_type` values in `fragmentation_check_rows` differ only by case (e.g., `"Organization"` vs `"organization"`).  The same conceptual entity type was persisted under two case variants, producing separate clusters that are not collapsed by the canonical path. | Ensure the observed `entity_type` variants are covered by normalization (via `_normalize_entity_type` / `_ENTITY_TYPE_SYNONYMS`) and re-run entity resolution. If the mapping already exists, investigate why clusters were persisted with mixed-case `entity_type` and correct the underlying normalization or persistence issue. |
 | `"catalog_absent"` | `canonical_rows` is empty while `cluster_rows` is non-empty, **and** `catalog_check_rows` is empty — confirming no `CanonicalEntity` node exists for this entity name.  The entity is genuinely absent from the structured catalog. | Add a `CanonicalEntity` node for this entity and create the corresponding `ALIGNED_WITH` edges to the relevant clusters. |
-| `"alignment_gap"` | `canonical_rows` is empty while `cluster_rows` is non-empty, **and** `catalog_check_rows` is non-empty — confirming a `CanonicalEntity` node exists but the canonical traversal still returns no rows.  The gap is caused by missing or incomplete `ALIGNED_WITH` edges. | Inspect `ALIGNED_WITH` edge coverage between the `CanonicalEntity` node and the relevant `ResolvedEntityCluster` nodes (use `lower_layer_rows` or the graph health diagnostics).  Re-run the alignment stage or add the missing edges. |
-| `"catalog_absent_or_alignment_gap"` | Legacy fallback token.  Emitted only when no catalog existence check was available (i.e., the benchmark was run against an older build that did not include the catalog check query).  When the current benchmark is used, this token is replaced by `"catalog_absent"` or `"alignment_gap"`. | Treat as `"catalog_absent"` until a full catalog existence check is available. |
+| `"catalog_present_canonical_empty"` | `canonical_rows` is empty while `cluster_rows` is non-empty, **and** `catalog_check_rows` is non-empty — confirming a `CanonicalEntity` node exists but the canonical traversal still returns no rows.  The specific root cause (e.g., missing `ALIGNED_WITH` edges, canonical-name filter mismatch, or ambiguous catalog entries) is not determined by this token. | Use `lower_layer_rows` and graph health diagnostics to investigate.  Check `ALIGNED_WITH` edge coverage between the `CanonicalEntity` node and the relevant `ResolvedEntityCluster` nodes and re-run the alignment stage if edges are missing. |
+| `"catalog_absent_or_alignment_gap"` | Legacy fallback token.  Emitted only when no catalog existence check was available (i.e., the benchmark was run against an older build that did not include the catalog check query).  When the current benchmark is used, this token is replaced by `"catalog_absent"` or `"catalog_present_canonical_empty"`. | Re-run the benchmark with a build that includes the catalog existence check so this token can be resolved into `"catalog_absent"` or `"catalog_present_canonical_empty"`. If re-running is not possible, treat the token as ambiguous and investigate both catalog absence and canonical/alignment-gap scenarios rather than assuming absence. |
 
-**`catalog_absent` and `alignment_gap` are mutually exclusive.**  Only one of
+**`catalog_absent` and `catalog_present_canonical_empty` are mutually exclusive.**  Only one of
 the two specific tokens will appear for any given case.  Both are more actionable
 than the legacy `catalog_absent_or_alignment_gap` combined token.
 
@@ -238,7 +238,10 @@ hold).
 check was added, so baseline cases that previously showed
 `"catalog_absent_or_alignment_gap"` will show `"catalog_absent"` in new runs
 once the catalog check query is executed.  This is an expected diagnostic
-improvement, not a regression.
+improvement, not a regression.  Cases that would previously have shown
+`"alignment_gap"` now show `"catalog_present_canonical_empty"` — a semantically
+neutral label reflecting that the catalog is present and canonical retrieval
+returned no results, without over-claiming the root cause.
 
 ### Classification of the baseline cases
 
@@ -259,7 +262,7 @@ improvement, not a regression.
    cases, inspect:
    - `fragmentation_type_hints` to classify the cause:
      - `"catalog_absent"` → the entity is missing from the structured catalog; add it.
-     - `"alignment_gap"` → the entity is in the catalog but `ALIGNED_WITH` edges are missing; repair alignment.
+     - `"catalog_present_canonical_empty"` → the entity is in the catalog but canonical retrieval returned no rows; investigate `ALIGNED_WITH` edge coverage or other retrieval issues.
      - `"catalog_absent_or_alignment_gap"` → legacy token; re-run the benchmark to get the specific token.
    - `lower_layer_rows` to check for dark mentions or a missing canonical link.
    - Graph health diagnostics for `ALIGNED_WITH` coverage.
@@ -275,13 +278,15 @@ improvement, not a regression.
    (legacy token) but `canonical_empty_cluster_populated` is expected to be `False`:**
    An entity that should be in the catalog is missing or its alignment is broken.
    This is a **regression** — open an issue and investigate the alignment stage.
-   Re-run the benchmark to get the specific `"catalog_absent"` or `"alignment_gap"` token.
+   Re-run the benchmark to get the specific `"catalog_absent"` or `"catalog_present_canonical_empty"` token.
 
-5. **If `fragmentation_type_hints` contains `"alignment_gap"` and
+5. **If `fragmentation_type_hints` contains `"catalog_present_canonical_empty"` and
    `canonical_catalog_present` is `True`:**
-   The `CanonicalEntity` node exists but is not connected via `ALIGNED_WITH` edges
-   to the clusters that carry the relevant claims.  This is a direct alignment
-   defect.  Inspect `ALIGNED_WITH` edge coverage and re-run the alignment stage.
+   A `CanonicalEntity` node exists but the canonical traversal returned no rows.
+   Possible causes include missing `ALIGNED_WITH` edges, a canonical-name filter
+   mismatch, or ambiguous catalog entries.  Use `lower_layer_rows` and the graph
+   health diagnostics to investigate.  If `ALIGNED_WITH` edges are missing,
+   re-run the alignment stage.
 
 6. **If `fragmentation_type_hints` contains `"catalog_absent"` and
    `canonical_catalog_present` is `False`:**
