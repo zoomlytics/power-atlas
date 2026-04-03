@@ -27,7 +27,8 @@ For each case the artifact records:
   ``canonical → cluster → mention → claim`` inspection chain.
 - ``fragmentation_check_rows`` — cluster-level fragmentation check rows.
 - ``catalog_check_rows`` — rows from a direct ``CanonicalEntity`` existence
-  check (used to distinguish *catalog absent* from *alignment gap*).
+  check (used to distinguish *catalog absent* from *catalog present but
+  canonical empty*).
 - Derived counts: ``canonical_claim_count``, ``cluster_claim_count``,
   ``canonical_cluster_count``, ``cluster_name_cluster_count``,
   ``fragmentation_detected``.
@@ -618,8 +619,9 @@ def _classify_fragmentation_type(
     if len(unique_lower) < len(unique_types):
         hints.append("entity_type_case_split")
 
-    # Detect canonical-empty / cluster-populated condition and distinguish
-    # catalog absence from alignment gap when catalog_check_rows is available.
+    # Detect canonical-empty / cluster-populated condition and classify as
+    # catalog-absent vs catalog-present-but-canonical-empty when
+    # catalog_check_rows is available.
     if not canonical_rows and cluster_rows:
         if catalog_check_rows is None:
             # No catalog existence check available; fall back to the ambiguous
