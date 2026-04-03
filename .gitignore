@@ -56,5 +56,5 @@ dist/
 !/pipelines/logs/.gitkeep
 
 # Manifests
-#manifest.json
-#manifest.md
+manifest.json
+manifest.md
