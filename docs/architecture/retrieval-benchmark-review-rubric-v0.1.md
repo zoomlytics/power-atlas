@@ -278,7 +278,7 @@ returned no results, without over-claiming the root cause.
    (legacy token) but `canonical_empty_cluster_populated` is expected to be `False`:**
    An entity that should be in the catalog is missing or its alignment is broken.
    This is a **regression** — open an issue and investigate the alignment stage.
-   Re-run the benchmark to get the specific `"catalog_absent"` or `"alignment_gap"` token.
+   Re-run the benchmark to get the specific `"catalog_absent"` or `"catalog_present_canonical_empty"` token.
 
 5. **If `fragmentation_type_hints` contains `"catalog_present_canonical_empty"` and
    `canonical_catalog_present` is `True`:**
