@@ -204,7 +204,7 @@ Manual validation checklist: [`demo/VALIDATION_RUNBOOK.md`](demo/VALIDATION_RUNB
 | [`paths.py`](demo/contracts/paths.py) | Canonical path resolution for pipeline artifacts |
 | [`pipeline.py`](demo/contracts/pipeline.py) | Pipeline-level contract refresh and consistency checks |
 | [`prompts.py`](demo/contracts/prompts.py) | LLM prompt templates for extraction and Q&A stages |
-| [`resolution.py`](demo/contracts/resolution.py) | Entity resolution mode enum (`unstructured_only`, `hybrid`, `structured_anchor`) |
+| [`resolution.py`](demo/contracts/resolution.py) | Versioned alignment contract (`ALIGNMENT_VERSION`) for cluster-to-canonical alignment / `ALIGNED_WITH` edge filtering |
 | [`retrieval_early_return_policy.py`](demo/contracts/retrieval_early_return_policy.py) | Policy for short-circuiting retrieval under low-signal conditions |
 | [`retrieval_metadata_policy.py`](demo/contracts/retrieval_metadata_policy.py) | Citation metadata taxonomy and projection policy |
 | [`runtime.py`](demo/contracts/runtime.py) | Runtime configuration and environment variable bindings |
