@@ -174,9 +174,10 @@ Use this section to navigate from the root to the core implementation and valida
 
 ```bash
 python -m demo.run_demo --live ingest-pdf
+export UNSTRUCTURED_RUN_ID=<run_id_from_ingest-pdf_output>
 python -m demo.run_demo --live extract-claims
 python -m demo.run_demo --live resolve-entities
-python -m demo.run_demo --live ask --question "Your question here"
+python -m demo.run_demo --live ask --run-id $UNSTRUCTURED_RUN_ID --question "Your question here"
 ```
 
 Full step-by-step walkthrough: [`demo/README.md`](demo/README.md)  
