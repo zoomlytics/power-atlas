@@ -47,13 +47,6 @@ The working implementation lives in [`demo/`](demo/). The `backend/` and `fronte
 - Python 3.11+
 - An OpenAI API key (for LLM extraction)
 
-### 0. Install Python dependencies
-
-```bash
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-```
-
 ### 1. Clone and configure
 
 ```bash
@@ -64,7 +57,14 @@ cp .env.example .env
 # and OPENAI_API_KEY in .env
 ```
 
-### 2. Start Neo4j
+### 2. Install Python dependencies
+
+```bash
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+### 3. Start Neo4j
 
 ```bash
 docker compose up -d neo4j
@@ -80,7 +80,7 @@ Neo4j will be available at:
 CALL gds.version();
 ```
 
-### 3. Run the demo pipeline
+### 4. Run the demo pipeline
 
 See **[`demo/README.md`](demo/README.md)** for the full walkthrough. A typical `unstructured_only` run:
 
@@ -200,7 +200,7 @@ Key environment variables:
 - `NEO4J_PASSWORD` — Neo4j password (required; use a strong value)
 - `NEO4J_ACCEPT_LICENSE_AGREEMENT` — Must be `yes` after reviewing [Neo4j and GDS license terms](#third-party-licenses)
 - `NEO4J_UNRESTRICTED_PROCS` — Procedures allowed without restriction (defaults to `gds.*`)
-- `OPENAI_API_KEY` — Required for all `--live` pipeline runs (LLM claim/entity extraction and retrieval/Q&A)
+- `OPENAI_API_KEY` — Required for `--live` stages that call OpenAI: `ingest-pdf`, `extract-claims`, and `ask` (LLM claim/entity extraction and retrieval/Q&A)
 
 ---
 
