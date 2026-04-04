@@ -18,10 +18,11 @@ PDF / unstructured source
   → citation-grounded Q&A (vector search + graph expansion, [CITATION|…] tokens required)
 ```
 
-The pipeline has two resolution modes:
+The pipeline supports three entity resolution modes:
 
 - **`unstructured_only`** (default) — fully operational end-to-end with only PDF input; clusters entity mentions across chunks without requiring any structured catalog.
-- **`hybrid`** — adds a structured CSV ingest pass that creates `CanonicalEntity` nodes and `ALIGNED_WITH` edges, enabling cluster-aware retrieval (queries traverse entity clusters and canonical aliases to surface related mentions across the graph).
+- **`hybrid`** — runs `ingest-structured` first to create `CanonicalEntity` nodes from a CSV catalog, then runs `resolve-entities --resolution-mode hybrid` to enrich existing `ResolvedEntityCluster` nodes with `ALIGNED_WITH` edges to matching `CanonicalEntity` nodes, enabling cluster-aware retrieval.
+- **`structured_anchor`** — resolves entity mentions directly against `CanonicalEntity` nodes rather than clustering them against each other first.
 
 The working implementation lives in [`demo/`](demo/). The `backend/` and `frontend/` directories are minimal scaffolding and are **not connected to the pipeline** (see [Current Status](#current-status)).
 
