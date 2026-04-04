@@ -80,16 +80,21 @@ See **[`demo/README.md`](demo/README.md)** for the full walkthrough. A typical `
 set -a && source .env && set +a
 
 # (Optional) reset graph
-python demo/reset_demo_db.py
+python -m demo.reset_demo_db --confirm
 
-# Ingest PDF, extract claims, resolve entities, run Q&A
-python demo/run_demo.py --mode unstructured_only
+# Ingest PDF, extract claims, resolve entities (unstructured_only mode), run Q&A
+python -m demo.run_demo --live ingest-pdf
+python -m demo.run_demo --live extract-claims
+python -m demo.run_demo --live resolve-entities
+python -m demo.run_demo --live ask --question "Your question here"
 ```
 
 For the full `hybrid` pass (structured CSV → canonical alignment → cluster-aware retrieval):
 
 ```bash
-python demo/run_demo.py --mode hybrid
+python -m demo.run_demo --live ingest-structured
+python -m demo.run_demo --live resolve-entities --resolution-mode hybrid
+python -m demo.run_demo --live ask --cluster-aware --question "Your question here"
 ```
 
 Refer to [`demo/VALIDATION_RUNBOOK.md`](demo/VALIDATION_RUNBOOK.md) for a step-by-step validation checklist.
