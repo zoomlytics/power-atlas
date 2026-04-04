@@ -20,8 +20,8 @@ PDF / unstructured source
 
 The pipeline has two resolution modes:
 
-- **`unstructured_only`** (default) — fully operational with only PDF input; clusters entity mentions across chunks without requiring any structured catalog.
-- **`hybrid`** — adds a structured CSV ingest pass that creates `CanonicalEntity` nodes and `ALIGNED_WITH` edges, enabling cluster-aware retrieval that traverses canonical relationships.
+- **`unstructured_only`** (default) — fully operational end-to-end with only PDF input; clusters entity mentions across chunks without requiring any structured catalog.
+- **`hybrid`** — adds a structured CSV ingest pass that creates `CanonicalEntity` nodes and `ALIGNED_WITH` edges, enabling cluster-aware retrieval (queries traverse entity clusters and canonical aliases to surface related mentions across the graph).
 
 The working implementation lives in [`demo/`](demo/). The `backend/` and `frontend/` directories are minimal scaffolding and are **not connected to the pipeline** (see [Current Status](#current-status)).
 
@@ -30,7 +30,7 @@ The working implementation lives in [`demo/`](demo/). The `backend/` and `fronte
 ## Core Design Principles
 
 - **Evidence-first** — All modeled relationships must be supported by sources.
-- **Source attribution required** — Provenance is not optional; all Q&A answers require `[CITATION|…]` tokens tracing to specific `Chunk` nodes.
+- **Source attribution required** — Provenance is not optional; all Q&A answers require `[CITATION|…]` tokens tracing to specific `Chunk` nodes (see [`docs/architecture/retrieval-semantics-v0.1.md`](docs/architecture/retrieval-semantics-v0.1.md)).
 - **Structural analysis over narrative speculation** — Emphasis on relationships and topology rather than interpretation.
 - **Political neutrality** — The system models structure, not ideology.
 - **Architectural clarity over rapid productization** — Foundations precede features.
@@ -104,9 +104,9 @@ Refer to [`demo/VALIDATION_RUNBOOK.md`](demo/VALIDATION_RUNBOOK.md) for a step-b
 | **`pipelines/`** | ✅ Operational — ingest/query/experiment scripts + run artifacts |
 | **`backend/`** | 🚧 Disconnected scaffold — FastAPI stub with `/health` and placeholder `/graph/status` (HTTP 503); not connected to the GraphRAG pipeline |
 | **`frontend/`** | 🚧 Disconnected scaffold — Next.js stub; not connected to the pipeline or backend |
-| **Temporal modeling** | 📋 Architecture drafted ([`docs/architecture/temporal-modeling-v0.1.md`](docs/architecture/temporal-modeling-v0.1.md)) — not yet implemented in pipeline |
-| **Confidence scoring** | 📋 Design in progress — not yet implemented |
-| **HITL oversight** | 📋 Design in progress — not yet implemented |
+| **Temporal modeling** | 📋 Planned — Architecture drafted ([`docs/architecture/temporal-modeling-v0.1.md`](docs/architecture/temporal-modeling-v0.1.md)) — not yet implemented in pipeline |
+| **Confidence scoring** | 📋 Planned — Design in progress — not yet implemented |
+| **HITL oversight** | 📋 Planned — Design in progress — not yet implemented |
 
 ---
 
@@ -178,7 +178,7 @@ cp .env.example .env
 
 Key environment variables:
 
-- `NEO4J_URI` — Neo4j Bolt URI (default: `bolt://localhost:7687` for local; `bolt://neo4j:7687` inside Docker Compose)
+- `NEO4J_URI` — Neo4j Bolt URI (`bolt://localhost:7687` when connecting from the host; `bolt://neo4j:7687` when connecting from within the Docker Compose network)
 - `NEO4J_USERNAME` — Neo4j username
 - `NEO4J_PASSWORD` — Neo4j password (required; use a strong value)
 - `NEO4J_ACCEPT_LICENSE_AGREEMENT` — Must be `yes` after reviewing [Neo4j and GDS license terms](#licensing)
