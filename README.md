@@ -166,6 +166,97 @@ power-atlas/
 
 ---
 
+## Repository Map
+
+Use this section to navigate from the root to the core implementation and validation assets.
+
+### Running the demo pipeline
+
+```bash
+python -m demo.run_demo --live ingest-pdf
+export UNSTRUCTURED_RUN_ID="<run_id_from_ingest-pdf_output>"
+python -m demo.run_demo --live extract-claims
+python -m demo.run_demo --live resolve-entities
+python -m demo.run_demo --live ask --run-id $UNSTRUCTURED_RUN_ID --question "Your question here"
+```
+
+Full step-by-step walkthrough: [`demo/README.md`](demo/README.md)  
+Manual validation checklist: [`demo/VALIDATION_RUNBOOK.md`](demo/VALIDATION_RUNBOOK.md)
+
+### Pipeline stages — `demo/stages/`
+
+| Module | Purpose |
+|--------|---------|
+| [`pdf_ingest.py`](demo/stages/pdf_ingest.py) | Ingest PDF sources into `Document` and `Chunk` nodes in the lexical graph |
+| [`claim_extraction.py`](demo/stages/claim_extraction.py) | LLM-driven extraction of `ExtractedClaim` and `EntityMention` nodes |
+| [`claim_participation.py`](demo/stages/claim_participation.py) | Build `HAS_PARTICIPANT` edges linking claims to their entity mentions |
+| [`entity_resolution.py`](demo/stages/entity_resolution.py) | Cluster entity mentions into `ResolvedEntityCluster` nodes (`MEMBER_OF` edges) |
+| [`structured_ingest.py`](demo/stages/structured_ingest.py) | Load a structured CSV catalog into `CanonicalEntity` nodes |
+| [`retrieval_and_qa.py`](demo/stages/retrieval_and_qa.py) | Vector search + graph expansion for citation-grounded Q&A |
+| [`retrieval_benchmark.py`](demo/stages/retrieval_benchmark.py) | Evaluate retrieval quality against a baseline; produce benchmark artifacts |
+| [`graph_health.py`](demo/stages/graph_health.py) | Run read-only graph diagnostics and emit a scoped health report |
+
+### Data contracts — `demo/contracts/`
+
+| Module | Purpose |
+|--------|---------|
+| [`claim_schema.py`](demo/contracts/claim_schema.py) | Pydantic schema for `ExtractedClaim` and related extraction types |
+| [`manifest.py`](demo/contracts/manifest.py) | Run manifest creation, loading, and validation |
+| [`paths.py`](demo/contracts/paths.py) | Canonical path resolution for pipeline artifacts |
+| [`pipeline.py`](demo/contracts/pipeline.py) | Pipeline-level contract refresh and consistency checks |
+| [`prompts.py`](demo/contracts/prompts.py) | LLM prompt templates for extraction and Q&A stages |
+| [`resolution.py`](demo/contracts/resolution.py) | Versioned alignment contract (`ALIGNMENT_VERSION`) for cluster-to-canonical alignment / `ALIGNED_WITH` edge filtering |
+| [`retrieval_early_return_policy.py`](demo/contracts/retrieval_early_return_policy.py) | Policy for short-circuiting retrieval under low-signal conditions |
+| [`retrieval_metadata_policy.py`](demo/contracts/retrieval_metadata_policy.py) | Citation metadata taxonomy and projection policy |
+| [`runtime.py`](demo/contracts/runtime.py) | Runtime configuration and environment variable bindings |
+| [`structured.py`](demo/contracts/structured.py) | Schema for structured CSV ingestion |
+
+### Architecture documents and ADRs — `docs/architecture/`
+
+| Document | Purpose |
+|----------|---------|
+| [`v0.1.md`](docs/architecture/v0.1.md) | Core graph schema and pipeline architecture |
+| [`claim-argument-model-v0.3.md`](docs/architecture/claim-argument-model-v0.3.md) | Claim model, participation slots, and composite matching |
+| [`unstructured-first-entity-resolution-v0.1.md`](docs/architecture/unstructured-first-entity-resolution-v0.1.md) | Entity resolution modes and cluster identity design |
+| [`retrieval-semantics-v0.1.md`](docs/architecture/retrieval-semantics-v0.1.md) | Retrieval design and citation contract |
+| [`retrieval-citation-result-contract-v0.1.md`](docs/architecture/retrieval-citation-result-contract-v0.1.md) | Result contract for citation-grounded Q&A responses |
+| [`retrieval-benchmark-review-rubric-v0.1.md`](docs/architecture/retrieval-benchmark-review-rubric-v0.1.md) | **Benchmark review criteria** — rubric and scoring guidance for regression comparison |
+| [`temporal-modeling-v0.1.md`](docs/architecture/temporal-modeling-v0.1.md) | Temporal relationship modeling (design only; not yet implemented) |
+
+### Fixtures — `demo/fixtures/`
+
+| Path | Purpose |
+|------|---------|
+| [`unstructured/chain_of_custody.pdf`](demo/fixtures/unstructured/chain_of_custody.pdf) | Primary demo PDF for end-to-end pipeline runs |
+| [`unstructured/chain_of_custody_shortend.pdf`](demo/fixtures/unstructured/chain_of_custody_shortend.pdf) | Shorter variant for faster iteration; filename intentionally uses `shortend` to match the existing fixture |
+| [`structured/entities.csv`](demo/fixtures/structured/entities.csv) | Sample structured entity catalog for `ingest-structured` |
+| [`structured/relationships.csv`](demo/fixtures/structured/relationships.csv) | Sample relationship definitions for structured mode |
+| [`manifest.json`](demo/fixtures/manifest.json) | Example run manifest |
+
+### Tests
+
+| Location | Purpose |
+|----------|---------|
+| [`demo/tests/test_pipeline_contract.py`](demo/tests/test_pipeline_contract.py) | Validates pipeline-level contract integrity |
+| [`demo/tests/test_entity_resolution.py`](demo/tests/test_entity_resolution.py) | Unit tests for entity clustering and resolution |
+| [`demo/tests/test_claim_participation.py`](demo/tests/test_claim_participation.py) | Unit tests for claim participation slot matching |
+| [`demo/tests/test_retrieval_benchmark.py`](demo/tests/test_retrieval_benchmark.py) | Validates benchmark evaluation logic |
+| [`demo/tests/test_graph_health.py`](demo/tests/test_graph_health.py) | Tests for graph diagnostics |
+| [`demo/tests/test_retrieval_result_contract.py`](demo/tests/test_retrieval_result_contract.py) | Validates retrieval result contract |
+| [`demo/tests/contract_fixtures/`](demo/tests/contract_fixtures/) | YAML fixtures for citation contract scenarios |
+| [`tests/`](tests/) | Repository-level integration tests (PDF ingest helpers, vendor sync) |
+
+### Benchmarks
+
+| Asset | Purpose |
+|-------|---------|
+| [`docs/architecture/retrieval-benchmark-review-rubric-v0.1.md`](docs/architecture/retrieval-benchmark-review-rubric-v0.1.md) | **Review criteria** — rubric and scoring guidance for evaluating benchmark regressions |
+| [`pipelines/query/retrieval_benchmark_example_output.json`](pipelines/query/retrieval_benchmark_example_output.json) | Synthetic example of benchmark output schema (for tooling and training) |
+| [`demo/stages/retrieval_benchmark.py`](demo/stages/retrieval_benchmark.py) | Benchmark stage implementation |
+| `pipelines/runs/<run_id>/retrieval_benchmark/` | Actual run baseline artifacts (gitignored by default; see `.gitignore`) |
+
+---
+
 ## Documentation
 
 | Document | Purpose |
