@@ -227,7 +227,7 @@ Manual validation checklist: [`demo/VALIDATION_RUNBOOK.md`](demo/VALIDATION_RUNB
 | Path | Purpose |
 |------|---------|
 | [`unstructured/chain_of_custody.pdf`](demo/fixtures/unstructured/chain_of_custody.pdf) | Primary demo PDF for end-to-end pipeline runs |
-| [`unstructured/chain_of_custody_shortend.pdf`](demo/fixtures/unstructured/chain_of_custody_shortend.pdf) | Shorter variant for faster iteration |
+| [`unstructured/chain_of_custody_shortend.pdf`](demo/fixtures/unstructured/chain_of_custody_shortend.pdf) | Shorter variant for faster iteration; filename intentionally uses `shortend` to match the existing fixture |
 | [`structured/entities.csv`](demo/fixtures/structured/entities.csv) | Sample structured entity catalog for `ingest-structured` |
 | [`structured/relationships.csv`](demo/fixtures/structured/relationships.csv) | Sample relationship definitions for structured mode |
 | [`manifest.json`](demo/fixtures/manifest.json) | Example run manifest |
