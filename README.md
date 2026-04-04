@@ -66,7 +66,7 @@ cp .env.example .env
 ### 2. Start Neo4j
 
 ```bash
-docker compose up neo4j -d
+docker compose up -d neo4j
 ```
 
 Neo4j will be available at:
@@ -197,9 +197,9 @@ Key environment variables:
 - `NEO4J_URI` — Neo4j Bolt URI (`bolt://localhost:7687` when connecting from the host; `bolt://neo4j:7687` when connecting from within the Docker Compose network)
 - `NEO4J_USERNAME` — Neo4j username
 - `NEO4J_PASSWORD` — Neo4j password (required; use a strong value)
-- `NEO4J_ACCEPT_LICENSE_AGREEMENT` — Must be `yes` after reviewing [Neo4j and GDS license terms](#licensing)
+- `NEO4J_ACCEPT_LICENSE_AGREEMENT` — Must be `yes` after reviewing [Neo4j and GDS license terms](#third-party-licenses)
 - `NEO4J_UNRESTRICTED_PROCS` — Procedures allowed without restriction (defaults to `gds.*`)
-- `OPENAI_API_KEY` — Required for LLM claim and entity extraction in the demo pipeline
+- `OPENAI_API_KEY` — Required for all `--live` pipeline runs (LLM claim/entity extraction and retrieval/Q&A)
 
 ---
 
@@ -219,7 +219,7 @@ python scripts/sync_vendor_version.py --check
 
 ```bash
 # Start Neo4j only (sufficient for the demo pipeline)
-docker compose up neo4j -d
+docker compose up -d neo4j
 
 # Start all services (includes disconnected backend/frontend stubs)
 docker compose up --build
