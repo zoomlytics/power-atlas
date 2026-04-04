@@ -46,6 +46,13 @@ The working implementation lives in [`demo/`](demo/). The `backend/` and `fronte
 - Python 3.11+
 - An OpenAI API key (for LLM extraction)
 
+### 0. Install Python dependencies
+
+```bash
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+```
+
 ### 1. Clone and configure
 
 ```bash
@@ -82,8 +89,11 @@ set -a && source .env && set +a
 # (Optional) reset graph
 python -m demo.reset_demo_db --confirm
 
-# Ingest PDF, extract claims, resolve entities (unstructured_only mode), run Q&A
+# Ingest PDF — note the run_id printed at the end of output
 python -m demo.run_demo --live ingest-pdf
+export UNSTRUCTURED_RUN_ID="<run_id_from_ingest_pdf_output>"
+
+# Extract claims, resolve entities (unstructured_only mode), run Q&A
 python -m demo.run_demo --live extract-claims
 python -m demo.run_demo --live resolve-entities
 python -m demo.run_demo --live ask --question "Your question here"
@@ -92,6 +102,7 @@ python -m demo.run_demo --live ask --question "Your question here"
 For the full `hybrid` pass (structured CSV → canonical alignment → cluster-aware retrieval):
 
 ```bash
+# UNSTRUCTURED_RUN_ID must already be set from the unstructured_only steps above
 python -m demo.run_demo --live ingest-structured
 python -m demo.run_demo --live resolve-entities --resolution-mode hybrid
 python -m demo.run_demo --live ask --cluster-aware --question "Your question here"
@@ -230,7 +241,7 @@ Write run artifacts to `pipelines/runs/` and logs to `pipelines/logs/`.
 
 ---
 
-## Licensing
+## Third-party Licenses
 
 By running this stack you accept the following license agreements:
 
@@ -247,6 +258,6 @@ Private repository — contributor model under consideration.
 
 ---
 
-## License
+## Repository License
 
 **TBD**
