@@ -1,8 +1,8 @@
-# GraphRAG + Wikidata Structured Extraction Prompt
+# GraphRAG + Wikidata Structured Extraction Prompt (v2)
 
 You are generating a **mock structured dataset that stands in for a Wikidata-derived export** for the Power Atlas demo.
 
-Use the **attached unstructured source document** as the scope anchor for entity selection, prioritization, and relevance. The attached document defines the narrative context for the dataset, but all structured rows you generate must be grounded in **Wikidata-style structured data** for the selected entities.
+Use the **attached unstructured source document** as the **primary scope boundary** for entity selection, prioritization, and relevance. The attached document defines the narrative context for the dataset, but all structured rows you generate must be grounded in **Wikidata-style structured data** for the selected entities.
 
 This dataset is intended for ingestion into the **Power Atlas** demo as an **optional additive structured enrichment layer**. It is **not** a Neo4j export and **not** a pre-built graph schema. Do **not** generate Cypher, graph-only join tables, or Neo4j-specific relationship columns beyond the required CSV files.
 
@@ -14,9 +14,9 @@ The application consuming this dataset will ingest the CSV fixtures and construc
 
 From the **attached unstructured source document**:
 
-1. Identify a **small, high-signal canonical set of entities** central to the document’s narrative.
+1. Identify a **small, high-signal canonical set of entities** that are substantively central to the document’s narrative.
 2. Match those entities to the correct **Wikidata QIDs**.
-3. Generate a **compact, demo-friendly structured fixture set** that mimics a curated Wikidata export.
+3. Generate a **compact, curated, demo-friendly structured fixture set** that mimics a careful Wikidata export.
 4. Output the dataset in the exact **Power Atlas structured CSV fixture format**.
 
 The dataset should support questions about:
@@ -29,7 +29,7 @@ The dataset should support questions about:
 - institutional context
 - jurisdictional and geographic context where useful
 
-Prioritize **precision over recall**. It is better to return fewer correct, high-signal rows than a larger number of weak or questionable rows.
+Prioritize **precision over recall**. It is better to return fewer correct, high-signal rows than a larger number of weak, generic, or questionable rows.
 
 ---
 
@@ -74,6 +74,15 @@ claims.csv
 
 Read the **attached unstructured source document** and identify named entities that are central to its narrative.
 
+### Document centrality rule
+
+The attached source document is the **primary scope boundary** for entity selection.
+
+- Select canonical entities only if they are **substantively central** to the document’s main narrative.
+- Do **not** choose entities simply because their Wikidata records are rich, easy to retrieve, or contain many statements.
+- If an entity is only tangentially mentioned, incidental, or weakly connected to the document’s core narrative, exclude it from the canonical set.
+- Favor entities that help represent the document’s main people, institutions, organizations, and governance, ownership, or affiliation relationships.
+
 ### Selection requirements
 
 - Select a **small, high-signal set of canonical entities**, typically **8–15**, unless the document strongly justifies a slightly different number.
@@ -83,6 +92,28 @@ Read the **attached unstructured source document** and identify named entities t
 - Every selected canonical entity must have a valid **Wikidata QID**.
 - Disambiguate carefully to avoid homonyms.
 - If an important entity cannot be confidently matched to Wikidata, replace it with the next-best entity that can.
+
+### Canonical entity preference rule
+
+Prefer canonical entities that are durable actors in the narrative, especially:
+
+- people
+- organizations
+- institutions
+- companies
+- foundations
+- government bodies
+
+Do **not** usually include the following in `entities.csv` unless the attached document clearly treats them as primary actors:
+
+- products
+- apps
+- services
+- software platforms
+- websites
+- brands
+
+These may still appear as relationship objects in `relationships.csv` when useful.
 
 ### Canonical-set rule
 
@@ -109,6 +140,20 @@ The result should look like a **curated, compact Wikidata-derived export** suita
 Do **not** fabricate facts.  
 Do **not** infer unsupported relationships.  
 If a property is absent or unclear, omit it.
+
+### High-signal ranking rule
+
+When choosing which statements to include, rank candidate rows in this order:
+
+1. leadership, governance, founding, ownership, employment, membership, and organizational-structure relationships
+2. institutional or jurisdictional context that directly clarifies the document’s narrative
+3. supporting identifying context such as inception dates, official websites, countries, and headquarters locations
+
+Rows from category 3 should remain a **minority** of the dataset.
+
+Do **not** allow generic metadata to dominate the fixture set.
+
+Before including a row, ask whether it would help answer a meaningful demo question about influence, affiliation, control, leadership, organizational structure, or institutional ties. If not, omit it.
 
 ---
 
@@ -159,6 +204,14 @@ Rules:
 - Remove duplicates.
 - Do not repeat the primary label inside `aliases`.
 - Avoid leaving organization aliases sparse when Wikidata provides meaningful altLabels.
+
+### Description quality rule
+
+`description` must be clean, neutral, and suitable for demo display.
+
+- If Wikidata provides a short English description that is clear and neutral, use it.
+- If the available description is awkward, noisy, editorially strange, low-quality, or missing, leave the field empty.
+- Do **not** copy strange or low-quality text into the output merely because it appears in source data.
 
 ---
 
@@ -306,6 +359,7 @@ It is low-signal for this fixture set and adds clutter without improving demo us
 - Favor leadership, membership, affiliation, founding, ownership, and organizational structure over low-signal rows.
 - Aim for a compact but meaningfully connected graph.
 - If high-signal predicates exist for selected entities, include them.
+- Avoid over-populating the dataset with routine geography or corporate metadata when stronger relationship rows are available.
 
 ---
 
@@ -317,7 +371,7 @@ It is low-signal for this fixture set and adds clutter without improving demo us
 
 ### Purpose
 
-Defines curated, high-signal claims derived from rows in `facts.csv` and `relationships.csv`.
+Defines curated, high-signal claims derived from selected rows in `facts.csv` and `relationships.csv`.
 
 These claims are used by the Power Atlas demo for retrieval, citation, and auditability.
 
@@ -349,6 +403,15 @@ These claims are used by the Power Atlas demo for retrieval, citation, and audit
 - Leave `object_label` empty
 - `source_row_id` must reference an existing `fact_id` in `facts.csv`
 
+### Claims selectivity rule
+
+`claims.csv` is a **curated subset** of the strongest rows from `facts.csv` and `relationships.csv`. It is **not** a one-to-one restatement of every row.
+
+- Do **not** create claims for every source row automatically.
+- Prefer claims that are likely to support useful demo questions, retrieval, and citation display.
+- Relationship-derived claims should generally outnumber fact-derived claims.
+- Exclude low-signal claims unless they are unusually important to the attached document’s context.
+
 ### Claim curation priorities
 
 Prioritize claims that are broadly useful for demo questions, especially:
@@ -372,11 +435,21 @@ Prioritize claims that are broadly useful for demo questions, especially:
 - directly aligned to the source row
 - useful for retrieval and citation demos
 
-Examples of style:
-- `Xapo was founded by Wences Casares`
-- `Linda Rottenberg is chief executive officer of Endeavor`
-- `Larry Summers holds the position United States Secretary of the Treasury`
-- `Mercado Libre official website is https://www.mercadolibre.com`
+Use natural phrasing. Prefer sentence forms such as:
+
+- `X was founded by Y`
+- `X is chief executive officer of Y`
+- `X is a member of Y`
+- `X worked for Y`
+- `X official website is Z`
+
+Avoid robotic phrasings like:
+
+- `X country is Y`
+- `X inception is YYYY`
+- `X headquarters location is Y`
+
+unless that claim is unusually important to the document context.
 
 ### Confidence requirements
 
@@ -512,6 +585,17 @@ Every `claims.csv.source_row_id` must reference exactly one existing row:
 - Do not repeat the primary label inside `aliases`
 - Avoid inconsistent naming variants when the English Wikidata label is known
 
+### 11. Quality rejection checks
+
+Before finalizing the dataset, reject or revise any entity, row, or claim that has any of these problems:
+
+- weak connection to the attached document’s narrative
+- isolated entity with little structural value
+- awkward, noisy, or editorially strange description text
+- excessive reliance on generic metadata
+- product, service, website, app, or platform entities promoted into the canonical set without strong narrative justification
+- claims that merely restate low-value metadata without helping likely demo questions
+
 ---
 
 ## Formatting Rules
@@ -534,9 +618,11 @@ These rules are mandatory for all CSV output:
 
 Produce a **small, polished, high-signal structured fixture set** that:
 
-- is scoped to the attached unstructured source document
+- is tightly scoped to the attached unstructured source document
 - looks like a curated Wikidata-derived export
 - is rich in leadership, affiliation, ownership, and institutional relationships
+- avoids drift into generic company metadata
+- avoids promoting products or platforms into the canonical set unless strongly justified by the document
 - is easy to ingest into the current Power Atlas demo
 - supports entity resolution, retrieval, and citation-grounded demo questions
-- remains auditable and schema-valid
+- remains auditable, selective, and schema-valid
