@@ -1,356 +1,542 @@
 # GraphRAG + Wikidata Structured Extraction Prompt
 
-Produce structured datasets describing a small set of entities from the article, suitable for ingestion into a **Neo4j + GraphRAG** pipeline.
+You are generating a **mock structured dataset that stands in for a Wikidata-derived export** for the Power Atlas demo.
 
-You must output **THREE CSV files** (as plain CSV text) plus a short **README-style summary**.
+Use the **attached unstructured source document** as the scope anchor for entity selection, prioritization, and relevance. The attached document defines the narrative context for the dataset, but all structured rows you generate must be grounded in **Wikidata-style structured data** for the selected entities.
+
+This dataset is intended for ingestion into the **Power Atlas** demo as an **optional additive structured enrichment layer**. It is **not** a Neo4j export and **not** a pre-built graph schema. Do **not** generate Cypher, graph-only join tables, or Neo4j-specific relationship columns beyond the required CSV files.
+
+The application consuming this dataset will ingest the CSV fixtures and construct its own graph representation.
+
+---
+
+## Objective
+
+From the **attached unstructured source document**:
+
+1. Identify a **small, high-signal canonical set of entities** central to the document’s narrative.
+2. Match those entities to the correct **Wikidata QIDs**.
+3. Generate a **compact, demo-friendly structured fixture set** that mimics a curated Wikidata export.
+4. Output the dataset in the exact **Power Atlas structured CSV fixture format**.
+
+The dataset should support questions about:
+
+- leadership
+- affiliations
+- memberships
+- founders
+- ownership
+- institutional context
+- jurisdictional and geographic context where useful
+
+Prioritize **precision over recall**. It is better to return fewer correct, high-signal rows than a larger number of weak or questionable rows.
+
+---
+
+## Critical Output Constraint
+
+Your final response must contain **only the CSV contents** for the required files, in this exact order:
+
+1. `entities.csv`
+2. `facts.csv`
+3. `relationships.csv`
+4. `claims.csv`
+
+Do **not** include:
+
+- explanatory text
+- summary sections
+- reasoning
+- markdown commentary
+- SPARQL
+- JSON
+- code fences
+- notes on ambiguities
+- validation notes
+
+Output only the raw CSV text for the four files, each preceded by the filename on its own line exactly as shown:
+
+entities.csv  
+<csv content>
+
+facts.csv  
+<csv content>
+
+relationships.csv  
+<csv content>
+
+claims.csv  
+<csv content>
 
 ---
 
 ## Step 1 — Select the Canonical Entity Set
 
-Read the PDF and identify named entities that are central to the narrative.
+Read the **attached unstructured source document** and identify named entities that are central to its narrative.
 
-**Selection requirements:**
-- Select a **small, high-signal set of canonical entities** (typically 8–15, unless the article strongly justifies a different number).
-- The number of entities must be explicitly justified in the summary.
-- Choose entities that best represent the story and are likely to exist in **Wikidata**.
-- Prefer a mix of **persons** and **organizations**.
-- Avoid generic categories (e.g., “government”, “Bitcoin”) unless explicitly treated as an actor in the article.
+### Selection requirements
 
-For each selected entity:
-1. Find the best matching **Wikidata QID**.
-2. If multiple candidates exist, choose the most appropriate and explain briefly.
-3. If an important entity cannot be confidently matched to Wikidata, replace it with the next-best entity that can be matched.
+- Select a **small, high-signal set of canonical entities**, typically **8–15**, unless the document strongly justifies a slightly different number.
+- Prefer a **mix of people and organizations**.
+- Choose entities that best support influence, affiliation, leadership, governance, ownership, and institutional-context queries.
+- Avoid generic concepts unless the document clearly treats them as actors.
+- Every selected canonical entity must have a valid **Wikidata QID**.
+- Disambiguate carefully to avoid homonyms.
+- If an important entity cannot be confidently matched to Wikidata, replace it with the next-best entity that can.
 
----
+### Canonical-set rule
 
-## Step 2 — Gather Structured Statements from Wikidata
+- `entities.csv` must contain **only the selected canonical entities**.
+- `relationships.csv` may reference **additional object QIDs outside the canonical set** when useful and supported.
 
-For each of the selected canonical entities, gather Wikidata statements in two categories.
+### Selection preference
 
-**Important orientation:** The goal is to support *influence research* queries (leadership, affiliation, ownership, jurisdictional links, institutional context). Prioritize high-signal, entity-to-entity relationships over biographical trivia.
-
----
-
-### A) Entity Profile Facts (True Literal Facts)
-
-Collect a focused but selective set of **true literal** properties.
-- Use what exists for the entity.
-- **Do not fabricate.**
-- Avoid over-weighting low-signal attributes (e.g., only birth dates and inception dates).
-- Literal facts should support identification and contextual grounding, not dominate the dataset.
-
-**Strict rule:** If a property’s value is an entity (QID), do **not** put it in `facts.csv` as a string. Put it in `relationships.csv`.
-
-#### For Persons, Good Literal Candidates:
-- `date of birth (P569)`
-
-(If present and truly literal, also allow identifiers/URLs such as official websites, external IDs, etc.)
-
-#### For Organizations, Good Literal Candidates:
-- `inception (P571)`
-
-(If present and truly literal, also allow identifiers/URLs such as official websites, external IDs, etc.)
-
-**Do not include entity-valued properties in facts** (examples that must go to `relationships.csv`):
-- `place of birth (P19)`
-- `employer (P108)`
-- `position held (P39)`
-- `member of political party (P102)`
-- `member of (P463)`
-- `educated at (P69)`
-- `country of citizenship (P27)`
-- `country (P17)`
-- `headquarters location (P159)`
-- `parent organization (P749)`
-- `subsidiary (P355)`
-- `owned by (P127)`
-- `owner of (P1830)`
-- `CEO (P169)`
-- `founded by (P112)`
-
-#### Also Include:
-- **Aliases / alternative names** (from `skos:altLabel` via Wikidata labels)
-
-**Alias Enrichment Requirements (High Importance):**
-- Populate aliases for **every canonical entity where available**.
-- For organizations, explicitly review Wikidata `altLabel`, `also known as`, former names, legal names (e.g., "S.A.", "Inc.", "Ltd." variants), acronyms, and common short forms.
-- Include common abbreviations (e.g., "CIA" for "Central Intelligence Agency").
-- Include alternate spellings, spacing variants, punctuation variants, and branding variants when present in Wikidata (e.g., hyphenated vs non-hyphenated forms).
-- Include well-known acronyms and short forms.
-- Prefer English aliases; if multiple English variants exist, include all high-signal ones.
-- Do not fabricate aliases; only use those supported by Wikidata labels/altLabels.
-- Remove duplicates and do not repeat the primary label.
-- Avoid leaving organization aliases sparse: when Wikidata provides multiple relevant altLabels, include them rather than selecting only one.
-
-Aliases materially improve PDF mention → canonical entity resolution and are not optional when available.
-
-Literal facts should typically represent a minority of total rows.
+Prefer entities that create meaningful cross-links with other selected entities when Wikidata supports those relationships. Favor entities that help produce a connected, demo-useful relationship graph rather than isolated biography rows.
 
 ---
 
-### B) Relationship Edges (Entity → Entity) — High Priority
+## Step 2 — Gather Structured Data in Power Atlas Format
 
-This section is the core of the enrichment. Focus on entity-valued predicates that help answer questions such as:
-- "What organizations are connected to X through leadership, founding, employment, or investment?"
-- "Which entities are US-linked vs Argentina-linked?"
-- "What institutional relationships contextualize the claims in the PDF?"
+Generate a structured fixture set in four files:
 
-Prioritize high-signal predicates (when available):
+- `entities.csv`
+- `facts.csv`
+- `relationships.csv`
+- `claims.csv`
 
-**For People:**
-- `employer (P108)`
-- `position held (P39)`
-- `member of (P463)`
-- `member of political party (P102)`
-- `educated at (P69)`
-- `country of citizenship (P27)`
-- `founded by (P112)` (if applicable in reverse context)
+The result should look like a **curated, compact Wikidata-derived export** suitable for demo ingestion.
 
-**For Organizations:**
-- `parent organization (P749)`
-- `subsidiary (P355)`
-- `owned by (P127)`
-- `owner of (P1830)`
-- `headquarters location (P159)`
-- `country (P17)`
-- `CEO (P169)`
-- `founded by (P112)`
-
-**Explicit exclusion:** Do **not** include `instance of (P31)` in either `facts.csv` or `relationships.csv` for this exercise. It is typically low-signal and adds clutter.
-
-Additional relationship types are allowed if they clearly contribute to influence mapping.
-
-Additional relationship types are allowed if they clearly contribute to influence mapping.
-
-**Density guidance (Influence-Focused):**
-- Aim for a structurally rich relationship graph suitable for influence and power mapping.
-- Target approximately **60–120 total relationship rows** when entity richness allows.
-- As a heuristic, aim for **at least 5 high-signal relationships per canonical entity**, when available in Wikidata.
-- Ensure explicit inclusion (when present) of the following high-signal predicates:
-  - `P108` employer (person → organization)
-  - `P169` chief executive officer (organization → person)
-  - `P39` position held (person → role entity)
-  - `P463` member of (person/org → organization)
-  - `P127` owned by (organization → organization/person)
-  - `P1830` owner of (organization → organization)
-- Geographic and citizenship links are useful but should not dominate the relationship set.
-- At least **40% of all relationship rows** should consist of leadership, ownership, employment, membership, or governance predicates (e.g., P108, P169, P39, P463, P127, P1830, P112, P749, P355).
-- If necessary, expand relationship harvesting depth (while remaining within Wikidata) to meet this influence-focused ratio, provided the statements are directly attached to the selected canonical entities.
-- Relationships should substantially outnumber literal biographical facts.
-
-If these high-signal predicates exist for the selected entities, they must be included.
-
-Deduplicate exact duplicate rows and prefer English labels.
+Do **not** fabricate facts.  
+Do **not** infer unsupported relationships.  
+If a property is absent or unclear, omit it.
 
 ---
 
-## Step 3 — Produce CSV Outputs (Required Schemas)
+## File 1 — `entities.csv`
 
-### File 1: `entities.csv`
+### Exact header
 
-One row per canonical entity (the selected set).
+`entity_id,name,entity_type,aliases,description,wikidata_url`
 
-**Columns (exact):**
-```
-entity_id (QID, e.g., Q123)
-name (English label)
-entity_type (one of: person, organization, place, event, other)
-aliases (pipe-delimited English aliases; may be empty)
-description (English short description; may be empty)
-wikidata_url (https://www.wikidata.org/wiki/<QID>)
-```
+### Purpose
 
-**Requirements:**
-- The number of rows must match the number of selected canonical entities.
-- `aliases` must not repeat the primary label.
-- `aliases` should be populated for all entities where Wikidata provides altLabels.
-- Use pipe (`|`) as the internal delimiter within the aliases field.
-- Include abbreviations and common short forms when present in Wikidata.
-- Avoid leaving `aliases` empty unless no alternative names exist in Wikidata.
+Defines the canonical entities used by the demo for structured enrichment and deterministic identity anchoring.
 
----
+### Rules
 
-### File 2: `facts.csv`
+- One row per canonical entity only.
+- `entity_id` must be the Wikidata QID, e.g. `Q12345`
+- `name` must be the English Wikidata label.
+- `entity_type` must be one of:
+  - `person`
+  - `organization`
+  - `place`
+  - `event`
+  - `other`
+- `aliases` must be pipe-delimited using `|`
+- `aliases` may be empty only if no useful English aliases are available
+- `description` should be a short English description
+- `wikidata_url` must be `https://www.wikidata.org/wiki/<QID>`
 
-One row per (subject, predicate, **true literal**) fact.
+### Alias enrichment requirements
 
-**Columns (exact):**
-```
-fact_id (stable row id; format F0001, F0002, …)
-subject_id (QID of one of the selected canonical entities)
-subject_label
-predicate_pid (e.g., P569)
-predicate_label (English property label)
-value (literal value as string)
-value_type (one of: string, date, number, url, identifier, other)
-source (always wikidata)
-source_url (https://www.wikidata.org/wiki/<QID> for the subject entity; may optionally include a specific statement URL when available)
-retrieved_at (YYYY-MM-DD)
-```
+Aliases materially improve entity resolution and should be populated wherever Wikidata provides useful alternatives.
 
-**Rules (Strict Literal-Only):**
-- Only include facts where `subject_id` is one of the selected canonical entities.
-- **Literal-only rule:** `value` must be a true literal (date, number, short free text, URL, identifier). No QIDs, no entity names-as-strings, and no entity-valued properties serialized into text.
-- If the Wikidata property is entity-valued (object is a QID), it **must** go to `relationships.csv`, not `facts.csv`.
+For each canonical entity, include relevant English aliases where available, such as:
 
-**Hard guardrail (entity-valued PID set):**
-- If `predicate_pid` is in `{P112, P69, P463, P39, P22, P25, P3373}` (and similar entity-valued properties), then the object must be a **QID entity** and the row belongs in `relationships.csv` (never `facts.csv`).
-- This includes cases where the agent is tempted to write a person/org name as a string in `facts.csv` — that is disallowed.
+- acronyms
+- common short forms
+- alternate spellings
+- punctuation variants
+- legal names
+- former names
+- branding variants
 
-- Use `facts.csv` primarily for: dates (ISO), numeric quantities, identifiers, URLs, and short descriptive strings.
-- Use `facts.csv` primarily for: dates (ISO), numeric quantities, identifiers, URLs, and short descriptive strings.
-- Ensure `predicate_pid` matches the correct `predicate_label` exactly as defined in Wikidata (copy the English label verbatim).
-- `source_url` must resolve to a valid Wikidata page corresponding to the subject entity (or a specific statement URL when available).
-- Date values must use ISO 8601 format.
-  - If Wikidata provides a full date, use `YYYY-MM-DD`.
-  - If Wikidata provides only a year, use **year-only** `YYYY` and keep `value_type = date` (treat as a partial date).
-  - Do **not** coerce year-only values into `YYYY-01-01` or similar, as that fabricates precision.
-- Deduplicate exact duplicate rows.
-- Prefer English labels.
+Rules:
+
+- Do not fabricate aliases.
+- Prefer English aliases.
+- Remove duplicates.
+- Do not repeat the primary label inside `aliases`.
+- Avoid leaving organization aliases sparse when Wikidata provides meaningful altLabels.
 
 ---
 
-### File 3: `relationships.csv`
+## File 2 — `facts.csv`
 
-One row per (subject entity, predicate, object entity) relationship.
+### Exact header
 
-**Columns (exact):**
-```
-rel_id (stable row id; format R0001, R0002, …)
-subject_id (QID of one of the selected canonical entities)
-subject_label
-predicate_pid (e.g., P108)
-predicate_label
-object_id (QID)
-object_label
-object_entity_type (controlled vocabulary: person | organization | place | event | other | unknown)
-source (always wikidata)
-source_url (https://www.wikidata.org/wiki/<QID> for the subject entity; may optionally include a specific statement URL when available)
-retrieved_at (YYYY-MM-DD)
-```
+`fact_id,subject_id,subject_label,predicate_pid,predicate_label,value,value_type,source,source_url,retrieved_at`
 
-**Rules:**
-- Only include relationships where `subject_id` is one of the selected canonical entities.
-- `object_id` may be outside the selected set (allowed and encouraged).
-- Ensure `predicate_pid` matches the correct `predicate_label` exactly as defined in Wikidata (copy the English label verbatim).
-- `object_entity_type` must strictly use this controlled vocabulary:
+### Purpose
+
+Stores **literal-valued** facts attached to canonical subject entities.
+
+### Rules
+
+- One row per **literal-valued** fact only.
+- `fact_id` must use a stable format like `F0001`, `F0002`, etc.
+- `subject_id` must be one of the canonical entities from `entities.csv`
+- `subject_label` must match the subject entity’s English label
+- `predicate_pid` must be a valid Wikidata PID
+- `predicate_label` must exactly match the official English Wikidata property label
+- `value` must be a **true literal**
+- `value_type` must be one of:
+  - `date`
+  - `url`
+  - `entity`
+  - `string`
+  - `number`
+  - `boolean`
+- `source` must always be `wikidata`
+- `source_url` must be the subject’s Wikidata page URL
+- `retrieved_at` must use `YYYY-MM-DD`
+
+### Strict literal-only rule
+
+If a property’s value is an entity (a QID), it must **not** appear in `facts.csv`.
+
+Disallowed in `facts.csv`:
+
+- QIDs in the `value` field
+- entity names serialized as plain strings in place of entity objects
+- entity-valued properties flattened into text
+
+If the value is an entity, it belongs in `relationships.csv`.
+
+### Good fact candidates
+
+For people:
+- `P569` date of birth
+- `P570` date of death
+- `P856` official website
+
+For organizations:
+- `P571` inception
+- `P856` official website
+
+Use facts selectively. Literal facts should support identification and context, but should not dominate the dataset.
+
+### Date normalization
+
+- Full dates: `YYYY-MM-DD`
+- Year-only dates: `YYYY` if Wikidata only provides year precision
+- Do **not** invent missing precision
+- Use ISO formatting only
+
+---
+
+## File 3 — `relationships.csv`
+
+### Exact header
+
+`rel_id,subject_id,subject_label,predicate_pid,predicate_label,object_id,object_label,object_entity_type,source,source_url,retrieved_at`
+
+### Purpose
+
+Stores entity-to-entity relationships that provide the structural backbone of the enrichment dataset.
+
+### Rules
+
+- One row per `(subject entity, predicate, object entity)` relationship.
+- `rel_id` must use a stable format like `R0001`, `R0002`, etc.
+- `subject_id` must be one of the canonical entities from `entities.csv`
+- `subject_label` must match the subject entity’s English label
+- `object_id` must be a valid QID
+- `object_label` must be the English label for the object entity
+- `object_id` may refer to entities outside the canonical set
+- `predicate_pid` must be a valid Wikidata PID
+- `predicate_label` must exactly match the official English Wikidata property label
+- `object_entity_type` must be one of:
   - `person`
   - `organization`
   - `place`
   - `event`
   - `other`
   - `unknown`
-- **Type normalization rules (strict):**
-  - Educational institutions (universities, schools, law schools, research institutes) must be labeled `organization`, not `place`.
-  - Corporations, NGOs, foundations, government agencies, and political parties must be labeled `organization`.
-  - Use `place` only for geographic entities (cities, regions, countries, physical geographic features).
-  - Role/office entities (e.g., "President of X", "Minister of Y") should typically be classified as `other` unless clearly modeled as an organization in Wikidata.
-- Do not introduce new category labels.
-- Normalize capitalization to lowercase exactly as shown above.
-- If the entity type cannot be confidently determined from Wikidata `instance of (P31)`, use `unknown`.
-- `source_url` must resolve to a valid Wikidata page corresponding to the subject entity (or a specific statement URL when available).
-- Deduplicate exact duplicate rows.
-- Prefer English labels.
+- `source` must always be `wikidata`
+- `source_url` must be the subject’s Wikidata page URL
+- `retrieved_at` must use `YYYY-MM-DD`
+
+### Type normalization rules
+
+Use the following normalization rules strictly:
+
+- universities, colleges, schools, law schools, research institutes → `organization`
+- companies, nonprofits, foundations, political parties, government agencies, government bodies → `organization`
+- cities, countries, regions, physical geographic entities → `place`
+- role or office entities → usually `other`
+- if uncertain → `unknown`
+
+Use lowercase exactly as shown.
+
+### Relationship priorities
+
+This file is the **core** of the dataset. Prioritize relationships that support influence, governance, and institutional-context questions.
+
+#### For people, prefer when available:
+- `P108` employer
+- `P39` position held
+- `P463` member of
+- `P69` educated at
+- `P27` country of citizenship
+- `P102` member of political party
+
+#### For organizations, prefer when available:
+- `P169` chief executive officer
+- `P112` founded by
+- `P127` owned by
+- `P1830` owner of
+- `P749` parent organization
+- `P355` subsidiary
+- `P159` headquarters location
+- `P17` country
+
+Additional relationship types are allowed if they clearly improve influence mapping or institutional context.
+
+### Important exclusion
+
+Do **not** include `P31` (`instance of`) in either `facts.csv` or `relationships.csv`.
+
+It is low-signal for this fixture set and adds clutter without improving demo usefulness.
+
+### Density guidance
+
+- Relationships should substantially outnumber facts.
+- Favor leadership, membership, affiliation, founding, ownership, and organizational structure over low-signal rows.
+- Aim for a compact but meaningfully connected graph.
+- If high-signal predicates exist for selected entities, include them.
 
 ---
 
-## Step 4 — Quality Constraints & Validation Checklist
+## File 4 — `claims.csv`
 
-- You must **not invent facts**; everything must be attributable to Wikidata.
-- If a property is unavailable for an entity, omit it.
-- If you are uncertain about a Wikidata match, flag it in the summary.
+### Exact header
 
-### Pre-Submission Validation Checklist (Mandatory)
-Before returning the final output, verify the following:
+`claim_id,claim_type,subject_id,subject_label,predicate_pid,predicate_label,object_id,object_label,value,value_type,claim_text,confidence,source,source_url,retrieved_at,source_row_id`
 
-1. **PID ↔ Label Consistency (Strict Validation Rule)**
-   - **Validation rule:** `predicate_label` must exactly match the *known English label* for `predicate_pid` in Wikidata.
-   - Do not infer or paraphrase labels.
-   - When generating rows, **look up each PID’s English label** and copy it verbatim.
-   - Reject / fix any row where the PID and label disagree.
-   - Example checks: P19 = place of birth; P69 = educated at; P569 = date of birth.
+### Purpose
 
-1b. **P31 Exclusion Check (Mandatory)**
-   - Confirm there are **zero rows** using `predicate_pid = P31` in both `facts.csv` and `relationships.csv`.
+Defines curated, high-signal claims derived from rows in `facts.csv` and `relationships.csv`.
 
-2. **Semantic Type Checks**
-   - **facts.csv literal-only check:** no entity-valued properties serialized as strings; entity-valued statements appear only in `relationships.csv`.
-   - **Entity-valued PID check:** if `predicate_pid` is in `{P112, P69, P463, P39, P22, P25, P3373}` then the row must appear in `relationships.csv` with a QID `object_id` (never in `facts.csv`).
-   - `place of birth (P19)` objects are geographic entities.
-   - `educated at (P69)` objects are educational institutions and must be classified as `organization` in `object_entity_type`.
-   - Universities, schools, and academic institutions must not be labeled as `place`.
-   - `country (P17)` and `country of citizenship (P27)` resolve to sovereign states.
-   - Geographic locations (cities, countries, regions) are labeled `place`; institutions are labeled `organization`.
+These claims are used by the Power Atlas demo for retrieval, citation, and auditability.
 
-3. **Date Normalization (Partial Dates Allowed)**
-   - All date fields use ISO format.
-   - Full dates use `YYYY-MM-DD`.
-   - **Year-only is allowed** as `YYYY` (partial date) and should remain `value_type = date`.
-   - Do not convert partial dates to an arbitrary full date (e.g., `YYYY-01-01`).
-   - No free-text date strings.
+### Rules
 
-4. **Canonical Set Integrity**
-   - The number of rows in `entities.csv` matches the declared canonical entity count in the summary.
+- `claim_id` must use a stable format like `C0001`, `C0002`, etc.
+- `claim_type` must be either:
+  - `fact`
+  - `relationship`
+- `subject_id` must be one of the canonical entities from `entities.csv`
+- `subject_label` must match the subject entity’s English label
+- `predicate_pid` and `predicate_label` must match the supporting source row exactly
+- `source` must always be `wikidata`
+- `source_url` must match the supporting source row
+- `retrieved_at` must use `YYYY-MM-DD`
+- `source_row_id` must reference exactly one supporting row
 
-5. **Alias Hygiene & Coverage**
-   - No alias duplicates.
-   - The primary label is not repeated in the `aliases` field.
-   - Abbreviations, acronyms, legal-name variants, and common alternate spellings are included when available in Wikidata.
-   - Organization entries have been checked against Wikidata `altLabel` and former/legal names to avoid under-population.
-   - If an entity has no aliases in Wikidata, this has been explicitly confirmed before leaving the field empty.
+### For `relationship` claims
 
-6. **Name Standardization**
-   - Entity names exactly match the English Wikidata label.
-   - No inconsistent spacing or branding variants (e.g., avoid mixing "Mercado Libre" and "MercadoLibre").
+- Populate `object_id` and `object_label`
+- Leave `value` empty
+- Leave `value_type` empty
+- `source_row_id` must reference an existing `rel_id` in `relationships.csv`
 
-7. **Controlled Vocabulary Compliance**
-   - `object_entity_type` strictly uses: person | organization | place | event | other | unknown.
-   - All values are lowercase.
+### For `fact` claims
 
-If any of the above checks fail, correct the data before returning the output.
+- Populate `value` and `value_type`
+- Leave `object_id` empty
+- Leave `object_label` empty
+- `source_row_id` must reference an existing `fact_id` in `facts.csv`
+
+### Claim curation priorities
+
+Prioritize claims that are broadly useful for demo questions, especially:
+
+- founders
+- chief executive officers
+- employers
+- positions held
+- memberships
+- ownership links
+- parent/subsidiary relationships
+- official websites
+- key dates such as inception, birth, and death where useful
+
+### Claim text requirements
+
+`claim_text` must be:
+
+- human-readable
+- concise
+- directly aligned to the source row
+- useful for retrieval and citation demos
+
+Examples of style:
+- `Xapo was founded by Wences Casares`
+- `Linda Rottenberg is chief executive officer of Endeavor`
+- `Larry Summers holds the position United States Secretary of the Treasury`
+- `Mercado Libre official website is https://www.mercadolibre.com`
+
+### Confidence requirements
+
+- `confidence` must be a numeric value between `0` and `1`
+- straightforward Wikidata-backed rows typically fall between `0.93` and `0.99`
+- potentially time-bounded, multi-value, or ambiguous rows may be slightly lower
+
+Do not use values outside `[0,1]`.
 
 ---
 
-## Step 5 — Deliverables
+## Hard Validation Rules
 
-Return, in this order:
+Before returning the final output, validate all of the following.
 
-### 1. Short Summary Section
-- The selected entities with QIDs + one-line justification each (including justification for the total count)
-- Any ambiguous matches and how you resolved them
-- Retrieval date used
+### 1. Exact schema compliance
 
-### 2. CSV Content (in this order)
-- `entities.csv`
+Each file must use the exact required header and column order.
+
+Required headers:
+
+- `entities.csv`  
+  `entity_id,name,entity_type,aliases,description,wikidata_url`
+
+- `facts.csv`  
+  `fact_id,subject_id,subject_label,predicate_pid,predicate_label,value,value_type,source,source_url,retrieved_at`
+
+- `relationships.csv`  
+  `rel_id,subject_id,subject_label,predicate_pid,predicate_label,object_id,object_label,object_entity_type,source,source_url,retrieved_at`
+
+- `claims.csv`  
+  `claim_id,claim_type,subject_id,subject_label,predicate_pid,predicate_label,object_id,object_label,value,value_type,claim_text,confidence,source,source_url,retrieved_at,source_row_id`
+
+No extra columns. No missing columns. Every row must have the same number of fields as the header.
+
+### 2. ID validation
+
+- `entity_id` must match `Q\d+`
+- `fact_id` must match `F\d+`
+- `rel_id` must match `R\d+`
+- `claim_id` must match `C\d+`
+- `predicate_pid` must match `P\d+`
+
+Zero-padded row IDs such as `F0001`, `R0001`, and `C0001` are preferred for readability.
+
+### 3. PID ↔ label consistency
+
+`predicate_label` must exactly match the official English Wikidata label for `predicate_pid`.
+
+Pay special attention to these common labels:
+
+- `P39` = `position held`
+- `P108` = `employer`
+- `P112` = `founded by`
+- `P169` = `chief executive officer`
+- `P463` = `member of`
+- `P569` = `date of birth`
+- `P570` = `date of death`
+- `P571` = `inception`
+- `P856` = `official website`
+- `P1830` = `owner of`
+
+Do not paraphrase property labels.
+
+### 4. Facts vs relationships separation
+
+- `facts.csv` must contain literal-valued facts only
+- entity-valued properties must appear only in `relationships.csv`
+- no QIDs may appear in `facts.csv.value`
+
+### 5. P31 exclusion
+
+There must be **zero rows** with `predicate_pid = P31` in:
+
 - `facts.csv`
 - `relationships.csv`
 
-Each CSV must be valid comma-separated CSV with a header row.
+### 6. Controlled vocabulary compliance
 
-### CSV Formatting Requirements (Strict)
-To ensure the files do not break when imported into spreadsheets or databases:
+`entities.csv.entity_type` must be one of:
 
-- Use standard comma (`,`) as the delimiter.
-- Wrap **every field in double quotes** ("...") — including IDs and numeric values.
-- Escape internal double quotes by doubling them (e.g., `"John ""Johnny"" Smith"`).
-- Do not use additional delimiters (no semicolons or tabs).
-- Do not insert extra blank lines.
-- Ensure UTF-8 encoding.
-- Ensure each row has exactly the same number of columns as the header.
-- Do not include commentary, markdown formatting, or code fences inside the CSV output — only raw CSV text.
-- If a value contains line breaks, replace them with a single space.
+- `person`
+- `organization`
+- `place`
+- `event`
+- `other`
 
-These rules are mandatory and apply to all three CSV files.
+`relationships.csv.object_entity_type` must be one of:
+
+- `person`
+- `organization`
+- `place`
+- `event`
+- `other`
+- `unknown`
+
+`facts.csv.value_type` must be one of:
+
+- `date`
+- `url`
+- `entity`
+- `string`
+- `number`
+- `boolean`
+
+`claims.csv.claim_type` must be one of:
+
+- `fact`
+- `relationship`
+
+### 7. Date validation
+
+- `retrieved_at` must use `YYYY-MM-DD`
+- date literals must use ISO formatting
+- year-only dates are allowed as `YYYY`
+
+### 8. Canonical set integrity
+
+- Every `subject_id` in `facts.csv`, `relationships.csv`, and `claims.csv` must refer to a canonical entity in `entities.csv`
+- `relationships.csv.object_id` may point outside the canonical set
+
+### 9. Claim linkage integrity
+
+Every `claims.csv.source_row_id` must reference exactly one existing row:
+
+- `claim_type = fact` → existing `fact_id`
+- `claim_type = relationship` → existing `rel_id`
+
+### 10. Deduplication and hygiene
+
+- Deduplicate exact duplicate rows
+- Remove duplicate aliases
+- Do not repeat the primary label inside `aliases`
+- Avoid inconsistent naming variants when the English Wikidata label is known
 
 ---
 
-## Notes
+## Formatting Rules
 
-- Favor **precision over recall**: it is better to have fewer correct statements than many questionable ones.
-- The dataset will enrich a graph built from the PDF narrative, so prioritize properties that clarify:
-  - Roles
-  - Affiliations
-  - Organizational structure
-  - Location context
+These rules are mandatory for all CSV output:
 
+- Use standard comma-separated CSV
+- Include a header row for each file
+- Wrap **every field** in double quotes
+- Escape internal double quotes by doubling them
+- Do not insert extra blank lines
+- Replace embedded line breaks inside values with a single space
+- Ensure each row has exactly the same number of columns as the header
+- Use plain UTF-8-safe text
+- Output only the four CSV files in the required order
+
+---
+
+## Dataset Quality Goal
+
+Produce a **small, polished, high-signal structured fixture set** that:
+
+- is scoped to the attached unstructured source document
+- looks like a curated Wikidata-derived export
+- is rich in leadership, affiliation, ownership, and institutional relationships
+- is easy to ingest into the current Power Atlas demo
+- supports entity resolution, retrieval, and citation-grounded demo questions
+- remains auditable and schema-valid
