@@ -55,6 +55,21 @@ class TestDatasetRootResolution(unittest.TestCase):
         self.assertIn("nonexistent_dataset_xyz", str(ctx.exception))
         self.assertIn("Available", str(ctx.exception))
 
+    def test_resolve_dotdot_raises_value_error(self):
+        """'..' as a dataset name must be rejected to prevent directory traversal."""
+        with self.assertRaises(ValueError):
+            resolve_dataset_root("..")
+
+    def test_resolve_dot_raises_value_error(self):
+        """'.' as a dataset name must be rejected."""
+        with self.assertRaises(ValueError):
+            resolve_dataset_root(".")
+
+    def test_resolve_path_separator_raises_value_error(self):
+        """Names containing path separators must be rejected."""
+        with self.assertRaises(ValueError):
+            resolve_dataset_root("../other_dataset")
+
     # ------------------------------------------------------------------
     # resolve_dataset_root — env var
     # ------------------------------------------------------------------

@@ -116,9 +116,13 @@ def run_pdf_ingest(
     chunk_stride: int | None = None,
 ) -> dict[str, Any]:
     _pdf_filename = pdf_filename or "chain_of_custody.pdf"
-    if Path(_pdf_filename).name != _pdf_filename:
+    if (
+        _pdf_filename in (".", "..")
+        or Path(_pdf_filename).name != _pdf_filename
+        or not _pdf_filename.lower().endswith(".pdf")
+    ):
         raise ValueError(
-            f"pdf_filename must be a basename without path separators, got {_pdf_filename!r}"
+            f"pdf_filename must be a plain .pdf basename without path separators, got {_pdf_filename!r}"
         )
     pdf_base_dir = ((fixtures_dir or FIXTURES_DIR) / "unstructured").resolve()
     pdf_path = (pdf_base_dir / _pdf_filename).resolve()
