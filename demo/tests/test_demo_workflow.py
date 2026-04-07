@@ -619,7 +619,7 @@ class WorkflowTests(unittest.TestCase):
             },
         )
         expected_fingerprint = module.sha256_file(
-            module.resolve_dataset_root().pdf_path
+            module.resolve_dataset_root("demo_dataset_v1").pdf_path
         )
         initial_openai_state = ("OPENAI_API_KEY" in os.environ, os.environ.get("OPENAI_API_KEY"))
         with self._with_injected_pdf_ingest_modules(injected_modules):
@@ -664,9 +664,9 @@ class WorkflowTests(unittest.TestCase):
         )
         self.assertEqual(
             calls["run_params"]["file_path"],
-            str(module.resolve_dataset_root().pdf_path),
+            str(module.resolve_dataset_root("demo_dataset_v1").pdf_path),
         )
-        expected_pdf_uri = module.resolve_dataset_root().pdf_path.resolve().as_uri()
+        expected_pdf_uri = module.resolve_dataset_root("demo_dataset_v1").pdf_path.resolve().as_uri()
         self.assertEqual(
             calls["run_params"]["document_metadata"],
             {

@@ -646,7 +646,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 # Backwards-compatible aliases for legacy tests and scripts.
 def _lint_and_clean_structured_csvs(run_id: str, output_dir: Path) -> dict[str, Any]:
     dataset_root = resolve_dataset_root()
-    return lint_and_clean_structured_csvs(run_id=run_id, output_dir=output_dir, fixtures_dir=dataset_root.root)
+    return lint_and_clean_structured_csvs(
+        run_id=run_id,
+        output_dir=output_dir,
+        fixtures_dir=dataset_root.root,
+        dataset_id=dataset_root.dataset_id,
+    )
 
 
 def _run_structured_ingest(config: Config, run_id: str) -> dict[str, Any]:
