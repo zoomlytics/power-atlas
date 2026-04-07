@@ -19,6 +19,7 @@ from demo.contracts import (
     get_dataset_id,
     PDF_PIPELINE_CONFIG_PATH,
 )
+from demo.contracts.paths import _DEFAULT_PDF_FILENAME
 from demo.contracts.runtime import make_run_id
 from demo.cypher_utils import validate_cypher_identifier as _validate_cypher_identifier
 
@@ -115,7 +116,7 @@ def run_pdf_ingest(
     embedder_model: str | None = None,
     chunk_stride: int | None = None,
 ) -> dict[str, Any]:
-    _pdf_filename = pdf_filename or "chain_of_custody.pdf"
+    _pdf_filename = pdf_filename or _DEFAULT_PDF_FILENAME
     if (
         _pdf_filename in (".", "..")
         or Path(_pdf_filename).name != _pdf_filename

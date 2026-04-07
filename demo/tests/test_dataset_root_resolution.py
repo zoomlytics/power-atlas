@@ -235,7 +235,10 @@ class TestDatasetRootResolution(unittest.TestCase):
         dr = resolve_dataset_root("demo_dataset_v1")
         with tempfile.TemporaryDirectory() as tmpdir:
             copied_dataset = Path(tmpdir) / "dataset_copy"
-            shutil.copytree(dr.root, copied_dataset)
+            # Copy only the structured/ sub-directory; lint_and_clean_structured_csvs
+            # does not need any unstructured assets, so this avoids duplicating
+            # large PDFs and speeds up the test.
+            shutil.copytree(dr.structured_dir, copied_dataset / "structured")
             output_dir = Path(tmpdir) / "output"
             result = lint_and_clean_structured_csvs(
                 run_id="test-lint-run",
