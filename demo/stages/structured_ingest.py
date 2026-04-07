@@ -65,7 +65,7 @@ def _is_blank_csv_row(row: dict[str | None, str | list[str] | None]) -> bool:
     return True
 
 
-def lint_and_clean_structured_csvs(run_id: str, output_dir: Path, fixtures_dir: Path | None = None) -> dict[str, Any]:
+def lint_and_clean_structured_csvs(run_id: str, output_dir: Path, fixtures_dir: Path | None = None, *, dataset_id: str | None = None) -> dict[str, Any]:
     structured_dir = (fixtures_dir or FIXTURES_DIR) / "structured"
     run_root = output_dir / "runs" / run_id
     clean_dir = run_root / "structured_clean"
@@ -251,7 +251,7 @@ def lint_and_clean_structured_csvs(run_id: str, output_dir: Path, fixtures_dir: 
     )
     lint_report = {
         "run_id": run_id,
-        "dataset_id": get_dataset_id(),
+        "dataset_id": dataset_id if isinstance(dataset_id, str) and dataset_id else get_dataset_id(),
         "method": "structured_pre_ingest_lint_and_dedup",
         "source_uri": str(structured_dir),
         "structured_clean_dir": str(clean_dir),
@@ -276,7 +276,8 @@ def lint_and_clean_structured_csvs(run_id: str, output_dir: Path, fixtures_dir: 
 
 
 def run_structured_ingest(config: Any, run_id: str, *, fixtures_dir: Path | None = None, dataset_id: str | None = None) -> dict[str, Any]:
-    lint_output = lint_and_clean_structured_csvs(run_id=run_id, output_dir=config.output_dir, fixtures_dir=fixtures_dir)
+    effective_dataset_id = dataset_id if isinstance(dataset_id, str) and dataset_id else get_dataset_id()
+    lint_output = lint_and_clean_structured_csvs(run_id=run_id, output_dir=config.output_dir, fixtures_dir=fixtures_dir, dataset_id=effective_dataset_id)
     structured_clean_dir = Path(lint_output["structured_clean_dir"])
     entities_rows = load_csv_rows(structured_clean_dir / "entities.csv")
     facts_rows = load_csv_rows(structured_clean_dir / "facts.csv")
@@ -284,7 +285,6 @@ def run_structured_ingest(config: Any, run_id: str, *, fixtures_dir: Path | None
     claims_rows = load_csv_rows(structured_clean_dir / "claims.csv")
     effective_fixtures_dir = fixtures_dir or FIXTURES_DIR
     source_uri = str(effective_fixtures_dir / "structured")
-    effective_dataset_id = dataset_id if isinstance(dataset_id, str) and dataset_id else get_dataset_id()
     ingested_at = _timestamp()
 
     # Detailed validation of claim source_row_id values is performed during linting

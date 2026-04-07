@@ -20,9 +20,7 @@ from demo.contracts import (  # noqa: E402
     CHUNK_FALLBACK_STRIDE,
     DEFAULT_DB,
     Config,
-    DatasetRoot,
     EMBEDDER_MODEL_NAME,
-    FIXTURES_DIR,
     build_batch_manifest,
     build_stage_manifest,
     make_run_id,
@@ -694,7 +692,12 @@ def main() -> None:
         )
         dataset_root = resolve_dataset_root(config.dataset_name)
         run_id = make_run_id("structured_lint")
-        lint_result = lint_and_clean_structured_csvs(run_id=run_id, output_dir=config.output_dir, fixtures_dir=dataset_root.root)
+        lint_result = lint_and_clean_structured_csvs(
+            run_id=run_id,
+            output_dir=config.output_dir,
+            fixtures_dir=dataset_root.root,
+            dataset_id=dataset_root.dataset_id,
+        )
         print(f"Structured lint report written to: {lint_result['lint_report_path']}")
         return
     config_commands = {"ingest", "ingest-structured", "ingest-pdf", "extract-claims", "resolve-entities", "ask"}
