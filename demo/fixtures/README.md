@@ -13,13 +13,15 @@ the system auto-discovers it, so no flag is needed for the default workflow.
 
 Legacy compatibility: the top-level `structured/`, `unstructured/`, and
 `manifest.json` paths exist only as backward-compatible entry points. New code should
-use the per-dataset paths under `datasets/`, and the per-dataset tree is the only
-canonical location for full fixture contents. Do **not** commit duplicate large binary
-assets (PDFs) in both locations, since that doubles the on-disk footprint and slows
-clone/checkout time. Where the environment supports it, make the top-level
-`unstructured/` entries symlinks into `datasets/demo_dataset_v1/unstructured/`; where
-symlinks are not feasible, keep only lightweight stubs/placeholders in the legacy
-location and generate any local copies outside version control.
+use the per-dataset paths under `datasets/`, and `datasets/demo_dataset_v1/` is the
+only canonical, version-controlled location for full fixture contents. Keep exactly
+one committed copy of each large binary asset (especially PDFs such as
+`*_full_text.pdf`), under `datasets/demo_dataset_v1/unstructured/`. The legacy
+top-level `unstructured/` tree must not contain duplicate committed PDF payloads:
+where the environment supports it, make those entries symlinks into
+`datasets/demo_dataset_v1/unstructured/`; where symlinks are not feasible, keep only
+tiny text stubs/README placeholders that point to the canonical dataset path and
+generate any local working copies outside version control.
 
 ## Data provenance
 
