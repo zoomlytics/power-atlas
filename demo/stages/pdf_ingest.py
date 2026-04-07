@@ -14,9 +14,9 @@ from demo.contracts import (
     CHUNK_EMBEDDING_LABEL,
     CHUNK_EMBEDDING_PROPERTY,
     CHUNK_FALLBACK_STRIDE,
-    DATASET_ID,
     EMBEDDER_MODEL_NAME,
     FIXTURES_DIR,
+    get_dataset_id,
     PDF_PIPELINE_CONFIG_PATH,
 )
 from demo.contracts.runtime import make_run_id
@@ -121,7 +121,7 @@ def run_pdf_ingest(
         raise FileNotFoundError(f"Required PDF fixture not found: {pdf_path}")
     pdf_file_path = str(pdf_path)
     pdf_source_uri = pdf_path.as_uri()
-    effective_dataset_id = dataset_id if isinstance(dataset_id, str) and dataset_id else DATASET_ID
+    effective_dataset_id = dataset_id if isinstance(dataset_id, str) and dataset_id else get_dataset_id()
     effective_index_name = index_name or CHUNK_EMBEDDING_INDEX_NAME
     effective_chunk_label = chunk_label or CHUNK_EMBEDDING_LABEL
     effective_embedding_property = embedding_property or CHUNK_EMBEDDING_PROPERTY

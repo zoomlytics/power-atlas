@@ -1797,10 +1797,12 @@ def run_retrieval_and_qa(
 
     # Use provided run_id/source_uri in citation examples so provenance fields align with stage metadata;
     # fall back to placeholder values only when those parameters are absent.
-    from demo.contracts.paths import resolve_dataset_root as _resolve_dataset_root
-    _fallback_source_uri = _resolve_dataset_root().pdf_path.resolve().as_uri()
     citation_run_id = run_id if run_id is not None else "example_run_id"
-    citation_source_uri = source_uri if source_uri is not None else _fallback_source_uri
+    if source_uri is not None:
+        citation_source_uri = source_uri
+    else:
+        from demo.contracts.paths import resolve_dataset_root as _resolve_dataset_root
+        citation_source_uri = _resolve_dataset_root().pdf_path.resolve().as_uri()
 
     citation_token_example = _build_citation_token(
         chunk_id="example_chunk",

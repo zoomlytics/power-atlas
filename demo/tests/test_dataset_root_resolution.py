@@ -89,17 +89,33 @@ class TestDatasetRootResolution(unittest.TestCase):
     # ------------------------------------------------------------------
 
     def test_auto_discovery_single_dataset(self):
-        """With FIXTURE_DATASET unset and one dataset dir, resolve succeeds."""
-        original = os.environ.pop("FIXTURE_DATASET", None)
+        """With FIXTURE_DATASET unset and exactly one dataset dir, resolve succeeds."""
+        original_env = os.environ.pop("FIXTURE_DATASET", None)
         try:
-            if len(list_available_datasets()) == 1:
-                dr = resolve_dataset_root()
-                self.assertEqual(dr.dataset_id, "demo_dataset_v1")
+            with tempfile.TemporaryDirectory() as tmpdir:
+                fake_container = Path(tmpdir) / "datasets"
+                single_ds = fake_container / "my_only_dataset"
+                single_ds.mkdir(parents=True)
+                # Provide a minimal manifest so DatasetRoot can resolve dataset_id.
+                (single_ds / "manifest.json").write_text(
+                    '{"dataset": "my_only_dataset", "provenance": [{"id": "p", "kind": "pdf", "path": "unstructured/doc.pdf"}]}',
+                    encoding="utf-8",
+                )
+
+                import demo.contracts.paths as paths_mod
+                original_container = paths_mod.DATASETS_CONTAINER_DIR
+                try:
+                    paths_mod.DATASETS_CONTAINER_DIR = fake_container
+                    dr = resolve_dataset_root()
+                    self.assertEqual(dr.dataset_id, "my_only_dataset")
+                    self.assertEqual(dr.root, single_ds)
+                finally:
+                    paths_mod.DATASETS_CONTAINER_DIR = original_container
         finally:
-            if original is None:
+            if original_env is None:
                 os.environ.pop("FIXTURE_DATASET", None)
             else:
-                os.environ["FIXTURE_DATASET"] = original
+                os.environ["FIXTURE_DATASET"] = original_env
 
     def test_auto_discovery_multiple_datasets_raises(self):
         """With two dataset dirs and no selection, resolve raises ValueError."""

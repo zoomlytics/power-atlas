@@ -498,11 +498,20 @@ def _run_independent_stage(
     # all_runs is only relevant for the ask command.
     _ask_all_runs = all_runs and command == "ask"
 
-    dataset_root = resolve_dataset_root(config.dataset_name)
-    set_dataset_id(dataset_root.dataset_id)
-    _fixture_dir = dataset_root.root
-    _pdf_filename = dataset_root.pdf_filename
-    _pdf_source_uri = str((_fixture_dir / "unstructured" / _pdf_filename).resolve().as_uri())
+    # Resolve the active dataset root for commands that need fixture paths.
+    # For `ask --all-runs`, no dataset-specific fixture path is required, so we
+    # skip resolution to avoid raising on a multi-dataset repo.
+    if not _ask_all_runs:
+        dataset_root = resolve_dataset_root(config.dataset_name)
+        set_dataset_id(dataset_root.dataset_id)
+        _fixture_dir: Path | None = dataset_root.root
+        _pdf_filename: str | None = dataset_root.pdf_filename
+        _pdf_source_uri: str | None = str((_fixture_dir / "unstructured" / _pdf_filename).resolve().as_uri())
+    else:
+        dataset_root = None
+        _fixture_dir = None
+        _pdf_filename = None
+        _pdf_source_uri = None
 
     stage_runners: dict[str, tuple[str, str, Callable[[Config, str], dict[str, Any]]]] = {
         "ingest-structured": (
@@ -704,7 +713,6 @@ def main() -> None:
                     )
                 resolved_run_id, ask_all_runs = _resolve_ask_scope(args, config)
                 print(f"Using retrieval scope: {_format_scope_label(resolved_run_id, ask_all_runs)}")
-                _dataset_root = resolve_dataset_root(config.dataset_name)
                 run_interactive_qa(
                     config,
                     run_id=resolved_run_id,
@@ -713,7 +721,7 @@ def main() -> None:
                     # queries the whole database (no run_id and no source_uri filter).
                     # In single-run mode, default to the active dataset's PDF URI.
                     source_uri=None if ask_all_runs else str(
-                        _dataset_root.pdf_path.resolve().as_uri()
+                        resolve_dataset_root(config.dataset_name).pdf_path.resolve().as_uri()
                     ),
                     index_name=CHUNK_EMBEDDING_INDEX_NAME,
                     cluster_aware=getattr(args, "cluster_aware", False),

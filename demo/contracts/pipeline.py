@@ -56,6 +56,17 @@ def set_dataset_id(dataset_id: str) -> None:
             DATASET_ID = dataset_id
 
 
+def get_dataset_id() -> str:
+    """Return the current active :data:`DATASET_ID`.
+
+    Always reads the module-level variable so callers observe updates made via
+    :func:`set_dataset_id`, even when ``DATASET_ID`` was imported by name
+    (``from demo.contracts.pipeline import DATASET_ID``) before
+    :func:`set_dataset_id` was called.
+    """
+    return DATASET_ID
+
+
 def ensure_pipeline_contract_loaded() -> None:
     """Load the pipeline contract once in a thread-safe way."""
     with _PIPELINE_CONTRACT_LOCK:
