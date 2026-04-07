@@ -1,6 +1,19 @@
-# Demo Fixtures (dataset v1)
+# Demo Fixtures
 
-This directory is the stable dataset root used by `demo/run_demo.py` with default settings (no custom fixture flags).
+This directory is the **datasets container** for `demo/run_demo.py`.
+
+Each named dataset lives under `datasets/<dataset_name>/` and contains its own
+`manifest.json`, `structured/` CSVs, `unstructured/` documents, and `README.md`.
+
+The current dataset (`demo_dataset_v1`) is at `datasets/demo_dataset_v1/`.
+
+To select a dataset, pass `--dataset <name>` to any `run_demo.py` command, or set
+the `FIXTURE_DATASET` environment variable.  When exactly one dataset directory exists
+the system auto-discovers it, so no flag is needed for the default workflow.
+
+Legacy compatibility: the `structured/`, `unstructured/`, and `manifest.json` files
+at this top-level directory are kept for backward compatibility.  New code should
+use the per-dataset paths under `datasets/`.
 
 ## Data provenance
 

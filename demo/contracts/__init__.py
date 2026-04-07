@@ -2,7 +2,16 @@ from importlib import import_module
 from typing import Any
 
 from demo.contracts.manifest import build_batch_manifest, build_stage_manifest, write_manifest, write_manifest_md
-from demo.contracts.paths import ARTIFACTS_DIR, CONFIG_DIR, FIXTURES_DIR, PDF_PIPELINE_CONFIG_PATH
+from demo.contracts.paths import (
+    ARTIFACTS_DIR,
+    CONFIG_DIR,
+    DATASETS_CONTAINER_DIR,
+    DatasetRoot,
+    FIXTURES_DIR,
+    PDF_PIPELINE_CONFIG_PATH,
+    list_available_datasets,
+    resolve_dataset_root,
+)
 from demo.contracts.pipeline import (
     CHUNK_EMBEDDING_DIMENSIONS,
     CHUNK_EMBEDDING_INDEX_NAME,
@@ -14,6 +23,7 @@ from demo.contracts.pipeline import (
     EMBEDDER_MODEL_NAME,
     PIPELINE_CONFIG_DATA,
     ensure_pipeline_contract_loaded,
+    set_dataset_id,
 )
 from demo.contracts.prompts import POWER_ATLAS_RAG_TEMPLATE, PROMPT_IDS
 from demo.contracts.resolution import ALIGNMENT_VERSION
@@ -55,6 +65,8 @@ __all__ = [
     "CHUNK_EMBEDDING_PROPERTY",
     "CHUNK_FALLBACK_STRIDE",
     "DATASET_ID",
+    "DATASETS_CONTAINER_DIR",
+    "DatasetRoot",
     "DEFAULT_DB",
     "Config",
     "EARLY_RETURN_PRECEDENCE",
@@ -65,6 +77,7 @@ __all__ = [
     "ensure_pipeline_contract_loaded",
     "FIXTURES_DIR",
     "ID_PATTERNS",
+    "list_available_datasets",
     "make_run_id",
     "PDF_PIPELINE_CONFIG_PATH",
     "PIPELINE_CONFIG_DATA",
@@ -73,6 +86,8 @@ __all__ = [
     "FieldSurfacePolicy",
     "RetrievalMetadataSurface",
     "RETRIEVAL_METADATA_SURFACE_POLICY",
+    "resolve_dataset_root",
+    "set_dataset_id",
     "STRUCTURED_FILE_HEADERS",
     "timestamp",
     "VALUE_TYPES",

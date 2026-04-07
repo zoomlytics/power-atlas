@@ -1,6 +1,7 @@
 {
   "dataset": "demo_dataset_v1",
   "version": "1.0.0",
+  "note": "This file is the legacy container-level manifest. The canonical per-dataset manifest is at demo/fixtures/datasets/demo_dataset_v1/manifest.json.",
   "license": "Research-only synthetic+curated demo artifacts (see demo/fixtures/README.md)",
   "attribution": [
     {

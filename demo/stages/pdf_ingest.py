@@ -106,6 +106,8 @@ def run_pdf_ingest(
     run_id: str | None = None,
     *,
     fixtures_dir: Path | None = None,
+    pdf_filename: str | None = None,
+    dataset_id: str | None = None,
     index_name: str | None = None,
     chunk_label: str | None = None,
     embedding_property: str | None = None,
@@ -113,12 +115,13 @@ def run_pdf_ingest(
     embedder_model: str | None = None,
     chunk_stride: int | None = None,
 ) -> dict[str, Any]:
-    pdf_path = ((fixtures_dir or FIXTURES_DIR) / "unstructured" / "chain_of_custody.pdf").resolve()
+    _pdf_filename = pdf_filename or "chain_of_custody.pdf"
+    pdf_path = ((fixtures_dir or FIXTURES_DIR) / "unstructured" / _pdf_filename).resolve()
     if not pdf_path.exists():
         raise FileNotFoundError(f"Required PDF fixture not found: {pdf_path}")
     pdf_file_path = str(pdf_path)
     pdf_source_uri = pdf_path.as_uri()
-    dataset_id = DATASET_ID
+    effective_dataset_id = dataset_id if isinstance(dataset_id, str) and dataset_id else DATASET_ID
     effective_index_name = index_name or CHUNK_EMBEDDING_INDEX_NAME
     effective_chunk_label = chunk_label or CHUNK_EMBEDDING_LABEL
     effective_embedding_property = embedding_property or CHUNK_EMBEDDING_PROPERTY
@@ -151,7 +154,7 @@ def run_pdf_ingest(
     if config.dry_run:
         ingest_summary = {
             "run_id": stage_run_id,
-            "dataset_id": dataset_id,
+            "dataset_id": effective_dataset_id,
             "source_uri": pdf_source_uri,
             "pdf_fingerprint_sha256": pdf_fingerprint_sha256,
             "counts": summary_counts,
@@ -252,7 +255,7 @@ def run_pdf_ingest(
                         "file_path": pdf_file_path,
                         "document_metadata": {
                             "run_id": stage_run_id,
-                            "dataset_id": dataset_id,
+                            "dataset_id": effective_dataset_id,
                             "source_uri": pdf_source_uri,
                         },
                     },
@@ -328,7 +331,7 @@ def run_pdf_ingest(
                     run_id=stage_run_id,
                     file_path=pdf_file_path,
                     source_uri=pdf_source_uri,
-                    dataset_id=dataset_id,
+                    dataset_id=effective_dataset_id,
                     default_chunk_stride=effective_chunk_stride,
                 ).consume()
                 run_counts = session.run(
@@ -458,7 +461,7 @@ def run_pdf_ingest(
 
     ingest_summary = {
         "run_id": stage_run_id,
-        "dataset_id": dataset_id,
+        "dataset_id": effective_dataset_id,
         "source_uri": pdf_source_uri,
         "pdf_fingerprint_sha256": pdf_fingerprint_sha256,
         "counts": summary_counts,
@@ -492,7 +495,7 @@ def run_pdf_ingest(
         "pipeline_result": _normalize_pipeline_result(pipeline_result),
         "provenance": {
             "run_id": stage_run_id,
-            "dataset_id": dataset_id,
+            "dataset_id": effective_dataset_id,
             "source_uri": pdf_source_uri,
             "chunk_order_property": "chunk_order",
             "chunk_id_property": "chunk_id",

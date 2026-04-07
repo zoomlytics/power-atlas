@@ -461,12 +461,11 @@ class WorkflowTests(unittest.TestCase):
                 writer.writerows(rows + [rows[0]])
 
             output_dir = Path(tmpdir) / "output"
-            original_fixtures_dir = module.FIXTURES_DIR
-            try:
-                module.FIXTURES_DIR = copied_fixtures
-                result = module._lint_and_clean_structured_csvs("structured_ingest-test", output_dir)
-            finally:
-                module.FIXTURES_DIR = original_fixtures_dir
+            result = module.lint_and_clean_structured_csvs(
+                run_id="structured_ingest-test",
+                output_dir=output_dir,
+                fixtures_dir=copied_fixtures,
+            )
 
             self.assertEqual(result["files"]["entities.csv"]["input_rows"], len(rows) + 1)
             self.assertEqual(result["files"]["entities.csv"]["output_rows"], len(rows))
@@ -485,12 +484,11 @@ class WorkflowTests(unittest.TestCase):
                 entities_file.write("  ,  ,  ,  ,  ,  \n")
 
             output_dir = Path(tmpdir) / "output"
-            original_fixtures_dir = module.FIXTURES_DIR
-            try:
-                module.FIXTURES_DIR = copied_fixtures
-                result = module._lint_and_clean_structured_csvs("structured_ingest-test", output_dir)
-            finally:
-                module.FIXTURES_DIR = original_fixtures_dir
+            result = module.lint_and_clean_structured_csvs(
+                run_id="structured_ingest-test",
+                output_dir=output_dir,
+                fixtures_dir=copied_fixtures,
+            )
 
             self.assertEqual(result["files"]["entities.csv"]["input_rows"], len(rows))
             self.assertEqual(result["files"]["entities.csv"]["output_rows"], len(rows))
@@ -520,13 +518,12 @@ class WorkflowTests(unittest.TestCase):
                 writer.writerows([{**row, "unexpected_col": "extra"} for row in rows])
 
             output_dir = Path(tmpdir) / "output"
-            original_fixtures_dir = module.FIXTURES_DIR
-            try:
-                module.FIXTURES_DIR = copied_fixtures
-                with self.assertRaises(ValueError):
-                    module._lint_and_clean_structured_csvs("structured_ingest-test", output_dir)
-            finally:
-                module.FIXTURES_DIR = original_fixtures_dir
+            with self.assertRaises(ValueError):
+                module.lint_and_clean_structured_csvs(
+                    run_id="structured_ingest-test",
+                    output_dir=output_dir,
+                    fixtures_dir=copied_fixtures,
+                )
 
             lint_report_path = output_dir / "runs" / "structured_ingest-test" / "lint_report.json"
             self.assertTrue(lint_report_path.exists())
@@ -546,13 +543,12 @@ class WorkflowTests(unittest.TestCase):
             missing_file.unlink()
 
             output_dir = Path(tmpdir) / "output"
-            original_fixtures_dir = module.FIXTURES_DIR
-            try:
-                module.FIXTURES_DIR = copied_fixtures
-                with self.assertRaises(ValueError):
-                    module._lint_and_clean_structured_csvs("structured_ingest-test", output_dir)
-            finally:
-                module.FIXTURES_DIR = original_fixtures_dir
+            with self.assertRaises(ValueError):
+                module.lint_and_clean_structured_csvs(
+                    run_id="structured_ingest-test",
+                    output_dir=output_dir,
+                    fixtures_dir=copied_fixtures,
+                )
 
             lint_report_path = output_dir / "runs" / "structured_ingest-test" / "lint_report.json"
             self.assertTrue(lint_report_path.exists())
@@ -581,13 +577,12 @@ class WorkflowTests(unittest.TestCase):
 
             expected_row_number = baseline_line_count + 2
             output_dir = Path(tmpdir) / "output"
-            original_fixtures_dir = module.FIXTURES_DIR
-            try:
-                module.FIXTURES_DIR = copied_fixtures
-                with self.assertRaises(ValueError):
-                    module._lint_and_clean_structured_csvs("structured_ingest-test", output_dir)
-            finally:
-                module.FIXTURES_DIR = original_fixtures_dir
+            with self.assertRaises(ValueError):
+                module.lint_and_clean_structured_csvs(
+                    run_id="structured_ingest-test",
+                    output_dir=output_dir,
+                    fixtures_dir=copied_fixtures,
+                )
 
             lint_report_path = output_dir / "runs" / "structured_ingest-test" / "lint_report.json"
             lint_report = json.loads(lint_report_path.read_text(encoding="utf-8"))
@@ -624,7 +619,7 @@ class WorkflowTests(unittest.TestCase):
             },
         )
         expected_fingerprint = module.sha256_file(
-            DEMO_DIR / "fixtures" / "unstructured" / "chain_of_custody.pdf"
+            module.resolve_dataset_root().pdf_path
         )
         initial_openai_state = ("OPENAI_API_KEY" in os.environ, os.environ.get("OPENAI_API_KEY"))
         with self._with_injected_pdf_ingest_modules(injected_modules):
@@ -669,9 +664,9 @@ class WorkflowTests(unittest.TestCase):
         )
         self.assertEqual(
             calls["run_params"]["file_path"],
-            str(DEMO_DIR / "fixtures" / "unstructured" / "chain_of_custody.pdf"),
+            str(module.resolve_dataset_root().pdf_path),
         )
-        expected_pdf_uri = (DEMO_DIR / "fixtures" / "unstructured" / "chain_of_custody.pdf").resolve().as_uri()
+        expected_pdf_uri = module.resolve_dataset_root().pdf_path.resolve().as_uri()
         self.assertEqual(
             calls["run_params"]["document_metadata"],
             {
