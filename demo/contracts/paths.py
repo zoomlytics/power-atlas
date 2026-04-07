@@ -108,6 +108,11 @@ def resolve_dataset_root(name: str | None = None) -> DatasetRoot:
     effective_name: str | None = name or os.getenv("FIXTURE_DATASET")
 
     if effective_name:
+        # Guard against path traversal: only plain directory names are allowed.
+        if effective_name != Path(effective_name).name or not effective_name or "/" in effective_name or "\\" in effective_name:
+            raise ValueError(
+                f"Dataset name must be a simple directory name without path separators, got {effective_name!r}"
+            )
         candidate = DATASETS_CONTAINER_DIR / effective_name
         if candidate.is_dir():
             return _load_dataset_root_from_dir(candidate)

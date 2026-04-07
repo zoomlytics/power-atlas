@@ -116,7 +116,18 @@ def run_pdf_ingest(
     chunk_stride: int | None = None,
 ) -> dict[str, Any]:
     _pdf_filename = pdf_filename or "chain_of_custody.pdf"
-    pdf_path = ((fixtures_dir or FIXTURES_DIR) / "unstructured" / _pdf_filename).resolve()
+    if Path(_pdf_filename).name != _pdf_filename:
+        raise ValueError(
+            f"pdf_filename must be a basename without path separators, got {_pdf_filename!r}"
+        )
+    pdf_base_dir = ((fixtures_dir or FIXTURES_DIR) / "unstructured").resolve()
+    pdf_path = (pdf_base_dir / _pdf_filename).resolve()
+    try:
+        pdf_path.relative_to(pdf_base_dir)
+    except ValueError as exc:
+        raise ValueError(
+            f"pdf_filename {_pdf_filename!r} resolves outside the unstructured fixtures directory"
+        ) from exc
     if not pdf_path.exists():
         raise FileNotFoundError(f"Required PDF fixture not found: {pdf_path}")
     pdf_file_path = str(pdf_path)
