@@ -28,6 +28,30 @@ You may include additional non-canonical Wikidata entities as `object_id` values
 
 ---
 
+## Canonical shortlist lock
+
+The approved shortlist is **authoritative and closed**.
+
+- `entities.csv` must contain **only** entities from the approved canonical shortlist.
+- Do **not** add newly discovered canonical entities during CSV generation.
+- Do **not** promote supporting entities into `entities.csv` just because they have rich Wikidata coverage.
+- Additional entities may appear only as **non-canonical relationship objects** in `relationships.csv`.
+- If an approved shortlist entity cannot be matched confidently to Wikidata, omit it rather than replacing it with a guessed entity.
+
+---
+
+## Entity and QID verification rule
+
+Do not invent QIDs, labels, aliases, descriptions, or entity records.
+
+- Include a canonical entity only if you are confident it has a real Wikidata QID.
+- If a shortlist entity cannot be matched confidently to a real Wikidata entity, omit it rather than fabricating a QID.
+- Do not synthesize placeholder-like or speculative QIDs.
+- Do not create rows for uncertain entities.
+- Do not guess aliases or descriptions when the underlying Wikidata entity match is uncertain.
+
+---
+
 ## Objective
 
 Generate a Power Atlas-compatible structured fixture set that:
@@ -99,6 +123,12 @@ When deciding which Wikidata-backed rows to include, prioritize:
 Rows from category 3 must remain a **minority** of the dataset.
 
 Do **not** allow low-signal metadata to dominate.
+
+## Surprising-row rejection rule
+
+Reject any row that is technically plausible but would feel surprising, weakly relevant, or difficult to justify in a demo without extra explanation.
+
+If a row would likely make a reviewer ask, “Why is this here?”, omit it.
 
 ---
 
@@ -215,6 +245,17 @@ For organizations:
 
 Use facts selectively.
 
+## Partial date preservation rule
+
+When Wikidata supports only partial date precision:
+
+- preserve the original precision
+- use `YYYY` for year-only values
+- use `YYYY-MM` only if month precision is truly supported
+- use `YYYY-MM-DD` only if full date precision is truly supported
+- do **not** coerce partial dates into `YYYY-01-01` or any other invented full date
+- do **not** invent month or day precision
+
 ---
 
 ## File 3 — `relationships.csv`
@@ -322,6 +363,19 @@ Do **not** include `P31` (`instance of`) in either `facts.csv` or `relationships
 - Prefer claims that are useful for demo retrieval and citation.
 - Exclude low-signal claims unless they are especially useful in context.
 
+## Low-signal claim exclusion rule
+
+Do **not** include claims for the following unless they are unusually important to the document narrative:
+
+- official website
+- date of birth
+- country
+- headquarters location
+- citizenship
+- inception
+
+These rows may remain in `facts.csv` or `relationships.csv` as supporting context, but they should usually **not** appear in `claims.csv`.
+
 ### Claim text rule
 
 Use natural phrasing such as:
@@ -388,6 +442,19 @@ Pay special attention to:
 - `P1830` = `owner of`
 - `P1416` = `affiliation`
 
+### Common label exactness reminders
+
+Use the official English Wikidata label exactly, including for predicates that are commonly paraphrased.
+
+Examples:
+- `P749` = `parent organization`
+- `P169` = `chief executive officer`
+- `P112` = `founded by`
+- `P108` = `employer`
+- `P1416` = `affiliation`
+
+Do not substitute near-synonyms or expanded variants.
+
 ### Facts vs relationships
 - `facts.csv` must contain literal-valued rows only
 - entity-valued rows belong only in `relationships.csv`
@@ -413,6 +480,27 @@ Before returning the output, confirm that:
 - the output looks like a curated demo fixture rather than a generic mini corporate profile export
 
 If not, revise before output.
+
+### Partial date validation
+
+Reject any row that converts an imprecise date into an arbitrary full date such as `YYYY-01-01`.
+
+If the source precision is year-only, keep the value as `YYYY`.
+
+---
+
+### Final reviewer sanity check
+
+Before returning the output, review the dataset as if a human curator were inspecting it for demo quality.
+
+Revise or remove anything that would trigger any of these reactions:
+
+- “This looks invented or uncertain.”
+- “This entity should probably not be canonical.”
+- “This row is technically true but not useful.”
+- “This row feels like generic company metadata.”
+- “This claim is too weak to deserve inclusion.”
+- “This date appears to have fabricated precision.”
 
 ---
 

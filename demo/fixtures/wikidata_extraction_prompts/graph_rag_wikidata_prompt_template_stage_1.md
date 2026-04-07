@@ -146,6 +146,8 @@ Include candidates that were plausible but should **not** be canonical because t
 - too dependent on generic metadata
 - likely to create a misleading or low-value demo fixture
 
+Also exclude candidates that are likely to tempt the next stage into generating low-signal or generic corporate-profile rows.
+
 ### 3. Recommended canonical shortlist
 
 Provide a final numbered list of the **recommended canonical entities only**.
@@ -171,3 +173,12 @@ If needed, add a short bullet list of warning notes, for example:
 - It is acceptable to omit QIDs entirely at this stage if unsure.
 - Keep the answer concise but useful.
 - Favor curation quality over completeness.
+
+## Shortlist closure rule
+
+The final recommended canonical shortlist should be treated as a **closed set** for the next stage.
+
+- Only include entities in the final shortlist if you believe they are strong enough to appear in `entities.csv`.
+- Do not include “maybe” entities in the final shortlist.
+- If an entity is plausible but uncertain, move it to **Excluded candidates** or mention it only in **Optional warning notes**.
+- The next stage should not need to add newly discovered canonical entities if this shortlist is well curated.
