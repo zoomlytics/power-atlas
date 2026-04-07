@@ -217,5 +217,6 @@ __all__ = [
     "PIPELINE_CONFIG_DATA",
     "ensure_pipeline_contract_loaded",
     "refresh_pipeline_contract",
+    "get_dataset_id",
     "set_dataset_id",
 ]
