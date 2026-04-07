@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -14,6 +15,8 @@ PDF_PIPELINE_CONFIG_PATH = CONFIG_DIR / "pdf_simple_kg_pipeline.yaml"
 
 # Container directory that holds all named dataset roots.
 DATASETS_CONTAINER_DIR = FIXTURES_DIR / "datasets"
+
+_logger = logging.getLogger(__name__)
 
 _DEFAULT_PDF_FILENAME = "chain_of_custody.pdf"
 
@@ -62,7 +65,14 @@ def _load_dataset_root_from_dir(root: Path) -> DatasetRoot:
     if manifest_path.is_file():
         try:
             data = json.loads(manifest_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
+        except (OSError, json.JSONDecodeError) as exc:
+            _logger.warning(
+                "Could not read manifest at %s: %s. Using fallback dataset_id=%r and pdf_filename=%r.",
+                manifest_path,
+                exc,
+                dataset_id,
+                pdf_filename,
+            )
             data = {}
 
         if isinstance(data, dict):
