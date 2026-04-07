@@ -109,7 +109,7 @@ def resolve_dataset_root(name: str | None = None) -> DatasetRoot:
 
     if effective_name:
         # Guard against path traversal: only plain directory names are allowed.
-        if effective_name != Path(effective_name).name or not effective_name or "/" in effective_name or "\\" in effective_name:
+        if not effective_name or Path(effective_name).name != effective_name:
             raise ValueError(
                 f"Dataset name must be a simple directory name without path separators, got {effective_name!r}"
             )
