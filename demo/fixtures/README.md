@@ -12,10 +12,10 @@ the `FIXTURE_DATASET` environment variable.  When exactly one dataset directory 
 the system auto-discovers it, so no flag is needed for the default workflow.
 
 Legacy compatibility: the `structured/`, `unstructured/`, and `manifest.json` files
-at this top-level directory are kept as copies for backward compatibility.  New code
-should use the per-dataset paths under `datasets/`.  Note that keeping full copies of
+at this top-level directory are kept as copies for backward compatibility. New code
+should use the per-dataset paths under `datasets/`. Note that keeping full copies of
 large binary assets (PDFs) in both locations doubles the on-disk footprint and increases
-clone/checkout time.  Where the environment supports it, replace the top-level
+clone/checkout time. Where the environment supports it, replace the top-level
 `unstructured/` contents with symlinks pointing into
 `datasets/demo_dataset_v1/unstructured/` to avoid the duplication.
 
