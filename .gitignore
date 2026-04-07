@@ -55,6 +55,9 @@ dist/
 /pipelines/logs/*
 !/pipelines/logs/.gitkeep
 
-# Manifests
+# Manifests — generated run artifacts are ignored by default; static fixture manifests are exceptions.
 manifest.json
 manifest.md
+# Allow committed fixture dataset manifests.
+!/demo/fixtures/manifest.json
+!/demo/fixtures/datasets/**/manifest.json
