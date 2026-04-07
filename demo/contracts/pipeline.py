@@ -59,10 +59,11 @@ def set_dataset_id(dataset_id: str) -> None:
 def get_dataset_id() -> str:
     """Return the current active :data:`DATASET_ID`.
 
-    Always reads the module-level variable so callers observe updates made via
-    :func:`set_dataset_id`, even when ``DATASET_ID`` was imported by name
-    (``from demo.contracts.pipeline import DATASET_ID``) before
-    :func:`set_dataset_id` was called.
+    Always reads the module-level variable, so callers that use this function
+    (or access ``demo.contracts.pipeline.DATASET_ID``) observe updates made
+    via :func:`set_dataset_id`. Callers that imported ``DATASET_ID`` by name
+    with ``from demo.contracts.pipeline import DATASET_ID`` will not see later
+    updates to the module-level binding.
     """
     return DATASET_ID
 
