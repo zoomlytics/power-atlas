@@ -11,13 +11,15 @@ To select a dataset, pass `--dataset <name>` to any `run_demo.py` command, or se
 the `FIXTURE_DATASET` environment variable.  When exactly one dataset directory exists
 the system auto-discovers it, so no flag is needed for the default workflow.
 
-Legacy compatibility: the `structured/`, `unstructured/`, and `manifest.json` files
-at this top-level directory are kept as copies for backward compatibility. New code
-should use the per-dataset paths under `datasets/`. Note that keeping full copies of
-large binary assets (PDFs) in both locations doubles the on-disk footprint and increases
-clone/checkout time. Where the environment supports it, replace the top-level
-`unstructured/` contents with symlinks pointing into
-`datasets/demo_dataset_v1/unstructured/` to avoid the duplication.
+Legacy compatibility: the top-level `structured/`, `unstructured/`, and
+`manifest.json` paths exist only as backward-compatible entry points. New code should
+use the per-dataset paths under `datasets/`, and the per-dataset tree is the only
+canonical location for full fixture contents. Do **not** commit duplicate large binary
+assets (PDFs) in both locations, since that doubles the on-disk footprint and slows
+clone/checkout time. Where the environment supports it, make the top-level
+`unstructured/` entries symlinks into `datasets/demo_dataset_v1/unstructured/`; where
+symlinks are not feasible, keep only lightweight stubs/placeholders in the legacy
+location and generate any local copies outside version control.
 
 ## Data provenance
 
