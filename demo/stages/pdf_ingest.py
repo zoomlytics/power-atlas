@@ -24,7 +24,7 @@ from demo.cypher_utils import validate_cypher_identifier as _validate_cypher_ide
 
 # Local fallback to avoid importing a private implementation detail from
 # demo.contracts.paths. Resolved datasets should use DatasetRoot.pdf_filename.
-_DEFAULT_PDF_FILENAME = "document.pdf"
+_DEFAULT_PDF_FILENAME = "chain_of_custody.pdf"
 _logger = logging.getLogger(__name__)
 
 
