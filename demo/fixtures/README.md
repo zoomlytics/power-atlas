@@ -12,16 +12,18 @@ the `FIXTURE_DATASET` environment variable.  When exactly one dataset directory 
 the system auto-discovers it, so no flag is needed for the default workflow.
 
 Legacy compatibility: the top-level `structured/`, `unstructured/`, and
-`manifest.json` paths exist only as backward-compatible entry points. New code should
+`manifest.json` paths remain backward-compatible entry points. New code should
 use the per-dataset paths under `datasets/`, and `datasets/demo_dataset_v1/` is the
-only canonical, version-controlled location for full fixture contents. Keep exactly
-one committed copy of each large binary asset (especially PDFs such as
-`*_full_text.pdf`), under `datasets/demo_dataset_v1/unstructured/`. The legacy
-top-level `unstructured/` tree must not contain duplicate committed PDF payloads:
-where the environment supports it, make those entries symlinks into
-`datasets/demo_dataset_v1/unstructured/`; where symlinks are not feasible, keep only
-tiny text stubs/README placeholders that point to the canonical dataset path and
-generate any local working copies outside version control.
+canonical dataset location that contributors should update first. The repository
+currently retains some committed compatibility copies of large binary assets
+(including PDFs such as `*_full_text.pdf`) under both
+`datasets/demo_dataset_v1/unstructured/` and the legacy top-level
+`unstructured/` tree. Do not add further duplicate committed binaries unless a
+compatibility requirement makes that unavoidable. When introducing new legacy
+entries, prefer symlinks into `datasets/demo_dataset_v1/unstructured/` where the
+environment supports them; otherwise use small text stubs/README placeholders that
+point to the canonical dataset path and keep any generated working copies outside
+version control.
 
 ## Data provenance
 
