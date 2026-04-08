@@ -17,6 +17,7 @@ from neo4j_graphrag.retrievers import VectorCypherRetriever
 from neo4j_graphrag.types import LLMMessage, RetrieverResultItem
 
 from demo.contracts import CHUNK_EMBEDDING_INDEX_NAME, EMBEDDER_MODEL_NAME, PROMPT_IDS, ALIGNMENT_VERSION, resolve_early_return_rule
+from demo.contracts.paths import AmbiguousDatasetError as _AmbiguousDatasetError
 from demo.contracts.paths import resolve_dataset_root as _resolve_dataset_root
 from demo.contracts.prompts import POWER_ATLAS_RAG_TEMPLATE
 
@@ -1804,10 +1805,7 @@ def run_retrieval_and_qa(
     else:
         try:
             citation_source_uri = _resolve_dataset_root().pdf_path.resolve().as_uri()
-        except ValueError as exc:
-            error_message = str(exc).lower()
-            if "multiple" not in error_message or "dataset" not in error_message:
-                raise
+        except _AmbiguousDatasetError:
             citation_source_uri = "placeholder://citation-source"
 
     citation_token_example = _build_citation_token(

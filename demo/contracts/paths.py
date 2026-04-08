@@ -21,6 +21,15 @@ _logger = logging.getLogger(__name__)
 _DEFAULT_PDF_FILENAME = "chain_of_custody.pdf"
 
 
+class AmbiguousDatasetError(ValueError):
+    """Raised when multiple datasets exist but none has been explicitly selected.
+
+    Callers that want to suppress *only* this ambiguity (e.g. the citation
+    fallback in ``retrieval_and_qa``) should catch :exc:`AmbiguousDatasetError`
+    specifically rather than relying on string-matching against the message.
+    """
+
+
 @dataclass(frozen=True)
 class DatasetRoot:
     """Self-contained descriptor for a single fixture dataset.
@@ -143,7 +152,7 @@ def resolve_dataset_root(name: str | None = None) -> DatasetRoot:
         if len(subdirs) == 1:
             return _load_dataset_root_from_dir(subdirs[0])
         if len(subdirs) > 1:
-            raise ValueError(
+            raise AmbiguousDatasetError(
                 f"Multiple datasets found under {DATASETS_CONTAINER_DIR}: "
                 f"{sorted(d.name for d in subdirs)}. "
                 f"Select one with --dataset <name> or set FIXTURE_DATASET=<name>."
@@ -175,6 +184,7 @@ def list_available_datasets() -> list[str]:
 
 
 __all__ = [
+    "AmbiguousDatasetError",
     "ARTIFACTS_DIR",
     "CONFIG_DIR",
     "DATASETS_CONTAINER_DIR",

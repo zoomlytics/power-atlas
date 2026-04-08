@@ -14,6 +14,7 @@ import unittest
 from pathlib import Path
 
 from demo.contracts.paths import (
+    AmbiguousDatasetError,
     DATASETS_CONTAINER_DIR,
     DatasetRoot,
     FIXTURES_DIR,
@@ -156,7 +157,7 @@ class TestDatasetRootResolution(unittest.TestCase):
                 os.environ["FIXTURE_DATASET"] = original_env
 
     def test_auto_discovery_multiple_datasets_raises(self):
-        """With two dataset dirs and no selection, resolve raises ValueError."""
+        """With two dataset dirs and no selection, resolve raises AmbiguousDatasetError."""
         original_env = os.environ.pop("FIXTURE_DATASET", None)
         try:
             with tempfile.TemporaryDirectory() as tmpdir:
@@ -169,7 +170,7 @@ class TestDatasetRootResolution(unittest.TestCase):
                 original_container = paths_mod.DATASETS_CONTAINER_DIR
                 try:
                     paths_mod.DATASETS_CONTAINER_DIR = fake_container
-                    with self.assertRaises(ValueError) as ctx:
+                    with self.assertRaises(AmbiguousDatasetError) as ctx:
                         resolve_dataset_root()
                     self.assertIn("Multiple datasets", str(ctx.exception))
                     self.assertIn("--dataset", str(ctx.exception))
