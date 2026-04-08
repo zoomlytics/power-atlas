@@ -163,7 +163,7 @@ both datasets are ingested into the same Neo4j instance (using `dataset_id`
 stamping to isolate writes), these QIDs will appear as `CanonicalEntity` nodes
 shared between the two runs.  No special handling is currently required, but the
 behavior should be verified in a live dual-dataset run.  See
-[follow-up item F-01](#follow-up-items).
+[follow-up item F-01](#8-follow-up-items).
 
 ---
 
