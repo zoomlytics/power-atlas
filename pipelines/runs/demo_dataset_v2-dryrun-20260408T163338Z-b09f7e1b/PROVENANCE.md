@@ -29,7 +29,7 @@ export OPENAI_API_KEY=<your-openai-key>
 python -m demo.run_demo ingest --live --dataset demo_dataset_v2
 ```
 
-See [`demo/VALIDATION_RUNBOOK.md`](../../demo/VALIDATION_RUNBOOK.md) for the
+See [`demo/VALIDATION_RUNBOOK.md`](../../../demo/VALIDATION_RUNBOOK.md) for the
 complete step-by-step validation guide.
 
 ## Purpose
