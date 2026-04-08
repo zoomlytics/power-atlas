@@ -99,11 +99,17 @@ def resolve_dataset_root(name: str | None = None) -> DatasetRoot:
     1. *name* argument (e.g. from ``--dataset`` CLI flag).
     2. ``FIXTURE_DATASET`` environment variable.
     3. Auto-discover the single dataset under :data:`DATASETS_CONTAINER_DIR`.
-    4. Legacy fallback: treat :data:`FIXTURES_DIR` itself as the dataset root.
+    4. Legacy fallback: treat :data:`FIXTURES_DIR` itself as the dataset root
+       (only when :data:`DATASETS_CONTAINER_DIR` does not exist at all).
 
-    Raises :class:`ValueError` when *name* is given but the corresponding
-    directory does not exist under :data:`DATASETS_CONTAINER_DIR`, or when
-    multiple datasets exist but none is selected.
+    Raises :class:`ValueError` when:
+
+    * *name* is given but the corresponding directory does not exist under
+      :data:`DATASETS_CONTAINER_DIR`.
+    * Multiple datasets exist but none is explicitly selected.
+    * :data:`DATASETS_CONTAINER_DIR` exists but contains no dataset
+      subdirectories (empty container signals misconfiguration rather than a
+      clean legacy layout).
     """
     effective_name: str | None = name or os.getenv("FIXTURE_DATASET")
 
@@ -142,8 +148,18 @@ def resolve_dataset_root(name: str | None = None) -> DatasetRoot:
                 f"{sorted(d.name for d in subdirs)}. "
                 f"Select one with --dataset <name> or set FIXTURE_DATASET=<name>."
             )
+        # Container directory exists but is empty — this is likely a
+        # misconfiguration (e.g. accidentally deleted the dataset sub-dir).
+        # Fall through to the legacy path would produce a confusing
+        # FileNotFoundError later; raise a clear ValueError here instead.
+        raise ValueError(
+            f"No dataset directories found under {DATASETS_CONTAINER_DIR}. "
+            f"Create a dataset subdirectory (e.g. demo_dataset_v1/) or remove "
+            f"{DATASETS_CONTAINER_DIR} entirely to use the legacy fixture layout."
+        )
 
     # Legacy fallback: FIXTURES_DIR itself acts as the dataset root.
+    # This path is only reached when DATASETS_CONTAINER_DIR does not exist.
     return _load_dataset_root_from_dir(FIXTURES_DIR)
 
 

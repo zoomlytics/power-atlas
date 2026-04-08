@@ -132,6 +132,29 @@ class TestDatasetRootResolution(unittest.TestCase):
             else:
                 os.environ["FIXTURE_DATASET"] = original_env
 
+    def test_auto_discovery_empty_container_raises(self):
+        """When DATASETS_CONTAINER_DIR exists but is empty, resolve raises ValueError."""
+        original_env = os.environ.pop("FIXTURE_DATASET", None)
+        try:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                empty_container = Path(tmpdir) / "datasets"
+                empty_container.mkdir()  # Exists but has no subdirectories.
+
+                import demo.contracts.paths as paths_mod
+                original_container = paths_mod.DATASETS_CONTAINER_DIR
+                try:
+                    paths_mod.DATASETS_CONTAINER_DIR = empty_container
+                    with self.assertRaises(ValueError) as ctx:
+                        resolve_dataset_root()
+                    self.assertIn("No dataset directories found", str(ctx.exception))
+                finally:
+                    paths_mod.DATASETS_CONTAINER_DIR = original_container
+        finally:
+            if original_env is None:
+                os.environ.pop("FIXTURE_DATASET", None)
+            else:
+                os.environ["FIXTURE_DATASET"] = original_env
+
     def test_auto_discovery_multiple_datasets_raises(self):
         """With two dataset dirs and no selection, resolve raises ValueError."""
         original_env = os.environ.pop("FIXTURE_DATASET", None)

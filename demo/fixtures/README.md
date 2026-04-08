@@ -14,16 +14,14 @@ the system auto-discovers it, so no flag is needed for the default workflow.
 Legacy compatibility: the top-level `structured/`, `unstructured/`, and
 `manifest.json` paths remain backward-compatible entry points. New code should
 use the per-dataset paths under `datasets/`, and `datasets/demo_dataset_v1/` is the
-canonical dataset location that contributors should update first. The repository
-currently retains some committed compatibility copies of large binary assets
-(including PDFs such as `*_full_text.pdf`) under both
-`datasets/demo_dataset_v1/unstructured/` and the legacy top-level
-`unstructured/` tree. Do not add further duplicate committed binaries unless a
-compatibility requirement makes that unavoidable. When introducing new legacy
-entries, prefer symlinks into `datasets/demo_dataset_v1/unstructured/` where the
-environment supports them; otherwise use small text stubs/README placeholders that
-point to the canonical dataset path and keep any generated working copies outside
-version control.
+canonical dataset location that contributors should update first. Large binary
+fixtures, including PDFs such as `*_full_text.pdf`, must exist in version control
+only under `datasets/demo_dataset_v1/unstructured/`; do not commit a second binary
+copy under the legacy top-level `unstructured/` tree. If a legacy path is required
+for backward compatibility, make it a symlink to the canonical dataset file where
+the environment supports symlinks; otherwise add a small text stub or README
+placeholder that points to the canonical dataset path, and keep any generated
+working copies outside version control.
 
 ## Data provenance
 
