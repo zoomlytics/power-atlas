@@ -158,12 +158,16 @@ The following QIDs appear in **both** v1 and v2 canonical entity sets:
 | Q7982301 | Wences Casares | v2 adds `Wenceslao Casares` alias; updates description |
 | Q18208378 | Xapo | Description is identical |
 
-These four entities are the natural cross-dataset identity anchor points.  When
-both datasets are ingested into the same Neo4j instance (using `dataset_id`
-stamping to isolate writes), these QIDs will appear as `CanonicalEntity` nodes
-shared between the two runs.  No special handling is currently required, but the
-behavior should be verified in a live dual-dataset run.  See
-[follow-up item F-01](#8-follow-up-items).
+These four entities are the natural cross-dataset identity anchor points. Here,
+“anchor points” means the same `entity_id` / QID appears in both datasets, so the
+corresponding canonical entities can be matched across runs. When both datasets
+are ingested into the same Neo4j instance (using `dataset_id` stamping to
+isolate writes), each run will still create its own `CanonicalEntity` node for a
+given QID because canonical nodes are scoped per run. In other words, the anchor
+is the shared `entity_id` value across those per-run nodes, not a single
+`CanonicalEntity` node shared between the two runs. No special handling is
+currently required, but this per-run matching behavior should be verified in a
+live dual-dataset run. See [follow-up item F-01](#8-follow-up-items).
 
 ---
 
