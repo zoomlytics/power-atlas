@@ -4268,6 +4268,7 @@ def test_main_ask_dry_run_prints_scope_run_id(
     import sys
     from demo.run_demo import main
 
+    monkeypatch.setenv("FIXTURE_DATASET", "demo_dataset_v1")
     monkeypatch.setenv("UNSTRUCTURED_RUN_ID", "scope-test-run")
     monkeypatch.setattr(
         sys, "argv", ["demo", "--dry-run", "ask", "--run-id", "scope-test-run", f"--output-dir={tmp_path}"]
@@ -4300,6 +4301,7 @@ def test_main_ask_dry_run_no_scope_prints_placeholder(
     import sys
     from demo.run_demo import main
 
+    monkeypatch.setenv("FIXTURE_DATASET", "demo_dataset_v1")
     monkeypatch.delenv("UNSTRUCTURED_RUN_ID", raising=False)
     monkeypatch.setattr(
         sys, "argv", ["demo", "--dry-run", "ask", f"--output-dir={tmp_path}"]
@@ -4509,6 +4511,7 @@ def test_ask_run_scoped_manifest_unstructured_run_id_is_set(
     import sys
     from demo.run_demo import main
 
+    monkeypatch.setenv("FIXTURE_DATASET", "demo_dataset_v1")
     monkeypatch.setenv("UNSTRUCTURED_RUN_ID", "unstructured_ingest-20260101T000000000000Z-aabbccdd")
     monkeypatch.setattr(
         sys, "argv", ["demo", "--dry-run", "ask", f"--output-dir={tmp_path}"]

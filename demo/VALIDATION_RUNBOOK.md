@@ -651,7 +651,80 @@ demo/artifacts_compare/q3/cluster_aware/runs/<UNSTRUCTURED_RUN_ID>/retrieval_and
 
 ---
 
-## 9. When to update this runbook
+## 9. Dataset v2 recorded run
+
+This section documents the first committed end-to-end pipeline recording for
+`demo_dataset_v2`.  The run was executed in dry-run mode (no Neo4j or OpenAI
+calls) and its normalized manifest is committed at:
+
+```
+pipelines/runs/demo_dataset_v2-dryrun-20260408T163338Z-b09f7e1b/run_manifest.json
+pipelines/runs/demo_dataset_v2-dryrun-20260408T163338Z-b09f7e1b/PROVENANCE.md
+```
+
+### Command used
+
+```bash
+python -m demo.run_demo ingest --dry-run --dataset demo_dataset_v2
+```
+
+### Summary of outcomes
+
+| Stage | Status | Key metrics |
+|-------|--------|-------------|
+| Structured ingest | ✅ PASS | 12 entities, 13 facts, 20 relationships, 23 claims; 0 lint issues; 0 validation warnings |
+| PDF ingest | ✅ Fixture verified | PDF fingerprint confirmed; chunks=0 (dry-run; no live embedding) |
+| Claim extraction | ⚠️ Dry run | Skipped; LLM not called |
+| Entity resolution (unstructured-only) | ⚠️ Dry run | Skipped; Neo4j not called |
+| Entity resolution (hybrid) | ⚠️ Dry run | Skipped; Neo4j not called |
+| Retrieval and Q&A | ⚠️ Dry run | Skipped; no vector index |
+
+All dry-run `⚠️` outcomes are expected — no structural failures were found.
+
+### Prerequisites for a live run
+
+```bash
+export OPENAI_API_KEY='your-openai-api-key'
+export NEO4J_PASSWORD='your-neo4j-password'
+
+# Optional (defaults shown):
+export NEO4J_URI='bolt://localhost:7687'
+export NEO4J_USERNAME='neo4j'
+export NEO4J_DATABASE='neo4j'
+```
+
+### Running the full pipeline live against dataset v2
+
+```bash
+python -m demo.run_demo ingest --live --dataset demo_dataset_v2
+```
+
+Or using the environment variable:
+
+```bash
+export FIXTURE_DATASET=demo_dataset_v2
+python -m demo.run_demo ingest --live
+```
+
+### Failures and follow-up items
+
+The dry-run run does not produce live stage counts (PDF chunks, extracted
+claims, entity clusters, retrieval answers).  A follow-up live-run recording
+should be committed once an environment with Neo4j and OpenAI credentials is
+available.  See the `PROVENANCE.md` file in the run directory for a per-stage
+breakdown and the specific follow-up items.
+
+### Relationship to dataset v1 baseline
+
+The existing committed live run
+`unstructured_ingest-20260401T184420771950Z-ee78cf8c` under `pipelines/runs/`
+is a v1 run (`chain_of_custody.pdf`, `demo_dataset_v1`).  This dry-run
+recording is the first committed artifact for v2 (`chain_of_issuance.pdf`,
+`demo_dataset_v2`).
+
+---
+
+## 10. When to update this runbook
 
 Update this file when:
 

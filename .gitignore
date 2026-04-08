@@ -52,6 +52,9 @@ dist/
 !/pipelines/runs/unstructured_ingest-20260401T184420771950Z-ee78cf8c/retrieval_benchmark/
 !/pipelines/runs/unstructured_ingest-20260401T184420771950Z-ee78cf8c/retrieval_benchmark/retrieval_benchmark.json
 !/pipelines/runs/unstructured_ingest-20260401T184420771950Z-ee78cf8c/retrieval_benchmark/PROVENANCE.md
+!/pipelines/runs/demo_dataset_v2-dryrun-20260408T163338Z-b09f7e1b/
+!/pipelines/runs/demo_dataset_v2-dryrun-20260408T163338Z-b09f7e1b/run_manifest.json
+!/pipelines/runs/demo_dataset_v2-dryrun-20260408T163338Z-b09f7e1b/PROVENANCE.md
 /pipelines/logs/*
 !/pipelines/logs/.gitkeep
 
