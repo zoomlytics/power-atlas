@@ -1804,7 +1804,10 @@ def run_retrieval_and_qa(
     else:
         try:
             citation_source_uri = _resolve_dataset_root().pdf_path.resolve().as_uri()
-        except ValueError:
+        except ValueError as exc:
+            error_message = str(exc).lower()
+            if "multiple" not in error_message or "dataset" not in error_message:
+                raise
             citation_source_uri = "placeholder://citation-source"
 
     citation_token_example = _build_citation_token(
