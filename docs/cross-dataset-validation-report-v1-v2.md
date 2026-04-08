@@ -198,7 +198,7 @@ dropping any rows.  v2's smaller fixture is by design, not a deficiency.
 **Assessment: ✅ PASS for v1; ⚠️ DRY RUN ONLY for v2.**  The v2 fixture PDF is
 correctly resolved, fingerprinted, and wired to the orchestrator.  Chunk
 production (embedding + ingest into Neo4j) requires a live run.  See
-[follow-up item F-02](#follow-up-items).
+[follow-up item F-02](#8-follow-up-items).
 
 ### 4.3 Claim extraction
 
@@ -214,7 +214,7 @@ production (embedding + ingest into Neo4j) requires a live run.  See
 correctly wired to the v2 source URI and model config is consistent.  Whether
 `chain_of_issuance.pdf` produces comparable extraction quality to
 `chain_of_custody.pdf` is unknown until a live run is executed.  See
-[follow-up item F-02](#follow-up-items).
+[follow-up item F-02](#8-follow-up-items).
 
 ### 4.4 Claim participation
 
@@ -239,7 +239,7 @@ correctly wired to the v2 source URI and model config is consistent.  Whether
 ONLY for v2.**  The v1 baseline shows `entity_type_case_split` fragmentation in
 4 benchmark cases.  After PR-#433, this condition is expected to clear on v1
 re-runs.  Whether it manifests on v2 depends on the LLM extraction output for
-`chain_of_issuance.pdf`.  See [follow-up item F-03](#follow-up-items).
+`chain_of_issuance.pdf`.  See [follow-up item F-03](#8-follow-up-items).
 
 ### 4.6 Entity resolution — hybrid alignment
 
@@ -254,7 +254,7 @@ re-runs.  Whether it manifests on v2 depends on the LLM extraction output for
 visible at config level.  The shared entities (Mercado Libre, Marcos Galperin,
 Wences Casares, Xapo) appear in both fixture sets, so their alignment behavior
 on v2 provides a meaningful cross-dataset alignment check once a live run is
-executed.  See [follow-up item F-01](#follow-up-items).
+executed.  See [follow-up item F-01](#8-follow-up-items).
 
 ### 4.7 Retrieval and Q&A
 
@@ -293,7 +293,7 @@ Benchmark artifact: `pipelines/runs/unstructured_ingest-20260401T184420771950Z-e
 - `linda_rottenberg_single` — One dark mention (`claim_id=null`) present in `lower_layer_rows`.
 - `amazon_ebay_pairwise` — Zero pairwise rows; acceptable under expected-shape contract.
 
-**v2 retrieval:** No live benchmark data available.  See [follow-up item F-02](#follow-up-items).
+**v2 retrieval:** No live benchmark data available.  See [follow-up item F-02](#8-follow-up-items).
 
 **Assessment: ✅ PASS for v1 (with known pre-PR-#433 signals); ⚠️ DRY RUN ONLY for v2.**
 
