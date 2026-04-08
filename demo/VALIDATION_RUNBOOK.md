@@ -86,7 +86,7 @@ The demo supports multiple fixture datasets. The two available datasets are:
 
 **Default behavior when multiple datasets exist**
 
-When more than one dataset directory is present under `demo/fixtures/datasets/`, the system cannot auto-discover a dataset and will raise an `AmbiguousDatasetError`. You **must** select a dataset explicitly before running any pipeline stage.
+When more than one dataset directory is present under `demo/fixtures/datasets/`, commands that require fixture paths cannot auto-discover a dataset and will raise an `AmbiguousDatasetError`. You **must** select a dataset explicitly for `ingest`, `structured`, `pdf`, `extract`, and `resolve`, and for `ask` unless you use `--all-runs`.
 
 **How to select a dataset**
 
