@@ -41,7 +41,7 @@ The comparison covers:
 | Field | Value |
 |-------|-------|
 | `dataset_id` | `demo_dataset_v1` |
-| Primary document | `demo/fixtures/datasets/demo_dataset_v1/unstructured/chain_of_custody.pdf` |
+| Primary document | `demo/fixtures/unstructured/chain_of_custody.pdf` (legacy path — this run predates the dataset-scoped fixture layout; canonical reproduction path is `demo/fixtures/datasets/demo_dataset_v1/unstructured/chain_of_custody.pdf`) |
 | Run type recorded | **Live** (Neo4j + OpenAI) |
 | `run_id` | `unstructured_ingest-20260401T184420771950Z-ee78cf8c` |
 | `alignment_version` | `v1.0` |
