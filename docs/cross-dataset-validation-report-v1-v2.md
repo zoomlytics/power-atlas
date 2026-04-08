@@ -316,12 +316,17 @@ evidenced at the config/manifest/code-path level as noted below:
    flag takes precedence over the environment variable.  Resolution fails with
    a clear error when multiple datasets exist and neither mechanism is used.
 
-2. **`dataset_id` stamping** — The graph-write path is configured to stamp the
-   active `dataset_id` (`demo_dataset_v1` or `demo_dataset_v2`), which is fully
-   verified in v1 and verified for v2 at the config/manifest/code-path level.
-   Live Neo4j-write verification for v2 is still pending, but the intended
-   behavior is that the two datasets can coexist in the same Neo4j instance
-   without contaminating each other's runs.
+2. **`dataset_id` stamping** — `dataset_id` stamping is implemented today for
+   structured ingest outputs and PDF ingest outputs, including Document/Chunk
+   nodes and structured nodes, using the active `dataset_id`
+   (`demo_dataset_v1` or `demo_dataset_v2`). This behavior is fully verified in
+   v1 and verified for v2 at the config/manifest/code-path level; live
+   Neo4j-write verification for v2 is still pending. Extraction and
+   entity-resolution writes are run-scoped and do not set `dataset_id` on their
+   nodes/edges; those layers rely on `run_id` and/or `source_uri` for
+   isolation. In practice, safe coexistence in one Neo4j instance depends on
+   this mix of `dataset_id` stamping for ingest-layer content and
+   `run_id`/`source_uri` isolation for later-stage writes.
 
 3. **Structured ingest lint** — Both fixture sets pass lint with zero issues and
    zero warnings.  The lint stage is fully dataset-agnostic.
