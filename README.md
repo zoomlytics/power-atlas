@@ -231,7 +231,15 @@ Manual validation checklist: [`demo/VALIDATION_RUNBOOK.md`](demo/VALIDATION_RUNB
 Select a dataset with `--dataset <name>` or set `FIXTURE_DATASET=<name>`.  When
 exactly one dataset directory exists the system auto-discovers it.
 
-**Current dataset:** `demo_dataset_v1` at [`demo/fixtures/datasets/demo_dataset_v1/`](demo/fixtures/datasets/demo_dataset_v1/)
+**Naming convention:** the directory name under `datasets/` is always identical to
+the `"dataset"` field in that directory's `manifest.json`.  Pass the directory name
+(e.g. `demo_dataset_v1`) to `--dataset`; it is also the `dataset_id` stamped on
+graph writes during a pipeline run.
+
+| Dataset | Directory | Primary PDF |
+|---------|-----------|-------------|
+| `demo_dataset_v1` | [`demo/fixtures/datasets/demo_dataset_v1/`](demo/fixtures/datasets/demo_dataset_v1/) | `chain_of_custody.pdf` |
+| `demo_dataset_v2` | [`demo/fixtures/datasets/demo_dataset_v2/`](demo/fixtures/datasets/demo_dataset_v2/) | `chain_of_issuance.pdf` |
 
 | Path | Purpose |
 |------|---------|
@@ -239,6 +247,7 @@ exactly one dataset directory exists the system auto-discovers it.
 | [`datasets/demo_dataset_v1/structured/entities.csv`](demo/fixtures/datasets/demo_dataset_v1/structured/entities.csv) | Sample structured entity catalog for `ingest-structured` |
 | [`datasets/demo_dataset_v1/structured/relationships.csv`](demo/fixtures/datasets/demo_dataset_v1/structured/relationships.csv) | Sample relationship definitions for structured mode |
 | [`datasets/demo_dataset_v1/manifest.json`](demo/fixtures/datasets/demo_dataset_v1/manifest.json) | Per-dataset contract with dataset-root-relative paths |
+| [`datasets/demo_dataset_v2/manifest.json`](demo/fixtures/datasets/demo_dataset_v2/manifest.json) | Per-dataset contract for `demo_dataset_v2` |
 | [`manifest.json`](demo/fixtures/manifest.json) | Legacy container-level manifest (kept for backwards compatibility) |
 
 ### Tests
