@@ -301,17 +301,20 @@ Benchmark artifact: `pipelines/runs/unstructured_ingest-20260401T184420771950Z-e
 
 ## 5. Successful behaviors
 
-The following behaviors were confirmed working across both datasets:
+The following behaviors were confirmed for v1 and, for v2, confirmed or
+evidenced at the config/manifest/code-path level as noted below:
 
 1. **Dataset selection (`--dataset` flag and `FIXTURE_DATASET` env var)** —
    Both datasets are correctly resolved by `resolve_dataset_root()`.  The CLI
    flag takes precedence over the environment variable.  Resolution fails with
    a clear error when multiple datasets exist and neither mechanism is used.
 
-2. **`dataset_id` stamping** — All graph writes are stamped with the active
-   `dataset_id` (`demo_dataset_v1` or `demo_dataset_v2`), ensuring that two
-   datasets can coexist in the same Neo4j instance without contaminating each
-   other's runs.
+2. **`dataset_id` stamping** — The graph-write path is configured to stamp the
+   active `dataset_id` (`demo_dataset_v1` or `demo_dataset_v2`), which is fully
+   verified in v1 and verified for v2 at the config/manifest/code-path level.
+   Live Neo4j-write verification for v2 is still pending, but the intended
+   behavior is that the two datasets can coexist in the same Neo4j instance
+   without contaminating each other's runs.
 
 3. **Structured ingest lint** — Both fixture sets pass lint with zero issues and
    zero warnings.  The lint stage is fully dataset-agnostic.
