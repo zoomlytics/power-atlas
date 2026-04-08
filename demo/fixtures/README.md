@@ -3,7 +3,8 @@
 This directory is the **datasets container** for `demo/run_demo.py`.
 
 Each named dataset lives under `datasets/<dataset_name>/` and contains its own
-`manifest.json`, `structured/` CSVs, `unstructured/` documents, and `README.md`.
+`manifest.json`, `structured/` CSVs, and `unstructured/` documents. Some datasets
+may also include a per-dataset `README.md`.
 
 ## Available datasets
 
