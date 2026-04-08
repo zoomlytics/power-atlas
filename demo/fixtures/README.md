@@ -37,10 +37,13 @@ FIXTURE_DATASET=demo_dataset_v2 python demo/run_demo.py run-all
 
 Legacy compatibility: the top-level `structured/`, `unstructured/`, and
 `manifest.json` paths remain backward-compatible entry points. New code should
-use the per-dataset paths under `datasets/`.  Large binary fixtures, including
-PDFs such as `*_full_text.pdf`, must exist in version control only under the
-relevant `datasets/<name>/unstructured/` directory; do not commit a second binary
-copy under the legacy top-level `unstructured/` tree.
+use the per-dataset paths under `datasets/`.  The top-level `unstructured/`
+directory currently contains copies of the PDFs (e.g. `chain_of_custody.pdf`,
+`chain_of_issuance.pdf`) kept for backwards compatibility with tooling that
+references those paths directly.  The per-dataset copies under
+`datasets/<name>/unstructured/` are the canonical versions; the top-level copies
+are duplicates retained only for legacy compatibility and should not be updated
+independently.
 
 ## Data provenance
 
