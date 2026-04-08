@@ -94,21 +94,21 @@ Pass `--dataset <name>` to any `run_demo.py` command:
 
 ```bash
 # Run the full pipeline against dataset v1
-python -m demo.run_demo run-all --live --dataset demo_dataset_v1
+python -m demo.run_demo ingest --live --dataset demo_dataset_v1
 
 # Run the full pipeline against dataset v2
-python -m demo.run_demo run-all --live --dataset demo_dataset_v2
+python -m demo.run_demo ingest --live --dataset demo_dataset_v2
 ```
 
 Alternatively, export `FIXTURE_DATASET` once and omit `--dataset` from subsequent commands:
 
 ```bash
 export FIXTURE_DATASET=demo_dataset_v1
-python -m demo.run_demo run-all --live
+python -m demo.run_demo ingest --live
 
 # Switch to v2
 export FIXTURE_DATASET=demo_dataset_v2
-python -m demo.run_demo run-all --live
+python -m demo.run_demo ingest --live
 ```
 
 **How `FIXTURE_DATASET` interacts with `--dataset`**

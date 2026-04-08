@@ -17,10 +17,10 @@ this dataset is present.
 To run the pipeline against this dataset explicitly:
 
 ```bash
-python -m demo.run_demo run-all --live --dataset demo_dataset_v1
+python -m demo.run_demo ingest --live --dataset demo_dataset_v1
 # or
 export FIXTURE_DATASET=demo_dataset_v1
-python -m demo.run_demo run-all --live
+python -m demo.run_demo ingest --live
 ```
 
 For dataset selection rules and how `--dataset` interacts with `FIXTURE_DATASET`,

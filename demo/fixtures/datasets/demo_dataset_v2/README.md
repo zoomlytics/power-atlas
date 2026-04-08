@@ -31,21 +31,21 @@ For routine first-time onboarding and CI validation, prefer `demo_dataset_v1`.
 
 ```bash
 # Using the --dataset flag
-python -m demo.run_demo run-all --live --dataset demo_dataset_v2
+python -m demo.run_demo ingest --live --dataset demo_dataset_v2
 
 # Using the environment variable
 export FIXTURE_DATASET=demo_dataset_v2
-python -m demo.run_demo run-all --live
+python -m demo.run_demo ingest --live
 ```
 
 To run both datasets sequentially and compare results:
 
 ```bash
 # Run v1 first
-python -m demo.run_demo run-all --live --dataset demo_dataset_v1
+python -m demo.run_demo ingest --live --dataset demo_dataset_v1
 
 # Then run v2 (dataset_id stamps on graph writes keep the two runs isolated)
-python -m demo.run_demo run-all --live --dataset demo_dataset_v2
+python -m demo.run_demo ingest --live --dataset demo_dataset_v2
 ```
 
 For dataset selection rules and how `--dataset` interacts with `FIXTURE_DATASET`,

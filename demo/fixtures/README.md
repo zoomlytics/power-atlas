@@ -42,13 +42,13 @@ Examples:
 
 ```bash
 # Run against dataset v1
-python -m demo.run_demo run-all --live --dataset demo_dataset_v1
+python -m demo.run_demo ingest --live --dataset demo_dataset_v1
 
 # Run against dataset v2
-python -m demo.run_demo run-all --live --dataset demo_dataset_v2
+python -m demo.run_demo ingest --live --dataset demo_dataset_v2
 
 # Equivalent via environment variable
-FIXTURE_DATASET=demo_dataset_v2 python -m demo.run_demo run-all --live
+FIXTURE_DATASET=demo_dataset_v2 python -m demo.run_demo ingest --live
 
 # List available datasets from Python
 python -c "from demo.contracts.paths import list_available_datasets; print(list_available_datasets())"
