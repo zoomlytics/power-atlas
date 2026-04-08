@@ -500,7 +500,9 @@ run IDs illustrate the isolation:
 These values appear on `ExtractedClaim`, `ResolvedEntityCluster`,
 `CanonicalEntity` (via `ALIGNED_WITH` edges), and `MEMBER_OF` edges.
 Running both datasets sequentially in the same graph instance is supported
-and tested at the dry-run level.
+by design and verified in manifests/config via dataset-specific stamping,
+but fully testing graph isolation in a shared Neo4j instance requires a
+live dual-dataset run.
 
 ---
 
