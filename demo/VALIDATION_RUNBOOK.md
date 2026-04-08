@@ -708,7 +708,7 @@ python -m demo.run_demo ingest --live
 
 ### Failures and follow-up items
 
-The dry-run run does not produce live stage counts (PDF chunks, extracted
+The dry-run does not produce live stage counts (PDF chunks, extracted
 claims, entity clusters, retrieval answers).  A follow-up live-run recording
 should be committed once an environment with Neo4j and OpenAI credentials is
 available.  See the `PROVENANCE.md` file in the run directory for a per-stage
