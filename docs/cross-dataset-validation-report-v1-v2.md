@@ -100,14 +100,14 @@ python -m demo.run_demo ingest --live --dataset demo_dataset_v2
 
 | File | v1 rows (excl. header) | v2 rows (excl. header) | Delta |
 |------|------------------------|------------------------|-------|
-| `entities.csv` | 12 | 12 | 0 |
+| `entities.csv` | 13 | 12 | −1 |
 | `facts.csv` | 17 | 13 | −4 |
 | `relationships.csv` | 29 | 20 | −9 |
 | `claims.csv` | 37 | 23 | −14 |
 
 v1 is the larger fixture, reflecting a more densely connected entity network.
 v2 is intentionally narrower — scoped to the `chain_of_issuance.pdf` document's
-entity graph — with the same entity-count footprint but fewer cross-entity
+entity graph — with one fewer entity than v1, plus fewer cross-entity
 relationships and seed claims.
 
 ### 3.2 Entity network
