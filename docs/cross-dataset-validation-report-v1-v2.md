@@ -212,13 +212,15 @@ production (embedding + ingest into Neo4j) requires a live run.  See
 | `entity_mention_count` | non-zero (live) | 0 (dry run — expected) | ⚠️ v2 unverified live |
 | `prompt_version` | `claims_v1` | `claims_v1` | ✅ Shared prompt version |
 | `extractor_model` | `gpt-4o-mini` | `gpt-4o-mini` | ✅ Shared model config |
-| `source_uri` | `file:///demo/fixtures/datasets/demo_dataset_v1/unstructured/chain_of_custody.pdf` | `file:///demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf` | ✅ Correctly scoped |
+| `source_uri` | `file:///demo/fixtures/unstructured/chain_of_custody.pdf` | `file:///demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf` | ✅ Matches committed v1 baseline; v2 correctly scoped |
 
-**Assessment: ✅ PASS for v1; ⚠️ DRY RUN ONLY for v2.**  The extractor is
-correctly wired to the v2 source URI and model config is consistent.  Whether
-`chain_of_issuance.pdf` produces comparable extraction quality to
-`chain_of_custody.pdf` is unknown until a live run is executed.  See
-[follow-up item F-02](#8-follow-up-items).
+**Assessment: ✅ PASS for v1; ⚠️ DRY RUN ONLY for v2.**  The committed v1
+baseline artifact uses the legacy non-dataset-scoped source URI
+`file:///demo/fixtures/unstructured/chain_of_custody.pdf`, while the current v2
+dry run is correctly wired to the dataset-scoped source URI.  Model config is
+consistent across both datasets.  Whether `chain_of_issuance.pdf` produces
+comparable extraction quality to `chain_of_custody.pdf` is unknown until a live
+run is executed.  See [follow-up item F-02](#8-follow-up-items).
 
 ### 4.4 Claim participation
 
