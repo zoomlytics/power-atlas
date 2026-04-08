@@ -24,10 +24,12 @@ directory name should match the manifest `dataset` id, which is the value stampe
 as `dataset_id` on every graph write during a pipeline run.
 
 **Default behavior when multiple datasets exist:** when more than one dataset
-directory is present, the pipeline cannot auto-discover a dataset and will raise
-an error. You must select a dataset explicitly using `--dataset` or
-`FIXTURE_DATASET`.  When exactly one dataset directory exists the system
-auto-discovers it, so no flag is needed in that case.
+directory is present, commands that need dataset resolution cannot
+auto-discover a dataset and will raise an error. You must select a dataset
+explicitly using `--dataset` or `FIXTURE_DATASET`. When exactly one dataset
+directory exists the system auto-discovers it, so no flag is needed in that
+case. Exception: `python -m demo.run_demo ask --all-runs` bypasses dataset
+resolution, so it does not raise this multi-dataset selection error.
 
 **How `FIXTURE_DATASET` interacts with `--dataset`:** `--dataset` takes
 precedence. Resolution order:
