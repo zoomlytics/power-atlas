@@ -5,23 +5,41 @@ This directory is the **datasets container** for `demo/run_demo.py`.
 Each named dataset lives under `datasets/<dataset_name>/` and contains its own
 `manifest.json`, `structured/` CSVs, `unstructured/` documents, and `README.md`.
 
-The current dataset (`demo_dataset_v1`) is at `datasets/demo_dataset_v1/`.
+## Available datasets
+
+| Directory name | Manifest `dataset` id | Primary PDF |
+|---|---|---|
+| `datasets/demo_dataset_v1/` | `demo_dataset_v1` | `chain_of_custody.pdf` |
+| `datasets/demo_dataset_v2/` | `demo_dataset_v2` | `chain_of_issuance.pdf` |
+
+**Naming rule:** the directory name under `datasets/` is always identical to the
+`"dataset"` field in that directory's `manifest.json`.  The `--dataset` flag (and
+the `FIXTURE_DATASET` environment variable) accept the **directory name**, which is
+also the value stamped as `dataset_id` on every graph write during a pipeline run.
 
 To select a dataset, pass `--dataset <name>` to any `run_demo.py` command, or set
 the `FIXTURE_DATASET` environment variable.  When exactly one dataset directory exists
 the system auto-discovers it, so no flag is needed for the default workflow.
 
+Examples:
+
+```bash
+# Run against the first dataset (default when only one dataset present)
+python demo/run_demo.py run-all --dataset demo_dataset_v1
+
+# Run against the second dataset
+python demo/run_demo.py run-all --dataset demo_dataset_v2
+
+# Equivalent via environment variable
+FIXTURE_DATASET=demo_dataset_v2 python demo/run_demo.py run-all
+```
+
 Legacy compatibility: the top-level `structured/`, `unstructured/`, and
 `manifest.json` paths remain backward-compatible entry points. New code should
-use the per-dataset paths under `datasets/`, and `datasets/demo_dataset_v1/` is the
-canonical dataset location that contributors should update first. Large binary
-fixtures, including PDFs such as `*_full_text.pdf`, must exist in version control
-only under `datasets/demo_dataset_v1/unstructured/`; do not commit a second binary
-copy under the legacy top-level `unstructured/` tree. If a legacy path is required
-for backward compatibility, make it a symlink to the canonical dataset file where
-the environment supports symlinks; otherwise add a small text stub or README
-placeholder that points to the canonical dataset path, and keep any generated
-working copies outside version control.
+use the per-dataset paths under `datasets/`.  Large binary fixtures, including
+PDFs such as `*_full_text.pdf`, must exist in version control only under the
+relevant `datasets/<name>/unstructured/` directory; do not commit a second binary
+copy under the legacy top-level `unstructured/` tree.
 
 ## Data provenance
 
