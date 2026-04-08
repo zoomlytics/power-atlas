@@ -9,9 +9,11 @@ verify that pipeline stages are dataset-agnostic.
 - **Primary document:** `unstructured/chain_of_issuance.pdf`
 - **Supplementary document:** `unstructured/chain_of_issuance_full_text.pdf`
   (full-text variant; not used as the primary ingest source)
-- **Entity network:** shares the same Wikidata-backed canonical entity set as v1
-  (Endeavor, MercadoLibre, MercadoPago, Globant, Ripio, Xapo, and related
-  founders/leaders), but sourced from a different primary PDF
+- **Entity network:** includes a Wikidata-backed canonical entity graph derived
+  from the v2 fixture documents, covering fintech organizations (Paxos Trust
+  Company, Mercado Libre, Meta, PayPal, Blockchain Capital, Xapo, DTCC) and
+  associated individuals (Charles Cascarilla, Marcos Galperin, Wences Casares,
+  David A. Marcus, Ben Davenport)
 - **Intended use:**
   - Validate that pipeline stages operate correctly on a second document
   - Exercise multi-dataset workflows (running v1 and v2 back-to-back)
@@ -58,7 +60,8 @@ see [`demo/fixtures/README.md`](../../README.md) or
 - `unstructured/chain_of_issuance_full_text.pdf`: full-text variant;
   supplementary, not used as the primary ingest source.
 - `structured/entities.csv`: canonical entities for deterministic mention
-  resolution (same Wikidata-backed entity set as v1).
+  resolution; Wikidata-backed, scoped to the v2 primary document's entity
+  network (distinct from v1).
 - `structured/facts.csv`: scalar facts (dates/URLs/attributes) attached to
   entity subjects.
 - `structured/relationships.csv`: graph edges between entities and external
@@ -100,7 +103,7 @@ see [`demo/fixtures/README.md`](../../README.md) or
 ## Canonical entity notes
 
 - `entity_id` is the canonical key used by the demo for entity identity.
-- For Wikidata-backed rows, canonical IDs are Wikidata QIDs (e.g. `Q6551937`).
+- For Wikidata-backed rows, canonical IDs are Wikidata QIDs (e.g. `Q950419` for Mercado Libre).
 - `aliases` is pipe-delimited (`|`) and optional.
 - Some relationship objects may reference external QIDs that are not included as
   canonical rows in `entities.csv`; this is expected for demo breadth.
@@ -109,8 +112,8 @@ see [`demo/fixtures/README.md`](../../README.md) or
 
 Use these to sanity-check retrieval and citation behavior with dataset v2:
 
-1. Which organization is Linda Rottenberg associated with?
-2. Who is listed as the founder of Xapo?
-3. What positions are recorded for Larry Summers?
-4. Which entities in the fixtures link to the Council on Foreign Relations?
-5. What source URL supports the claim that Linda Rottenberg is CEO of Endeavor?
+1. Who is listed as the founder of Xapo?
+2. Which organization is Wences Casares associated with in the fixtures?
+3. Which organization is Marcos Galperin associated with?
+4. Which entities in the fixtures link to PayPal or Meta?
+5. What source URL supports the claim that Wences Casares founded Xapo?
