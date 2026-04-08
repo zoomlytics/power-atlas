@@ -43,7 +43,7 @@ Optional environment variables:
 - `NEO4J_URI` — defaults to `neo4j://localhost:7687`
 - `NEO4J_USERNAME` — defaults to `neo4j`
 - `NEO4J_DATABASE` — defaults to `neo4j`
-- `OPENAI_MODEL`
+- `OPENAI_MODEL` - E.g. `gpt-5.4`
 
 ### Recommended first live run
 
