@@ -1,6 +1,31 @@
 # Demo Fixtures (dataset v1)
 
-This directory is the stable dataset root used by `demo/run_demo.py` with default settings (no custom fixture flags).
+This directory is **dataset v1** (`demo_dataset_v1`). It is the stable baseline
+dataset used by `demo/run_demo.py` when no custom dataset flag is set and only
+this dataset is present.
+
+## Purpose and scope
+
+- **Primary document:** `unstructured/chain_of_custody.pdf`
+- **Entity network:** Endeavor, MercadoLibre, MercadoPago, Globant, Ripio, Xapo,
+  and associated founders/leaders curated from Wikidata
+- **Intended use:** first-time onboarding, CI validation, and the standard
+  step-by-step pipeline walkthrough in `demo/VALIDATION_RUNBOOK.md`
+- **Stability guarantee:** structured CSVs and the primary PDF are kept stable
+  so that baseline retrieval and benchmark results remain reproducible
+
+To run the pipeline against this dataset explicitly:
+
+```bash
+python -m demo.run_demo ingest --live --dataset demo_dataset_v1
+# or
+export FIXTURE_DATASET=demo_dataset_v1
+python -m demo.run_demo ingest --live
+```
+
+For dataset selection rules and how `--dataset` interacts with `FIXTURE_DATASET`,
+see [`demo/fixtures/README.md`](../../README.md) or
+[`demo/VALIDATION_RUNBOOK.md`](../../../VALIDATION_RUNBOOK.md) (Section 2a).
 
 ## Data provenance
 

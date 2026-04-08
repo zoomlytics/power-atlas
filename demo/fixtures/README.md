@@ -8,31 +8,53 @@ may also include a per-dataset `README.md`.
 
 ## Available datasets
 
-| Directory name | Manifest `dataset` id | Primary PDF |
-|---|---|---|
-| `datasets/demo_dataset_v1/` | `demo_dataset_v1` | `chain_of_custody.pdf` |
-| `datasets/demo_dataset_v2/` | `demo_dataset_v2` | `chain_of_issuance.pdf` |
+| Directory name | Manifest `dataset` id | Primary PDF | Intended scope |
+|---|---|---|---|
+| `datasets/demo_dataset_v1/` | `demo_dataset_v1` | `chain_of_custody.pdf` | Stable baseline; entity network centers on Endeavor / MercadoLibre / Wikidata-backed Latin American tech ecosystem. Recommended for first-time runs and CI validation. |
+| `datasets/demo_dataset_v2/` | `demo_dataset_v2` | `chain_of_issuance.pdf` | Extended dataset with a second primary document. Use to exercise multi-document ingest or to verify that pipeline stages are dataset-agnostic. |
 
-**Naming rule:** the directory name under `datasets/` is always identical to the
-`"dataset"` field in that directory's `manifest.json`.  The `--dataset` flag (and
-the `FIXTURE_DATASET` environment variable) accept the **directory name**, which is
-also the value stamped as `dataset_id` on every graph write during a pipeline run.
+For per-dataset documentation see:
+- [`datasets/demo_dataset_v1/README.md`](datasets/demo_dataset_v1/README.md)
+- [`datasets/demo_dataset_v2/README.md`](datasets/demo_dataset_v2/README.md)
+
+**Naming rule:** the directory name under `datasets/` should be identical to the
+`"dataset"` field in that directory's `manifest.json`. The `--dataset` flag (and
+the `FIXTURE_DATASET` environment variable) accept the **directory name**. That
+directory name should match the manifest `dataset` id, which is the value stamped
+as `dataset_id` on every graph write during a pipeline run.
+
+**Default behavior when multiple datasets exist:** when more than one dataset
+directory is present, commands that need dataset resolution cannot
+auto-discover a dataset and will raise an error. You must select a dataset
+explicitly using `--dataset` or `FIXTURE_DATASET`. When exactly one dataset
+directory exists the system auto-discovers it, so no flag is needed in that
+case. Exception: `python -m demo.run_demo ask --all-runs` bypasses dataset
+resolution, so it does not raise this multi-dataset selection error.
+
+**How `FIXTURE_DATASET` interacts with `--dataset`:** `--dataset` takes
+precedence. Resolution order:
+
+1. `--dataset <name>` CLI flag
+2. `FIXTURE_DATASET` environment variable
+3. Auto-discovery (only when exactly **one** dataset directory exists)
 
 To select a dataset, pass `--dataset <name>` to any `run_demo.py` command, or set
-the `FIXTURE_DATASET` environment variable.  When exactly one dataset directory exists
-the system auto-discovers it, so no flag is needed for the default workflow.
+the `FIXTURE_DATASET` environment variable.
 
 Examples:
 
 ```bash
-# Run against the first dataset (default when only one dataset present)
-python demo/run_demo.py run-all --dataset demo_dataset_v1
+# Run against dataset v1
+python -m demo.run_demo ingest --live --dataset demo_dataset_v1
 
-# Run against the second dataset
-python demo/run_demo.py run-all --dataset demo_dataset_v2
+# Run against dataset v2
+python -m demo.run_demo ingest --live --dataset demo_dataset_v2
 
 # Equivalent via environment variable
-FIXTURE_DATASET=demo_dataset_v2 python demo/run_demo.py run-all
+FIXTURE_DATASET=demo_dataset_v2 python -m demo.run_demo ingest --live
+
+# List available datasets from Python
+python -c "from demo.contracts.paths import list_available_datasets; print(list_available_datasets())"
 ```
 
 Legacy compatibility: the top-level `structured/`, `unstructured/`, and

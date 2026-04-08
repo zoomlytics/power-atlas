@@ -75,6 +75,78 @@ export NEO4J_DATABASE='neo4j'
 
 ---
 
+## 2a. Selecting a dataset
+
+The demo supports multiple fixture datasets. The two available datasets are:
+
+| Dataset | Primary PDF | Intended scope |
+|---------|-------------|----------------|
+| `demo_dataset_v1` | `chain_of_custody.pdf` | Stable baseline; used by default in most CI and manual runs. Entity network centers on Endeavor / MercadoLibre / Wikidata-backed Latin American tech ecosystem. |
+| `demo_dataset_v2` | `chain_of_issuance.pdf` | Extended dataset with a second primary document. Use to exercise multi-document ingest or to validate that pipeline stages are dataset-agnostic. |
+
+**Default behavior when multiple datasets exist**
+
+When more than one dataset directory is present under `demo/fixtures/datasets/`, commands that require fixture paths cannot auto-discover a dataset and will raise an `AmbiguousDatasetError`. You **must** select a dataset explicitly for `ingest`, `structured`, `pdf`, `extract`, and `resolve`, and for `ask` unless you use `--all-runs`.
+
+**How to select a dataset**
+
+Pass `--dataset <name>` to any `run_demo.py` command:
+
+```bash
+# Run the full pipeline against dataset v1
+python -m demo.run_demo ingest --live --dataset demo_dataset_v1
+
+# Run the full pipeline against dataset v2
+python -m demo.run_demo ingest --live --dataset demo_dataset_v2
+```
+
+Alternatively, export `FIXTURE_DATASET` once and omit `--dataset` from subsequent commands:
+
+```bash
+export FIXTURE_DATASET=demo_dataset_v1
+python -m demo.run_demo ingest --live
+
+# Switch to v2
+export FIXTURE_DATASET=demo_dataset_v2
+python -m demo.run_demo ingest --live
+```
+
+**How `FIXTURE_DATASET` interacts with `--dataset`**
+
+`--dataset` takes precedence over `FIXTURE_DATASET`. Resolution order is:
+
+1. `--dataset <name>` CLI flag
+2. `FIXTURE_DATASET` environment variable
+3. Auto-discovery (only when exactly **one** dataset directory exists)
+
+If neither is set and multiple datasets exist, the command fails with a clear error listing the available dataset names.
+
+**Listing available datasets**
+
+```python
+from demo.contracts.paths import list_available_datasets
+print(list_available_datasets())
+# ['demo_dataset_v1', 'demo_dataset_v2']
+```
+
+**Recommendation for this runbook**
+
+All step-by-step commands in Section 4 can be run against either dataset. Set `FIXTURE_DATASET` before beginning a validation session so that the same dataset is used consistently throughout:
+
+```bash
+# Choose one:
+export FIXTURE_DATASET=demo_dataset_v1   # stable baseline (recommended for first run)
+export FIXTURE_DATASET=demo_dataset_v2   # second document, extended scenario
+```
+
+For fixture documentation and per-dataset README files, see:
+
+- [`demo/fixtures/README.md`](./fixtures/README.md)
+- [`demo/fixtures/datasets/demo_dataset_v1/README.md`](./fixtures/datasets/demo_dataset_v1/README.md)
+- [`demo/fixtures/datasets/demo_dataset_v2/README.md`](./fixtures/datasets/demo_dataset_v2/README.md)
+
+---
+
 ## 3. Validation flow overview
 
 The intended order is:
