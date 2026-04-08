@@ -357,13 +357,12 @@ but are not hard failures:
    regression reference while carrying this known artifact.
 
 2. **MercadoLibre canonical traversal empty in v1 benchmark catalog check** —
-   The v1 structured fixture includes Mercado Libre, but the benchmark's
-   catalog-existence heuristic checks only `CanonicalEntity.name` substring
-   containment and does not match `mercadolibre` to `Mercado Libre` (whitespace
-   mismatch), nor does it consult aliases.  This produces
+   The authoritative v1 `retrieval_benchmark.json` baseline records empty
+   canonical rows for MercadoLibre because the entity is absent from the
+   structured catalog for that run.  This produces
    `canonical_empty_cluster_populated=True` for two benchmark cases, reflecting
-   an empty canonical traversal in the benchmark check rather than a missing
-   ingested canonical entity or fixture defect.
+   a catalog-absence/alignment-gap condition in the baseline artifact rather
+   than a whitespace/name-mismatch heuristic miss in canonical traversal.
 
 3. **One dark mention for Linda Rottenberg (v1)** — A single `claim_id=null`
    entry in `lower_layer_rows` for `linda_rottenberg_single` indicates one
