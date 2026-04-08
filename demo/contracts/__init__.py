@@ -18,7 +18,6 @@ from demo.contracts.pipeline import (
     CHUNK_EMBEDDING_LABEL,
     CHUNK_EMBEDDING_PROPERTY,
     CHUNK_FALLBACK_STRIDE,
-    DATASET_ID,
     DEFAULT_DB,
     EMBEDDER_MODEL_NAME,
     get_dataset_id,
@@ -100,6 +99,8 @@ def __getattr__(name: str) -> Any:  # pragma: no cover - thin import proxy
     if name in {"claim_extraction_lexical_config", "claim_extraction_schema"}:
         module = import_module("demo.contracts.claim_schema")
         return getattr(module, name)
+    if name == "DATASET_ID":
+        return import_module("demo.contracts.pipeline").DATASET_ID
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
