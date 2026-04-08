@@ -6,6 +6,7 @@ import os
 import re
 import tempfile
 import unittest
+from dataclasses import replace as dataclass_replace
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -708,6 +709,7 @@ class TestRunEntityResolutionOrchestratorIntegration(unittest.TestCase):
                 neo4j_password="not-used",
                 neo4j_database="neo4j",
                 openai_model="test-model",
+                dataset_name="demo_dataset_v1",
             )
             env_backup = os.environ.get("UNSTRUCTURED_RUN_ID")
             try:
@@ -748,6 +750,7 @@ class TestRunEntityResolutionOrchestratorIntegration(unittest.TestCase):
                 neo4j_password="not-used",
                 neo4j_database="neo4j",
                 openai_model="test-model",
+                dataset_name="demo_dataset_v1",
             )
             env_backup = os.environ.get("UNSTRUCTURED_RUN_ID")
             try:
@@ -2995,14 +2998,10 @@ class TestManifestGraphConsistency(unittest.TestCase):
     """
 
     def _live_hybrid_config(self, tmp_path: Path) -> Config:
-        cfg = _live_config(tmp_path)
-        cfg.resolution_mode = _RESOLUTION_MODE_HYBRID
-        return cfg
+        return dataclass_replace(_live_config(tmp_path), resolution_mode=_RESOLUTION_MODE_HYBRID)
 
     def _live_unstructured_config(self, tmp_path: Path) -> Config:
-        cfg = _live_config(tmp_path)
-        cfg.resolution_mode = _RESOLUTION_MODE_UNSTRUCTURED_ONLY
-        return cfg
+        return dataclass_replace(_live_config(tmp_path), resolution_mode=_RESOLUTION_MODE_UNSTRUCTURED_ONLY)
 
     @staticmethod
     def _make_mentions(count: int, prefix: str = "Entity") -> list[dict[str, Any]]:

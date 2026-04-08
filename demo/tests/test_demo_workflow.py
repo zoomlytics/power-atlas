@@ -37,6 +37,19 @@ def _load_module(path: Path, module_name: str):
 
 
 class WorkflowTests(unittest.TestCase):
+    def setUp(self):
+        # When multiple fixture datasets exist the auto-discovery raises
+        # AmbiguousDatasetError.  Pin to v1 for all tests in this class so
+        # that tests don't need individual dataset_name= arguments.
+        self._prev_fixture_dataset = os.environ.get("FIXTURE_DATASET")
+        os.environ["FIXTURE_DATASET"] = "demo_dataset_v1"
+
+    def tearDown(self):
+        if self._prev_fixture_dataset is None:
+            os.environ.pop("FIXTURE_DATASET", None)
+        else:
+            os.environ["FIXTURE_DATASET"] = self._prev_fixture_dataset
+
     @contextmanager
     def _with_injected_modules(self, injected_modules: dict[str, types.ModuleType]):
         originals = {name: sys.modules.get(name) for name in injected_modules}
