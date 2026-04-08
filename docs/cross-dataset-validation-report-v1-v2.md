@@ -132,20 +132,20 @@ relationships and seed claims.
 
 **v2 entity network** — centers on fintech infrastructure (Paxos, PayPal, Meta, DTCC):
 
-| QID | Name | Type |
-|-----|------|------|
-| Q104844715 | Paxos Trust Company | organization |
-| Q109999901 | Charles Cascarilla | person |
-| Q483959 | PayPal | organization |
-| Q950419 | Mercado Libre | organization |
-| Q5996574 | Marcos Galperin | person |
-| Q380 | Meta | organization |
-| Q5230497 | David A. Marcus | person |
-| Q30588516 | Blockchain Capital | organization |
-| Q109999902 | Ben Davenport | person |
-| Q1191721 | DTCC | organization |
-| Q7982301 | Wences Casares | person |
-| Q18208378 | Xapo | organization |
+| QID | Name | Type | Notes |
+|-----|------|------|-------|
+| Q104844715 | Paxos Trust Company | organization | |
+| Q109999901 | Charles Cascarilla | person | |
+| Q483959 | PayPal | organization | |
+| Q950419 | Mercado Libre | organization | |
+| Q5996574 | Marcos Galperin | person | |
+| Q380 | Meta | organization | |
+| Q5230497 | David A. Marcus | person | |
+| Q30588516 | Blockchain Capital | organization | |
+| Q109999902 | Ben Davenport | person | |
+| Q1191721 | Depository Trust & Clearing Corporation | organization | alias `DTCC` |
+| Q7982301 | Wences Casares | person | |
+| Q18208378 | Xapo | organization | |
 
 ### 3.3 Entities shared across both datasets
 
@@ -177,7 +177,7 @@ live dual-dataset run. See [follow-up item F-01](#8-follow-up-items).
 
 | Metric | v1 (live) | v2 (dry run) | Status |
 |--------|-----------|--------------|--------|
-| `entities` written | 12 | 12 (dry run) | ✅ Both pass |
+| `entities` written | 13 | 12 (dry run) | ✅ Both pass |
 | `facts` written | 17 | 13 (dry run) | ✅ Both pass |
 | `relationships` written | 29 | 20 (dry run) | ✅ Both pass |
 | `claims` written | 37 | 23 (dry run) | ✅ Both pass |
