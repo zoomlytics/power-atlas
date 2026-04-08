@@ -500,18 +500,24 @@ requires a live run to match v1's evidence depth.
 
 ### 9.3 Graph isolation
 
-Both datasets stamp all Neo4j writes with `dataset_id`.  The following
-run IDs illustrate the isolation:
+The two datasets are configured with distinct `dataset_id` values, which are
+used by the ingest paths that currently stamp dataset-specific records in the
+graph:
 
 - v1 live: `dataset_id = demo_dataset_v1`
 - v2 dry-run: `dataset_id = demo_dataset_v2`
 
-These values appear on `ExtractedClaim`, `ResolvedEntityCluster`,
-`CanonicalEntity` (via `ALIGNED_WITH` edges), and `MEMBER_OF` edges.
-Running both datasets sequentially in the same graph instance is supported
-by design and verified in manifests/config via dataset-specific stamping,
-but fully testing graph isolation in a shared Neo4j instance requires a
-live dual-dataset run.
+In the current codebase, `dataset_id` stamping is evidenced on ingest-created
+artifacts such as `Document`/`Chunk` records from PDF ingest and
+`CanonicalEntity`/structured-ingest rows.  By contrast, the extraction stage
+writes `ExtractedClaim` and `EntityMention` primarily with `run_id` and
+`source_uri`, and the current entity-resolution stage does not stamp
+`ResolvedEntityCluster`, `MEMBER_OF`, or `ALIGNED_WITH` with `dataset_id`.
+Running both datasets sequentially in the same graph instance is therefore
+supported primarily through dataset-specific ingest artifacts plus
+run-scoped/source-scoped isolation in extraction and resolution, but fully
+testing graph isolation in a shared Neo4j instance still requires a live
+dual-dataset run.
 
 ---
 
