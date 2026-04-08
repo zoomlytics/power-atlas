@@ -17,10 +17,11 @@ For per-dataset documentation see:
 - [`datasets/demo_dataset_v1/README.md`](datasets/demo_dataset_v1/README.md)
 - [`datasets/demo_dataset_v2/README.md`](datasets/demo_dataset_v2/README.md)
 
-**Naming rule:** the directory name under `datasets/` is always identical to the
-`"dataset"` field in that directory's `manifest.json`.  The `--dataset` flag (and
-the `FIXTURE_DATASET` environment variable) accept the **directory name**, which is
-also the value stamped as `dataset_id` on every graph write during a pipeline run.
+**Naming rule:** the directory name under `datasets/` should be identical to the
+`"dataset"` field in that directory's `manifest.json`. The `--dataset` flag (and
+the `FIXTURE_DATASET` environment variable) accept the **directory name**. That
+directory name should match the manifest `dataset` id, which is the value stamped
+as `dataset_id` on every graph write during a pipeline run.
 
 **Default behavior when multiple datasets exist:** when more than one dataset
 directory is present, the pipeline cannot auto-discover a dataset and will raise
