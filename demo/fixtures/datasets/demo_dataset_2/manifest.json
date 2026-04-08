@@ -1,0 +1,55 @@
+{
+  "dataset": "demo_dataset_v2",
+  "version": "1.0.0",
+  "license": "Research-only synthetic+curated demo artifacts (see README.md)",
+  "attribution": [
+    {
+      "source": "Wikidata",
+      "url": "https://www.wikidata.org/",
+      "license": "CC0 1.0"
+    }
+  ],
+  "dataset_contract": {
+    "required_files": [
+      "unstructured/chain_of_issuance.pdf",
+      "structured/claims.csv",
+      "structured/entities.csv",
+      "structured/facts.csv",
+      "structured/relationships.csv"
+    ]
+  },
+  "provenance": [
+    {
+      "id": "pdf_source",
+      "kind": "pdf",
+      "path": "unstructured/chain_of_issuance.pdf",
+      "note": "Primary demo PDF for dataset 2 pipeline runs."
+    },
+    {
+      "id": "pdf_source_full_text",
+      "kind": "pdf",
+      "path": "unstructured/chain_of_issuance_full_text.pdf",
+      "note": "Full-text variant of chain_of_issuance.pdf; supplementary."
+    },
+    {
+      "id": "csv_claims",
+      "kind": "csv",
+      "path": "structured/claims.csv"
+    },
+    {
+      "id": "csv_entities",
+      "kind": "csv",
+      "path": "structured/entities.csv"
+    },
+    {
+      "id": "csv_facts",
+      "kind": "csv",
+      "path": "structured/facts.csv"
+    },
+    {
+      "id": "csv_relationships",
+      "kind": "csv",
+      "path": "structured/relationships.csv"
+    }
+  ]
+}
