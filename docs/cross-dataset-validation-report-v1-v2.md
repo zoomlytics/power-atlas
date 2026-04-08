@@ -357,11 +357,14 @@ but are not hard failures:
    v1 baseline is committed, the existing artifact remains the authoritative
    regression reference while carrying this known artifact.
 
-2. **MercadoLibre absent from v1 structured catalog** — The v1 live run was
-   executed without MercadoLibre in the catalog, producing
-   `canonical_empty_cluster_populated=True` for two benchmark cases.  MercadoLibre
-   appears in v1 `entities.csv`, so this condition reflects run-time catalog
-   state at the time of the benchmark run rather than a fixture defect.
+2. **MercadoLibre canonical traversal empty in v1 benchmark catalog check** —
+   The v1 structured fixture includes Mercado Libre, but the benchmark's
+   catalog-existence heuristic checks only `CanonicalEntity.name` substring
+   containment and does not match `mercadolibre` to `Mercado Libre` (whitespace
+   mismatch), nor does it consult aliases.  This produces
+   `canonical_empty_cluster_populated=True` for two benchmark cases, reflecting
+   an empty canonical traversal in the benchmark check rather than a missing
+   ingested canonical entity or fixture defect.
 
 3. **One dark mention for Linda Rottenberg (v1)** — A single `claim_id=null`
    entry in `lower_layer_rows` for `linda_rottenberg_single` indicates one
