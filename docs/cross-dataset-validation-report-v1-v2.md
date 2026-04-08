@@ -290,10 +290,9 @@ Benchmark artifact: `pipelines/runs/unstructured_ingest-20260401T184420771950Z-e
 **Notable v1 benchmark conditions:**
 
 - `mercadolibre_single` / `mercadolibre_fragmentation` — `canonical_empty_cluster_populated=True`
-  because the benchmark's catalog existence check did not match the v1 canonical name formatting for
-  Mercado Libre (`mercadolibre` vs `Mercado Libre`), i.e. a name/normalization mismatch rather than true
-  absence from the structured catalog; entity-type case-split present (`organization` vs `Organization`),
-  pre-PR-#433 condition.
+  because MercadoLibre is absent from the structured catalog / unresolved in canonical alignment for this
+  baseline run, so canonical rows are empty while cluster rows are populated; entity-type case-split present
+  (`organization` vs `Organization`), pre-PR-#433 condition.
 - `endeavor_single` / `endeavor_composite` — Fragmentation detected; `cluster_name_cluster_count=4`
   (two name variants × two entity-type case variants), pre-PR-#433 condition.
 - `linda_rottenberg_single` — One dark mention (`claim_id=null`) present in `lower_layer_rows`.
