@@ -305,6 +305,22 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn("## Canonical entity notes", text)
         self.assertIn("## Golden questions for the demo", text)
 
+    def test_cross_dataset_validation_report_exists_with_required_sections(self):
+        report_path = DEMO_DIR.parent / "docs" / "cross-dataset-validation-report-v1-v2.md"
+        self.assertTrue(report_path.exists(), f"Cross-dataset validation report not found at {report_path}")
+        text = report_path.read_text(encoding="utf-8")
+        for section in (
+            "demo_dataset_v1",
+            "demo_dataset_v2",
+            "## 3. Fixture summary comparison",
+            "## 4. Stage-by-stage comparison",
+            "## 5. Successful behaviors",
+            "## 6. Degraded behaviors",
+            "## 7. Outright failures",
+            "## 8. Follow-up items",
+        ):
+            self.assertIn(section, text, f"Expected section/token missing from report: {section!r}")
+
     def test_claims_fixture_schema_and_source_linkage(self):
         fixtures_dir = DEMO_DIR / "fixtures" / "structured"
         claims_path = fixtures_dir / "claims.csv"
