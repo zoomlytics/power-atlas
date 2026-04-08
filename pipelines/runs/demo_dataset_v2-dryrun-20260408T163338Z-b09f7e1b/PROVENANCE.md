@@ -10,7 +10,7 @@
 | `dataset_id` | `demo_dataset_v2` |
 | `run_mode` | `dry_run` (no live Neo4j or OpenAI calls) |
 | `generated_at` | `2026-04-08T16:33:38Z` |
-| Environment | CI-equivalent: Python 3.x, no external services |
+| Environment | CI-equivalent: Python 3.11+, no external services |
 
 ## Command used
 
