@@ -14,14 +14,17 @@ from demo.contracts import (
     CHUNK_EMBEDDING_LABEL,
     CHUNK_EMBEDDING_PROPERTY,
     CHUNK_FALLBACK_STRIDE,
-    DATASET_ID,
     EMBEDDER_MODEL_NAME,
     FIXTURES_DIR,
+    get_dataset_id,
     PDF_PIPELINE_CONFIG_PATH,
 )
 from demo.contracts.runtime import make_run_id
 from demo.cypher_utils import validate_cypher_identifier as _validate_cypher_identifier
 
+# Local fallback to avoid importing a private implementation detail from
+# demo.contracts.paths. Resolved datasets should use DatasetRoot.pdf_filename.
+_DEFAULT_PDF_FILENAME = "chain_of_custody.pdf"
 _logger = logging.getLogger(__name__)
 
 
@@ -106,6 +109,8 @@ def run_pdf_ingest(
     run_id: str | None = None,
     *,
     fixtures_dir: Path | None = None,
+    pdf_filename: str | None = None,
+    dataset_id: str | None = None,
     index_name: str | None = None,
     chunk_label: str | None = None,
     embedding_property: str | None = None,
@@ -113,12 +118,28 @@ def run_pdf_ingest(
     embedder_model: str | None = None,
     chunk_stride: int | None = None,
 ) -> dict[str, Any]:
-    pdf_path = ((fixtures_dir or FIXTURES_DIR) / "unstructured" / "chain_of_custody.pdf").resolve()
+    _pdf_filename = pdf_filename or _DEFAULT_PDF_FILENAME
+    if (
+        _pdf_filename in (".", "..")
+        or Path(_pdf_filename).name != _pdf_filename
+        or not _pdf_filename.lower().endswith(".pdf")
+    ):
+        raise ValueError(
+            f"pdf_filename must be a plain .pdf basename without path separators, got {_pdf_filename!r}"
+        )
+    pdf_base_dir = ((fixtures_dir or FIXTURES_DIR) / "unstructured").resolve()
+    pdf_path = (pdf_base_dir / _pdf_filename).resolve()
+    try:
+        pdf_path.relative_to(pdf_base_dir)
+    except ValueError as exc:
+        raise ValueError(
+            f"pdf_filename {_pdf_filename!r} resolves outside the unstructured fixtures directory"
+        ) from exc
     if not pdf_path.exists():
         raise FileNotFoundError(f"Required PDF fixture not found: {pdf_path}")
     pdf_file_path = str(pdf_path)
     pdf_source_uri = pdf_path.as_uri()
-    dataset_id = DATASET_ID
+    effective_dataset_id = dataset_id if isinstance(dataset_id, str) and dataset_id else get_dataset_id()
     effective_index_name = index_name or CHUNK_EMBEDDING_INDEX_NAME
     effective_chunk_label = chunk_label or CHUNK_EMBEDDING_LABEL
     effective_embedding_property = embedding_property or CHUNK_EMBEDDING_PROPERTY
@@ -151,7 +172,7 @@ def run_pdf_ingest(
     if config.dry_run:
         ingest_summary = {
             "run_id": stage_run_id,
-            "dataset_id": dataset_id,
+            "dataset_id": effective_dataset_id,
             "source_uri": pdf_source_uri,
             "pdf_fingerprint_sha256": pdf_fingerprint_sha256,
             "counts": summary_counts,
@@ -252,7 +273,7 @@ def run_pdf_ingest(
                         "file_path": pdf_file_path,
                         "document_metadata": {
                             "run_id": stage_run_id,
-                            "dataset_id": dataset_id,
+                            "dataset_id": effective_dataset_id,
                             "source_uri": pdf_source_uri,
                         },
                     },
@@ -328,7 +349,7 @@ def run_pdf_ingest(
                     run_id=stage_run_id,
                     file_path=pdf_file_path,
                     source_uri=pdf_source_uri,
-                    dataset_id=dataset_id,
+                    dataset_id=effective_dataset_id,
                     default_chunk_stride=effective_chunk_stride,
                 ).consume()
                 run_counts = session.run(
@@ -458,7 +479,7 @@ def run_pdf_ingest(
 
     ingest_summary = {
         "run_id": stage_run_id,
-        "dataset_id": dataset_id,
+        "dataset_id": effective_dataset_id,
         "source_uri": pdf_source_uri,
         "pdf_fingerprint_sha256": pdf_fingerprint_sha256,
         "counts": summary_counts,
@@ -492,7 +513,7 @@ def run_pdf_ingest(
         "pipeline_result": _normalize_pipeline_result(pipeline_result),
         "provenance": {
             "run_id": stage_run_id,
-            "dataset_id": dataset_id,
+            "dataset_id": effective_dataset_id,
             "source_uri": pdf_source_uri,
             "chunk_order_property": "chunk_order",
             "chunk_id_property": "chunk_id",

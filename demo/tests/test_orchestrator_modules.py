@@ -187,6 +187,30 @@ def test_pdf_ingest_dry_run_uses_contract(tmp_path: Path):
     assert Path(summary["ingest_summary_path"]).exists()
 
 
+def test_pdf_ingest_rejects_dot_pdf_filename(tmp_path: Path):
+    config = _dry_run_config(tmp_path)
+    with pytest.raises(ValueError, match="pdf_filename"):
+        run_pdf_ingest(config, run_id="test-unstructured", pdf_filename=".")
+
+
+def test_pdf_ingest_rejects_dotdot_pdf_filename(tmp_path: Path):
+    config = _dry_run_config(tmp_path)
+    with pytest.raises(ValueError, match="pdf_filename"):
+        run_pdf_ingest(config, run_id="test-unstructured", pdf_filename="..")
+
+
+def test_pdf_ingest_rejects_traversal_pdf_filename(tmp_path: Path):
+    config = _dry_run_config(tmp_path)
+    with pytest.raises(ValueError, match="pdf_filename"):
+        run_pdf_ingest(config, run_id="test-unstructured", pdf_filename="../../secret.pdf")
+
+
+def test_pdf_ingest_rejects_non_pdf_suffix(tmp_path: Path):
+    config = _dry_run_config(tmp_path)
+    with pytest.raises(ValueError, match="pdf_filename"):
+        run_pdf_ingest(config, run_id="test-unstructured", pdf_filename="document.txt")
+
+
 def test_claim_extraction_dry_run_uses_prompt_registry(tmp_path: Path):
     from demo.stages import run_claim_and_mention_extraction
 

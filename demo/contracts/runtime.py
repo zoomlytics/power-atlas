@@ -17,6 +17,7 @@ class Config:
     openai_model: str
     question: str | None = None
     resolution_mode: str = "unstructured_only"
+    dataset_name: str | None = None
 
 
 def timestamp() -> str:

@@ -16,7 +16,9 @@ from demo.llm_utils import build_openai_llm
 from neo4j_graphrag.retrievers import VectorCypherRetriever
 from neo4j_graphrag.types import LLMMessage, RetrieverResultItem
 
-from demo.contracts import CHUNK_EMBEDDING_INDEX_NAME, EMBEDDER_MODEL_NAME, FIXTURES_DIR, PROMPT_IDS, ALIGNMENT_VERSION, resolve_early_return_rule
+from demo.contracts import CHUNK_EMBEDDING_INDEX_NAME, EMBEDDER_MODEL_NAME, PROMPT_IDS, ALIGNMENT_VERSION, resolve_early_return_rule
+from demo.contracts.paths import AmbiguousDatasetError as _AmbiguousDatasetError
+from demo.contracts.paths import resolve_dataset_root as _resolve_dataset_root
 from demo.contracts.prompts import POWER_ATLAS_RAG_TEMPLATE
 
 _DEFAULT_TOP_K = 10
@@ -1796,10 +1798,15 @@ def run_retrieval_and_qa(
     qa_prompt_version = PROMPT_IDS["qa"]
 
     # Use provided run_id/source_uri in citation examples so provenance fields align with stage metadata;
-    # fall back to placeholder values only when those parameters are absent.
-    _fallback_source_uri = (FIXTURES_DIR / "unstructured" / "chain_of_custody.pdf").resolve().as_uri()
+    # fall back to the active dataset's PDF URI, or a placeholder when dataset resolution is ambiguous.
     citation_run_id = run_id if run_id is not None else "example_run_id"
-    citation_source_uri = source_uri if source_uri is not None else _fallback_source_uri
+    if source_uri is not None:
+        citation_source_uri = source_uri
+    else:
+        try:
+            citation_source_uri = _resolve_dataset_root().pdf_path.resolve().as_uri()
+        except _AmbiguousDatasetError:
+            citation_source_uri = "placeholder://citation-source"
 
     citation_token_example = _build_citation_token(
         chunk_id="example_chunk",

@@ -21,10 +21,11 @@ from demo.contracts import (  # noqa: E402
     DEFAULT_DB,
     Config,
     EMBEDDER_MODEL_NAME,
-    FIXTURES_DIR,
     build_batch_manifest,
     build_stage_manifest,
     make_run_id,
+    resolve_dataset_root,
+    set_dataset_id,
 )
 from demo.contracts.manifest import write_manifest, write_manifest_md  # noqa: E402
 from demo.stages import (  # noqa: E402
@@ -66,6 +67,17 @@ def _add_common_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--neo4j-password", default=os.getenv("NEO4J_PASSWORD", "CHANGE_ME_BEFORE_USE"))
     parser.add_argument("--neo4j-database", default=DEFAULT_DB)
     parser.add_argument("--openai-model", default=os.getenv("OPENAI_MODEL", "gpt-4o-mini"))
+    parser.add_argument(
+        "--dataset",
+        default=os.getenv("FIXTURE_DATASET"),
+        dest="dataset",
+        metavar="DATASET_NAME",
+        help=(
+            "Name of the fixture dataset to use (directory under demo/fixtures/datasets/). "
+            "Defaults to the FIXTURE_DATASET environment variable; if neither is set, "
+            "the single available dataset is auto-discovered."
+        ),
+    )
 
 
 def _build_config_from_args(args: argparse.Namespace) -> Config:
@@ -81,6 +93,7 @@ def _build_config_from_args(args: argparse.Namespace) -> Config:
         openai_model=args.openai_model,
         question=getattr(args, "question", None),
         resolution_mode=getattr(args, "resolution_mode", None) or "unstructured_only",
+        dataset_name=getattr(args, "dataset", None) or None,
     )
 
 
@@ -366,12 +379,17 @@ def _run_orchestrated(config: Config) -> Path:
     structured_run_id = make_run_id("structured_ingest")
     unstructured_run_id = make_run_id("unstructured_ingest")
 
+    dataset_root = resolve_dataset_root(config.dataset_name)
+    set_dataset_id(dataset_root.dataset_id)
+
     # ── Phase 1: Unstructured-only pass ──────────────────────────────────────
     # Ingest the PDF and build the lexical graph first.
     pdf_stage = run_pdf_ingest(
         config,
         unstructured_run_id,
-        fixtures_dir=FIXTURES_DIR,
+        fixtures_dir=dataset_root.root,
+        pdf_filename=dataset_root.pdf_filename,
+        dataset_id=dataset_root.dataset_id,
         index_name=CHUNK_EMBEDDING_INDEX_NAME,
         chunk_label=CHUNK_EMBEDDING_LABEL,
         embedding_property=CHUNK_EMBEDDING_PROPERTY,
@@ -418,7 +436,11 @@ def _run_orchestrated(config: Config) -> Path:
 
     # ── Phase 2: Structured enrichment pass ──────────────────────────────────
     # Structured ingest is deferred to demonstrate it is optional enrichment.
-    structured_stage = run_structured_ingest(config, structured_run_id, fixtures_dir=FIXTURES_DIR)
+    structured_stage = run_structured_ingest(
+        config, structured_run_id,
+        fixtures_dir=dataset_root.root,
+        dataset_id=dataset_root.dataset_id,
+    )
     # Hybrid alignment enriches existing ResolvedEntityCluster nodes with ALIGNED_WITH
     # edges to CanonicalEntity nodes; gracefully degrades when no matches exist.
     # Use a separate artifact subdirectory to preserve the unstructured-only artifacts.
@@ -473,11 +495,31 @@ def _run_independent_stage(
     config.output_dir.mkdir(parents=True, exist_ok=True)
     # all_runs is only relevant for the ask command.
     _ask_all_runs = all_runs and command == "ask"
+
+    # Resolve the active dataset root for commands that need fixture paths.
+    # For `ask --all-runs`, no dataset-specific fixture path is required, so we
+    # skip resolution to avoid raising on a multi-dataset repo.
+    if not _ask_all_runs:
+        dataset_root = resolve_dataset_root(config.dataset_name)
+        set_dataset_id(dataset_root.dataset_id)
+        _fixture_dir: Path | None = dataset_root.root
+        _pdf_filename: str | None = dataset_root.pdf_filename
+        _pdf_source_uri: str | None = str((_fixture_dir / "unstructured" / _pdf_filename).resolve().as_uri())
+    else:
+        dataset_root = None
+        _fixture_dir = None
+        _pdf_filename = None
+        _pdf_source_uri = None
+
     stage_runners: dict[str, tuple[str, str, Callable[[Config, str], dict[str, Any]]]] = {
         "ingest-structured": (
             "structured_ingest",
             "structured_ingest_run_id",
-            lambda cfg, stage_run_id: run_structured_ingest(cfg, stage_run_id, fixtures_dir=FIXTURES_DIR),
+            lambda cfg, stage_run_id: run_structured_ingest(
+                cfg, stage_run_id,
+                fixtures_dir=_fixture_dir,
+                dataset_id=dataset_root.dataset_id,
+            ),
         ),
         "ingest-pdf": (
             "pdf_ingest",
@@ -485,7 +527,9 @@ def _run_independent_stage(
             lambda cfg, stage_run_id: run_pdf_ingest(
                 cfg,
                 stage_run_id,
-                fixtures_dir=FIXTURES_DIR,
+                fixtures_dir=_fixture_dir,
+                pdf_filename=_pdf_filename,
+                dataset_id=dataset_root.dataset_id,
                 index_name=CHUNK_EMBEDDING_INDEX_NAME,
                 chunk_label=CHUNK_EMBEDDING_LABEL,
                 embedding_property=CHUNK_EMBEDDING_PROPERTY,
@@ -500,11 +544,11 @@ def _run_independent_stage(
             lambda cfg, stage_run_id: run_claim_and_mention_extraction(
                 cfg,
                 run_id=stage_run_id,
-                # Independent-stage default: use the canonical demo fixture URI.
-                # This is intentional — the demo fixture is the stable source for all
+                # Independent-stage default: use the active dataset's PDF URI.
+                # This is intentional — the dataset fixture is the stable source for all
                 # independent runs.  In the orchestrated batch path, source_uri is
                 # derived from the prior pdf_ingest stage output instead.
-                source_uri=str((FIXTURES_DIR / "unstructured" / "chain_of_custody.pdf").resolve().as_uri()),
+                source_uri=_pdf_source_uri,
             ),
         ),
         "resolve-entities": (
@@ -513,9 +557,9 @@ def _run_independent_stage(
             lambda cfg, stage_run_id: run_entity_resolution(
                 cfg,
                 run_id=stage_run_id,
-                # Independent-stage default: use the canonical demo fixture URI.
+                # Independent-stage default: use the active dataset's PDF URI.
                 # See note above for extract-claims.
-                source_uri=str((FIXTURES_DIR / "unstructured" / "chain_of_custody.pdf").resolve().as_uri()),
+                source_uri=_pdf_source_uri,
             ),
         ),
         "ask": (
@@ -527,10 +571,8 @@ def _run_independent_stage(
                 question=getattr(cfg, "question", None),
                 # In all-runs mode, do not constrain by source_uri so that retrieval
                 # queries the whole database (no run_id and no source_uri filter).
-                # In single-run mode, default to the canonical demo fixture URI.
-                source_uri=None if _ask_all_runs else str(
-                    (FIXTURES_DIR / "unstructured" / "chain_of_custody.pdf").resolve().as_uri()
-                ),
+                # In single-run mode, default to the active dataset's PDF URI.
+                source_uri=None if _ask_all_runs else _pdf_source_uri,
                 index_name=CHUNK_EMBEDDING_INDEX_NAME,
                 all_runs=_ask_all_runs,
                 cluster_aware=cluster_aware,
@@ -603,18 +645,28 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 # Backwards-compatible aliases for legacy tests and scripts.
 def _lint_and_clean_structured_csvs(run_id: str, output_dir: Path) -> dict[str, Any]:
-    return lint_and_clean_structured_csvs(run_id=run_id, output_dir=output_dir, fixtures_dir=FIXTURES_DIR)
+    dataset_root = resolve_dataset_root()
+    return lint_and_clean_structured_csvs(
+        run_id=run_id,
+        output_dir=output_dir,
+        fixtures_dir=dataset_root.root,
+        dataset_id=dataset_root.dataset_id,
+    )
 
 
 def _run_structured_ingest(config: Config, run_id: str) -> dict[str, Any]:
-    return run_structured_ingest(config, run_id, fixtures_dir=FIXTURES_DIR)
+    dataset_root = resolve_dataset_root(config.dataset_name)
+    return run_structured_ingest(config, run_id, fixtures_dir=dataset_root.root, dataset_id=dataset_root.dataset_id)
 
 
 def _run_pdf_ingest(config: Config, run_id: str | None = None) -> dict[str, Any]:
+    dataset_root = resolve_dataset_root(config.dataset_name)
     return run_pdf_ingest(
         config,
         run_id,
-        fixtures_dir=FIXTURES_DIR,
+        fixtures_dir=dataset_root.root,
+        pdf_filename=dataset_root.pdf_filename,
+        dataset_id=dataset_root.dataset_id,
         index_name=CHUNK_EMBEDDING_INDEX_NAME,
         chunk_label=CHUNK_EMBEDDING_LABEL,
         embedding_property=CHUNK_EMBEDDING_PROPERTY,
@@ -641,9 +693,16 @@ def main() -> None:
             neo4j_password=args.neo4j_password,
             neo4j_database=args.neo4j_database,
             openai_model=args.openai_model,
+            dataset_name=getattr(args, "dataset", None) or None,
         )
+        dataset_root = resolve_dataset_root(config.dataset_name)
         run_id = make_run_id("structured_lint")
-        lint_result = lint_and_clean_structured_csvs(run_id=run_id, output_dir=config.output_dir)
+        lint_result = lint_and_clean_structured_csvs(
+            run_id=run_id,
+            output_dir=config.output_dir,
+            fixtures_dir=dataset_root.root,
+            dataset_id=dataset_root.dataset_id,
+        )
         print(f"Structured lint report written to: {lint_result['lint_report_path']}")
         return
     config_commands = {"ingest", "ingest-structured", "ingest-pdf", "extract-claims", "resolve-entities", "ask"}
@@ -668,9 +727,9 @@ def main() -> None:
                     all_runs=ask_all_runs,
                     # In all-runs mode, do not constrain by source_uri so that retrieval
                     # queries the whole database (no run_id and no source_uri filter).
-                    # In single-run mode, default to the canonical demo fixture URI.
+                    # In single-run mode, default to the active dataset's PDF URI.
                     source_uri=None if ask_all_runs else str(
-                        (FIXTURES_DIR / "unstructured" / "chain_of_custody.pdf").resolve().as_uri()
+                        resolve_dataset_root(config.dataset_name).pdf_path.resolve().as_uri()
                     ),
                     index_name=CHUNK_EMBEDDING_INDEX_NAME,
                     cluster_aware=getattr(args, "cluster_aware", False),

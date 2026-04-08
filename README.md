@@ -137,7 +137,7 @@ power-atlas/
 │   ├── run_demo.py             # Pipeline orchestrator CLI
 │   ├── reset_demo_db.py        # Graph reset utility
 │   ├── stages/                 # Pipeline stage modules
-│   ├── fixtures/               # Sample PDF, CSV, and manifest
+│   ├── fixtures/               # Datasets container (datasets/<name>/ per dataset)
 │   ├── tests/                  # Stage-level tests
 │   └── config/                 # Pipeline configuration
 ├── pipelines/                   # Neo4j ingest/query/experiment scripts
@@ -225,13 +225,21 @@ Manual validation checklist: [`demo/VALIDATION_RUNBOOK.md`](demo/VALIDATION_RUNB
 
 ### Fixtures — `demo/fixtures/`
 
+`demo/fixtures/` is the **datasets container**.  Each named dataset lives under
+`demo/fixtures/datasets/<dataset_name>/` and is self-contained (manifest, CSVs, PDF).
+
+Select a dataset with `--dataset <name>` or set `FIXTURE_DATASET=<name>`.  When
+exactly one dataset directory exists the system auto-discovers it.
+
+**Current dataset:** `demo_dataset_v1` at [`demo/fixtures/datasets/demo_dataset_v1/`](demo/fixtures/datasets/demo_dataset_v1/)
+
 | Path | Purpose |
 |------|---------|
-| [`unstructured/chain_of_custody.pdf`](demo/fixtures/unstructured/chain_of_custody.pdf) | Primary demo PDF for end-to-end pipeline runs |
-| [`unstructured/chain_of_custody_shortend.pdf`](demo/fixtures/unstructured/chain_of_custody_shortend.pdf) | Shorter variant for faster iteration; filename intentionally uses `shortend` to match the existing fixture |
-| [`structured/entities.csv`](demo/fixtures/structured/entities.csv) | Sample structured entity catalog for `ingest-structured` |
-| [`structured/relationships.csv`](demo/fixtures/structured/relationships.csv) | Sample relationship definitions for structured mode |
-| [`manifest.json`](demo/fixtures/manifest.json) | Example run manifest |
+| [`datasets/demo_dataset_v1/unstructured/chain_of_custody.pdf`](demo/fixtures/datasets/demo_dataset_v1/unstructured/chain_of_custody.pdf) | Primary demo PDF for end-to-end pipeline runs |
+| [`datasets/demo_dataset_v1/structured/entities.csv`](demo/fixtures/datasets/demo_dataset_v1/structured/entities.csv) | Sample structured entity catalog for `ingest-structured` |
+| [`datasets/demo_dataset_v1/structured/relationships.csv`](demo/fixtures/datasets/demo_dataset_v1/structured/relationships.csv) | Sample relationship definitions for structured mode |
+| [`datasets/demo_dataset_v1/manifest.json`](demo/fixtures/datasets/demo_dataset_v1/manifest.json) | Per-dataset contract with dataset-root-relative paths |
+| [`manifest.json`](demo/fixtures/manifest.json) | Legacy container-level manifest (kept for backwards compatibility) |
 
 ### Tests
 

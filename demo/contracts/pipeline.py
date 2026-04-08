@@ -42,6 +42,32 @@ def refresh_pipeline_contract() -> None:
         _PIPELINE_CONTRACT_LOADED.set()
 
 
+def set_dataset_id(dataset_id: str) -> None:
+    """Override :data:`DATASET_ID` with the active dataset's identifier.
+
+    Call this after resolving a :class:`~demo.contracts.paths.DatasetRoot` to
+    ensure all subsequent graph writes stamp nodes with the correct
+    ``dataset_id``.  The value must be a non-empty string; invalid values are
+    silently ignored so the previously loaded contract value is preserved.
+    """
+    global DATASET_ID
+    if isinstance(dataset_id, str) and dataset_id:
+        with _PIPELINE_CONTRACT_LOCK:
+            DATASET_ID = dataset_id
+
+
+def get_dataset_id() -> str:
+    """Return the current active :data:`DATASET_ID`.
+
+    Always reads the module-level variable, so callers that use this function
+    (or access ``demo.contracts.pipeline.DATASET_ID``) observe updates made
+    via :func:`set_dataset_id`. Callers that imported ``DATASET_ID`` by name
+    with ``from demo.contracts.pipeline import DATASET_ID`` will not see later
+    updates to the module-level binding.
+    """
+    return DATASET_ID
+
+
 def ensure_pipeline_contract_loaded() -> None:
     """Load the pipeline contract once in a thread-safe way."""
     with _PIPELINE_CONTRACT_LOCK:
@@ -192,4 +218,6 @@ __all__ = [
     "PIPELINE_CONFIG_DATA",
     "ensure_pipeline_contract_loaded",
     "refresh_pipeline_contract",
+    "get_dataset_id",
+    "set_dataset_id",
 ]
