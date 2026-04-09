@@ -1482,6 +1482,7 @@ def run_entity_resolution(
             "run_id": run_id,
             "source_uri": source_uri,
             "resolution_mode": resolution_mode,
+            "dataset_id": effective_dataset_id,
             "resolver_method": resolver_method,
             "resolver_version": _RESOLVER_VERSION,
             "cluster_version": _CLUSTER_VERSION,
@@ -1520,6 +1521,8 @@ def run_entity_resolution(
     _graph_distinct_canonical_entities: int = 0
     _graph_mentions_in_aligned: int = 0
     _graph_alignment_breakdown: dict[str, int] = {}
+    # Warnings accumulated inside the driver block and surfaced in the summary.
+    _stage_warnings: list[str] = []
 
     driver = neo4j.GraphDatabase.driver(
         config.neo4j_uri,
@@ -1600,6 +1603,12 @@ def run_entity_resolution(
                 for record in canonical_result
                 if record["entity_id"] and record["run_id"]
             ]
+            if not canonical_nodes:
+                _stage_warnings.append(
+                    f"CanonicalEntity lookup returned zero rows for dataset_id={effective_dataset_id!r} "
+                    f"(hybrid alignment skipped); check that structured ingest has run for this dataset "
+                    f"and that CanonicalEntity nodes carry a matching dataset_id property."
+                )
             if canonical_nodes:
                 _, by_label, by_alias = _build_lookup_tables(canonical_nodes)
                 # Build unique cluster dicts keyed by the scoped cluster_id
@@ -1653,6 +1662,12 @@ def run_entity_resolution(
                 for record in canonical_result
                 if record["entity_id"] and record["run_id"]
             ]
+            if not canonical_nodes:
+                _stage_warnings.append(
+                    f"CanonicalEntity lookup returned zero rows for dataset_id={effective_dataset_id!r} "
+                    f"(all mentions will be unresolved); check that structured ingest has run for this "
+                    f"dataset and that CanonicalEntity nodes carry a matching dataset_id property."
+                )
 
             by_qid, by_label, by_alias = _build_lookup_tables(canonical_nodes)
 
@@ -1812,6 +1827,7 @@ def run_entity_resolution(
         "run_id": run_id,
         "source_uri": source_uri,
         "resolution_mode": resolution_mode,
+        "dataset_id": effective_dataset_id,
         "resolver_method": live_resolver_method,
         "resolver_version": _RESOLVER_VERSION,
         "cluster_version": _CLUSTER_VERSION,
@@ -1824,7 +1840,7 @@ def run_entity_resolution(
         "entity_type_report": _build_entity_type_report(mentions),
         "entity_resolution_summary_path": str(summary_path),
         "unresolved_mentions_path": str(unresolved_path),
-        "warnings": [],
+        "warnings": list(_stage_warnings),
     }
     if resolution_mode in (_RESOLUTION_MODE_UNSTRUCTURED_ONLY, _RESOLUTION_MODE_HYBRID):
         # Use graph-queried counts (set above) so the metrics reflect actual
