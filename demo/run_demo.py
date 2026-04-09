@@ -357,10 +357,13 @@ def _resolve_ask_scope(
     resolved_dataset_id: str | None = None
     try:
         resolved_dataset_id = resolve_dataset_root(config.dataset_name).dataset_id
-    except ValueError:
-        # AmbiguousDatasetError (a ValueError subclass) or any other resolution
-        # failure: fall back to unfiltered query (legacy single-dataset behaviour).
-        pass
+    except ValueError as exc:
+        if config.dataset_name:
+            raise SystemExit(
+                f"Failed to resolve dataset {config.dataset_name!r}: {exc}"
+            ) from exc
+        # Implicit/auto-discovered dataset resolution failed: preserve legacy
+        # behaviour by falling back to an unfiltered latest-run query.
     latest_run_id = _fetch_latest_unstructured_run_id(config, dataset_id=resolved_dataset_id)
     if latest_run_id is None:
         raise SystemExit(
