@@ -223,7 +223,7 @@ def _manifest_md_summary(manifest: dict[str, Any]) -> str:
     started = manifest.get("started_at") or manifest.get("created_at", "")
     finished = manifest.get("finished_at", "")
     lines.append(f"**Run ID:** `{run_id}`  ")
-    if dataset_id:
+    if dataset_id is not None:
         lines.append(f"**Dataset ID:** `{dataset_id}`  ")
     if started:
         lines.append(f"**Started:** {started}  ")
