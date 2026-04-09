@@ -257,12 +257,19 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return namespace
 
 
-def _fetch_latest_unstructured_run_id(config: Config) -> str | None:
+def _fetch_latest_unstructured_run_id(
+    config: Config, dataset_id: str | None = None
+) -> str | None:
     """Query Neo4j for the latest unstructured ingest run_id from Chunk nodes.
 
-    Returns the run_id of the most recently created unstructured ingest run,
-    or None if no Chunk nodes with an unstructured_ingest run_id exist.
-    Only call this in live mode; it opens a real Neo4j connection.
+    When *dataset_id* is provided, only Chunk nodes stamped with that
+    dataset_id are considered, ensuring dataset-aware run selection in
+    multi-dataset repositories.  Without *dataset_id*, the query spans all
+    datasets (legacy behaviour, single-dataset repos).
+
+    Returns the run_id of the most recently created unstructured ingest run
+    (filtered to *dataset_id* when given), or None if no matching Chunk nodes
+    exist.  Only call this in live mode; it opens a real Neo4j connection.
 
     Ordering assumption: run_ids are formatted as
     ``unstructured_ingest-<ISO8601_timestamp>-<uuid8>`` (e.g.
@@ -277,10 +284,18 @@ def _fetch_latest_unstructured_run_id(config: Config) -> str | None:
         config.neo4j_uri, auth=(config.neo4j_username, config.neo4j_password)
     ) as driver:
         with driver.session(database=config.neo4j_database) as session:
-            result = session.run(
-                "MATCH (c:Chunk) WHERE c.run_id STARTS WITH 'unstructured_ingest' "
-                "RETURN c.run_id ORDER BY c.run_id DESC LIMIT 1"
-            )
+            if dataset_id is not None:
+                result = session.run(
+                    "MATCH (c:Chunk) WHERE c.run_id STARTS WITH 'unstructured_ingest' "
+                    "AND c.dataset_id = $dataset_id "
+                    "RETURN c.run_id ORDER BY c.run_id DESC LIMIT 1",
+                    dataset_id=dataset_id,
+                )
+            else:
+                result = session.run(
+                    "MATCH (c:Chunk) WHERE c.run_id STARTS WITH 'unstructured_ingest' "
+                    "RETURN c.run_id ORDER BY c.run_id DESC LIMIT 1"
+                )
             record = result.single()
             return record[0] if record else None
 
@@ -336,7 +351,17 @@ def _resolve_ask_scope(
         return env_run_id, False
 
     # Either --latest was explicitly requested, or no env var is set: query Neo4j.
-    latest_run_id = _fetch_latest_unstructured_run_id(config)
+    # Resolve dataset_id for dataset-aware latest run selection so that in a
+    # multi-dataset repo ``ask --dataset demo_dataset_v1`` never picks up a run
+    # that belongs to demo_dataset_v2.
+    resolved_dataset_id: str | None = None
+    try:
+        resolved_dataset_id = resolve_dataset_root(config.dataset_name).dataset_id
+    except ValueError:
+        # AmbiguousDatasetError (a ValueError subclass) or any other resolution
+        # failure: fall back to unfiltered query (legacy single-dataset behaviour).
+        pass
+    latest_run_id = _fetch_latest_unstructured_run_id(config, dataset_id=resolved_dataset_id)
     if latest_run_id is None:
         raise SystemExit(
             "No unstructured ingest runs found in the database. "

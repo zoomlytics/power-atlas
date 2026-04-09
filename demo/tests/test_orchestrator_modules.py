@@ -5334,3 +5334,290 @@ def test_format_claim_details_all_empty_claim_text_returns_empty_string():
     assert result == "", (
         "_format_claim_details must return '' when no entry has non-empty claim_text"
     )
+
+
+# ---------------------------------------------------------------------------
+# Dataset-aware latest run selection (fix: ask --dataset must not pick up runs
+# from a different dataset in a multi-dataset repo).
+# ---------------------------------------------------------------------------
+
+
+def _live_config(tmp_path: Path, dataset_name: str | None = None) -> Config:
+    """Build a minimal live (non-dry-run) Config for testing scope resolution."""
+    return Config(
+        dry_run=False,
+        output_dir=tmp_path,
+        neo4j_uri="bolt://example.invalid",
+        neo4j_username="neo4j",
+        neo4j_password="secret",
+        neo4j_database="neo4j",
+        openai_model="gpt-4o-mini",
+        dataset_name=dataset_name,
+    )
+
+
+def test_fetch_latest_run_id_without_dataset_uses_unfiltered_query(tmp_path: Path):
+    """_fetch_latest_unstructured_run_id without dataset_id must NOT filter by dataset_id."""
+    from demo.run_demo import _fetch_latest_unstructured_run_id
+
+    captured_queries: list[str] = []
+    captured_params: list[dict] = []
+
+    class _FakeRecord:
+        def __getitem__(self, idx):
+            return "unstructured_ingest-20260101T000000000000Z-aabbccdd"
+
+    class _FakeResult:
+        def single(self):
+            return _FakeRecord()
+
+    class _FakeSession:
+        def run(self, query, **params):
+            captured_queries.append(query)
+            captured_params.append(params)
+            return _FakeResult()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+    class _FakeDriver:
+        def session(self, **kwargs):
+            return _FakeSession()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+    config = _live_config(tmp_path)
+    with mock.patch("neo4j.GraphDatabase.driver", return_value=_FakeDriver()):
+        result = _fetch_latest_unstructured_run_id(config, dataset_id=None)
+
+    assert result == "unstructured_ingest-20260101T000000000000Z-aabbccdd"
+    assert len(captured_queries) == 1
+    assert "dataset_id" not in captured_queries[0], (
+        "Query without dataset_id must not include a dataset_id filter clause"
+    )
+    assert "dataset_id" not in captured_params[0], (
+        "Parameters without dataset_id must not pass dataset_id to Neo4j"
+    )
+
+
+def test_fetch_latest_run_id_with_dataset_filters_by_dataset_id(tmp_path: Path):
+    """_fetch_latest_unstructured_run_id with dataset_id must include AND c.dataset_id = $dataset_id."""
+    from demo.run_demo import _fetch_latest_unstructured_run_id
+
+    captured_queries: list[str] = []
+    captured_params: list[dict] = []
+
+    class _FakeRecord:
+        def __getitem__(self, idx):
+            return "unstructured_ingest-20260201T000000000000Z-v1run0001"
+
+    class _FakeResult:
+        def single(self):
+            return _FakeRecord()
+
+    class _FakeSession:
+        def run(self, query, **params):
+            captured_queries.append(query)
+            captured_params.append(params)
+            return _FakeResult()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+    class _FakeDriver:
+        def session(self, **kwargs):
+            return _FakeSession()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+    config = _live_config(tmp_path)
+    with mock.patch("neo4j.GraphDatabase.driver", return_value=_FakeDriver()):
+        result = _fetch_latest_unstructured_run_id(config, dataset_id="demo_dataset_v1")
+
+    assert result == "unstructured_ingest-20260201T000000000000Z-v1run0001"
+    assert len(captured_queries) == 1
+    assert "c.dataset_id = $dataset_id" in captured_queries[0], (
+        "Query with dataset_id must include the 'AND c.dataset_id = $dataset_id' filter"
+    )
+    assert captured_params[0].get("dataset_id") == "demo_dataset_v1", (
+        "dataset_id parameter must be passed to the Cypher query"
+    )
+
+
+def test_resolve_ask_scope_live_dataset_v1_selects_v1_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """ask --dataset demo_dataset_v1 in live mode must fetch the latest run for v1 only."""
+    from demo.run_demo import _resolve_ask_scope, parse_args
+
+    monkeypatch.delenv("UNSTRUCTURED_RUN_ID", raising=False)
+
+    v1_run = "unstructured_ingest-20260301T000000000000Z-v1run0001"
+
+    args = parse_args(["--live", "--dataset", "demo_dataset_v1", "ask"])
+    config = _live_config(tmp_path, dataset_name="demo_dataset_v1")
+
+    with mock.patch(
+        "demo.run_demo._fetch_latest_unstructured_run_id", return_value=v1_run
+    ) as mock_fetch, mock.patch(
+        "demo.run_demo.resolve_dataset_root"
+    ) as mock_resolve:
+        from demo.contracts.paths import DatasetRoot
+        from pathlib import Path as _Path
+
+        mock_resolve.return_value = DatasetRoot(
+            root=_Path("/fake/datasets/demo_dataset_v1"),
+            dataset_id="demo_dataset_v1",
+            pdf_filename="chain_of_custody.pdf",
+        )
+        run_id, all_runs = _resolve_ask_scope(args, config)
+
+    assert run_id == v1_run
+    assert all_runs is False
+    mock_fetch.assert_called_once_with(config, dataset_id="demo_dataset_v1")
+
+
+def test_resolve_ask_scope_live_dataset_v2_selects_v2_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """ask --dataset demo_dataset_v2 in live mode must fetch the latest run for v2 only."""
+    from demo.run_demo import _resolve_ask_scope, parse_args
+
+    monkeypatch.delenv("UNSTRUCTURED_RUN_ID", raising=False)
+
+    v2_run = "unstructured_ingest-20260401T000000000000Z-v2run0001"
+
+    args = parse_args(["--live", "--dataset", "demo_dataset_v2", "ask"])
+    config = _live_config(tmp_path, dataset_name="demo_dataset_v2")
+
+    with mock.patch(
+        "demo.run_demo._fetch_latest_unstructured_run_id", return_value=v2_run
+    ) as mock_fetch, mock.patch(
+        "demo.run_demo.resolve_dataset_root"
+    ) as mock_resolve:
+        from demo.contracts.paths import DatasetRoot
+        from pathlib import Path as _Path
+
+        mock_resolve.return_value = DatasetRoot(
+            root=_Path("/fake/datasets/demo_dataset_v2"),
+            dataset_id="demo_dataset_v2",
+            pdf_filename="chain_of_issuance.pdf",
+        )
+        run_id, all_runs = _resolve_ask_scope(args, config)
+
+    assert run_id == v2_run
+    assert all_runs is False
+    mock_fetch.assert_called_once_with(config, dataset_id="demo_dataset_v2")
+
+
+def test_resolve_ask_scope_two_datasets_different_latest_runs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """Regression: v1 and v2 each have a distinct latest run; each ask resolves to its own run.
+
+    This is the core multi-dataset regression test from the issue: with both
+    demo_dataset_v1 and demo_dataset_v2 ingested, ask --dataset <x> must only
+    return the latest run for dataset <x>.
+    """
+    from demo.run_demo import _resolve_ask_scope, parse_args
+    from demo.contracts.paths import DatasetRoot
+    from pathlib import Path as _Path
+
+    monkeypatch.delenv("UNSTRUCTURED_RUN_ID", raising=False)
+
+    # Simulate: v2 was ingested *after* v1 (later timestamp = larger lexicographic order)
+    v1_run = "unstructured_ingest-20260301T120000000000Z-v1aabbcc"
+    v2_run = "unstructured_ingest-20260401T120000000000Z-v2ddee11"  # newer than v1
+
+    dataset_roots = {
+        "demo_dataset_v1": DatasetRoot(
+            root=_Path("/fake/datasets/demo_dataset_v1"),
+            dataset_id="demo_dataset_v1",
+            pdf_filename="chain_of_custody.pdf",
+        ),
+        "demo_dataset_v2": DatasetRoot(
+            root=_Path("/fake/datasets/demo_dataset_v2"),
+            dataset_id="demo_dataset_v2",
+            pdf_filename="chain_of_issuance.pdf",
+        ),
+    }
+
+    def _fake_resolve(name):
+        return dataset_roots[name]
+
+    def _fake_fetch(config, *, dataset_id=None):
+        # Returns the run for the requested dataset; simulates dataset-scoped query
+        if dataset_id == "demo_dataset_v1":
+            return v1_run
+        if dataset_id == "demo_dataset_v2":
+            return v2_run
+        # Unfiltered (should not happen in this test)
+        return v2_run  # latest overall = v2
+
+    # --- Ask for v1 ---
+    args_v1 = parse_args(["--live", "--dataset", "demo_dataset_v1", "ask"])
+    config_v1 = _live_config(tmp_path, dataset_name="demo_dataset_v1")
+
+    with mock.patch("demo.run_demo._fetch_latest_unstructured_run_id", side_effect=_fake_fetch), \
+            mock.patch("demo.run_demo.resolve_dataset_root", side_effect=_fake_resolve):
+        run_id_v1, _ = _resolve_ask_scope(args_v1, config_v1)
+
+    assert run_id_v1 == v1_run, (
+        f"ask --dataset demo_dataset_v1 must resolve to the v1 run {v1_run!r}, "
+        f"not the (newer) v2 run {v2_run!r}; got {run_id_v1!r}"
+    )
+
+    # --- Ask for v2 ---
+    args_v2 = parse_args(["--live", "--dataset", "demo_dataset_v2", "ask"])
+    config_v2 = _live_config(tmp_path, dataset_name="demo_dataset_v2")
+
+    with mock.patch("demo.run_demo._fetch_latest_unstructured_run_id", side_effect=_fake_fetch), \
+            mock.patch("demo.run_demo.resolve_dataset_root", side_effect=_fake_resolve):
+        run_id_v2, _ = _resolve_ask_scope(args_v2, config_v2)
+
+    assert run_id_v2 == v2_run, (
+        f"ask --dataset demo_dataset_v2 must resolve to the v2 run {v2_run!r}; "
+        f"got {run_id_v2!r}"
+    )
+
+
+def test_resolve_ask_scope_ambiguous_dataset_falls_back_to_unfiltered(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """When dataset resolution raises AmbiguousDatasetError, fetch must not pass dataset_id."""
+    from demo.run_demo import _resolve_ask_scope, parse_args
+    from demo.contracts.paths import AmbiguousDatasetError
+
+    monkeypatch.delenv("UNSTRUCTURED_RUN_ID", raising=False)
+
+    latest_run = "unstructured_ingest-20260401T000000000000Z-fallback0"
+
+    args = parse_args(["--live", "ask"])
+    config = _live_config(tmp_path, dataset_name=None)
+
+    with mock.patch(
+        "demo.run_demo._fetch_latest_unstructured_run_id", return_value=latest_run
+    ) as mock_fetch, mock.patch(
+        "demo.run_demo.resolve_dataset_root",
+        side_effect=AmbiguousDatasetError("Multiple datasets"),
+    ):
+        run_id, all_runs = _resolve_ask_scope(args, config)
+
+    assert run_id == latest_run
+    assert all_runs is False
+    # Falls back: dataset_id=None (no filter) because resolution was ambiguous
+    mock_fetch.assert_called_once_with(config, dataset_id=None)
