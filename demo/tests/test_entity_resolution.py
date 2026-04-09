@@ -3536,13 +3536,12 @@ class TestHybridAlignmentCrossDatasetIsolation(unittest.TestCase):
             for c in all_canonicals
         ]
 
-        # Pre-compute alignment counts using only target-dataset canonical nodes.
-        # Records with dataset_id=None are treated as dataset-agnostic (matching any
-        # dataset), consistent with the backward-compatible filtering in the query
-        # handler below.
+        # Pre-compute alignment counts using only canonical nodes assigned to the
+        # target dataset. This must match the strict dataset_id == req_dataset
+        # filtering used by the CanonicalEntity read handler below.
         target_canonicals = [
             c for c in all_canonicals
-            if c.get("dataset_id") is None or c.get("dataset_id") == target_dataset_id
+            if c.get("dataset_id") == target_dataset_id
         ]
         _cluster_rows = _cluster_mentions_unstructured_only([
             {
