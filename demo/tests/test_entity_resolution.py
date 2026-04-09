@@ -3476,7 +3476,7 @@ class TestHybridAlignmentCrossDatasetIsolation(unittest.TestCase):
     a different dataset (e.g. demo_dataset_v1) that share the same QID.
 
     Reproduces the issue described in: Make hybrid alignment dataset-local for
-    shared canonical entities.
+    shared canonical entities (#epic-multi-dataset-harden).
     """
 
     _V1_DATASET = "demo_dataset_v1"
@@ -3537,7 +3537,13 @@ class TestHybridAlignmentCrossDatasetIsolation(unittest.TestCase):
         ]
 
         # Pre-compute alignment counts using only target-dataset canonical nodes.
-        target_canonicals = [c for c in all_canonicals if c.get("dataset_id") == target_dataset_id]
+        # Records with dataset_id=None are treated as dataset-agnostic (matching any
+        # dataset), consistent with the backward-compatible filtering in the query
+        # handler below.
+        target_canonicals = [
+            c for c in all_canonicals
+            if c.get("dataset_id") is None or c.get("dataset_id") == target_dataset_id
+        ]
         _cluster_rows = _cluster_mentions_unstructured_only([
             {
                 "mention_id": m["mention_id"],

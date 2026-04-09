@@ -1432,6 +1432,8 @@ def run_entity_resolution(
     # Explicit parameter takes precedence; fall back to the module-level active dataset
     # set by set_dataset_id() so that orchestrated pipelines that call set_dataset_id()
     # before this stage automatically get the correct scope.
+    # get_dataset_id() always returns a non-empty str (defaults to "demo_dataset_v1");
+    # the type annotation is str because neither branch can produce None here.
     effective_dataset_id: str = dataset_id if isinstance(dataset_id, str) and dataset_id else get_dataset_id()
 
     resolved_at = datetime.now(UTC).isoformat()
