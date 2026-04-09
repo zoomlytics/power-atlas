@@ -3733,21 +3733,27 @@ class TestHybridAlignmentCrossDatasetIsolation(unittest.TestCase):
                     dataset_id=self._V2_DATASET,
                 )
 
-            # Verify that the CanonicalEntity READ query was called with dataset_id=v2.
-            # The dataset-scoped lookup query (hybrid enrichment pass) contains both
-            # "dataset_id" in the query text and uses WHERE filtering; exclude
-            # post-write count queries that also mention CanonicalEntity.
-            canonical_read_calls = [
-                c for c in driver.execute_query.call_args_list
-                if "CanonicalEntity" in str(c) and "RETURN" in str(c)
-                and "dataset_id" in str(c) and "ALIGNED_WITH" not in str(c)
-            ]
-            self.assertTrue(canonical_read_calls, "Expected a CanonicalEntity read query with dataset_id filter")
+            # Verify that the CanonicalEntity READ query text itself includes the
+            # dataset_id predicate, and that the query parameters use dataset_id=v2.
+            # Exclude post-write count queries that also mention CanonicalEntity.
+            canonical_read_calls = []
+            for call_obj in driver.execute_query.call_args_list:
+                query = call_obj.args[0] if call_obj.args else ""
+                if (
+                    "CanonicalEntity" in query
+                    and "RETURN" in query
+                    and "ALIGNED_WITH" not in query
+                ):
+                    canonical_read_calls.append(call_obj)
+            self.assertTrue(canonical_read_calls, "Expected a CanonicalEntity read query")
             for call_obj in canonical_read_calls:
-                # call_args_list entries are call(args, kwargs) objects; parameters_ is
-                # passed as a keyword argument.
-                _, kwargs = call_obj
-                params = kwargs.get("parameters_") or {}
+                query = call_obj.args[0] if call_obj.args else ""
+                self.assertIn(
+                    "canonical.dataset_id = $dataset_id",
+                    query,
+                    "CanonicalEntity read query must include a dataset_id predicate",
+                )
+                params = call_obj.kwargs.get("parameters_") or {}
                 self.assertEqual(
                     params.get("dataset_id"),
                     self._V2_DATASET,
