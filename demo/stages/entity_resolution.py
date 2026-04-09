@@ -1607,7 +1607,10 @@ def run_entity_resolution(
                 _stage_warnings.append(
                     f"CanonicalEntity lookup returned zero rows for dataset_id={effective_dataset_id!r} "
                     f"(hybrid alignment skipped); check that structured ingest has run for this dataset "
-                    f"and that CanonicalEntity nodes carry a matching dataset_id property."
+                    f"and that CanonicalEntity nodes carry a matching dataset_id property.  "
+                    f"If CanonicalEntity nodes already exist but have dataset_id=null (legacy graph), "
+                    f"run the in-place repair Cypher or re-ingest from the structured fixture — "
+                    f"see docs/architecture/legacy-dataset-id-migration-v0.1.md."
                 )
             if canonical_nodes:
                 _, by_label, by_alias = _build_lookup_tables(canonical_nodes)
@@ -1666,7 +1669,10 @@ def run_entity_resolution(
                 _stage_warnings.append(
                     f"CanonicalEntity lookup returned zero rows for dataset_id={effective_dataset_id!r} "
                     f"(all mentions will be unresolved); check that structured ingest has run for this "
-                    f"dataset and that CanonicalEntity nodes carry a matching dataset_id property."
+                    f"dataset and that CanonicalEntity nodes carry a matching dataset_id property.  "
+                    f"If CanonicalEntity nodes already exist but have dataset_id=null (legacy graph), "
+                    f"run the in-place repair Cypher or re-ingest from the structured fixture — "
+                    f"see docs/architecture/legacy-dataset-id-migration-v0.1.md."
                 )
 
             by_qid, by_label, by_alias = _build_lookup_tables(canonical_nodes)
