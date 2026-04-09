@@ -213,13 +213,13 @@ def _make_neo4j_test_driver(
             params = parameters_ or {}
             req_dataset = params.get("dataset_id")
             if req_dataset is not None:
-                # Filter canonical records by dataset_id.  Records without a
-                # dataset_id (i.e. dataset_id is None) are treated as dataset-agnostic
-                # and match any dataset — this preserves backward compatibility for
-                # existing tests that do not set dataset_id on canonical nodes.
+                # Mirror production Cypher semantics:
+                # WHERE canonical.dataset_id = $dataset_id
+                # Canonicals with dataset_id=None should therefore be excluded
+                # when a dataset_id parameter is provided.
                 filtered = [
                     r for r in canonical_records
-                    if r.get("dataset_id") is None or r.get("dataset_id") == req_dataset
+                    if r.get("dataset_id") == req_dataset
                 ]
                 return (filtered, None, None)
             return (canonical_records, None, None)
