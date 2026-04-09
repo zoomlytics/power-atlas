@@ -115,6 +115,10 @@ graph (all demo labels and relationships), then re-runs structured ingest
 so that recreated nodes are written with the correct `dataset_id`.
 
 ```bash
+# Prerequisites — set credentials before running any --live command:
+export NEO4J_PASSWORD=<your-neo4j-password>
+export OPENAI_API_KEY=<your-openai-api-key>   # required for the ingest step
+
 # 1. Reset the graph (wipes all demo-owned nodes and relationships)
 python -m demo.run_demo --live reset --confirm
 # Alternative (direct script):
