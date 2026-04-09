@@ -19,16 +19,28 @@ For each case the artifact records the canonical traversal rows, the parallel
 cluster-name traversal rows, the full lower-layer chain inspection rows, and
 derived fragmentation metrics.
 
+Dataset scoping
+---------------
+Use ``--dataset-id`` to scope all ``CanonicalEntity`` lookups to a specific
+dataset.  In a multi-dataset graph this prevents shared entity names from
+matching canonical nodes across datasets (e.g. an entity present in both
+``demo_dataset_v1`` and ``demo_dataset_v2`` would otherwise be counted twice).
+The ``dataset_id`` is stamped as a top-level field in the artifact.
+
+Omit ``--dataset-id`` to aggregate across all datasets — suitable for quick
+explorations but not for regression baselines in a multi-dataset graph.
+
 Usage
 -----
 Set Neo4j connection env vars (or pass via CLI flags), then run:
 
-    # Scoped to a specific run and alignment version
+    # Scoped to a specific dataset, run, and alignment version
     python pipelines/query/retrieval_benchmark.py \\
+        --dataset-id demo_dataset_v1 \\
         --run-id unstructured_ingest-20240101T000000000000Z-abcd1234 \\
         --alignment-version v1.0
 
-    # Unscoped — aggregates across all runs
+    # Unscoped — aggregates across all runs and datasets
     python pipelines/query/retrieval_benchmark.py
 
 Environment variables
@@ -64,6 +76,16 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         description="Run the post-hybrid retrieval benchmark and write a JSON artifact.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
+    )
+    parser.add_argument(
+        "--dataset-id",
+        default=None,
+        help=(
+            "Dataset identifier to scope all CanonicalEntity lookups.  "
+            "In a multi-dataset graph, always pass this to prevent shared "
+            "entity names from matching canonical nodes across datasets.  "
+            "If omitted, queries aggregate across all datasets."
+        ),
     )
     parser.add_argument(
         "--run-id",
@@ -137,6 +159,7 @@ def main(argv: list[str] | None = None) -> None:  # pragma: no cover
     result = run_retrieval_benchmark(
         config,
         run_id=args.run_id,
+        dataset_id=args.dataset_id,
         alignment_version=args.alignment_version,
         output_dir=args.output_dir,
     )
@@ -144,8 +167,18 @@ def main(argv: list[str] | None = None) -> None:  # pragma: no cover
     artifact_path = result["artifact_path"]
     status = result["status"]
     print(f"Status           : {status}")
-    print(f"Run ID           : {result['run_id'] or '(all runs)'}")
-    print(f"Align version    : {result['alignment_version'] or '(all versions)'}")
+    print(
+        f"Dataset ID       : "
+        f"{'(all datasets)' if result['dataset_id'] is None else result['dataset_id']}"
+    )
+    print(
+        f"Run ID           : "
+        f"{'(all runs)' if result['run_id'] is None else result['run_id']}"
+    )
+    print(
+        f"Align version    : "
+        f"{'(all versions)' if result['alignment_version'] is None else result['alignment_version']}"
+    )
     print(f"Artifact path    : {artifact_path}")
 
     if result.get("artifact"):
@@ -168,6 +201,7 @@ def main(argv: list[str] | None = None) -> None:  # pragma: no cover
 
     summary = {
         "run_id": result["run_id"],
+        "dataset_id": result["dataset_id"],
         "alignment_version": result["alignment_version"],
         "artifact_path": artifact_path,
         "status": status,

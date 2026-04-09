@@ -53,7 +53,9 @@ from demo.stages.retrieval_benchmark import (
     BenchmarkCaseResult,
     PairwiseCaseResult,
     RetrievalBenchmarkArtifact,
+    _Q_CANONICAL_SINGLE,
     _Q_CATALOG_EXISTENCE_CHECK,
+    _Q_LOWER_LAYER_CHAIN,
     _Q_PAIRWISE_CANONICAL,
     _classify_fragmentation_type,
     _compute_benchmark_summary,
@@ -1390,3 +1392,383 @@ class TestCypherQueryHygiene(unittest.TestCase):
     def test_catalog_existence_check_query_returns_canonical_entity_name(self) -> None:
         # The RETURN column must be canonical_entity_name.
         self.assertIn("canonical_entity_name", _Q_CATALOG_EXISTENCE_CHECK)
+
+
+# ---------------------------------------------------------------------------
+# TestDatasetIdScoping
+# ---------------------------------------------------------------------------
+
+
+class TestDatasetIdScoping(unittest.TestCase):
+    """Tests that verify dataset_id is propagated through the benchmark pipeline.
+
+    These tests cover:
+    - dataset_id is stamped as a top-level field in the artifact
+    - dataset_id=None is preserved correctly (all-datasets mode)
+    - Cypher queries contain $dataset_id filter clauses for CanonicalEntity nodes
+    - dataset_id is included in the query parameters passed to Neo4j
+    - Dry-run artifact includes dataset_id
+    - Multi-dataset scenario: benchmark scoped to v1 does not see v2 entities
+    """
+
+    # ------------------------------------------------------------------
+    # Artifact-level dataset_id tests (pure / no I/O)
+    # ------------------------------------------------------------------
+
+    def test_build_artifact_stamps_dataset_id(self) -> None:
+        artifact = build_benchmark_artifact(
+            run_id="r1",
+            dataset_id="demo_dataset_v1",
+            alignment_version="v1.0",
+            case_results=[],
+            pairwise_results=[],
+        )
+        self.assertEqual(artifact.dataset_id, "demo_dataset_v1")
+
+    def test_build_artifact_none_dataset_id(self) -> None:
+        artifact = build_benchmark_artifact(
+            run_id="r1",
+            dataset_id=None,
+            alignment_version=None,
+            case_results=[],
+            pairwise_results=[],
+        )
+        self.assertIsNone(artifact.dataset_id)
+
+    def test_artifact_dataset_id_serialised_in_to_dict(self) -> None:
+        artifact = build_benchmark_artifact(
+            run_id="r1",
+            dataset_id="demo_dataset_v2",
+            alignment_version=None,
+            case_results=[],
+            pairwise_results=[],
+        )
+        d = artifact.to_dict()
+        self.assertIn("dataset_id", d)
+        self.assertEqual(d["dataset_id"], "demo_dataset_v2")
+
+    def test_artifact_none_dataset_id_serialised_in_to_dict(self) -> None:
+        artifact = build_benchmark_artifact(
+            run_id=None,
+            dataset_id=None,
+            alignment_version=None,
+            case_results=[],
+            pairwise_results=[],
+        )
+        d = artifact.to_dict()
+        self.assertIn("dataset_id", d)
+        self.assertIsNone(d["dataset_id"])
+
+    def test_to_json_round_trips_dataset_id(self) -> None:
+        artifact = build_benchmark_artifact(
+            run_id="r1",
+            dataset_id="demo_dataset_v1",
+            alignment_version="v1.0",
+            case_results=[],
+            pairwise_results=[],
+        )
+        parsed = json.loads(artifact.to_json())
+        self.assertIn("dataset_id", parsed)
+        self.assertEqual(parsed["dataset_id"], "demo_dataset_v1")
+
+    # ------------------------------------------------------------------
+    # Cypher query filter tests
+    # ------------------------------------------------------------------
+
+    def test_canonical_single_query_has_dataset_id_filter(self) -> None:
+        self.assertIn("$dataset_id", _Q_CANONICAL_SINGLE)
+        self.assertIn("canonical.dataset_id", _Q_CANONICAL_SINGLE)
+
+    def test_lower_layer_chain_query_has_dataset_id_filter(self) -> None:
+        self.assertIn("$dataset_id", _Q_LOWER_LAYER_CHAIN)
+        self.assertIn("canonical.dataset_id", _Q_LOWER_LAYER_CHAIN)
+
+    def test_catalog_existence_check_query_has_dataset_id_filter(self) -> None:
+        self.assertIn("$dataset_id", _Q_CATALOG_EXISTENCE_CHECK)
+        self.assertIn("ce.dataset_id", _Q_CATALOG_EXISTENCE_CHECK)
+
+    def test_pairwise_canonical_query_has_dataset_id_filter(self) -> None:
+        self.assertIn("$dataset_id", _Q_PAIRWISE_CANONICAL)
+        self.assertIn("canonSub.dataset_id", _Q_PAIRWISE_CANONICAL)
+        self.assertIn("canonObj.dataset_id", _Q_PAIRWISE_CANONICAL)
+
+    # ------------------------------------------------------------------
+    # Dry-run artifact includes dataset_id
+    # ------------------------------------------------------------------
+
+    def test_dry_run_artifact_includes_dataset_id(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            config = _make_config(Path(tmp), dry_run=True)
+            run_retrieval_benchmark(
+                config,
+                run_id="run-ds",
+                dataset_id="demo_dataset_v1",
+            )
+            path = (
+                Path(tmp)
+                / "runs"
+                / "run-ds"
+                / "retrieval_benchmark"
+                / "retrieval_benchmark.json"
+            )
+            data = json.loads(path.read_text(encoding="utf-8"))
+            self.assertIn("dataset_id", data)
+            self.assertEqual(data["dataset_id"], "demo_dataset_v1")
+
+    def test_dry_run_artifact_dataset_id_none_when_not_passed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            config = _make_config(Path(tmp), dry_run=True)
+            run_retrieval_benchmark(config, run_id="run-nods")
+            path = (
+                Path(tmp)
+                / "runs"
+                / "run-nods"
+                / "retrieval_benchmark"
+                / "retrieval_benchmark.json"
+            )
+            data = json.loads(path.read_text(encoding="utf-8"))
+            self.assertIn("dataset_id", data)
+            self.assertIsNone(data["dataset_id"])
+
+    def test_dry_run_result_dict_includes_dataset_id(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            config = _make_config(Path(tmp), dry_run=True)
+            result = run_retrieval_benchmark(
+                config, run_id="run-rd", dataset_id="demo_dataset_v2"
+            )
+            self.assertIn("dataset_id", result)
+            self.assertEqual(result["dataset_id"], "demo_dataset_v2")
+
+    # ------------------------------------------------------------------
+    # Live mode: dataset_id in query params and result dict
+    # ------------------------------------------------------------------
+
+    def _run_live_with_dataset_id(
+        self,
+        tmp_path: Path,
+        dataset_id: str | None,
+        cases: list[BenchmarkCaseDefinition],
+        rows: list[list[dict[str, Any]]],
+    ) -> dict[str, Any]:
+        config = _make_config(tmp_path, dry_run=False)
+        driver = MagicMock()
+        driver.__enter__ = MagicMock(return_value=driver)
+        driver.__exit__ = MagicMock(return_value=False)
+        driver.execute_query.side_effect = [(r, None, None) for r in rows]
+        with patch("demo.stages.retrieval_benchmark.neo4j") as mock_neo4j:
+            mock_neo4j.GraphDatabase.driver.return_value = driver
+            mock_neo4j.RoutingControl.READ = "READ"
+            result = run_retrieval_benchmark(
+                config,
+                run_id="run-live",
+                dataset_id=dataset_id,
+                benchmark_cases=cases,
+            )
+        return result
+
+    def test_live_result_dict_includes_dataset_id(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            cases = [_make_case_def()]
+            rows = _empty_case_rows()
+            result = self._run_live_with_dataset_id(Path(tmp), "demo_dataset_v1", cases, rows)
+            self.assertIn("dataset_id", result)
+            self.assertEqual(result["dataset_id"], "demo_dataset_v1")
+
+    def test_live_artifact_json_includes_dataset_id(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            cases = [_make_case_def()]
+            rows = _empty_case_rows()
+            result = self._run_live_with_dataset_id(Path(tmp), "demo_dataset_v1", cases, rows)
+            parsed = json.loads(Path(result["artifact_path"]).read_text())
+            self.assertIn("dataset_id", parsed)
+            self.assertEqual(parsed["dataset_id"], "demo_dataset_v1")
+
+    def test_live_query_receives_dataset_id_param(self) -> None:
+        """Verify that $dataset_id is passed in the parameters to each query."""
+        with tempfile.TemporaryDirectory() as tmp:
+            cases = [_make_case_def()]
+            rows = _empty_case_rows()
+            config = _make_config(Path(tmp), dry_run=False)
+            driver = MagicMock()
+            driver.__enter__ = MagicMock(return_value=driver)
+            driver.__exit__ = MagicMock(return_value=False)
+            driver.execute_query.side_effect = [(r, None, None) for r in rows]
+            with patch("demo.stages.retrieval_benchmark.neo4j") as mock_neo4j:
+                mock_neo4j.GraphDatabase.driver.return_value = driver
+                mock_neo4j.RoutingControl.READ = "READ"
+                run_retrieval_benchmark(
+                    config,
+                    run_id="run-param",
+                    dataset_id="demo_dataset_v1",
+                    benchmark_cases=cases,
+                )
+            # Every query call should include dataset_id in parameters_.
+            for call in driver.execute_query.call_args_list:
+                params = call.kwargs.get("parameters_", call.args[1] if len(call.args) > 1 else {})
+                self.assertIn("dataset_id", params, f"dataset_id missing from query params: {call}")
+                self.assertEqual(params["dataset_id"], "demo_dataset_v1")
+
+    def test_live_query_receives_none_dataset_id_when_not_scoped(self) -> None:
+        """When dataset_id is None, $dataset_id=None is passed so the IS NULL branch fires."""
+        with tempfile.TemporaryDirectory() as tmp:
+            cases = [_make_case_def()]
+            rows = _empty_case_rows()
+            config = _make_config(Path(tmp), dry_run=False)
+            driver = MagicMock()
+            driver.__enter__ = MagicMock(return_value=driver)
+            driver.__exit__ = MagicMock(return_value=False)
+            driver.execute_query.side_effect = [(r, None, None) for r in rows]
+            with patch("demo.stages.retrieval_benchmark.neo4j") as mock_neo4j:
+                mock_neo4j.GraphDatabase.driver.return_value = driver
+                mock_neo4j.RoutingControl.READ = "READ"
+                run_retrieval_benchmark(
+                    config,
+                    run_id="run-noparam",
+                    dataset_id=None,
+                    benchmark_cases=cases,
+                )
+            for call in driver.execute_query.call_args_list:
+                params = call.kwargs.get("parameters_", call.args[1] if len(call.args) > 1 else {})
+                self.assertIn("dataset_id", params)
+                self.assertIsNone(params["dataset_id"])
+
+    # ------------------------------------------------------------------
+    # Multi-dataset isolation: v1 and v2 scoped runs
+    # ------------------------------------------------------------------
+
+    def test_multidataset_v1_and_v2_produce_distinct_dataset_ids_in_artifacts(self) -> None:
+        """Simulate running the benchmark twice — once scoped to v1, once to v2.
+
+        Verifies that each artifact records its own dataset_id and that the two
+        artifacts are independently auditable.  In a real multi-dataset graph the
+        Cypher $dataset_id filter would prevent v2 CanonicalEntity nodes from
+        appearing in the v1 benchmark run (and vice versa).
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            cases = [_make_case_def("ent")]
+            rows = _empty_case_rows()
+
+            # v1 benchmark
+            config = _make_config(Path(tmp), dry_run=True)
+            run_retrieval_benchmark(
+                config,
+                run_id="run-v1",
+                dataset_id="demo_dataset_v1",
+                benchmark_cases=cases,
+            )
+            # v2 benchmark
+            run_retrieval_benchmark(
+                config,
+                run_id="run-v2",
+                dataset_id="demo_dataset_v2",
+                benchmark_cases=cases,
+            )
+
+            v1_data = json.loads(
+                (Path(tmp) / "runs" / "run-v1" / "retrieval_benchmark" / "retrieval_benchmark.json")
+                .read_text(encoding="utf-8")
+            )
+            v2_data = json.loads(
+                (Path(tmp) / "runs" / "run-v2" / "retrieval_benchmark" / "retrieval_benchmark.json")
+                .read_text(encoding="utf-8")
+            )
+
+            self.assertEqual(v1_data["dataset_id"], "demo_dataset_v1")
+            self.assertEqual(v2_data["dataset_id"], "demo_dataset_v2")
+            self.assertNotEqual(v1_data["dataset_id"], v2_data["dataset_id"])
+
+    def test_multidataset_shared_entity_not_double_counted_when_dataset_scoped(self) -> None:
+        """In a multi-dataset graph a shared entity (e.g. MercadoLibre) that has
+        CanonicalEntity nodes in both v1 and v2 should NOT double-count when the
+        benchmark is scoped to a single dataset_id.
+
+        This test simulates the scenario by:
+        1. Running a v1-scoped benchmark — the mock driver returns only v1 rows (3
+           claims), demonstrating correct isolation.
+        2. Running an unscoped benchmark — the mock driver returns combined v1+v2 rows
+           (3+2=5 claims), demonstrating the double-counting risk that the dataset_id
+           filter is designed to prevent.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            cases = [_make_case_def("shared_entity")]
+
+            # Rows that would be returned by a v1-scoped query (3 claims).
+            v1_canonical_rows = _make_canonical_rows(n_claims=3, n_clusters=1)
+            # Rows that would be returned for v2 (2 more claims for the same entity name).
+            # Use distinct claim IDs to simulate a different dataset's nodes.
+            # In the real graph, the $dataset_id filter prevents these from appearing in a v1 run.
+            v2_canonical_rows = [
+                {
+                    **row,
+                    "claim_id": f"v2-claim-{i:03d}",
+                    "cluster_id": f"v2-cluster-id-0",
+                }
+                for i, row in enumerate(_make_canonical_rows(n_claims=2, n_clusters=1))
+            ]
+
+            # --- Scoped run: only v1 rows returned by the filter ---
+            v1_rows = [v1_canonical_rows, [], [], [], []]  # canonical, cluster, lower, frag, catalog
+
+            config = _make_config(Path(tmp), dry_run=False)
+            driver_v1 = MagicMock()
+            driver_v1.__enter__ = MagicMock(return_value=driver_v1)
+            driver_v1.__exit__ = MagicMock(return_value=False)
+            driver_v1.execute_query.side_effect = [(r, None, None) for r in v1_rows]
+
+            with patch("demo.stages.retrieval_benchmark.neo4j") as mock_neo4j:
+                mock_neo4j.GraphDatabase.driver.return_value = driver_v1
+                mock_neo4j.RoutingControl.READ = "READ"
+                result_v1 = run_retrieval_benchmark(
+                    config,
+                    run_id="run-v1-shared",
+                    dataset_id="demo_dataset_v1",
+                    benchmark_cases=cases,
+                )
+
+            cr_v1 = result_v1["artifact"]["case_results"][0]
+            # Only 3 v1 claims — no double-counting of v2 claims.
+            self.assertEqual(cr_v1["canonical_claim_count"], 3)
+            self.assertEqual(result_v1["dataset_id"], "demo_dataset_v1")
+
+            # --- Unscoped run: combined v1+v2 rows — demonstrates double-counting risk ---
+            # Simulate what a db query without a dataset_id filter would return: both
+            # v1 and v2 CanonicalEntity nodes for the same entity name.
+            combined_canonical_rows = v1_canonical_rows + v2_canonical_rows
+            unscoped_rows = [combined_canonical_rows, [], [], [], []]
+
+            driver_all = MagicMock()
+            driver_all.__enter__ = MagicMock(return_value=driver_all)
+            driver_all.__exit__ = MagicMock(return_value=False)
+            driver_all.execute_query.side_effect = [(r, None, None) for r in unscoped_rows]
+
+            with patch("demo.stages.retrieval_benchmark.neo4j") as mock_neo4j:
+                mock_neo4j.GraphDatabase.driver.return_value = driver_all
+                mock_neo4j.RoutingControl.READ = "READ"
+                result_all = run_retrieval_benchmark(
+                    config,
+                    run_id="run-all-shared",
+                    dataset_id=None,  # unscoped — aggregates across all datasets
+                    benchmark_cases=cases,
+                )
+
+            cr_all = result_all["artifact"]["case_results"][0]
+            # Unscoped run sees 5 claims (3 v1 + 2 v2) — the double-counting scenario.
+            self.assertEqual(cr_all["canonical_claim_count"], 5)
+            self.assertIsNone(result_all["dataset_id"])
+
+            # Confirm the scoped count is less than the unscoped count.
+            self.assertLess(cr_v1["canonical_claim_count"], cr_all["canonical_claim_count"])
+
+    def test_empty_string_dataset_id_raises_value_error(self) -> None:
+        """Passing dataset_id='' should raise ValueError to prevent silent scoping to ''."""
+        with tempfile.TemporaryDirectory() as tmp:
+            config = _make_config(Path(tmp), dry_run=True)
+            with self.assertRaisesRegex(
+                ValueError, "dataset_id must be None or a non-empty string."
+            ):
+                run_retrieval_benchmark(config, run_id="r1", dataset_id="")
+
+    def test_pairwise_canonical_direction_case_uses_tolower(self) -> None:
+        """The CASE expression in _Q_PAIRWISE_CANONICAL should use toLower($entity_a)
+        so that direction labelling is case-insensitive — consistent with the WHERE clauses."""
+        self.assertIn("toLower($entity_a)", _Q_PAIRWISE_CANONICAL)

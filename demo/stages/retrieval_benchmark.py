@@ -41,6 +41,20 @@ For each case the artifact records:
 All queries use ``routing_=neo4j.RoutingControl.READ`` and never mutate graph
 state.
 
+Dataset scoping
+---------------
+In a multi-dataset graph, ``CanonicalEntity`` nodes from different datasets
+share the same namespace.  Passing ``dataset_id`` to
+:func:`run_retrieval_benchmark` constrains all ``CanonicalEntity`` lookups to
+nodes whose ``dataset_id`` property matches, preventing cross-dataset leakage
+(e.g. shared entities that exist in both ``demo_dataset_v1`` and
+``demo_dataset_v2`` will not be double-counted).  The ``dataset_id`` is also
+stamped as a top-level field in the benchmark artifact for auditability.
+
+Omit ``dataset_id`` (or pass ``None``) to aggregate across *all* datasets —
+useful for quick explorations but not suitable as a regression baseline in a
+multi-dataset graph.
+
 Usage (standalone script)
 -------------------------
 See ``pipelines/query/retrieval_benchmark.py`` for a CLI wrapper.
@@ -52,6 +66,7 @@ Usage (programmatic)
 ...     config,
 ...     run_id="unstructured_ingest-...",
 ...     alignment_version="v1.0",
+...     dataset_id="demo_dataset_v1",
 ... )
 >>> print(result["artifact"]["benchmark_summary"])
 """
@@ -372,9 +387,12 @@ BENCHMARK_CASES: list[BenchmarkCaseDefinition] = [
 
 # Canonical single-entity traversal (hybrid mode)
 # Returns all claims reachable via CanonicalEntity ← ALIGNED_WITH ← cluster ← MEMBER_OF ← mention
+# dataset_id filter scopes CanonicalEntity nodes to the active dataset, preventing cross-dataset
+# double-counting when the same entity name exists in multiple datasets.
 _Q_CANONICAL_SINGLE = """\
 MATCH (canonical:CanonicalEntity)<-[a:ALIGNED_WITH]-(cluster:ResolvedEntityCluster)<-[:MEMBER_OF]-(m:EntityMention)
 WHERE toLower(canonical.name) CONTAINS toLower($entity_name)
+  AND ($dataset_id IS NULL OR canonical.dataset_id = $dataset_id)
   AND ($run_id IS NULL OR a.run_id = $run_id)
   AND ($run_id IS NULL OR cluster.run_id = $run_id)
   AND ($run_id IS NULL OR m.run_id = $run_id)
@@ -415,9 +433,11 @@ ORDER BY cluster, role, c.claim_id
 
 # Full lower-layer inspection: canonical → cluster → mention → claim chain
 # Uses OPTIONAL MATCH for claims so that dark mentions (no claims) are visible too.
+# dataset_id filter scopes CanonicalEntity nodes to the active dataset.
 _Q_LOWER_LAYER_CHAIN = """\
 MATCH (canonical:CanonicalEntity)<-[a:ALIGNED_WITH]-(cluster:ResolvedEntityCluster)<-[:MEMBER_OF]-(m:EntityMention)
 WHERE toLower(canonical.name) CONTAINS toLower($entity_name)
+  AND ($dataset_id IS NULL OR canonical.dataset_id = $dataset_id)
   AND ($run_id IS NULL OR (a.run_id = $run_id AND cluster.run_id = $run_id AND m.run_id = $run_id))
   AND ($alignment_version IS NULL OR a.alignment_version = $alignment_version)
 OPTIONAL MATCH (c:ExtractedClaim)-[r:HAS_PARTICIPANT]->(m)
@@ -449,9 +469,11 @@ ORDER BY entity_type, canonical_name
 # from "catalog present but canonical empty" in the canonical-empty / cluster-populated result class.
 # Keep enough rows for diagnostics, but bound the result set so broad CONTAINS
 # matches do not cause excessive query time or oversized benchmark artifacts.
+# dataset_id filter prevents catalog hits from other datasets inflating the existence check.
 _Q_CATALOG_EXISTENCE_CHECK = """\
 MATCH (ce:CanonicalEntity)
 WHERE toLower(ce.name) CONTAINS toLower($entity_name)
+  AND ($dataset_id IS NULL OR ce.dataset_id = $dataset_id)
 RETURN ce.name AS canonical_entity_name
 ORDER BY ce.name
 LIMIT 100
@@ -459,13 +481,16 @@ LIMIT 100
 
 # Pairwise canonical claim lookup — bidirectional
 # Anchored on CanonicalEntity for selectivity — filters on names before joining clusters/mentions.
+# dataset_id filter scopes both subject and object CanonicalEntity nodes to the active dataset.
 _Q_PAIRWISE_CANONICAL = """\
 MATCH (canonSub:CanonicalEntity)
-WHERE toLower(canonSub.name) CONTAINS toLower($entity_a)
-   OR toLower(canonSub.name) CONTAINS toLower($entity_b)
+WHERE (toLower(canonSub.name) CONTAINS toLower($entity_a)
+   OR toLower(canonSub.name) CONTAINS toLower($entity_b))
+  AND ($dataset_id IS NULL OR canonSub.dataset_id = $dataset_id)
 MATCH (canonObj:CanonicalEntity)
 WHERE (toLower(canonObj.name) CONTAINS toLower($entity_a)
        OR toLower(canonObj.name) CONTAINS toLower($entity_b))
+  AND ($dataset_id IS NULL OR canonObj.dataset_id = $dataset_id)
   AND canonObj <> canonSub
 WITH canonSub, canonObj
 WHERE
@@ -487,7 +512,7 @@ MATCH (mSub)<-[:HAS_PARTICIPANT {role: 'subject'}]-(c:ExtractedClaim)
 WHERE ($run_id IS NULL OR c.run_id = $run_id)
 MATCH (c)-[:HAS_PARTICIPANT {role: 'object'}]->(mObj)
 WITH DISTINCT c, mSub, mObj, canonSub, canonObj,
-     CASE WHEN toLower(canonSub.name) CONTAINS $entity_a THEN 'A→B' ELSE 'B→A' END AS direction
+     CASE WHEN toLower(canonSub.name) CONTAINS toLower($entity_a) THEN 'A→B' ELSE 'B→A' END AS direction
 RETURN c.claim_id             AS claim_id,
        c.claim_text           AS claim_text,
        c.predicate            AS predicate,
@@ -792,6 +817,11 @@ class RetrievalBenchmarkArtifact:
     run_id:
         The pipeline run_id this artifact is scoped to, or ``None`` when
         collected across all runs.
+    dataset_id:
+        The dataset this benchmark is scoped to, or ``None`` when collected
+        across all datasets.  In a multi-dataset graph, always pass a
+        ``dataset_id`` so that benchmark results are auditable and comparable
+        across pipeline runs for the same dataset.
     alignment_version:
         The alignment version used to scope ``ALIGNED_WITH`` queries, or
         ``None`` when not specified.
@@ -806,6 +836,7 @@ class RetrievalBenchmarkArtifact:
 
     generated_at: str
     run_id: str | None
+    dataset_id: str | None
     alignment_version: str | None
     case_results: list[dict[str, Any]]
     pairwise_results: list[dict[str, Any]]
@@ -946,6 +977,7 @@ def build_benchmark_case_result(
 def build_benchmark_artifact(
     *,
     run_id: str | None,
+    dataset_id: str | None = None,
     alignment_version: str | None,
     case_results: list[BenchmarkCaseResult],
     pairwise_results: list[PairwiseCaseResult],
@@ -961,6 +993,10 @@ def build_benchmark_artifact(
     run_id:
         Pipeline run_id to embed in the artifact, or ``None`` for an
         unscoped (all-runs) artifact.
+    dataset_id:
+        Dataset identifier to stamp in the artifact, or ``None`` for an
+        unscoped (all-datasets) artifact.  Pass this whenever the benchmark
+        was run against a specific dataset so the artifact is auditable.
     alignment_version:
         Alignment version to embed, or ``None`` when not applicable.
     case_results:
@@ -976,6 +1012,7 @@ def build_benchmark_artifact(
     return RetrievalBenchmarkArtifact(
         generated_at=ts,
         run_id=run_id,
+        dataset_id=dataset_id,
         alignment_version=alignment_version,
         case_results=[r.to_dict() for r in case_results],
         pairwise_results=[r.to_dict() for r in pairwise_results],
@@ -992,6 +1029,7 @@ def run_retrieval_benchmark(
     config: Any,
     *,
     run_id: str | None = None,
+    dataset_id: str | None = None,
     alignment_version: str | None = None,
     output_dir: Path | None = None,
     benchmark_cases: list[BenchmarkCaseDefinition] | None = None,
@@ -1014,6 +1052,12 @@ def run_retrieval_benchmark(
     run_id:
         Scopes all queries to a specific pipeline run.  Pass ``None`` to
         collect aggregate metrics across all runs.
+    dataset_id:
+        Scopes all ``CanonicalEntity`` queries to a specific dataset, preventing
+        cross-dataset double-counting of shared entity names.  Pass ``None`` to
+        aggregate across all datasets (suitable for exploration only — not for
+        regression baselines in a multi-dataset graph).  The value is stamped
+        as a top-level field in the artifact for auditability.
     alignment_version:
         Scopes alignment queries to a specific alignment version (e.g.
         ``"v1.0"``).  Pass ``None`` to aggregate across all versions.
@@ -1028,7 +1072,7 @@ def run_retrieval_benchmark(
 
     Returns
     -------
-    A dict with ``status``, ``run_id``, ``alignment_version``,
+    A dict with ``status``, ``run_id``, ``dataset_id``, ``alignment_version``,
     ``artifact_path``, and the full ``artifact`` payload.
     """
     cases = benchmark_cases if benchmark_cases is not None else BENCHMARK_CASES
@@ -1039,6 +1083,9 @@ def run_retrieval_benchmark(
 
     if run_id == "":
         raise ValueError("run_id must be None or a non-empty string.")
+
+    if dataset_id == "":
+        raise ValueError("dataset_id must be None or a non-empty string.")
 
     if run_id is not None:
         run_id_path = Path(run_id)
@@ -1060,6 +1107,7 @@ def run_retrieval_benchmark(
     if getattr(config, "dry_run", False):
         dry_artifact_obj = build_benchmark_artifact(
             run_id=run_id,
+            dataset_id=dataset_id,
             alignment_version=alignment_version,
             case_results=[],
             pairwise_results=[],
@@ -1068,6 +1116,7 @@ def run_retrieval_benchmark(
         return {
             "status": "dry_run",
             "run_id": run_id,
+            "dataset_id": dataset_id,
             "alignment_version": alignment_version,
             "artifact_path": str(artifact_path),
             "artifact": None,
@@ -1076,6 +1125,7 @@ def run_retrieval_benchmark(
 
     params: dict[str, Any] = {
         "run_id": run_id,
+        "dataset_id": dataset_id,
         "alignment_version": alignment_version,
     }
 
@@ -1168,6 +1218,7 @@ def run_retrieval_benchmark(
 
     artifact = build_benchmark_artifact(
         run_id=run_id,
+        dataset_id=dataset_id,
         alignment_version=alignment_version,
         case_results=case_results,
         pairwise_results=pairwise_results,
@@ -1179,6 +1230,7 @@ def run_retrieval_benchmark(
     return {
         "status": "live",
         "run_id": run_id,
+        "dataset_id": dataset_id,
         "alignment_version": alignment_version,
         "artifact_path": str(artifact_path),
         "artifact": artifact.to_dict(),
