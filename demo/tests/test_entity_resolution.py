@@ -215,8 +215,8 @@ def _make_neo4j_test_driver(
             if req_dataset is not None:
                 # Mirror production Cypher semantics:
                 # WHERE canonical.dataset_id = $dataset_id
-                # Canonicals with dataset_id=None should therefore be excluded
-                # when a dataset_id parameter is provided.
+                # Canonicals without dataset_id (None) are excluded, matching
+                # production behavior where dataset_id is always stamped on writes.
                 filtered = [
                     r for r in canonical_records
                     if r.get("dataset_id") == req_dataset
@@ -587,7 +587,7 @@ class TestRunEntityResolutionLive(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             config = _live_config(Path(tmpdir))
             mentions = [{"mention_id": "m1", "name": "Q42", "entity_type": "person"}]
-            canonicals = [{"entity_id": "Q42", "run_id": "run-s1", "name": "Douglas Adams", "aliases": None}]
+            canonicals = [{"entity_id": "Q42", "run_id": "run-s1", "name": "Douglas Adams", "aliases": None, "dataset_id": "demo_dataset_v1"}]
             driver = self._make_driver(mentions, canonicals)
 
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
@@ -603,7 +603,7 @@ class TestRunEntityResolutionLive(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             config = _live_config(Path(tmpdir))
             mentions = [{"mention_id": "m2", "name": "Douglas Adams", "entity_type": "person"}]
-            canonicals = [{"entity_id": "Q42", "run_id": "run-s1", "name": "Douglas Adams", "aliases": None}]
+            canonicals = [{"entity_id": "Q42", "run_id": "run-s1", "name": "Douglas Adams", "aliases": None, "dataset_id": "demo_dataset_v1"}]
             driver = self._make_driver(mentions, canonicals)
 
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
@@ -616,7 +616,7 @@ class TestRunEntityResolutionLive(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             config = _live_config(Path(tmpdir))
             mentions = [{"mention_id": "m3", "name": "D. Adams", "entity_type": "person"}]
-            canonicals = [{"entity_id": "Q42", "run_id": "run-s1", "name": "Douglas Adams", "aliases": "D. Adams|Adams"}]
+            canonicals = [{"entity_id": "Q42", "run_id": "run-s1", "name": "Douglas Adams", "aliases": "D. Adams|Adams", "dataset_id": "demo_dataset_v1"}]
             driver = self._make_driver(mentions, canonicals)
 
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
@@ -629,7 +629,7 @@ class TestRunEntityResolutionLive(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             config = _live_config(Path(tmpdir))
             mentions = [{"mention_id": "m4", "name": "Nobody Known", "entity_type": None}]
-            canonicals = [{"entity_id": "Q42", "run_id": "run-s1", "name": "Douglas Adams", "aliases": None}]
+            canonicals = [{"entity_id": "Q42", "run_id": "run-s1", "name": "Douglas Adams", "aliases": None, "dataset_id": "demo_dataset_v1"}]
             driver = self._make_driver(mentions, canonicals)
 
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
@@ -665,7 +665,7 @@ class TestRunEntityResolutionLive(unittest.TestCase):
                 {"mention_id": "m6", "name": "Q1", "entity_type": None},
                 {"mention_id": "m7", "name": "Unknown", "entity_type": None},
             ]
-            canonicals = [{"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": None}]
+            canonicals = [{"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": None, "dataset_id": "demo_dataset_v1"}]
             driver = self._make_driver(mentions, canonicals)
 
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
@@ -944,7 +944,7 @@ class TestResolvedEntityCluster(unittest.TestCase):
                 openai_model="test-model",
             )
             mentions = [{"mention_id": "m1", "name": "Q42", "entity_type": "person"}]
-            canonicals = [{"entity_id": "Q42", "run_id": "run-s1", "name": "Douglas Adams", "aliases": None}]
+            canonicals = [{"entity_id": "Q42", "run_id": "run-s1", "name": "Douglas Adams", "aliases": None, "dataset_id": "demo_dataset_v1"}]
             driver = self._make_driver(mentions, canonicals)
 
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
@@ -2730,7 +2730,7 @@ class TestRunEntityResolutionHybrid(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             config = self._live_config(Path(tmpdir))
             mentions = [{"mention_id": "m1", "name": "Alice", "entity_type": "person"}]
-            canonicals = [{"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": None}]
+            canonicals = [{"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": None, "dataset_id": "demo_dataset_v1"}]
             driver = self._make_driver(mentions, canonicals)
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
                 result = run_entity_resolution(config, run_id="hybrid-live-004", source_uri=None)
@@ -2743,7 +2743,7 @@ class TestRunEntityResolutionHybrid(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             config = self._live_config(Path(tmpdir))
             mentions = [{"mention_id": "m1", "name": "Alice", "entity_type": "person"}]
-            canonicals = [{"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": None}]
+            canonicals = [{"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": None, "dataset_id": "demo_dataset_v1"}]
             driver = self._make_driver(mentions, canonicals)
             source_uri = "file:///test-doc.pdf"
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
@@ -2765,7 +2765,7 @@ class TestRunEntityResolutionHybrid(unittest.TestCase):
             config = self._live_config(Path(tmpdir))
             # "ali" is an alias for "Alice" (Q1)
             mentions = [{"mention_id": "m1", "name": "Ali", "entity_type": "person"}]
-            canonicals = [{"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": "Ali|Alicia"}]
+            canonicals = [{"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": "Ali|Alicia", "dataset_id": "demo_dataset_v1"}]
             driver = self._make_driver(mentions, canonicals)
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
                 result = run_entity_resolution(config, run_id="hybrid-live-005", source_uri=None)
@@ -2780,8 +2780,8 @@ class TestRunEntityResolutionHybrid(unittest.TestCase):
                 {"mention_id": "m2", "name": "BC", "entity_type": "org"},
             ]
             canonicals = [
-                {"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": None},
-                {"entity_id": "Q2", "run_id": "run-s1", "name": "Bob Corp", "aliases": "BC"},
+                {"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": None, "dataset_id": "demo_dataset_v1"},
+                {"entity_id": "Q2", "run_id": "run-s1", "name": "Bob Corp", "aliases": "BC", "dataset_id": "demo_dataset_v1"},
             ]
             driver = self._make_driver(mentions, canonicals)
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
@@ -2799,7 +2799,7 @@ class TestRunEntityResolutionHybrid(unittest.TestCase):
                 {"mention_id": "m2", "name": "Unknown Corp", "entity_type": "org"},
             ]
             canonicals = [
-                {"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": None},
+                {"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": None, "dataset_id": "demo_dataset_v1"},
             ]
             driver = self._make_driver(mentions, canonicals)
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
@@ -2849,7 +2849,7 @@ class TestRunEntityResolutionHybrid(unittest.TestCase):
                 {"mention_id": "m2", "name": "Ali", "entity_type": "person"},
             ]
             canonicals = [
-                {"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": "Ali"},
+                {"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": "Ali", "dataset_id": "demo_dataset_v1"},
             ]
             driver = self._make_driver(mentions, canonicals)
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
@@ -2868,8 +2868,8 @@ class TestRunEntityResolutionHybrid(unittest.TestCase):
                 {"mention_id": "m2", "name": "Bob Corp", "entity_type": "org"},
             ]
             canonicals = [
-                {"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": None},
-                {"entity_id": "Q2", "run_id": "run-s1", "name": "Bob Corp", "aliases": None},
+                {"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": None, "dataset_id": "demo_dataset_v1"},
+                {"entity_id": "Q2", "run_id": "run-s1", "name": "Bob Corp", "aliases": None, "dataset_id": "demo_dataset_v1"},
             ]
             driver = self._make_driver(mentions, canonicals)
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
@@ -2888,7 +2888,7 @@ class TestRunEntityResolutionHybrid(unittest.TestCase):
                 {"mention_id": "m3", "name": "Unknown", "entity_type": "person"},
             ]
             canonicals = [
-                {"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": None},
+                {"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": None, "dataset_id": "demo_dataset_v1"},
             ]
             driver = self._make_driver(mentions, canonicals)
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
@@ -2907,8 +2907,8 @@ class TestRunEntityResolutionHybrid(unittest.TestCase):
                 {"mention_id": "m2", "name": "Bob Corp", "entity_type": "org"},
             ]
             canonicals = [
-                {"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": None},
-                {"entity_id": "Q2", "run_id": "run-s1", "name": "Bob Corp", "aliases": None},
+                {"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": None, "dataset_id": "demo_dataset_v1"},
+                {"entity_id": "Q2", "run_id": "run-s1", "name": "Bob Corp", "aliases": None, "dataset_id": "demo_dataset_v1"},
             ]
             driver = self._make_driver(mentions, canonicals)
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
@@ -2985,7 +2985,7 @@ class TestRunEntityResolutionHybrid(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             config = self._live_config(Path(tmpdir))
             mentions = [{"mention_id": "m1", "name": "Alice", "entity_type": "person"}]
-            canonicals = [{"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": None}]
+            canonicals = [{"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": None, "dataset_id": "demo_dataset_v1"}]
             driver = self._make_driver(mentions, canonicals)
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
                 run_entity_resolution(config, run_id="hybrid-live-011", source_uri=None)
@@ -3035,6 +3035,7 @@ class TestManifestGraphConsistency(unittest.TestCase):
                 "run_id": "canonical-run",
                 "name": m["name"],
                 "aliases": None,
+                "dataset_id": "demo_dataset_v1",
             }
             for i, m in enumerate(mentions[:count])
         ]
