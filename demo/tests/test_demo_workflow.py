@@ -290,21 +290,20 @@ class WorkflowTests(unittest.TestCase):
     def test_orchestrated_unstructured_only_entity_resolution_passes_explicit_dataset_id(self):
         """_run_orchestrated must pass dataset_id explicitly to the unstructured-only
         run_entity_resolution call, not rely on the ambient set_dataset_id() context."""
-        from unittest.mock import call, patch as mock_patch
+        from unittest.mock import patch as mock_patch
 
-        module = _load_module(RUN_DEMO_PATH, "run_uo_dataset_id_test")
+        module = _load_module(RUN_DEMO_PATH, "run_demo_test_module")
 
         # Capture every call made to run_entity_resolution as the orchestrator runs.
         captured_calls: list = []
+        real_fn = module._run_entity_resolution
 
         def _fake_run_entity_resolution(*args, **kwargs):
             captured_calls.append(kwargs)
-            # Delegate to the real function so the rest of orchestration succeeds.
-            return module._run_entity_resolution(*args, **kwargs)
+            return real_fn(*args, **kwargs)
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            module.run_entity_resolution = _fake_run_entity_resolution
-            try:
+            with mock_patch.object(module, "run_entity_resolution", side_effect=_fake_run_entity_resolution):
                 module.run_demo(
                     module.Config(
                         dry_run=True,
@@ -317,8 +316,6 @@ class WorkflowTests(unittest.TestCase):
                         dataset_name="demo_dataset_v1",
                     )
                 )
-            finally:
-                module.run_entity_resolution = module._run_entity_resolution
 
         # There must be exactly two entity-resolution calls in the orchestrated flow:
         # one unstructured_only and one hybrid.
