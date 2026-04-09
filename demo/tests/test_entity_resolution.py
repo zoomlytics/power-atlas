@@ -3714,5 +3714,267 @@ class TestHybridAlignmentCrossDatasetIsolation(unittest.TestCase):
             )
 
 
+class TestLegacyNullDatasetIdBehavior(unittest.TestCase):
+    """Regression tests for the legacy dataset_id=null upgrade hazard.
+
+    Prior to dataset-stamping being consistently enforced, CanonicalEntity nodes
+    could be written with dataset_id=null.  The strict ``WHERE canonical.dataset_id
+    = $dataset_id`` predicate introduced in PR #466 excludes those nodes silently,
+    producing zero canonical alignments.
+
+    These tests:
+    1. Document the symptom: hybrid and structured_anchor modes return zero
+       aligned/resolved clusters when only legacy-null nodes exist.
+    2. Confirm the warning emitted by run_entity_resolution mentions the legacy
+       null scenario and points to the migration guide.
+    3. Demonstrate that stamping the correct dataset_id (simulating in-place
+       repair per docs/architecture/legacy-dataset-id-migration-v0.1.md) fully
+       restores alignment.
+
+    No live Neo4j connection is required — all assertions use the mock driver
+    defined by _make_neo4j_test_driver.
+    """
+
+    _DATASET = "demo_dataset_v1"
+    _ENTITY_NAME = "Linda Rottenberg"
+    _ENTITY_ID = "Q6551937"
+    _RUN_ID = "structured-run-v1"
+
+    def _live_config_hybrid(self, tmp_path: Path) -> Config:
+        return Config(
+            dry_run=False,
+            output_dir=tmp_path,
+            neo4j_uri="bolt://example.invalid",
+            neo4j_username="neo4j",
+            neo4j_password="secret",
+            neo4j_database="neo4j",
+            openai_model="test-model",
+            resolution_mode=_RESOLUTION_MODE_HYBRID,
+        )
+
+    def _live_config_structured_anchor(self, tmp_path: Path) -> Config:
+        return Config(
+            dry_run=False,
+            output_dir=tmp_path,
+            neo4j_uri="bolt://example.invalid",
+            neo4j_username="neo4j",
+            neo4j_password="secret",
+            neo4j_database="neo4j",
+            openai_model="test-model",
+        )
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
+    def _legacy_canonical(self) -> dict[str, Any]:
+        """A CanonicalEntity dict simulating a pre-stamping legacy node (dataset_id=None)."""
+        return {
+            "entity_id": self._ENTITY_ID,
+            "run_id": self._RUN_ID,
+            "name": self._ENTITY_NAME,
+            "aliases": None,
+            "dataset_id": None,  # legacy: not stamped
+        }
+
+    def _stamped_canonical(self) -> dict[str, Any]:
+        """The same node after in-place repair — dataset_id set to the active dataset."""
+        return {
+            "entity_id": self._ENTITY_ID,
+            "run_id": self._RUN_ID,
+            "name": self._ENTITY_NAME,
+            "aliases": None,
+            "dataset_id": self._DATASET,  # repaired
+        }
+
+    def _mention(self) -> dict[str, Any]:
+        return {"mention_id": "m1", "name": self._ENTITY_NAME, "entity_type": "person"}
+
+    # ------------------------------------------------------------------
+    # Hybrid mode
+    # ------------------------------------------------------------------
+
+    def test_hybrid_zero_alignment_when_only_legacy_null_nodes_exist(self) -> None:
+        """Hybrid mode produces zero aligned clusters when canonical nodes have dataset_id=null.
+
+        This is the symptom operators observe after upgrading to a release that
+        includes the strict dataset_id filter (PR #466), when their graph still
+        contains pre-stamping CanonicalEntity nodes.
+        """
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config_hybrid(Path(tmpdir))
+            driver = _make_neo4j_test_driver([self._mention()], [self._legacy_canonical()])
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                result = run_entity_resolution(
+                    config,
+                    run_id="legacy-hybrid-001",
+                    source_uri=None,
+                    dataset_id=self._DATASET,
+                )
+
+        self.assertEqual(
+            result["aligned_clusters"],
+            0,
+            "Hybrid mode must produce zero aligned clusters when all canonical nodes have dataset_id=null.",
+        )
+
+    def test_hybrid_warning_mentions_legacy_null_when_zero_alignment(self) -> None:
+        """Warning emitted for zero hybrid alignment must mention the legacy null scenario.
+
+        The warning text should guide operators to the migration document rather
+        than only suggesting they re-run structured ingest.
+        """
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config_hybrid(Path(tmpdir))
+            driver = _make_neo4j_test_driver([self._mention()], [self._legacy_canonical()])
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                result = run_entity_resolution(
+                    config,
+                    run_id="legacy-hybrid-002",
+                    source_uri=None,
+                    dataset_id=self._DATASET,
+                )
+
+        warnings = result.get("warnings", [])
+        self.assertTrue(
+            any("dataset_id=null" in w or "legacy" in w.lower() for w in warnings),
+            f"Expected a warning mentioning legacy null dataset_id; got: {warnings}",
+        )
+        self.assertTrue(
+            any("migration" in w.lower() or "legacy-dataset-id-migration" in w for w in warnings),
+            f"Expected a warning pointing to the migration guide; got: {warnings}",
+        )
+
+    def test_hybrid_alignment_restored_after_dataset_id_repair(self) -> None:
+        """Stamping dataset_id on legacy canonical nodes (simulated repair) restores alignment.
+
+        This test mirrors the in-place repair documented in
+        docs/architecture/legacy-dataset-id-migration-v0.1.md §4 Path B.
+        Before repair: zero aligned clusters.
+        After repair (dataset_id set to the active dataset): at least one aligned cluster.
+        """
+        mentions = [self._mention()]
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config_hybrid(Path(tmpdir))
+
+            # --- Before repair: legacy node has dataset_id=None ---
+            driver_before = _make_neo4j_test_driver(mentions, [self._legacy_canonical()])
+            with patch("neo4j.GraphDatabase.driver", return_value=driver_before):
+                result_before = run_entity_resolution(
+                    config,
+                    run_id="legacy-repair-before",
+                    source_uri=None,
+                    dataset_id=self._DATASET,
+                )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config_hybrid(Path(tmpdir))
+
+            # --- After repair: same node now has dataset_id stamped ---
+            driver_after = _make_neo4j_test_driver(mentions, [self._stamped_canonical()])
+            with patch("neo4j.GraphDatabase.driver", return_value=driver_after):
+                result_after = run_entity_resolution(
+                    config,
+                    run_id="legacy-repair-after",
+                    source_uri=None,
+                    dataset_id=self._DATASET,
+                )
+
+        self.assertEqual(
+            result_before["aligned_clusters"],
+            0,
+            "Before repair: expected zero aligned clusters with legacy null nodes.",
+        )
+        self.assertGreaterEqual(
+            result_after["aligned_clusters"],
+            1,
+            "After repair: expected at least one aligned cluster once dataset_id is stamped.",
+        )
+
+    # ------------------------------------------------------------------
+    # structured_anchor mode
+    # ------------------------------------------------------------------
+
+    def test_structured_anchor_zero_resolution_when_only_legacy_null_nodes_exist(self) -> None:
+        """structured_anchor mode resolves zero mentions when canonical nodes have dataset_id=null."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config_structured_anchor(Path(tmpdir))
+            driver = _make_neo4j_test_driver([self._mention()], [self._legacy_canonical()])
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                result = run_entity_resolution(
+                    config,
+                    run_id="legacy-sa-001",
+                    source_uri=None,
+                    dataset_id=self._DATASET,
+                    resolution_mode="structured_anchor",
+                )
+
+        self.assertEqual(
+            result["resolved"],
+            0,
+            "structured_anchor mode must resolve zero mentions when all canonical nodes have dataset_id=null.",
+        )
+
+    def test_structured_anchor_warning_mentions_legacy_null_when_zero_resolution(self) -> None:
+        """Warning emitted for zero structured_anchor resolution must mention legacy null nodes."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config_structured_anchor(Path(tmpdir))
+            driver = _make_neo4j_test_driver([self._mention()], [self._legacy_canonical()])
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                result = run_entity_resolution(
+                    config,
+                    run_id="legacy-sa-002",
+                    source_uri=None,
+                    dataset_id=self._DATASET,
+                    resolution_mode="structured_anchor",
+                )
+
+        warnings = result.get("warnings", [])
+        self.assertTrue(
+            any("dataset_id=null" in w or "legacy" in w.lower() for w in warnings),
+            f"Expected a warning mentioning legacy null dataset_id; got: {warnings}",
+        )
+
+    def test_structured_anchor_resolution_restored_after_dataset_id_repair(self) -> None:
+        """Stamping dataset_id restores structured_anchor resolution after a legacy-null scenario."""
+        mentions = [self._mention()]
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config_structured_anchor(Path(tmpdir))
+            driver_before = _make_neo4j_test_driver(mentions, [self._legacy_canonical()])
+            with patch("neo4j.GraphDatabase.driver", return_value=driver_before):
+                result_before = run_entity_resolution(
+                    config,
+                    run_id="legacy-sa-repair-before",
+                    source_uri=None,
+                    dataset_id=self._DATASET,
+                    resolution_mode="structured_anchor",
+                )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config_structured_anchor(Path(tmpdir))
+            driver_after = _make_neo4j_test_driver(mentions, [self._stamped_canonical()])
+            with patch("neo4j.GraphDatabase.driver", return_value=driver_after):
+                result_after = run_entity_resolution(
+                    config,
+                    run_id="legacy-sa-repair-after",
+                    source_uri=None,
+                    dataset_id=self._DATASET,
+                    resolution_mode="structured_anchor",
+                )
+
+        self.assertEqual(
+            result_before["resolved"],
+            0,
+            "Before repair: expected zero resolutions with legacy null canonical nodes.",
+        )
+        self.assertGreaterEqual(
+            result_after["resolved"],
+            1,
+            "After repair: expected at least one resolution once dataset_id is stamped.",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
