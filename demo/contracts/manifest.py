@@ -24,6 +24,7 @@ def build_batch_manifest(
     retrieval_unstructured_stage: dict[str, Any] | None = None,
     entity_resolution_hybrid_stage: dict[str, Any] | None = None,
     claim_participation_stage: dict[str, Any] | None = None,
+    dataset_id: str | None = None,
     started_at: str | None = None,
     finished_at: str | None = None,
 ) -> dict[str, Any]:
@@ -102,6 +103,7 @@ def build_batch_manifest(
     now = datetime.now(UTC).isoformat()
     manifest: dict[str, Any] = {
         "run_id": make_run_id("batch"),
+        "dataset_id": dataset_id,
         "created_at": now,
         "started_at": started_at or now,
         "run_scopes": {
@@ -133,6 +135,7 @@ def build_stage_manifest(
     run_scope_key: str,
     stage_output: dict[str, Any],
     scope_run_id: str | None = _SCOPE_RUN_ID_UNSET,  # type: ignore[assignment]
+    dataset_id: str | None = None,
     started_at: str | None = None,
     finished_at: str | None = None,
 ) -> dict[str, Any]:
@@ -149,6 +152,7 @@ def build_stage_manifest(
     now = datetime.now(UTC).isoformat()
     manifest: dict[str, Any] = {
         "run_id": stage_run_id,
+        "dataset_id": dataset_id,
         "created_at": now,
         "started_at": started_at or now,
         "run_scopes": {
@@ -215,9 +219,12 @@ def _manifest_md_summary(manifest: dict[str, Any]) -> str:
     lines: list[str] = ["# Run Manifest Summary", ""]
 
     run_id = manifest.get("run_id", "unknown")
+    dataset_id = manifest.get("dataset_id")
     started = manifest.get("started_at") or manifest.get("created_at", "")
     finished = manifest.get("finished_at", "")
     lines.append(f"**Run ID:** `{run_id}`  ")
+    if dataset_id is not None:
+        lines.append(f"**Dataset ID:** `{dataset_id}`  ")
     if started:
         lines.append(f"**Started:** {started}  ")
     if finished:

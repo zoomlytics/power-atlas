@@ -402,3 +402,115 @@ def test_build_stage_manifest_scope_run_id_explicit_string_overrides():
     assert manifest["run_scopes"]["unstructured_ingest_run_id"] == "original-ingest-run-id"
     assert manifest["run_id"] == "ask-artifact-id"
 
+
+# ---------------------------------------------------------------------------
+# dataset_id stamping – batch and stage manifests
+# ---------------------------------------------------------------------------
+
+def test_build_batch_manifest_includes_dataset_id():
+    """dataset_id passed to build_batch_manifest must appear at the manifest root."""
+    config = _make_config()
+    manifest = build_batch_manifest(
+        config=config,
+        structured_run_id="s-id",
+        unstructured_run_id="u-id",
+        structured_stage={},
+        pdf_stage={},
+        claim_stage={},
+        retrieval_stage={},
+        dataset_id="demo_dataset_v1",
+    )
+    assert manifest["dataset_id"] == "demo_dataset_v1"
+
+
+def test_build_batch_manifest_dataset_id_none_when_not_provided():
+    """When dataset_id is not passed, the field is present but null (not absent)."""
+    config = _make_config()
+    manifest = build_batch_manifest(
+        config=config,
+        structured_run_id="s-id",
+        unstructured_run_id="u-id",
+        structured_stage={},
+        pdf_stage={},
+        claim_stage={},
+        retrieval_stage={},
+    )
+    assert "dataset_id" in manifest
+    assert manifest["dataset_id"] is None
+
+
+def test_build_batch_manifest_dataset_id_non_null_for_multi_dataset():
+    """Simulate a multi-dataset run: dataset_id must be non-null."""
+    config = _make_config()
+    for dsid in ("demo_dataset_v1", "demo_dataset_v2"):
+        manifest = build_batch_manifest(
+            config=config,
+            structured_run_id="s-id",
+            unstructured_run_id="u-id",
+            structured_stage={},
+            pdf_stage={},
+            claim_stage={},
+            retrieval_stage={},
+            dataset_id=dsid,
+        )
+        assert manifest["dataset_id"] is not None
+        assert manifest["dataset_id"] == dsid
+
+
+def test_build_stage_manifest_includes_dataset_id():
+    """dataset_id passed to build_stage_manifest must appear at the manifest root."""
+    config = _make_config()
+    manifest = build_stage_manifest(
+        config=config,
+        stage_name="retrieval_and_qa",
+        stage_run_id="ask-artifact-id",
+        run_scope_key="unstructured_ingest_run_id",
+        stage_output={"status": "dry_run"},
+        dataset_id="demo_dataset_v2",
+    )
+    assert manifest["dataset_id"] == "demo_dataset_v2"
+
+
+def test_build_stage_manifest_dataset_id_none_when_not_provided():
+    """When dataset_id is not passed, the field is present but null."""
+    config = _make_config()
+    manifest = build_stage_manifest(
+        config=config,
+        stage_name="pdf_ingest",
+        stage_run_id="u-id",
+        run_scope_key="unstructured_ingest_run_id",
+        stage_output={"status": "dry_run"},
+    )
+    assert "dataset_id" in manifest
+    assert manifest["dataset_id"] is None
+
+
+def test_build_stage_manifest_dataset_id_non_null_for_retrieval():
+    """Retrieval/QA independent-run manifest must carry non-null dataset_id."""
+    config = _make_config()
+    manifest = build_stage_manifest(
+        config=config,
+        stage_name="retrieval_and_qa",
+        stage_run_id="ask-20260101T000000000000Z-abcd1234",
+        run_scope_key="unstructured_ingest_run_id",
+        stage_output={"status": "dry_run"},
+        dataset_id="demo_dataset_v1",
+    )
+    assert manifest["dataset_id"] is not None
+    assert manifest["dataset_id"] == "demo_dataset_v1"
+
+
+def test_manifest_md_summary_includes_dataset_id():
+    """_manifest_md_summary must render Dataset ID when present."""
+    manifest = {"run_id": "run-1", "dataset_id": "demo_dataset_v1"}
+    text = _manifest_md_summary(manifest)
+    assert "demo_dataset_v1" in text
+    assert "Dataset ID" in text
+
+
+def test_manifest_md_summary_omits_dataset_id_when_none():
+    """_manifest_md_summary must not render a Dataset ID line when the value is None."""
+    manifest = {"run_id": "run-1", "dataset_id": None}
+    text = _manifest_md_summary(manifest)
+    assert "Dataset ID" not in text
+

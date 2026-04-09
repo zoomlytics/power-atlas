@@ -507,6 +507,7 @@ def _run_orchestrated(config: Config) -> Path:
         retrieval_unstructured_stage=retrieval_unstructured_stage,
         entity_resolution_hybrid_stage=entity_resolution_hybrid_stage,
         retrieval_stage=retrieval_stage,
+        dataset_id=dataset_root.dataset_id,
         started_at=started_at,
         finished_at=finished_at,
     )
@@ -657,6 +658,7 @@ def _run_independent_stage(
         stage_run_id=stage_run_id,
         run_scope_key=run_scope_key,
         scope_run_id=None if _ask_all_runs else stage_run_id,
+        dataset_id=dataset_root.dataset_id if dataset_root is not None else None,
         stage_output=stage_output,
         started_at=started_at,
         finished_at=finished_at,
