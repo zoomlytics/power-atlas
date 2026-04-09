@@ -451,12 +451,15 @@ def _run_orchestrated(config: Config) -> Path:
     # Cluster extracted mentions against each other; no CanonicalEntity lookup required.
     # Use a mode-specific artifact subdirectory so the hybrid pass does not overwrite
     # the unstructured-only artifacts when both passes share the same run_id.
+    # Pass dataset_id explicitly (preferred explicit-scope pattern) rather than relying
+    # on the ambient value set by set_dataset_id() earlier in orchestration.
     entity_resolution_unstructured_stage = run_entity_resolution(
         config,
         run_id=unstructured_run_id,
         source_uri=pdf_source_uri,
         resolution_mode="unstructured_only",
         artifact_subdir="entity_resolution_unstructured_only",
+        dataset_id=dataset_root.dataset_id,
     )
     # Demonstrate that meaningful Q&A is available before any structured ingest.
     retrieval_unstructured_stage = run_retrieval_and_qa(
