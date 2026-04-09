@@ -44,7 +44,7 @@ state.
 Dataset scoping
 ---------------
 In a multi-dataset graph, ``CanonicalEntity`` nodes from different datasets
-share the same name space.  Passing ``dataset_id`` to
+share the same namespace.  Passing ``dataset_id`` to
 :func:`run_retrieval_benchmark` constrains all ``CanonicalEntity`` lookups to
 nodes whose ``dataset_id`` property matches, preventing cross-dataset leakage
 (e.g. shared entities that exist in both ``demo_dataset_v1`` and

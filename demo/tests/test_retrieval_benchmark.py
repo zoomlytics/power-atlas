@@ -1682,10 +1682,12 @@ class TestDatasetIdScoping(unittest.TestCase):
         CanonicalEntity nodes in both v1 and v2 should NOT double-count when the
         benchmark is scoped to a single dataset_id.
 
-        This test simulates the scenario by providing two separate query result
-        sets — one representing v1 canonical rows and another representing v2
-        canonical rows for the *same* entity name — and asserts that only the
-        scoped rows (v1) appear in the v1 benchmark artifact.
+        This test simulates the scenario by:
+        1. Running a v1-scoped benchmark — the mock driver returns only v1 rows (3
+           claims), demonstrating correct isolation.
+        2. Running an unscoped benchmark — the mock driver returns combined v1+v2 rows
+           (3+2=5 claims), demonstrating the double-counting risk that the dataset_id
+           filter is designed to prevent.
         """
         with tempfile.TemporaryDirectory() as tmp:
             cases = [_make_case_def("shared_entity")]
@@ -1693,29 +1695,66 @@ class TestDatasetIdScoping(unittest.TestCase):
             # Rows that would be returned by a v1-scoped query (3 claims).
             v1_canonical_rows = _make_canonical_rows(n_claims=3, n_clusters=1)
             # Rows that would be returned for v2 (2 more claims for the same entity name).
-            # In the real graph, the $dataset_id filter prevents these from appearing.
-            v2_canonical_rows = _make_canonical_rows(n_claims=2, n_clusters=1)
+            # Use distinct claim IDs to simulate a different dataset's nodes.
+            # In the real graph, the $dataset_id filter prevents these from appearing in a v1 run.
+            v2_canonical_rows = [
+                {
+                    **row,
+                    "claim_id": f"v2-claim-{i:03d}",
+                    "cluster_id": f"v2-cluster-id-0",
+                }
+                for i, row in enumerate(_make_canonical_rows(n_claims=2, n_clusters=1))
+            ]
 
-            # For the v1-scoped benchmark we only feed v1 rows:
+            # --- Scoped run: only v1 rows returned by the filter ---
             v1_rows = [v1_canonical_rows, [], [], [], []]  # canonical, cluster, lower, frag, catalog
 
             config = _make_config(Path(tmp), dry_run=False)
-            driver = MagicMock()
-            driver.__enter__ = MagicMock(return_value=driver)
-            driver.__exit__ = MagicMock(return_value=False)
-            driver.execute_query.side_effect = [(r, None, None) for r in v1_rows]
+            driver_v1 = MagicMock()
+            driver_v1.__enter__ = MagicMock(return_value=driver_v1)
+            driver_v1.__exit__ = MagicMock(return_value=False)
+            driver_v1.execute_query.side_effect = [(r, None, None) for r in v1_rows]
 
             with patch("demo.stages.retrieval_benchmark.neo4j") as mock_neo4j:
-                mock_neo4j.GraphDatabase.driver.return_value = driver
+                mock_neo4j.GraphDatabase.driver.return_value = driver_v1
                 mock_neo4j.RoutingControl.READ = "READ"
-                result = run_retrieval_benchmark(
+                result_v1 = run_retrieval_benchmark(
                     config,
                     run_id="run-v1-shared",
                     dataset_id="demo_dataset_v1",
                     benchmark_cases=cases,
                 )
 
-            cr = result["artifact"]["case_results"][0]
-            # Only 3 v1 claims — no double-counting of 2 v2 claims.
-            self.assertEqual(cr["canonical_claim_count"], 3)
-            self.assertEqual(result["dataset_id"], "demo_dataset_v1")
+            cr_v1 = result_v1["artifact"]["case_results"][0]
+            # Only 3 v1 claims — no double-counting of v2 claims.
+            self.assertEqual(cr_v1["canonical_claim_count"], 3)
+            self.assertEqual(result_v1["dataset_id"], "demo_dataset_v1")
+
+            # --- Unscoped run: combined v1+v2 rows — demonstrates double-counting risk ---
+            # Simulate what a db query without a dataset_id filter would return: both
+            # v1 and v2 CanonicalEntity nodes for the same entity name.
+            combined_canonical_rows = v1_canonical_rows + v2_canonical_rows
+            unscoped_rows = [combined_canonical_rows, [], [], [], []]
+
+            driver_all = MagicMock()
+            driver_all.__enter__ = MagicMock(return_value=driver_all)
+            driver_all.__exit__ = MagicMock(return_value=False)
+            driver_all.execute_query.side_effect = [(r, None, None) for r in unscoped_rows]
+
+            with patch("demo.stages.retrieval_benchmark.neo4j") as mock_neo4j:
+                mock_neo4j.GraphDatabase.driver.return_value = driver_all
+                mock_neo4j.RoutingControl.READ = "READ"
+                result_all = run_retrieval_benchmark(
+                    config,
+                    run_id="run-all-shared",
+                    dataset_id=None,  # unscoped — aggregates across all datasets
+                    benchmark_cases=cases,
+                )
+
+            cr_all = result_all["artifact"]["case_results"][0]
+            # Unscoped run sees 5 claims (3 v1 + 2 v2) — the double-counting scenario.
+            self.assertEqual(cr_all["canonical_claim_count"], 5)
+            self.assertIsNone(result_all["dataset_id"])
+
+            # Confirm the scoped count is less than the unscoped count.
+            self.assertLess(cr_v1["canonical_claim_count"], cr_all["canonical_claim_count"])
