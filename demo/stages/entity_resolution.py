@@ -225,6 +225,7 @@ from typing import Any
 from pathlib import Path
 from urllib.parse import quote as _pct_encode
 
+from demo.contracts.pipeline import get_dataset_id
 from demo.contracts.resolution import ALIGNMENT_VERSION as _ALIGNMENT_VERSION
 from demo.text_utils import normalize_mention_text
 
@@ -1358,6 +1359,7 @@ def run_entity_resolution(
     source_uri: str | None,
     resolution_mode: str | None = None,
     artifact_subdir: str = "entity_resolution",
+    dataset_id: str | None = None,
 ) -> dict[str, Any]:
     """Resolve or cluster :EntityMention nodes scoped to *run_id*.
 
@@ -1399,6 +1401,13 @@ def run_entity_resolution(
                          or ``"entity_resolution_hybrid"``) when calling the function
                          multiple times for the same *run_id* to avoid overwriting
                          artifacts from an earlier pass.
+        dataset_id:      Dataset identifier used to scope :CanonicalEntity lookups to
+                         the active dataset.  When ``None``, the value returned by
+                         :func:`~demo.contracts.pipeline.get_dataset_id` is used so
+                         that the active dataset set via
+                         :func:`~demo.contracts.pipeline.set_dataset_id` is respected.
+                         Pass this explicitly when calling from an orchestrated pipeline
+                         stage to avoid relying on module-level state.
 
     Returns:
         A summary dict with counts, resolution breakdown, ``resolution_mode``,
@@ -1418,6 +1427,14 @@ def run_entity_resolution(
             f"Unknown resolution_mode {resolution_mode!r}. "
             f"Valid modes: {sorted(_VALID_RESOLUTION_MODES)}"
         )
+
+    # Resolve the effective dataset_id for scoping CanonicalEntity lookups.
+    # Explicit parameter takes precedence; fall back to the module-level active dataset
+    # set by set_dataset_id() so that orchestrated pipelines that call set_dataset_id()
+    # before this stage automatically get the correct scope.
+    # get_dataset_id() always returns a non-empty str (defaults to "demo_dataset_v1");
+    # the type annotation is str because neither branch can produce None here.
+    effective_dataset_id: str = dataset_id if isinstance(dataset_id, str) and dataset_id else get_dataset_id()
 
     resolved_at = datetime.now(UTC).isoformat()
 
@@ -1465,6 +1482,7 @@ def run_entity_resolution(
             "run_id": run_id,
             "source_uri": source_uri,
             "resolution_mode": resolution_mode,
+            "dataset_id": effective_dataset_id,
             "resolver_method": resolver_method,
             "resolver_version": _RESOLVER_VERSION,
             "cluster_version": _CLUSTER_VERSION,
@@ -1503,6 +1521,8 @@ def run_entity_resolution(
     _graph_distinct_canonical_entities: int = 0
     _graph_mentions_in_aligned: int = 0
     _graph_alignment_breakdown: dict[str, int] = {}
+    # Warnings accumulated inside the driver block and surfaced in the summary.
+    _stage_warnings: list[str] = []
 
     driver = neo4j.GraphDatabase.driver(
         config.neo4j_uri,
@@ -1557,16 +1577,19 @@ def run_entity_resolution(
 
             # Enrichment step: align clusters to canonical entities where possible.
             # This is additive — clusters with no canonical match remain unchanged.
+            # Scope the lookup to dataset_id so that shared QIDs from other datasets
+            # do not leak into this run's alignment (cross-dataset isolation).
             canonical_result, _, _ = driver.execute_query(
                 """
                 MATCH (canonical:CanonicalEntity)
+                WHERE canonical.dataset_id = $dataset_id
                 RETURN canonical.entity_id AS entity_id,
                        canonical.run_id AS run_id,
                        canonical.name AS name,
                        canonical.aliases AS aliases
                 ORDER BY canonical.entity_id
                 """,
-                parameters_={},
+                parameters_={"dataset_id": effective_dataset_id},
                 database_=config.neo4j_database,
                 routing_=neo4j.RoutingControl.READ,
             )
@@ -1580,6 +1603,12 @@ def run_entity_resolution(
                 for record in canonical_result
                 if record["entity_id"] and record["run_id"]
             ]
+            if not canonical_nodes:
+                _stage_warnings.append(
+                    f"CanonicalEntity lookup returned zero rows for dataset_id={effective_dataset_id!r} "
+                    f"(hybrid alignment skipped); check that structured ingest has run for this dataset "
+                    f"and that CanonicalEntity nodes carry a matching dataset_id property."
+                )
             if canonical_nodes:
                 _, by_label, by_alias = _build_lookup_tables(canonical_nodes)
                 # Build unique cluster dicts keyed by the scoped cluster_id
@@ -1607,16 +1636,19 @@ def run_entity_resolution(
                 )
         else:
             # 2b. structured_anchor (default): resolve against CanonicalEntity nodes.
+            # Scope the lookup to dataset_id so that shared QIDs from other datasets
+            # do not leak into this run's resolution (cross-dataset isolation).
             canonical_result, _, _ = driver.execute_query(
                 """
                 MATCH (canonical:CanonicalEntity)
+                WHERE canonical.dataset_id = $dataset_id
                 RETURN canonical.entity_id AS entity_id,
                        canonical.run_id AS run_id,
                        canonical.name AS name,
                        canonical.aliases AS aliases
                 ORDER BY canonical.entity_id
                 """,
-                parameters_={},
+                parameters_={"dataset_id": effective_dataset_id},
                 database_=config.neo4j_database,
                 routing_=neo4j.RoutingControl.READ,
             )
@@ -1630,6 +1662,12 @@ def run_entity_resolution(
                 for record in canonical_result
                 if record["entity_id"] and record["run_id"]
             ]
+            if not canonical_nodes:
+                _stage_warnings.append(
+                    f"CanonicalEntity lookup returned zero rows for dataset_id={effective_dataset_id!r} "
+                    f"(all mentions will be unresolved); check that structured ingest has run for this "
+                    f"dataset and that CanonicalEntity nodes carry a matching dataset_id property."
+                )
 
             by_qid, by_label, by_alias = _build_lookup_tables(canonical_nodes)
 
@@ -1789,6 +1827,7 @@ def run_entity_resolution(
         "run_id": run_id,
         "source_uri": source_uri,
         "resolution_mode": resolution_mode,
+        "dataset_id": effective_dataset_id,
         "resolver_method": live_resolver_method,
         "resolver_version": _RESOLVER_VERSION,
         "cluster_version": _CLUSTER_VERSION,
@@ -1801,7 +1840,7 @@ def run_entity_resolution(
         "entity_type_report": _build_entity_type_report(mentions),
         "entity_resolution_summary_path": str(summary_path),
         "unresolved_mentions_path": str(unresolved_path),
-        "warnings": [],
+        "warnings": list(_stage_warnings),
     }
     if resolution_mode in (_RESOLUTION_MODE_UNSTRUCTURED_ONLY, _RESOLUTION_MODE_HYBRID):
         # Use graph-queried counts (set above) so the metrics reflect actual

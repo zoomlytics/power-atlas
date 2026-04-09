@@ -483,6 +483,7 @@ def _run_orchestrated(config: Config) -> Path:
         source_uri=pdf_source_uri,
         resolution_mode="hybrid",
         artifact_subdir="entity_resolution_hybrid",
+        dataset_id=dataset_root.dataset_id,
     )
     # Final Q&A after structured enrichment shows the additive benefit.
     retrieval_stage = run_retrieval_and_qa(
@@ -593,6 +594,7 @@ def _run_independent_stage(
                 # Independent-stage default: use the active dataset's PDF URI.
                 # See note above for extract-claims.
                 source_uri=_pdf_source_uri,
+                dataset_id=dataset_root.dataset_id,
             ),
         ),
         "ask": (

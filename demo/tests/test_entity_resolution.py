@@ -59,8 +59,26 @@ def _live_config(tmp_path: Path) -> Config:
 def _make_neo4j_test_driver(
     mentions: list[dict[str, Any]],
     canonical_nodes: list[dict[str, Any]],
+    *,
+    precompute_dataset_id: str | None = None,
 ) -> MagicMock:
-    """Build a mock neo4j.Driver that returns the given data."""
+    """Build a mock neo4j.Driver that returns the given data.
+
+    Args:
+        mentions: EntityMention records to return from the driver.
+        canonical_nodes: CanonicalEntity records available in the "database".
+            When the CanonicalEntity query passes a ``dataset_id`` parameter,
+            only records whose ``dataset_id`` field matches are returned,
+            mirroring the ``WHERE canonical.dataset_id = $dataset_id`` filter
+            in the production Cypher.
+        precompute_dataset_id: When set, alignment counts (aligned_clusters,
+            mentions_in_aligned_clusters, etc.) are pre-computed using only
+            canonical nodes whose ``dataset_id`` equals this value.  This is
+            used by cross-dataset tests where ``canonical_nodes`` contains
+            entries from multiple datasets but the active run targets just one.
+            When ``None`` (default) all ``canonical_nodes`` are used for
+            pre-computation (single-dataset behaviour).
+    """
 
     # Records returned by execute_query must support subscript access (record["key"]).
     # Using a plain dict subclass is the simplest way to simulate Neo4j record behaviour
@@ -73,9 +91,19 @@ def _make_neo4j_test_driver(
         for m in mentions
     ]
     canonical_records = [
-        _Record(entity_id=c["entity_id"], run_id=c.get("run_id", ""), name=c["name"], aliases=c.get("aliases"))
+        _Record(entity_id=c["entity_id"], run_id=c.get("run_id", ""), name=c["name"],
+                aliases=c.get("aliases"), dataset_id=c.get("dataset_id"))
         for c in canonical_nodes
     ]
+
+    # When a dataset scope is specified for pre-computation, restrict to nodes
+    # that belong to that dataset.  This must match the strict equality filter
+    # used in the CanonicalEntity read handler below.
+    _precompute_nodes = (
+        [c for c in canonical_nodes if c.get("dataset_id") == precompute_dataset_id]
+        if precompute_dataset_id is not None
+        else canonical_nodes
+    )
 
     # Pre-compute alignment results to simulate graph-backed post-write queries.
     # This mirrors what run_entity_resolution does internally so that the mock
@@ -101,7 +129,7 @@ def _make_neo4j_test_driver(
     _, _by_label, _by_alias = _build_lookup_tables([
         {"entity_id": c["entity_id"], "run_id": c.get("run_id", ""),
          "name": c["name"], "aliases": c.get("aliases")}
-        for c in canonical_nodes
+        for c in _precompute_nodes
     ])
     _alignment_rows = _align_clusters_to_canonical(_unique_clusters, _by_label, _by_alias)
     _aligned_cluster_keys = {r["cluster_id"] for r in _alignment_rows}
@@ -209,6 +237,18 @@ def _make_neo4j_test_driver(
         if "EntityMention" in query and "RETURN" in query:
             return (mention_records, None, None)
         if "CanonicalEntity" in query and "RETURN" in query:
+            params = parameters_ or {}
+            req_dataset = params.get("dataset_id")
+            if req_dataset is not None:
+                # Mirror production Cypher semantics:
+                # WHERE canonical.dataset_id = $dataset_id
+                # Canonicals without dataset_id (None) are excluded, matching
+                # production behavior where dataset_id is always stamped on writes.
+                filtered = [
+                    r for r in canonical_records
+                    if r.get("dataset_id") == req_dataset
+                ]
+                return (filtered, None, None)
             return (canonical_records, None, None)
         # write queries — return empty
         return ([], None, None)
@@ -574,7 +614,7 @@ class TestRunEntityResolutionLive(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             config = _live_config(Path(tmpdir))
             mentions = [{"mention_id": "m1", "name": "Q42", "entity_type": "person"}]
-            canonicals = [{"entity_id": "Q42", "run_id": "run-s1", "name": "Douglas Adams", "aliases": None}]
+            canonicals = [{"entity_id": "Q42", "run_id": "run-s1", "name": "Douglas Adams", "aliases": None, "dataset_id": "demo_dataset_v1"}]
             driver = self._make_driver(mentions, canonicals)
 
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
@@ -590,7 +630,7 @@ class TestRunEntityResolutionLive(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             config = _live_config(Path(tmpdir))
             mentions = [{"mention_id": "m2", "name": "Douglas Adams", "entity_type": "person"}]
-            canonicals = [{"entity_id": "Q42", "run_id": "run-s1", "name": "Douglas Adams", "aliases": None}]
+            canonicals = [{"entity_id": "Q42", "run_id": "run-s1", "name": "Douglas Adams", "aliases": None, "dataset_id": "demo_dataset_v1"}]
             driver = self._make_driver(mentions, canonicals)
 
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
@@ -603,7 +643,7 @@ class TestRunEntityResolutionLive(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             config = _live_config(Path(tmpdir))
             mentions = [{"mention_id": "m3", "name": "D. Adams", "entity_type": "person"}]
-            canonicals = [{"entity_id": "Q42", "run_id": "run-s1", "name": "Douglas Adams", "aliases": "D. Adams|Adams"}]
+            canonicals = [{"entity_id": "Q42", "run_id": "run-s1", "name": "Douglas Adams", "aliases": "D. Adams|Adams", "dataset_id": "demo_dataset_v1"}]
             driver = self._make_driver(mentions, canonicals)
 
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
@@ -616,7 +656,7 @@ class TestRunEntityResolutionLive(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             config = _live_config(Path(tmpdir))
             mentions = [{"mention_id": "m4", "name": "Nobody Known", "entity_type": None}]
-            canonicals = [{"entity_id": "Q42", "run_id": "run-s1", "name": "Douglas Adams", "aliases": None}]
+            canonicals = [{"entity_id": "Q42", "run_id": "run-s1", "name": "Douglas Adams", "aliases": None, "dataset_id": "demo_dataset_v1"}]
             driver = self._make_driver(mentions, canonicals)
 
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
@@ -652,7 +692,7 @@ class TestRunEntityResolutionLive(unittest.TestCase):
                 {"mention_id": "m6", "name": "Q1", "entity_type": None},
                 {"mention_id": "m7", "name": "Unknown", "entity_type": None},
             ]
-            canonicals = [{"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": None}]
+            canonicals = [{"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": None, "dataset_id": "demo_dataset_v1"}]
             driver = self._make_driver(mentions, canonicals)
 
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
@@ -931,7 +971,7 @@ class TestResolvedEntityCluster(unittest.TestCase):
                 openai_model="test-model",
             )
             mentions = [{"mention_id": "m1", "name": "Q42", "entity_type": "person"}]
-            canonicals = [{"entity_id": "Q42", "run_id": "run-s1", "name": "Douglas Adams", "aliases": None}]
+            canonicals = [{"entity_id": "Q42", "run_id": "run-s1", "name": "Douglas Adams", "aliases": None, "dataset_id": "demo_dataset_v1"}]
             driver = self._make_driver(mentions, canonicals)
 
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
@@ -2717,7 +2757,7 @@ class TestRunEntityResolutionHybrid(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             config = self._live_config(Path(tmpdir))
             mentions = [{"mention_id": "m1", "name": "Alice", "entity_type": "person"}]
-            canonicals = [{"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": None}]
+            canonicals = [{"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": None, "dataset_id": "demo_dataset_v1"}]
             driver = self._make_driver(mentions, canonicals)
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
                 result = run_entity_resolution(config, run_id="hybrid-live-004", source_uri=None)
@@ -2730,7 +2770,7 @@ class TestRunEntityResolutionHybrid(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             config = self._live_config(Path(tmpdir))
             mentions = [{"mention_id": "m1", "name": "Alice", "entity_type": "person"}]
-            canonicals = [{"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": None}]
+            canonicals = [{"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": None, "dataset_id": "demo_dataset_v1"}]
             driver = self._make_driver(mentions, canonicals)
             source_uri = "file:///test-doc.pdf"
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
@@ -2752,7 +2792,7 @@ class TestRunEntityResolutionHybrid(unittest.TestCase):
             config = self._live_config(Path(tmpdir))
             # "ali" is an alias for "Alice" (Q1)
             mentions = [{"mention_id": "m1", "name": "Ali", "entity_type": "person"}]
-            canonicals = [{"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": "Ali|Alicia"}]
+            canonicals = [{"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": "Ali|Alicia", "dataset_id": "demo_dataset_v1"}]
             driver = self._make_driver(mentions, canonicals)
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
                 result = run_entity_resolution(config, run_id="hybrid-live-005", source_uri=None)
@@ -2767,8 +2807,8 @@ class TestRunEntityResolutionHybrid(unittest.TestCase):
                 {"mention_id": "m2", "name": "BC", "entity_type": "org"},
             ]
             canonicals = [
-                {"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": None},
-                {"entity_id": "Q2", "run_id": "run-s1", "name": "Bob Corp", "aliases": "BC"},
+                {"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": None, "dataset_id": "demo_dataset_v1"},
+                {"entity_id": "Q2", "run_id": "run-s1", "name": "Bob Corp", "aliases": "BC", "dataset_id": "demo_dataset_v1"},
             ]
             driver = self._make_driver(mentions, canonicals)
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
@@ -2786,7 +2826,7 @@ class TestRunEntityResolutionHybrid(unittest.TestCase):
                 {"mention_id": "m2", "name": "Unknown Corp", "entity_type": "org"},
             ]
             canonicals = [
-                {"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": None},
+                {"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": None, "dataset_id": "demo_dataset_v1"},
             ]
             driver = self._make_driver(mentions, canonicals)
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
@@ -2836,7 +2876,7 @@ class TestRunEntityResolutionHybrid(unittest.TestCase):
                 {"mention_id": "m2", "name": "Ali", "entity_type": "person"},
             ]
             canonicals = [
-                {"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": "Ali"},
+                {"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": "Ali", "dataset_id": "demo_dataset_v1"},
             ]
             driver = self._make_driver(mentions, canonicals)
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
@@ -2855,8 +2895,8 @@ class TestRunEntityResolutionHybrid(unittest.TestCase):
                 {"mention_id": "m2", "name": "Bob Corp", "entity_type": "org"},
             ]
             canonicals = [
-                {"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": None},
-                {"entity_id": "Q2", "run_id": "run-s1", "name": "Bob Corp", "aliases": None},
+                {"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": None, "dataset_id": "demo_dataset_v1"},
+                {"entity_id": "Q2", "run_id": "run-s1", "name": "Bob Corp", "aliases": None, "dataset_id": "demo_dataset_v1"},
             ]
             driver = self._make_driver(mentions, canonicals)
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
@@ -2875,7 +2915,7 @@ class TestRunEntityResolutionHybrid(unittest.TestCase):
                 {"mention_id": "m3", "name": "Unknown", "entity_type": "person"},
             ]
             canonicals = [
-                {"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": None},
+                {"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": None, "dataset_id": "demo_dataset_v1"},
             ]
             driver = self._make_driver(mentions, canonicals)
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
@@ -2894,8 +2934,8 @@ class TestRunEntityResolutionHybrid(unittest.TestCase):
                 {"mention_id": "m2", "name": "Bob Corp", "entity_type": "org"},
             ]
             canonicals = [
-                {"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": None},
-                {"entity_id": "Q2", "run_id": "run-s1", "name": "Bob Corp", "aliases": None},
+                {"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": None, "dataset_id": "demo_dataset_v1"},
+                {"entity_id": "Q2", "run_id": "run-s1", "name": "Bob Corp", "aliases": None, "dataset_id": "demo_dataset_v1"},
             ]
             driver = self._make_driver(mentions, canonicals)
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
@@ -2972,7 +3012,7 @@ class TestRunEntityResolutionHybrid(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             config = self._live_config(Path(tmpdir))
             mentions = [{"mention_id": "m1", "name": "Alice", "entity_type": "person"}]
-            canonicals = [{"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": None}]
+            canonicals = [{"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": None, "dataset_id": "demo_dataset_v1"}]
             driver = self._make_driver(mentions, canonicals)
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
                 run_entity_resolution(config, run_id="hybrid-live-011", source_uri=None)
@@ -3022,6 +3062,7 @@ class TestManifestGraphConsistency(unittest.TestCase):
                 "run_id": "canonical-run",
                 "name": m["name"],
                 "aliases": None,
+                "dataset_id": "demo_dataset_v1",
             }
             for i, m in enumerate(mentions[:count])
         ]
@@ -3453,6 +3494,224 @@ class TestArtifactSubdirValidation(unittest.TestCase):
                 / "entity_resolution_summary.json"
             )
             self.assertTrue(expected.exists())
+
+
+class TestHybridAlignmentCrossDatasetIsolation(unittest.TestCase):
+    """Regression tests for cross-dataset alignment isolation.
+
+    Verifies that hybrid alignment for a dataset (e.g. demo_dataset_v2) attaches
+    clusters to CanonicalEntity nodes belonging to that dataset, not to nodes from
+    a different dataset (e.g. demo_dataset_v1) that share the same QID.
+
+    Reproduces the issue described in: Make hybrid alignment dataset-local for
+    shared canonical entities (#epic-multi-dataset-harden).
+    """
+
+    _V1_DATASET = "demo_dataset_v1"
+    _V2_DATASET = "demo_dataset_v2"
+    _SHARED_QID = "Q950419"
+    _SHARED_NAME = "Mercado Libre"
+
+    def _live_config(self, tmp_path: Path) -> Config:
+        return Config(
+            dry_run=False,
+            output_dir=tmp_path,
+            neo4j_uri="bolt://example.invalid",
+            neo4j_username="neo4j",
+            neo4j_password="secret",
+            neo4j_database="neo4j",
+            openai_model="test-model",
+            resolution_mode=_RESOLUTION_MODE_HYBRID,
+        )
+
+    def _make_cross_dataset_driver(
+        self,
+        mentions: list[dict[str, Any]],
+        all_canonicals: list[dict[str, Any]],
+        target_dataset_id: str,
+    ) -> MagicMock:
+        """Build a mock driver holding canonical nodes from two datasets.
+
+        Delegates to the module-level ``_make_neo4j_test_driver`` with all
+        canonical nodes as the backing store and ``precompute_dataset_id`` set
+        so that alignment pre-computation uses only the target dataset's nodes.
+        The CanonicalEntity read handler inside ``_make_neo4j_test_driver``
+        already filters by ``parameters_["dataset_id"]``, mirroring the real
+        ``WHERE canonical.dataset_id = $dataset_id`` Cypher predicate.
+        """
+        return _make_neo4j_test_driver(
+            mentions,
+            all_canonicals,
+            precompute_dataset_id=target_dataset_id,
+        )
+
+    def test_v2_hybrid_aligns_to_v2_canonical_not_v1_for_shared_qid(self):
+        """v2 hybrid alignment must attach v2 clusters to v2 CanonicalEntity nodes.
+
+        When both demo_dataset_v1 and demo_dataset_v2 contain a CanonicalEntity for
+        the same QID (e.g. Q950419 / Mercado Libre), running hybrid resolution for v2
+        must align v2 clusters to the v2 canonical entity, not the v1 one.
+        """
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config(Path(tmpdir))
+            mentions = [
+                {"mention_id": "m1", "name": self._SHARED_NAME, "entity_type": "organization"},
+            ]
+            # Both datasets have the same entity but with dataset-local run_ids.
+            all_canonicals = [
+                {
+                    "entity_id": self._SHARED_QID,
+                    "run_id": "structured-run-v1",
+                    "name": self._SHARED_NAME,
+                    "aliases": None,
+                    "dataset_id": self._V1_DATASET,
+                },
+                {
+                    "entity_id": self._SHARED_QID,
+                    "run_id": "structured-run-v2",
+                    "name": self._SHARED_NAME,
+                    "aliases": None,
+                    "dataset_id": self._V2_DATASET,
+                },
+            ]
+            driver = self._make_cross_dataset_driver(mentions, all_canonicals, self._V2_DATASET)
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                result = run_entity_resolution(
+                    config,
+                    run_id="cross-ds-hybrid-001",
+                    source_uri=None,
+                    dataset_id=self._V2_DATASET,
+                )
+
+            # Alignment should have occurred.
+            self.assertGreaterEqual(result["aligned_clusters"], 1, "Expected at least one aligned cluster")
+
+            # Inspect the ALIGNED_WITH MERGE write parameters to confirm they reference v2's run_id.
+            aligned_with_rows: list[dict[str, Any]] = []
+            for call in driver.execute_query.call_args_list:
+                query = call.args[0] if call.args else ""
+                if "MERGE" not in query or "ALIGNED_WITH" not in query:
+                    continue
+                parameters = call.kwargs.get("parameters_", {})
+                rows = parameters.get("rows", [])
+                aligned_with_rows.extend(row for row in rows if isinstance(row, dict))
+
+            self.assertTrue(aligned_with_rows, "Expected at least one ALIGNED_WITH MERGE write")
+
+            canonical_run_ids = {
+                row.get("canonical_run_id")
+                for row in aligned_with_rows
+                if row.get("canonical_run_id") is not None
+            }
+            self.assertIn(
+                "structured-run-v2",
+                canonical_run_ids,
+                "ALIGNED_WITH edge must reference the v2 canonical entity (structured-run-v2); "
+                "cross-dataset leakage detected.",
+            )
+            self.assertNotIn(
+                "structured-run-v1",
+                canonical_run_ids,
+                "ALIGNED_WITH edge must NOT reference the v1 canonical entity (structured-run-v1); "
+                "cross-dataset leakage detected.",
+            )
+
+    def test_v2_canonical_query_is_scoped_by_dataset_id(self):
+        """The CanonicalEntity lookup query must include dataset_id = v2 in its parameters."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config(Path(tmpdir))
+            mentions = [
+                {"mention_id": "m1", "name": self._SHARED_NAME, "entity_type": "organization"},
+            ]
+            all_canonicals = [
+                {
+                    "entity_id": self._SHARED_QID,
+                    "run_id": "structured-run-v1",
+                    "name": self._SHARED_NAME,
+                    "aliases": None,
+                    "dataset_id": self._V1_DATASET,
+                },
+                {
+                    "entity_id": self._SHARED_QID,
+                    "run_id": "structured-run-v2",
+                    "name": self._SHARED_NAME,
+                    "aliases": None,
+                    "dataset_id": self._V2_DATASET,
+                },
+            ]
+            driver = self._make_cross_dataset_driver(mentions, all_canonicals, self._V2_DATASET)
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                run_entity_resolution(
+                    config,
+                    run_id="cross-ds-hybrid-002",
+                    source_uri=None,
+                    dataset_id=self._V2_DATASET,
+                )
+
+            # Verify that the CanonicalEntity READ query text itself includes the
+            # dataset_id predicate, and that the query parameters use dataset_id=v2.
+            # Exclude post-write count queries that also mention CanonicalEntity.
+            canonical_read_calls = []
+            for call_obj in driver.execute_query.call_args_list:
+                query = call_obj.args[0] if call_obj.args else ""
+                if (
+                    "CanonicalEntity" in query
+                    and "RETURN" in query
+                    and "ALIGNED_WITH" not in query
+                ):
+                    canonical_read_calls.append(call_obj)
+            self.assertTrue(canonical_read_calls, "Expected a CanonicalEntity read query")
+            for call_obj in canonical_read_calls:
+                query = call_obj.args[0] if call_obj.args else ""
+                self.assertIn(
+                    "canonical.dataset_id = $dataset_id",
+                    query,
+                    "CanonicalEntity read query must include a dataset_id predicate",
+                )
+                params = call_obj.kwargs.get("parameters_") or {}
+                self.assertEqual(
+                    params.get("dataset_id"),
+                    self._V2_DATASET,
+                    "CanonicalEntity read query must be scoped to demo_dataset_v2",
+                )
+
+    def test_no_cross_dataset_leakage_when_only_v1_exists(self):
+        """When dataset_id=v2 and only v1 canonical entities exist, no alignment occurs."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config(Path(tmpdir))
+            mentions = [
+                {"mention_id": "m1", "name": self._SHARED_NAME, "entity_type": "organization"},
+            ]
+            # Only v1 canonical node exists; v2 has none.
+            all_canonicals = [
+                {
+                    "entity_id": self._SHARED_QID,
+                    "run_id": "structured-run-v1",
+                    "name": self._SHARED_NAME,
+                    "aliases": None,
+                    "dataset_id": self._V1_DATASET,
+                },
+            ]
+            driver = self._make_cross_dataset_driver(mentions, all_canonicals, self._V2_DATASET)
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                result = run_entity_resolution(
+                    config,
+                    run_id="cross-ds-hybrid-003",
+                    source_uri=None,
+                    dataset_id=self._V2_DATASET,
+                )
+
+            # No alignment should happen because v2 has no canonical entities.
+            self.assertEqual(result["aligned_clusters"], 0, "No alignment expected when v2 has no canonical nodes")
+            aligned_with_merge_calls = [
+                call for call in driver.execute_query.call_args_list
+                if "MERGE" in (call.args[0] if call.args else "")
+                and "ALIGNED_WITH" in (call.args[0] if call.args else "")
+            ]
+            self.assertFalse(
+                aligned_with_merge_calls,
+                "No ALIGNED_WITH MERGE should occur when v2 has no canonical entities",
+            )
 
 
 if __name__ == "__main__":
