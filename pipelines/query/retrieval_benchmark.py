@@ -167,9 +167,18 @@ def main(argv: list[str] | None = None) -> None:  # pragma: no cover
     artifact_path = result["artifact_path"]
     status = result["status"]
     print(f"Status           : {status}")
-    print(f"Dataset ID       : {result['dataset_id'] or '(all datasets)'}")
-    print(f"Run ID           : {result['run_id'] or '(all runs)'}")
-    print(f"Align version    : {result['alignment_version'] or '(all versions)'}")
+    print(
+        f"Dataset ID       : "
+        f"{'(all datasets)' if result['dataset_id'] is None else result['dataset_id']}"
+    )
+    print(
+        f"Run ID           : "
+        f"{'(all runs)' if result['run_id'] is None else result['run_id']}"
+    )
+    print(
+        f"Align version    : "
+        f"{'(all versions)' if result['alignment_version'] is None else result['alignment_version']}"
+    )
     print(f"Artifact path    : {artifact_path}")
 
     if result.get("artifact"):

@@ -1758,3 +1758,15 @@ class TestDatasetIdScoping(unittest.TestCase):
 
             # Confirm the scoped count is less than the unscoped count.
             self.assertLess(cr_v1["canonical_claim_count"], cr_all["canonical_claim_count"])
+
+    def test_empty_string_dataset_id_raises_value_error(self) -> None:
+        """Passing dataset_id='' should raise ValueError to prevent silent scoping to ''."""
+        with tempfile.TemporaryDirectory() as tmp:
+            config = _make_config(Path(tmp), dry_run=True)
+            with self.assertRaises(ValueError, msg="dataset_id must be None or a non-empty string."):
+                run_retrieval_benchmark(config, run_id="r1", dataset_id="")
+
+    def test_pairwise_canonical_direction_case_uses_tolower(self) -> None:
+        """The CASE expression in _Q_PAIRWISE_CANONICAL should use toLower($entity_a)
+        so that direction labelling is case-insensitive — consistent with the WHERE clauses."""
+        self.assertIn("toLower($entity_a)", _Q_PAIRWISE_CANONICAL)

@@ -512,7 +512,7 @@ MATCH (mSub)<-[:HAS_PARTICIPANT {role: 'subject'}]-(c:ExtractedClaim)
 WHERE ($run_id IS NULL OR c.run_id = $run_id)
 MATCH (c)-[:HAS_PARTICIPANT {role: 'object'}]->(mObj)
 WITH DISTINCT c, mSub, mObj, canonSub, canonObj,
-     CASE WHEN toLower(canonSub.name) CONTAINS $entity_a THEN 'A→B' ELSE 'B→A' END AS direction
+     CASE WHEN toLower(canonSub.name) CONTAINS toLower($entity_a) THEN 'A→B' ELSE 'B→A' END AS direction
 RETURN c.claim_id             AS claim_id,
        c.claim_text           AS claim_text,
        c.predicate            AS predicate,
@@ -1083,6 +1083,9 @@ def run_retrieval_benchmark(
 
     if run_id == "":
         raise ValueError("run_id must be None or a non-empty string.")
+
+    if dataset_id == "":
+        raise ValueError("dataset_id must be None or a non-empty string.")
 
     if run_id is not None:
         run_id_path = Path(run_id)
