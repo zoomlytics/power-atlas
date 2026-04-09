@@ -358,11 +358,16 @@ def _resolve_ask_scope(
     try:
         resolved_dataset_id = resolve_dataset_root(config.dataset_name).dataset_id
     except ValueError as exc:
-        if config.dataset_name:
+        # Treat both --dataset <name> and FIXTURE_DATASET=<name> as explicit
+        # selections; a failure to resolve an explicit name must never silently
+        # fall through to an unfiltered query that could pick the wrong run.
+        explicit_source = config.dataset_name or os.getenv("FIXTURE_DATASET")
+        if explicit_source:
             raise SystemExit(
-                f"Failed to resolve dataset {config.dataset_name!r}: {exc}"
+                f"Failed to resolve dataset {explicit_source!r}: {exc}"
             ) from exc
-        # Implicit/auto-discovered dataset resolution failed: preserve legacy
+        # Implicit/auto-discovered dataset resolution failed (e.g.
+        # AmbiguousDatasetError with no explicit selection): preserve legacy
         # behaviour by falling back to an unfiltered latest-run query.
     latest_run_id = _fetch_latest_unstructured_run_id(config, dataset_id=resolved_dataset_id)
     if latest_run_id is None:

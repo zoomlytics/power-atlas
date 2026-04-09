@@ -5656,14 +5656,19 @@ def test_resolve_ask_scope_fixture_dataset_raises_system_exit_on_resolution_fail
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
     """Explicit dataset selection via FIXTURE_DATASET must also fail fast on resolution
-    failure, rather than silently falling back to an unfiltered latest-run query."""
+    failure, rather than silently falling back to an unfiltered latest-run query.
+
+    This specifically exercises the case where config.dataset_name is None (no --dataset
+    CLI flag) but FIXTURE_DATASET env var is set, so resolve_dataset_root() treats it as
+    an explicit selection that should fail loudly, not silently fall back."""
     from demo.run_demo import _resolve_ask_scope, parse_args
 
     monkeypatch.delenv("UNSTRUCTURED_RUN_ID", raising=False)
     monkeypatch.setenv("FIXTURE_DATASET", "nonexistent_env_dataset")
 
+    # No --dataset flag: config.dataset_name is None; only FIXTURE_DATASET drives selection.
     args = parse_args(["--live", "ask"])
-    config = _live_config(tmp_path, dataset_name="nonexistent_env_dataset")
+    config = _live_config(tmp_path, dataset_name=None)
 
     with mock.patch(
         "demo.run_demo.resolve_dataset_root",
