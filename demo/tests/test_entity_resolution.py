@@ -73,7 +73,8 @@ def _make_neo4j_test_driver(
         for m in mentions
     ]
     canonical_records = [
-        _Record(entity_id=c["entity_id"], run_id=c.get("run_id", ""), name=c["name"], aliases=c.get("aliases"))
+        _Record(entity_id=c["entity_id"], run_id=c.get("run_id", ""), name=c["name"],
+                aliases=c.get("aliases"), dataset_id=c.get("dataset_id"))
         for c in canonical_nodes
     ]
 
@@ -209,6 +210,18 @@ def _make_neo4j_test_driver(
         if "EntityMention" in query and "RETURN" in query:
             return (mention_records, None, None)
         if "CanonicalEntity" in query and "RETURN" in query:
+            params = parameters_ or {}
+            req_dataset = params.get("dataset_id")
+            if req_dataset is not None:
+                # Filter canonical records by dataset_id.  Records without a
+                # dataset_id (i.e. dataset_id is None) are treated as dataset-agnostic
+                # and match any dataset — this preserves backward compatibility for
+                # existing tests that do not set dataset_id on canonical nodes.
+                filtered = [
+                    r for r in canonical_records
+                    if r.get("dataset_id") is None or r.get("dataset_id") == req_dataset
+                ]
+                return (filtered, None, None)
             return (canonical_records, None, None)
         # write queries — return empty
         return ([], None, None)
@@ -3453,6 +3466,321 @@ class TestArtifactSubdirValidation(unittest.TestCase):
                 / "entity_resolution_summary.json"
             )
             self.assertTrue(expected.exists())
+
+
+class TestHybridAlignmentCrossDatasetIsolation(unittest.TestCase):
+    """Regression tests for cross-dataset alignment isolation.
+
+    Verifies that hybrid alignment for a dataset (e.g. demo_dataset_v2) attaches
+    clusters to CanonicalEntity nodes belonging to that dataset, not to nodes from
+    a different dataset (e.g. demo_dataset_v1) that share the same QID.
+
+    Reproduces the issue described in: Make hybrid alignment dataset-local for
+    shared canonical entities.
+    """
+
+    _V1_DATASET = "demo_dataset_v1"
+    _V2_DATASET = "demo_dataset_v2"
+    _SHARED_QID = "Q950419"
+    _SHARED_NAME = "Mercado Libre"
+
+    def _live_config(self, tmp_path: Path) -> Config:
+        return Config(
+            dry_run=False,
+            output_dir=tmp_path,
+            neo4j_uri="bolt://example.invalid",
+            neo4j_username="neo4j",
+            neo4j_password="secret",
+            neo4j_database="neo4j",
+            openai_model="test-model",
+            resolution_mode=_RESOLUTION_MODE_HYBRID,
+        )
+
+    def _make_cross_dataset_driver(
+        self,
+        mentions: list[dict[str, Any]],
+        all_canonicals: list[dict[str, Any]],
+        target_dataset_id: str,
+    ) -> MagicMock:
+        """Build a mock driver holding canonical nodes from two datasets.
+
+        The CanonicalEntity query response is filtered by ``dataset_id`` so that
+        only canonical nodes from *target_dataset_id* are returned, mirroring the
+        new ``WHERE canonical.dataset_id = $dataset_id`` filter in the real query.
+        Post-write alignment count queries are pre-computed from *target_dataset_id*
+        canonical nodes only.
+        """
+
+        class _Record(dict):
+            pass
+
+        mention_records = [
+            _Record(
+                mention_id=m["mention_id"],
+                name=m["name"],
+                entity_type=m.get("entity_type"),
+                source_uri=m.get("source_uri"),
+            )
+            for m in mentions
+        ]
+
+        # All canonical records across all datasets (what would exist in the database).
+        all_canonical_records = [
+            _Record(
+                entity_id=c["entity_id"],
+                run_id=c.get("run_id", ""),
+                name=c["name"],
+                aliases=c.get("aliases"),
+                dataset_id=c.get("dataset_id"),
+            )
+            for c in all_canonicals
+        ]
+
+        # Pre-compute alignment counts using only target-dataset canonical nodes.
+        target_canonicals = [c for c in all_canonicals if c.get("dataset_id") == target_dataset_id]
+        _cluster_rows = _cluster_mentions_unstructured_only([
+            {
+                "mention_id": m["mention_id"],
+                "name": m["name"],
+                "entity_type": m.get("entity_type"),
+                "source_uri": m.get("source_uri"),
+            }
+            for m in mentions
+        ])
+        _cluster_entries: dict[tuple[str, str], dict[str, Any]] = {}
+        for row in _cluster_rows:
+            _key = (row.get("entity_type") or "", row["normalized_text"])
+            if _key not in _cluster_entries:
+                _cluster_entries[_key] = {
+                    "cluster_id": _key,
+                    "normalized_text": row["normalized_text"],
+                }
+        _unique_clusters = list(_cluster_entries.values())
+        _total_cluster_count = len(_unique_clusters)
+        _, _by_label, _by_alias = _build_lookup_tables([
+            {
+                "entity_id": c["entity_id"],
+                "run_id": c.get("run_id", ""),
+                "name": c["name"],
+                "aliases": c.get("aliases"),
+            }
+            for c in target_canonicals
+        ])
+        _alignment_rows = _align_clusters_to_canonical(_unique_clusters, _by_label, _by_alias)
+        _aligned_cluster_keys = {r["cluster_id"] for r in _alignment_rows}
+        _aligned_cluster_count = len(_aligned_cluster_keys)
+        _distinct_canonical_count = len(
+            {(r["canonical_entity_id"], r["canonical_run_id"]) for r in _alignment_rows}
+        )
+        _mentions_in_aligned = sum(
+            1 for row in _cluster_rows
+            if (row.get("entity_type") or "", row["normalized_text"]) in _aligned_cluster_keys
+        )
+        _alignment_breakdown: dict[str, int] = {}
+        for _arow in _alignment_rows:
+            _method = _arow.get("alignment_method") or "unknown"
+            _alignment_breakdown[_method] = _alignment_breakdown.get(_method, 0) + 1
+
+        member_of_written = False
+        aligned_with_written = False
+
+        def execute_query(query, parameters_=None, database_=None, routing_=None):
+            nonlocal member_of_written, aligned_with_written
+
+            if "MERGE" in query and "MEMBER_OF" in query:
+                member_of_written = True
+            if "MERGE" in query and "ALIGNED_WITH" in query:
+                aligned_with_written = True
+
+            if "mentions_clustered" in query:
+                if member_of_written:
+                    return ([_Record(mentions_clustered=len(mention_records), mentions_unclustered=0)], None, None)
+                return ([_Record(mentions_clustered=0, mentions_unclustered=len(mention_records))], None, None)
+            if "total_clusters" in query:
+                if member_of_written:
+                    return ([_Record(total_clusters=_total_cluster_count)], None, None)
+                return ([_Record(total_clusters=0)], None, None)
+            if "aligned_clusters" in query:
+                if aligned_with_written:
+                    return (
+                        [_Record(aligned_clusters=_aligned_cluster_count,
+                                 distinct_canonical_entities_aligned=_distinct_canonical_count)],
+                        None, None,
+                    )
+                return ([_Record(aligned_clusters=0, distinct_canonical_entities_aligned=0)], None, None)
+            if "alignment_method" in query and "ALIGNED_WITH" in query:
+                if aligned_with_written:
+                    return (
+                        [_Record(alignment_method=method, method_count=count)
+                         for method, count in _alignment_breakdown.items()],
+                        None, None,
+                    )
+                return ([], None, None)
+            if "mentions_in_aligned" in query:
+                if aligned_with_written:
+                    return ([_Record(mentions_in_aligned=_mentions_in_aligned)], None, None)
+                return ([_Record(mentions_in_aligned=0)], None, None)
+            if "EntityMention" in query and "RETURN" in query:
+                return (mention_records, None, None)
+            if "CanonicalEntity" in query and "RETURN" in query:
+                # Return only the target dataset's canonical nodes, matching the
+                # WHERE canonical.dataset_id = $dataset_id filter in the real query.
+                params = parameters_ or {}
+                req_dataset = params.get("dataset_id")
+                if req_dataset is not None:
+                    filtered = [r for r in all_canonical_records if r.get("dataset_id") == req_dataset]
+                    return (filtered, None, None)
+                return (all_canonical_records, None, None)
+            return ([], None, None)
+
+        driver = MagicMock()
+        driver.execute_query.side_effect = execute_query
+        driver.__enter__ = lambda s: s
+        driver.__exit__ = MagicMock(return_value=False)
+        return driver
+
+    def test_v2_hybrid_aligns_to_v2_canonical_not_v1_for_shared_qid(self):
+        """v2 hybrid alignment must attach v2 clusters to v2 CanonicalEntity nodes.
+
+        When both demo_dataset_v1 and demo_dataset_v2 contain a CanonicalEntity for
+        the same QID (e.g. Q950419 / Mercado Libre), running hybrid resolution for v2
+        must align v2 clusters to the v2 canonical entity, not the v1 one.
+        """
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config(Path(tmpdir))
+            mentions = [
+                {"mention_id": "m1", "name": self._SHARED_NAME, "entity_type": "organization"},
+            ]
+            # Both datasets have the same entity but with dataset-local run_ids.
+            all_canonicals = [
+                {
+                    "entity_id": self._SHARED_QID,
+                    "run_id": "structured-run-v1",
+                    "name": self._SHARED_NAME,
+                    "aliases": None,
+                    "dataset_id": self._V1_DATASET,
+                },
+                {
+                    "entity_id": self._SHARED_QID,
+                    "run_id": "structured-run-v2",
+                    "name": self._SHARED_NAME,
+                    "aliases": None,
+                    "dataset_id": self._V2_DATASET,
+                },
+            ]
+            driver = self._make_cross_dataset_driver(mentions, all_canonicals, self._V2_DATASET)
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                result = run_entity_resolution(
+                    config,
+                    run_id="cross-ds-hybrid-001",
+                    source_uri=None,
+                    dataset_id=self._V2_DATASET,
+                )
+
+            # Alignment should have occurred.
+            self.assertGreaterEqual(result["aligned_clusters"], 1, "Expected at least one aligned cluster")
+
+            # Inspect the ALIGNED_WITH MERGE call to confirm it references v2's run_id.
+            all_calls = [str(c) for c in driver.execute_query.call_args_list]
+            aligned_with_merges = [c for c in all_calls if "MERGE" in c and "ALIGNED_WITH" in c]
+            self.assertTrue(aligned_with_merges, "Expected at least one ALIGNED_WITH MERGE write")
+            self.assertTrue(
+                any("structured-run-v2" in c for c in aligned_with_merges),
+                "ALIGNED_WITH edge must reference the v2 canonical entity (structured-run-v2); "
+                "cross-dataset leakage detected.",
+            )
+            self.assertFalse(
+                any("structured-run-v1" in c for c in aligned_with_merges),
+                "ALIGNED_WITH edge must NOT reference the v1 canonical entity (structured-run-v1); "
+                "cross-dataset leakage detected.",
+            )
+
+    def test_v2_canonical_query_is_scoped_by_dataset_id(self):
+        """The CanonicalEntity lookup query must include dataset_id = v2 in its parameters."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config(Path(tmpdir))
+            mentions = [
+                {"mention_id": "m1", "name": self._SHARED_NAME, "entity_type": "organization"},
+            ]
+            all_canonicals = [
+                {
+                    "entity_id": self._SHARED_QID,
+                    "run_id": "structured-run-v1",
+                    "name": self._SHARED_NAME,
+                    "aliases": None,
+                    "dataset_id": self._V1_DATASET,
+                },
+                {
+                    "entity_id": self._SHARED_QID,
+                    "run_id": "structured-run-v2",
+                    "name": self._SHARED_NAME,
+                    "aliases": None,
+                    "dataset_id": self._V2_DATASET,
+                },
+            ]
+            driver = self._make_cross_dataset_driver(mentions, all_canonicals, self._V2_DATASET)
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                run_entity_resolution(
+                    config,
+                    run_id="cross-ds-hybrid-002",
+                    source_uri=None,
+                    dataset_id=self._V2_DATASET,
+                )
+
+            # Verify that the CanonicalEntity READ query was called with dataset_id=v2.
+            # The dataset-scoped lookup query (hybrid enrichment pass) contains both
+            # "dataset_id" in the query text and uses WHERE filtering; exclude
+            # post-write count queries that also mention CanonicalEntity.
+            canonical_read_calls = [
+                c for c in driver.execute_query.call_args_list
+                if "CanonicalEntity" in str(c) and "RETURN" in str(c)
+                and "dataset_id" in str(c) and "ALIGNED_WITH" not in str(c)
+            ]
+            self.assertTrue(canonical_read_calls, "Expected a CanonicalEntity read query with dataset_id filter")
+            for call_obj in canonical_read_calls:
+                # call_args_list entries are call(args, kwargs) objects; parameters_ is
+                # passed as a keyword argument.
+                _, kwargs = call_obj
+                params = kwargs.get("parameters_") or {}
+                self.assertEqual(
+                    params.get("dataset_id"),
+                    self._V2_DATASET,
+                    "CanonicalEntity read query must be scoped to demo_dataset_v2",
+                )
+
+    def test_no_cross_dataset_leakage_when_only_v1_exists(self):
+        """When dataset_id=v2 and only v1 canonical entities exist, no alignment occurs."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config(Path(tmpdir))
+            mentions = [
+                {"mention_id": "m1", "name": self._SHARED_NAME, "entity_type": "organization"},
+            ]
+            # Only v1 canonical node exists; v2 has none.
+            all_canonicals = [
+                {
+                    "entity_id": self._SHARED_QID,
+                    "run_id": "structured-run-v1",
+                    "name": self._SHARED_NAME,
+                    "aliases": None,
+                    "dataset_id": self._V1_DATASET,
+                },
+            ]
+            driver = self._make_cross_dataset_driver(mentions, all_canonicals, self._V2_DATASET)
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                result = run_entity_resolution(
+                    config,
+                    run_id="cross-ds-hybrid-003",
+                    source_uri=None,
+                    dataset_id=self._V2_DATASET,
+                )
+
+            # No alignment should happen because v2 has no canonical entities.
+            self.assertEqual(result["aligned_clusters"], 0, "No alignment expected when v2 has no canonical nodes")
+            all_calls = [str(c) for c in driver.execute_query.call_args_list]
+            self.assertFalse(
+                any("MERGE" in c and "ALIGNED_WITH" in c for c in all_calls),
+                "No ALIGNED_WITH MERGE should occur when v2 has no canonical entities",
+            )
 
 
 if __name__ == "__main__":

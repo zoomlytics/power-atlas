@@ -225,6 +225,7 @@ from typing import Any
 from pathlib import Path
 from urllib.parse import quote as _pct_encode
 
+from demo.contracts.pipeline import get_dataset_id
 from demo.contracts.resolution import ALIGNMENT_VERSION as _ALIGNMENT_VERSION
 from demo.text_utils import normalize_mention_text
 
@@ -1358,6 +1359,7 @@ def run_entity_resolution(
     source_uri: str | None,
     resolution_mode: str | None = None,
     artifact_subdir: str = "entity_resolution",
+    dataset_id: str | None = None,
 ) -> dict[str, Any]:
     """Resolve or cluster :EntityMention nodes scoped to *run_id*.
 
@@ -1399,6 +1401,13 @@ def run_entity_resolution(
                          or ``"entity_resolution_hybrid"``) when calling the function
                          multiple times for the same *run_id* to avoid overwriting
                          artifacts from an earlier pass.
+        dataset_id:      Dataset identifier used to scope :CanonicalEntity lookups to
+                         the active dataset.  When ``None``, the value returned by
+                         :func:`~demo.contracts.pipeline.get_dataset_id` is used so
+                         that the active dataset set via
+                         :func:`~demo.contracts.pipeline.set_dataset_id` is respected.
+                         Pass this explicitly when calling from an orchestrated pipeline
+                         stage to avoid relying on module-level state.
 
     Returns:
         A summary dict with counts, resolution breakdown, ``resolution_mode``,
@@ -1418,6 +1427,12 @@ def run_entity_resolution(
             f"Unknown resolution_mode {resolution_mode!r}. "
             f"Valid modes: {sorted(_VALID_RESOLUTION_MODES)}"
         )
+
+    # Resolve the effective dataset_id for scoping CanonicalEntity lookups.
+    # Explicit parameter takes precedence; fall back to the module-level active dataset
+    # set by set_dataset_id() so that orchestrated pipelines that call set_dataset_id()
+    # before this stage automatically get the correct scope.
+    effective_dataset_id: str = dataset_id if isinstance(dataset_id, str) and dataset_id else get_dataset_id()
 
     resolved_at = datetime.now(UTC).isoformat()
 
@@ -1557,16 +1572,19 @@ def run_entity_resolution(
 
             # Enrichment step: align clusters to canonical entities where possible.
             # This is additive — clusters with no canonical match remain unchanged.
+            # Scope the lookup to dataset_id so that shared QIDs from other datasets
+            # do not leak into this run's alignment (cross-dataset isolation).
             canonical_result, _, _ = driver.execute_query(
                 """
                 MATCH (canonical:CanonicalEntity)
+                WHERE canonical.dataset_id = $dataset_id
                 RETURN canonical.entity_id AS entity_id,
                        canonical.run_id AS run_id,
                        canonical.name AS name,
                        canonical.aliases AS aliases
                 ORDER BY canonical.entity_id
                 """,
-                parameters_={},
+                parameters_={"dataset_id": effective_dataset_id},
                 database_=config.neo4j_database,
                 routing_=neo4j.RoutingControl.READ,
             )
@@ -1607,16 +1625,19 @@ def run_entity_resolution(
                 )
         else:
             # 2b. structured_anchor (default): resolve against CanonicalEntity nodes.
+            # Scope the lookup to dataset_id so that shared QIDs from other datasets
+            # do not leak into this run's resolution (cross-dataset isolation).
             canonical_result, _, _ = driver.execute_query(
                 """
                 MATCH (canonical:CanonicalEntity)
+                WHERE canonical.dataset_id = $dataset_id
                 RETURN canonical.entity_id AS entity_id,
                        canonical.run_id AS run_id,
                        canonical.name AS name,
                        canonical.aliases AS aliases
                 ORDER BY canonical.entity_id
                 """,
-                parameters_={},
+                parameters_={"dataset_id": effective_dataset_id},
                 database_=config.neo4j_database,
                 routing_=neo4j.RoutingControl.READ,
             )
