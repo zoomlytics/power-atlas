@@ -5650,3 +5650,32 @@ def test_resolve_ask_scope_explicit_dataset_raises_system_exit_on_resolution_fai
     )
     # The fetch must never be called when resolution fails for an explicit dataset
     mock_fetch.assert_not_called()
+
+
+def test_resolve_ask_scope_fixture_dataset_raises_system_exit_on_resolution_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """Explicit dataset selection via FIXTURE_DATASET must also fail fast on resolution
+    failure, rather than silently falling back to an unfiltered latest-run query."""
+    from demo.run_demo import _resolve_ask_scope, parse_args
+
+    monkeypatch.delenv("UNSTRUCTURED_RUN_ID", raising=False)
+    monkeypatch.setenv("FIXTURE_DATASET", "nonexistent_env_dataset")
+
+    args = parse_args(["--live", "ask"])
+    config = _live_config(tmp_path, dataset_name="nonexistent_env_dataset")
+
+    with mock.patch(
+        "demo.run_demo.resolve_dataset_root",
+        side_effect=ValueError("Dataset 'nonexistent_env_dataset' not found"),
+    ), mock.patch(
+        "demo.run_demo._fetch_latest_unstructured_run_id"
+    ) as mock_fetch:
+        with pytest.raises(SystemExit) as exc_info:
+            _resolve_ask_scope(args, config)
+
+    assert "nonexistent_env_dataset" in str(exc_info.value), (
+        "SystemExit message must mention the unresolvable dataset name from FIXTURE_DATASET"
+    )
+    # The fetch must never be called when resolution fails for an explicit dataset source
+    mock_fetch.assert_not_called()
