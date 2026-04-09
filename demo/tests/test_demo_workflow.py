@@ -287,6 +287,57 @@ class WorkflowTests(unittest.TestCase):
                 manifest["run_scopes"]["unstructured_ingest_run_id"],
             )
 
+    def test_orchestrated_unstructured_only_entity_resolution_passes_explicit_dataset_id(self):
+        """_run_orchestrated must pass dataset_id explicitly to the unstructured-only
+        run_entity_resolution call, not rely on the ambient set_dataset_id() context."""
+        from unittest.mock import call, patch as mock_patch
+
+        module = _load_module(RUN_DEMO_PATH, "run_uo_dataset_id_test")
+
+        # Capture every call made to run_entity_resolution as the orchestrator runs.
+        captured_calls: list = []
+
+        def _fake_run_entity_resolution(*args, **kwargs):
+            captured_calls.append(kwargs)
+            # Delegate to the real function so the rest of orchestration succeeds.
+            return module._run_entity_resolution(*args, **kwargs)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            module.run_entity_resolution = _fake_run_entity_resolution
+            try:
+                module.run_demo(
+                    module.Config(
+                        dry_run=True,
+                        output_dir=Path(tmpdir),
+                        neo4j_uri="neo4j://localhost:7687",
+                        neo4j_username="neo4j",
+                        neo4j_password="testtesttest",
+                        neo4j_database="neo4j",
+                        openai_model="gpt-4o-mini",
+                        dataset_name="demo_dataset_v1",
+                    )
+                )
+            finally:
+                module.run_entity_resolution = module._run_entity_resolution
+
+        # There must be exactly two entity-resolution calls in the orchestrated flow:
+        # one unstructured_only and one hybrid.
+        self.assertEqual(len(captured_calls), 2, "Expected exactly two run_entity_resolution calls")
+
+        uo_call = next(
+            (c for c in captured_calls if c.get("resolution_mode") == "unstructured_only"), None
+        )
+        self.assertIsNotNone(uo_call, "No unstructured_only entity-resolution call found")
+        self.assertIn(
+            "dataset_id",
+            uo_call,
+            "unstructured_only call must pass dataset_id explicitly",
+        )
+        self.assertIsNotNone(
+            uo_call["dataset_id"],
+            "unstructured_only call must not pass dataset_id=None",
+        )
+
     def test_fixture_manifest_tracks_dataset_and_provenance(self):
         fixture_manifest = DEMO_DIR / "fixtures" / "manifest.json"
         data = json.loads(fixture_manifest.read_text(encoding="utf-8"))
