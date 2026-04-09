@@ -33,7 +33,7 @@ After upgrading to a release that includes PR #466 (or later), operators may
 observe:
 
 - `entity_resolution_summary.json` → `aligned_clusters: 0` (hybrid mode) or
-  `resolved: 0` (structured\_anchor mode), even though structured ingest
+  `resolved: 0` (`structured_anchor` mode), even though structured ingest
   completed without errors in previous runs.
 - A runtime warning in the entity-resolution logs:
 
@@ -43,7 +43,7 @@ observe:
   dataset and that CanonicalEntity nodes carry a matching dataset_id property.
   ```
 
-  or, for structured\_anchor mode:
+  or, for `structured_anchor` mode:
 
   ```
   CanonicalEntity lookup returned zero rows for dataset_id='demo_dataset_v1'
