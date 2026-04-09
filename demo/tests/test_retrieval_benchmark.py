@@ -1763,7 +1763,9 @@ class TestDatasetIdScoping(unittest.TestCase):
         """Passing dataset_id='' should raise ValueError to prevent silent scoping to ''."""
         with tempfile.TemporaryDirectory() as tmp:
             config = _make_config(Path(tmp), dry_run=True)
-            with self.assertRaises(ValueError, msg="dataset_id must be None or a non-empty string."):
+            with self.assertRaisesRegex(
+                ValueError, "dataset_id must be None or a non-empty string."
+            ):
                 run_retrieval_benchmark(config, run_id="r1", dataset_id="")
 
     def test_pairwise_canonical_direction_case_uses_tolower(self) -> None:
