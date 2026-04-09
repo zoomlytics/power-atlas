@@ -110,13 +110,15 @@ A `null` row in the output indicates legacy nodes that still need repair.
 
 ### Path A — Clean re-ingest (recommended for most cases)
 
-The safest and most reliable option.  This deletes all existing
-`CanonicalEntity` nodes and relationship edges for the run, then re-runs
-structured ingest so that every node is written with the correct `dataset_id`.
+The safest and most reliable option. This wipes the existing demo-owned
+graph (all demo labels and relationships), then re-runs structured ingest
+so that recreated nodes are written with the correct `dataset_id`.
 
 ```bash
-# 1. Reset the graph (removes all nodes and edges)
-python -m demo.reset_demo_db --live
+# 1. Reset the graph (wipes all demo-owned nodes and relationships)
+python -m demo.run_demo --live reset --confirm
+# Alternative (direct script):
+# NEO4J_PASSWORD=... python demo/reset_demo_db.py --confirm
 
 # 2. Re-run the full pipeline for your dataset
 python -m demo.run_demo ingest --live --dataset demo_dataset_v1
@@ -196,23 +198,35 @@ RETURN count(c) AS remaining_nulls
 ## 5) Validation after repair
 
 After completing Path A or Path B, re-run entity resolution and confirm
-alignment is restored:
+alignment is restored.  `resolve-entities` requires the run ID from a prior
+PDF ingest step; set `UNSTRUCTURED_RUN_ID` to the relevant run ID and pass
+`--resolution-mode hybrid` (or `structured_anchor`):
 
 ```bash
-python -m demo.run_demo resolve --live --dataset demo_dataset_v1
+UNSTRUCTURED_RUN_ID=<run_id_from_prior_ingest> \
+  python -m demo.run_demo --live resolve-entities \
+  --dataset demo_dataset_v1 \
+  --resolution-mode hybrid
+```
+
+Alternatively, re-run the full pipeline end-to-end (which handles the run ID
+automatically):
+
+```bash
+python -m demo.run_demo ingest --live --dataset demo_dataset_v1
 ```
 
 Check `entity_resolution_summary.json` under
-`pipelines/runs/<run_id>/entity_resolution/`:
+`<output_dir>/runs/<run_id>/entity_resolution/`:
 
 - `aligned_clusters` should be greater than `0` (hybrid mode)
-- `resolved` should be greater than `0` (structured\_anchor mode)
+- `resolved` should be greater than `0` (`structured_anchor` mode)
 - `warnings` should be empty or should not mention "zero rows"
 
 For a deeper validation, run the retrieval benchmark:
 
 ```bash
-python -m demo.run_demo benchmark --live --dataset demo_dataset_v1
+python pipelines/query/retrieval_benchmark.py --live --dataset demo_dataset_v1
 ```
 
 The result class `canonical_empty_cluster_populated` should no longer appear
