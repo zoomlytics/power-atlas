@@ -226,7 +226,7 @@ Check `entity_resolution_summary.json` under
 For a deeper validation, run the retrieval benchmark:
 
 ```bash
-python pipelines/query/retrieval_benchmark.py --live --dataset demo_dataset_v1
+python pipelines/query/retrieval_benchmark.py --dataset-id demo_dataset_v1
 ```
 
 The result class `canonical_empty_cluster_populated` should no longer appear
