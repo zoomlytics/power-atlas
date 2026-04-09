@@ -5598,7 +5598,8 @@ def test_resolve_ask_scope_two_datasets_different_latest_runs(
 def test_resolve_ask_scope_ambiguous_dataset_falls_back_to_unfiltered(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """When dataset resolution raises AmbiguousDatasetError, fetch must not pass dataset_id."""
+    """Implicit dataset (no --dataset flag) that raises AmbiguousDatasetError falls back to
+    unfiltered latest-run query (legacy single-dataset behaviour preserved)."""
     from demo.run_demo import _resolve_ask_scope, parse_args
     from demo.contracts.paths import AmbiguousDatasetError
 
@@ -5621,3 +5622,31 @@ def test_resolve_ask_scope_ambiguous_dataset_falls_back_to_unfiltered(
     assert all_runs is False
     # Falls back: dataset_id=None (no filter) because resolution was ambiguous
     mock_fetch.assert_called_once_with(config, dataset_id=None)
+
+
+def test_resolve_ask_scope_explicit_dataset_raises_system_exit_on_resolution_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """Explicit --dataset that fails to resolve must raise SystemExit (fail fast), never silently
+    fall back to an unfiltered latest-run query that could pick up the wrong dataset's run."""
+    from demo.run_demo import _resolve_ask_scope, parse_args
+
+    monkeypatch.delenv("UNSTRUCTURED_RUN_ID", raising=False)
+
+    args = parse_args(["--live", "--dataset", "nonexistent_dataset", "ask"])
+    config = _live_config(tmp_path, dataset_name="nonexistent_dataset")
+
+    with mock.patch(
+        "demo.run_demo.resolve_dataset_root",
+        side_effect=ValueError("Dataset 'nonexistent_dataset' not found"),
+    ), mock.patch(
+        "demo.run_demo._fetch_latest_unstructured_run_id"
+    ) as mock_fetch:
+        with pytest.raises(SystemExit) as exc_info:
+            _resolve_ask_scope(args, config)
+
+    assert "nonexistent_dataset" in str(exc_info.value), (
+        "SystemExit message must mention the unresolvable dataset name"
+    )
+    # The fetch must never be called when resolution fails for an explicit dataset
+    mock_fetch.assert_not_called()
