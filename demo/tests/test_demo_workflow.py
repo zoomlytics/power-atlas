@@ -1829,6 +1829,141 @@ class WorkflowTests(unittest.TestCase):
             "--cluster-aware must default to False when not specified",
         )
 
+    def test_fetch_dataset_id_warns_on_mixed_dataset_ids(self):
+        """_fetch_dataset_id_for_run must warn when a run has multiple distinct dataset_ids."""
+        module = _load_module(RUN_DEMO_PATH, "run_fetch_dataset_id_mixed_test")
+
+        # Build a fake neo4j that returns two distinct dataset_ids for a run.
+        class _FakeResult:
+            def __iter__(self):
+                yield {"dataset_id": "dataset_a"}
+                yield {"dataset_id": "dataset_b"}
+
+        class _FakeSession:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def run(self, query, **kwargs):
+                return _FakeResult()
+
+        class _FakeDriver:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def session(self, **kwargs):
+                return _FakeSession()
+
+        fake_neo4j = types.ModuleType("neo4j")
+        fake_neo4j.GraphDatabase = types.SimpleNamespace(
+            driver=lambda *_a, **_k: _FakeDriver()
+        )
+
+        config = type(
+            "Config",
+            (),
+            {
+                "neo4j_uri": "bolt://localhost:7687",
+                "neo4j_username": "neo4j",
+                "neo4j_password": "test",
+                "neo4j_database": "neo4j",
+            },
+        )()
+
+        with self._with_injected_modules({"neo4j": fake_neo4j}):
+            with io.StringIO() as buf, redirect_stdout(buf):
+                result = module._fetch_dataset_id_for_run(config, "test-run-id-mixed")
+                output = buf.getvalue()
+
+        # When multiple distinct dataset_ids are found for a run, the function
+        # should warn and return the first sorted dataset_id so the behavior
+        # remains deterministic even for an ambiguous result set.
+        self.assertEqual(
+            result,
+            "dataset_a",
+            "Should return the first sorted dataset_id when multiple dataset_ids are found for a run",
+        )
+        # A WARNING about multiple dataset_ids must be printed.
+        self.assertIn(
+            "WARNING",
+            output,
+            "A WARNING must be printed when a run has multiple dataset_ids",
+        )
+        self.assertIn(
+            "dataset_a",
+            output,
+            "Warning must mention the dataset_ids found",
+        )
+        self.assertIn(
+            "dataset_b",
+            output,
+            "Warning must mention all dataset_ids found",
+        )
+
+    def test_resolve_ask_scope_warns_on_resolve_dataset_root_value_error(self):
+        """_resolve_ask_scope must emit a warning (not silently skip) when
+        resolve_dataset_root raises ValueError for an unknown dataset name."""
+        module = _load_module(RUN_DEMO_PATH, "run_resolve_ask_scope_value_error_test")
+
+        config = type(
+            "Config",
+            (),
+            {
+                "dry_run": False,
+                "neo4j_uri": "bolt://localhost:7687",
+                "neo4j_username": "neo4j",
+                "neo4j_password": "test",
+                "neo4j_database": "neo4j",
+                "dataset_name": "nonexistent_dataset_typo",
+            },
+        )()
+        args = type(
+            "Args",
+            (),
+            {
+                "run_id": "explicit-run-id-001",
+                "latest": False,
+                "all_runs": False,
+            },
+        )()
+
+        # Stub _fetch_dataset_id_for_run to avoid a live Neo4j call.
+        original_fetch = module._fetch_dataset_id_for_run
+        module._fetch_dataset_id_for_run = lambda _cfg, _rid: "some_dataset_id"
+
+        env_backup = os.environ.pop("FIXTURE_DATASET", None)
+        env_backup_run_id = os.environ.pop("UNSTRUCTURED_RUN_ID", None)
+        try:
+            with io.StringIO() as buf, redirect_stdout(buf):
+                run_id, all_runs = module._resolve_ask_scope(args, config)
+                output = buf.getvalue()
+        finally:
+            module._fetch_dataset_id_for_run = original_fetch
+            if env_backup is not None:
+                os.environ["FIXTURE_DATASET"] = env_backup
+            if env_backup_run_id is not None:
+                os.environ["UNSTRUCTURED_RUN_ID"] = env_backup_run_id
+
+        # The scope must still return the explicit run_id (pipeline should proceed).
+        self.assertEqual(run_id, "explicit-run-id-001")
+        self.assertFalse(all_runs)
+        # A WARNING about the failed dataset resolution must be printed.
+        self.assertIn(
+            "WARNING",
+            output,
+            "A WARNING must be printed when resolve_dataset_root raises ValueError",
+        )
+        self.assertIn(
+            "nonexistent_dataset_typo",
+            output,
+            "Warning must mention the dataset name that failed to resolve",
+        )
+
 
 class ResetDemoDbTests(unittest.TestCase):
     """Tests for demo/reset_demo_db.py run_reset() and related helpers."""

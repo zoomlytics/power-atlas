@@ -308,9 +308,17 @@ def _fetch_latest_unstructured_run_id(
 def _fetch_dataset_id_for_run(config: Config, run_id: str) -> str | None:
     """Query Neo4j for the dataset_id stamped on Chunk nodes belonging to *run_id*.
 
-    Returns the dataset_id of the first Chunk node found with the given run_id
-    that has a non-null dataset_id property, or None if no such Chunk nodes exist
-    (run not found, or run exists but no Chunk has a stamped dataset_id).
+    Fetches up to two distinct dataset_id values across Chunk nodes for this run.
+    This is enough to distinguish among zero, one, or multiple stamped dataset
+    ids without collecting the full distinct set for very large runs.
+
+    If multiple distinct values are found (indicating an inconsistently-ingested
+    graph), a WARNING is printed and the first sorted dataset_id is returned so
+    callers can continue deterministic dataset-ownership mismatch checks.
+
+    Returns None if no Chunk nodes with a non-null dataset_id exist for the run.
+    If multiple distinct non-null dataset_id values are present on the run's
+    Chunk nodes, returns the first sorted value after printing a warning.
     Only call this in live mode; it opens a real Neo4j connection.
     """
     import neo4j as _neo4j
@@ -321,11 +329,24 @@ def _fetch_dataset_id_for_run(config: Config, run_id: str) -> str | None:
         with driver.session(database=config.neo4j_database) as session:
             result = session.run(
                 "MATCH (c:Chunk) WHERE c.run_id = $run_id AND c.dataset_id IS NOT NULL "
-                "RETURN c.dataset_id LIMIT 1",
+                "RETURN DISTINCT c.dataset_id AS dataset_id "
+                "ORDER BY dataset_id "
+                "LIMIT 2",
                 run_id=run_id,
             )
-            record = result.single()
-            return record[0] if record else None
+            dataset_ids = [record["dataset_id"] for record in result]
+            if not dataset_ids:
+                return None
+            if len(dataset_ids) > 1:
+                print(
+                    f"WARNING: run_id={run_id!r} has Chunk nodes stamped with multiple "
+                    f"distinct dataset_ids (including {dataset_ids[0]!r} and "
+                    f"{dataset_ids[1]!r}). The graph may have been inconsistently "
+                    "ingested. Proceeding with dataset-ownership validation using "
+                    f"the first sorted dataset_id, {dataset_ids[0]!r}."
+                )
+                return dataset_ids[0]
+            return dataset_ids[0]
 
 
 def _format_dataset_label(
@@ -443,6 +464,17 @@ def _resolve_ask_scope(
             if effective_dataset:
                 try:
                     expected_dataset_id = resolve_dataset_root(effective_dataset).dataset_id
+                except ValueError as exc:
+                    # Dataset resolution failed (e.g. typo or unknown dataset name).
+                    # Emit a visible warning so the operator knows validation was
+                    # skipped; do not raise so the pipeline can still proceed with
+                    # the explicitly-requested run-id.
+                    print(
+                        f"WARNING: Could not resolve dataset {effective_dataset!r} to "
+                        "validate --run-id dataset ownership "
+                        f"({exc}). Dataset-ownership check skipped."
+                    )
+                else:
                     actual_dataset_id = _fetch_dataset_id_for_run(config, explicit_run_id)
                     if actual_dataset_id is not None and actual_dataset_id != expected_dataset_id:
                         _warn_explicit_run_id_dataset_mismatch(
@@ -452,9 +484,6 @@ def _resolve_ask_scope(
                             config_dataset=_cli_dataset,
                             fixture_dataset=_fixture_dataset,
                         )
-                except ValueError:
-                    # Dataset resolution failed; skip the dataset-ownership check.
-                    pass
         return explicit_run_id, False
 
     # Default / --latest: resolve the latest run_id.
