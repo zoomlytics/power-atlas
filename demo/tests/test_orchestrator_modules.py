@@ -5867,3 +5867,290 @@ def test_resolve_ask_scope_env_run_id_dataset_overrides_fixture_dataset_warns_li
     assert "FIXTURE_DATASET='demo_dataset_v1'" in output, (
         "WARNING must include the overridden FIXTURE_DATASET value for operator clarity"
     )
+
+
+# ---------------------------------------------------------------------------
+# Regression tests: explicit --run-id + --dataset mismatch (issue #485)
+# ---------------------------------------------------------------------------
+# When --run-id and --dataset are both specified in live mode, the CLI must
+# check whether the run actually belongs to the selected dataset.  If not, a
+# WARNING is printed describing the mismatch so the operator can reconcile their
+# arguments.  The explicit --run-id is still used so the operator can investigate
+# the mismatch rather than silently failing.
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_ask_scope_explicit_run_id_wrong_dataset_warns_live(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+):
+    """Regression: --run-id that belongs to a different dataset than --dataset must
+    print a WARNING describing the mismatch in live mode.
+
+    This prevents silent wrong-dataset retrieval: if no warning is emitted, the
+    operator has no indication that the run_id comes from a different dataset."""
+    from demo.run_demo import _resolve_ask_scope, parse_args
+
+    v1_run = "unstructured_ingest-20260301T000000000000Z-v1run0001"
+    monkeypatch.delenv("UNSTRUCTURED_RUN_ID", raising=False)
+    monkeypatch.delenv("FIXTURE_DATASET", raising=False)
+
+    # --run-id points at a v1 run but --dataset says v2 — classic mismatch.
+    args = parse_args(["--live", "--dataset", "demo_dataset_v2", "ask", "--run-id", v1_run])
+    config = _live_config(tmp_path, dataset_name="demo_dataset_v2")
+
+    with mock.patch(
+        "demo.run_demo.resolve_dataset_root"
+    ) as mock_resolve, mock.patch(
+        "demo.run_demo._fetch_dataset_id_for_run", return_value="demo_dataset_v1"
+    ) as mock_fetch:
+        from demo.contracts.paths import DatasetRoot
+        from pathlib import Path as _Path
+
+        mock_resolve.return_value = DatasetRoot(
+            root=_Path("/fake/datasets/demo_dataset_v2"),
+            dataset_id="demo_dataset_v2",
+            pdf_filename="chain_of_issuance.pdf",
+        )
+        run_id, all_runs = _resolve_ask_scope(args, config)
+
+    assert run_id == v1_run, (
+        "Explicit --run-id must still be returned even when a dataset mismatch is detected"
+    )
+    assert all_runs is False
+
+    mock_fetch.assert_called_once_with(config, v1_run)
+
+    output = capsys.readouterr().out
+    assert "WARNING" in output, (
+        "A WARNING must be printed when --run-id belongs to a different dataset than --dataset"
+    )
+    assert v1_run in output, "WARNING must include the --run-id value"
+    assert "demo_dataset_v1" in output, "WARNING must include the actual dataset_id of the run"
+    assert "demo_dataset_v2" in output, "WARNING must include the expected dataset_id"
+    assert "--dataset='demo_dataset_v2'" in output, (
+        "WARNING must name --dataset as the source when FIXTURE_DATASET is not set"
+    )
+
+
+def test_resolve_ask_scope_explicit_run_id_correct_dataset_no_warning_live(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+):
+    """When --run-id belongs to the same dataset as --dataset, no WARNING should be printed."""
+    from demo.run_demo import _resolve_ask_scope, parse_args
+
+    v2_run = "unstructured_ingest-20260401T000000000000Z-v2run0001"
+    monkeypatch.delenv("UNSTRUCTURED_RUN_ID", raising=False)
+    monkeypatch.delenv("FIXTURE_DATASET", raising=False)
+
+    args = parse_args(["--live", "--dataset", "demo_dataset_v2", "ask", "--run-id", v2_run])
+    config = _live_config(tmp_path, dataset_name="demo_dataset_v2")
+
+    with mock.patch(
+        "demo.run_demo.resolve_dataset_root"
+    ) as mock_resolve, mock.patch(
+        "demo.run_demo._fetch_dataset_id_for_run", return_value="demo_dataset_v2"
+    ):
+        from demo.contracts.paths import DatasetRoot
+        from pathlib import Path as _Path
+
+        mock_resolve.return_value = DatasetRoot(
+            root=_Path("/fake/datasets/demo_dataset_v2"),
+            dataset_id="demo_dataset_v2",
+            pdf_filename="chain_of_issuance.pdf",
+        )
+        run_id, all_runs = _resolve_ask_scope(args, config)
+
+    assert run_id == v2_run
+    assert all_runs is False
+
+    output = capsys.readouterr().out
+    assert "WARNING" not in output, (
+        "No WARNING should be printed when --run-id belongs to the correct dataset"
+    )
+
+
+def test_resolve_ask_scope_explicit_run_id_not_found_no_warning_live(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+):
+    """When --run-id is not found in Neo4j (no Chunk nodes), no mismatch WARNING should
+    be printed.  The run may simply not exist yet; downstream retrieval will handle it."""
+    from demo.run_demo import _resolve_ask_scope, parse_args
+
+    future_run = "unstructured_ingest-20260501T000000000000Z-notfound1"
+    monkeypatch.delenv("UNSTRUCTURED_RUN_ID", raising=False)
+    monkeypatch.delenv("FIXTURE_DATASET", raising=False)
+
+    args = parse_args(["--live", "--dataset", "demo_dataset_v1", "ask", "--run-id", future_run])
+    config = _live_config(tmp_path, dataset_name="demo_dataset_v1")
+
+    with mock.patch(
+        "demo.run_demo.resolve_dataset_root"
+    ) as mock_resolve, mock.patch(
+        # Simulate run not found: returns None
+        "demo.run_demo._fetch_dataset_id_for_run", return_value=None
+    ):
+        from demo.contracts.paths import DatasetRoot
+        from pathlib import Path as _Path
+
+        mock_resolve.return_value = DatasetRoot(
+            root=_Path("/fake/datasets/demo_dataset_v1"),
+            dataset_id="demo_dataset_v1",
+            pdf_filename="chain_of_custody.pdf",
+        )
+        run_id, all_runs = _resolve_ask_scope(args, config)
+
+    assert run_id == future_run
+    assert all_runs is False
+
+    output = capsys.readouterr().out
+    assert "WARNING" not in output, (
+        "No mismatch WARNING should be printed when the run_id is not found in Neo4j"
+    )
+
+
+def test_resolve_ask_scope_explicit_run_id_no_dataset_no_warning_live(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+):
+    """When --run-id is provided but no --dataset or FIXTURE_DATASET is set, no
+    dataset-ownership check is performed and no WARNING is printed."""
+    from demo.run_demo import _resolve_ask_scope, parse_args
+
+    some_run = "unstructured_ingest-20260301T000000000000Z-nodataset1"
+    monkeypatch.delenv("UNSTRUCTURED_RUN_ID", raising=False)
+    monkeypatch.delenv("FIXTURE_DATASET", raising=False)
+
+    args = parse_args(["--live", "ask", "--run-id", some_run])
+    config = _live_config(tmp_path, dataset_name=None)
+
+    with mock.patch("demo.run_demo._fetch_dataset_id_for_run") as mock_fetch:
+        run_id, all_runs = _resolve_ask_scope(args, config)
+
+    assert run_id == some_run
+    assert all_runs is False
+
+    mock_fetch.assert_not_called(), (
+        "_fetch_dataset_id_for_run must not be called when no dataset is selected"
+    )
+
+    output = capsys.readouterr().out
+    assert "WARNING" not in output
+
+
+def test_resolve_ask_scope_explicit_run_id_wrong_dataset_dry_run_no_check(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+):
+    """In dry-run mode, --run-id + --dataset should NOT trigger a Neo4j dataset-ownership
+    check (Neo4j is unavailable in dry-run).  No mismatch WARNING should be printed."""
+    from demo.run_demo import _resolve_ask_scope, parse_args
+
+    v1_run = "unstructured_ingest-20260301T000000000000Z-v1run0001"
+    monkeypatch.delenv("UNSTRUCTURED_RUN_ID", raising=False)
+    monkeypatch.delenv("FIXTURE_DATASET", raising=False)
+
+    args = parse_args(["--dry-run", "--dataset", "demo_dataset_v2", "ask", "--run-id", v1_run])
+    import dataclasses
+    config = dataclasses.replace(_dry_run_config(tmp_path), dataset_name="demo_dataset_v2")
+
+    with mock.patch("demo.run_demo._fetch_dataset_id_for_run") as mock_fetch:
+        run_id, all_runs = _resolve_ask_scope(args, config)
+
+    assert run_id == v1_run
+    assert all_runs is False
+
+    mock_fetch.assert_not_called(), (
+        "_fetch_dataset_id_for_run must not be called in dry-run mode"
+    )
+
+    output = capsys.readouterr().out
+    # The only WARNING that could appear is from UNSTRUCTURED_RUN_ID; no dataset-ownership
+    # check warning should appear because Neo4j isn't available.
+    assert "belongs to dataset" not in output, (
+        "Dataset-ownership WARNING must not appear in dry-run mode"
+    )
+
+
+def test_resolve_ask_scope_explicit_run_id_wrong_fixture_dataset_warns_live(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+):
+    """Regression: --run-id + FIXTURE_DATASET (no --dataset flag) with a mismatch
+    must also print a WARNING and name FIXTURE_DATASET as the source."""
+    from demo.run_demo import _resolve_ask_scope, parse_args
+
+    v2_run = "unstructured_ingest-20260401T000000000000Z-v2run0001"
+    monkeypatch.delenv("UNSTRUCTURED_RUN_ID", raising=False)
+    monkeypatch.setenv("FIXTURE_DATASET", "demo_dataset_v1")
+
+    # No --dataset CLI flag; FIXTURE_DATASET drives dataset selection.
+    args = parse_args(["--live", "ask", "--run-id", v2_run])
+    config = _live_config(tmp_path, dataset_name=None)
+
+    with mock.patch(
+        "demo.run_demo.resolve_dataset_root"
+    ) as mock_resolve, mock.patch(
+        "demo.run_demo._fetch_dataset_id_for_run", return_value="demo_dataset_v2"
+    ):
+        from demo.contracts.paths import DatasetRoot
+        from pathlib import Path as _Path
+
+        mock_resolve.return_value = DatasetRoot(
+            root=_Path("/fake/datasets/demo_dataset_v1"),
+            dataset_id="demo_dataset_v1",
+            pdf_filename="chain_of_custody.pdf",
+        )
+        run_id, all_runs = _resolve_ask_scope(args, config)
+
+    assert run_id == v2_run
+    assert all_runs is False
+
+    output = capsys.readouterr().out
+    assert "WARNING" in output, (
+        "A WARNING must be printed when --run-id + FIXTURE_DATASET mismatch"
+    )
+    assert v2_run in output
+    assert "FIXTURE_DATASET='demo_dataset_v1'" in output, (
+        "WARNING must name FIXTURE_DATASET as the source when it is set and --dataset is not"
+    )
+    assert "demo_dataset_v2" in output, "WARNING must include the actual dataset_id of the run"
+
+
+def test_resolve_ask_scope_explicit_run_id_wrong_dataset_overrides_fixture_warns_live(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+):
+    """When --dataset overrides FIXTURE_DATASET and --run-id belongs to a third dataset,
+    the WARNING must name --dataset as the effective source and also mention FIXTURE_DATASET."""
+    from demo.run_demo import _resolve_ask_scope, parse_args
+
+    other_run = "unstructured_ingest-20260501T000000000000Z-other0001"
+    monkeypatch.delenv("UNSTRUCTURED_RUN_ID", raising=False)
+    monkeypatch.setenv("FIXTURE_DATASET", "demo_dataset_v1")
+
+    # --dataset explicitly overrides FIXTURE_DATASET with a different value.
+    args = parse_args(["--live", "--dataset", "demo_dataset_v2", "ask", "--run-id", other_run])
+    config = _live_config(tmp_path, dataset_name="demo_dataset_v2")
+
+    with mock.patch(
+        "demo.run_demo.resolve_dataset_root"
+    ) as mock_resolve, mock.patch(
+        "demo.run_demo._fetch_dataset_id_for_run", return_value="demo_dataset_v3"
+    ):
+        from demo.contracts.paths import DatasetRoot
+        from pathlib import Path as _Path
+
+        mock_resolve.return_value = DatasetRoot(
+            root=_Path("/fake/datasets/demo_dataset_v2"),
+            dataset_id="demo_dataset_v2",
+            pdf_filename="chain_of_issuance.pdf",
+        )
+        run_id, all_runs = _resolve_ask_scope(args, config)
+
+    assert run_id == other_run
+    assert all_runs is False
+
+    output = capsys.readouterr().out
+    assert "WARNING" in output
+    assert "--dataset='demo_dataset_v2'" in output, (
+        "WARNING must name --dataset as the effective source when it overrides FIXTURE_DATASET"
+    )
+    assert "FIXTURE_DATASET='demo_dataset_v1'" in output, (
+        "WARNING must include the overridden FIXTURE_DATASET value for operator clarity"
+    )
