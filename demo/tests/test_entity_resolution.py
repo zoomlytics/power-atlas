@@ -3752,9 +3752,13 @@ class TestStructuredAnchorCrossDatasetIsolation(unittest.TestCase):
         """Build a mock driver holding canonical nodes from two datasets.
 
         Delegates to the module-level ``_make_neo4j_test_driver`` with all
-        canonical nodes as the backing store and ``precompute_dataset_id`` set
-        so that the CanonicalEntity read handler filters by the target dataset_id,
-        mirroring the real ``WHERE canonical.dataset_id = $dataset_id`` predicate.
+        canonical nodes as the backing store. In that helper, CanonicalEntity
+        read filtering is driven by the query ``dataset_id`` parameter,
+        mirroring the real ``WHERE canonical.dataset_id = $dataset_id``
+        predicate. The ``precompute_dataset_id`` argument used here only scopes
+        the mock's pre-computed alignment metrics; it is not required for
+        structured_anchor correctness, but keeps those mock metrics aligned with
+        the target dataset.
         """
         return _make_neo4j_test_driver(
             mentions,
