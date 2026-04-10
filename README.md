@@ -288,7 +288,7 @@ distinct dataset_ids: ['dataset_a', 'dataset_b']. The graph may have been
 inconsistently ingested. Dataset-ownership validation will use the first value
 ('dataset_a') and may not reflect all chunks.
 
-WARNING: Could not resolve dataset 'nonexisten_typo' to validate --run-id
+WARNING: Could not resolve dataset 'nonexistent_typo' to validate --run-id
 dataset ownership (Dataset 'nonexisten_typo' not found …). Dataset-ownership
 check skipped.
 ```
