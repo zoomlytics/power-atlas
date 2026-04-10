@@ -5829,3 +5829,41 @@ def test_resolve_ask_scope_env_run_id_without_dataset_no_warning_live(
     assert "WARNING" not in output, (
         "No dataset-mismatch WARNING should be printed when no explicit dataset is selected"
     )
+
+
+def test_resolve_ask_scope_env_run_id_dataset_overrides_fixture_dataset_warns_live(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+):
+    """Regression: when FIXTURE_DATASET and --dataset are both set but differ, the
+    WARNING must attribute the selection to --dataset (the effective override) and
+    also mention the overridden FIXTURE_DATASET value.
+
+    This exercises the override branch in _warn_env_run_id_dataset_mismatch and
+    ensures the label format does not drift silently when both env var and CLI flag
+    are in play simultaneously."""
+    from demo.run_demo import _resolve_ask_scope, parse_args
+
+    env_run = "unstructured_ingest-20260301T000000000000Z-override0"
+    monkeypatch.setenv("UNSTRUCTURED_RUN_ID", env_run)
+    monkeypatch.setenv("FIXTURE_DATASET", "demo_dataset_v1")
+
+    # --dataset explicitly overrides FIXTURE_DATASET with a different value.
+    args = parse_args(["--live", "--dataset", "demo_dataset_v2", "ask"])
+    config = _live_config(tmp_path, dataset_name="demo_dataset_v2")
+
+    run_id, all_runs = _resolve_ask_scope(args, config)
+
+    assert run_id == env_run
+    assert all_runs is False
+
+    output = capsys.readouterr().out
+    assert "WARNING" in output, (
+        "A WARNING must be printed when UNSTRUCTURED_RUN_ID is used alongside --dataset"
+    )
+    assert env_run in output, "WARNING must include the UNSTRUCTURED_RUN_ID value"
+    assert "--dataset='demo_dataset_v2'" in output, (
+        "WARNING must name --dataset as the effective source when it overrides FIXTURE_DATASET"
+    )
+    assert "FIXTURE_DATASET='demo_dataset_v1'" in output, (
+        "WARNING must include the overridden FIXTURE_DATASET value for operator clarity"
+    )
