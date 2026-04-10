@@ -300,6 +300,44 @@ def _fetch_latest_unstructured_run_id(
             return record[0] if record else None
 
 
+def _warn_env_run_id_dataset_mismatch(
+    env_run_id: str,
+    config_dataset: str | None,
+    fixture_dataset: str | None,
+) -> None:
+    """Print a WARNING when UNSTRUCTURED_RUN_ID is set alongside an explicit dataset.
+
+    The env var bypasses dataset-aware run selection, so the run it points to may
+    belong to a different dataset than the one explicitly requested.  Callers should
+    invoke this whenever both signals are present so the mismatch is operator-visible.
+
+    Names the effective source (``FIXTURE_DATASET`` or ``--dataset``) so operators
+    can immediately see which setting to address, consistent with the style of other
+    warnings in ``_resolve_ask_scope``. When both are present and ``--dataset``
+    overrides ``FIXTURE_DATASET``, the warning names ``--dataset`` and includes the
+    overridden fixture value for clarity.
+    """
+    # FIXTURE_DATASET is the default source for --dataset, but an explicit
+    # --dataset override is the effective selection and should be named as such.
+    if config_dataset and fixture_dataset and config_dataset != fixture_dataset:
+        dataset_label = (
+            f"--dataset={config_dataset!r} "
+            f"(overrides FIXTURE_DATASET={fixture_dataset!r})"
+        )
+    elif fixture_dataset:
+        dataset_label = f"FIXTURE_DATASET={fixture_dataset!r}"
+    else:
+        dataset_label = f"--dataset={config_dataset!r}"
+    print(
+        f"WARNING: UNSTRUCTURED_RUN_ID={env_run_id!r} is set and will be "
+        f"used as the retrieval scope, but {dataset_label} "
+        "is also selected. UNSTRUCTURED_RUN_ID bypasses dataset-aware run "
+        "selection and may retrieve from a run that belongs to a different "
+        "dataset. Use --latest (in --live mode) to resolve the latest run "
+        "for the selected dataset, or --run-id to target a specific run explicitly."
+    )
+
+
 def _resolve_ask_scope(
     args: argparse.Namespace, config: Config
 ) -> tuple[str | None, bool]:
@@ -341,6 +379,15 @@ def _resolve_ask_scope(
         # In dry-run mode, Neo4j is unavailable; honour env var if set, else proceed
         # without a run scope (dry-run stubs don't require a real run_id).
         if env_run_id:
+            # Dataset-integrity warning (dry-run): UNSTRUCTURED_RUN_ID bypasses
+            # dataset-aware run selection when an explicit dataset is also provided.
+            # The run pointed to by the env var may belong to a different dataset.
+            # Use --latest (in --live mode) or --run-id for guaranteed
+            # dataset-scoped selection.
+            config_dataset = config.dataset_name
+            fixture_dataset = os.getenv("FIXTURE_DATASET")
+            if config_dataset or fixture_dataset:
+                _warn_env_run_id_dataset_mismatch(env_run_id, config_dataset, fixture_dataset)
             return env_run_id, False
         return None, False
 
@@ -348,6 +395,16 @@ def _resolve_ask_scope(
     # CLI flags (--run-id/--latest/--all-runs) > UNSTRUCTURED_RUN_ID > implicit latest.
     if not use_latest and env_run_id:
         # No explicit --latest flag; honour UNSTRUCTURED_RUN_ID if set.
+        # Dataset-integrity warning: UNSTRUCTURED_RUN_ID bypasses dataset-aware run
+        # selection when an explicit dataset is also provided (via --dataset or
+        # FIXTURE_DATASET).  The run pointed to by the env var may belong to a
+        # different dataset, which would silently retrieve from the wrong scope.
+        # Warn the operator so the mismatch is visible.  Use --latest or --run-id
+        # to enforce dataset-scoped selection.
+        config_dataset = config.dataset_name
+        fixture_dataset = os.getenv("FIXTURE_DATASET")
+        if config_dataset or fixture_dataset:
+            _warn_env_run_id_dataset_mismatch(env_run_id, config_dataset, fixture_dataset)
         return env_run_id, False
 
     # Either --latest was explicitly requested, or no env var is set: query Neo4j.
