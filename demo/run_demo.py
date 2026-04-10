@@ -308,7 +308,10 @@ def _fetch_latest_unstructured_run_id(
 def _fetch_dataset_id_for_run(config: Config, run_id: str) -> str | None:
     """Query Neo4j for the dataset_id stamped on Chunk nodes belonging to *run_id*.
 
-    Collects all distinct dataset_id values across every Chunk for this run.
+    Fetches up to two distinct dataset_id values across Chunk nodes for this run.
+    This is enough to distinguish among zero, one, or multiple stamped dataset
+    ids without collecting the full distinct set for very large runs.
+
     If multiple distinct values are found (indicating an inconsistently-ingested
     graph), a WARNING is printed and the first (alphabetically sorted) value is
     returned so that the caller's mismatch check still fires when appropriate.
@@ -325,21 +328,21 @@ def _fetch_dataset_id_for_run(config: Config, run_id: str) -> str | None:
         with driver.session(database=config.neo4j_database) as session:
             result = session.run(
                 "MATCH (c:Chunk) WHERE c.run_id = $run_id AND c.dataset_id IS NOT NULL "
-                "RETURN collect(DISTINCT c.dataset_id) AS dataset_ids",
+                "RETURN DISTINCT c.dataset_id AS dataset_id "
+                "ORDER BY dataset_id "
+                "LIMIT 2",
                 run_id=run_id,
             )
-            record = result.single()
-            if not record:
-                return None
-            dataset_ids: list[str] = sorted(record["dataset_ids"])
+            dataset_ids = [record["dataset_id"] for record in result]
             if not dataset_ids:
                 return None
             if len(dataset_ids) > 1:
                 print(
                     f"WARNING: run_id={run_id!r} has Chunk nodes stamped with multiple "
-                    f"distinct dataset_ids: {dataset_ids}. The graph may have been "
-                    "inconsistently ingested. Dataset-ownership validation will use the "
-                    f"first value ({dataset_ids[0]!r}) and may not reflect all chunks."
+                    f"distinct dataset_ids (including {dataset_ids[0]!r} and "
+                    f"{dataset_ids[1]!r}). The graph may have been inconsistently "
+                    "ingested. Dataset-ownership validation will use the first value "
+                    f"({dataset_ids[0]!r}) and may not reflect all chunks."
                 )
             return dataset_ids[0]
 
