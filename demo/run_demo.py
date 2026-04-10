@@ -464,15 +464,6 @@ def _resolve_ask_scope(
             if effective_dataset:
                 try:
                     expected_dataset_id = resolve_dataset_root(effective_dataset).dataset_id
-                    actual_dataset_id = _fetch_dataset_id_for_run(config, explicit_run_id)
-                    if actual_dataset_id is not None and actual_dataset_id != expected_dataset_id:
-                        _warn_explicit_run_id_dataset_mismatch(
-                            explicit_run_id,
-                            expected_dataset_id,
-                            actual_dataset_id,
-                            config_dataset=_cli_dataset,
-                            fixture_dataset=_fixture_dataset,
-                        )
                 except ValueError as exc:
                     # Dataset resolution failed (e.g. typo or unknown dataset name).
                     # Emit a visible warning so the operator knows validation was
@@ -483,6 +474,16 @@ def _resolve_ask_scope(
                         "validate --run-id dataset ownership "
                         f"({exc}). Dataset-ownership check skipped."
                     )
+                else:
+                    actual_dataset_id = _fetch_dataset_id_for_run(config, explicit_run_id)
+                    if actual_dataset_id is not None and actual_dataset_id != expected_dataset_id:
+                        _warn_explicit_run_id_dataset_mismatch(
+                            explicit_run_id,
+                            expected_dataset_id,
+                            actual_dataset_id,
+                            config_dataset=_cli_dataset,
+                            fixture_dataset=_fixture_dataset,
+                        )
         return explicit_run_id, False
 
     # Default / --latest: resolve the latest run_id.
