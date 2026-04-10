@@ -1991,7 +1991,7 @@ the **[Retrieval Benchmark Review Rubric](../../docs/architecture/retrieval-benc
   exposes every step of the `canonical → cluster → mention → claim` path, making
   the resolution model inspectable at any layer.
 
-### alignment_version fallback behaviour
+### alignment_version fallback behavior
 
 `alignment_version` is an optional parameter that scopes all `ALIGNED_WITH` edge
 queries to a specific version string (e.g. `"v1.0"`).  When it is `None` the
