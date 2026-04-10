@@ -311,14 +311,20 @@ def _warn_env_run_id_dataset_mismatch(
     belong to a different dataset than the one explicitly requested.  Callers should
     invoke this whenever both signals are present so the mismatch is operator-visible.
 
-    Names the source (``FIXTURE_DATASET`` or ``--dataset``) so operators can
-    immediately see which setting to address, consistent with the style of other
-    warnings in ``_resolve_ask_scope``.
+    Names the effective source (``FIXTURE_DATASET`` or ``--dataset``) so operators
+    can immediately see which setting to address, consistent with the style of other
+    warnings in ``_resolve_ask_scope``. When both are present and ``--dataset``
+    overrides ``FIXTURE_DATASET``, the warning names ``--dataset`` and includes the
+    overridden fixture value for clarity.
     """
-    # FIXTURE_DATASET is the default source for --dataset, so when it is set it is
-    # named first (it may be the root cause even when config_dataset is also populated).
-    # When only config_dataset is set the value came from an explicit --dataset flag.
-    if fixture_dataset:
+    # FIXTURE_DATASET is the default source for --dataset, but an explicit
+    # --dataset override is the effective selection and should be named as such.
+    if config_dataset and fixture_dataset and config_dataset != fixture_dataset:
+        dataset_label = (
+            f"--dataset={config_dataset!r} "
+            f"(overrides FIXTURE_DATASET={fixture_dataset!r})"
+        )
+    elif fixture_dataset:
         dataset_label = f"FIXTURE_DATASET={fixture_dataset!r}"
     else:
         dataset_label = f"--dataset={config_dataset!r}"
