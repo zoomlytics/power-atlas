@@ -8,9 +8,12 @@ or to ``pipelines/runs/retrieval_benchmark/`` when it is omitted.
 .. note::
     **Orchestrated runs:** the ``ingest`` orchestrator (``python -m demo.run_demo ingest``)
     automatically invokes ``run_retrieval_benchmark`` at the end of every batch run
-    (after hybrid alignment), scoped to the active dataset and unstructured run.  The
-    artifact is written under ``<output-dir>/runs/<unstructured_run_id>/retrieval_benchmark/``
-    and included in the batch manifest under ``stages.retrieval_benchmark``.
+    (after hybrid alignment), scoped to the active dataset, unstructured run, and
+    ``alignment_version`` passed forward from the hybrid stage. This prevents
+    cross-version aggregation when alignment is rerun for the same ``run_id`` and is
+    material to reproducibility of the artifact. The artifact is written under
+    ``<output-dir>/runs/<unstructured_run_id>/retrieval_benchmark/`` and included in
+    the batch manifest under ``stages.retrieval_benchmark``.
 
     This standalone script is for **manual / standalone** benchmark runs against an
     existing graph — for example, to re-evaluate a previous run, to scope a benchmark
