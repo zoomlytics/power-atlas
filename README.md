@@ -273,9 +273,8 @@ verify that the run actually belongs to the selected dataset.
 `dataset_id` values stamped on `Chunk` nodes for the run — enough to detect
 single-dataset (clean) vs multi-dataset (inconsistently-ingested) runs without
 a full-graph scan. If two distinct values are found, a `WARNING` is printed
-naming both and no single `dataset_id` is returned for validation. In that case,
-dataset-ownership validation is skipped for the run rather than guessing which
-value to trust.
+naming both. Validation then continues using the first sorted `dataset_id`
+returned by the query as the run's dataset for the ownership check.
 
 **Dataset resolution failure:** If `--dataset` or `FIXTURE_DATASET` specifies a
 name that cannot be resolved (e.g. a typo), a `WARNING` is printed explaining that
@@ -286,8 +285,8 @@ Example warning output:
 ```
 WARNING: run_id='unstructured_ingest-…' has Chunk nodes stamped with multiple
 distinct dataset_ids (including 'dataset_a' and 'dataset_b'). The graph may have
-been inconsistently ingested. Dataset-ownership validation was skipped because
-no single dataset_id could be determined for the run.
+been inconsistently ingested. Dataset-ownership validation will continue using
+the first sorted dataset_id returned for the run.
 
 WARNING: Could not resolve dataset 'nonexistent_typo' to validate --run-id
 dataset ownership (Dataset 'nonexistent_typo' not found …). Dataset-ownership
