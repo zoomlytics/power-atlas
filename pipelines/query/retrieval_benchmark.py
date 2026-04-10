@@ -2,8 +2,26 @@
 
 Connects to a running Neo4j instance, runs the full retrieval benchmark defined
 in ``demo/stages/retrieval_benchmark.py``, and writes a JSON artifact to
-``pipelines/runs/<run_id>/retrieval_benchmark/`` when ``--run-id`` is provided,
-or to ``pipelines/runs/retrieval_benchmark/`` when it is omitted.
+``<output-dir>/runs/<run_id>/retrieval_benchmark/`` when ``--run-id`` is provided,
+or to ``<output-dir>/runs/retrieval_benchmark/`` when it is omitted.  The default
+``<output-dir>`` is ``pipelines/`` (the directory containing this script's parent
+directory); pass ``--output-dir`` to override it.
+
+.. note::
+    **Orchestrated runs:** the ``ingest`` orchestrator (``python -m demo.run_demo ingest``)
+    automatically invokes ``run_retrieval_benchmark`` at the end of every batch run
+    (after hybrid alignment), scoped to the active dataset, unstructured run, and
+    ``alignment_version`` passed forward from the hybrid stage. This prevents
+    cross-version aggregation when alignment is rerun for the same ``run_id`` and is
+    material to reproducibility of the artifact. The artifact is written under
+    ``<output-dir>/runs/<unstructured_run_id>/retrieval_benchmark/`` and included in
+    the batch manifest under ``stages.retrieval_benchmark``.
+
+    This standalone script is for **manual / standalone** benchmark runs against an
+    existing graph — for example, to re-evaluate a previous run, to scope a benchmark
+    to a different ``--dataset-id``, or to produce a baseline artifact without running
+    the full pipeline.  Always pass ``--dataset-id`` in a multi-dataset graph to prevent
+    shared entity names from matching canonical nodes across datasets.
 
 The benchmark covers five canonical case types:
 

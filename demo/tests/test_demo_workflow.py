@@ -237,6 +237,8 @@ class WorkflowTests(unittest.TestCase):
             # The new unstructured-first sequence emits two entity-resolution passes
             # (unstructured_only, then hybrid) and two Q&A passes (before and after
             # structured ingest) so consumers can see meaningful results at each phase.
+            # The retrieval benchmark runs automatically at the end of every orchestrated
+            # ingest to produce a regression artifact without a separate manual invocation.
             self.assertEqual(
                 set(manifest["stages"].keys()),
                 {
@@ -248,6 +250,7 @@ class WorkflowTests(unittest.TestCase):
                     "structured_ingest",
                     "entity_resolution_hybrid",
                     "retrieval_and_qa",
+                    "retrieval_benchmark",
                 },
             )
             self.assertEqual(
