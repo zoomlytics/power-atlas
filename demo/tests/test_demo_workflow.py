@@ -1880,9 +1880,12 @@ class WorkflowTests(unittest.TestCase):
                 result = module._fetch_dataset_id_for_run(config, "test-run-id-mixed")
                 output = buf.getvalue()
 
-        # The function should return a value (the first sorted dataset_id).
-        self.assertIsNotNone(result, "Should return a dataset_id even when multiple are found")
-        self.assertEqual(result, "dataset_a", "Should return the first (sorted) dataset_id")
+        # When multiple distinct dataset_ids are found for a run, the function
+        # should warn and return None rather than choosing one arbitrarily.
+        self.assertIsNone(
+            result,
+            "Should return None when multiple dataset_ids are found for a run",
+        )
         # A WARNING about multiple dataset_ids must be printed.
         self.assertIn(
             "WARNING",
