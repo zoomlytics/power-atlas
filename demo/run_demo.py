@@ -313,13 +313,12 @@ def _fetch_dataset_id_for_run(config: Config, run_id: str) -> str | None:
     ids without collecting the full distinct set for very large runs.
 
     If multiple distinct values are found (indicating an inconsistently-ingested
-    graph), a WARNING is printed and ``None`` is returned so callers can skip
-    dataset-ownership mismatch checks rather than attributing the run to a
-    misleading single dataset_id.
+    graph), a WARNING is printed and the first sorted dataset_id is returned so
+    callers can continue deterministic dataset-ownership mismatch checks.
 
     Returns None if no Chunk nodes with a non-null dataset_id exist for the run.
     If multiple distinct non-null dataset_id values are present on the run's
-    Chunk nodes, also returns None after printing a warning.
+    Chunk nodes, returns the first sorted value after printing a warning.
     Only call this in live mode; it opens a real Neo4j connection.
     """
     import neo4j as _neo4j
@@ -343,10 +342,10 @@ def _fetch_dataset_id_for_run(config: Config, run_id: str) -> str | None:
                     f"WARNING: run_id={run_id!r} has Chunk nodes stamped with multiple "
                     f"distinct dataset_ids (including {dataset_ids[0]!r} and "
                     f"{dataset_ids[1]!r}). The graph may have been inconsistently "
-                    "ingested. Skipping dataset-ownership validation because the run "
-                    "does not map cleanly to a single dataset_id."
+                    "ingested. Proceeding with dataset-ownership validation using "
+                    f"the first sorted dataset_id, {dataset_ids[0]!r}."
                 )
-                return None
+                return dataset_ids[0]
             return dataset_ids[0]
 
 
