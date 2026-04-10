@@ -3714,6 +3714,228 @@ class TestHybridAlignmentCrossDatasetIsolation(unittest.TestCase):
             )
 
 
+class TestStructuredAnchorCrossDatasetIsolation(unittest.TestCase):
+    """Regression tests for cross-dataset isolation in structured_anchor mode.
+
+    Verifies that structured_anchor resolution for a dataset (e.g. demo_dataset_v2)
+    resolves mentions to CanonicalEntity nodes belonging to that dataset, not to
+    nodes from a different dataset (e.g. demo_dataset_v1) that share the same QID.
+
+    Mirrors TestHybridAlignmentCrossDatasetIsolation for the structured_anchor
+    resolution path, as described in the acceptance criteria for the cross-dataset
+    regression coverage issue.
+    """
+
+    _V1_DATASET = "demo_dataset_v1"
+    _V2_DATASET = "demo_dataset_v2"
+    _SHARED_QID = "Q950419"
+    _SHARED_NAME = "Mercado Libre"
+
+    def _live_config(self, tmp_path: Path) -> Config:
+        return Config(
+            dry_run=False,
+            output_dir=tmp_path,
+            neo4j_uri="bolt://example.invalid",
+            neo4j_username="neo4j",
+            neo4j_password="secret",
+            neo4j_database="neo4j",
+            openai_model="test-model",
+            resolution_mode="structured_anchor",
+        )
+
+    def _make_cross_dataset_driver(
+        self,
+        mentions: list[dict[str, Any]],
+        all_canonicals: list[dict[str, Any]],
+        target_dataset_id: str,
+    ) -> MagicMock:
+        """Build a mock driver holding canonical nodes from two datasets.
+
+        Delegates to the module-level ``_make_neo4j_test_driver`` with all
+        canonical nodes as the backing store. In that helper, CanonicalEntity
+        read filtering is driven by the query ``dataset_id`` parameter,
+        mirroring the real ``WHERE canonical.dataset_id = $dataset_id``
+        predicate. The ``precompute_dataset_id`` argument used here only scopes
+        the mock's pre-computed alignment metrics; it is not required for
+        structured_anchor correctness, but keeps those mock metrics aligned with
+        the target dataset.
+        """
+        return _make_neo4j_test_driver(
+            mentions,
+            all_canonicals,
+            precompute_dataset_id=target_dataset_id,
+        )
+
+    def test_v2_structured_anchor_resolves_to_v2_canonical_not_v1_for_shared_qid(self):
+        """v2 structured_anchor resolution must resolve to v2 CanonicalEntity nodes.
+
+        When both demo_dataset_v1 and demo_dataset_v2 contain a CanonicalEntity for
+        the same QID (e.g. Q950419 / Mercado Libre), running structured_anchor
+        resolution for v2 must produce RESOLVES_TO edges pointing at the v2 canonical
+        entity, not the v1 one.
+        """
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config(Path(tmpdir))
+            mentions = [
+                {"mention_id": "m1", "name": self._SHARED_NAME, "entity_type": "organization"},
+            ]
+            # Both datasets have the same entity but with dataset-local run_ids.
+            all_canonicals = [
+                {
+                    "entity_id": self._SHARED_QID,
+                    "run_id": "structured-run-v1",
+                    "name": self._SHARED_NAME,
+                    "aliases": None,
+                    "dataset_id": self._V1_DATASET,
+                },
+                {
+                    "entity_id": self._SHARED_QID,
+                    "run_id": "structured-run-v2",
+                    "name": self._SHARED_NAME,
+                    "aliases": None,
+                    "dataset_id": self._V2_DATASET,
+                },
+            ]
+            driver = self._make_cross_dataset_driver(mentions, all_canonicals, self._V2_DATASET)
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                result = run_entity_resolution(
+                    config,
+                    run_id="cross-ds-sa-001",
+                    source_uri=None,
+                    dataset_id=self._V2_DATASET,
+                )
+
+            # Resolution should have occurred.
+            self.assertGreaterEqual(result["resolved"], 1, "Expected at least one resolved mention")
+
+            # Inspect the RESOLVES_TO MERGE write parameters to confirm they reference v2's run_id.
+            resolves_to_rows: list[dict[str, Any]] = []
+            for call in driver.execute_query.call_args_list:
+                query = call.args[0] if call.args else ""
+                if "MERGE" not in query or "RESOLVES_TO" not in query:
+                    continue
+                parameters = call.kwargs.get("parameters_", {})
+                rows = parameters.get("rows", [])
+                resolves_to_rows.extend(row for row in rows if isinstance(row, dict))
+
+            self.assertTrue(resolves_to_rows, "Expected at least one RESOLVES_TO MERGE write")
+
+            canonical_run_ids = {
+                row.get("canonical_run_id")
+                for row in resolves_to_rows
+                if row.get("canonical_run_id") is not None
+            }
+            self.assertIn(
+                "structured-run-v2",
+                canonical_run_ids,
+                "RESOLVES_TO edge must reference the v2 canonical entity (structured-run-v2); "
+                "cross-dataset leakage detected.",
+            )
+            self.assertNotIn(
+                "structured-run-v1",
+                canonical_run_ids,
+                "RESOLVES_TO edge must NOT reference the v1 canonical entity (structured-run-v1); "
+                "cross-dataset leakage detected.",
+            )
+
+    def test_v2_canonical_query_is_scoped_by_dataset_id(self):
+        """The CanonicalEntity lookup query must include dataset_id = v2 in its parameters."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config(Path(tmpdir))
+            mentions = [
+                {"mention_id": "m1", "name": self._SHARED_NAME, "entity_type": "organization"},
+            ]
+            all_canonicals = [
+                {
+                    "entity_id": self._SHARED_QID,
+                    "run_id": "structured-run-v1",
+                    "name": self._SHARED_NAME,
+                    "aliases": None,
+                    "dataset_id": self._V1_DATASET,
+                },
+                {
+                    "entity_id": self._SHARED_QID,
+                    "run_id": "structured-run-v2",
+                    "name": self._SHARED_NAME,
+                    "aliases": None,
+                    "dataset_id": self._V2_DATASET,
+                },
+            ]
+            driver = self._make_cross_dataset_driver(mentions, all_canonicals, self._V2_DATASET)
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                run_entity_resolution(
+                    config,
+                    run_id="cross-ds-sa-002",
+                    source_uri=None,
+                    dataset_id=self._V2_DATASET,
+                )
+
+            # Verify that the CanonicalEntity READ query text itself includes the
+            # dataset_id predicate, and that the query parameters use dataset_id=v2.
+            # Exclude post-write count queries that also mention CanonicalEntity.
+            canonical_read_calls = []
+            for call_obj in driver.execute_query.call_args_list:
+                query = call_obj.args[0] if call_obj.args else ""
+                if (
+                    "CanonicalEntity" in query
+                    and "RETURN" in query
+                    and "ALIGNED_WITH" not in query
+                ):
+                    canonical_read_calls.append(call_obj)
+            self.assertTrue(canonical_read_calls, "Expected a CanonicalEntity read query")
+            for call_obj in canonical_read_calls:
+                query = call_obj.args[0] if call_obj.args else ""
+                self.assertIn(
+                    "canonical.dataset_id = $dataset_id",
+                    query,
+                    "CanonicalEntity read query must include a dataset_id predicate",
+                )
+                params = call_obj.kwargs.get("parameters_") or {}
+                self.assertEqual(
+                    params.get("dataset_id"),
+                    self._V2_DATASET,
+                    "CanonicalEntity read query must be scoped to demo_dataset_v2",
+                )
+
+    def test_no_cross_dataset_leakage_when_only_v1_exists(self):
+        """When dataset_id=v2 and only v1 canonical entities exist, no resolution occurs."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._live_config(Path(tmpdir))
+            mentions = [
+                {"mention_id": "m1", "name": self._SHARED_NAME, "entity_type": "organization"},
+            ]
+            # Only v1 canonical node exists; v2 has none.
+            all_canonicals = [
+                {
+                    "entity_id": self._SHARED_QID,
+                    "run_id": "structured-run-v1",
+                    "name": self._SHARED_NAME,
+                    "aliases": None,
+                    "dataset_id": self._V1_DATASET,
+                },
+            ]
+            driver = self._make_cross_dataset_driver(mentions, all_canonicals, self._V2_DATASET)
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                result = run_entity_resolution(
+                    config,
+                    run_id="cross-ds-sa-003",
+                    source_uri=None,
+                    dataset_id=self._V2_DATASET,
+                )
+
+            # No resolution should happen because v2 has no canonical entities.
+            self.assertEqual(result["resolved"], 0, "No resolution expected when v2 has no canonical nodes")
+            resolves_to_merge_calls = [
+                call for call in driver.execute_query.call_args_list
+                if "MERGE" in (call.args[0] if call.args else "")
+                and "RESOLVES_TO" in (call.args[0] if call.args else "")
+            ]
+            self.assertFalse(
+                resolves_to_merge_calls,
+                "No RESOLVES_TO MERGE should occur when v2 has no canonical entities",
+            )
+
+
 class TestLegacyNullDatasetIdBehavior(unittest.TestCase):
     """Regression tests for the legacy dataset_id=null upgrade hazard.
 
