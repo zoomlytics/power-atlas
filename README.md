@@ -285,8 +285,8 @@ Example warning output:
 ```
 WARNING: run_id='unstructured_ingest-…' has Chunk nodes stamped with multiple
 distinct dataset_ids (including 'dataset_a' and 'dataset_b'). The graph may have
-been inconsistently ingested. Continuing dataset-ownership validation using
-dataset_id='dataset_a'.
+been inconsistently ingested. Proceeding with dataset-ownership validation using
+the first sorted dataset_id, 'dataset_a'.
 
 WARNING: Could not resolve dataset 'nonexistent_typo' to validate --run-id
 dataset ownership (Dataset 'nonexistent_typo' not found …). Dataset-ownership
