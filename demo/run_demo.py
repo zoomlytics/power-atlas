@@ -300,16 +300,31 @@ def _fetch_latest_unstructured_run_id(
             return record[0] if record else None
 
 
-def _warn_env_run_id_dataset_mismatch(env_run_id: str, explicit_dataset: str) -> None:
+def _warn_env_run_id_dataset_mismatch(
+    env_run_id: str,
+    config_dataset: str | None,
+    fixture_dataset: str | None,
+) -> None:
     """Print a WARNING when UNSTRUCTURED_RUN_ID is set alongside an explicit dataset.
 
     The env var bypasses dataset-aware run selection, so the run it points to may
     belong to a different dataset than the one explicitly requested.  Callers should
     invoke this whenever both signals are present so the mismatch is operator-visible.
+
+    Names the source (``FIXTURE_DATASET`` or ``--dataset``) so operators can
+    immediately see which setting to address, consistent with the style of other
+    warnings in ``_resolve_ask_scope``.
     """
+    # FIXTURE_DATASET is the default source for --dataset, so when it is set it is
+    # named first (it may be the root cause even when config_dataset is also populated).
+    # When only config_dataset is set the value came from an explicit --dataset flag.
+    if fixture_dataset:
+        dataset_label = f"FIXTURE_DATASET={fixture_dataset!r}"
+    else:
+        dataset_label = f"--dataset={config_dataset!r}"
     print(
         f"WARNING: UNSTRUCTURED_RUN_ID={env_run_id!r} is set and will be "
-        f"used as the retrieval scope, but dataset={explicit_dataset!r} "
+        f"used as the retrieval scope, but {dataset_label} "
         "is also selected. UNSTRUCTURED_RUN_ID bypasses dataset-aware run "
         "selection and may retrieve from a run that belongs to a different "
         "dataset. Use --latest (in --live mode) to resolve the latest run "
@@ -362,9 +377,10 @@ def _resolve_ask_scope(
             # dataset-aware run selection when an explicit dataset is also provided.
             # The run pointed to by the env var may belong to a different dataset.
             # Use --latest or --run-id for guaranteed dataset-scoped selection.
-            explicit_dataset = config.dataset_name or os.getenv("FIXTURE_DATASET")
-            if explicit_dataset:
-                _warn_env_run_id_dataset_mismatch(env_run_id, explicit_dataset)
+            config_dataset = config.dataset_name
+            fixture_dataset = os.getenv("FIXTURE_DATASET")
+            if config_dataset or fixture_dataset:
+                _warn_env_run_id_dataset_mismatch(env_run_id, config_dataset, fixture_dataset)
             return env_run_id, False
         return None, False
 
@@ -378,9 +394,10 @@ def _resolve_ask_scope(
         # different dataset, which would silently retrieve from the wrong scope.
         # Warn the operator so the mismatch is visible.  Use --latest or --run-id
         # to enforce dataset-scoped selection.
-        explicit_dataset = config.dataset_name or os.getenv("FIXTURE_DATASET")
-        if explicit_dataset:
-            _warn_env_run_id_dataset_mismatch(env_run_id, explicit_dataset)
+        config_dataset = config.dataset_name
+        fixture_dataset = os.getenv("FIXTURE_DATASET")
+        if config_dataset or fixture_dataset:
+            _warn_env_run_id_dataset_mismatch(env_run_id, config_dataset, fixture_dataset)
         return env_run_id, False
 
     # Either --latest was explicitly requested, or no env var is set: query Neo4j.

@@ -5729,7 +5729,9 @@ def test_resolve_ask_scope_env_run_id_with_dataset_warns_live(
         "A WARNING must be printed when UNSTRUCTURED_RUN_ID is used alongside --dataset"
     )
     assert v1_env_run in output, "WARNING must include the UNSTRUCTURED_RUN_ID value"
-    assert "demo_dataset_v2" in output, "WARNING must include the requested dataset name"
+    assert "--dataset='demo_dataset_v2'" in output, (
+        "WARNING must name --dataset as the source when FIXTURE_DATASET is not set"
+    )
     assert "dataset-aware" in output, (
         "WARNING must mention that UNSTRUCTURED_RUN_ID bypasses dataset-aware selection"
     )
@@ -5763,7 +5765,9 @@ def test_resolve_ask_scope_env_run_id_with_fixture_dataset_warns_live(
         "A WARNING must be printed when UNSTRUCTURED_RUN_ID is used alongside FIXTURE_DATASET"
     )
     assert v2_env_run in output
-    assert "demo_dataset_v1" in output
+    assert "FIXTURE_DATASET='demo_dataset_v1'" in output, (
+        "WARNING must name FIXTURE_DATASET as the source when it is set"
+    )
 
 
 def test_resolve_ask_scope_env_run_id_with_dataset_warns_dry_run(
@@ -5794,7 +5798,9 @@ def test_resolve_ask_scope_env_run_id_with_dataset_warns_dry_run(
         "A WARNING must be printed even in dry-run when UNSTRUCTURED_RUN_ID + --dataset are combined"
     )
     assert v1_env_run in output
-    assert "demo_dataset_v2" in output
+    assert "--dataset='demo_dataset_v2'" in output, (
+        "WARNING must name --dataset as the source when FIXTURE_DATASET is not set"
+    )
 
 
 def test_resolve_ask_scope_env_run_id_without_dataset_no_warning_live(
