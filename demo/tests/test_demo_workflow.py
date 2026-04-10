@@ -1881,12 +1881,11 @@ class WorkflowTests(unittest.TestCase):
                 output = buf.getvalue()
 
         # When multiple distinct dataset_ids are found for a run, the function
-        # should warn and return the deterministic first dataset_id based on
-        # the query ordering rather than None.
-        self.assertEqual(
-            "dataset_a",
+        # should warn and return None rather than picking an arbitrary
+        # dataset_id from the ambiguous result set.
+        self.assertIsNone(
             result,
-            "Should return the first sorted dataset_id when multiple dataset_ids are found for a run",
+            "Should return None when multiple dataset_ids are found for a run",
         )
         # A WARNING about multiple dataset_ids must be printed.
         self.assertIn(
