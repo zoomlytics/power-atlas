@@ -468,7 +468,7 @@ def _resolve_ask_scope(
                             config_dataset=_cli_dataset,
                             fixture_dataset=_fixture_dataset,
                         )
-                except ValueError as _exc:
+                except ValueError as exc:
                     # Dataset resolution failed (e.g. typo or unknown dataset name).
                     # Emit a visible warning so the operator knows validation was
                     # skipped; do not raise so the pipeline can still proceed with
@@ -476,7 +476,7 @@ def _resolve_ask_scope(
                     print(
                         f"WARNING: Could not resolve dataset {effective_dataset!r} to "
                         "validate --run-id dataset ownership "
-                        f"({_exc}). Dataset-ownership check skipped."
+                        f"({exc}). Dataset-ownership check skipped."
                     )
         return explicit_run_id, False
 
