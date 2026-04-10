@@ -291,7 +291,7 @@ inconsistently ingested. Dataset-ownership validation will use the first value
 ('dataset_a') and may not reflect all chunks.
 
 WARNING: Could not resolve dataset 'nonexistent_typo' to validate --run-id
-dataset ownership (Dataset 'nonexisten_typo' not found …). Dataset-ownership
+dataset ownership (Dataset 'nonexistent_typo' not found …). Dataset-ownership
 check skipped.
 ```
 
