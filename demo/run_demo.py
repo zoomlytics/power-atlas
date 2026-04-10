@@ -302,9 +302,10 @@ def _fetch_latest_unstructured_run_id(
 def _fetch_dataset_id_for_run(config: Config, run_id: str) -> str | None:
     """Query Neo4j for the dataset_id stamped on Chunk nodes belonging to *run_id*.
 
-    Returns the dataset_id of the first Chunk node found with the given run_id,
-    or None if no matching Chunk nodes exist.  Only call this in live mode; it
-    opens a real Neo4j connection.
+    Returns the dataset_id of the first Chunk node found with the given run_id
+    that has a non-null dataset_id property, or None if no such Chunk nodes exist
+    (run not found, or run exists but no Chunk has a stamped dataset_id).
+    Only call this in live mode; it opens a real Neo4j connection.
     """
     import neo4j as _neo4j
 
@@ -313,12 +314,31 @@ def _fetch_dataset_id_for_run(config: Config, run_id: str) -> str | None:
     ) as driver:
         with driver.session(database=config.neo4j_database) as session:
             result = session.run(
-                "MATCH (c:Chunk) WHERE c.run_id = $run_id "
+                "MATCH (c:Chunk) WHERE c.run_id = $run_id AND c.dataset_id IS NOT NULL "
                 "RETURN c.dataset_id LIMIT 1",
                 run_id=run_id,
             )
             record = result.single()
             return record[0] if record else None
+
+
+def _format_dataset_label(
+    config_dataset: str | None,
+    fixture_dataset: str | None,
+) -> str:
+    """Return a human-readable label for the effective dataset selection.
+
+    When ``--dataset`` overrides ``FIXTURE_DATASET``, both values are shown for
+    clarity.  Used consistently across all dataset-mismatch warnings.
+    """
+    if config_dataset and fixture_dataset and config_dataset != fixture_dataset:
+        return (
+            f"--dataset={config_dataset!r} "
+            f"(overrides FIXTURE_DATASET={fixture_dataset!r})"
+        )
+    if fixture_dataset:
+        return f"FIXTURE_DATASET={fixture_dataset!r}"
+    return f"--dataset={config_dataset!r}"
 
 
 def _warn_explicit_run_id_dataset_mismatch(
@@ -336,15 +356,7 @@ def _warn_explicit_run_id_dataset_mismatch(
     When both ``--dataset`` and ``FIXTURE_DATASET`` are present and differ,
     ``--dataset`` is the effective override and is named as such.
     """
-    if config_dataset and fixture_dataset and config_dataset != fixture_dataset:
-        dataset_label = (
-            f"--dataset={config_dataset!r} "
-            f"(overrides FIXTURE_DATASET={fixture_dataset!r})"
-        )
-    elif fixture_dataset:
-        dataset_label = f"FIXTURE_DATASET={fixture_dataset!r}"
-    else:
-        dataset_label = f"--dataset={config_dataset!r}"
+    dataset_label = _format_dataset_label(config_dataset, fixture_dataset)
     print(
         f"WARNING: --run-id={explicit_run_id!r} belongs to dataset {actual_dataset_id!r}, "
         f"but {dataset_label} is selected (expected dataset_id={expected_dataset_id!r}). "
@@ -370,17 +382,7 @@ def _warn_env_run_id_dataset_mismatch(
     overrides ``FIXTURE_DATASET``, the warning names ``--dataset`` and includes the
     overridden fixture value for clarity.
     """
-    # FIXTURE_DATASET is the default source for --dataset, but an explicit
-    # --dataset override is the effective selection and should be named as such.
-    if config_dataset and fixture_dataset and config_dataset != fixture_dataset:
-        dataset_label = (
-            f"--dataset={config_dataset!r} "
-            f"(overrides FIXTURE_DATASET={fixture_dataset!r})"
-        )
-    elif fixture_dataset:
-        dataset_label = f"FIXTURE_DATASET={fixture_dataset!r}"
-    else:
-        dataset_label = f"--dataset={config_dataset!r}"
+    dataset_label = _format_dataset_label(config_dataset, fixture_dataset)
     print(
         f"WARNING: UNSTRUCTURED_RUN_ID={env_run_id!r} is set and will be "
         f"used as the retrieval scope, but {dataset_label} "
