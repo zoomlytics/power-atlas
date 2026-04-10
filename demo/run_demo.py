@@ -40,9 +40,12 @@ from demo.stages import (  # noqa: E402
 )
 from demo.stages.retrieval_and_qa import _format_scope_label  # noqa: E402
 from demo.stages.pdf_ingest import sha256_file  # noqa: E402, F401 - re-exported for callers and tests
-from demo.stages.retrieval_benchmark import run_retrieval_benchmark  # noqa: E402
 
 
+def run_retrieval_benchmark(*args: Any, **kwargs: Any) -> Any:
+    from demo.stages.retrieval_benchmark import run_retrieval_benchmark as _run_retrieval_benchmark
+
+    return _run_retrieval_benchmark(*args, **kwargs)
 def _now_iso() -> str:
     return datetime.now(UTC).isoformat()
 
