@@ -308,8 +308,12 @@ def _fetch_latest_unstructured_run_id(
 def _fetch_dataset_id_for_run(config: Config, run_id: str) -> str | None:
     """Query Neo4j for the dataset_id stamped on Chunk nodes belonging to *run_id*.
 
-    Returns the dataset_id of the first Chunk node found with the given run_id
-    that has a non-null dataset_id property, or None if no such Chunk nodes exist
+    Collects all distinct dataset_id values across every Chunk for this run.
+    If multiple distinct values are found (indicating an inconsistently-ingested
+    graph), a WARNING is printed and the first (alphabetically sorted) value is
+    returned so that the caller's mismatch check still fires when appropriate.
+
+    Returns None if no Chunk nodes with a non-null dataset_id exist for the run
     (run not found, or run exists but no Chunk has a stamped dataset_id).
     Only call this in live mode; it opens a real Neo4j connection.
     """
@@ -321,11 +325,23 @@ def _fetch_dataset_id_for_run(config: Config, run_id: str) -> str | None:
         with driver.session(database=config.neo4j_database) as session:
             result = session.run(
                 "MATCH (c:Chunk) WHERE c.run_id = $run_id AND c.dataset_id IS NOT NULL "
-                "RETURN c.dataset_id LIMIT 1",
+                "RETURN collect(DISTINCT c.dataset_id) AS dataset_ids",
                 run_id=run_id,
             )
             record = result.single()
-            return record[0] if record else None
+            if not record:
+                return None
+            dataset_ids: list[str] = sorted(record["dataset_ids"])
+            if not dataset_ids:
+                return None
+            if len(dataset_ids) > 1:
+                print(
+                    f"WARNING: run_id={run_id!r} has Chunk nodes stamped with multiple "
+                    f"distinct dataset_ids: {dataset_ids}. The graph may have been "
+                    "inconsistently ingested. Dataset-ownership validation will use the "
+                    f"first value ({dataset_ids[0]!r}) and may not reflect all chunks."
+                )
+            return dataset_ids[0]
 
 
 def _format_dataset_label(
@@ -452,9 +468,16 @@ def _resolve_ask_scope(
                             config_dataset=_cli_dataset,
                             fixture_dataset=_fixture_dataset,
                         )
-                except ValueError:
-                    # Dataset resolution failed; skip the dataset-ownership check.
-                    pass
+                except ValueError as _exc:
+                    # Dataset resolution failed (e.g. typo or unknown dataset name).
+                    # Emit a visible warning so the operator knows validation was
+                    # skipped; do not raise so the pipeline can still proceed with
+                    # the explicitly-requested run-id.
+                    print(
+                        f"WARNING: Could not resolve dataset {effective_dataset!r} to "
+                        "validate --run-id dataset ownership "
+                        f"({_exc}). Dataset-ownership check skipped."
+                    )
         return explicit_run_id, False
 
     # Default / --latest: resolve the latest run_id.

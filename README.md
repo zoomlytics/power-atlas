@@ -263,7 +263,35 @@ graph writes during a pipeline run.
 | [`demo/tests/contract_fixtures/`](demo/tests/contract_fixtures/) | YAML fixtures for citation contract scenarios |
 | [`tests/`](tests/) | Repository-level integration tests (PDF ingest helpers, vendor sync) |
 
-### Benchmarks
+### `ask --run-id` dataset-ownership validation
+
+When `ask` is called with an explicit `--run-id` alongside a dataset selection
+(`--dataset <name>` or `FIXTURE_DATASET=<name>`), the pipeline queries Neo4j to
+verify that the run actually belongs to the selected dataset.
+
+**Consistency check (mixed dataset_ids):** The query now collects *all* distinct
+`dataset_id` values stamped on `Chunk` nodes for the run, not just the first one.
+If a run has chunks belonging to more than one dataset (e.g. from an inconsistent
+ingest), a `WARNING` is printed listing the detected `dataset_id` values and the
+validation proceeds using the first (alphabetically sorted) value.  This prevents
+the silent false-negative that could occur with a `LIMIT 1` query.
+
+**Dataset resolution failure:** If `--dataset` or `FIXTURE_DATASET` specifies a
+name that cannot be resolved (e.g. a typo), a `WARNING` is printed explaining that
+dataset-ownership validation was skipped.  The pipeline still proceeds with the
+explicit `--run-id` so the request is not silently dropped.
+
+Example warning output:
+```
+WARNING: run_id='unstructured_ingest-…' has Chunk nodes stamped with multiple
+distinct dataset_ids: ['dataset_a', 'dataset_b']. The graph may have been
+inconsistently ingested. Dataset-ownership validation will use the first value
+('dataset_a') and may not reflect all chunks.
+
+WARNING: Could not resolve dataset 'nonexisten_typo' to validate --run-id
+dataset ownership (Dataset 'nonexisten_typo' not found …). Dataset-ownership
+check skipped.
+```
 
 | Asset | Purpose |
 |-------|---------|
