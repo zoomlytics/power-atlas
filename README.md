@@ -272,6 +272,25 @@ graph writes during a pipeline run.
 | [`demo/stages/retrieval_benchmark.py`](demo/stages/retrieval_benchmark.py) | Benchmark stage implementation |
 | `pipelines/runs/<run_id>/retrieval_benchmark/` | Actual run baseline artifacts (gitignored by default; see `.gitignore`) |
 
+#### Benchmark failure handling
+
+The retrieval benchmark runs automatically at the end of every orchestrated `ingest` run.
+If it fails (e.g. due to a Neo4j connection error or an unexpected exception), the orchestrator
+**does not abort** — it catches the exception, logs the traceback, and continues to write the
+manifest. The written manifest will include a `retrieval_benchmark` stage with:
+
+```json
+{
+  "status": "error",
+  "error": "<exception message>",
+  "traceback": "<full Python traceback>"
+}
+```
+
+All earlier successfully completed pipeline stages (QA/retrieval signals, structured ingest,
+entity resolution, claim extraction, etc.) are preserved in the manifest so that partial
+results are not lost and debugging incomplete runs is straightforward.
+
 ---
 
 ## Documentation
