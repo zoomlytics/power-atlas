@@ -281,6 +281,8 @@ name that cannot be resolved (e.g. a typo), a `WARNING` is printed explaining th
 dataset-ownership validation was skipped.  The pipeline still proceeds with the
 explicit `--run-id` so the request is not silently dropped.
 
+### Benchmarks
+
 Example warning output:
 ```
 WARNING: run_id='unstructured_ingest-…' has Chunk nodes stamped with multiple
