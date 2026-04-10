@@ -2,8 +2,10 @@
 
 Connects to a running Neo4j instance, runs the full retrieval benchmark defined
 in ``demo/stages/retrieval_benchmark.py``, and writes a JSON artifact to
-``pipelines/runs/<run_id>/retrieval_benchmark/`` when ``--run-id`` is provided,
-or to ``pipelines/runs/retrieval_benchmark/`` when it is omitted.
+``<output-dir>/runs/<run_id>/retrieval_benchmark/`` when ``--run-id`` is provided,
+or to ``<output-dir>/runs/retrieval_benchmark/`` when it is omitted.  The default
+``<output-dir>`` is ``pipelines/`` (the directory containing this script's parent
+directory); pass ``--output-dir`` to override it.
 
 .. note::
     **Orchestrated runs:** the ``ingest`` orchestrator (``python -m demo.run_demo ingest``)
