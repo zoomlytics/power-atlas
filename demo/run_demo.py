@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import os
 import sys
+import traceback
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Callable
@@ -41,6 +43,10 @@ from demo.stages import (  # noqa: E402
 from demo.stages.retrieval_and_qa import _format_scope_label  # noqa: E402
 from demo.stages.retrieval_benchmark import run_retrieval_benchmark  # noqa: E402
 from demo.stages.pdf_ingest import sha256_file  # noqa: E402, F401 - re-exported for callers and tests
+
+_logger = logging.getLogger(__name__)
+
+
 def _now_iso() -> str:
     return datetime.now(UTC).isoformat()
 
@@ -645,13 +651,24 @@ def _run_orchestrated(config: Config) -> Path:
         if isinstance(entity_resolution_hybrid_stage, dict)
         else None
     )
-    benchmark_stage = run_retrieval_benchmark(
-        config,
-        run_id=unstructured_run_id,
-        dataset_id=dataset_root.dataset_id,
-        alignment_version=_hybrid_alignment_version,
-        output_dir=config.output_dir,
-    )
+    try:
+        benchmark_stage = run_retrieval_benchmark(
+            config,
+            run_id=unstructured_run_id,
+            dataset_id=dataset_root.dataset_id,
+            alignment_version=_hybrid_alignment_version,
+            output_dir=config.output_dir,
+        )
+    except Exception as _benchmark_exc:  # noqa: BLE001
+        _tb = traceback.format_exc()
+        _logger.error(
+            "retrieval_benchmark failed; manifest will be written with error status. %s", _tb
+        )
+        benchmark_stage = {
+            "status": "error",
+            "error": str(_benchmark_exc),
+            "traceback": _tb,
+        }
 
     finished_at = _now_iso()
     manifest = build_batch_manifest(

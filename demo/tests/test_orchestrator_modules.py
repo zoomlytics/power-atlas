@@ -6154,3 +6154,126 @@ def test_resolve_ask_scope_explicit_run_id_wrong_dataset_overrides_fixture_warns
     assert "FIXTURE_DATASET='demo_dataset_v1'" in output, (
         "WARNING must include the overridden FIXTURE_DATASET value for operator clarity"
     )
+
+
+# ---------------------------------------------------------------------------
+# Regression test: benchmark failure must not lose the manifest
+# ---------------------------------------------------------------------------
+
+
+def test_benchmark_failure_preserves_manifest_with_error_status(tmp_path: Path):
+    """If run_retrieval_benchmark raises, the orchestrator must still write a manifest.
+
+    The manifest's ``retrieval_benchmark`` stage must have ``status: "error"`` and
+    capture the exception message and traceback.  All earlier pipeline stages
+    (QA/retrieval signals, structured_ingest, etc.) must also be present so that
+    partial results are not lost.
+    """
+    from demo.contracts.manifest import build_batch_manifest
+
+    config = _dry_run_config(tmp_path)
+
+    earlier_stages = {
+        "structured_stage": {"status": "dry_run"},
+        "pdf_stage": {"status": "dry_run"},
+        "claim_stage": {"status": "dry_run"},
+        "retrieval_stage": {"status": "dry_run"},
+        "retrieval_benchmark_stage": {
+            "status": "error",
+            "error": "simulated benchmark failure",
+            "traceback": "Traceback (most recent call last):\n  ...\nRuntimeError: simulated benchmark failure",
+        },
+    }
+
+    manifest = build_batch_manifest(
+        config=config,
+        structured_run_id="structured-1",
+        unstructured_run_id="unstructured-2",
+        **earlier_stages,
+    )
+
+    # The benchmark stage must surface the error status.
+    benchmark = manifest["stages"]["retrieval_benchmark"]
+    assert benchmark["status"] == "error"
+    assert "simulated benchmark failure" in benchmark["error"]
+    assert "traceback" in benchmark
+
+    # All earlier stages must still be present.
+    assert "structured_ingest" in manifest["stages"]
+    assert "pdf_ingest" in manifest["stages"]
+    assert "claim_and_mention_extraction" in manifest["stages"]
+    assert "retrieval_and_qa" in manifest["stages"]
+
+    # QA signals must still be surfaced from the retrieval stage.
+    assert "qa_signals" in manifest
+
+
+def test_benchmark_failure_in_orchestrated_run_writes_manifest(tmp_path: Path):
+    """Regression: simulate a benchmark failure during _run_orchestrated and assert
+    the manifest file is written with error status and partial pipeline results.
+    """
+    from unittest.mock import MagicMock, patch
+
+    from demo.run_demo import _run_orchestrated
+    from demo.contracts.runtime import Config
+
+    config = Config(
+        dry_run=True,
+        output_dir=tmp_path,
+        neo4j_uri="bolt://example.invalid",
+        neo4j_username="neo4j",
+        neo4j_password="not-used",
+        neo4j_database="neo4j",
+        openai_model="test-model",
+    )
+
+    def _raise_benchmark(*args, **kwargs):
+        raise RuntimeError("simulated Neo4j benchmark failure")
+
+    with patch(
+        "demo.run_demo.run_retrieval_benchmark",
+        side_effect=_raise_benchmark,
+    ), patch(
+        "demo.run_demo.resolve_dataset_root",
+        return_value=MagicMock(
+            dataset_id="test_dataset",
+            root=tmp_path,
+            pdf_filename="test.pdf",
+        ),
+    ), patch("demo.run_demo.set_dataset_id"), patch(
+        "demo.run_demo.run_pdf_ingest",
+        return_value={"status": "dry_run"},
+    ), patch(
+        "demo.run_demo.run_claim_and_mention_extraction",
+        return_value={"status": "dry_run"},
+    ), patch(
+        "demo.run_demo.run_claim_participation",
+        return_value={"status": "dry_run"},
+    ), patch(
+        "demo.run_demo.run_entity_resolution",
+        return_value={"status": "dry_run"},
+    ), patch(
+        "demo.run_demo.run_retrieval_and_qa",
+        return_value={"status": "dry_run"},
+    ), patch(
+        "demo.run_demo.run_structured_ingest",
+        return_value={"status": "dry_run"},
+    ):
+        manifest_path = _run_orchestrated(config)
+
+    assert manifest_path.exists(), "manifest.json must be written even if benchmark fails"
+
+    import json
+
+    manifest = json.loads(manifest_path.read_text())
+
+    benchmark_stage = manifest["stages"].get("retrieval_benchmark")
+    assert benchmark_stage is not None, "retrieval_benchmark stage must appear in the manifest"
+    assert benchmark_stage["status"] == "error"
+    assert "simulated Neo4j benchmark failure" in benchmark_stage["error"]
+    assert "traceback" in benchmark_stage
+
+    # Earlier pipeline stages must be present.
+    assert "structured_ingest" in manifest["stages"]
+    assert "pdf_ingest" in manifest["stages"]
+    assert "retrieval_and_qa" in manifest["stages"]
