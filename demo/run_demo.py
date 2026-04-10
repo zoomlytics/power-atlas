@@ -313,11 +313,13 @@ def _fetch_dataset_id_for_run(config: Config, run_id: str) -> str | None:
     ids without collecting the full distinct set for very large runs.
 
     If multiple distinct values are found (indicating an inconsistently-ingested
-    graph), a WARNING is printed and the first (alphabetically sorted) value is
-    returned so that the caller's mismatch check still fires when appropriate.
+    graph), a WARNING is printed and ``None`` is returned to preserve the
+    ambiguity rather than selecting an arbitrary dataset_id that could trigger a
+    misleading downstream mismatch warning.
 
-    Returns None if no Chunk nodes with a non-null dataset_id exist for the run
-    (run not found, or run exists but no Chunk has a stamped dataset_id).
+    Returns None if no Chunk nodes with a non-null dataset_id exist for the run,
+    or if multiple distinct non-null dataset_id values are present on the run's
+    Chunk nodes.
     Only call this in live mode; it opens a real Neo4j connection.
     """
     import neo4j as _neo4j
@@ -341,9 +343,10 @@ def _fetch_dataset_id_for_run(config: Config, run_id: str) -> str | None:
                     f"WARNING: run_id={run_id!r} has Chunk nodes stamped with multiple "
                     f"distinct dataset_ids (including {dataset_ids[0]!r} and "
                     f"{dataset_ids[1]!r}). The graph may have been inconsistently "
-                    "ingested. Dataset-ownership validation will use the first value "
-                    f"({dataset_ids[0]!r}) and may not reflect all chunks."
+                    "ingested. Dataset-ownership validation is ambiguous for this run, "
+                    "so no single dataset_id will be used."
                 )
+                return None
             return dataset_ids[0]
 
 
