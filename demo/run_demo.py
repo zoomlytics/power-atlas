@@ -299,6 +299,72 @@ def _fetch_latest_unstructured_run_id(
             return record[0] if record else None
 
 
+def _fetch_dataset_id_for_run(config: Config, run_id: str) -> str | None:
+    """Query Neo4j for the dataset_id stamped on Chunk nodes belonging to *run_id*.
+
+    Returns the dataset_id of the first Chunk node found with the given run_id
+    that has a non-null dataset_id property, or None if no such Chunk nodes exist
+    (run not found, or run exists but no Chunk has a stamped dataset_id).
+    Only call this in live mode; it opens a real Neo4j connection.
+    """
+    import neo4j as _neo4j
+
+    with _neo4j.GraphDatabase.driver(
+        config.neo4j_uri, auth=(config.neo4j_username, config.neo4j_password)
+    ) as driver:
+        with driver.session(database=config.neo4j_database) as session:
+            result = session.run(
+                "MATCH (c:Chunk) WHERE c.run_id = $run_id AND c.dataset_id IS NOT NULL "
+                "RETURN c.dataset_id LIMIT 1",
+                run_id=run_id,
+            )
+            record = result.single()
+            return record[0] if record else None
+
+
+def _format_dataset_label(
+    config_dataset: str | None,
+    fixture_dataset: str | None,
+) -> str:
+    """Return a human-readable label for the effective dataset selection.
+
+    When ``--dataset`` overrides ``FIXTURE_DATASET``, both values are shown for
+    clarity.  Used consistently across all dataset-mismatch warnings.
+    """
+    if config_dataset and fixture_dataset and config_dataset != fixture_dataset:
+        return (
+            f"--dataset={config_dataset!r} "
+            f"(overrides FIXTURE_DATASET={fixture_dataset!r})"
+        )
+    if fixture_dataset:
+        return f"FIXTURE_DATASET={fixture_dataset!r}"
+    return f"--dataset={config_dataset!r}"
+
+
+def _warn_explicit_run_id_dataset_mismatch(
+    explicit_run_id: str,
+    expected_dataset_id: str,
+    actual_dataset_id: str,
+    *,
+    config_dataset: str | None,
+    fixture_dataset: str | None,
+) -> None:
+    """Print a WARNING when --run-id belongs to a different dataset than the one selected.
+
+    Names the effective dataset source (``FIXTURE_DATASET`` or ``--dataset``) for
+    operator clarity, consistent with ``_warn_env_run_id_dataset_mismatch``.
+    When both ``--dataset`` and ``FIXTURE_DATASET`` are present and differ,
+    ``--dataset`` is the effective override and is named as such.
+    """
+    dataset_label = _format_dataset_label(config_dataset, fixture_dataset)
+    print(
+        f"WARNING: --run-id={explicit_run_id!r} belongs to dataset {actual_dataset_id!r}, "
+        f"but {dataset_label} is selected (expected dataset_id={expected_dataset_id!r}). "
+        "Retrieval will be scoped to a run from a different dataset than requested. "
+        "Use --latest to select the latest run for the selected dataset instead."
+    )
+
+
 def _warn_env_run_id_dataset_mismatch(
     env_run_id: str,
     config_dataset: str | None,
@@ -316,17 +382,7 @@ def _warn_env_run_id_dataset_mismatch(
     overrides ``FIXTURE_DATASET``, the warning names ``--dataset`` and includes the
     overridden fixture value for clarity.
     """
-    # FIXTURE_DATASET is the default source for --dataset, but an explicit
-    # --dataset override is the effective selection and should be named as such.
-    if config_dataset and fixture_dataset and config_dataset != fixture_dataset:
-        dataset_label = (
-            f"--dataset={config_dataset!r} "
-            f"(overrides FIXTURE_DATASET={fixture_dataset!r})"
-        )
-    elif fixture_dataset:
-        dataset_label = f"FIXTURE_DATASET={fixture_dataset!r}"
-    else:
-        dataset_label = f"--dataset={config_dataset!r}"
+    dataset_label = _format_dataset_label(config_dataset, fixture_dataset)
     print(
         f"WARNING: UNSTRUCTURED_RUN_ID={env_run_id!r} is set and will be "
         f"used as the retrieval scope, but {dataset_label} "
@@ -371,6 +427,28 @@ def _resolve_ask_scope(
                 f"WARNING: UNSTRUCTURED_RUN_ID={env_run_id!r} is set "
                 f"but overridden by --run-id={explicit_run_id!r}."
             )
+        # Dataset-integrity check: when a dataset is explicitly selected, verify
+        # that --run-id actually belongs to that dataset.  Skip in dry-run mode
+        # because Neo4j is unavailable and the run cannot be verified.
+        if not config.dry_run:
+            _cli_dataset = config.dataset_name
+            _fixture_dataset = os.getenv("FIXTURE_DATASET")
+            effective_dataset = _cli_dataset or _fixture_dataset
+            if effective_dataset:
+                try:
+                    expected_dataset_id = resolve_dataset_root(effective_dataset).dataset_id
+                    actual_dataset_id = _fetch_dataset_id_for_run(config, explicit_run_id)
+                    if actual_dataset_id is not None and actual_dataset_id != expected_dataset_id:
+                        _warn_explicit_run_id_dataset_mismatch(
+                            explicit_run_id,
+                            expected_dataset_id,
+                            actual_dataset_id,
+                            config_dataset=_cli_dataset,
+                            fixture_dataset=_fixture_dataset,
+                        )
+                except ValueError:
+                    # Dataset resolution failed; skip the dataset-ownership check.
+                    pass
         return explicit_run_id, False
 
     # Default / --latest: resolve the latest run_id.
