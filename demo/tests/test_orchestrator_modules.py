@@ -6306,7 +6306,7 @@ def test_orchestrated_run_warns_when_alignment_version_missing(tmp_path: Path):
 
     tc = unittest.TestCase()
     tc.maxDiff = None
-    with tc.assertLogs("demo.run_demo", level=logging.WARNING) as cm:
+    with tc.assertLogs("demo.run_demo", level=logging.WARNING) as captured_logs:
         with patch(
             "demo.run_demo.run_retrieval_benchmark",
             return_value={"status": "dry_run", "artifact_path": str(tmp_path / "bench.json"), "artifact": None},
@@ -6338,10 +6338,10 @@ def test_orchestrated_run_warns_when_alignment_version_missing(tmp_path: Path):
         ):
             _run_orchestrated(config)
 
-    warning_messages = [r for r in cm.output if "WARNING" in r]
+    warning_messages = [r for r in captured_logs.output if "WARNING" in r]
     assert any(
-        "alignment_version" in msg and "all alignment versions" in msg.lower()
+        "alignment_version" in msg and "aggregate" in msg.lower()
         for msg in warning_messages
-    ), f"Expected alignment_version warning in orchestrator log, got: {cm.output}"
+    ), f"Expected alignment_version/aggregate warning in orchestrator log, got: {captured_logs.output}"
 
 

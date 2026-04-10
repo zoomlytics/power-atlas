@@ -1035,12 +1035,12 @@ class TestRunRetrievalBenchmarkDryRun(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             config = _make_config(Path(tmp), dry_run=True)
-            with self.assertLogs("demo.stages.retrieval_benchmark", level=logging.WARNING) as cm:
+            with self.assertLogs("demo.stages.retrieval_benchmark", level=logging.WARNING) as captured_logs:
                 run_retrieval_benchmark(config, run_id="run-warn", alignment_version=None)
-        warning_messages = [r for r in cm.output if "WARNING" in r]
+        warning_messages = [r for r in captured_logs.output if "WARNING" in r]
         self.assertTrue(
-            any("alignment_version" in msg and "all alignment versions" in msg.lower() for msg in warning_messages),
-            f"Expected alignment_version warning in log output, got: {cm.output}",
+            any("alignment_version" in msg and "aggregate" in msg.lower() for msg in warning_messages),
+            f"Expected alignment_version/aggregate warning in log output, got: {captured_logs.output}",
         )
 
     def test_explicit_alignment_version_does_not_emit_warning(self) -> None:
