@@ -514,3 +514,41 @@ def test_manifest_md_summary_omits_dataset_id_when_none():
     text = _manifest_md_summary(manifest)
     assert "Dataset ID" not in text
 
+
+# ---------------------------------------------------------------------------
+# build_batch_manifest – retrieval_benchmark_stage
+# ---------------------------------------------------------------------------
+
+def test_build_batch_manifest_includes_retrieval_benchmark_stage_when_provided():
+    """retrieval_benchmark_stage must appear under stages.retrieval_benchmark."""
+    config = _make_config()
+    benchmark_stage = {"status": "dry_run", "artifact_path": "/tmp/retrieval_benchmark.json"}
+    manifest = build_batch_manifest(
+        config=config,
+        structured_run_id="s-id",
+        unstructured_run_id="u-id",
+        structured_stage={},
+        pdf_stage={},
+        claim_stage={},
+        retrieval_stage={},
+        retrieval_benchmark_stage=benchmark_stage,
+    )
+    assert "retrieval_benchmark" in manifest["stages"]
+    assert manifest["stages"]["retrieval_benchmark"]["status"] == "dry_run"
+    assert manifest["stages"]["retrieval_benchmark"]["run_id"] == "u-id"
+
+
+def test_build_batch_manifest_omits_retrieval_benchmark_stage_when_absent():
+    """When retrieval_benchmark_stage is not provided, the key must be absent from stages."""
+    config = _make_config()
+    manifest = build_batch_manifest(
+        config=config,
+        structured_run_id="s-id",
+        unstructured_run_id="u-id",
+        structured_stage={},
+        pdf_stage={},
+        claim_stage={},
+        retrieval_stage={},
+    )
+    assert "retrieval_benchmark" not in manifest["stages"]
+

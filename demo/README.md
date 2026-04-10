@@ -470,7 +470,22 @@ For first-time users, prefer the CLI flags over environment-variable-based run s
 python -m demo.run_demo --dry-run ingest
 ```
 
-Runs the full unstructured-first sequence as a single command: PDF ingest → claim extraction → entity resolution (`unstructured_only`) → Q&A → structured ingest → entity resolution (`hybrid`) → final Q&A. The batch manifest captures both passes so you can compare Q&A quality before and after structured enrichment.
+Runs the full unstructured-first sequence as a single command: PDF ingest → claim extraction → entity resolution (`unstructured_only`) → Q&A → structured ingest → entity resolution (`hybrid`) → final Q&A → **retrieval benchmark**. The batch manifest captures all passes so you can compare Q&A quality before and after structured enrichment.
+
+The **retrieval benchmark** runs automatically at the end of every `ingest` run (in both `--dry-run` and `--live` modes). It validates canonical traversal quality after hybrid alignment and writes a benchmark artifact to:
+
+```text
+<output-dir>/runs/<unstructured_run_id>/retrieval_benchmark/retrieval_benchmark.json
+```
+
+The benchmark result is also included in the batch manifest under `stages.retrieval_benchmark`. In `--dry-run` mode a stub artifact is produced (no live Neo4j calls are made). To run the benchmark independently against an existing graph, use the standalone script:
+
+```bash
+python pipelines/query/retrieval_benchmark.py \
+    --dataset-id <dataset_id> \
+    --run-id <unstructured_run_id> \
+    --live
+```
 
 To include live Q&A in both phases, pass a question:
 

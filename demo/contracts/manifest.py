@@ -24,6 +24,7 @@ def build_batch_manifest(
     retrieval_unstructured_stage: dict[str, Any] | None = None,
     entity_resolution_hybrid_stage: dict[str, Any] | None = None,
     claim_participation_stage: dict[str, Any] | None = None,
+    retrieval_benchmark_stage: dict[str, Any] | None = None,
     dataset_id: str | None = None,
     started_at: str | None = None,
     finished_at: str | None = None,
@@ -49,6 +50,9 @@ def build_batch_manifest(
       :ResolvedEntityCluster nodes with :ALIGNED_WITH edges to :CanonicalEntity nodes
       where available; present when *entity_resolution_hybrid_stage* is given
     * ``retrieval_and_qa`` — final Q&A pass after structured enrichment
+    * ``retrieval_benchmark`` — post-hybrid canonical traversal benchmark; present
+      when *retrieval_benchmark_stage* is given (automatically included by the
+      ``ingest`` orchestrator)
 
     For backward compatibility, if *entity_resolution_stage* is provided it is still
     emitted under the legacy ``entity_resolution`` key.
@@ -83,6 +87,11 @@ def build_batch_manifest(
     # old entity_resolution_stage parameter (e.g. pre-existing tests or callers).
     if entity_resolution_stage is not None:
         stages["entity_resolution"] = {**entity_resolution_stage, "run_id": unstructured_run_id}
+    if retrieval_benchmark_stage is not None:
+        stages["retrieval_benchmark"] = {
+            **retrieval_benchmark_stage,
+            "run_id": unstructured_run_id,
+        }
 
     # Surface per-answer citation completeness and warning status at the batch level so
     # consumers can assess QA quality without inspecting stage-level details.

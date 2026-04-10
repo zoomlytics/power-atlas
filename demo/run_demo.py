@@ -40,6 +40,7 @@ from demo.stages import (  # noqa: E402
 )
 from demo.stages.retrieval_and_qa import _format_scope_label  # noqa: E402
 from demo.stages.pdf_ingest import sha256_file  # noqa: E402, F401 - re-exported for callers and tests
+from demo.stages.retrieval_benchmark import run_retrieval_benchmark  # noqa: E402
 
 
 def _now_iso() -> str:
@@ -554,6 +555,19 @@ def _run_orchestrated(config: Config) -> Path:
         question=getattr(config, "question", None),
     )
 
+    # Post-hybrid retrieval benchmark: validates canonical traversal quality after
+    # the full pipeline (including hybrid alignment).  Runs automatically as part of
+    # every orchestrated `ingest` to produce a benchmark artifact and regression
+    # readout without requiring a separate manual invocation.  The artifact is written
+    # to <output_dir>/runs/<unstructured_run_id>/retrieval_benchmark/retrieval_benchmark.json.
+    # In dry-run mode a stub artifact is produced (no live Neo4j calls are made).
+    benchmark_stage = run_retrieval_benchmark(
+        config,
+        run_id=unstructured_run_id,
+        dataset_id=dataset_root.dataset_id,
+        output_dir=config.output_dir,
+    )
+
     finished_at = _now_iso()
     manifest = build_batch_manifest(
         config=config,
@@ -567,6 +581,7 @@ def _run_orchestrated(config: Config) -> Path:
         retrieval_unstructured_stage=retrieval_unstructured_stage,
         entity_resolution_hybrid_stage=entity_resolution_hybrid_stage,
         retrieval_stage=retrieval_stage,
+        retrieval_benchmark_stage=benchmark_stage,
         dataset_id=dataset_root.dataset_id,
         started_at=started_at,
         finished_at=finished_at,

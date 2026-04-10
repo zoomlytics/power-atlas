@@ -5,6 +5,19 @@ in ``demo/stages/retrieval_benchmark.py``, and writes a JSON artifact to
 ``pipelines/runs/<run_id>/retrieval_benchmark/`` when ``--run-id`` is provided,
 or to ``pipelines/runs/retrieval_benchmark/`` when it is omitted.
 
+.. note::
+    **Orchestrated runs:** the ``ingest`` orchestrator (``python -m demo.run_demo ingest``)
+    automatically invokes ``run_retrieval_benchmark`` at the end of every batch run
+    (after hybrid alignment), scoped to the active dataset and unstructured run.  The
+    artifact is written under ``<output-dir>/runs/<unstructured_run_id>/retrieval_benchmark/``
+    and included in the batch manifest under ``stages.retrieval_benchmark``.
+
+    This standalone script is for **manual / standalone** benchmark runs against an
+    existing graph — for example, to re-evaluate a previous run, to scope a benchmark
+    to a different ``--dataset-id``, or to produce a baseline artifact without running
+    the full pipeline.  Always pass ``--dataset-id`` in a multi-dataset graph to prevent
+    shared entity names from matching canonical nodes across datasets.
+
 The benchmark covers five canonical case types:
 
 1. ``single_entity`` — single-entity canonical traversal (MercadoLibre, Xapo,
