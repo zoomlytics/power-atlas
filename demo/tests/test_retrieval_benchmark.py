@@ -1028,6 +1028,35 @@ class TestRunRetrievalBenchmarkDryRun(unittest.TestCase):
             with self.assertRaises(ValueError):
                 run_retrieval_benchmark(config, run_id="")
 
+    def test_none_alignment_version_emits_warning(self) -> None:
+        """When alignment_version is None, run_retrieval_benchmark must emit a warning
+        explaining that the benchmark will aggregate across all alignment versions."""
+        import logging
+
+        with tempfile.TemporaryDirectory() as tmp:
+            config = _make_config(Path(tmp), dry_run=True)
+            with self.assertLogs("demo.stages.retrieval_benchmark", level=logging.WARNING) as cm:
+                run_retrieval_benchmark(config, run_id="run-warn", alignment_version=None)
+        warning_messages = [r for r in cm.output if "WARNING" in r]
+        self.assertTrue(
+            any("alignment_version" in msg and "all alignment versions" in msg.lower() for msg in warning_messages),
+            f"Expected alignment_version warning in log output, got: {cm.output}",
+        )
+
+    def test_explicit_alignment_version_does_not_emit_warning(self) -> None:
+        """When alignment_version is provided, no alignment_version warning should be emitted."""
+        import logging
+
+        with tempfile.TemporaryDirectory() as tmp:
+            config = _make_config(Path(tmp), dry_run=True)
+            # Use assertNoLogs (Python 3.10+) if available, else capture and assert empty.
+            try:
+                with self.assertNoLogs("demo.stages.retrieval_benchmark", level=logging.WARNING):
+                    run_retrieval_benchmark(config, run_id="run-no-warn", alignment_version="v1.0")
+            except AttributeError:
+                # assertNoLogs not available on older Python — skip the negative assertion.
+                pass
+
 
 # ---------------------------------------------------------------------------
 # TestRunRetrievalBenchmarkLive

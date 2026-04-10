@@ -6277,3 +6277,71 @@ def test_benchmark_failure_in_orchestrated_run_writes_manifest(tmp_path: Path):
     assert "structured_ingest" in manifest["stages"]
     assert "pdf_ingest" in manifest["stages"]
     assert "retrieval_and_qa" in manifest["stages"]
+
+
+def test_orchestrated_run_warns_when_alignment_version_missing(tmp_path: Path):
+    """When the hybrid entity resolution stage does not return alignment_version,
+    _run_orchestrated must emit a warning explaining that the benchmark will
+    aggregate across all alignment versions instead of scoping to the current cohort.
+    """
+    import logging
+    import unittest
+    from unittest.mock import MagicMock, patch
+
+    from demo.run_demo import _run_orchestrated
+    from demo.contracts.runtime import Config
+
+    config = Config(
+        dry_run=True,
+        output_dir=tmp_path,
+        neo4j_uri="bolt://example.invalid",
+        neo4j_username="neo4j",
+        neo4j_password="not-used",
+        neo4j_database="neo4j",
+        openai_model="test-model",
+    )
+
+    # Hybrid stage returns a dict WITHOUT alignment_version — simulates missing key.
+    hybrid_stage_without_version = {"status": "dry_run"}
+
+    tc = unittest.TestCase()
+    tc.maxDiff = None
+    with tc.assertLogs("demo.run_demo", level=logging.WARNING) as cm:
+        with patch(
+            "demo.run_demo.run_retrieval_benchmark",
+            return_value={"status": "dry_run", "artifact_path": str(tmp_path / "bench.json"), "artifact": None},
+        ), patch(
+            "demo.run_demo.resolve_dataset_root",
+            return_value=MagicMock(
+                dataset_id="test_dataset",
+                root=tmp_path,
+                pdf_filename="test.pdf",
+            ),
+        ), patch("demo.run_demo.set_dataset_id"), patch(
+            "demo.run_demo.run_pdf_ingest",
+            return_value={"status": "dry_run"},
+        ), patch(
+            "demo.run_demo.run_claim_and_mention_extraction",
+            return_value={"status": "dry_run"},
+        ), patch(
+            "demo.run_demo.run_claim_participation",
+            return_value={"status": "dry_run"},
+        ), patch(
+            "demo.run_demo.run_entity_resolution",
+            return_value=hybrid_stage_without_version,
+        ), patch(
+            "demo.run_demo.run_retrieval_and_qa",
+            return_value={"status": "dry_run"},
+        ), patch(
+            "demo.run_demo.run_structured_ingest",
+            return_value={"status": "dry_run"},
+        ):
+            _run_orchestrated(config)
+
+    warning_messages = [r for r in cm.output if "WARNING" in r]
+    assert any(
+        "alignment_version" in msg and "all alignment versions" in msg.lower()
+        for msg in warning_messages
+    ), f"Expected alignment_version warning in orchestrator log, got: {cm.output}"
+
+

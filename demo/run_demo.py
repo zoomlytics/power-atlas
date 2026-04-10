@@ -680,6 +680,14 @@ def _run_orchestrated(config: Config) -> Path:
         if isinstance(entity_resolution_hybrid_stage, dict)
         else None
     )
+    if _hybrid_alignment_version is None:
+        _logger.warning(
+            "Orchestrated retrieval benchmark: alignment_version was not forwarded from the "
+            "hybrid entity resolution stage (got None). The benchmark will aggregate across "
+            "ALL alignment versions in the database rather than scoping to the current "
+            "alignment cohort. If this is unexpected, check that the hybrid stage completed "
+            "successfully and returned an 'alignment_version' key."
+        )
     try:
         benchmark_stage = run_retrieval_benchmark(
             config,

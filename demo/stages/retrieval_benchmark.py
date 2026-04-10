@@ -1104,6 +1104,14 @@ def run_retrieval_benchmark(
     artifact_dir.mkdir(parents=True, exist_ok=True)
     artifact_path = artifact_dir / "retrieval_benchmark.json"
 
+    if alignment_version is None:
+        _logger.warning(
+            "run_retrieval_benchmark: alignment_version is None — benchmark will aggregate "
+            "across ALL alignment versions in the database, not just the current cohort. "
+            "Pass alignment_version (e.g. from the hybrid entity resolution stage output) "
+            "to scope queries to the intended ALIGNED_WITH edge version."
+        )
+
     if getattr(config, "dry_run", False):
         dry_artifact_obj = build_benchmark_artifact(
             run_id=run_id,

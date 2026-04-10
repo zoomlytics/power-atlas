@@ -1991,6 +1991,41 @@ the **[Retrieval Benchmark Review Rubric](../../docs/architecture/retrieval-benc
   exposes every step of the `canonical → cluster → mention → claim` path, making
   the resolution model inspectable at any layer.
 
+### alignment_version fallback behaviour
+
+`alignment_version` is an optional parameter that scopes all `ALIGNED_WITH` edge
+queries to a specific version string (e.g. `"v1.0"`).  When it is `None` the
+Cypher predicates `($alignment_version IS NULL OR a.alignment_version = $alignment_version)`
+evaluate to `true` for every edge, so the benchmark aggregates **across all alignment
+versions** present in the database.
+
+This fallback is safe but broadens the benchmark's scope beyond the intended alignment
+cohort.  It can produce inflated or mixed results if the same `run_id` has been
+re-aligned multiple times under different version strings.
+
+> **⚠️ Warning emitted when `alignment_version` is `None`**
+>
+> `run_retrieval_benchmark` logs a `WARNING`-level message whenever it is called
+> without `alignment_version`:
+>
+> ```
+> run_retrieval_benchmark: alignment_version is None — benchmark will aggregate
+> across ALL alignment versions in the database, not just the current cohort.
+> Pass alignment_version (e.g. from the hybrid entity resolution stage output)
+> to scope queries to the intended ALIGNED_WITH edge version.
+> ```
+>
+> **Orchestrated runs** (`python -m demo.run_demo ingest`) additionally log a
+> warning at the orchestrator level when `alignment_version` cannot be forwarded
+> from the hybrid entity resolution stage output (e.g. because the stage failed,
+> returned an unexpected shape, or was run by a legacy pipeline that did not emit
+> this field).  If you see this warning during an orchestrated run, verify that
+> the hybrid stage completed successfully and that its output dict contains an
+> `"alignment_version"` key.
+
+Always pass `alignment_version` when running the benchmark after a hybrid alignment
+step to ensure the results are scoped to the correct cohort.
+
 ### Programmatic usage
 
 ```python
