@@ -5781,18 +5781,8 @@ def test_resolve_ask_scope_env_run_id_with_dataset_warns_dry_run(
     monkeypatch.delenv("FIXTURE_DATASET", raising=False)
 
     args = parse_args(["--dry-run", "--dataset", "demo_dataset_v2", "ask"])
-    config = _dry_run_config(tmp_path)
-    # Simulate --dataset flag via dataset_name on Config
-    config = Config(
-        dry_run=True,
-        output_dir=tmp_path,
-        neo4j_uri="bolt://example.invalid",
-        neo4j_username="neo4j",
-        neo4j_password="not-used",
-        neo4j_database="neo4j",
-        openai_model="test-model",
-        dataset_name="demo_dataset_v2",
-    )
+    import dataclasses
+    config = dataclasses.replace(_dry_run_config(tmp_path), dataset_name="demo_dataset_v2")
 
     run_id, all_runs = _resolve_ask_scope(args, config)
 

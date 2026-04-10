@@ -349,11 +349,11 @@ def _resolve_ask_scope(
             if explicit_dataset:
                 print(
                     f"WARNING: UNSTRUCTURED_RUN_ID={env_run_id!r} is set and will be "
-                    f"used as the retrieval scope, but --dataset={explicit_dataset!r} "
-                    "was also provided. UNSTRUCTURED_RUN_ID bypasses dataset-aware run "
+                    f"used as the retrieval scope, but dataset={explicit_dataset!r} "
+                    "is also selected. UNSTRUCTURED_RUN_ID bypasses dataset-aware run "
                     "selection and may retrieve from a run that belongs to a different "
-                    "dataset. Use --latest to resolve the latest run for the selected "
-                    "dataset, or --run-id to target a specific run explicitly."
+                    "dataset. Use --latest (in --live mode) to resolve the latest run "
+                    "for the selected dataset, or --run-id to target a specific run explicitly."
                 )
             return env_run_id, False
         return None, False
@@ -372,11 +372,11 @@ def _resolve_ask_scope(
         if explicit_dataset:
             print(
                 f"WARNING: UNSTRUCTURED_RUN_ID={env_run_id!r} is set and will be "
-                f"used as the retrieval scope, but --dataset={explicit_dataset!r} "
-                "was also provided. UNSTRUCTURED_RUN_ID bypasses dataset-aware run "
+                f"used as the retrieval scope, but dataset={explicit_dataset!r} "
+                "is also selected. UNSTRUCTURED_RUN_ID bypasses dataset-aware run "
                 "selection and may retrieve from a run that belongs to a different "
-                "dataset. Use --latest to resolve the latest run for the selected "
-                "dataset, or --run-id to target a specific run explicitly."
+                "dataset. Use --latest (in --live mode) to resolve the latest run "
+                "for the selected dataset, or --run-id to target a specific run explicitly."
             )
         return env_run_id, False
 
