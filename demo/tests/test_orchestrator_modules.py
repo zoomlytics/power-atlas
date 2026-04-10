@@ -5684,3 +5684,152 @@ def test_resolve_ask_scope_fixture_dataset_raises_system_exit_on_resolution_fail
     )
     # The fetch must never be called when resolution fails for an explicit dataset source
     mock_fetch.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Regression tests: UNSTRUCTURED_RUN_ID + --dataset interaction (issue #465)
+# ---------------------------------------------------------------------------
+# When UNSTRUCTURED_RUN_ID is set and --dataset (or FIXTURE_DATASET) is also
+# provided, the env var bypasses dataset-aware run selection and may silently
+# retrieve from a run that belongs to a different dataset.  The chosen contract
+# is: UNSTRUCTURED_RUN_ID still wins (explicit env var takes precedence) but a
+# WARNING is always printed to make the potential mismatch visible to the operator.
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_ask_scope_env_run_id_with_dataset_warns_live(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+):
+    """Regression: UNSTRUCTURED_RUN_ID set alongside --dataset in live mode must
+    print a WARNING about the potential dataset mismatch and still return the env
+    var run_id (explicit env var wins).
+
+    This prevents silent wrong-dataset retrieval from reappearing: if no warning
+    is emitted the operator has no indication that the env var may be pointing at
+    a different dataset's run."""
+    from demo.run_demo import _resolve_ask_scope, parse_args
+
+    v1_env_run = "unstructured_ingest-20260101T000000000000Z-v1run0001"
+    monkeypatch.setenv("UNSTRUCTURED_RUN_ID", v1_env_run)
+    monkeypatch.delenv("FIXTURE_DATASET", raising=False)
+
+    # --dataset demo_dataset_v2 but env var points at a v1 run — classic mismatch.
+    args = parse_args(["--live", "--dataset", "demo_dataset_v2", "ask"])
+    config = _live_config(tmp_path, dataset_name="demo_dataset_v2")
+
+    run_id, all_runs = _resolve_ask_scope(args, config)
+
+    assert run_id == v1_env_run, (
+        "UNSTRUCTURED_RUN_ID must take precedence even when --dataset is provided"
+    )
+    assert all_runs is False
+
+    output = capsys.readouterr().out
+    assert "WARNING" in output, (
+        "A WARNING must be printed when UNSTRUCTURED_RUN_ID is used alongside --dataset"
+    )
+    assert v1_env_run in output, "WARNING must include the UNSTRUCTURED_RUN_ID value"
+    assert "demo_dataset_v2" in output, "WARNING must include the requested dataset name"
+    assert "dataset-aware" in output, (
+        "WARNING must mention that UNSTRUCTURED_RUN_ID bypasses dataset-aware selection"
+    )
+
+
+def test_resolve_ask_scope_env_run_id_with_fixture_dataset_warns_live(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+):
+    """Regression: UNSTRUCTURED_RUN_ID set alongside FIXTURE_DATASET (no --dataset flag)
+    in live mode must also print a WARNING and return the env var run_id.
+
+    FIXTURE_DATASET is an explicit dataset selection just like --dataset; the same
+    dataset-integrity risk applies and the same warning must appear."""
+    from demo.run_demo import _resolve_ask_scope, parse_args
+
+    v2_env_run = "unstructured_ingest-20260401T000000000000Z-v2run0002"
+    monkeypatch.setenv("UNSTRUCTURED_RUN_ID", v2_env_run)
+    monkeypatch.setenv("FIXTURE_DATASET", "demo_dataset_v1")
+
+    # No --dataset CLI flag; FIXTURE_DATASET drives dataset selection.
+    args = parse_args(["--live", "ask"])
+    config = _live_config(tmp_path, dataset_name=None)
+
+    run_id, all_runs = _resolve_ask_scope(args, config)
+
+    assert run_id == v2_env_run
+    assert all_runs is False
+
+    output = capsys.readouterr().out
+    assert "WARNING" in output, (
+        "A WARNING must be printed when UNSTRUCTURED_RUN_ID is used alongside FIXTURE_DATASET"
+    )
+    assert v2_env_run in output
+    assert "demo_dataset_v1" in output
+
+
+def test_resolve_ask_scope_env_run_id_with_dataset_warns_dry_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+):
+    """Regression: UNSTRUCTURED_RUN_ID set alongside --dataset in dry-run mode must
+    also print a WARNING.
+
+    In dry-run mode Neo4j is not queried, but the dataset-integrity risk is the same:
+    the operator may have supplied an env var that belongs to a different dataset."""
+    from demo.run_demo import _resolve_ask_scope, parse_args
+
+    v1_env_run = "unstructured_ingest-20260101T000000000000Z-v1run0001"
+    monkeypatch.setenv("UNSTRUCTURED_RUN_ID", v1_env_run)
+    monkeypatch.delenv("FIXTURE_DATASET", raising=False)
+
+    args = parse_args(["--dry-run", "--dataset", "demo_dataset_v2", "ask"])
+    config = _dry_run_config(tmp_path)
+    # Simulate --dataset flag via dataset_name on Config
+    config = Config(
+        dry_run=True,
+        output_dir=tmp_path,
+        neo4j_uri="bolt://example.invalid",
+        neo4j_username="neo4j",
+        neo4j_password="not-used",
+        neo4j_database="neo4j",
+        openai_model="test-model",
+        dataset_name="demo_dataset_v2",
+    )
+
+    run_id, all_runs = _resolve_ask_scope(args, config)
+
+    assert run_id == v1_env_run
+    assert all_runs is False
+
+    output = capsys.readouterr().out
+    assert "WARNING" in output, (
+        "A WARNING must be printed even in dry-run when UNSTRUCTURED_RUN_ID + --dataset are combined"
+    )
+    assert v1_env_run in output
+    assert "demo_dataset_v2" in output
+
+
+def test_resolve_ask_scope_env_run_id_without_dataset_no_warning_live(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+):
+    """UNSTRUCTURED_RUN_ID set in live mode WITHOUT --dataset must NOT print a
+    dataset-mismatch warning.
+
+    No explicit dataset selection means single-dataset (or all-dataset) posture where
+    cross-dataset contamination is not a concern."""
+    from demo.run_demo import _resolve_ask_scope, parse_args
+
+    env_run = "unstructured_ingest-20260201T000000000000Z-nodsrun"
+    monkeypatch.setenv("UNSTRUCTURED_RUN_ID", env_run)
+    monkeypatch.delenv("FIXTURE_DATASET", raising=False)
+
+    args = parse_args(["--live", "ask"])
+    config = _live_config(tmp_path, dataset_name=None)
+
+    run_id, all_runs = _resolve_ask_scope(args, config)
+
+    assert run_id == env_run
+    assert all_runs is False
+
+    output = capsys.readouterr().out
+    assert "WARNING" not in output, (
+        "No dataset-mismatch WARNING should be printed when no explicit dataset is selected"
+    )

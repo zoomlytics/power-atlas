@@ -341,6 +341,20 @@ def _resolve_ask_scope(
         # In dry-run mode, Neo4j is unavailable; honour env var if set, else proceed
         # without a run scope (dry-run stubs don't require a real run_id).
         if env_run_id:
+            # Dataset-integrity warning (dry-run): UNSTRUCTURED_RUN_ID bypasses
+            # dataset-aware run selection when an explicit dataset is also provided.
+            # The run pointed to by the env var may belong to a different dataset.
+            # Use --latest or --run-id for guaranteed dataset-scoped selection.
+            explicit_dataset = config.dataset_name or os.getenv("FIXTURE_DATASET")
+            if explicit_dataset:
+                print(
+                    f"WARNING: UNSTRUCTURED_RUN_ID={env_run_id!r} is set and will be "
+                    f"used as the retrieval scope, but --dataset={explicit_dataset!r} "
+                    "was also provided. UNSTRUCTURED_RUN_ID bypasses dataset-aware run "
+                    "selection and may retrieve from a run that belongs to a different "
+                    "dataset. Use --latest to resolve the latest run for the selected "
+                    "dataset, or --run-id to target a specific run explicitly."
+                )
             return env_run_id, False
         return None, False
 
@@ -348,6 +362,22 @@ def _resolve_ask_scope(
     # CLI flags (--run-id/--latest/--all-runs) > UNSTRUCTURED_RUN_ID > implicit latest.
     if not use_latest and env_run_id:
         # No explicit --latest flag; honour UNSTRUCTURED_RUN_ID if set.
+        # Dataset-integrity warning: UNSTRUCTURED_RUN_ID bypasses dataset-aware run
+        # selection when an explicit dataset is also provided (via --dataset or
+        # FIXTURE_DATASET).  The run pointed to by the env var may belong to a
+        # different dataset, which would silently retrieve from the wrong scope.
+        # Warn the operator so the mismatch is visible.  Use --latest or --run-id
+        # to enforce dataset-scoped selection.
+        explicit_dataset = config.dataset_name or os.getenv("FIXTURE_DATASET")
+        if explicit_dataset:
+            print(
+                f"WARNING: UNSTRUCTURED_RUN_ID={env_run_id!r} is set and will be "
+                f"used as the retrieval scope, but --dataset={explicit_dataset!r} "
+                "was also provided. UNSTRUCTURED_RUN_ID bypasses dataset-aware run "
+                "selection and may retrieve from a run that belongs to a different "
+                "dataset. Use --latest to resolve the latest run for the selected "
+                "dataset, or --run-id to target a specific run explicitly."
+            )
         return env_run_id, False
 
     # Either --latest was explicitly requested, or no env var is set: query Neo4j.
