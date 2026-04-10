@@ -5751,7 +5751,7 @@ def test_resolve_ask_scope_env_run_id_with_fixture_dataset_warns_live(
 
     # No --dataset CLI flag; FIXTURE_DATASET drives dataset selection.
     args = parse_args(["--live", "ask"])
-    config = _live_config(tmp_path, dataset_name=None)
+    config = _live_config(tmp_path, dataset_name="demo_dataset_v1")
 
     run_id, all_runs = _resolve_ask_scope(args, config)
 
