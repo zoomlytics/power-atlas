@@ -6057,7 +6057,7 @@ def test_resolve_ask_scope_explicit_run_id_wrong_dataset_dry_run_no_check(
     assert run_id == v1_run
     assert all_runs is False
 
-    mock_fetch.assert_not_called(), (
+    assert mock_fetch.call_count == 0, (
         "_fetch_dataset_id_for_run must not be called in dry-run mode"
     )
 
