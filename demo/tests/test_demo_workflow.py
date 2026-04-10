@@ -1835,8 +1835,9 @@ class WorkflowTests(unittest.TestCase):
 
         # Build a fake neo4j that returns two distinct dataset_ids for a run.
         class _FakeResult:
-            def single(self):
-                return {"dataset_ids": ["dataset_a", "dataset_b"]}
+            def __iter__(self):
+                yield {"dataset_id": "dataset_a"}
+                yield {"dataset_id": "dataset_b"}
 
         class _FakeSession:
             def __enter__(self):
@@ -1874,7 +1875,7 @@ class WorkflowTests(unittest.TestCase):
             },
         )()
 
-        with self._with_injected_modules(neo4j=fake_neo4j):
+        with self._with_injected_modules({"neo4j": fake_neo4j}):
             with io.StringIO() as buf, redirect_stdout(buf):
                 result = module._fetch_dataset_id_for_run(config, "test-run-id-mixed")
                 output = buf.getvalue()
