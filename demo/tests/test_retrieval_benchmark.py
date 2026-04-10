@@ -1049,13 +1049,8 @@ class TestRunRetrievalBenchmarkDryRun(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             config = _make_config(Path(tmp), dry_run=True)
-            # Use assertNoLogs (Python 3.10+) if available, else capture and assert empty.
-            try:
-                with self.assertNoLogs("demo.stages.retrieval_benchmark", level=logging.WARNING):
-                    run_retrieval_benchmark(config, run_id="run-no-warn", alignment_version="v1.0")
-            except AttributeError:
-                # assertNoLogs not available on older Python — skip the negative assertion.
-                pass
+            with self.assertNoLogs("demo.stages.retrieval_benchmark", level=logging.WARNING):
+                run_retrieval_benchmark(config, run_id="run-no-warn", alignment_version="v1.0")
 
 
 # ---------------------------------------------------------------------------
