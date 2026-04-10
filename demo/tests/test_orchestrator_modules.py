@@ -6028,7 +6028,7 @@ def test_resolve_ask_scope_explicit_run_id_no_dataset_no_warning_live(
     assert run_id == some_run
     assert all_runs is False
 
-    mock_fetch.assert_not_called(), (
+    assert mock_fetch.call_count == 0, (
         "_fetch_dataset_id_for_run must not be called when no dataset is selected"
     )
 
