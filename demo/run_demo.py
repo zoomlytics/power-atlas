@@ -46,6 +46,8 @@ def run_retrieval_benchmark(*args: Any, **kwargs: Any) -> Any:
     from demo.stages.retrieval_benchmark import run_retrieval_benchmark as _run_retrieval_benchmark
 
     return _run_retrieval_benchmark(*args, **kwargs)
+
+
 def _now_iso() -> str:
     return datetime.now(UTC).isoformat()
 
@@ -564,10 +566,19 @@ def _run_orchestrated(config: Config) -> Path:
     # readout without requiring a separate manual invocation.  The artifact is written
     # to <output_dir>/runs/<unstructured_run_id>/retrieval_benchmark/retrieval_benchmark.json.
     # In dry-run mode a stub artifact is produced (no live Neo4j calls are made).
+    # alignment_version is taken from the hybrid stage output so the benchmark
+    # queries scope to the exact ALIGNED_WITH edge version that was just written,
+    # preventing cross-version aggregation when alignment is re-run on the same run_id.
+    _hybrid_alignment_version: str | None = (
+        entity_resolution_hybrid_stage.get("alignment_version")
+        if isinstance(entity_resolution_hybrid_stage, dict)
+        else None
+    )
     benchmark_stage = run_retrieval_benchmark(
         config,
         run_id=unstructured_run_id,
         dataset_id=dataset_root.dataset_id,
+        alignment_version=_hybrid_alignment_version,
         output_dir=config.output_dir,
     )
 
