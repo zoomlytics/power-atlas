@@ -1874,19 +1874,10 @@ class WorkflowTests(unittest.TestCase):
             },
         )()
 
-        originals = {}
-        try:
-            originals["neo4j"] = sys.modules.get("neo4j")
-            sys.modules["neo4j"] = fake_neo4j
+        with self._with_injected_modules(neo4j=fake_neo4j):
             with io.StringIO() as buf, redirect_stdout(buf):
                 result = module._fetch_dataset_id_for_run(config, "test-run-id-mixed")
                 output = buf.getvalue()
-        finally:
-            for name, original in originals.items():
-                if original is None:
-                    sys.modules.pop(name, None)
-                else:
-                    sys.modules[name] = original
 
         # The function should return a value (the first sorted dataset_id).
         self.assertIsNotNone(result, "Should return a dataset_id even when multiple are found")
