@@ -382,7 +382,8 @@ def _resolve_ask_scope(
             # Dataset-integrity warning (dry-run): UNSTRUCTURED_RUN_ID bypasses
             # dataset-aware run selection when an explicit dataset is also provided.
             # The run pointed to by the env var may belong to a different dataset.
-            # Use --latest or --run-id for guaranteed dataset-scoped selection.
+            # Use --latest (in --live mode) or --run-id for guaranteed
+            # dataset-scoped selection.
             config_dataset = config.dataset_name
             fixture_dataset = os.getenv("FIXTURE_DATASET")
             if config_dataset or fixture_dataset:
