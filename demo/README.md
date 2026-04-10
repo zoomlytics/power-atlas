@@ -483,8 +483,7 @@ The benchmark result is also included in the batch manifest under `stages.retrie
 ```bash
 python pipelines/query/retrieval_benchmark.py \
     --dataset-id <dataset_id> \
-    --run-id <unstructured_run_id> \
-    --live
+    --run-id <unstructured_run_id>
 ```
 
 To include live Q&A in both phases, pass a question:
