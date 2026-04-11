@@ -4201,9 +4201,12 @@ def test_resolve_ask_scope_run_id_flag_overrides_env_var(
         run_id, all_runs = _resolve_ask_scope(args, config)
     assert run_id == "cli-run-id"
     assert all_runs is False
-    assert "WARNING" in caplog.text
-    assert "env-run-id" in caplog.text
-    assert "cli-run-id" in caplog.text
+    assert any(
+        record.levelno == logging.WARNING
+        and "env-run-id" in record.getMessage()
+        and "cli-run-id" in record.getMessage()
+        for record in caplog.records
+    )
 
 
 def test_resolve_ask_scope_all_runs_flag(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
@@ -4231,8 +4234,10 @@ def test_resolve_ask_scope_all_runs_overrides_env_var(
     with caplog.at_level(logging.WARNING, logger="demo.run_demo"):
         run_id, all_runs = _resolve_ask_scope(args, config)
     assert all_runs is True
-    assert "WARNING" in caplog.text
-    assert "stale-env-run-id" in caplog.text
+    assert any(
+        record.levelno == logging.WARNING and "stale-env-run-id" in record.getMessage()
+        for record in caplog.records
+    )
 
 
 def test_resolve_ask_scope_dry_run_uses_env_var(

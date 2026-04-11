@@ -1876,7 +1876,7 @@ class WorkflowTests(unittest.TestCase):
         )()
 
         with self._with_injected_modules({"neo4j": fake_neo4j}):
-            with self.assertLogs(level="WARNING") as log_cm:
+            with self.assertLogs(logger=module.__name__, level="WARNING") as log_cm:
                 result = module._fetch_dataset_id_for_run(config, "test-run-id-mixed")
 
         # When multiple distinct dataset_ids are found for a run, the function
@@ -1939,7 +1939,7 @@ class WorkflowTests(unittest.TestCase):
         env_backup = os.environ.pop("FIXTURE_DATASET", None)
         env_backup_run_id = os.environ.pop("UNSTRUCTURED_RUN_ID", None)
         try:
-            with self.assertLogs(level="WARNING") as log_cm:
+            with self.assertLogs(logger=module.__name__, level="WARNING") as log_cm:
                 run_id, all_runs = module._resolve_ask_scope(args, config)
         finally:
             module._fetch_dataset_id_for_run = original_fetch
