@@ -318,7 +318,7 @@ def _fetch_dataset_id_for_run(config: Config, run_id: str) -> str | None:
 
     Returns None if no Chunk nodes with a non-null dataset_id exist for the run.
     If multiple distinct non-null dataset_id values are present on the run's
-    Chunk nodes, returns the first sorted value after printing a warning.
+    Chunk nodes, returns the first sorted value after logging a warning.
     Only call this in live mode; it opens a real Neo4j connection.
     """
     import neo4j as _neo4j
