@@ -6355,7 +6355,7 @@ def test_orchestrated_run_warns_when_alignment_version_missing(tmp_path: Path):
 def test_orchestrated_run_emits_exactly_one_alignment_version_warning(tmp_path: Path):
     """When alignment_version is missing in an orchestrated run, exactly one warning
     is emitted by the orchestrator logger. This test also verifies that the
-    orchestrator passes _suppress_alignment_version_warning=True to the benchmark
+    orchestrator passes suppress_alignment_version_warning=True to the benchmark
     stage so a duplicate stage-level warning would be suppressed.
     """
     import logging
@@ -6426,11 +6426,11 @@ def test_orchestrated_run_emits_exactly_one_alignment_version_warning(tmp_path: 
         f"(got {len(alignment_warnings)}): {alignment_warnings}"
     )
 
-    # The benchmark must have been called with _suppress_alignment_version_warning=True.
+    # The benchmark must have been called with suppress_alignment_version_warning=True.
     assert mock_run_benchmark.call_count == 1
     _, kwargs = mock_run_benchmark.call_args
-    assert kwargs.get("_suppress_alignment_version_warning") is True, (
-        "Orchestrator must pass _suppress_alignment_version_warning=True to run_retrieval_benchmark "
+    assert kwargs.get("suppress_alignment_version_warning") is True, (
+        "Orchestrator must pass suppress_alignment_version_warning=True to run_retrieval_benchmark "
         "when alignment_version is None to avoid a duplicate warning."
     )
 
