@@ -108,7 +108,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def main(argv: list[str] | None = None) -> None:  # pragma: no cover
+def main(argv: list[str] | None = None) -> None:
     args = _parse_args(argv)
 
     if not args.neo4j_password:
