@@ -2423,6 +2423,101 @@ class ResetDemoDbTests(unittest.TestCase):
         finally:
             module.parse_args = original_parse_args
 
+    def test_reset_command_warning_passthrough_to_stdout(self):
+        """Regression: reset command must surface run_reset() warnings via print() to stdout.
+
+        CLI UX intent: warnings returned by run_reset() (e.g. idempotent no-op
+        notices) must appear inline in the terminal output with the
+        "  warning:" prefix, not via logging.  If the print() call is removed
+        or replaced with logging the warnings become invisible to CLI users.
+        """
+        module = _load_module(RUN_DEMO_PATH, "run_reset_warning_passthrough_test")
+        args = types.SimpleNamespace(
+            command="reset",
+            confirm=True,
+            dry_run=False,
+            output_dir=None,
+            neo4j_uri="neo4j://localhost:7687",
+            neo4j_username="neo4j",
+            neo4j_password="testpassword",
+            neo4j_database="neo4j",
+            openai_model="gpt-4o-mini",
+            question=None,
+        )
+
+        # Build a minimal fake neo4j module so the driver-creation path in
+        # main() works without a live database connection.
+        class _FakeDriver:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_):
+                return False
+
+        fake_neo4j = types.ModuleType("neo4j")
+        fake_neo4j.GraphDatabase = types.SimpleNamespace(
+            driver=lambda *_a, **_kw: _FakeDriver()
+        )
+
+        # Stub run_reset to return a report containing warnings so that the
+        # CLI passthrough code path (the print loop in main()) is exercised.
+        stub_warnings = [
+            "No demo-owned nodes found; graph may already be empty",
+            "Index demo_chunk_embedding_index not found; already dropped",
+        ]
+        stub_report = {
+            "target_database": "neo4j",
+            "deleted_nodes": 0,
+            "deleted_relationships": 0,
+            "indexes_dropped": [],
+            "indexes_not_found": ["demo_chunk_embedding_index"],
+            "warnings": stub_warnings,
+            "report_path": None,
+        }
+        fake_reset_module = types.ModuleType("demo.reset_demo_db")
+        fake_reset_module.run_reset = lambda **_kw: stub_report
+
+        original_parse_args = module.parse_args
+        original_neo4j = sys.modules.get("neo4j")
+        original_reset_db = sys.modules.get("demo.reset_demo_db")
+        try:
+            module.parse_args = lambda: args
+            sys.modules["neo4j"] = fake_neo4j
+            sys.modules["demo.reset_demo_db"] = fake_reset_module
+
+            with io.StringIO() as buffer, redirect_stdout(buffer):
+                module.main()
+                output = buffer.getvalue()
+
+            # CLI UX: each warning must be printed with the "  warning:" prefix
+            # so it appears inline with the reset completion summary.
+            warning_lines = [
+                line for line in output.splitlines() if line.startswith("  warning:")
+            ]
+            self.assertEqual(
+                len(warning_lines),
+                len(stub_warnings),
+                f"Expected {len(stub_warnings)} '  warning:' lines in stdout but got {len(warning_lines)}",
+            )
+            self.assertTrue(
+                any("No demo-owned nodes found" in line for line in warning_lines),
+                "Expected warning about no demo-owned nodes surfaced in stdout",
+            )
+            self.assertTrue(
+                any("demo_chunk_embedding_index" in line for line in warning_lines),
+                "Expected warning about missing index surfaced in stdout",
+            )
+        finally:
+            module.parse_args = original_parse_args
+            if original_neo4j is None:
+                sys.modules.pop("neo4j", None)
+            else:
+                sys.modules["neo4j"] = original_neo4j
+            if original_reset_db is None:
+                sys.modules.pop("demo.reset_demo_db", None)
+            else:
+                sys.modules["demo.reset_demo_db"] = original_reset_db
+
 
 if __name__ == "__main__":
     unittest.main()
