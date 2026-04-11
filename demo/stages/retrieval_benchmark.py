@@ -1070,7 +1070,7 @@ def run_retrieval_benchmark(
     benchmark_cases:
         List of :class:`BenchmarkCaseDefinition` objects to run.  Defaults
         to :data:`BENCHMARK_CASES`.
-    _suppress_alignment_version_warning:
+    suppress_alignment_version_warning:
         When ``True``, suppresses the ``alignment_version is None`` warning
         emitted by this function.  Pass ``True`` from an orchestrator that has
         already logged its own warning for the same event to avoid duplicate
