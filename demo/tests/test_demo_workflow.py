@@ -2498,13 +2498,14 @@ class ResetDemoDbTests(unittest.TestCase):
                 len(stub_warnings),
                 f"Expected {len(stub_warnings)} '  warning:' lines in stdout but got {len(warning_lines)}",
             )
-            self.assertTrue(
-                any("No demo-owned nodes found" in line for line in warning_lines),
-                "Expected warning about no demo-owned nodes surfaced in stdout",
-            )
-            self.assertTrue(
-                any("demo_chunk_embedding_index" in line for line in warning_lines),
-                "Expected warning about missing index surfaced in stdout",
+            expected_warning_lines = [
+                f"  warning: {warning}" for warning in stub_warnings
+            ]
+            self.assertEqual(
+                warning_lines,
+                expected_warning_lines,
+                "Expected each stub warning to be surfaced on its own stdout line "
+                'with the exact "  warning: {warning}" format',
             )
         finally:
             module.parse_args = original_parse_args
