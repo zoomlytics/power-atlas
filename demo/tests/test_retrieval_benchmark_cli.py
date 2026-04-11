@@ -14,8 +14,8 @@ when the result dict contains a non-empty ``warnings`` list.
 """
 from __future__ import annotations
 
+import os
 import unittest
-from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
@@ -89,17 +89,10 @@ class TestRetrievalBenchmarkCliMainArgParsing(unittest.TestCase):
 
     def test_missing_password_exits_with_code_1(self) -> None:
         """main() must call sys.exit(1) when no password is supplied."""
-        with patch.dict("os.environ", {}, clear=True):
-            # Ensure NEO4J_PASSWORD env var is absent.
-            import os
-            env_backup = os.environ.pop("NEO4J_PASSWORD", None)
-            try:
-                with self.assertRaises(SystemExit) as ctx:
-                    main([])
-                self.assertEqual(ctx.exception.code, 1)
-            finally:
-                if env_backup is not None:
-                    os.environ["NEO4J_PASSWORD"] = env_backup
+        with patch.dict(os.environ, {}, clear=True):
+            with self.assertRaises(SystemExit) as ctx:
+                main([])
+            self.assertEqual(ctx.exception.code, 1)
 
 
 if __name__ == "__main__":
