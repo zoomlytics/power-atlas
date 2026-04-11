@@ -1113,10 +1113,10 @@ def run_retrieval_benchmark(
 
     # Warn when alignment_version is None so callers are aware that the
     # benchmark will aggregate across all versions.  The warning is suppressed
-    # when _suppress_alignment_version_warning=True to avoid a duplicate log
+    # when suppress_alignment_version_warning=True to avoid a duplicate log
     # entry in orchestrated runs where the orchestrator has already emitted its
     # own warning for the same event.
-    if alignment_version is None and not _suppress_alignment_version_warning:
+    if alignment_version is None and not suppress_alignment_version_warning:
         _logger.warning(
             "run_retrieval_benchmark: alignment_version is None — benchmark will aggregate "
             "across ALL alignment versions in the database, not just the current cohort. "
