@@ -2472,7 +2472,6 @@ class ResetDemoDbTests(unittest.TestCase):
             "indexes_dropped": [],
             "indexes_not_found": ["demo_chunk_embedding_index"],
             "warnings": stub_warnings,
-            "report_path": None,
         }
         fake_reset_module = types.ModuleType("demo.reset_demo_db")
         fake_reset_module.run_reset = lambda **_kw: stub_report
