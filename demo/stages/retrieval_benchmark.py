@@ -1033,7 +1033,7 @@ def run_retrieval_benchmark(
     alignment_version: str | None = None,
     output_dir: Path | None = None,
     benchmark_cases: list[BenchmarkCaseDefinition] | None = None,
-    _suppress_alignment_version_warning: bool = False,
+    suppress_alignment_version_warning: bool = False,
 ) -> dict[str, Any]:
     """Run the retrieval benchmark and write a JSON artifact.
 
