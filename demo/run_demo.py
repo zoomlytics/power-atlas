@@ -313,7 +313,7 @@ def _fetch_dataset_id_for_run(config: Config, run_id: str) -> str | None:
     ids without collecting the full distinct set for very large runs.
 
     If multiple distinct values are found (indicating an inconsistently-ingested
-    graph), a WARNING is printed and the first sorted dataset_id is returned so
+    graph), a WARNING is logged and the first sorted dataset_id is returned so
     callers can continue deterministic dataset-ownership mismatch checks.
 
     Returns None if no Chunk nodes with a non-null dataset_id exist for the run.
@@ -338,12 +338,16 @@ def _fetch_dataset_id_for_run(config: Config, run_id: str) -> str | None:
             if not dataset_ids:
                 return None
             if len(dataset_ids) > 1:
-                print(
-                    f"WARNING: run_id={run_id!r} has Chunk nodes stamped with multiple "
-                    f"distinct dataset_ids (including {dataset_ids[0]!r} and "
-                    f"{dataset_ids[1]!r}). The graph may have been inconsistently "
+                _logger.warning(
+                    "run_id=%r has Chunk nodes stamped with multiple "
+                    "distinct dataset_ids (including %r and "
+                    "%r). The graph may have been inconsistently "
                     "ingested. Proceeding with dataset-ownership validation using "
-                    f"the first sorted dataset_id, {dataset_ids[0]!r}."
+                    "the first sorted dataset_id, %r.",
+                    run_id,
+                    dataset_ids[0],
+                    dataset_ids[1],
+                    dataset_ids[0],
                 )
                 return dataset_ids[0]
             return dataset_ids[0]
@@ -376,7 +380,7 @@ def _warn_explicit_run_id_dataset_mismatch(
     config_dataset: str | None,
     fixture_dataset: str | None,
 ) -> None:
-    """Print a WARNING when --run-id belongs to a different dataset than the one selected.
+    """Emit a WARNING log when --run-id belongs to a different dataset than the one selected.
 
     Names the effective dataset source (``FIXTURE_DATASET`` or ``--dataset``) for
     operator clarity, consistent with ``_warn_env_run_id_dataset_mismatch``.
@@ -384,11 +388,15 @@ def _warn_explicit_run_id_dataset_mismatch(
     ``--dataset`` is the effective override and is named as such.
     """
     dataset_label = _format_dataset_label(config_dataset, fixture_dataset)
-    print(
-        f"WARNING: --run-id={explicit_run_id!r} belongs to dataset {actual_dataset_id!r}, "
-        f"but {dataset_label} is selected (expected dataset_id={expected_dataset_id!r}). "
+    _logger.warning(
+        "--run-id=%r belongs to dataset %r, "
+        "but %s is selected (expected dataset_id=%r). "
         "Retrieval will be scoped to a run from a different dataset than requested. "
-        "Use --latest to select the latest run for the selected dataset instead."
+        "Use --latest to select the latest run for the selected dataset instead.",
+        explicit_run_id,
+        actual_dataset_id,
+        dataset_label,
+        expected_dataset_id,
     )
 
 
@@ -397,7 +405,7 @@ def _warn_env_run_id_dataset_mismatch(
     config_dataset: str | None,
     fixture_dataset: str | None,
 ) -> None:
-    """Print a WARNING when UNSTRUCTURED_RUN_ID is set alongside an explicit dataset.
+    """Emit a WARNING log when UNSTRUCTURED_RUN_ID is set alongside an explicit dataset.
 
     The env var bypasses dataset-aware run selection, so the run it points to may
     belong to a different dataset than the one explicitly requested.  Callers should
@@ -410,13 +418,15 @@ def _warn_env_run_id_dataset_mismatch(
     overridden fixture value for clarity.
     """
     dataset_label = _format_dataset_label(config_dataset, fixture_dataset)
-    print(
-        f"WARNING: UNSTRUCTURED_RUN_ID={env_run_id!r} is set and will be "
-        f"used as the retrieval scope, but {dataset_label} "
+    _logger.warning(
+        "UNSTRUCTURED_RUN_ID=%r is set and will be "
+        "used as the retrieval scope, but %s "
         "is also selected. UNSTRUCTURED_RUN_ID bypasses dataset-aware run "
         "selection and may retrieve from a run that belongs to a different "
         "dataset. Use --latest (in --live mode) to resolve the latest run "
-        "for the selected dataset, or --run-id to target a specific run explicitly."
+        "for the selected dataset, or --run-id to target a specific run explicitly.",
+        env_run_id,
+        dataset_label,
     )
 
 
@@ -433,7 +443,7 @@ def _resolve_ask_scope(
 
     Precedence: CLI flag (``--run-id`` / ``--latest`` / ``--all-runs``)
     overrides the ``UNSTRUCTURED_RUN_ID`` environment variable. Warnings are
-    printed whenever the env var is overridden or stale.
+    logged whenever the env var is overridden or stale.
     """
     env_run_id = os.getenv("UNSTRUCTURED_RUN_ID")
     all_runs: bool = getattr(args, "all_runs", False)
@@ -442,17 +452,20 @@ def _resolve_ask_scope(
 
     if all_runs:
         if env_run_id:
-            print(
-                f"WARNING: UNSTRUCTURED_RUN_ID={env_run_id!r} is set "
-                "but overridden by --all-runs."
+            _logger.warning(
+                "UNSTRUCTURED_RUN_ID=%r is set "
+                "but overridden by --all-runs.",
+                env_run_id,
             )
         return None, True
 
     if explicit_run_id:
         if env_run_id and env_run_id != explicit_run_id:
-            print(
-                f"WARNING: UNSTRUCTURED_RUN_ID={env_run_id!r} is set "
-                f"but overridden by --run-id={explicit_run_id!r}."
+            _logger.warning(
+                "UNSTRUCTURED_RUN_ID=%r is set "
+                "but overridden by --run-id=%r.",
+                env_run_id,
+                explicit_run_id,
             )
         # Dataset-integrity check: when a dataset is explicitly selected, verify
         # that --run-id actually belongs to that dataset.  Skip in dry-run mode
@@ -469,10 +482,12 @@ def _resolve_ask_scope(
                     # Emit a visible warning so the operator knows validation was
                     # skipped; do not raise so the pipeline can still proceed with
                     # the explicitly-requested run-id.
-                    print(
-                        f"WARNING: Could not resolve dataset {effective_dataset!r} to "
+                    _logger.warning(
+                        "Could not resolve dataset %r to "
                         "validate --run-id dataset ownership "
-                        f"({exc}). Dataset-ownership check skipped."
+                        "(%s). Dataset-ownership check skipped.",
+                        effective_dataset,
+                        exc,
                     )
                 else:
                     actual_dataset_id = _fetch_dataset_id_for_run(config, explicit_run_id)
@@ -545,9 +560,11 @@ def _resolve_ask_scope(
             "Run 'ingest-pdf' first, or use --all-runs to query all available data."
         )
     if use_latest and env_run_id and env_run_id != latest_run_id:
-        print(
-            f"WARNING: UNSTRUCTURED_RUN_ID={env_run_id!r} is set but overridden by --latest. "
-            f"Using latest: {latest_run_id!r}."
+        _logger.warning(
+            "UNSTRUCTURED_RUN_ID=%r is set but overridden by --latest. "
+            "Using latest: %r.",
+            env_run_id,
+            latest_run_id,
         )
     return latest_run_id, False
 
