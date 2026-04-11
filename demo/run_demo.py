@@ -308,17 +308,16 @@ def _fetch_latest_unstructured_run_id(
 def _fetch_dataset_id_for_run(config: Config, run_id: str) -> str | None:
     """Query Neo4j for the dataset_id stamped on Chunk nodes belonging to *run_id*.
 
-    Fetches up to two distinct dataset_id values across Chunk nodes for this run.
-    This is enough to distinguish among zero, one, or multiple stamped dataset
-    ids without collecting the full distinct set for very large runs.
+    Collects ALL distinct dataset_id values across Chunk nodes for this run.
+    If exactly one distinct value is found, it is returned as the authoritative
+    dataset_id for the run.
 
     If multiple distinct values are found (indicating an inconsistently-ingested
-    graph), a WARNING is logged and the first sorted dataset_id is returned so
-    callers can continue deterministic dataset-ownership mismatch checks.
+    graph), a WARNING is logged with the complete list of all distinct dataset_ids,
+    and the first sorted dataset_id is returned so callers can continue
+    deterministic dataset-ownership mismatch checks.
 
     Returns None if no Chunk nodes with a non-null dataset_id exist for the run.
-    If multiple distinct non-null dataset_id values are present on the run's
-    Chunk nodes, returns the first sorted value after logging a warning.
     Only call this in live mode; it opens a real Neo4j connection.
     """
     import neo4j as _neo4j
@@ -330,8 +329,7 @@ def _fetch_dataset_id_for_run(config: Config, run_id: str) -> str | None:
             result = session.run(
                 "MATCH (c:Chunk) WHERE c.run_id = $run_id AND c.dataset_id IS NOT NULL "
                 "RETURN DISTINCT c.dataset_id AS dataset_id "
-                "ORDER BY dataset_id "
-                "LIMIT 2",
+                "ORDER BY dataset_id",
                 run_id=run_id,
             )
             dataset_ids = [record["dataset_id"] for record in result]
@@ -340,14 +338,13 @@ def _fetch_dataset_id_for_run(config: Config, run_id: str) -> str | None:
             if len(dataset_ids) > 1:
                 first_dataset_id = dataset_ids[0]
                 _logger.warning(
-                    "run_id=%r has Chunk nodes stamped with multiple "
-                    "distinct dataset_ids (including %r and "
-                    "%r). The graph may have been inconsistently "
-                    "ingested. Proceeding with dataset-ownership validation using "
+                    "run_id=%r has Chunk nodes stamped with %d distinct dataset_ids: %r. "
+                    "The graph may have been inconsistently ingested. "
+                    "Proceeding with dataset-ownership validation using "
                     "the first sorted dataset_id, %r.",
                     run_id,
-                    first_dataset_id,
-                    dataset_ids[1],
+                    len(dataset_ids),
+                    dataset_ids,
                     first_dataset_id,
                 )
                 return first_dataset_id
