@@ -73,6 +73,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import os
 import sys
 from pathlib import Path
@@ -87,6 +88,8 @@ from demo.stages.retrieval_benchmark import run_retrieval_benchmark  # noqa: E40
 
 # Base output directory — the parent of `runs/`, matching Config.output_dir conventions.
 _PIPELINES_DIR = Path(__file__).resolve().parent.parent
+
+_logger = logging.getLogger(__name__)
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -215,7 +218,7 @@ def main(argv: list[str] | None = None) -> None:  # pragma: no cover
         print(f"  Total pairwise claims    : {s['total_pairwise_claims']}")
 
     for w in result.get("warnings", []):
-        print(f"WARNING: {w}", file=sys.stderr)
+        _logger.warning("%s", w)
 
     summary = {
         "run_id": result["run_id"],

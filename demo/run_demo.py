@@ -1069,6 +1069,10 @@ def main() -> None:
         )
         if report.get("warnings"):
             for w in report["warnings"]:
+                # Intentional passthrough: these are human-readable strings returned
+                # by run_reset() (e.g. idempotent no-op notices).  They are not
+                # ownership/benchmark warnings and deliberately go to stdout so they
+                # appear inline with the reset completion summary printed above.
                 print(f"  warning: {w}")
         if report.get("report_path"):
             print(f"Reset report written to: {report['report_path']}")
