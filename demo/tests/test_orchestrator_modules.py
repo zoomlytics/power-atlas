@@ -5705,15 +5705,16 @@ def test_resolve_ask_scope_fixture_dataset_raises_system_exit_on_resolution_fail
 
 
 def test_resolve_ask_scope_env_run_id_with_dataset_warns_live(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ):
     """Regression: UNSTRUCTURED_RUN_ID set alongside --dataset in live mode must
-    print a WARNING about the potential dataset mismatch and still return the env
+    log a WARNING about the potential dataset mismatch and still return the env
     var run_id (explicit env var wins).
 
     This prevents silent wrong-dataset retrieval from reappearing: if no warning
     is emitted the operator has no indication that the env var may be pointing at
     a different dataset's run."""
+    import logging
     from demo.run_demo import _resolve_ask_scope, parse_args
 
     v1_env_run = "unstructured_ingest-20260101T000000000000Z-v1run0001"
@@ -5724,34 +5725,40 @@ def test_resolve_ask_scope_env_run_id_with_dataset_warns_live(
     args = parse_args(["--live", "--dataset", "demo_dataset_v2", "ask"])
     config = _live_config(tmp_path, dataset_name="demo_dataset_v2")
 
-    run_id, all_runs = _resolve_ask_scope(args, config)
+    with caplog.at_level(logging.WARNING, logger="demo.run_demo"):
+        run_id, all_runs = _resolve_ask_scope(args, config)
 
     assert run_id == v1_env_run, (
         "UNSTRUCTURED_RUN_ID must take precedence even when --dataset is provided"
     )
     assert all_runs is False
 
-    output = capsys.readouterr().out
-    assert "WARNING" in output, (
-        "A WARNING must be printed when UNSTRUCTURED_RUN_ID is used alongside --dataset"
+    warning_records = [
+        r for r in caplog.records
+        if r.levelno == logging.WARNING and "UNSTRUCTURED_RUN_ID" in r.getMessage()
+    ]
+    assert warning_records, (
+        "A WARNING must be logged when UNSTRUCTURED_RUN_ID is used alongside --dataset"
     )
-    assert v1_env_run in output, "WARNING must include the UNSTRUCTURED_RUN_ID value"
-    assert "--dataset='demo_dataset_v2'" in output, (
+    msg = warning_records[0].getMessage()
+    assert v1_env_run in msg, "WARNING must include the UNSTRUCTURED_RUN_ID value"
+    assert "--dataset='demo_dataset_v2'" in msg, (
         "WARNING must name --dataset as the source when FIXTURE_DATASET is not set"
     )
-    assert "dataset-aware" in output, (
+    assert "dataset-aware" in msg, (
         "WARNING must mention that UNSTRUCTURED_RUN_ID bypasses dataset-aware selection"
     )
 
 
 def test_resolve_ask_scope_env_run_id_with_fixture_dataset_warns_live(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ):
     """Regression: UNSTRUCTURED_RUN_ID set alongside FIXTURE_DATASET (no --dataset flag)
-    in live mode must also print a WARNING and return the env var run_id.
+    in live mode must also log a WARNING and return the env var run_id.
 
     FIXTURE_DATASET is an explicit dataset selection just like --dataset; the same
     dataset-integrity risk applies and the same warning must appear."""
+    import logging
     from demo.run_demo import _resolve_ask_scope, parse_args
 
     v2_env_run = "unstructured_ingest-20260401T000000000000Z-v2run0002"
@@ -5762,29 +5769,35 @@ def test_resolve_ask_scope_env_run_id_with_fixture_dataset_warns_live(
     args = parse_args(["--live", "ask"])
     config = _live_config(tmp_path, dataset_name="demo_dataset_v1")
 
-    run_id, all_runs = _resolve_ask_scope(args, config)
+    with caplog.at_level(logging.WARNING, logger="demo.run_demo"):
+        run_id, all_runs = _resolve_ask_scope(args, config)
 
     assert run_id == v2_env_run
     assert all_runs is False
 
-    output = capsys.readouterr().out
-    assert "WARNING" in output, (
-        "A WARNING must be printed when UNSTRUCTURED_RUN_ID is used alongside FIXTURE_DATASET"
+    warning_records = [
+        r for r in caplog.records
+        if r.levelno == logging.WARNING and "UNSTRUCTURED_RUN_ID" in r.getMessage()
+    ]
+    assert warning_records, (
+        "A WARNING must be logged when UNSTRUCTURED_RUN_ID is used alongside FIXTURE_DATASET"
     )
-    assert v2_env_run in output
-    assert "FIXTURE_DATASET='demo_dataset_v1'" in output, (
+    msg = warning_records[0].getMessage()
+    assert v2_env_run in msg
+    assert "FIXTURE_DATASET='demo_dataset_v1'" in msg, (
         "WARNING must name FIXTURE_DATASET as the source when it is set"
     )
 
 
 def test_resolve_ask_scope_env_run_id_with_dataset_warns_dry_run(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ):
     """Regression: UNSTRUCTURED_RUN_ID set alongside --dataset in dry-run mode must
-    also print a WARNING.
+    also log a WARNING.
 
     In dry-run mode Neo4j is not queried, but the dataset-integrity risk is the same:
     the operator may have supplied an env var that belongs to a different dataset."""
+    import logging
     from demo.run_demo import _resolve_ask_scope, parse_args
 
     v1_env_run = "unstructured_ingest-20260101T000000000000Z-v1run0001"
@@ -5795,29 +5808,35 @@ def test_resolve_ask_scope_env_run_id_with_dataset_warns_dry_run(
     import dataclasses
     config = dataclasses.replace(_dry_run_config(tmp_path), dataset_name="demo_dataset_v2")
 
-    run_id, all_runs = _resolve_ask_scope(args, config)
+    with caplog.at_level(logging.WARNING, logger="demo.run_demo"):
+        run_id, all_runs = _resolve_ask_scope(args, config)
 
     assert run_id == v1_env_run
     assert all_runs is False
 
-    output = capsys.readouterr().out
-    assert "WARNING" in output, (
-        "A WARNING must be printed even in dry-run when UNSTRUCTURED_RUN_ID + --dataset are combined"
+    warning_records = [
+        r for r in caplog.records
+        if r.levelno == logging.WARNING and "UNSTRUCTURED_RUN_ID" in r.getMessage()
+    ]
+    assert warning_records, (
+        "A WARNING must be logged even in dry-run when UNSTRUCTURED_RUN_ID + --dataset are combined"
     )
-    assert v1_env_run in output
-    assert "--dataset='demo_dataset_v2'" in output, (
+    msg = warning_records[0].getMessage()
+    assert v1_env_run in msg
+    assert "--dataset='demo_dataset_v2'" in msg, (
         "WARNING must name --dataset as the source when FIXTURE_DATASET is not set"
     )
 
 
 def test_resolve_ask_scope_env_run_id_without_dataset_no_warning_live(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ):
-    """UNSTRUCTURED_RUN_ID set in live mode WITHOUT --dataset must NOT print a
+    """UNSTRUCTURED_RUN_ID set in live mode WITHOUT --dataset must NOT log a
     dataset-mismatch warning.
 
     No explicit dataset selection means single-dataset (or all-dataset) posture where
     cross-dataset contamination is not a concern."""
+    import logging
     from demo.run_demo import _resolve_ask_scope, parse_args
 
     env_run = "unstructured_ingest-20260201T000000000000Z-nodsrun"
@@ -5827,19 +5846,23 @@ def test_resolve_ask_scope_env_run_id_without_dataset_no_warning_live(
     args = parse_args(["--live", "ask"])
     config = _live_config(tmp_path, dataset_name=None)
 
-    run_id, all_runs = _resolve_ask_scope(args, config)
+    with caplog.at_level(logging.WARNING, logger="demo.run_demo"):
+        run_id, all_runs = _resolve_ask_scope(args, config)
 
     assert run_id == env_run
     assert all_runs is False
 
-    output = capsys.readouterr().out
-    assert "WARNING" not in output, (
-        "No dataset-mismatch WARNING should be printed when no explicit dataset is selected"
+    mismatch_warnings = [
+        r for r in caplog.records
+        if r.levelno == logging.WARNING and "UNSTRUCTURED_RUN_ID" in r.getMessage()
+    ]
+    assert not mismatch_warnings, (
+        "No dataset-mismatch WARNING should be logged when no explicit dataset is selected"
     )
 
 
 def test_resolve_ask_scope_env_run_id_dataset_overrides_fixture_dataset_warns_live(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ):
     """Regression: when FIXTURE_DATASET and --dataset are both set but differ, the
     WARNING must attribute the selection to --dataset (the effective override) and
@@ -5848,6 +5871,7 @@ def test_resolve_ask_scope_env_run_id_dataset_overrides_fixture_dataset_warns_li
     This exercises the override branch in _warn_env_run_id_dataset_mismatch and
     ensures the label format does not drift silently when both env var and CLI flag
     are in play simultaneously."""
+    import logging
     from demo.run_demo import _resolve_ask_scope, parse_args
 
     env_run = "unstructured_ingest-20260301T000000000000Z-override0"
@@ -5858,20 +5882,25 @@ def test_resolve_ask_scope_env_run_id_dataset_overrides_fixture_dataset_warns_li
     args = parse_args(["--live", "--dataset", "demo_dataset_v2", "ask"])
     config = _live_config(tmp_path, dataset_name="demo_dataset_v2")
 
-    run_id, all_runs = _resolve_ask_scope(args, config)
+    with caplog.at_level(logging.WARNING, logger="demo.run_demo"):
+        run_id, all_runs = _resolve_ask_scope(args, config)
 
     assert run_id == env_run
     assert all_runs is False
 
-    output = capsys.readouterr().out
-    assert "WARNING" in output, (
-        "A WARNING must be printed when UNSTRUCTURED_RUN_ID is used alongside --dataset"
+    warning_records = [
+        r for r in caplog.records
+        if r.levelno == logging.WARNING and "UNSTRUCTURED_RUN_ID" in r.getMessage()
+    ]
+    assert warning_records, (
+        "A WARNING must be logged when UNSTRUCTURED_RUN_ID is used alongside --dataset"
     )
-    assert env_run in output, "WARNING must include the UNSTRUCTURED_RUN_ID value"
-    assert "--dataset='demo_dataset_v2'" in output, (
+    msg = warning_records[0].getMessage()
+    assert env_run in msg, "WARNING must include the UNSTRUCTURED_RUN_ID value"
+    assert "--dataset='demo_dataset_v2'" in msg, (
         "WARNING must name --dataset as the effective source when it overrides FIXTURE_DATASET"
     )
-    assert "FIXTURE_DATASET='demo_dataset_v1'" in output, (
+    assert "FIXTURE_DATASET='demo_dataset_v1'" in msg, (
         "WARNING must include the overridden FIXTURE_DATASET value for operator clarity"
     )
 
@@ -5888,13 +5917,14 @@ def test_resolve_ask_scope_env_run_id_dataset_overrides_fixture_dataset_warns_li
 
 
 def test_resolve_ask_scope_explicit_run_id_wrong_dataset_warns_live(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ):
     """Regression: --run-id that belongs to a different dataset than --dataset must
-    print a WARNING describing the mismatch in live mode.
+    log a WARNING describing the mismatch in live mode.
 
     This prevents silent wrong-dataset retrieval: if no warning is emitted, the
     operator has no indication that the run_id comes from a different dataset."""
+    import logging
     from demo.run_demo import _resolve_ask_scope, parse_args
 
     v1_run = "unstructured_ingest-20260301T000000000000Z-v1run0001"
@@ -5918,7 +5948,8 @@ def test_resolve_ask_scope_explicit_run_id_wrong_dataset_warns_live(
             dataset_id="demo_dataset_v2",
             pdf_filename="chain_of_issuance.pdf",
         )
-        run_id, all_runs = _resolve_ask_scope(args, config)
+        with caplog.at_level(logging.WARNING, logger="demo.run_demo"):
+            run_id, all_runs = _resolve_ask_scope(args, config)
 
     assert run_id == v1_run, (
         "Explicit --run-id must still be returned even when a dataset mismatch is detected"
@@ -5927,22 +5958,27 @@ def test_resolve_ask_scope_explicit_run_id_wrong_dataset_warns_live(
 
     mock_fetch.assert_called_once_with(config, v1_run)
 
-    output = capsys.readouterr().out
-    assert "WARNING" in output, (
-        "A WARNING must be printed when --run-id belongs to a different dataset than --dataset"
+    warning_records = [
+        r for r in caplog.records
+        if r.levelno == logging.WARNING and "belongs to dataset" in r.getMessage()
+    ]
+    assert warning_records, (
+        "A WARNING must be logged when --run-id belongs to a different dataset than --dataset"
     )
-    assert v1_run in output, "WARNING must include the --run-id value"
-    assert "demo_dataset_v1" in output, "WARNING must include the actual dataset_id of the run"
-    assert "demo_dataset_v2" in output, "WARNING must include the expected dataset_id"
-    assert "--dataset='demo_dataset_v2'" in output, (
+    msg = warning_records[0].getMessage()
+    assert v1_run in msg, "WARNING must include the --run-id value"
+    assert "demo_dataset_v1" in msg, "WARNING must include the actual dataset_id of the run"
+    assert "demo_dataset_v2" in msg, "WARNING must include the expected dataset_id"
+    assert "--dataset='demo_dataset_v2'" in msg, (
         "WARNING must name --dataset as the source when FIXTURE_DATASET is not set"
     )
 
 
 def test_resolve_ask_scope_explicit_run_id_correct_dataset_no_warning_live(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ):
-    """When --run-id belongs to the same dataset as --dataset, no WARNING should be printed."""
+    """When --run-id belongs to the same dataset as --dataset, no WARNING should be logged."""
+    import logging
     from demo.run_demo import _resolve_ask_scope, parse_args
 
     v2_run = "unstructured_ingest-20260401T000000000000Z-v2run0001"
@@ -5965,22 +6001,27 @@ def test_resolve_ask_scope_explicit_run_id_correct_dataset_no_warning_live(
             dataset_id="demo_dataset_v2",
             pdf_filename="chain_of_issuance.pdf",
         )
-        run_id, all_runs = _resolve_ask_scope(args, config)
+        with caplog.at_level(logging.WARNING, logger="demo.run_demo"):
+            run_id, all_runs = _resolve_ask_scope(args, config)
 
     assert run_id == v2_run
     assert all_runs is False
 
-    output = capsys.readouterr().out
-    assert "WARNING" not in output, (
-        "No WARNING should be printed when --run-id belongs to the correct dataset"
+    mismatch_warnings = [
+        r for r in caplog.records
+        if r.levelno == logging.WARNING and "belongs to dataset" in r.getMessage()
+    ]
+    assert not mismatch_warnings, (
+        "No WARNING should be logged when --run-id belongs to the correct dataset"
     )
 
 
 def test_resolve_ask_scope_explicit_run_id_not_found_no_warning_live(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ):
     """When --run-id is not found in Neo4j (no Chunk nodes), no mismatch WARNING should
-    be printed.  The run may simply not exist yet; downstream retrieval will handle it."""
+    be logged.  The run may simply not exist yet; downstream retrieval will handle it."""
+    import logging
     from demo.run_demo import _resolve_ask_scope, parse_args
 
     future_run = "unstructured_ingest-20260501T000000000000Z-notfound1"
@@ -6004,22 +6045,27 @@ def test_resolve_ask_scope_explicit_run_id_not_found_no_warning_live(
             dataset_id="demo_dataset_v1",
             pdf_filename="chain_of_custody.pdf",
         )
-        run_id, all_runs = _resolve_ask_scope(args, config)
+        with caplog.at_level(logging.WARNING, logger="demo.run_demo"):
+            run_id, all_runs = _resolve_ask_scope(args, config)
 
     assert run_id == future_run
     assert all_runs is False
 
-    output = capsys.readouterr().out
-    assert "WARNING" not in output, (
-        "No mismatch WARNING should be printed when the run_id is not found in Neo4j"
+    mismatch_warnings = [
+        r for r in caplog.records
+        if r.levelno == logging.WARNING and "belongs to dataset" in r.getMessage()
+    ]
+    assert not mismatch_warnings, (
+        "No mismatch WARNING should be logged when the run_id is not found in Neo4j"
     )
 
 
 def test_resolve_ask_scope_explicit_run_id_no_dataset_no_warning_live(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ):
     """When --run-id is provided but no --dataset or FIXTURE_DATASET is set, no
-    dataset-ownership check is performed and no WARNING is printed."""
+    dataset-ownership check is performed and no WARNING is logged."""
+    import logging
     from demo.run_demo import _resolve_ask_scope, parse_args
 
     some_run = "unstructured_ingest-20260301T000000000000Z-nodataset1"
@@ -6030,7 +6076,8 @@ def test_resolve_ask_scope_explicit_run_id_no_dataset_no_warning_live(
     config = _live_config(tmp_path, dataset_name=None)
 
     with mock.patch("demo.run_demo._fetch_dataset_id_for_run") as mock_fetch:
-        run_id, all_runs = _resolve_ask_scope(args, config)
+        with caplog.at_level(logging.WARNING, logger="demo.run_demo"):
+            run_id, all_runs = _resolve_ask_scope(args, config)
 
     assert run_id == some_run
     assert all_runs is False
@@ -6039,15 +6086,19 @@ def test_resolve_ask_scope_explicit_run_id_no_dataset_no_warning_live(
         "_fetch_dataset_id_for_run must not be called when no dataset is selected"
     )
 
-    output = capsys.readouterr().out
-    assert "WARNING" not in output
+    mismatch_warnings = [
+        r for r in caplog.records
+        if r.levelno == logging.WARNING and "belongs to dataset" in r.getMessage()
+    ]
+    assert not mismatch_warnings
 
 
 def test_resolve_ask_scope_explicit_run_id_wrong_dataset_dry_run_no_check(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ):
     """In dry-run mode, --run-id + --dataset should NOT trigger a Neo4j dataset-ownership
-    check (Neo4j is unavailable in dry-run).  No mismatch WARNING should be printed."""
+    check (Neo4j is unavailable in dry-run).  No mismatch WARNING should be logged."""
+    import logging
     from demo.run_demo import _resolve_ask_scope, parse_args
 
     v1_run = "unstructured_ingest-20260301T000000000000Z-v1run0001"
@@ -6059,7 +6110,8 @@ def test_resolve_ask_scope_explicit_run_id_wrong_dataset_dry_run_no_check(
     config = dataclasses.replace(_dry_run_config(tmp_path), dataset_name="demo_dataset_v2")
 
     with mock.patch("demo.run_demo._fetch_dataset_id_for_run") as mock_fetch:
-        run_id, all_runs = _resolve_ask_scope(args, config)
+        with caplog.at_level(logging.WARNING, logger="demo.run_demo"):
+            run_id, all_runs = _resolve_ask_scope(args, config)
 
     assert run_id == v1_run
     assert all_runs is False
@@ -6068,19 +6120,23 @@ def test_resolve_ask_scope_explicit_run_id_wrong_dataset_dry_run_no_check(
         "_fetch_dataset_id_for_run must not be called in dry-run mode"
     )
 
-    output = capsys.readouterr().out
     # The only WARNING that could appear is from UNSTRUCTURED_RUN_ID; no dataset-ownership
     # check warning should appear because Neo4j isn't available.
-    assert "belongs to dataset" not in output, (
+    ownership_warnings = [
+        r for r in caplog.records
+        if r.levelno == logging.WARNING and "belongs to dataset" in r.getMessage()
+    ]
+    assert not ownership_warnings, (
         "Dataset-ownership WARNING must not appear in dry-run mode"
     )
 
 
 def test_resolve_ask_scope_explicit_run_id_wrong_fixture_dataset_warns_live(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ):
     """Regression: --run-id + FIXTURE_DATASET (no --dataset flag) with a mismatch
-    must also print a WARNING and name FIXTURE_DATASET as the source."""
+    must also log a WARNING and name FIXTURE_DATASET as the source."""
+    import logging
     from demo.run_demo import _resolve_ask_scope, parse_args
 
     v2_run = "unstructured_ingest-20260401T000000000000Z-v2run0001"
@@ -6104,27 +6160,33 @@ def test_resolve_ask_scope_explicit_run_id_wrong_fixture_dataset_warns_live(
             dataset_id="demo_dataset_v1",
             pdf_filename="chain_of_custody.pdf",
         )
-        run_id, all_runs = _resolve_ask_scope(args, config)
+        with caplog.at_level(logging.WARNING, logger="demo.run_demo"):
+            run_id, all_runs = _resolve_ask_scope(args, config)
 
     assert run_id == v2_run
     assert all_runs is False
 
-    output = capsys.readouterr().out
-    assert "WARNING" in output, (
-        "A WARNING must be printed when --run-id + FIXTURE_DATASET mismatch"
+    warning_records = [
+        r for r in caplog.records
+        if r.levelno == logging.WARNING and "belongs to dataset" in r.getMessage()
+    ]
+    assert warning_records, (
+        "A WARNING must be logged when --run-id + FIXTURE_DATASET mismatch"
     )
-    assert v2_run in output
-    assert "FIXTURE_DATASET='demo_dataset_v1'" in output, (
+    msg = warning_records[0].getMessage()
+    assert v2_run in msg
+    assert "FIXTURE_DATASET='demo_dataset_v1'" in msg, (
         "WARNING must name FIXTURE_DATASET as the source when it is set and --dataset is not"
     )
-    assert "demo_dataset_v2" in output, "WARNING must include the actual dataset_id of the run"
+    assert "demo_dataset_v2" in msg, "WARNING must include the actual dataset_id of the run"
 
 
 def test_resolve_ask_scope_explicit_run_id_wrong_dataset_overrides_fixture_warns_live(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ):
     """When --dataset overrides FIXTURE_DATASET and --run-id belongs to a third dataset,
     the WARNING must name --dataset as the effective source and also mention FIXTURE_DATASET."""
+    import logging
     from demo.run_demo import _resolve_ask_scope, parse_args
 
     other_run = "unstructured_ingest-20260501T000000000000Z-other0001"
@@ -6148,17 +6210,22 @@ def test_resolve_ask_scope_explicit_run_id_wrong_dataset_overrides_fixture_warns
             dataset_id="demo_dataset_v2",
             pdf_filename="chain_of_issuance.pdf",
         )
-        run_id, all_runs = _resolve_ask_scope(args, config)
+        with caplog.at_level(logging.WARNING, logger="demo.run_demo"):
+            run_id, all_runs = _resolve_ask_scope(args, config)
 
     assert run_id == other_run
     assert all_runs is False
 
-    output = capsys.readouterr().out
-    assert "WARNING" in output
-    assert "--dataset='demo_dataset_v2'" in output, (
+    warning_records = [
+        r for r in caplog.records
+        if r.levelno == logging.WARNING and "belongs to dataset" in r.getMessage()
+    ]
+    assert warning_records
+    msg = warning_records[0].getMessage()
+    assert "--dataset='demo_dataset_v2'" in msg, (
         "WARNING must name --dataset as the effective source when it overrides FIXTURE_DATASET"
     )
-    assert "FIXTURE_DATASET='demo_dataset_v1'" in output, (
+    assert "FIXTURE_DATASET='demo_dataset_v1'" in msg, (
         "WARNING must include the overridden FIXTURE_DATASET value for operator clarity"
     )
 
