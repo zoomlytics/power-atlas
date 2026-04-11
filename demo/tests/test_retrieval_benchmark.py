@@ -1053,7 +1053,7 @@ class TestRunRetrievalBenchmarkDryRun(unittest.TestCase):
                 run_retrieval_benchmark(config, run_id="run-no-warn", alignment_version="v1.0")
 
     def test_suppress_alignment_version_warning_flag(self) -> None:
-        """When _suppress_alignment_version_warning=True, no warning is emitted even if
+        """When suppress_alignment_version_warning=True, no warning is emitted even if
         alignment_version is None.  This is intended for orchestrated calls that have
         already logged their own warning to avoid duplicate log entries."""
         import logging
@@ -1065,7 +1065,7 @@ class TestRunRetrievalBenchmarkDryRun(unittest.TestCase):
                     config,
                     run_id="run-suppress",
                     alignment_version=None,
-                    _suppress_alignment_version_warning=True,
+                    suppress_alignment_version_warning=True,
                 )
 
 
