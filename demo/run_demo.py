@@ -338,6 +338,7 @@ def _fetch_dataset_id_for_run(config: Config, run_id: str) -> str | None:
             if not dataset_ids:
                 return None
             if len(dataset_ids) > 1:
+                first_dataset_id = dataset_ids[0]
                 _logger.warning(
                     "run_id=%r has Chunk nodes stamped with multiple "
                     "distinct dataset_ids (including %r and "
@@ -345,11 +346,11 @@ def _fetch_dataset_id_for_run(config: Config, run_id: str) -> str | None:
                     "ingested. Proceeding with dataset-ownership validation using "
                     "the first sorted dataset_id, %r.",
                     run_id,
-                    dataset_ids[0],
+                    first_dataset_id,
                     dataset_ids[1],
-                    dataset_ids[0],
+                    first_dataset_id,
                 )
-                return dataset_ids[0]
+                return first_dataset_id
             return dataset_ids[0]
 
 
