@@ -1052,6 +1052,22 @@ class TestRunRetrievalBenchmarkDryRun(unittest.TestCase):
             with self.assertNoLogs("demo.stages.retrieval_benchmark", level=logging.WARNING):
                 run_retrieval_benchmark(config, run_id="run-no-warn", alignment_version="v1.0")
 
+    def test_suppress_alignment_version_warning_flag(self) -> None:
+        """When suppress_alignment_version_warning=True, no warning is emitted even if
+        alignment_version is None.  This is intended for orchestrated calls that have
+        already logged their own warning to avoid duplicate log entries."""
+        import logging
+
+        with tempfile.TemporaryDirectory() as tmp:
+            config = _make_config(Path(tmp), dry_run=True)
+            with self.assertNoLogs("demo.stages.retrieval_benchmark", level=logging.WARNING):
+                run_retrieval_benchmark(
+                    config,
+                    run_id="run-suppress",
+                    alignment_version=None,
+                    suppress_alignment_version_warning=True,
+                )
+
 
 # ---------------------------------------------------------------------------
 # TestRunRetrievalBenchmarkLive

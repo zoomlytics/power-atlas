@@ -6352,3 +6352,86 @@ def test_orchestrated_run_warns_when_alignment_version_missing(tmp_path: Path):
     ), f"Expected alignment_version/aggregate warning in orchestrator log, got: {captured_logs.output}"
 
 
+def test_orchestrated_run_emits_exactly_one_alignment_version_warning(tmp_path: Path):
+    """When alignment_version is missing in an orchestrated run, exactly one warning
+    is emitted by the orchestrator logger. This test also verifies that the
+    orchestrator passes suppress_alignment_version_warning=True to the benchmark
+    stage so a duplicate stage-level warning would be suppressed.
+    """
+    import logging
+    import unittest
+    from unittest.mock import MagicMock, patch
+
+    from demo.run_demo import _run_orchestrated
+    from demo.contracts.runtime import Config
+
+    config = Config(
+        dry_run=True,
+        output_dir=tmp_path,
+        neo4j_uri="bolt://example.invalid",
+        neo4j_username="neo4j",
+        neo4j_password="not-used",
+        neo4j_database="neo4j",
+        openai_model="test-model",
+    )
+
+    # Hybrid stage returns a dict WITHOUT alignment_version — simulates missing key.
+    hybrid_stage_without_version = {"status": "dry_run"}
+
+    tc = unittest.TestCase()
+    tc.maxDiff = None
+    mock_run_benchmark = MagicMock(
+        return_value={"status": "dry_run", "artifact_path": str(tmp_path / "bench.json"), "artifact": None}
+    )
+    with tc.assertLogs("demo.run_demo", level=logging.WARNING) as captured_logs:
+        with patch(
+            "demo.run_demo.run_retrieval_benchmark",
+            mock_run_benchmark,
+        ), patch(
+            "demo.run_demo.resolve_dataset_root",
+            return_value=MagicMock(
+                dataset_id="test_dataset",
+                root=tmp_path,
+                pdf_filename="test.pdf",
+            ),
+        ), patch("demo.run_demo.set_dataset_id"), patch(
+            "demo.run_demo.run_pdf_ingest",
+            return_value={"status": "dry_run"},
+        ), patch(
+            "demo.run_demo.run_claim_and_mention_extraction",
+            return_value={"status": "dry_run"},
+        ), patch(
+            "demo.run_demo.run_claim_participation",
+            return_value={"status": "dry_run"},
+        ), patch(
+            "demo.run_demo.run_entity_resolution",
+            return_value=hybrid_stage_without_version,
+        ), patch(
+            "demo.run_demo.run_retrieval_and_qa",
+            return_value={"status": "dry_run"},
+        ), patch(
+            "demo.run_demo.run_structured_ingest",
+            return_value={"status": "dry_run"},
+        ):
+            _run_orchestrated(config)
+
+    # Exactly one alignment_version/aggregate warning on the orchestrator logger.
+    all_warning_messages = [r for r in captured_logs.output if "WARNING" in r]
+    alignment_warnings = [
+        msg for msg in all_warning_messages
+        if "alignment_version" in msg and "aggregate" in msg.lower()
+    ]
+    assert len(alignment_warnings) == 1, (
+        f"Expected exactly 1 orchestrator alignment_version/aggregate warning "
+        f"(got {len(alignment_warnings)}): {alignment_warnings}"
+    )
+
+    # The benchmark must have been called with suppress_alignment_version_warning=True.
+    assert mock_run_benchmark.call_count == 1
+    _, kwargs = mock_run_benchmark.call_args
+    assert kwargs.get("suppress_alignment_version_warning") is True, (
+        "Orchestrator must pass suppress_alignment_version_warning=True to run_retrieval_benchmark "
+        "when alignment_version is None to avoid a duplicate warning."
+    )
+
+

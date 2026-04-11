@@ -713,6 +713,9 @@ def _run_orchestrated(config: Config) -> Path:
             dataset_id=dataset_root.dataset_id,
             alignment_version=_hybrid_alignment_version,
             output_dir=config.output_dir,
+            # Deduplication: the orchestrator already emitted a warning above when
+            # alignment_version is None, so suppress the duplicate from the stage.
+            suppress_alignment_version_warning=_hybrid_alignment_version is None,
         )
     except Exception as _benchmark_exc:  # noqa: BLE001
         _tb = traceback.format_exc()

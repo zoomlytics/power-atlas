@@ -1033,6 +1033,7 @@ def run_retrieval_benchmark(
     alignment_version: str | None = None,
     output_dir: Path | None = None,
     benchmark_cases: list[BenchmarkCaseDefinition] | None = None,
+    suppress_alignment_version_warning: bool = False,
 ) -> dict[str, Any]:
     """Run the retrieval benchmark and write a JSON artifact.
 
@@ -1069,6 +1070,12 @@ def run_retrieval_benchmark(
     benchmark_cases:
         List of :class:`BenchmarkCaseDefinition` objects to run.  Defaults
         to :data:`BENCHMARK_CASES`.
+    suppress_alignment_version_warning:
+        When ``True``, suppresses the ``alignment_version is None`` warning
+        emitted by this function.  Pass ``True`` from an orchestrator that has
+        already logged its own warning for the same event to avoid duplicate
+        log entries.  Standalone callers should leave this at the default
+        ``False`` so the warning is visible.
 
     Returns
     -------
@@ -1104,7 +1111,12 @@ def run_retrieval_benchmark(
     artifact_dir.mkdir(parents=True, exist_ok=True)
     artifact_path = artifact_dir / "retrieval_benchmark.json"
 
-    if alignment_version is None:
+    # Warn when alignment_version is None so callers are aware that the
+    # benchmark will aggregate across all versions.  The warning is suppressed
+    # when suppress_alignment_version_warning=True to avoid a duplicate log
+    # entry in orchestrated runs where the orchestrator has already emitted its
+    # own warning for the same event.
+    if alignment_version is None and not suppress_alignment_version_warning:
         _logger.warning(
             "run_retrieval_benchmark: alignment_version is None — benchmark will aggregate "
             "across ALL alignment versions in the database, not just the current cohort. "
