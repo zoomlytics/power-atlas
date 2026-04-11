@@ -6435,3 +6435,129 @@ def test_orchestrated_run_emits_exactly_one_alignment_version_warning(tmp_path: 
     )
 
 
+def test_e2e_orchestrated_exactly_one_alignment_version_warning(tmp_path: Path):
+    """End-to-end regression guard: orchestrated dry-run emits exactly one
+    ``alignment_version`` fallback WARNING across *both* the orchestrator logger
+    (``demo.run_demo``) and the benchmark-stage logger
+    (``demo.stages.retrieval_benchmark``).
+
+    Regression-protection requirement
+    ----------------------------------
+    This test must fail if deduplication regresses in either direction:
+
+    * **Count > 1**: ``run_retrieval_benchmark`` is emitting a duplicate warning
+      even though ``suppress_alignment_version_warning=True`` was passed by
+      the orchestrator.
+    * **Count == 0**: the orchestrator stopped emitting the warning altogether.
+
+    Unlike ``test_orchestrated_run_emits_exactly_one_alignment_version_warning``,
+    this test does **not** mock ``run_retrieval_benchmark``.  The stage runs its
+    real dry-run code path (no Neo4j connection required) so that a future
+    regression where the stage ignores ``suppress_alignment_version_warning``
+    will be caught here.
+
+    For standalone-run coverage (no orchestration, warning must appear) see
+    ``TestRunRetrievalBenchmarkDryRun.test_none_alignment_version_emits_warning``
+    in ``test_retrieval_benchmark.py``.
+    """
+    import logging
+    from unittest.mock import MagicMock, patch
+
+    from demo.run_demo import _run_orchestrated
+    from demo.contracts.runtime import Config
+
+    config = Config(
+        dry_run=True,
+        output_dir=tmp_path,
+        neo4j_uri="bolt://example.invalid",
+        neo4j_username="neo4j",
+        neo4j_password="not-used",
+        neo4j_database="neo4j",
+        openai_model="test-model",
+    )
+
+    # Hybrid stage returns a dict WITHOUT alignment_version —
+    # triggers the orchestrator's alignment_version warning.
+    hybrid_stage_without_version: dict[str, object] = {"status": "dry_run"}
+
+    # Capture WARNING-level records from both the orchestrator and the
+    # benchmark-stage loggers.  Both loggers are watched simultaneously so
+    # a duplicate warning from either side will be detected.
+    captured_records: list[logging.LogRecord] = []
+
+    class _CapturingHandler(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            captured_records.append(record)
+
+    handler = _CapturingHandler(level=logging.WARNING)
+    loggers_to_watch = [
+        logging.getLogger("demo.run_demo"),
+        logging.getLogger("demo.stages.retrieval_benchmark"),
+    ]
+    original_levels = [lg.level for lg in loggers_to_watch]
+    for lg in loggers_to_watch:
+        lg.addHandler(handler)
+        lg.setLevel(logging.WARNING)
+
+    try:
+        with patch(
+            "demo.run_demo.resolve_dataset_root",
+            return_value=MagicMock(
+                dataset_id="test_dataset",
+                root=tmp_path,
+                pdf_filename="test.pdf",
+            ),
+        ), patch("demo.run_demo.set_dataset_id"), patch(
+            "demo.run_demo.run_pdf_ingest",
+            return_value={"status": "dry_run"},
+        ), patch(
+            "demo.run_demo.run_claim_and_mention_extraction",
+            return_value={"status": "dry_run"},
+        ), patch(
+            "demo.run_demo.run_claim_participation",
+            return_value={"status": "dry_run"},
+        ), patch(
+            "demo.run_demo.run_entity_resolution",
+            return_value=hybrid_stage_without_version,
+        ), patch(
+            "demo.run_demo.run_retrieval_and_qa",
+            return_value={"status": "dry_run"},
+        ), patch(
+            "demo.run_demo.run_structured_ingest",
+            return_value={"status": "dry_run"},
+        ):
+            # run_retrieval_benchmark is intentionally NOT mocked.
+            # In dry_run mode it writes a stub artifact without connecting to Neo4j.
+            _run_orchestrated(config)
+    finally:
+        for lg, level in zip(loggers_to_watch, original_levels):
+            lg.removeHandler(handler)
+            lg.setLevel(level)
+
+    alignment_warnings = [
+        r for r in captured_records
+        if r.levelno >= logging.WARNING
+        and "alignment_version" in r.getMessage()
+        and "aggregate" in r.getMessage().lower()
+    ]
+
+    assert len(alignment_warnings) == 1, (
+        f"Expected exactly 1 alignment_version fallback WARNING across "
+        f"demo.run_demo and demo.stages.retrieval_benchmark "
+        f"(got {len(alignment_warnings)}). "
+        f"If count > 1: run_retrieval_benchmark emitted a duplicate warning "
+        f"despite suppress_alignment_version_warning=True. "
+        f"If count == 0: the orchestrator stopped emitting the warning. "
+        f"Records: {[(r.name, r.getMessage()) for r in alignment_warnings]}"
+    )
+
+    # The single warning must originate from the orchestrator (demo.run_demo),
+    # not from the benchmark stage (demo.stages.retrieval_benchmark).
+    assert alignment_warnings[0].name == "demo.run_demo", (
+        f"Expected the alignment_version warning to originate from demo.run_demo "
+        f"(orchestrator), but got: {alignment_warnings[0].name!r}. "
+        f"This means run_retrieval_benchmark emitted the warning instead of "
+        f"(or in addition to) the orchestrator."
+    )
+
+
