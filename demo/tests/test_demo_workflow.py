@@ -1876,9 +1876,8 @@ class WorkflowTests(unittest.TestCase):
         )()
 
         with self._with_injected_modules({"neo4j": fake_neo4j}):
-            with io.StringIO() as buf, redirect_stdout(buf):
+            with self.assertLogs(logger=module.__name__, level="WARNING") as log_cm:
                 result = module._fetch_dataset_id_for_run(config, "test-run-id-mixed")
-                output = buf.getvalue()
 
         # When multiple distinct dataset_ids are found for a run, the function
         # should warn and return the first sorted dataset_id so the behavior
@@ -1888,20 +1887,21 @@ class WorkflowTests(unittest.TestCase):
             "dataset_a",
             "Should return the first sorted dataset_id when multiple dataset_ids are found for a run",
         )
-        # A WARNING about multiple dataset_ids must be printed.
-        self.assertIn(
-            "WARNING",
-            output,
-            "A WARNING must be printed when a run has multiple dataset_ids",
+        # A WARNING about multiple dataset_ids must be logged.
+        warning_lines = [line for line in log_cm.output if "WARNING" in line]
+        self.assertTrue(
+            warning_lines,
+            "A WARNING must be logged when a run has multiple dataset_ids",
         )
+        combined = "\n".join(log_cm.output)
         self.assertIn(
             "dataset_a",
-            output,
+            combined,
             "Warning must mention the dataset_ids found",
         )
         self.assertIn(
             "dataset_b",
-            output,
+            combined,
             "Warning must mention all dataset_ids found",
         )
 
@@ -1939,9 +1939,8 @@ class WorkflowTests(unittest.TestCase):
         env_backup = os.environ.pop("FIXTURE_DATASET", None)
         env_backup_run_id = os.environ.pop("UNSTRUCTURED_RUN_ID", None)
         try:
-            with io.StringIO() as buf, redirect_stdout(buf):
+            with self.assertLogs(logger=module.__name__, level="WARNING") as log_cm:
                 run_id, all_runs = module._resolve_ask_scope(args, config)
-                output = buf.getvalue()
         finally:
             module._fetch_dataset_id_for_run = original_fetch
             if env_backup is not None:
@@ -1952,15 +1951,16 @@ class WorkflowTests(unittest.TestCase):
         # The scope must still return the explicit run_id (pipeline should proceed).
         self.assertEqual(run_id, "explicit-run-id-001")
         self.assertFalse(all_runs)
-        # A WARNING about the failed dataset resolution must be printed.
-        self.assertIn(
-            "WARNING",
-            output,
-            "A WARNING must be printed when resolve_dataset_root raises ValueError",
+        # A WARNING about the failed dataset resolution must be logged.
+        warning_lines = [line for line in log_cm.output if "WARNING" in line]
+        self.assertTrue(
+            warning_lines,
+            "A WARNING must be logged when resolve_dataset_root raises ValueError",
         )
+        combined = "\n".join(log_cm.output)
         self.assertIn(
             "nonexistent_dataset_typo",
-            output,
+            combined,
             "Warning must mention the dataset name that failed to resolve",
         )
 

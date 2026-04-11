@@ -4188,21 +4188,25 @@ def test_resolve_ask_scope_run_id_flag(tmp_path: Path, monkeypatch: pytest.Monke
 
 
 def test_resolve_ask_scope_run_id_flag_overrides_env_var(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ):
-    """--run-id must override UNSTRUCTURED_RUN_ID and print a warning."""
+    """--run-id must override UNSTRUCTURED_RUN_ID and log a warning."""
+    import logging
     from demo.run_demo import parse_args, _resolve_ask_scope
 
     monkeypatch.setenv("UNSTRUCTURED_RUN_ID", "env-run-id")
     args = parse_args(["--dry-run", "ask", "--run-id", "cli-run-id"])
     config = _dry_run_config(tmp_path)
-    run_id, all_runs = _resolve_ask_scope(args, config)
+    with caplog.at_level(logging.WARNING, logger="demo.run_demo"):
+        run_id, all_runs = _resolve_ask_scope(args, config)
     assert run_id == "cli-run-id"
     assert all_runs is False
-    output = capsys.readouterr().out
-    assert "WARNING" in output
-    assert "env-run-id" in output
-    assert "cli-run-id" in output
+    assert any(
+        record.levelno == logging.WARNING
+        and "env-run-id" in record.getMessage()
+        and "cli-run-id" in record.getMessage()
+        for record in caplog.records
+    )
 
 
 def test_resolve_ask_scope_all_runs_flag(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
@@ -4218,19 +4222,22 @@ def test_resolve_ask_scope_all_runs_flag(tmp_path: Path, monkeypatch: pytest.Mon
 
 
 def test_resolve_ask_scope_all_runs_overrides_env_var(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ):
-    """--all-runs must override UNSTRUCTURED_RUN_ID and print a warning."""
+    """--all-runs must override UNSTRUCTURED_RUN_ID and log a warning."""
+    import logging
     from demo.run_demo import parse_args, _resolve_ask_scope
 
     monkeypatch.setenv("UNSTRUCTURED_RUN_ID", "stale-env-run-id")
     args = parse_args(["--dry-run", "ask", "--all-runs"])
     config = _dry_run_config(tmp_path)
-    run_id, all_runs = _resolve_ask_scope(args, config)
+    with caplog.at_level(logging.WARNING, logger="demo.run_demo"):
+        run_id, all_runs = _resolve_ask_scope(args, config)
     assert all_runs is True
-    output = capsys.readouterr().out
-    assert "WARNING" in output
-    assert "stale-env-run-id" in output
+    assert any(
+        record.levelno == logging.WARNING and "stale-env-run-id" in record.getMessage()
+        for record in caplog.records
+    )
 
 
 def test_resolve_ask_scope_dry_run_uses_env_var(
