@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import json
+import logging
 import os
 from pathlib import Path
 from unittest import mock
@@ -4191,7 +4192,6 @@ def test_resolve_ask_scope_run_id_flag_overrides_env_var(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ):
     """--run-id must override UNSTRUCTURED_RUN_ID and log a warning."""
-    import logging
     from demo.run_demo import parse_args, _resolve_ask_scope
 
     monkeypatch.setenv("UNSTRUCTURED_RUN_ID", "env-run-id")
@@ -4225,7 +4225,6 @@ def test_resolve_ask_scope_all_runs_overrides_env_var(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ):
     """--all-runs must override UNSTRUCTURED_RUN_ID and log a warning."""
-    import logging
     from demo.run_demo import parse_args, _resolve_ask_scope
 
     monkeypatch.setenv("UNSTRUCTURED_RUN_ID", "stale-env-run-id")
@@ -5714,7 +5713,6 @@ def test_resolve_ask_scope_env_run_id_with_dataset_warns_live(
     This prevents silent wrong-dataset retrieval from reappearing: if no warning
     is emitted the operator has no indication that the env var may be pointing at
     a different dataset's run."""
-    import logging
     from demo.run_demo import _resolve_ask_scope, parse_args
 
     v1_env_run = "unstructured_ingest-20260101T000000000000Z-v1run0001"
@@ -5758,7 +5756,6 @@ def test_resolve_ask_scope_env_run_id_with_fixture_dataset_warns_live(
 
     FIXTURE_DATASET is an explicit dataset selection just like --dataset; the same
     dataset-integrity risk applies and the same warning must appear."""
-    import logging
     from demo.run_demo import _resolve_ask_scope, parse_args
 
     v2_env_run = "unstructured_ingest-20260401T000000000000Z-v2run0002"
@@ -5797,7 +5794,6 @@ def test_resolve_ask_scope_env_run_id_with_dataset_warns_dry_run(
 
     In dry-run mode Neo4j is not queried, but the dataset-integrity risk is the same:
     the operator may have supplied an env var that belongs to a different dataset."""
-    import logging
     from demo.run_demo import _resolve_ask_scope, parse_args
 
     v1_env_run = "unstructured_ingest-20260101T000000000000Z-v1run0001"
@@ -5836,7 +5832,6 @@ def test_resolve_ask_scope_env_run_id_without_dataset_no_warning_live(
 
     No explicit dataset selection means single-dataset (or all-dataset) posture where
     cross-dataset contamination is not a concern."""
-    import logging
     from demo.run_demo import _resolve_ask_scope, parse_args
 
     env_run = "unstructured_ingest-20260201T000000000000Z-nodsrun"
@@ -5871,7 +5866,6 @@ def test_resolve_ask_scope_env_run_id_dataset_overrides_fixture_dataset_warns_li
     This exercises the override branch in _warn_env_run_id_dataset_mismatch and
     ensures the label format does not drift silently when both env var and CLI flag
     are in play simultaneously."""
-    import logging
     from demo.run_demo import _resolve_ask_scope, parse_args
 
     env_run = "unstructured_ingest-20260301T000000000000Z-override0"
@@ -5924,7 +5918,6 @@ def test_resolve_ask_scope_explicit_run_id_wrong_dataset_warns_live(
 
     This prevents silent wrong-dataset retrieval: if no warning is emitted, the
     operator has no indication that the run_id comes from a different dataset."""
-    import logging
     from demo.run_demo import _resolve_ask_scope, parse_args
 
     v1_run = "unstructured_ingest-20260301T000000000000Z-v1run0001"
@@ -5978,7 +5971,6 @@ def test_resolve_ask_scope_explicit_run_id_correct_dataset_no_warning_live(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ):
     """When --run-id belongs to the same dataset as --dataset, no WARNING should be logged."""
-    import logging
     from demo.run_demo import _resolve_ask_scope, parse_args
 
     v2_run = "unstructured_ingest-20260401T000000000000Z-v2run0001"
@@ -6021,7 +6013,6 @@ def test_resolve_ask_scope_explicit_run_id_not_found_no_warning_live(
 ):
     """When --run-id is not found in Neo4j (no Chunk nodes), no mismatch WARNING should
     be logged.  The run may simply not exist yet; downstream retrieval will handle it."""
-    import logging
     from demo.run_demo import _resolve_ask_scope, parse_args
 
     future_run = "unstructured_ingest-20260501T000000000000Z-notfound1"
@@ -6065,7 +6056,6 @@ def test_resolve_ask_scope_explicit_run_id_no_dataset_no_warning_live(
 ):
     """When --run-id is provided but no --dataset or FIXTURE_DATASET is set, no
     dataset-ownership check is performed and no WARNING is logged."""
-    import logging
     from demo.run_demo import _resolve_ask_scope, parse_args
 
     some_run = "unstructured_ingest-20260301T000000000000Z-nodataset1"
@@ -6098,7 +6088,6 @@ def test_resolve_ask_scope_explicit_run_id_wrong_dataset_dry_run_no_check(
 ):
     """In dry-run mode, --run-id + --dataset should NOT trigger a Neo4j dataset-ownership
     check (Neo4j is unavailable in dry-run).  No mismatch WARNING should be logged."""
-    import logging
     from demo.run_demo import _resolve_ask_scope, parse_args
 
     v1_run = "unstructured_ingest-20260301T000000000000Z-v1run0001"
@@ -6136,7 +6125,6 @@ def test_resolve_ask_scope_explicit_run_id_wrong_fixture_dataset_warns_live(
 ):
     """Regression: --run-id + FIXTURE_DATASET (no --dataset flag) with a mismatch
     must also log a WARNING and name FIXTURE_DATASET as the source."""
-    import logging
     from demo.run_demo import _resolve_ask_scope, parse_args
 
     v2_run = "unstructured_ingest-20260401T000000000000Z-v2run0001"
@@ -6186,7 +6174,6 @@ def test_resolve_ask_scope_explicit_run_id_wrong_dataset_overrides_fixture_warns
 ):
     """When --dataset overrides FIXTURE_DATASET and --run-id belongs to a third dataset,
     the WARNING must name --dataset as the effective source and also mention FIXTURE_DATASET."""
-    import logging
     from demo.run_demo import _resolve_ask_scope, parse_args
 
     other_run = "unstructured_ingest-20260501T000000000000Z-other0001"
@@ -6358,7 +6345,6 @@ def test_orchestrated_run_warns_when_alignment_version_missing(tmp_path: Path):
     _run_orchestrated must emit a warning explaining that the benchmark will
     aggregate across all alignment versions instead of scoping to the current cohort.
     """
-    import logging
     import unittest
     from unittest.mock import MagicMock, patch
 
@@ -6425,7 +6411,6 @@ def test_orchestrated_run_emits_exactly_one_alignment_version_warning(tmp_path: 
     orchestrator passes suppress_alignment_version_warning=True to the benchmark
     stage so a duplicate stage-level warning would be suppressed.
     """
-    import logging
     import unittest
     from unittest.mock import MagicMock, patch
 
@@ -6527,7 +6512,6 @@ def test_e2e_orchestrated_exactly_one_alignment_version_warning(tmp_path: Path):
     ``TestRunRetrievalBenchmarkDryRun.test_none_alignment_version_emits_warning``
     in ``test_retrieval_benchmark.py``.
     """
-    import logging
     from unittest.mock import MagicMock, patch
 
     from demo.run_demo import _run_orchestrated
