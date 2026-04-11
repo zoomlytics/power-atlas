@@ -6359,7 +6359,7 @@ def test_orchestrated_run_emits_exactly_one_alignment_version_warning(tmp_path: 
     """
     import logging
     import unittest
-    from unittest.mock import MagicMock, patch, call
+    from unittest.mock import MagicMock, patch
 
     from demo.run_demo import _run_orchestrated
     from demo.contracts.runtime import Config
