@@ -389,7 +389,8 @@ def _fetch_dataset_id_for_run(config: Config, run_id: str) -> str | None:
             dataset_id_count = record["total_count"]
             sampled_ids = record["sampled_ids"]
             used_sample_fallback = not sampled_ids
-            first_dataset_id = sampled_ids[0] if sampled_ids else detected_ids[0]
+            displayed_ids = sampled_ids if sampled_ids else detected_ids
+            first_dataset_id = displayed_ids[0]
 
             _logger.warning(
                 "run_id=%r has Chunk nodes stamped with %d distinct dataset_ids. "
@@ -398,8 +399,8 @@ def _fetch_dataset_id_for_run(config: Config, run_id: str) -> str | None:
                 "Proceeding with dataset-ownership validation using %s, %r.",
                 run_id,
                 dataset_id_count,
-                len(sampled_ids),
-                sampled_ids,
+                len(displayed_ids),
+                displayed_ids,
                 (
                     "the first sorted dataset_id"
                     if not used_sample_fallback
