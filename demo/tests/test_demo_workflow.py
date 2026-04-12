@@ -1934,6 +1934,365 @@ class WorkflowTests(unittest.TestCase):
             "Warning must include the sampled sorted dataset_ids wording from the new mixed-dataset warning",
         )
 
+    def test_fetch_dataset_id_returns_single_id_no_warning(self):
+        """_fetch_dataset_id_for_run must return the lone dataset_id with no warning (fast-path, single ID)."""
+        module = _load_module(RUN_DEMO_PATH, "run_fetch_dataset_id_single_test")
+
+        class _SingleResult:
+            def single(self):
+                return {"dataset_ids": ["only_dataset"]}
+
+        class _FakeSession:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def run(self, query, **kwargs):
+                return _SingleResult()
+
+        class _FakeDriver:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def session(self, **kwargs):
+                return _FakeSession()
+
+        fake_neo4j = types.ModuleType("neo4j")
+        fake_neo4j.GraphDatabase = types.SimpleNamespace(
+            driver=lambda *_a, **_k: _FakeDriver()
+        )
+
+        config = type(
+            "Config",
+            (),
+            {
+                "neo4j_uri": "bolt://localhost:7687",
+                "neo4j_username": "neo4j",
+                "neo4j_password": "test",
+                "neo4j_database": "neo4j",
+            },
+        )()
+
+        with self._with_injected_modules({"neo4j": fake_neo4j}):
+            with self.assertNoLogs(logger=module.__name__, level="WARNING"):
+                result = module._fetch_dataset_id_for_run(config, "test-run-id-single")
+
+        self.assertEqual(
+            result,
+            "only_dataset",
+            "Should return the single dataset_id without a warning",
+        )
+
+    def test_fetch_dataset_id_returns_none_for_no_datasets(self):
+        """_fetch_dataset_id_for_run must return None with no warning when no dataset_ids exist."""
+        module = _load_module(RUN_DEMO_PATH, "run_fetch_dataset_id_none_test")
+
+        class _EmptyResult:
+            def single(self):
+                return {"dataset_ids": []}
+
+        class _FakeSession:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def run(self, query, **kwargs):
+                return _EmptyResult()
+
+        class _FakeDriver:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def session(self, **kwargs):
+                return _FakeSession()
+
+        fake_neo4j = types.ModuleType("neo4j")
+        fake_neo4j.GraphDatabase = types.SimpleNamespace(
+            driver=lambda *_a, **_k: _FakeDriver()
+        )
+
+        config = type(
+            "Config",
+            (),
+            {
+                "neo4j_uri": "bolt://localhost:7687",
+                "neo4j_username": "neo4j",
+                "neo4j_password": "test",
+                "neo4j_database": "neo4j",
+            },
+        )()
+
+        with self._with_injected_modules({"neo4j": fake_neo4j}):
+            with self.assertNoLogs(logger=module.__name__, level="WARNING"):
+                result = module._fetch_dataset_id_for_run(config, "test-run-id-no-datasets")
+
+        self.assertIsNone(
+            result,
+            "Should return None when no dataset_ids are found for the run",
+        )
+
+    def test_fetch_dataset_id_slow_path_fallback_branch(self):
+        """_fetch_dataset_id_for_run uses detected_ids when slow-path sampled_ids is empty."""
+        module = _load_module(RUN_DEMO_PATH, "run_fetch_dataset_id_fallback_test")
+
+        # Simulate the two-phase query:
+        # - Fast-path (LIMIT 2) detects two distinct ids.
+        # - Slow-path returns total_count=2 but sampled_ids=[] (edge-case empty sample).
+        # The function must fall back to detected_ids from the fast path.
+        class _FastPathResult:
+            def single(self):
+                return {"dataset_ids": ["alpha", "beta"]}
+
+        class _SlowPathResult:
+            def single(self):
+                return {"total_count": 2, "sampled_ids": []}
+
+        class _FakeSession:
+            def __init__(self):
+                self._call_count = 0
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def run(self, query, **kwargs):
+                self._call_count += 1
+                if self._call_count == 1:
+                    return _FastPathResult()
+                return _SlowPathResult()
+
+        class _FakeDriver:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def session(self, **kwargs):
+                return _FakeSession()
+
+        fake_neo4j = types.ModuleType("neo4j")
+        fake_neo4j.GraphDatabase = types.SimpleNamespace(
+            driver=lambda *_a, **_k: _FakeDriver()
+        )
+
+        config = type(
+            "Config",
+            (),
+            {
+                "neo4j_uri": "bolt://localhost:7687",
+                "neo4j_username": "neo4j",
+                "neo4j_password": "test",
+                "neo4j_database": "neo4j",
+            },
+        )()
+
+        with self._with_injected_modules({"neo4j": fake_neo4j}):
+            with self.assertLogs(logger=module.__name__, level="WARNING") as log_cm:
+                result = module._fetch_dataset_id_for_run(config, "test-run-id-fallback")
+
+        # Should return the first sorted id from the fast-path detected_ids fallback.
+        self.assertEqual(
+            result,
+            "alpha",
+            "Should return the first sorted id from the fast-path fallback when sampled_ids is empty",
+        )
+        combined = "\n".join(log_cm.output)
+        # The warning must mention the fallback reason.
+        self.assertIn(
+            "fallback",
+            combined,
+            "Warning must mention the fallback from the fast-path detection",
+        )
+
+    def test_fetch_latest_run_id_warns_on_inconsistent_dataset_stamps(self):
+        """_fetch_latest_unstructured_run_id must warn when resolved run has multiple dataset_ids."""
+        module = _load_module(RUN_DEMO_PATH, "run_fetch_latest_run_id_inconsistent_test")
+
+        # Session returns:
+        # - First call (latest run query) → run_id record
+        # - Second call (consistency LIMIT 2 check) → two distinct dataset_ids
+        class _RunIdResult:
+            def single(self):
+                # Simulate a record whose first element is the run_id.
+                class _Record:
+                    def __getitem__(self, idx):
+                        return "unstructured_ingest-20260101T000000000000Z-abcdef01"
+                return _Record()
+
+        class _InconsistentCheckResult:
+            def single(self):
+                return {"dataset_ids": ["dataset_x", "dataset_y"]}
+
+        class _FakeSession:
+            def __init__(self):
+                self._call_count = 0
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def run(self, query, **kwargs):
+                self._call_count += 1
+                if self._call_count == 1:
+                    return _RunIdResult()
+                return _InconsistentCheckResult()
+
+        class _FakeDriver:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def session(self, **kwargs):
+                return _FakeSession()
+
+        fake_neo4j = types.ModuleType("neo4j")
+        fake_neo4j.GraphDatabase = types.SimpleNamespace(
+            driver=lambda *_a, **_k: _FakeDriver()
+        )
+
+        config = type(
+            "Config",
+            (),
+            {
+                "neo4j_uri": "bolt://localhost:7687",
+                "neo4j_username": "neo4j",
+                "neo4j_password": "test",
+                "neo4j_database": "neo4j",
+            },
+        )()
+
+        with self._with_injected_modules({"neo4j": fake_neo4j}):
+            with self.assertLogs(logger=module.__name__, level="WARNING") as log_cm:
+                result = module._fetch_latest_unstructured_run_id(config)
+
+        self.assertEqual(
+            result,
+            "unstructured_ingest-20260101T000000000000Z-abcdef01",
+            "Should still return the resolved run_id even when inconsistency is detected",
+        )
+        combined = "\n".join(log_cm.output)
+        warning_lines = [line for line in log_cm.output if "WARNING" in line]
+        self.assertTrue(
+            warning_lines,
+            "A WARNING must be logged when the resolved run has multiple dataset_ids",
+        )
+        self.assertIn(
+            "dataset_x",
+            combined,
+            "Warning must mention the conflicting dataset_ids",
+        )
+        self.assertIn(
+            "dataset_y",
+            combined,
+            "Warning must mention the conflicting dataset_ids",
+        )
+
+    def test_fetch_latest_run_id_warns_on_mismatched_dataset_stamp(self):
+        """_fetch_latest_unstructured_run_id warns when run's dataset_id mismatches requested dataset_id."""
+        module = _load_module(RUN_DEMO_PATH, "run_fetch_latest_run_id_mismatch_test")
+
+        # Session returns:
+        # - First call (latest run query filtered by dataset_id) → run_id record
+        # - Second call (consistency check) → single but different dataset_id
+        class _RunIdResult:
+            def single(self):
+                class _Record:
+                    def __getitem__(self, idx):
+                        return "unstructured_ingest-20260101T000000000000Z-abcdef01"
+                return _Record()
+
+        class _MismatchCheckResult:
+            def single(self):
+                # Returns a dataset_id different from the requested one.
+                return {"dataset_ids": ["actual_dataset"]}
+
+        class _FakeSession:
+            def __init__(self):
+                self._call_count = 0
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def run(self, query, **kwargs):
+                self._call_count += 1
+                if self._call_count == 1:
+                    return _RunIdResult()
+                return _MismatchCheckResult()
+
+        class _FakeDriver:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def session(self, **kwargs):
+                return _FakeSession()
+
+        fake_neo4j = types.ModuleType("neo4j")
+        fake_neo4j.GraphDatabase = types.SimpleNamespace(
+            driver=lambda *_a, **_k: _FakeDriver()
+        )
+
+        config = type(
+            "Config",
+            (),
+            {
+                "neo4j_uri": "bolt://localhost:7687",
+                "neo4j_username": "neo4j",
+                "neo4j_password": "test",
+                "neo4j_database": "neo4j",
+            },
+        )()
+
+        with self._with_injected_modules({"neo4j": fake_neo4j}):
+            with self.assertLogs(logger=module.__name__, level="WARNING") as log_cm:
+                result = module._fetch_latest_unstructured_run_id(
+                    config, dataset_id="requested_dataset"
+                )
+
+        self.assertEqual(
+            result,
+            "unstructured_ingest-20260101T000000000000Z-abcdef01",
+            "Should still return the resolved run_id even when dataset_id mismatch is detected",
+        )
+        combined = "\n".join(log_cm.output)
+        warning_lines = [line for line in log_cm.output if "WARNING" in line]
+        self.assertTrue(
+            warning_lines,
+            "A WARNING must be logged when run's dataset_id mismatches the requested dataset_id",
+        )
+        self.assertIn(
+            "requested_dataset",
+            combined,
+            "Warning must mention the requested dataset_id",
+        )
+        self.assertIn(
+            "actual_dataset",
+            combined,
+            "Warning must mention the actual dataset_id found on the run",
+        )
+
     def test_resolve_ask_scope_warns_on_resolve_dataset_root_value_error(self):
         """_resolve_ask_scope must emit a warning (not silently skip) when
         resolve_dataset_root raises ValueError for an unknown dataset name."""
