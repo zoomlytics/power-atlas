@@ -363,10 +363,12 @@ def _fetch_dataset_id_for_run(config: Config, run_id: str) -> str | None:
 
             # Slow path: multiple distinct dataset_ids were detected above, so
             # compute the full distinct count and a capped sorted sample for
-            # diagnostic logging.  Two CALL{} subqueries in one session.run()
-            # call: the first uses count(DISTINCT ...) (no collection) and the
-            # second uses LIMIT to cap the sample before collecting, so neither
-            # subquery ever materialises more than _DATASET_ID_SAMPLE_LIMIT ids.
+            # diagnostic logging. Two CALL{} subqueries in one session.run()
+            # call: the first uses count(DISTINCT ...), which avoids returning
+            # the full id list to Python but may still require Neo4j to track
+            # all distinct dataset_ids internally; the second applies LIMIT
+            # before collect(...) so the returned sampled_ids list is capped at
+            # _DATASET_ID_SAMPLE_LIMIT entries.
             result = session.run(
                 "CALL { "
                 "  MATCH (c:Chunk) "
