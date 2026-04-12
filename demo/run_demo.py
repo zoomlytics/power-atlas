@@ -13,6 +13,8 @@ from demo.contracts import pipeline as pipeline_contracts
 
 pipeline_contracts.refresh_pipeline_contract()
 
+_DATASET_ID_SAMPLE_LIMIT = 10
+
 from demo.contracts import (  # noqa: E402
     ARTIFACTS_DIR,
     CHUNK_EMBEDDING_DIMENSIONS,
@@ -325,8 +327,6 @@ def _fetch_dataset_id_for_run(config: Config, run_id: str) -> str | None:
     Only call this in live mode; it opens a real Neo4j connection.
     """
     import neo4j as _neo4j
-
-    _DATASET_ID_SAMPLE_LIMIT = 10
 
     with _neo4j.GraphDatabase.driver(
         config.neo4j_uri, auth=(config.neo4j_username, config.neo4j_password)
