@@ -345,16 +345,11 @@ def _fetch_dataset_id_for_run(config: Config, run_id: str) -> str | None:
                 limit=_DATASET_ID_SAMPLE_LIMIT,
             )
             record = result.single()
-            if record is None or record["total_count"] == 0:
+            if record["total_count"] == 0:
                 return None
 
             dataset_id_count = record["total_count"]
             sampled_ids = record["sampled_ids"]
-            # Defensive guard: shouldn't happen when total_count > 0, but
-            # protects against driver edge cases or race conditions.
-            if not sampled_ids:
-                return None
-
             first_dataset_id = sampled_ids[0]
 
             if dataset_id_count > 1:
