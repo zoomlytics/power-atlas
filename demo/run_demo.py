@@ -788,6 +788,24 @@ def _run_orchestrated(config: Config) -> Path:
         }
 
     finished_at = _now_iso()
+
+    # Stage warnings must be surfaced at orchestration boundaries so operators see
+    # non-fatal issues without manually inspecting nested stage artifacts.
+    for _stage_name, _stage_result in [
+        ("pdf_ingest", pdf_stage),
+        ("claim_and_mention_extraction", claim_stage),
+        ("claim_participation", claim_participation_stage),
+        ("entity_resolution_unstructured_only", entity_resolution_unstructured_stage),
+        ("retrieval_and_qa_unstructured", retrieval_unstructured_stage),
+        ("structured_ingest", structured_stage),
+        ("entity_resolution_hybrid", entity_resolution_hybrid_stage),
+        ("retrieval_and_qa", retrieval_stage),
+        ("retrieval_benchmark", benchmark_stage),
+    ]:
+        if isinstance(_stage_result, dict):
+            for _warning in _stage_result.get("warnings") or []:
+                _logger.warning("Stage %r warning: %s", _stage_name, _warning)
+
     manifest = build_batch_manifest(
         config=config,
         structured_run_id=structured_run_id,

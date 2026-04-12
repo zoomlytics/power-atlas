@@ -1828,6 +1828,11 @@ def run_entity_resolution(
     else:
         live_resolver_method = "canonical_exact_match"
 
+    # Build entity_type_report and propagate any sentinel_label_warnings into the
+    # stage warnings list so they surface at orchestration boundaries.
+    _entity_type_report = _build_entity_type_report(mentions)
+    _stage_warnings.extend(_entity_type_report.get("sentinel_label_warnings") or [])
+
     summary = {
         "status": "live",
         "run_id": run_id,
@@ -1843,7 +1848,7 @@ def run_entity_resolution(
         "unresolved": len(unresolved_rows),
         "clusters_created": clusters_created,
         "resolution_breakdown": resolution_breakdown,
-        "entity_type_report": _build_entity_type_report(mentions),
+        "entity_type_report": _entity_type_report,
         "entity_resolution_summary_path": str(summary_path),
         "unresolved_mentions_path": str(unresolved_path),
         "warnings": list(_stage_warnings),
