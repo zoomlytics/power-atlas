@@ -319,10 +319,9 @@ def _fetch_dataset_id_for_run(config: Config, run_id: str) -> str | None:
        distinct values.  Uses two ``CALL {}`` subqueries in a single additional
        round-trip: one to compute ``count(DISTINCT c.dataset_id)`` for the
        total and one to collect a ``LIMIT``-bounded sorted sample (up to
-       ``_DATASET_ID_SAMPLE_LIMIT`` entries).  This avoids materialising all
-       distinct ``dataset_id`` values in the database before returning results,
-       keeping both server-side memory usage and log line length bounded even
-       on severely corrupted graphs.
+       ``_DATASET_ID_SAMPLE_LIMIT`` entries).  This keeps the returned sample
+       bounded, caps the second subquery's ``collect()``, and keeps the emitted
+       warning/log line length bounded even on severely corrupted graphs.
 
     If exactly one distinct value is found on the fast path, it is returned
     as the authoritative dataset_id for the run.
