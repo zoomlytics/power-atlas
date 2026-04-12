@@ -308,9 +308,10 @@ def _fetch_latest_unstructured_run_id(
 def _fetch_dataset_id_for_run(config: Config, run_id: str) -> str | None:
     """Query Neo4j for the dataset_id stamped on Chunk nodes belonging to *run_id*.
 
-    Counts all distinct dataset_id values across Chunk nodes for this run, but only
-    fetches a small sorted sample to avoid materializing or logging an unbounded
-    result set.
+    Counts all distinct dataset_id values across Chunk nodes for this run and
+    fetches a small sorted sample (up to _DATASET_ID_SAMPLE_LIMIT) in a single
+    round-trip query.  The sample is capped to limit client-side memory usage and
+    log line length for severely corrupted graphs.
 
     If exactly one distinct value is found, it is returned as the authoritative
     dataset_id for the run.
@@ -325,31 +326,36 @@ def _fetch_dataset_id_for_run(config: Config, run_id: str) -> str | None:
     """
     import neo4j as _neo4j
 
-    dataset_id_log_limit = 10
+    _DATASET_ID_SAMPLE_LIMIT = 10
 
     with _neo4j.GraphDatabase.driver(
         config.neo4j_uri, auth=(config.neo4j_username, config.neo4j_password)
     ) as driver:
         with driver.session(database=config.neo4j_database) as session:
-            count_result = session.run(
+            # Single query: count all distinct dataset_ids and collect a sorted
+            # sample in one database round-trip.  Neo4j aggregation always returns
+            # exactly one row, so result.single() is safe here.
+            result = session.run(
                 "MATCH (c:Chunk) WHERE c.run_id = $run_id AND c.dataset_id IS NOT NULL "
-                "RETURN COUNT(DISTINCT c.dataset_id) AS dataset_id_count",
+                "WITH DISTINCT c.dataset_id AS dataset_id "
+                "ORDER BY dataset_id "
+                "WITH count(*) AS total_count, collect(dataset_id) AS ids "
+                "RETURN total_count, ids[0..$limit] AS sampled_ids",
                 run_id=run_id,
+                limit=_DATASET_ID_SAMPLE_LIMIT,
             )
-            dataset_id_count = count_result.single()["dataset_id_count"]
-            if dataset_id_count == 0:
+            record = result.single()
+            if record is None or record["total_count"] == 0:
                 return None
 
-            sample_result = session.run(
-                "MATCH (c:Chunk) WHERE c.run_id = $run_id AND c.dataset_id IS NOT NULL "
-                "RETURN DISTINCT c.dataset_id AS dataset_id "
-                "ORDER BY dataset_id "
-                "LIMIT $limit",
-                run_id=run_id,
-                limit=dataset_id_log_limit,
-            )
-            dataset_ids = [record["dataset_id"] for record in sample_result]
-            first_dataset_id = dataset_ids[0]
+            dataset_id_count = record["total_count"]
+            sampled_ids = record["sampled_ids"]
+            # Defensive guard: shouldn't happen when total_count > 0, but
+            # protects against driver edge cases or race conditions.
+            if not sampled_ids:
+                return None
+
+            first_dataset_id = sampled_ids[0]
 
             if dataset_id_count > 1:
                 _logger.warning(
@@ -360,8 +366,8 @@ def _fetch_dataset_id_for_run(config: Config, run_id: str) -> str | None:
                     "the first sorted dataset_id, %r.",
                     run_id,
                     dataset_id_count,
-                    min(dataset_id_count, dataset_id_log_limit),
-                    dataset_ids,
+                    len(sampled_ids),
+                    sampled_ids,
                     first_dataset_id,
                 )
                 return first_dataset_id

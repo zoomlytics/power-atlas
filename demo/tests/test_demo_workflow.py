@@ -1833,11 +1833,11 @@ class WorkflowTests(unittest.TestCase):
         """_fetch_dataset_id_for_run must warn when a run has multiple distinct dataset_ids."""
         module = _load_module(RUN_DEMO_PATH, "run_fetch_dataset_id_mixed_test")
 
-        # Build a fake neo4j that returns two distinct dataset_ids for a run.
+        # Build a fake neo4j that simulates the single-query response:
+        # total_count=2 and sampled_ids=["dataset_a", "dataset_b"].
         class _FakeResult:
-            def __iter__(self):
-                yield {"dataset_id": "dataset_a"}
-                yield {"dataset_id": "dataset_b"}
+            def single(self):
+                return {"total_count": 2, "sampled_ids": ["dataset_a", "dataset_b"]}
 
         class _FakeSession:
             def __enter__(self):
