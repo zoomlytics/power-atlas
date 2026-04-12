@@ -332,12 +332,30 @@ def _fetch_dataset_id_for_run(config: Config, run_id: str) -> str | None:
         config.neo4j_uri, auth=(config.neo4j_username, config.neo4j_password)
     ) as driver:
         with driver.session(database=config.neo4j_database) as session:
-            # Single query: compute the full distinct-count and a separately
-            # limited sorted sample in one database round-trip.  The subquery
-            # applies LIMIT before collect(...) so Neo4j never needs to
-            # materialize the full distinct-id list just to return the first
-            # few values. Neo4j aggregation still returns exactly one row here,
-            # so result.single() is safe.
+            # Fast path: detect whether the run has 0, 1, or multiple distinct
+            # dataset_ids using a small sorted sample. This preserves the old
+            # early-exit behavior for the common consistent case and avoids the
+            # full distinct-count scan unless we actually detect inconsistency.
+            result = session.run(
+                "MATCH (c:Chunk) "
+                "WHERE c.run_id = $run_id AND c.dataset_id IS NOT NULL "
+                "WITH DISTINCT c.dataset_id AS dataset_id "
+                "ORDER BY dataset_id "
+                "LIMIT 2 "
+                "RETURN collect(dataset_id) AS dataset_ids",
+                run_id=run_id,
+            )
+            record = result.single()
+            detected_ids = record["dataset_ids"]
+            if not detected_ids:
+                return None
+
+            if len(detected_ids) == 1:
+                return detected_ids[0]
+
+            # Slow path: multiple distinct dataset_ids were detected above, so
+            # compute the full distinct count and a capped sorted sample for
+            # diagnostic logging.
             result = session.run(
                 "MATCH (c:Chunk) "
                 "WHERE c.run_id = $run_id AND c.dataset_id IS NOT NULL "
@@ -355,28 +373,22 @@ def _fetch_dataset_id_for_run(config: Config, run_id: str) -> str | None:
                 limit=_DATASET_ID_SAMPLE_LIMIT,
             )
             record = result.single()
-            if record["total_count"] == 0:
-                return None
-
             dataset_id_count = record["total_count"]
             sampled_ids = record["sampled_ids"]
             first_dataset_id = sampled_ids[0]
 
-            if dataset_id_count > 1:
-                _logger.warning(
-                    "run_id=%r has Chunk nodes stamped with %d distinct dataset_ids. "
-                    "Showing the first %d sorted dataset_ids: %r. "
-                    "The graph may have been inconsistently ingested. "
-                    "Proceeding with dataset-ownership validation using "
-                    "the first sorted dataset_id, %r.",
-                    run_id,
-                    dataset_id_count,
-                    len(sampled_ids),
-                    sampled_ids,
-                    first_dataset_id,
-                )
-                return first_dataset_id
-
+            _logger.warning(
+                "run_id=%r has Chunk nodes stamped with %d distinct dataset_ids. "
+                "Showing the first %d sorted dataset_ids: %r. "
+                "The graph may have been inconsistently ingested. "
+                "Proceeding with dataset-ownership validation using "
+                "the first sorted dataset_id, %r.",
+                run_id,
+                dataset_id_count,
+                len(sampled_ids),
+                sampled_ids,
+                first_dataset_id,
+            )
             return first_dataset_id
 
 
