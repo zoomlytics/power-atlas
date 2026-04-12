@@ -5373,15 +5373,28 @@ def test_fetch_latest_run_id_without_dataset_uses_unfiltered_query(tmp_path: Pat
         def __getitem__(self, idx):
             return "unstructured_ingest-20260101T000000000000Z-aabbccdd"
 
-    class _FakeResult:
-        def single(self):
-            return _FakeRecord()
+    class _FakeCheckRecord:
+        def __getitem__(self, key):
+            return ["demo_dataset_v1"]  # single consistent dataset_id
 
     class _FakeSession:
+        def __init__(self):
+            self._call_count = 0
+
         def run(self, query, **params):
             captured_queries.append(query)
             captured_params.append(params)
-            return _FakeResult()
+            self._call_count += 1
+            if self._call_count == 1:
+                class _R:
+                    def single(self_inner):
+                        return _FakeRecord()
+                return _R()
+            else:
+                class _CheckR:
+                    def single(self_inner):
+                        return _FakeCheckRecord()
+                return _CheckR()
 
         def __enter__(self):
             return self
@@ -5404,7 +5417,9 @@ def test_fetch_latest_run_id_without_dataset_uses_unfiltered_query(tmp_path: Pat
         result = _fetch_latest_unstructured_run_id(config, dataset_id=None)
 
     assert result == "unstructured_ingest-20260101T000000000000Z-aabbccdd"
-    assert len(captured_queries) == 1
+    assert len(captured_queries) == 2, (
+        "Expected 2 queries: one to resolve the run_id and one for the dataset-consistency check"
+    )
     assert "dataset_id" not in captured_queries[0], (
         "Query without dataset_id must not include a dataset_id filter clause"
     )
@@ -5424,15 +5439,28 @@ def test_fetch_latest_run_id_with_dataset_filters_by_dataset_id(tmp_path: Path):
         def __getitem__(self, idx):
             return "unstructured_ingest-20260201T000000000000Z-v1run0001"
 
-    class _FakeResult:
-        def single(self):
-            return _FakeRecord()
+    class _FakeCheckRecord:
+        def __getitem__(self, key):
+            return ["demo_dataset_v1"]  # single consistent dataset_id
 
     class _FakeSession:
+        def __init__(self):
+            self._call_count = 0
+
         def run(self, query, **params):
             captured_queries.append(query)
             captured_params.append(params)
-            return _FakeResult()
+            self._call_count += 1
+            if self._call_count == 1:
+                class _R:
+                    def single(self_inner):
+                        return _FakeRecord()
+                return _R()
+            else:
+                class _CheckR:
+                    def single(self_inner):
+                        return _FakeCheckRecord()
+                return _CheckR()
 
         def __enter__(self):
             return self
@@ -5455,7 +5483,9 @@ def test_fetch_latest_run_id_with_dataset_filters_by_dataset_id(tmp_path: Path):
         result = _fetch_latest_unstructured_run_id(config, dataset_id="demo_dataset_v1")
 
     assert result == "unstructured_ingest-20260201T000000000000Z-v1run0001"
-    assert len(captured_queries) == 1
+    assert len(captured_queries) == 2, (
+        "Expected 2 queries: one to resolve the run_id and one for the dataset-consistency check"
+    )
     assert "c.dataset_id = $dataset_id" in captured_queries[0], (
         "Query with dataset_id must include the 'AND c.dataset_id = $dataset_id' filter"
     )
