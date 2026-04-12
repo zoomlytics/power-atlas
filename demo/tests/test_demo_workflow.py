@@ -1918,6 +1918,11 @@ class WorkflowTests(unittest.TestCase):
             combined,
             "Warning must mention all dataset_ids found",
         )
+        self.assertIn(
+            "dataset_c",
+            combined,
+            "Warning must mention all sampled dataset_ids found",
+        )
         self.assertRegex(
             combined,
             r"(3 distinct dataset_ids|Showing the first)",
