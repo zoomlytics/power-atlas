@@ -796,7 +796,7 @@ def _run_orchestrated(config: Config) -> Path:
         ("claim_and_mention_extraction", claim_stage),
         ("claim_participation", claim_participation_stage),
         ("entity_resolution_unstructured_only", entity_resolution_unstructured_stage),
-        ("retrieval_and_qa_unstructured", retrieval_unstructured_stage),
+        ("retrieval_and_qa_unstructured_only", retrieval_unstructured_stage),
         ("structured_ingest", structured_stage),
         ("entity_resolution_hybrid", entity_resolution_hybrid_stage),
         ("retrieval_and_qa", retrieval_stage),
