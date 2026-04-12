@@ -389,18 +389,23 @@ def _fetch_dataset_id_for_run(config: Config, run_id: str) -> str | None:
             record = result.single()
             dataset_id_count = record["total_count"]
             sampled_ids = record["sampled_ids"]
-            first_dataset_id = sampled_ids[0]
+            used_sample_fallback = not sampled_ids
+            first_dataset_id = sampled_ids[0] if sampled_ids else detected_ids[0]
 
             _logger.warning(
                 "run_id=%r has Chunk nodes stamped with %d distinct dataset_ids. "
                 "Showing the first %d sorted dataset_ids: %r. "
                 "The graph may have been inconsistently ingested. "
-                "Proceeding with dataset-ownership validation using "
-                "the first sorted dataset_id, %r.",
+                "Proceeding with dataset-ownership validation using %s, %r.",
                 run_id,
                 dataset_id_count,
                 len(sampled_ids),
                 sampled_ids,
+                (
+                    "the first sorted dataset_id"
+                    if not used_sample_fallback
+                    else "a fallback dataset_id from the fast-path detection because the slow-path sample was empty"
+                ),
                 first_dataset_id,
             )
             return first_dataset_id
