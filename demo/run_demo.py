@@ -308,47 +308,65 @@ def _fetch_latest_unstructured_run_id(
 def _fetch_dataset_id_for_run(config: Config, run_id: str) -> str | None:
     """Query Neo4j for the dataset_id stamped on Chunk nodes belonging to *run_id*.
 
-    Collects ALL distinct dataset_id values across Chunk nodes for this run.
+    Counts all distinct dataset_id values across Chunk nodes for this run, but only
+    fetches a small sorted sample to avoid materializing or logging an unbounded
+    result set.
+
     If exactly one distinct value is found, it is returned as the authoritative
     dataset_id for the run.
 
     If multiple distinct values are found (indicating an inconsistently-ingested
-    graph), a WARNING is logged with the complete list of all distinct dataset_ids,
-    and the first sorted dataset_id is returned so callers can continue
-    deterministic dataset-ownership mismatch checks.
+    graph), a WARNING is logged with the total distinct count and the first few
+    sorted dataset_ids, and the first sorted dataset_id is returned so callers can
+    continue deterministic dataset-ownership mismatch checks.
 
     Returns None if no Chunk nodes with a non-null dataset_id exist for the run.
     Only call this in live mode; it opens a real Neo4j connection.
     """
     import neo4j as _neo4j
 
+    dataset_id_log_limit = 10
+
     with _neo4j.GraphDatabase.driver(
         config.neo4j_uri, auth=(config.neo4j_username, config.neo4j_password)
     ) as driver:
         with driver.session(database=config.neo4j_database) as session:
-            result = session.run(
+            count_result = session.run(
                 "MATCH (c:Chunk) WHERE c.run_id = $run_id AND c.dataset_id IS NOT NULL "
-                "RETURN DISTINCT c.dataset_id AS dataset_id "
-                "ORDER BY dataset_id",
+                "RETURN COUNT(DISTINCT c.dataset_id) AS dataset_id_count",
                 run_id=run_id,
             )
-            dataset_ids = [record["dataset_id"] for record in result]
-            if not dataset_ids:
+            dataset_id_count = count_result.single()["dataset_id_count"]
+            if dataset_id_count == 0:
                 return None
-            if len(dataset_ids) > 1:
-                first_dataset_id = dataset_ids[0]
+
+            sample_result = session.run(
+                "MATCH (c:Chunk) WHERE c.run_id = $run_id AND c.dataset_id IS NOT NULL "
+                "RETURN DISTINCT c.dataset_id AS dataset_id "
+                "ORDER BY dataset_id "
+                "LIMIT $limit",
+                run_id=run_id,
+                limit=dataset_id_log_limit,
+            )
+            dataset_ids = [record["dataset_id"] for record in sample_result]
+            first_dataset_id = dataset_ids[0]
+
+            if dataset_id_count > 1:
                 _logger.warning(
-                    "run_id=%r has Chunk nodes stamped with %d distinct dataset_ids: %r. "
+                    "run_id=%r has Chunk nodes stamped with %d distinct dataset_ids. "
+                    "Showing the first %d sorted dataset_ids: %r. "
                     "The graph may have been inconsistently ingested. "
                     "Proceeding with dataset-ownership validation using "
                     "the first sorted dataset_id, %r.",
                     run_id,
-                    len(dataset_ids),
+                    dataset_id_count,
+                    min(dataset_id_count, dataset_id_log_limit),
                     dataset_ids,
                     first_dataset_id,
                 )
                 return first_dataset_id
-            return dataset_ids[0]
+
+            return first_dataset_id
 
 
 def _format_dataset_label(
