@@ -284,6 +284,14 @@ def _fetch_latest_unstructured_run_id(
     timestamp string is lexicographically sortable so ``ORDER BY run_id DESC``
     reliably returns the most recent run.  If the run_id format ever changes
     to a non-sortable scheme, this query must be updated accordingly.
+
+    Dataset-consistency post-resolution safeguard: after the run_id is
+    resolved, an additional LIMIT 2 query checks whether the run's Chunk nodes
+    carry a consistent dataset stamp.  If multiple distinct dataset_ids are
+    detected a WARNING is emitted because the run may have been inconsistently
+    ingested.  If *dataset_id* was supplied but the resolved run's stamp does
+    not match, a WARNING is also emitted.  The resolved run_id is always
+    returned so callers can proceed; the warnings are informational only.
     """
     import neo4j as _neo4j
 
@@ -304,7 +312,49 @@ def _fetch_latest_unstructured_run_id(
                     "RETURN c.run_id ORDER BY c.run_id DESC LIMIT 1"
                 )
             record = result.single()
-            return record[0] if record else None
+            if record is None:
+                return None
+            run_id = record[0]
+
+            # Dataset-consistency post-resolution safeguard: verify the
+            # resolved run has homogeneous dataset stamping.  Uses the same
+            # LIMIT 2 fast-path approach as _fetch_dataset_id_for_run so this
+            # check is cheap on consistent (single-dataset) runs.
+            check_result = session.run(
+                "MATCH (c:Chunk) "
+                "WHERE c.run_id = $run_id AND c.dataset_id IS NOT NULL "
+                "WITH DISTINCT c.dataset_id AS did "
+                "ORDER BY did "
+                "LIMIT 2 "
+                "RETURN collect(did) AS dataset_ids",
+                run_id=run_id,
+            )
+            check_record = check_result.single()
+            detected_ids = check_record["dataset_ids"] if check_record else []
+            if len(detected_ids) > 1:
+                _logger.warning(
+                    "Latest unstructured run %r has Chunk nodes stamped with "
+                    "multiple distinct dataset_ids: %r. "
+                    "The run may have been inconsistently ingested. "
+                    "Use --run-id with an explicit dataset to ensure correct scoping.",
+                    run_id,
+                    detected_ids,
+                )
+            elif (
+                dataset_id is not None
+                and detected_ids
+                and detected_ids[0] != dataset_id
+            ):
+                _logger.warning(
+                    "Latest unstructured run %r was resolved using "
+                    "dataset_id=%r but its Chunk nodes are stamped with a "
+                    "different dataset_id=%r. "
+                    "The graph may have been inconsistently ingested.",
+                    run_id,
+                    dataset_id,
+                    detected_ids[0],
+                )
+            return run_id
 
 
 def _fetch_dataset_id_for_run(config: Config, run_id: str) -> str | None:
