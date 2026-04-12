@@ -314,12 +314,15 @@ def _fetch_dataset_id_for_run(config: Config, run_id: str) -> str | None:
 
     1. **Fast path** — fetches the first two distinct, sorted ``dataset_id``
        values for the run.  In the common consistent case (exactly one value),
-       this is the only query executed and returns cheaply via LIMIT 2.
+       this is the only query executed and returns cheaply via ``LIMIT 2``.
     2. **Slow path** — only triggered when the fast path detects two or more
-       distinct values.  Computes the full distinct count and a capped sorted
-       sample (up to ``_DATASET_ID_SAMPLE_LIMIT``) in a single additional
-       round-trip.  The sample cap keeps the returned sample size and log line
-       length bounded even on severely corrupted graphs.
+       distinct values.  Uses two ``CALL {}`` subqueries in a single additional
+       round-trip: one to compute ``count(DISTINCT c.dataset_id)`` for the
+       total and one to collect a ``LIMIT``-bounded sorted sample (up to
+       ``_DATASET_ID_SAMPLE_LIMIT`` entries).  This avoids materialising all
+       distinct ``dataset_id`` values in the database before returning results,
+       keeping both server-side memory usage and log line length bounded even
+       on severely corrupted graphs.
 
     If exactly one distinct value is found on the fast path, it is returned
     as the authoritative dataset_id for the run.
@@ -361,7 +364,10 @@ def _fetch_dataset_id_for_run(config: Config, run_id: str) -> str | None:
 
             # Slow path: multiple distinct dataset_ids were detected above, so
             # compute the full distinct count and a capped sorted sample for
-            # diagnostic logging.
+            # diagnostic logging.  Two CALL{} subqueries in one session.run()
+            # call: the first uses count(DISTINCT ...) (no collection) and the
+            # second uses LIMIT to cap the sample before collecting, so neither
+            # subquery ever materialises more than _DATASET_ID_SAMPLE_LIMIT ids.
             result = session.run(
                 "CALL { "
                 "  MATCH (c:Chunk) "
