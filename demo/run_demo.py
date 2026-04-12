@@ -332,15 +332,25 @@ def _fetch_dataset_id_for_run(config: Config, run_id: str) -> str | None:
         config.neo4j_uri, auth=(config.neo4j_username, config.neo4j_password)
     ) as driver:
         with driver.session(database=config.neo4j_database) as session:
-            # Single query: count all distinct dataset_ids and collect a sorted
-            # sample in one database round-trip.  Neo4j aggregation always returns
-            # exactly one row, so result.single() is safe here.
+            # Single query: compute the full distinct-count and a separately
+            # limited sorted sample in one database round-trip.  The subquery
+            # applies LIMIT before collect(...) so Neo4j never needs to
+            # materialize the full distinct-id list just to return the first
+            # few values. Neo4j aggregation still returns exactly one row here,
+            # so result.single() is safe.
             result = session.run(
-                "MATCH (c:Chunk) WHERE c.run_id = $run_id AND c.dataset_id IS NOT NULL "
-                "WITH DISTINCT c.dataset_id AS dataset_id "
-                "ORDER BY dataset_id "
-                "WITH count(*) AS total_count, collect(dataset_id) AS ids "
-                "RETURN total_count, ids[0..$limit] AS sampled_ids",
+                "MATCH (c:Chunk) "
+                "WHERE c.run_id = $run_id AND c.dataset_id IS NOT NULL "
+                "WITH count(DISTINCT c.dataset_id) AS total_count "
+                "CALL { "
+                "  MATCH (c:Chunk) "
+                "  WHERE c.run_id = $run_id AND c.dataset_id IS NOT NULL "
+                "  WITH DISTINCT c.dataset_id AS dataset_id "
+                "  ORDER BY dataset_id "
+                "  LIMIT $limit "
+                "  RETURN collect(dataset_id) AS sampled_ids "
+                "} "
+                "RETURN total_count, sampled_ids",
                 run_id=run_id,
                 limit=_DATASET_ID_SAMPLE_LIMIT,
             )
