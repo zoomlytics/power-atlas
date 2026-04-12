@@ -1904,6 +1904,11 @@ class WorkflowTests(unittest.TestCase):
             combined,
             "Warning must mention all dataset_ids found",
         )
+        self.assertRegex(
+            combined,
+            r"(2 distinct dataset_ids|Showing the first)",
+            "Warning must include the distinct-count or sampled-ids wording from the new mixed-dataset warning",
+        )
 
     def test_resolve_ask_scope_warns_on_resolve_dataset_root_value_error(self):
         """_resolve_ask_scope must emit a warning (not silently skip) when
