@@ -318,8 +318,8 @@ def _fetch_dataset_id_for_run(config: Config, run_id: str) -> str | None:
     2. **Slow path** — only triggered when the fast path detects two or more
        distinct values.  Computes the full distinct count and a capped sorted
        sample (up to ``_DATASET_ID_SAMPLE_LIMIT``) in a single additional
-       round-trip.  The sample cap keeps memory usage and log line length
-       bounded even on severely corrupted graphs.
+       round-trip.  The sample cap keeps the returned sample size and log line
+       length bounded even on severely corrupted graphs.
 
     If exactly one distinct value is found on the fast path, it is returned
     as the authoritative dataset_id for the run.
