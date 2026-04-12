@@ -1833,13 +1833,24 @@ class WorkflowTests(unittest.TestCase):
         """_fetch_dataset_id_for_run must warn when a run has multiple distinct dataset_ids."""
         module = _load_module(RUN_DEMO_PATH, "run_fetch_dataset_id_mixed_test")
 
-        # Build a fake neo4j that returns two distinct dataset_ids for a run.
-        class _FakeResult:
-            def __iter__(self):
-                yield {"dataset_id": "dataset_a"}
-                yield {"dataset_id": "dataset_b"}
+        # Build a fake neo4j that simulates the two-phase query behaviour:
+        # - Fast-path query (LIMIT 2) → {"dataset_ids": ["dataset_a", "dataset_b"]}
+        # - Slow-path query (count + capped sample) → {"total_count": 3, "sampled_ids": [...]}
+        class _FastPathResult:
+            def single(self):
+                return {"dataset_ids": ["dataset_a", "dataset_b"]}
+
+        class _SlowPathResult:
+            def single(self):
+                return {
+                    "total_count": 3,
+                    "sampled_ids": ["dataset_a", "dataset_b", "dataset_c"],
+                }
 
         class _FakeSession:
+            def __init__(self):
+                self._call_count = 0
+
             def __enter__(self):
                 return self
 
@@ -1847,7 +1858,10 @@ class WorkflowTests(unittest.TestCase):
                 return False
 
             def run(self, query, **kwargs):
-                return _FakeResult()
+                self._call_count += 1
+                if self._call_count == 1:
+                    return _FastPathResult()
+                return _SlowPathResult()
 
         class _FakeDriver:
             def __enter__(self):
@@ -1903,6 +1917,21 @@ class WorkflowTests(unittest.TestCase):
             "dataset_b",
             combined,
             "Warning must mention all dataset_ids found",
+        )
+        self.assertIn(
+            "dataset_c",
+            combined,
+            "Warning must mention all sampled dataset_ids found",
+        )
+        self.assertIn(
+            "3 distinct dataset_ids",
+            combined,
+            "Warning must include the distinct-count wording from the new mixed-dataset warning",
+        )
+        self.assertRegex(
+            combined,
+            r"Showing the first \d+ sorted dataset_ids",
+            "Warning must include the sampled sorted dataset_ids wording from the new mixed-dataset warning",
         )
 
     def test_resolve_ask_scope_warns_on_resolve_dataset_root_value_error(self):

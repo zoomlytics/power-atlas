@@ -13,6 +13,8 @@ from demo.contracts import pipeline as pipeline_contracts
 
 pipeline_contracts.refresh_pipeline_contract()
 
+_DATASET_ID_SAMPLE_LIMIT = 10
+
 from demo.contracts import (  # noqa: E402
     ARTIFACTS_DIR,
     CHUNK_EMBEDDING_DIMENSIONS,
@@ -308,17 +310,28 @@ def _fetch_latest_unstructured_run_id(
 def _fetch_dataset_id_for_run(config: Config, run_id: str) -> str | None:
     """Query Neo4j for the dataset_id stamped on Chunk nodes belonging to *run_id*.
 
-    Fetches up to two distinct dataset_id values across Chunk nodes for this run.
-    This is enough to distinguish among zero, one, or multiple stamped dataset
-    ids without collecting the full distinct set for very large runs.
+    Uses a two-phase query strategy:
+
+    1. **Fast path** — fetches the first two distinct, sorted ``dataset_id``
+       values for the run.  In the common consistent case (exactly one value),
+       this is the only query executed and returns cheaply via ``LIMIT 2``.
+    2. **Slow path** — only triggered when the fast path detects two or more
+       distinct values.  Uses two ``CALL {}`` subqueries in a single additional
+       round-trip: one to compute ``count(DISTINCT c.dataset_id)`` for the
+       total and one to collect a ``LIMIT``-bounded sorted sample (up to
+       ``_DATASET_ID_SAMPLE_LIMIT`` entries).  This keeps the returned sample
+       bounded, caps the second subquery's ``collect()``, and keeps the emitted
+       warning/log line length bounded even on severely corrupted graphs.
+
+    If exactly one distinct value is found on the fast path, it is returned
+    as the authoritative dataset_id for the run.
 
     If multiple distinct values are found (indicating an inconsistently-ingested
-    graph), a WARNING is logged and the first sorted dataset_id is returned so
-    callers can continue deterministic dataset-ownership mismatch checks.
+    graph), a WARNING is logged with the total distinct count and the first few
+    sorted dataset_ids, and the first sorted dataset_id is returned so callers
+    can continue deterministic dataset-ownership mismatch checks.
 
     Returns None if no Chunk nodes with a non-null dataset_id exist for the run.
-    If multiple distinct non-null dataset_id values are present on the run's
-    Chunk nodes, returns the first sorted value after logging a warning.
     Only call this in live mode; it opens a real Neo4j connection.
     """
     import neo4j as _neo4j
@@ -327,31 +340,77 @@ def _fetch_dataset_id_for_run(config: Config, run_id: str) -> str | None:
         config.neo4j_uri, auth=(config.neo4j_username, config.neo4j_password)
     ) as driver:
         with driver.session(database=config.neo4j_database) as session:
+            # Fast path: detect whether the run has 0, 1, or multiple distinct
+            # dataset_ids using a small sorted sample. This preserves the old
+            # early-exit behavior for the common consistent case and avoids the
+            # full distinct-count scan unless we actually detect inconsistency.
             result = session.run(
-                "MATCH (c:Chunk) WHERE c.run_id = $run_id AND c.dataset_id IS NOT NULL "
-                "RETURN DISTINCT c.dataset_id AS dataset_id "
+                "MATCH (c:Chunk) "
+                "WHERE c.run_id = $run_id AND c.dataset_id IS NOT NULL "
+                "WITH DISTINCT c.dataset_id AS dataset_id "
                 "ORDER BY dataset_id "
-                "LIMIT 2",
+                "LIMIT 2 "
+                "RETURN collect(dataset_id) AS dataset_ids",
                 run_id=run_id,
             )
-            dataset_ids = [record["dataset_id"] for record in result]
-            if not dataset_ids:
+            record = result.single()
+            detected_ids = record["dataset_ids"]
+            if not detected_ids:
                 return None
-            if len(dataset_ids) > 1:
-                first_dataset_id = dataset_ids[0]
-                _logger.warning(
-                    "run_id=%r has Chunk nodes stamped with multiple "
-                    "distinct dataset_ids (including %r and "
-                    "%r). The graph may have been inconsistently "
-                    "ingested. Proceeding with dataset-ownership validation using "
-                    "the first sorted dataset_id, %r.",
-                    run_id,
-                    first_dataset_id,
-                    dataset_ids[1],
-                    first_dataset_id,
-                )
-                return first_dataset_id
-            return dataset_ids[0]
+
+            if len(detected_ids) == 1:
+                return detected_ids[0]
+
+            # Slow path: multiple distinct dataset_ids were detected above, so
+            # compute the full distinct count and a capped sorted sample for
+            # diagnostic logging. Two CALL{} subqueries in one session.run()
+            # call: the first uses count(DISTINCT ...), which avoids returning
+            # the full id list to Python but may still require Neo4j to track
+            # all distinct dataset_ids internally; the second applies LIMIT
+            # before collect(...) so the returned sampled_ids list is capped at
+            # _DATASET_ID_SAMPLE_LIMIT entries.
+            result = session.run(
+                "CALL { "
+                "  MATCH (c:Chunk) "
+                "  WHERE c.run_id = $run_id AND c.dataset_id IS NOT NULL "
+                "  RETURN count(DISTINCT c.dataset_id) AS total_count "
+                "} "
+                "CALL { "
+                "  MATCH (c:Chunk) "
+                "  WHERE c.run_id = $run_id AND c.dataset_id IS NOT NULL "
+                "  WITH DISTINCT c.dataset_id AS dataset_id "
+                "  ORDER BY dataset_id "
+                "  LIMIT $limit "
+                "  RETURN collect(dataset_id) AS sampled_ids "
+                "} "
+                "RETURN total_count, sampled_ids",
+                run_id=run_id,
+                limit=_DATASET_ID_SAMPLE_LIMIT,
+            )
+            record = result.single()
+            dataset_id_count = record["total_count"]
+            sampled_ids = record["sampled_ids"]
+            used_sample_fallback = not sampled_ids
+            displayed_ids = sampled_ids if sampled_ids else detected_ids
+            first_dataset_id = displayed_ids[0]
+
+            _logger.warning(
+                "run_id=%r has Chunk nodes stamped with %d distinct dataset_ids. "
+                "Showing the first %d sorted dataset_ids: %r. "
+                "The graph may have been inconsistently ingested. "
+                "Proceeding with dataset-ownership validation using %s, %r.",
+                run_id,
+                dataset_id_count,
+                len(displayed_ids),
+                displayed_ids,
+                (
+                    "the first sorted dataset_id"
+                    if not used_sample_fallback
+                    else "a fallback dataset_id from the fast-path detection because the slow-path sample was empty"
+                ),
+                first_dataset_id,
+            )
+            return first_dataset_id
 
 
 def _format_dataset_label(
