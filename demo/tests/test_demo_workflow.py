@@ -1833,13 +1833,24 @@ class WorkflowTests(unittest.TestCase):
         """_fetch_dataset_id_for_run must warn when a run has multiple distinct dataset_ids."""
         module = _load_module(RUN_DEMO_PATH, "run_fetch_dataset_id_mixed_test")
 
-        # Build a fake neo4j that simulates the single-query response:
-        # total_count=2 and sampled_ids=["dataset_a", "dataset_b"].
-        class _FakeResult:
+        # Build a fake neo4j that simulates the two-phase query behaviour:
+        # - Fast-path query (LIMIT 2) → {"dataset_ids": ["dataset_a", "dataset_b"]}
+        # - Slow-path query (count + capped sample) → {"total_count": 3, "sampled_ids": [...]}
+        class _FastPathResult:
             def single(self):
-                return {"total_count": 2, "sampled_ids": ["dataset_a", "dataset_b"]}
+                return {"dataset_ids": ["dataset_a", "dataset_b"]}
+
+        class _SlowPathResult:
+            def single(self):
+                return {
+                    "total_count": 3,
+                    "sampled_ids": ["dataset_a", "dataset_b", "dataset_c"],
+                }
 
         class _FakeSession:
+            def __init__(self):
+                self._call_count = 0
+
             def __enter__(self):
                 return self
 
@@ -1847,7 +1858,10 @@ class WorkflowTests(unittest.TestCase):
                 return False
 
             def run(self, query, **kwargs):
-                return _FakeResult()
+                self._call_count += 1
+                if self._call_count == 1:
+                    return _FastPathResult()
+                return _SlowPathResult()
 
         class _FakeDriver:
             def __enter__(self):
@@ -1906,7 +1920,7 @@ class WorkflowTests(unittest.TestCase):
         )
         self.assertRegex(
             combined,
-            r"(2 distinct dataset_ids|Showing the first)",
+            r"(3 distinct dataset_ids|Showing the first)",
             "Warning must include the distinct-count or sampled-ids wording from the new mixed-dataset warning",
         )
 
