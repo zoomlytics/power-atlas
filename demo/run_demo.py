@@ -363,13 +363,20 @@ def _fetch_dataset_id_for_run(config: Config, run_id: str) -> str | None:
             # compute the full distinct count and a capped sorted sample for
             # diagnostic logging.
             result = session.run(
-                "MATCH (c:Chunk) "
-                "WHERE c.run_id = $run_id AND c.dataset_id IS NOT NULL "
-                "WITH DISTINCT c.dataset_id AS dataset_id "
-                "ORDER BY dataset_id "
-                "WITH collect(dataset_id) AS sorted_dataset_ids "
-                "RETURN size(sorted_dataset_ids) AS total_count, "
-                "sorted_dataset_ids[..$limit] AS sampled_ids",
+                "CALL { "
+                "  MATCH (c:Chunk) "
+                "  WHERE c.run_id = $run_id AND c.dataset_id IS NOT NULL "
+                "  RETURN count(DISTINCT c.dataset_id) AS total_count "
+                "} "
+                "CALL { "
+                "  MATCH (c:Chunk) "
+                "  WHERE c.run_id = $run_id AND c.dataset_id IS NOT NULL "
+                "  WITH DISTINCT c.dataset_id AS dataset_id "
+                "  ORDER BY dataset_id "
+                "  LIMIT $limit "
+                "  RETURN collect(dataset_id) AS sampled_ids "
+                "} "
+                "RETURN total_count, sampled_ids",
                 run_id=run_id,
                 limit=_DATASET_ID_SAMPLE_LIMIT,
             )
