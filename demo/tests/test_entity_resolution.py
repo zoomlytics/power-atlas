@@ -1740,6 +1740,40 @@ class TestEntityTypeDriftReport(unittest.TestCase):
             self.assertEqual(rpt["null_or_empty_count"], 1)
             self.assertEqual(rpt["raw_counts"]["ORG"], 1)
 
+    def test_sentinel_label_collision_propagates_to_stage_warnings(self):
+        """sentinel_label_warnings from entity_type_report must appear in top-level warnings.
+
+        Regression test: when an upstream extractor emits the reserved sentinel
+        label '__null__' alongside absent/empty mentions, run_entity_resolution()
+        must propagate the resulting sentinel_label_warnings into the stage's
+        top-level 'warnings' list so the collision is visible at orchestration
+        boundaries.
+        """
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = _live_config(Path(tmpdir))
+            mentions = [
+                {"mention_id": "m1", "name": "Acme"},  # entity_type absent → None
+                {"mention_id": "m2", "name": "Weird", "entity_type": "__null__"},  # reserved sentinel
+            ]
+            canonicals: list[dict] = []
+            driver = _make_neo4j_test_driver(mentions, canonicals)
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                result = run_entity_resolution(
+                    config,
+                    run_id="drift-sentinel-001",
+                    source_uri=None,
+                    resolution_mode="structured_anchor",
+                )
+            # The sentinel_label_warnings must be present in entity_type_report
+            rpt = result["entity_type_report"]
+            self.assertEqual(len(rpt["sentinel_label_warnings"]), 1)
+            # The same warning must be propagated into the top-level warnings list
+            self.assertTrue(
+                any("__null__" in w for w in result["warnings"]),
+                f"Expected sentinel_label_warning to appear in top-level warnings; "
+                f"got warnings={result['warnings']!r}",
+            )
+
     def test_sentinel_collision_surfaces_warning(self):
         """When extractor emits literal '__null__' and absent types coexist, warn."""
         mentions = [

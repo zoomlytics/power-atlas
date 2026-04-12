@@ -6612,3 +6612,71 @@ def test_e2e_orchestrated_exactly_one_alignment_version_warning(tmp_path: Path):
     )
 
 
+def test_run_orchestrated_surfaces_stage_warnings(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A stage result dict with a non-empty 'warnings' list must produce WARNING log records.
+
+    Regression test: _run_orchestrated() must inspect every stage result for a
+    top-level 'warnings' list and emit each entry via _logger.warning(), ensuring
+    non-fatal stage issues are visible at the orchestration boundary without
+    requiring manual artifact inspection.
+    """
+    from unittest.mock import MagicMock, patch
+
+    from demo.run_demo import _run_orchestrated
+
+    config = Config(
+        dry_run=True,
+        output_dir=tmp_path,
+        neo4j_uri="bolt://example.invalid",
+        neo4j_username="neo4j",
+        neo4j_password="not-used",
+        neo4j_database="neo4j",
+        openai_model="test-model",
+    )
+
+    # One stage returns a warning; all others return minimal dicts.
+    stage_with_warning = {"status": "ok", "warnings": ["synthetic-stage-warning-for-test"]}
+
+    with caplog.at_level(logging.WARNING, logger="demo.run_demo"), patch(
+        "demo.run_demo.resolve_dataset_root",
+        return_value=MagicMock(
+            dataset_id="test_dataset",
+            root=tmp_path,
+            pdf_filename="test.pdf",
+        ),
+    ), patch("demo.run_demo.set_dataset_id"), patch(
+        "demo.run_demo.run_pdf_ingest",
+        return_value=stage_with_warning,
+    ), patch(
+        "demo.run_demo.run_claim_and_mention_extraction",
+        return_value={"status": "dry_run"},
+    ), patch(
+        "demo.run_demo.run_claim_participation",
+        return_value={"status": "dry_run"},
+    ), patch(
+        "demo.run_demo.run_entity_resolution",
+        return_value={"status": "dry_run", "alignment_version": "v1"},
+    ), patch(
+        "demo.run_demo.run_retrieval_and_qa",
+        return_value={"status": "dry_run"},
+    ), patch(
+        "demo.run_demo.run_structured_ingest",
+        return_value={"status": "dry_run"},
+    ), patch(
+        "demo.run_demo.run_retrieval_benchmark",
+        return_value={"status": "dry_run"},
+    ):
+        _run_orchestrated(config)
+
+    assert any(
+        record.levelno == logging.WARNING
+        and "synthetic-stage-warning-for-test" in record.getMessage()
+        for record in caplog.records
+    ), (
+        "Expected _run_orchestrated() to emit a WARNING containing the stage warning text, "
+        f"but no such record was found. Records: {[r.getMessage() for r in caplog.records]}"
+    )
+
+
