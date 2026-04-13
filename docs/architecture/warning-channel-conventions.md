@@ -123,7 +123,8 @@ for warning in report.get("warnings", []):
 notices and inter-library API alerts.  It is not suitable for operational or
 user-facing pipeline warnings because:
 
-- It is silenced by default after the first occurrence (`once` filter).
+- It is filtered by default by the Python warnings machinery, which typically
+  shows only the first occurrence per source location (`default` filter).
 - It is invisible to standard `logging` handlers and log aggregators.
 - Its `stacklevel` behavior can be confusing inside module-level initialisation
   code.
