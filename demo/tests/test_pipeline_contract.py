@@ -135,4 +135,4 @@ def test_coerce_identifier_warns_and_falls_back(
     assert caplog.records
     record = caplog.records[0]
     assert record.levelno == logging.WARNING
-    assert "identifier-safe string" in record.message
+    assert "identifier-safe string" in record.getMessage()
