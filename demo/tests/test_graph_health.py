@@ -9,6 +9,8 @@ from unittest.mock import MagicMock, call, patch
 
 from demo.stages.graph_health import (
     GraphHealthArtifact,
+    _CANONICAL_CHAIN_HEALTH_LIMIT,
+    _PER_CANONICAL_ALIGNMENT_LIMIT,
     _Q_CLUSTER_TYPE_FRAGMENTATION,
     _compute_alignment_summary,
     _compute_mention_summary,
@@ -379,10 +381,115 @@ class TestRunGraphHealthDiagnosticsDryRun(unittest.TestCase):
             with self.assertRaises(ValueError):
                 run_graph_health_diagnostics(config, run_id="../escape")
 
+    def test_none_alignment_version_emits_warning(self) -> None:
+        """When alignment_version is None, run_graph_health_diagnostics must surface a warning
+        explaining that alignment metrics will aggregate across all alignment versions."""
+        import tempfile
 
-# ---------------------------------------------------------------------------
-# run_graph_health_diagnostics — live mode (mocked driver)
-# ---------------------------------------------------------------------------
+        with tempfile.TemporaryDirectory() as tmp:
+            config = self._config(Path(tmp))
+            result = run_graph_health_diagnostics(config, run_id="run-av-warn", alignment_version=None)
+        warnings = result.get("warnings", [])
+        self.assertTrue(
+            any("alignment_version" in w and "aggregate" in w.lower() for w in warnings),
+            f"Expected alignment_version/aggregate warning in result['warnings'], got: {warnings}",
+        )
+
+    def test_explicit_alignment_version_does_not_emit_alignment_warning(self) -> None:
+        """When alignment_version is provided, no alignment_version warning should be in result.
+
+        run_id is also provided so that only alignment_version warning behavior is tested.
+        """
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            config = self._config(Path(tmp))
+            result = run_graph_health_diagnostics(
+                config, run_id="run-no-av-warn", alignment_version="v1.0"
+            )
+        warnings = result.get("warnings", [])
+        self.assertFalse(
+            any("alignment_version" in w for w in warnings),
+            f"Expected no alignment_version warning, got: {warnings}",
+        )
+
+    def test_suppress_alignment_version_warning_flag(self) -> None:
+        """When suppress_alignment_version_warning=True, no alignment_version warning is
+        present in result even if alignment_version is None.
+
+        run_id is also provided so that only alignment_version warning behavior is tested.
+        """
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            config = self._config(Path(tmp))
+            result = run_graph_health_diagnostics(
+                config,
+                run_id="run-suppress",
+                alignment_version=None,
+                suppress_alignment_version_warning=True,
+            )
+        warnings = result.get("warnings", [])
+        self.assertFalse(
+            any("alignment_version" in w for w in warnings),
+            f"Expected no alignment_version warning, got: {warnings}",
+        )
+
+    def test_none_run_id_emits_warning(self) -> None:
+        """When run_id is None, run_graph_health_diagnostics must surface a warning explaining
+        that diagnostics will aggregate across all pipeline runs."""
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            config = self._config(Path(tmp))
+            result = run_graph_health_diagnostics(
+                config, run_id=None, alignment_version="v1.0"
+            )
+        warnings = result.get("warnings", [])
+        self.assertTrue(
+            any("run_id" in w and "aggregate" in w.lower() for w in warnings),
+            f"Expected run_id/aggregate warning in result['warnings'], got: {warnings}",
+        )
+
+    def test_explicit_run_id_does_not_emit_run_id_warning(self) -> None:
+        """When run_id is provided, no run_id warning should be in result.
+
+        alignment_version is also provided so that only run_id warning behavior is tested.
+        """
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            config = self._config(Path(tmp))
+            result = run_graph_health_diagnostics(
+                config, run_id="run-no-warn", alignment_version="v1.0"
+            )
+        warnings = result.get("warnings", [])
+        self.assertFalse(
+            any("run_id" in w for w in warnings),
+            f"Expected no run_id warning, got: {warnings}",
+        )
+
+    def test_warnings_included_in_result_dict(self) -> None:
+        """Scoping warnings emitted during dry_run must appear in result['warnings']."""
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            config = self._config(Path(tmp))
+            result = run_graph_health_diagnostics(
+                config, run_id=None, alignment_version=None
+            )
+        warnings = result.get("warnings", [])
+        # dry_run mode prefix warning + run_id warning + alignment_version warning
+        self.assertTrue(
+            any("run_id" in w for w in warnings),
+            f"Expected run_id warning in result['warnings'], got: {warnings}",
+        )
+        self.assertTrue(
+            any("alignment_version" in w for w in warnings),
+            f"Expected alignment_version warning in result['warnings'], got: {warnings}",
+        )
+
+
 
 
 def _make_mock_driver(rows_by_query_index: list[list[dict[str, Any]]]) -> MagicMock:
@@ -534,10 +641,124 @@ class TestRunGraphHealthDiagnosticsLive(unittest.TestCase):
             self.assertIn("runs", artifact_path.parts)
             self.assertIn("graph_health", artifact_path.parts)
 
+    def test_per_canonical_truncation_warning_when_at_limit(self) -> None:
+        """When per_canonical_alignment returns exactly the query row limit, a truncation
+        warning must appear in result['warnings']."""
+        import tempfile
 
-# ---------------------------------------------------------------------------
-# Normalization policy alignment — regression coverage
-# ---------------------------------------------------------------------------
+        # Build row lists where per_canonical_alignment returns exactly the limit.
+        per_canonical_rows = [
+            {
+                "canonical_entity": f"Entity{i}",
+                "entity_id": f"Q{i}",
+                "entity_type": "Organization",
+                "aligned_cluster_count": 1,
+                "bridged_mention_count": 2,
+                "sample_methods": ["label_exact"],
+            }
+            for i in range(_PER_CANONICAL_ALIGNMENT_LIMIT)
+        ]
+        rows = [
+            _role_dist([("subject", 10), ("object", 8)]),
+            _edge_coverage([(0, 1), (1, 4)]),
+            [{"match_method": "raw_exact", "total": 14}],
+            _clustering(20, 3),
+            [{"member_count": 1, "cluster_count": 5}],
+            [{"distinct_types_in_cluster": 1, "cluster_count": 5}],
+            _alignment(6, 2),
+            per_canonical_rows,
+            [{"canonical_entity": "Acme", "entity_type": "Org",
+              "mention_count": 5, "claim_count": 3, "status": "active"}],
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            config = self._config(tmp_path)
+            mock_driver = _make_mock_driver(rows)
+
+            with patch("demo.stages.graph_health.neo4j") as mock_neo4j:
+                mock_neo4j.GraphDatabase.driver.return_value = mock_driver
+                mock_neo4j.RoutingControl.READ = "READ"
+                result = run_graph_health_diagnostics(
+                    config, run_id="run-trunc-pc", alignment_version="v1.0"
+                )
+
+        result_warnings = result.get("warnings", [])
+        self.assertTrue(
+            any("per_canonical_alignment" in w and "truncated" in w.lower() for w in result_warnings),
+            f"Expected per_canonical_alignment truncation warning in result['warnings'], got: {result_warnings}",
+        )
+
+    def test_chain_health_truncation_warning_when_at_limit(self) -> None:
+        """When canonical_chain_health returns exactly the query row limit, a truncation
+        warning must appear in result['warnings']."""
+        import tempfile
+
+        chain_health_rows = [
+            {
+                "canonical_entity": f"Entity{i}",
+                "entity_type": "Organization",
+                "mention_count": 5,
+                "claim_count": 3,
+                "status": "active",
+            }
+            for i in range(_CANONICAL_CHAIN_HEALTH_LIMIT)
+        ]
+        rows = [
+            _role_dist([("subject", 10), ("object", 8)]),
+            _edge_coverage([(0, 1), (1, 4)]),
+            [{"match_method": "raw_exact", "total": 14}],
+            _clustering(20, 3),
+            [{"member_count": 1, "cluster_count": 5}],
+            [{"distinct_types_in_cluster": 1, "cluster_count": 5}],
+            _alignment(6, 2),
+            [{"canonical_entity": "Acme", "entity_id": "Q1", "entity_type": "Org",
+              "aligned_cluster_count": 2, "bridged_mention_count": 5,
+              "sample_methods": ["label_exact"]}],
+            chain_health_rows,
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            config = self._config(tmp_path)
+            mock_driver = _make_mock_driver(rows)
+
+            with patch("demo.stages.graph_health.neo4j") as mock_neo4j:
+                mock_neo4j.GraphDatabase.driver.return_value = mock_driver
+                mock_neo4j.RoutingControl.READ = "READ"
+                result = run_graph_health_diagnostics(
+                    config, run_id="run-trunc-ch", alignment_version="v1.0"
+                )
+
+        result_warnings = result.get("warnings", [])
+        self.assertTrue(
+            any("canonical_chain_health" in w and "truncated" in w.lower() for w in result_warnings),
+            f"Expected canonical_chain_health truncation warning in result['warnings'], got: {result_warnings}",
+        )
+
+    def test_no_truncation_warning_below_limit(self) -> None:
+        """When detailed query results are below the row limit, no truncation warning
+        should be in result['warnings']."""
+        import tempfile
+
+        rows = self._make_rows()  # returns 1-row lists for per_canonical and chain_health
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            config = self._config(tmp_path)
+            mock_driver = _make_mock_driver(rows)
+
+            with patch("demo.stages.graph_health.neo4j") as mock_neo4j:
+                mock_neo4j.GraphDatabase.driver.return_value = mock_driver
+                mock_neo4j.RoutingControl.READ = "READ"
+                result = run_graph_health_diagnostics(
+                    config, run_id="run-no-trunc", alignment_version="v1.0"
+                )
+
+        result_warnings = result.get("warnings", [])
+        self.assertFalse(
+            any("truncated" in w for w in result_warnings),
+            f"Expected no truncation warning but got: {result_warnings}",
+        )
+
+
 
 
 class TestClusterTypeFragmentationQueryAlignment(unittest.TestCase):

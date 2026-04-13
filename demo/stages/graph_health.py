@@ -150,7 +150,14 @@ RETURN is_aligned, count(*) AS cluster_count
 ORDER BY is_aligned DESC
 """
 
-_Q_PER_CANONICAL_ALIGNMENT = """\
+# Row limits applied by the detailed per-entity queries that follow.  Used to detect
+# when results may be truncated and to surface a warning to callers.  The
+# query strings are built from these constants so that the limit is defined in
+# exactly one place.
+_PER_CANONICAL_ALIGNMENT_LIMIT = 30
+_CANONICAL_CHAIN_HEALTH_LIMIT = 30
+
+_Q_PER_CANONICAL_ALIGNMENT = f"""\
 MATCH (canonical:CanonicalEntity)<-[a:ALIGNED_WITH]-(cluster:ResolvedEntityCluster)<-[:MEMBER_OF]-(m:EntityMention)
 WHERE ($run_id IS NULL OR a.run_id = $run_id)
   AND ($alignment_version IS NULL OR a.alignment_version = $alignment_version)
@@ -163,10 +170,10 @@ RETURN canonical.name              AS canonical_entity,
        count(DISTINCT m)           AS bridged_mention_count,
        collect(DISTINCT a.alignment_method)[0..5] AS sample_methods
 ORDER BY aligned_cluster_count DESC
-LIMIT 30
+LIMIT {_PER_CANONICAL_ALIGNMENT_LIMIT}
 """
 
-_Q_CANONICAL_CHAIN_HEALTH = """\
+_Q_CANONICAL_CHAIN_HEALTH = f"""\
 MATCH (canonical:CanonicalEntity)<-[a:ALIGNED_WITH]-(cluster:ResolvedEntityCluster)<-[:MEMBER_OF]-(m:EntityMention)
 WHERE ($run_id IS NULL OR a.run_id = $run_id)
   AND ($alignment_version IS NULL OR a.alignment_version = $alignment_version)
@@ -181,7 +188,7 @@ RETURN canonical.name        AS canonical_entity,
        claim_count,
        CASE WHEN claim_count = 0 THEN 'dark' ELSE 'active' END AS status
 ORDER BY claim_count DESC
-LIMIT 30
+LIMIT {_CANONICAL_CHAIN_HEALTH_LIMIT}
 """
 
 
@@ -475,6 +482,7 @@ def run_graph_health_diagnostics(
     run_id: str | None = None,
     alignment_version: str | None = None,
     output_dir: Path | None = None,
+    suppress_alignment_version_warning: bool = False,
 ) -> dict[str, Any]:
     """Run graph-health diagnostics and write a JSON artifact.
 
@@ -493,21 +501,34 @@ def run_graph_health_diagnostics(
     run_id:
         Scopes all queries to a specific pipeline run.  Pass ``None`` to
         collect aggregate metrics across all runs (useful for a quick
-        whole-database health check).
+        whole-database health check).  **Warning:** omitting ``run_id``
+        aggregates across all runs in the database; results may mix data
+        from different pipeline executions.
     alignment_version:
         Scopes alignment queries to a specific alignment version (e.g.
         ``"v1.0"``).  Pass ``None`` to aggregate across all alignment
-        versions — or when no ``ALIGNED_WITH`` edges exist.
+        versions — or when no ``ALIGNED_WITH`` edges exist.  **Warning:**
+        omitting ``alignment_version`` aggregates across all alignment
+        versions; alignment metrics may be inflated or mixed across cohorts.
     output_dir:
         Base output directory.  Artifacts are written under
         ``<output_dir>/runs/<run_id>/graph_health/`` (scoped) or
         ``<output_dir>/runs/graph_health/`` (unscoped).  Defaults to
         ``config.output_dir``.
+    suppress_alignment_version_warning:
+        When ``True``, suppresses the ``alignment_version is None`` warning
+        emitted by this function.  Pass ``True`` from an orchestrator that has
+        already logged its own warning for the same event to avoid duplicate
+        log entries.  Standalone callers should leave this at the default
+        ``False`` so the warning is visible.
 
     Returns
     -------
     A dict with ``status``, ``run_id``, ``alignment_version``,
-    ``artifact_path``, and the full ``artifact`` payload.
+    ``artifact_path``, ``artifact`` payload, and a ``warnings`` list.
+    The ``warnings`` list contains any scoping or truncation warnings emitted
+    during the run so that CLI wrappers and programmatic callers can inspect
+    or re-emit them.
     """
     effective_output_dir = output_dir if output_dir is not None else config.output_dir
     effective_output_dir = Path(effective_output_dir)
@@ -539,6 +560,28 @@ def run_graph_health_diagnostics(
     artifact_dir.mkdir(parents=True, exist_ok=True)
     artifact_path = artifact_dir / "graph_health_diagnostics.json"
 
+    # Collect scoping warnings before dry_run/live-mode handling so they are
+    # surfaced uniformly in both modes.
+    collected_warnings: list[str] = []
+
+    if run_id is None:
+        msg = (
+            "run_graph_health_diagnostics: run_id is None — diagnostics will aggregate "
+            "across ALL pipeline runs in the database, not just the current run. "
+            "Pass run_id to scope queries to the intended pipeline execution."
+        )
+        collected_warnings.append(msg)
+
+    if alignment_version is None and not suppress_alignment_version_warning:
+        msg = (
+            "run_graph_health_diagnostics: alignment_version is None — alignment "
+            "metrics will aggregate across ALL alignment versions in the database, "
+            "not just the current cohort. "
+            "Pass alignment_version (e.g. from the hybrid entity resolution stage output) "
+            "to scope queries to the intended ALIGNED_WITH edge version."
+        )
+        collected_warnings.append(msg)
+
     if getattr(config, "dry_run", False):
         # In dry_run mode, write a file with the same schema as the live artifact
         # by building a real GraphHealthArtifact from empty row lists.  This
@@ -564,7 +607,7 @@ def run_graph_health_diagnostics(
             "alignment_version": alignment_version,
             "artifact_path": str(artifact_path),
             "artifact": None,
-            "warnings": ["graph health diagnostics skipped in dry_run mode"],
+            "warnings": ["graph health diagnostics skipped in dry_run mode"] + collected_warnings,
         }
         return summary
 
@@ -630,11 +673,30 @@ def run_graph_health_diagnostics(
     artifact_path.write_text(artifact.to_json(), encoding="utf-8")
     _logger.info("graph_health: artifact written to %s", artifact_path)
 
+    # Detect truncation: if a capped query returned exactly its row limit the
+    # result set may be incomplete.  Surface this as a warning so callers and
+    # CLI consumers can tell when per-entity detail tables are partial.
+    if len(per_canonical) == _PER_CANONICAL_ALIGNMENT_LIMIT:
+        msg = (
+            f"run_graph_health_diagnostics: per_canonical_alignment result is at the "
+            f"query row limit ({_PER_CANONICAL_ALIGNMENT_LIMIT} rows) — the detail table "
+            f"may be truncated and not reflect all canonical entities in the current scope."
+        )
+        collected_warnings.append(msg)
+
+    if len(chain_health) == _CANONICAL_CHAIN_HEALTH_LIMIT:
+        msg = (
+            f"run_graph_health_diagnostics: canonical_chain_health result is at the "
+            f"query row limit ({_CANONICAL_CHAIN_HEALTH_LIMIT} rows) — the detail table "
+            f"may be truncated and not reflect all canonical entities in the current scope."
+        )
+        collected_warnings.append(msg)
+
     return {
         "status": "live",
         "run_id": run_id,
         "alignment_version": alignment_version,
         "artifact_path": str(artifact_path),
         "artifact": artifact.to_dict(),
-        "warnings": [],
+        "warnings": collected_warnings,
     }
