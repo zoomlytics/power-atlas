@@ -144,7 +144,7 @@ deliberate exception here.
 | Situation | Use |
 |-----------|-----|
 | Config/YAML parse error or fallback at import time | `_logger.warning(...)` |
-| Non-fatal anomaly inside a stage runner | `_logger.warning(...)` **and/or** append to `result["warnings"]` if callers need to surface it |
-| Stage result carries a notice the CLI must relay | `result["warnings"]` list entry; route via `_logger.warning` in non-interactive contexts, or `print(...)` in interactive CLI handlers (see Section 3) |
+| Non-fatal anomaly inside a stage runner | Use `_logger.warning(...)` for operator-facing/operational warnings; use `result["warnings"]` only when the caller must surface the notice. Do not emit the same message through both channels. |
+| Stage result carries a notice the CLI must relay | Add a `result["warnings"]` list entry; the caller may route that returned notice via `_logger.warning` in non-interactive contexts, or `print(...)` in interactive CLI handlers (see Section 3), but should not re-log a warning the stage already logged |
 | Interactive CLI command needs a human-visible notice | `print(f"  warning: {msg}")` to stdout |
 | Public deprecation notice in a library API | `warnings.warn(..., DeprecationWarning)` — requires explicit doc comment |
