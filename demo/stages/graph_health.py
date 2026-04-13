@@ -150,7 +150,14 @@ RETURN is_aligned, count(*) AS cluster_count
 ORDER BY is_aligned DESC
 """
 
-_Q_PER_CANONICAL_ALIGNMENT = """\
+# Row limits applied by the detailed per-entity queries below.  Used to detect
+# when results may be truncated and to surface a warning to callers.  The
+# query strings are built from these constants so that the limit is defined in
+# exactly one place.
+_PER_CANONICAL_ALIGNMENT_LIMIT = 30
+_CANONICAL_CHAIN_HEALTH_LIMIT = 30
+
+_Q_PER_CANONICAL_ALIGNMENT = f"""\
 MATCH (canonical:CanonicalEntity)<-[a:ALIGNED_WITH]-(cluster:ResolvedEntityCluster)<-[:MEMBER_OF]-(m:EntityMention)
 WHERE ($run_id IS NULL OR a.run_id = $run_id)
   AND ($alignment_version IS NULL OR a.alignment_version = $alignment_version)
@@ -163,10 +170,10 @@ RETURN canonical.name              AS canonical_entity,
        count(DISTINCT m)           AS bridged_mention_count,
        collect(DISTINCT a.alignment_method)[0..5] AS sample_methods
 ORDER BY aligned_cluster_count DESC
-LIMIT 30
+LIMIT {_PER_CANONICAL_ALIGNMENT_LIMIT}
 """
 
-_Q_CANONICAL_CHAIN_HEALTH = """\
+_Q_CANONICAL_CHAIN_HEALTH = f"""\
 MATCH (canonical:CanonicalEntity)<-[a:ALIGNED_WITH]-(cluster:ResolvedEntityCluster)<-[:MEMBER_OF]-(m:EntityMention)
 WHERE ($run_id IS NULL OR a.run_id = $run_id)
   AND ($alignment_version IS NULL OR a.alignment_version = $alignment_version)
@@ -181,13 +188,8 @@ RETURN canonical.name        AS canonical_entity,
        claim_count,
        CASE WHEN claim_count = 0 THEN 'dark' ELSE 'active' END AS status
 ORDER BY claim_count DESC
-LIMIT 30
+LIMIT {_CANONICAL_CHAIN_HEALTH_LIMIT}
 """
-
-# Row limits applied by the detailed per-entity queries above.  Used to detect
-# when results may be truncated and to surface a warning to callers.
-_PER_CANONICAL_ALIGNMENT_LIMIT = 30
-_CANONICAL_CHAIN_HEALTH_LIMIT = 30
 
 
 # ---------------------------------------------------------------------------
@@ -568,7 +570,6 @@ def run_graph_health_diagnostics(
             "across ALL pipeline runs in the database, not just the current run. "
             "Pass run_id to scope queries to the intended pipeline execution."
         )
-        _logger.warning("%s", msg)
         collected_warnings.append(msg)
 
     if alignment_version is None and not suppress_alignment_version_warning:
@@ -579,7 +580,6 @@ def run_graph_health_diagnostics(
             "Pass alignment_version (e.g. from the hybrid entity resolution stage output) "
             "to scope queries to the intended ALIGNED_WITH edge version."
         )
-        _logger.warning("%s", msg)
         collected_warnings.append(msg)
 
     if getattr(config, "dry_run", False):
@@ -682,7 +682,6 @@ def run_graph_health_diagnostics(
             f"query row limit ({_PER_CANONICAL_ALIGNMENT_LIMIT} rows) — the detail table "
             f"may be truncated and not reflect all canonical entities in the current scope."
         )
-        _logger.warning("%s", msg)
         collected_warnings.append(msg)
 
     if len(chain_health) == _CANONICAL_CHAIN_HEALTH_LIMIT:
@@ -691,7 +690,6 @@ def run_graph_health_diagnostics(
             f"query row limit ({_CANONICAL_CHAIN_HEALTH_LIMIT} rows) — the detail table "
             f"may be truncated and not reflect all canonical entities in the current scope."
         )
-        _logger.warning("%s", msg)
         collected_warnings.append(msg)
 
     return {

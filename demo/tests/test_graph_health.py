@@ -382,87 +382,92 @@ class TestRunGraphHealthDiagnosticsDryRun(unittest.TestCase):
                 run_graph_health_diagnostics(config, run_id="../escape")
 
     def test_none_alignment_version_emits_warning(self) -> None:
-        """When alignment_version is None, run_graph_health_diagnostics must emit a warning
+        """When alignment_version is None, run_graph_health_diagnostics must surface a warning
         explaining that alignment metrics will aggregate across all alignment versions."""
-        import logging
         import tempfile
 
         with tempfile.TemporaryDirectory() as tmp:
             config = self._config(Path(tmp))
-            with self.assertLogs("demo.stages.graph_health", level=logging.WARNING) as captured:
-                run_graph_health_diagnostics(config, run_id="run-av-warn", alignment_version=None)
-        warning_messages = [r for r in captured.output if "WARNING" in r]
+            result = run_graph_health_diagnostics(config, run_id="run-av-warn", alignment_version=None)
+        warnings = result.get("warnings", [])
         self.assertTrue(
-            any("alignment_version" in msg and "aggregate" in msg.lower() for msg in warning_messages),
-            f"Expected alignment_version/aggregate warning in log output, got: {captured.output}",
+            any("alignment_version" in w and "aggregate" in w.lower() for w in warnings),
+            f"Expected alignment_version/aggregate warning in result['warnings'], got: {warnings}",
         )
 
     def test_explicit_alignment_version_does_not_emit_alignment_warning(self) -> None:
-        """When alignment_version is provided, no alignment_version warning should be emitted.
+        """When alignment_version is provided, no alignment_version warning should be in result.
 
         run_id is also provided so that only alignment_version warning behavior is tested.
         """
-        import logging
         import tempfile
 
         with tempfile.TemporaryDirectory() as tmp:
             config = self._config(Path(tmp))
-            with self.assertNoLogs("demo.stages.graph_health", level=logging.WARNING):
-                run_graph_health_diagnostics(
-                    config, run_id="run-no-av-warn", alignment_version="v1.0"
-                )
+            result = run_graph_health_diagnostics(
+                config, run_id="run-no-av-warn", alignment_version="v1.0"
+            )
+        warnings = result.get("warnings", [])
+        self.assertFalse(
+            any("alignment_version" in w for w in warnings),
+            f"Expected no alignment_version warning, got: {warnings}",
+        )
 
     def test_suppress_alignment_version_warning_flag(self) -> None:
         """When suppress_alignment_version_warning=True, no alignment_version warning is
-        emitted even if alignment_version is None.
+        present in result even if alignment_version is None.
 
         run_id is also provided so that only alignment_version warning behavior is tested.
         """
-        import logging
         import tempfile
 
         with tempfile.TemporaryDirectory() as tmp:
             config = self._config(Path(tmp))
-            with self.assertNoLogs("demo.stages.graph_health", level=logging.WARNING):
-                run_graph_health_diagnostics(
-                    config,
-                    run_id="run-suppress",
-                    alignment_version=None,
-                    suppress_alignment_version_warning=True,
-                )
+            result = run_graph_health_diagnostics(
+                config,
+                run_id="run-suppress",
+                alignment_version=None,
+                suppress_alignment_version_warning=True,
+            )
+        warnings = result.get("warnings", [])
+        self.assertFalse(
+            any("alignment_version" in w for w in warnings),
+            f"Expected no alignment_version warning, got: {warnings}",
+        )
 
     def test_none_run_id_emits_warning(self) -> None:
-        """When run_id is None, run_graph_health_diagnostics must emit a warning explaining
+        """When run_id is None, run_graph_health_diagnostics must surface a warning explaining
         that diagnostics will aggregate across all pipeline runs."""
-        import logging
         import tempfile
 
         with tempfile.TemporaryDirectory() as tmp:
             config = self._config(Path(tmp))
-            with self.assertLogs("demo.stages.graph_health", level=logging.WARNING) as captured:
-                run_graph_health_diagnostics(
-                    config, run_id=None, alignment_version="v1.0"
-                )
-        warning_messages = [r for r in captured.output if "WARNING" in r]
+            result = run_graph_health_diagnostics(
+                config, run_id=None, alignment_version="v1.0"
+            )
+        warnings = result.get("warnings", [])
         self.assertTrue(
-            any("run_id" in msg and "aggregate" in msg.lower() for msg in warning_messages),
-            f"Expected run_id/aggregate warning in log output, got: {captured.output}",
+            any("run_id" in w and "aggregate" in w.lower() for w in warnings),
+            f"Expected run_id/aggregate warning in result['warnings'], got: {warnings}",
         )
 
     def test_explicit_run_id_does_not_emit_run_id_warning(self) -> None:
-        """When run_id is provided, no run_id warning should be emitted.
+        """When run_id is provided, no run_id warning should be in result.
 
         alignment_version is also provided so that only run_id warning behavior is tested.
         """
-        import logging
         import tempfile
 
         with tempfile.TemporaryDirectory() as tmp:
             config = self._config(Path(tmp))
-            with self.assertNoLogs("demo.stages.graph_health", level=logging.WARNING):
-                run_graph_health_diagnostics(
-                    config, run_id="run-no-warn", alignment_version="v1.0"
-                )
+            result = run_graph_health_diagnostics(
+                config, run_id="run-no-warn", alignment_version="v1.0"
+            )
+        warnings = result.get("warnings", [])
+        self.assertFalse(
+            any("run_id" in w for w in warnings),
+            f"Expected no run_id warning, got: {warnings}",
+        )
 
     def test_warnings_included_in_result_dict(self) -> None:
         """Scoping warnings emitted during dry_run must appear in result['warnings']."""
@@ -638,8 +643,7 @@ class TestRunGraphHealthDiagnosticsLive(unittest.TestCase):
 
     def test_per_canonical_truncation_warning_when_at_limit(self) -> None:
         """When per_canonical_alignment returns exactly the query row limit, a truncation
-        warning must be emitted via _logger.warning and appear in result['warnings']."""
-        import logging
+        warning must appear in result['warnings']."""
         import tempfile
 
         # Build row lists where per_canonical_alignment returns exactly the limit.
@@ -674,26 +678,19 @@ class TestRunGraphHealthDiagnosticsLive(unittest.TestCase):
             with patch("demo.stages.graph_health.neo4j") as mock_neo4j:
                 mock_neo4j.GraphDatabase.driver.return_value = mock_driver
                 mock_neo4j.RoutingControl.READ = "READ"
-                with self.assertLogs("demo.stages.graph_health", level=logging.WARNING) as captured:
-                    result = run_graph_health_diagnostics(
-                        config, run_id="run-trunc-pc", alignment_version="v1.0"
-                    )
+                result = run_graph_health_diagnostics(
+                    config, run_id="run-trunc-pc", alignment_version="v1.0"
+                )
 
-        warning_messages = [r for r in captured.output if "WARNING" in r]
-        self.assertTrue(
-            any("per_canonical_alignment" in msg and "truncated" in msg.lower() for msg in warning_messages),
-            f"Expected per_canonical_alignment truncation warning, got: {captured.output}",
-        )
         result_warnings = result.get("warnings", [])
         self.assertTrue(
-            any("per_canonical_alignment" in w for w in result_warnings),
-            f"Expected per_canonical_alignment warning in result['warnings'], got: {result_warnings}",
+            any("per_canonical_alignment" in w and "truncated" in w.lower() for w in result_warnings),
+            f"Expected per_canonical_alignment truncation warning in result['warnings'], got: {result_warnings}",
         )
 
     def test_chain_health_truncation_warning_when_at_limit(self) -> None:
         """When canonical_chain_health returns exactly the query row limit, a truncation
-        warning must be emitted via _logger.warning and appear in result['warnings']."""
-        import logging
+        warning must appear in result['warnings']."""
         import tempfile
 
         chain_health_rows = [
@@ -727,26 +724,19 @@ class TestRunGraphHealthDiagnosticsLive(unittest.TestCase):
             with patch("demo.stages.graph_health.neo4j") as mock_neo4j:
                 mock_neo4j.GraphDatabase.driver.return_value = mock_driver
                 mock_neo4j.RoutingControl.READ = "READ"
-                with self.assertLogs("demo.stages.graph_health", level=logging.WARNING) as captured:
-                    result = run_graph_health_diagnostics(
-                        config, run_id="run-trunc-ch", alignment_version="v1.0"
-                    )
+                result = run_graph_health_diagnostics(
+                    config, run_id="run-trunc-ch", alignment_version="v1.0"
+                )
 
-        warning_messages = [r for r in captured.output if "WARNING" in r]
-        self.assertTrue(
-            any("canonical_chain_health" in msg and "truncated" in msg.lower() for msg in warning_messages),
-            f"Expected canonical_chain_health truncation warning, got: {captured.output}",
-        )
         result_warnings = result.get("warnings", [])
         self.assertTrue(
-            any("canonical_chain_health" in w for w in result_warnings),
-            f"Expected canonical_chain_health warning in result['warnings'], got: {result_warnings}",
+            any("canonical_chain_health" in w and "truncated" in w.lower() for w in result_warnings),
+            f"Expected canonical_chain_health truncation warning in result['warnings'], got: {result_warnings}",
         )
 
     def test_no_truncation_warning_below_limit(self) -> None:
         """When detailed query results are below the row limit, no truncation warning
-        should be emitted."""
-        import logging
+        should be in result['warnings']."""
         import tempfile
 
         rows = self._make_rows()  # returns 1-row lists for per_canonical and chain_health
@@ -758,10 +748,9 @@ class TestRunGraphHealthDiagnosticsLive(unittest.TestCase):
             with patch("demo.stages.graph_health.neo4j") as mock_neo4j:
                 mock_neo4j.GraphDatabase.driver.return_value = mock_driver
                 mock_neo4j.RoutingControl.READ = "READ"
-                with self.assertNoLogs("demo.stages.graph_health", level=logging.WARNING):
-                    result = run_graph_health_diagnostics(
-                        config, run_id="run-no-trunc", alignment_version="v1.0"
-                    )
+                result = run_graph_health_diagnostics(
+                    config, run_id="run-no-trunc", alignment_version="v1.0"
+                )
 
         result_warnings = result.get("warnings", [])
         self.assertFalse(

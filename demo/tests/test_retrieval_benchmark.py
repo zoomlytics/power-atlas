@@ -1029,134 +1029,133 @@ class TestRunRetrievalBenchmarkDryRun(unittest.TestCase):
                 run_retrieval_benchmark(config, run_id="")
 
     def test_none_alignment_version_emits_warning(self) -> None:
-        """When alignment_version is None, run_retrieval_benchmark must emit a warning
+        """When alignment_version is None, run_retrieval_benchmark must surface a warning
         explaining that the benchmark will aggregate across all alignment versions."""
-        import logging
-
         with tempfile.TemporaryDirectory() as tmp:
             config = _make_config(Path(tmp), dry_run=True)
-            with self.assertLogs("demo.stages.retrieval_benchmark", level=logging.WARNING) as captured_logs:
-                run_retrieval_benchmark(config, run_id="run-warn", alignment_version=None)
-        warning_messages = [r for r in captured_logs.output if "WARNING" in r]
+            result = run_retrieval_benchmark(config, run_id="run-warn", alignment_version=None)
+        warnings = result.get("warnings", [])
         self.assertTrue(
-            any("alignment_version" in msg and "aggregate" in msg.lower() for msg in warning_messages),
-            f"Expected alignment_version/aggregate warning in log output, got: {captured_logs.output}",
+            any("alignment_version" in w and "aggregate" in w.lower() for w in warnings),
+            f"Expected alignment_version/aggregate warning in result['warnings'], got: {warnings}",
         )
 
     def test_explicit_alignment_version_does_not_emit_warning(self) -> None:
-        """When alignment_version is provided, no alignment_version warning should be emitted.
+        """When alignment_version is provided, no alignment_version warning should be in result.
 
         All other scoping parameters (run_id, dataset_id) are also explicitly set here
         to isolate only the alignment_version warning behavior.
         """
-        import logging
-
         with tempfile.TemporaryDirectory() as tmp:
             config = _make_config(Path(tmp), dry_run=True)
-            with self.assertNoLogs("demo.stages.retrieval_benchmark", level=logging.WARNING):
-                run_retrieval_benchmark(
-                    config,
-                    run_id="run-no-warn",
-                    dataset_id="ds-no-warn",
-                    alignment_version="v1.0",
-                )
+            result = run_retrieval_benchmark(
+                config,
+                run_id="run-no-warn",
+                dataset_id="ds-no-warn",
+                alignment_version="v1.0",
+            )
+        warnings = result.get("warnings", [])
+        self.assertFalse(
+            any("alignment_version" in w for w in warnings),
+            f"Expected no alignment_version warning, got: {warnings}",
+        )
 
     def test_suppress_alignment_version_warning_flag(self) -> None:
-        """When suppress_alignment_version_warning=True, no warning is emitted even if
+        """When suppress_alignment_version_warning=True, no warning is in result even if
         alignment_version is None.  This is intended for orchestrated calls that have
         already logged their own warning to avoid duplicate log entries.
 
         All other scoping parameters (run_id, dataset_id) are also explicitly set here
         to isolate only the alignment_version warning behavior.
         """
-        import logging
-
         with tempfile.TemporaryDirectory() as tmp:
             config = _make_config(Path(tmp), dry_run=True)
-            with self.assertNoLogs("demo.stages.retrieval_benchmark", level=logging.WARNING):
-                run_retrieval_benchmark(
-                    config,
-                    run_id="run-suppress",
-                    dataset_id="ds-suppress",
-                    alignment_version=None,
-                    suppress_alignment_version_warning=True,
-                )
+            result = run_retrieval_benchmark(
+                config,
+                run_id="run-suppress",
+                dataset_id="ds-suppress",
+                alignment_version=None,
+                suppress_alignment_version_warning=True,
+            )
+        warnings = result.get("warnings", [])
+        self.assertFalse(
+            any("alignment_version" in w for w in warnings),
+            f"Expected no alignment_version warning, got: {warnings}",
+        )
 
     def test_none_run_id_emits_warning(self) -> None:
-        """When run_id is None, run_retrieval_benchmark must emit a warning
+        """When run_id is None, run_retrieval_benchmark must surface a warning
         explaining that the benchmark will aggregate across all pipeline runs."""
-        import logging
-
         with tempfile.TemporaryDirectory() as tmp:
             config = _make_config(Path(tmp), dry_run=True)
-            with self.assertLogs("demo.stages.retrieval_benchmark", level=logging.WARNING) as captured:
-                run_retrieval_benchmark(
-                    config,
-                    run_id=None,
-                    dataset_id="ds-scoped",
-                    alignment_version="v1.0",
-                )
-        warning_messages = [r for r in captured.output if "WARNING" in r]
+            result = run_retrieval_benchmark(
+                config,
+                run_id=None,
+                dataset_id="ds-scoped",
+                alignment_version="v1.0",
+            )
+        warnings = result.get("warnings", [])
         self.assertTrue(
-            any("run_id" in msg and "aggregate" in msg.lower() for msg in warning_messages),
-            f"Expected run_id/aggregate warning in log output, got: {captured.output}",
+            any("run_id" in w and "aggregate" in w.lower() for w in warnings),
+            f"Expected run_id/aggregate warning in result['warnings'], got: {warnings}",
         )
 
     def test_explicit_run_id_does_not_emit_run_id_warning(self) -> None:
-        """When run_id is provided, no run_id warning should be emitted.
+        """When run_id is provided, no run_id warning should be in result.
 
         dataset_id and alignment_version are also provided to isolate run_id warning
         behavior.
         """
-        import logging
-
         with tempfile.TemporaryDirectory() as tmp:
             config = _make_config(Path(tmp), dry_run=True)
-            with self.assertNoLogs("demo.stages.retrieval_benchmark", level=logging.WARNING):
-                run_retrieval_benchmark(
-                    config,
-                    run_id="run-no-warn",
-                    dataset_id="ds-no-warn",
-                    alignment_version="v1.0",
-                )
+            result = run_retrieval_benchmark(
+                config,
+                run_id="run-no-warn",
+                dataset_id="ds-no-warn",
+                alignment_version="v1.0",
+            )
+        warnings = result.get("warnings", [])
+        self.assertFalse(
+            any("run_id" in w for w in warnings),
+            f"Expected no run_id warning, got: {warnings}",
+        )
 
     def test_none_dataset_id_emits_warning(self) -> None:
-        """When dataset_id is None, run_retrieval_benchmark must emit a warning
+        """When dataset_id is None, run_retrieval_benchmark must surface a warning
         explaining that the benchmark will aggregate across all datasets."""
-        import logging
-
         with tempfile.TemporaryDirectory() as tmp:
             config = _make_config(Path(tmp), dry_run=True)
-            with self.assertLogs("demo.stages.retrieval_benchmark", level=logging.WARNING) as captured:
-                run_retrieval_benchmark(
-                    config,
-                    run_id="run-scoped",
-                    dataset_id=None,
-                    alignment_version="v1.0",
-                )
-        warning_messages = [r for r in captured.output if "WARNING" in r]
+            result = run_retrieval_benchmark(
+                config,
+                run_id="run-scoped",
+                dataset_id=None,
+                alignment_version="v1.0",
+            )
+        warnings = result.get("warnings", [])
         self.assertTrue(
-            any("dataset_id" in msg and "aggregate" in msg.lower() for msg in warning_messages),
-            f"Expected dataset_id/aggregate warning in log output, got: {captured.output}",
+            any("dataset_id" in w and "aggregate" in w.lower() for w in warnings),
+            f"Expected dataset_id/aggregate warning in result['warnings'], got: {warnings}",
         )
 
     def test_explicit_dataset_id_does_not_emit_dataset_id_warning(self) -> None:
-        """When dataset_id is provided, no dataset_id warning should be emitted.
+        """When dataset_id is provided, no dataset_id warning should be in result.
 
         run_id and alignment_version are also provided to isolate dataset_id warning
         behavior.
         """
-        import logging
-
         with tempfile.TemporaryDirectory() as tmp:
             config = _make_config(Path(tmp), dry_run=True)
-            with self.assertNoLogs("demo.stages.retrieval_benchmark", level=logging.WARNING):
-                run_retrieval_benchmark(
-                    config,
-                    run_id="run-no-warn",
-                    dataset_id="ds-no-warn",
-                    alignment_version="v1.0",
-                )
+            result = run_retrieval_benchmark(
+                config,
+                run_id="run-no-warn",
+                dataset_id="ds-no-warn",
+                alignment_version="v1.0",
+            )
+        warnings = result.get("warnings", [])
+        self.assertFalse(
+            any("dataset_id" in w for w in warnings),
+            f"Expected no dataset_id warning, got: {warnings}",
+        )
 
     def test_warnings_included_in_result_dict(self) -> None:
         """Scoping warnings emitted during dry_run must appear in result['warnings']."""

@@ -1084,7 +1084,12 @@ def run_retrieval_benchmark(
     Returns
     -------
     A dict with ``status``, ``run_id``, ``dataset_id``, ``alignment_version``,
-    ``artifact_path``, and the full ``artifact`` payload.
+    ``artifact_path``, the full ``artifact`` payload, and a ``warnings`` list.
+    ``warnings`` contains any scoping warnings accumulated during the call (e.g.
+    for ``run_id=None``, ``dataset_id=None``, or ``alignment_version=None``).
+    Callers should inspect and/or re-emit these entries; the CLI wrapper logs
+    each one via its own logger so they are visible in CLI output without
+    double-logging.
     """
     cases = benchmark_cases if benchmark_cases is not None else BENCHMARK_CASES
     effective_output_dir = output_dir if output_dir is not None else config.output_dir
@@ -1125,7 +1130,6 @@ def run_retrieval_benchmark(
             "across ALL pipeline runs in the database, not just the current run. "
             "Pass run_id to scope queries to the intended pipeline execution."
         )
-        _logger.warning("%s", msg)
         collected_warnings.append(msg)
 
     if dataset_id is None:
@@ -1135,7 +1139,6 @@ def run_retrieval_benchmark(
             "Results are not suitable for regression baselines in a multi-dataset graph. "
             "Pass dataset_id to scope queries to the intended dataset."
         )
-        _logger.warning("%s", msg)
         collected_warnings.append(msg)
 
     # Warn when alignment_version is None so callers are aware that the
@@ -1150,7 +1153,6 @@ def run_retrieval_benchmark(
             "Pass alignment_version (e.g. from the hybrid entity resolution stage output) "
             "to scope queries to the intended ALIGNED_WITH edge version."
         )
-        _logger.warning("%s", msg)
         collected_warnings.append(msg)
 
     if getattr(config, "dry_run", False):
