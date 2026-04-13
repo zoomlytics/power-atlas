@@ -1,14 +1,16 @@
 from __future__ import annotations
 
+import logging
 import os
 import re
 import threading
-import warnings
 from typing import Any
 
 import yaml
 
 from demo.contracts.paths import PDF_PIPELINE_CONFIG_PATH
+
+_logger = logging.getLogger(__name__)
 
 DEFAULT_DB = os.getenv("NEO4J_DATABASE", "neo4j")
 _DEFAULT_CHUNK_SIZE = 1000
@@ -87,20 +89,19 @@ def _load_pipeline_contract() -> None:
         try:
             with PDF_PIPELINE_CONFIG_PATH.open("r", encoding="utf-8") as handle:
                 cfg_data = yaml.safe_load(handle)
-        except (OSError, yaml.YAMLError) as exc:  # pragma: no cover - defensive logging
-            warnings.warn(
-                f"Falling back to default chunk embedding contract; unable to load {PDF_PIPELINE_CONFIG_PATH}: {exc}",
-                RuntimeWarning,
-                stacklevel=2,
+        except (OSError, yaml.YAMLError) as exc:
+            _logger.warning(
+                "Falling back to default chunk embedding contract; unable to load %s: %s",
+                PDF_PIPELINE_CONFIG_PATH,
+                exc,
             )
             cfg_data = {}
         cfg_is_mapping = isinstance(cfg_data, dict)
-        if not cfg_is_mapping:  # pragma: no cover - defensive logging
-            warnings.warn(
-                f"Falling back to default chunk embedding contract; expected mapping at top-level in {PDF_PIPELINE_CONFIG_PATH}, "
-                f"got {type(cfg_data).__name__}",
-                RuntimeWarning,
-                stacklevel=2,
+        if not cfg_is_mapping:
+            _logger.warning(
+                "Falling back to default chunk embedding contract; expected mapping at top-level in %s, got %s",
+                PDF_PIPELINE_CONFIG_PATH,
+                type(cfg_data).__name__,
             )
             cfg_data = {}
         PIPELINE_CONFIG_DATA = cfg_data if cfg_is_mapping else {}
@@ -108,24 +109,22 @@ def _load_pipeline_contract() -> None:
     pipeline_contract = PIPELINE_CONFIG_DATA.get("contract") if isinstance(PIPELINE_CONFIG_DATA, dict) else {}
     if pipeline_contract is None:
         pipeline_contract = {}
-    elif not isinstance(pipeline_contract, dict):  # pragma: no cover - defensive logging
-        warnings.warn(
-            f"Falling back to default chunk embedding contract; expected mapping for contract in {PDF_PIPELINE_CONFIG_PATH}, "
-            f"got {type(pipeline_contract).__name__}",
-            RuntimeWarning,
-            stacklevel=2,
+    elif not isinstance(pipeline_contract, dict):
+        _logger.warning(
+            "Falling back to default chunk embedding contract; expected mapping for contract in %s, got %s",
+            PDF_PIPELINE_CONFIG_PATH,
+            type(pipeline_contract).__name__,
         )
         pipeline_contract = {}
 
     chunk_embedding_contract = pipeline_contract.get("chunk_embedding")
     if chunk_embedding_contract is None:
         chunk_embedding_contract = {}
-    elif not isinstance(chunk_embedding_contract, dict):  # pragma: no cover - defensive logging
-        warnings.warn(
-            f"Falling back to default chunk embedding contract; expected mapping for contract.chunk_embedding in "
-            f"{PDF_PIPELINE_CONFIG_PATH}, got {type(chunk_embedding_contract).__name__}",
-            RuntimeWarning,
-            stacklevel=2,
+    elif not isinstance(chunk_embedding_contract, dict):
+        _logger.warning(
+            "Falling back to default chunk embedding contract; expected mapping for contract.chunk_embedding in %s, got %s",
+            PDF_PIPELINE_CONFIG_PATH,
+            type(chunk_embedding_contract).__name__,
         )
         chunk_embedding_contract = {}
 
@@ -191,11 +190,11 @@ def _coerce_identifier(value: Any, default: str, field_name: str) -> str:
         candidate = value.strip()
         if candidate and _IDENTIFIER_PATTERN.fullmatch(candidate):
             return candidate
-        # stacklevel=2 surfaces warnings at the _coerce_identifier call sites while avoiding warnings module internals
-        warnings.warn(
-            f"Falling back to default for {field_name}; expected identifier-safe string, got {value!r}",
-            RuntimeWarning,
-            stacklevel=2,
+        # Unlike warnings.warn(), _logger.warning() does not require stacklevel adjustment.
+        _logger.warning(
+            "Falling back to default for %s; expected identifier-safe string, got %r",
+            field_name,
+            value,
         )
     return default
 
