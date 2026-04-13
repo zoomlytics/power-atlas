@@ -57,7 +57,9 @@ Stage runner functions (e.g. `run_graph_health_diagnostics`,
 `run_retrieval_benchmark`) return a dict.  When a condition warrants a
 human-visible notice alongside the structured result, append a plain-English
 message to a `warnings` key in that dict.  The **caller** (typically a CLI
-`main()`) is responsible for routing each entry through `_logger.warning`.
+`main()`) is responsible for routing each entry — through `_logger.warning`
+in non-interactive contexts, or via `print(...)` in interactive CLI handlers
+(see Section 3).
 
 ```python
 # Stage function (demo/stages/graph_health.py)
@@ -77,8 +79,13 @@ for msg in result.get("warnings", []):
   third-party stages).  Prefer including the key as an empty list in new stage
   implementations so the contract is explicit.
 - Entries must be plain strings — no exception objects, no markup.
-- The CLI layer must not print these warnings directly; it must route them
-  through `_logger.warning` so they appear in the log stream.
+- In non-interactive / orchestration contexts (e.g. pipeline runners, batch
+  jobs), route each entry through `_logger.warning` so warnings appear in the
+  log stream.
+- In interactive CLI command handlers that are explicitly user-facing (e.g. the
+  `reset` sub-command), entries may be printed to stdout instead — see
+  Section 3 for that pattern.  Do **not** mix both channels for the same
+  entry.
 
 ---
 
@@ -138,6 +145,6 @@ deliberate exception here.
 |-----------|-----|
 | Config/YAML parse error or fallback at import time | `_logger.warning(...)` |
 | Non-fatal anomaly inside a stage runner | `_logger.warning(...)` **and/or** append to `result["warnings"]` if callers need to surface it |
-| Stage result carries a notice the CLI must relay | `result["warnings"]` list entry, routed via `_logger.warning` in the CLI layer |
+| Stage result carries a notice the CLI must relay | `result["warnings"]` list entry; route via `_logger.warning` in non-interactive contexts, or `print(...)` in interactive CLI handlers (see Section 3) |
 | Interactive CLI command needs a human-visible notice | `print(f"  warning: {msg}")` to stdout |
 | Public deprecation notice in a library API | `warnings.warn(..., DeprecationWarning)` — requires explicit doc comment |
