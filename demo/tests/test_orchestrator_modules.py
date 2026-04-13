@@ -5375,6 +5375,8 @@ def test_fetch_latest_run_id_without_dataset_uses_unfiltered_query(tmp_path: Pat
 
     class _FakeCheckRecord:
         def __getitem__(self, key):
+            if key != "dataset_ids":
+                raise KeyError(key)
             return ["demo_dataset_v1"]  # single consistent dataset_id
 
     class _FakeSession:
@@ -5426,6 +5428,12 @@ def test_fetch_latest_run_id_without_dataset_uses_unfiltered_query(tmp_path: Pat
     assert "dataset_id" not in captured_params[0], (
         "Parameters without dataset_id must not pass dataset_id to Neo4j"
     )
+    assert "dataset_ids" in captured_queries[1], (
+        "Consistency-check query must return a 'dataset_ids' column"
+    )
+    assert captured_params[1].get("run_id") == "unstructured_ingest-20260101T000000000000Z-aabbccdd", (
+        "Consistency-check query must be parameterised with the resolved run_id"
+    )
 
 
 def test_fetch_latest_run_id_with_dataset_filters_by_dataset_id(tmp_path: Path):
@@ -5441,6 +5449,8 @@ def test_fetch_latest_run_id_with_dataset_filters_by_dataset_id(tmp_path: Path):
 
     class _FakeCheckRecord:
         def __getitem__(self, key):
+            if key != "dataset_ids":
+                raise KeyError(key)
             return ["demo_dataset_v1"]  # single consistent dataset_id
 
     class _FakeSession:
@@ -5491,6 +5501,12 @@ def test_fetch_latest_run_id_with_dataset_filters_by_dataset_id(tmp_path: Path):
     )
     assert captured_params[0].get("dataset_id") == "demo_dataset_v1", (
         "dataset_id parameter must be passed to the Cypher query"
+    )
+    assert "dataset_ids" in captured_queries[1], (
+        "Consistency-check query must return a 'dataset_ids' column"
+    )
+    assert captured_params[1].get("run_id") == "unstructured_ingest-20260201T000000000000Z-v1run0001", (
+        "Consistency-check query must be parameterised with the resolved run_id"
     )
 
 
