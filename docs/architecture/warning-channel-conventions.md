@@ -69,7 +69,10 @@ in non-interactive contexts, or via `print(...)` in interactive CLI handlers
 collected_warnings: list[str] = []
 if not nodes_found:
     collected_warnings.append("No demo-owned nodes found; graph may be empty.")
-return {"status": "live", ..., "warnings": collected_warnings}
+return {
+    "status": "live",
+    "warnings": collected_warnings,
+}
 
 # CLI entry point (pipelines/query/graph_health_diagnostics.py)
 for msg in result.get("warnings", []):
