@@ -288,7 +288,7 @@ def _fetch_latest_unstructured_run_id(
     Dataset-consistency post-resolution safeguard: after the run_id is
     resolved, an additional LIMIT 2 query checks whether the run's Chunk nodes
     carry a consistent dataset stamp.  If multiple distinct dataset_ids are
-    detected a WARNING is emitted because the run may have been inconsistently
+    detected, a WARNING is emitted because the run may have been inconsistently
     ingested.  The resolved run_id is always returned so callers can proceed;
     the warning is informational only.
     """
