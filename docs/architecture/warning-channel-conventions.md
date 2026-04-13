@@ -72,8 +72,10 @@ for msg in result.get("warnings", []):
 ```
 
 **Rules:**
-- The `warnings` key must always be present in a result dict (empty list, not
-  absent) so callers can iterate without a `KeyError` guard.
+- Use `result.get("warnings", [])` when consuming this key so callers are
+  robust against stage functions that omit the key (e.g. older code or
+  third-party stages).  Prefer including the key as an empty list in new stage
+  implementations so the contract is explicit.
 - Entries must be plain strings — no exception objects, no markup.
 - The CLI layer must not print these warnings directly; it must route them
   through `_logger.warning` so they appear in the log stream.
