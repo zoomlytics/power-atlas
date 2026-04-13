@@ -190,7 +190,7 @@ def _coerce_identifier(value: Any, default: str, field_name: str) -> str:
         candidate = value.strip()
         if candidate and _IDENTIFIER_PATTERN.fullmatch(candidate):
             return candidate
-        # _logger.warning surfaces warnings via the standard logging channel
+        # Unlike warnings.warn(), _logger.warning() does not require stacklevel adjustment.
         _logger.warning(
             "Falling back to default for %s; expected identifier-safe string, got %r",
             field_name,
