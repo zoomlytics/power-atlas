@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
-import warnings
+import logging
 
 import pytest
 import yaml
@@ -126,13 +126,13 @@ def test_coerce_identifier_strips_and_accepts_valid():
     assert pipeline._coerce_identifier("  Foo_1 ", "default", "field") == "Foo_1"
 
 
-def test_coerce_identifier_warns_and_falls_back(monkeypatch):
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
+def test_coerce_identifier_warns_and_falls_back(
+    caplog: pytest.LogCaptureFixture,
+):
+    with caplog.at_level(logging.WARNING, logger="demo.contracts.pipeline"):
         result = pipeline._coerce_identifier("invalid space", "default", "field")
     assert result == "default"
-    assert caught
-    warning = caught[0]
-    assert issubclass(warning.category, RuntimeWarning)
-    assert warning.filename.endswith("test_pipeline_contract.py")
-    assert "identifier-safe string" in str(warning.message)
+    assert caplog.records
+    record = caplog.records[0]
+    assert record.levelno == logging.WARNING
+    assert "identifier-safe string" in record.message
