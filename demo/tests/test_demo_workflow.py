@@ -9,7 +9,6 @@ import types
 import sys
 import tempfile
 import unittest
-import warnings
 from contextlib import contextmanager, redirect_stdout
 from pathlib import Path
 
@@ -1095,15 +1094,14 @@ class WorkflowTests(unittest.TestCase):
         original_safe_load = yaml.safe_load
         try:
             yaml.safe_load = lambda *_args, **_kwargs: (_ for _ in ()).throw(yaml.YAMLError("bad yaml"))
-            with warnings.catch_warnings(record=True) as caught:
-                warnings.simplefilter("always")
+            with self.assertLogs("demo.contracts.pipeline", level="WARNING") as captured:
                 module = _load_module(RUN_DEMO_PATH, "run_yaml_warn_test")
             self.assertEqual(module.CHUNK_EMBEDDING_INDEX_NAME, "demo_chunk_embedding_index")
             self.assertEqual(module.CHUNK_EMBEDDING_LABEL, "Chunk")
             self.assertEqual(module.CHUNK_EMBEDDING_PROPERTY, "embedding")
             self.assertEqual(module.CHUNK_EMBEDDING_DIMENSIONS, 1536)
             self.assertTrue(
-                any("Falling back to default chunk embedding contract" in str(w.message) for w in caught),
+                any("Falling back to default chunk embedding contract" in msg for msg in captured.output),
                 "Expected warning when pipeline config cannot be parsed",
             )
         finally:
@@ -1113,15 +1111,14 @@ class WorkflowTests(unittest.TestCase):
         original_safe_load = yaml.safe_load
         try:
             yaml.safe_load = lambda *_args, **_kwargs: []
-            with warnings.catch_warnings(record=True) as caught:
-                warnings.simplefilter("always")
+            with self.assertLogs("demo.contracts.pipeline", level="WARNING") as captured:
                 module = _load_module(RUN_DEMO_PATH, "run_yaml_top_level_type_warn_test")
             self.assertEqual(module.CHUNK_EMBEDDING_INDEX_NAME, "demo_chunk_embedding_index")
             self.assertEqual(module.CHUNK_EMBEDDING_LABEL, "Chunk")
             self.assertEqual(module.CHUNK_EMBEDDING_PROPERTY, "embedding")
             self.assertEqual(module.CHUNK_EMBEDDING_DIMENSIONS, 1536)
             self.assertTrue(
-                any("expected mapping at top-level" in str(w.message) for w in caught),
+                any("expected mapping at top-level" in msg for msg in captured.output),
                 "Expected warning when pipeline config top-level is not a mapping",
             )
         finally:
@@ -1131,15 +1128,14 @@ class WorkflowTests(unittest.TestCase):
         original_safe_load = yaml.safe_load
         try:
             yaml.safe_load = lambda *_args, **_kwargs: {"contract": {"chunk_embedding": []}}
-            with warnings.catch_warnings(record=True) as caught:
-                warnings.simplefilter("always")
+            with self.assertLogs("demo.contracts.pipeline", level="WARNING") as captured:
                 module = _load_module(RUN_DEMO_PATH, "run_chunk_contract_type_warn_test")
             self.assertEqual(module.CHUNK_EMBEDDING_INDEX_NAME, "demo_chunk_embedding_index")
             self.assertEqual(module.CHUNK_EMBEDDING_LABEL, "Chunk")
             self.assertEqual(module.CHUNK_EMBEDDING_PROPERTY, "embedding")
             self.assertEqual(module.CHUNK_EMBEDDING_DIMENSIONS, 1536)
             self.assertTrue(
-                any("contract.chunk_embedding" in str(w.message) for w in caught),
+                any("contract.chunk_embedding" in msg for msg in captured.output),
                 "Expected warning when chunk embedding contract is not a mapping",
             )
         finally:
