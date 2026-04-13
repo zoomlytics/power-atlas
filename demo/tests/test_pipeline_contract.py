@@ -133,6 +133,9 @@ def test_coerce_identifier_warns_and_falls_back(
         result = pipeline._coerce_identifier("invalid space", "default", "field")
     assert result == "default"
     assert caplog.records
-    record = caplog.records[0]
-    assert record.levelno == logging.WARNING
-    assert "identifier-safe string" in record.getMessage()
+    assert any(
+        record.levelno == logging.WARNING
+        and record.name == "demo.contracts.pipeline"
+        and "identifier-safe string" in record.getMessage()
+        for record in caplog.records
+    )
