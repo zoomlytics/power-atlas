@@ -558,8 +558,8 @@ def run_graph_health_diagnostics(
     artifact_dir.mkdir(parents=True, exist_ok=True)
     artifact_path = artifact_dir / "graph_health_diagnostics.json"
 
-    # Collect scoping warnings before any I/O so they are surfaced uniformly in
-    # both dry_run and live modes.
+    # Collect scoping warnings before dry_run/live-mode handling so they are
+    # surfaced uniformly in both modes.
     collected_warnings: list[str] = []
 
     if run_id is None:
@@ -676,7 +676,7 @@ def run_graph_health_diagnostics(
     # Detect truncation: if a capped query returned exactly its row limit the
     # result set may be incomplete.  Surface this as a warning so callers and
     # CLI consumers can tell when per-entity detail tables are partial.
-    if len(per_canonical) >= _PER_CANONICAL_ALIGNMENT_LIMIT:
+    if len(per_canonical) == _PER_CANONICAL_ALIGNMENT_LIMIT:
         msg = (
             f"run_graph_health_diagnostics: per_canonical_alignment result is at the "
             f"query row limit ({_PER_CANONICAL_ALIGNMENT_LIMIT} rows) — the detail table "
@@ -685,7 +685,7 @@ def run_graph_health_diagnostics(
         _logger.warning("%s", msg)
         collected_warnings.append(msg)
 
-    if len(chain_health) >= _CANONICAL_CHAIN_HEALTH_LIMIT:
+    if len(chain_health) == _CANONICAL_CHAIN_HEALTH_LIMIT:
         msg = (
             f"run_graph_health_diagnostics: canonical_chain_health result is at the "
             f"query row limit ({_CANONICAL_CHAIN_HEALTH_LIMIT} rows) — the detail table "

@@ -1115,8 +1115,8 @@ def run_retrieval_benchmark(
     artifact_dir.mkdir(parents=True, exist_ok=True)
     artifact_path = artifact_dir / "retrieval_benchmark.json"
 
-    # Collect scoping warnings before any I/O so they are surfaced uniformly in
-    # both dry_run and live modes.
+    # Collect scoping warnings before Neo4j queries and artifact writes so they
+    # are surfaced uniformly in both dry_run and live modes.
     collected_warnings: list[str] = []
 
     if run_id is None:
