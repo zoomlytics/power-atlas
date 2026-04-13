@@ -95,5 +95,75 @@ class TestRetrievalBenchmarkCliMainArgParsing(unittest.TestCase):
             self.assertEqual(ctx.exception.code, 1)
 
 
+class TestRetrievalBenchmarkCliUnscopedWarnings(unittest.TestCase):
+    """CLI regression tests: verify warning behavior for unscoped runs.
+
+    These tests ensure that when ``main()`` is called without ``--run-id``,
+    ``--dataset-id``, and/or ``--alignment-version``, the warnings produced by
+    ``run_retrieval_benchmark`` are routed through the CLI logger.
+    """
+
+    def _run_main_with_mock_result(
+        self,
+        result: dict[str, Any],
+        extra_argv: list[str] | None = None,
+    ) -> None:
+        argv = ["--neo4j-password", "secret"] + (extra_argv or [])
+        with patch.object(cli_module, "run_retrieval_benchmark", return_value=result):
+            main(argv)
+
+    def test_unscoped_run_id_warning_routed_through_cli_logger(self) -> None:
+        """When result contains a run_id-scoping warning, main() must emit it
+        via the CLI logger at WARNING level."""
+        result = _make_result(
+            warnings=["run_retrieval_benchmark: run_id is None — benchmark will aggregate across ALL pipeline runs"]
+        )
+        with self.assertLogs("pipelines.query.retrieval_benchmark", level="WARNING") as captured:
+            self._run_main_with_mock_result(result)
+
+        warning_records = [r for r in captured.output if "WARNING" in r]
+        self.assertTrue(
+            any("run_id" in r for r in warning_records),
+            f"Expected run_id warning in CLI log output, got: {captured.output}",
+        )
+
+    def test_unscoped_dataset_id_warning_routed_through_cli_logger(self) -> None:
+        """When result contains a dataset_id-scoping warning, main() must emit it
+        via the CLI logger at WARNING level."""
+        result = _make_result(
+            warnings=["run_retrieval_benchmark: dataset_id is None — benchmark will aggregate across ALL datasets"]
+        )
+        with self.assertLogs("pipelines.query.retrieval_benchmark", level="WARNING") as captured:
+            self._run_main_with_mock_result(result)
+
+        warning_records = [r for r in captured.output if "WARNING" in r]
+        self.assertTrue(
+            any("dataset_id" in r for r in warning_records),
+            f"Expected dataset_id warning in CLI log output, got: {captured.output}",
+        )
+
+    def test_unscoped_alignment_version_warning_routed_through_cli_logger(self) -> None:
+        """When result contains an alignment_version-scoping warning, main() must emit
+        it via the CLI logger at WARNING level."""
+        result = _make_result(
+            warnings=["run_retrieval_benchmark: alignment_version is None — benchmark will aggregate across ALL alignment versions"]
+        )
+        with self.assertLogs("pipelines.query.retrieval_benchmark", level="WARNING") as captured:
+            self._run_main_with_mock_result(result)
+
+        warning_records = [r for r in captured.output if "WARNING" in r]
+        self.assertTrue(
+            any("alignment_version" in r for r in warning_records),
+            f"Expected alignment_version warning in CLI log output, got: {captured.output}",
+        )
+
+    def test_fully_scoped_run_emits_no_warnings(self) -> None:
+        """When result['warnings'] is empty (all parameters scoped), main() must
+        emit no WARNING-level log records."""
+        result = _make_result(warnings=[])
+        with self.assertNoLogs("pipelines.query.retrieval_benchmark", level="WARNING"):
+            self._run_main_with_mock_result(result)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -1052,12 +1052,16 @@ def run_retrieval_benchmark(
         ``neo4j_database``, ``output_dir``, and ``dry_run``.
     run_id:
         Scopes all queries to a specific pipeline run.  Pass ``None`` to
-        collect aggregate metrics across all runs.
+        collect aggregate metrics across all runs.  **Warning:** omitting
+        ``run_id`` aggregates across all runs in the database; results may
+        mix data from different pipeline executions.
     dataset_id:
         Scopes all ``CanonicalEntity`` queries to a specific dataset, preventing
         cross-dataset double-counting of shared entity names.  Pass ``None`` to
         aggregate across all datasets (suitable for exploration only — not for
-        regression baselines in a multi-dataset graph).  The value is stamped
+        regression baselines in a multi-dataset graph).  **Warning:** omitting
+        ``dataset_id`` aggregates across all datasets; results are not suitable
+        for regression baselines in a multi-dataset graph.  The value is stamped
         as a top-level field in the artifact for auditability.
     alignment_version:
         Scopes alignment queries to a specific alignment version (e.g.
@@ -1111,18 +1115,43 @@ def run_retrieval_benchmark(
     artifact_dir.mkdir(parents=True, exist_ok=True)
     artifact_path = artifact_dir / "retrieval_benchmark.json"
 
+    # Collect scoping warnings before any I/O so they are surfaced uniformly in
+    # both dry_run and live modes.
+    collected_warnings: list[str] = []
+
+    if run_id is None:
+        msg = (
+            "run_retrieval_benchmark: run_id is None — benchmark will aggregate "
+            "across ALL pipeline runs in the database, not just the current run. "
+            "Pass run_id to scope queries to the intended pipeline execution."
+        )
+        _logger.warning("%s", msg)
+        collected_warnings.append(msg)
+
+    if dataset_id is None:
+        msg = (
+            "run_retrieval_benchmark: dataset_id is None — benchmark will aggregate "
+            "across ALL datasets in the database, not just the current dataset. "
+            "Results are not suitable for regression baselines in a multi-dataset graph. "
+            "Pass dataset_id to scope queries to the intended dataset."
+        )
+        _logger.warning("%s", msg)
+        collected_warnings.append(msg)
+
     # Warn when alignment_version is None so callers are aware that the
     # benchmark will aggregate across all versions.  The warning is suppressed
     # when suppress_alignment_version_warning=True to avoid a duplicate log
     # entry in orchestrated runs where the orchestrator has already emitted its
     # own warning for the same event.
     if alignment_version is None and not suppress_alignment_version_warning:
-        _logger.warning(
+        msg = (
             "run_retrieval_benchmark: alignment_version is None — benchmark will aggregate "
             "across ALL alignment versions in the database, not just the current cohort. "
             "Pass alignment_version (e.g. from the hybrid entity resolution stage output) "
             "to scope queries to the intended ALIGNED_WITH edge version."
         )
+        _logger.warning("%s", msg)
+        collected_warnings.append(msg)
 
     if getattr(config, "dry_run", False):
         dry_artifact_obj = build_benchmark_artifact(
@@ -1140,7 +1169,7 @@ def run_retrieval_benchmark(
             "alignment_version": alignment_version,
             "artifact_path": str(artifact_path),
             "artifact": None,
-            "warnings": ["retrieval benchmark skipped in dry_run mode"],
+            "warnings": ["retrieval benchmark skipped in dry_run mode"] + collected_warnings,
         }
 
     params: dict[str, Any] = {
@@ -1254,5 +1283,5 @@ def run_retrieval_benchmark(
         "alignment_version": alignment_version,
         "artifact_path": str(artifact_path),
         "artifact": artifact.to_dict(),
-        "warnings": [],
+        "warnings": collected_warnings,
     }
