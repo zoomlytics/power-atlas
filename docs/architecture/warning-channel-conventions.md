@@ -38,7 +38,10 @@ _logger.warning(
 )
 
 # demo/stages/retrieval_and_qa.py
-_logger.warning("Chunk %s has empty or whitespace-only text", chunk_id)
+_logger.warning(
+    "Chunk %r has empty or whitespace-only text and contributed no evidence",
+    chunk_id,
+)
 ```
 
 **Rules:**
