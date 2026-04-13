@@ -116,7 +116,11 @@ class TestRetrievalBenchmarkCliUnscopedWarnings(unittest.TestCase):
         """When result contains a run_id-scoping warning, main() must emit it
         via the CLI logger at WARNING level."""
         result = _make_result(
-            warnings=["run_retrieval_benchmark: run_id is None — benchmark will aggregate across ALL pipeline runs"]
+            warnings=[
+                "run_retrieval_benchmark: run_id is None — benchmark will aggregate "
+                "across ALL pipeline runs in the database, not just the current run. "
+                "Pass run_id to scope queries to the intended pipeline execution."
+            ]
         )
         with self.assertLogs("pipelines.query.retrieval_benchmark", level="WARNING") as captured:
             self._run_main_with_mock_result(result)
@@ -131,7 +135,12 @@ class TestRetrievalBenchmarkCliUnscopedWarnings(unittest.TestCase):
         """When result contains a dataset_id-scoping warning, main() must emit it
         via the CLI logger at WARNING level."""
         result = _make_result(
-            warnings=["run_retrieval_benchmark: dataset_id is None — benchmark will aggregate across ALL datasets"]
+            warnings=[
+                "run_retrieval_benchmark: dataset_id is None — benchmark will aggregate "
+                "across ALL datasets in the database, not just the current dataset. "
+                "Results are not suitable for regression baselines in a multi-dataset graph. "
+                "Pass dataset_id to scope queries to the intended dataset."
+            ]
         )
         with self.assertLogs("pipelines.query.retrieval_benchmark", level="WARNING") as captured:
             self._run_main_with_mock_result(result)
@@ -146,7 +155,12 @@ class TestRetrievalBenchmarkCliUnscopedWarnings(unittest.TestCase):
         """When result contains an alignment_version-scoping warning, main() must emit
         it via the CLI logger at WARNING level."""
         result = _make_result(
-            warnings=["run_retrieval_benchmark: alignment_version is None — benchmark will aggregate across ALL alignment versions"]
+            warnings=[
+                "run_retrieval_benchmark: alignment_version is None — benchmark will aggregate "
+                "across ALL alignment versions in the database, not just the current cohort. "
+                "Pass alignment_version (e.g. from the hybrid entity resolution stage output) "
+                "to scope queries to the intended ALIGNED_WITH edge version."
+            ]
         )
         with self.assertLogs("pipelines.query.retrieval_benchmark", level="WARNING") as captured:
             self._run_main_with_mock_result(result)

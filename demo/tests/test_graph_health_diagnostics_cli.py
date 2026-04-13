@@ -115,7 +115,11 @@ class TestGraphHealthDiagnosticsCliUnscopedWarnings(unittest.TestCase):
         """When result contains a run_id-scoping warning, main() must emit it
         via the CLI logger at WARNING level."""
         result = _make_result(
-            warnings=["run_graph_health_diagnostics: run_id is None — diagnostics will aggregate across ALL pipeline runs"]
+            warnings=[
+                "run_graph_health_diagnostics: run_id is None — diagnostics will aggregate "
+                "across ALL pipeline runs in the database, not just the current run. "
+                "Pass run_id to scope queries to the intended pipeline execution."
+            ]
         )
         with self.assertLogs("pipelines.query.graph_health_diagnostics", level="WARNING") as captured:
             self._run_main_with_mock_result(result)
@@ -130,7 +134,13 @@ class TestGraphHealthDiagnosticsCliUnscopedWarnings(unittest.TestCase):
         """When result contains an alignment_version-scoping warning, main() must emit
         it via the CLI logger at WARNING level."""
         result = _make_result(
-            warnings=["run_graph_health_diagnostics: alignment_version is None — alignment metrics will aggregate across ALL alignment versions"]
+            warnings=[
+                "run_graph_health_diagnostics: alignment_version is None — alignment "
+                "metrics will aggregate across ALL alignment versions in the database, "
+                "not just the current cohort. "
+                "Pass alignment_version (e.g. from the hybrid entity resolution stage output) "
+                "to scope queries to the intended ALIGNED_WITH edge version."
+            ]
         )
         with self.assertLogs("pipelines.query.graph_health_diagnostics", level="WARNING") as captured:
             self._run_main_with_mock_result(result)
@@ -145,7 +155,11 @@ class TestGraphHealthDiagnosticsCliUnscopedWarnings(unittest.TestCase):
         """When result contains a truncation warning, main() must emit it via
         the CLI logger at WARNING level."""
         result = _make_result(
-            warnings=["run_graph_health_diagnostics: per_canonical_alignment result is at the query row limit (30 rows) — the detail table may be truncated"]
+            warnings=[
+                "run_graph_health_diagnostics: per_canonical_alignment result is at the "
+                "query row limit (30 rows) — the detail table "
+                "may be truncated and not reflect all canonical entities in the current scope."
+            ]
         )
         with self.assertLogs("pipelines.query.graph_health_diagnostics", level="WARNING") as captured:
             self._run_main_with_mock_result(result)
