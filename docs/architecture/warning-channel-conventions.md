@@ -16,7 +16,7 @@ each serves a distinct audience and delivery path:
 | `_logger.warning(...)` | Operators / log aggregators | Python `logging` hierarchy | Captured by any `logging` handler |
 | `result["warnings"]` list | Callers / orchestrators | Return value of a stage or pipeline function | Carried in the data payload |
 | `print(...)` to stdout | Interactive CLI users | Terminal stdout | Ephemeral (terminal session) |
-| `warnings.warn(...)` | **Not used** — see [below](#warningswarn) | Python warnings machinery | Filtered by `warnings` module |
+| `warnings.warn(...)` | **Not used** — see section 4 below | Python warnings machinery | Filtered by `warnings` module |
 
 ---
 
