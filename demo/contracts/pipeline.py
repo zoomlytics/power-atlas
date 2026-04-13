@@ -89,7 +89,7 @@ def _load_pipeline_contract() -> None:
         try:
             with PDF_PIPELINE_CONFIG_PATH.open("r", encoding="utf-8") as handle:
                 cfg_data = yaml.safe_load(handle)
-        except (OSError, yaml.YAMLError) as exc:  # pragma: no cover - defensive logging
+        except (OSError, yaml.YAMLError) as exc:
             _logger.warning(
                 "Falling back to default chunk embedding contract; unable to load %s: %s",
                 PDF_PIPELINE_CONFIG_PATH,
@@ -97,7 +97,7 @@ def _load_pipeline_contract() -> None:
             )
             cfg_data = {}
         cfg_is_mapping = isinstance(cfg_data, dict)
-        if not cfg_is_mapping:  # pragma: no cover - defensive logging
+        if not cfg_is_mapping:
             _logger.warning(
                 "Falling back to default chunk embedding contract; expected mapping at top-level in %s, got %s",
                 PDF_PIPELINE_CONFIG_PATH,
@@ -109,7 +109,7 @@ def _load_pipeline_contract() -> None:
     pipeline_contract = PIPELINE_CONFIG_DATA.get("contract") if isinstance(PIPELINE_CONFIG_DATA, dict) else {}
     if pipeline_contract is None:
         pipeline_contract = {}
-    elif not isinstance(pipeline_contract, dict):  # pragma: no cover - defensive logging
+    elif not isinstance(pipeline_contract, dict):
         _logger.warning(
             "Falling back to default chunk embedding contract; expected mapping for contract in %s, got %s",
             PDF_PIPELINE_CONFIG_PATH,
@@ -120,7 +120,7 @@ def _load_pipeline_contract() -> None:
     chunk_embedding_contract = pipeline_contract.get("chunk_embedding")
     if chunk_embedding_contract is None:
         chunk_embedding_contract = {}
-    elif not isinstance(chunk_embedding_contract, dict):  # pragma: no cover - defensive logging
+    elif not isinstance(chunk_embedding_contract, dict):
         _logger.warning(
             "Falling back to default chunk embedding contract; expected mapping for contract.chunk_embedding in %s, got %s",
             PDF_PIPELINE_CONFIG_PATH,

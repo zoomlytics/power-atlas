@@ -1141,6 +1141,23 @@ class WorkflowTests(unittest.TestCase):
         finally:
             yaml.safe_load = original_safe_load
 
+    def test_run_demo_warns_and_falls_back_when_pipeline_contract_is_not_mapping(self):
+        original_safe_load = yaml.safe_load
+        try:
+            yaml.safe_load = lambda *_args, **_kwargs: {"contract": "not-a-dict"}
+            with self.assertLogs("demo.contracts.pipeline", level="WARNING") as captured:
+                module = _load_module(RUN_DEMO_PATH, "run_pipeline_contract_type_warn_test")
+            self.assertEqual(module.CHUNK_EMBEDDING_INDEX_NAME, "demo_chunk_embedding_index")
+            self.assertEqual(module.CHUNK_EMBEDDING_LABEL, "Chunk")
+            self.assertEqual(module.CHUNK_EMBEDDING_PROPERTY, "embedding")
+            self.assertEqual(module.CHUNK_EMBEDDING_DIMENSIONS, 1536)
+            self.assertTrue(
+                any("expected mapping for contract" in msg for msg in captured.output),
+                "Expected warning when pipeline contract is not a mapping",
+            )
+        finally:
+            yaml.safe_load = original_safe_load
+
     # ── smoke test: _validate_citation_token ───────────────────────────────────
 
     def _load_smoke_module(self, module_name: str = "smoke_test_unit"):
