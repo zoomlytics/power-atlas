@@ -150,7 +150,7 @@ RETURN is_aligned, count(*) AS cluster_count
 ORDER BY is_aligned DESC
 """
 
-# Row limits applied by the detailed per-entity queries below.  Used to detect
+# Row limits applied by the detailed per-entity queries that follow.  Used to detect
 # when results may be truncated and to surface a warning to callers.  The
 # query strings are built from these constants so that the limit is defined in
 # exactly one place.
