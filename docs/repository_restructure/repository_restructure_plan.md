@@ -716,12 +716,12 @@ To avoid over-engineering, these are **out of scope for the first pass unless al
 
 If implementation starts this week, do these in order:
 
-1. draft the short decision register,
+1. accept and finalize the decision register,
 2. define the safety harness scenarios,
-3. set up `src/power_atlas/`, packaging, and bootstrap shell,
-4. move current implementation mechanically,
-5. stabilize imports and green the safety harness,
-6. then begin seam extraction.
+3. create the restructuring checklist / phase tracker,
+4. set up `src/power_atlas/`, packaging, and bootstrap shell,
+5. move current implementation mechanically,
+6. stabilize imports and green the safety harness.
 
 ---
 

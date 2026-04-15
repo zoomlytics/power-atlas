@@ -1,8 +1,8 @@
 # Repository Restructure Decision Register
 
-Status: Draft  
+Status: Accepted  
 Applies to: `zoomlytics/power-atlas`  
-Related plan: `docs/architecture/repository_restructure_plan.md`
+Related plan: `docs/repository_restructure/repository_restructure_plan.md`
 
 This document records the minimum architecture and migration decisions that must be explicit before major repository restructuring begins.
 
@@ -13,12 +13,14 @@ It is intended to:
 - provide decision-level guidance for code review and sequencing,
 - complement the canonical migration plan.
 
+During restructuring work, this document should be used as the default decision reference for sequencing, boundary enforcement, and code review expectations.
+
 It is **not** intended to be a full ADR archive.  
 If a decision becomes large or controversial, it can be split into a dedicated ADR later.
 
 ---
 
-## Decision 1 - Canonical package target
+## Decision 1 — Canonical package target
 
 ### Decision
 
@@ -58,7 +60,7 @@ Fine-grained subpackage expansion is deferred until the code naturally stabilize
 
 None blocking for initial migration.
 
-## Decision 2 - Layering model and dependency direction
+## Decision 2 — Layering model and dependency direction
 
 ### Decision
 
@@ -95,7 +97,7 @@ Layer intent:
 
 Whether any shared contracts should live in `schemas/` or be localized more aggressively can be refined later.
 
-## Decision 3 - Composition root and infrastructure construction
+## Decision 3 — Composition root and infrastructure construction
 
 ### Decision
 
@@ -125,7 +127,7 @@ This means:
 
 Whether `bootstrap` will be a small module tree or a single assembly module can be decided during implementation.
 
-## Decision 4 - Runtime context model v1
+## Decision 4 — Runtime context model v1
 
 ### Decision
 
@@ -157,7 +159,7 @@ Intended semantics:
 
 Whether offline batch execution needs a distinct run-scoped context will be revisited after safety harness and seam extraction work.
 
-## Decision 5 - Neo4j code boundary
+## Decision 5 — Neo4j code boundary
 
 ### Decision
 
@@ -186,7 +188,7 @@ The following rules apply:
 
 The exact internal structure of the Neo4j adapter package can remain shallow at first and evolve later.
 
-## Decision 6 - Neo4j operational asset boundary
+## Decision 6 — Neo4j operational asset boundary
 
 ### Decision
 
@@ -217,7 +219,7 @@ This directory is expected to contain, over time:
 
 Exact migration tooling and execution order are still open and must be decided separately.
 
-## Decision 7 - Candidate vs authoritative graph strategy must be explicit
+## Decision 7 — Candidate vs authoritative graph strategy must be explicit
 
 ### Decision
 
@@ -250,7 +252,7 @@ Possible implementation models still to be decided include:
 - Promotion semantics.
 - Environment-specific lifecycle and reset strategy.
 
-## Decision 8 - Configuration system must be typed and centralized
+## Decision 8 — Configuration system must be typed and centralized
 
 ### Decision
 
@@ -281,7 +283,7 @@ The specific library/tooling is not locked in this document, but the configurati
 - Exact settings library.
 - Whether separate environment profiles are file-based, class-based, or both.
 
-## Decision 9 - Prompt handling must be centralized before deeper refactor
+## Decision 9 — Prompt handling must be centralized before deeper refactor
 
 ### Decision
 
@@ -318,7 +320,7 @@ Candidate future models:
 - Versioning mechanism.
 - How runs will record prompt/model/retrieval settings together.
 
-## Decision 10 - API contracts are owned as explicit schemas
+## Decision 10 — API contracts are owned as explicit schemas
 
 ### Decision
 
@@ -332,7 +334,7 @@ If the repository exposes API boundaries consumed by other interfaces such as `w
 
 ### Consequences
 
-- `schemas/` should serve as the home for shared transport/data contracts unless a more localized structure proves better later.
+- `schemas/` is the default home for shared transport and API contracts unless a later documented decision establishes a better localized structure.
 - Backend changes that affect contracts should be reviewed as contract changes, not just internal refactors.
 - Frontend positioning should remain secondary until backend contracts stabilize.
 
@@ -341,7 +343,7 @@ If the repository exposes API boundaries consumed by other interfaces such as `w
 - Versioning approach for API schemas.
 - Whether schemas are generated or maintained manually.
 
-## Decision 11 - Workers are deferred by default
+## Decision 11 — Workers are deferred by default
 
 ### Decision
 
@@ -365,7 +367,7 @@ Worker architecture is not assumed to be part of the first-pass restructure.
 
 Whether ingestion, evaluation, or enrichment flows will require asynchronous execution soon.
 
-## Decision 12 - Correctness testing and evaluation are separate concerns
+## Decision 12 — Correctness testing and evaluation are separate concerns
 
 ### Decision
 
@@ -391,7 +393,7 @@ The repository will explicitly separate:
 - Exact `eval/` directory taxonomy.
 - Whether reports are committed, generated, or externalized.
 
-## Decision 13 - First migration implementation must prioritize safety harness over package beautification
+## Decision 13 — First migration implementation must prioritize safety harness over package beautification
 
 ### Decision
 
@@ -415,16 +417,17 @@ This means the first practical implementation work should focus on:
 - Package movement should not begin until the team has at least minimal behavioral checks.
 - The first code PRs should be small and control-oriented.
 - Success is defined by preserved behavior, not just cleaner folders.
+- Temporary compatibility shims are allowed only as migration aids and must be tracked with an owner and explicit removal condition.
 
 ### Open Questions
 
 Which exact flows are designated as critical-path scenarios.
 
-## Decision 14 - The revised migration plan is the canonical execution plan
+## Decision 14 — The revised migration plan is the canonical execution plan
 
 ### Decision
 
-`docs/architecture/repository_restructure_plan.md` is the canonical execution plan for repository restructuring and supersedes prior drafts.
+`docs/repository_restructure/repository_restructure_plan.md` is the canonical execution plan for repository restructuring and supersedes prior drafts.
 
 ### Why
 
