@@ -193,13 +193,13 @@ Use this section to summarize the current best-known status of the primary basel
 
 ### Current baseline status
 
-- **Status:** `PARTIAL`
+- **Status:** `PASS`
 - **Dataset:** `demo_dataset_v1`
-- **Latest successful commit SHA:** `43805f19e62e65cdfa5b9e1796534d938adb09f0`
-- **Latest successful `UNSTRUCTURED_RUN_ID`:** `unstructured_ingest-20260415T074604232009Z-9339f3e4`
+- **Latest successful commit SHA:** `cafa3b076d3b9c5b5a35c8c226802c38bd8faa2b`
+- **Latest successful `UNSTRUCTURED_RUN_ID`:** `unstructured_ingest-20260415T084900882156Z-ebb71646`
 - **Last execution date:** `2026-04-15`
-- **Primary artifact location:** `demo/artifacts/runs/unstructured_ingest-20260415T074604232009Z-9339f3e4/`
-- **Notes:** Initial baseline run with default `gpt-4o-mini` completed but degraded (`extracted_claim_count: 0`, `all_answers_cited: false`, `citation_fallback_applied: true`, `evidence_level: "degraded"`). Follow-up investigation on the same `UNSTRUCTURED_RUN_ID` showed this was not a first-run artifact and not a structural extraction/citation bug: re-running `extract-claims` and `ask` with `gpt-5.4` restored expected behavior (`extracted_claim_count: 77`, `all_answers_cited: true`, `citation_fallback_applied: false`, `evidence_level: "full"`). The demo default model was updated to `gpt-5.4` to match the baseline-safe path. A full clean rerun from reset with the new default is still recommended before promoting baseline status to `PASS`. See run entries `phase1-agent-b-001` and `phase1-agent-e-001`.
+- **Primary artifact location:** `demo/artifacts/runs/unstructured_ingest-20260415T084900882156Z-ebb71646/`
+- **Notes:** Initial baseline run with default `gpt-4o-mini` completed but degraded (`extracted_claim_count: 0`, `all_answers_cited: false`, `citation_fallback_applied: true`, `evidence_level: "degraded"`). Agent E isolated that drift to the default model posture and updated the baseline default to `gpt-5.4`. A fresh clean rerun from reset with the new default then completed with the expected quality signals (`extracted_claim_count: 68`, `entity_mention_count: 246`, `all_answers_cited: true`, `citation_fallback_applied: false`, `evidence_level: "full"`). Baseline status is promoted to `PASS`. See run entries `phase1-agent-b-001`, `phase1-agent-e-001`, and `phase1-agent-b-002`.
 
 ### Baseline evidence checklist
 
@@ -209,7 +209,7 @@ Use this section to summarize the current best-known status of the primary basel
 - [x] ask command executed with explicit `--dataset demo_dataset_v1`
 - [x] ask command executed with explicit `--run-id`
 - [x] answer output observed
-- [x] citation output observed (citation tokens present; quality degraded)
+- [x] citation output observed (fully cited answer, no fallback)
 - [x] artifacts saved
 - [x] drift/issues logged
 - [x] disposition assigned
@@ -312,8 +312,8 @@ Use this section as a lightweight summary view. Full triage can live elsewhere i
 | ID | Date | Category | Summary | Priority | Source run entry | Owner | Status |
 |---|---|---|---|---|---|---|---|
 | RR-P1-001 | 2026-04-15 | documentation drift | Phase 1 docs do not state Python 3.11+ hard requirement. `datetime.UTC` fails on Python 3.9 immediately. | P1 | `phase1-agent-a-001` | Ash | open |
-| RR-P1-002 | 2026-04-15 | output/citation correctness | Root cause identified: defaulting the baseline path to `gpt-4o-mini` drove `extract-claims` to 0 claims on `demo_dataset_v1`. Re-running the same run id with `gpt-5.4` produced `77` claims immediately. Default updated to `gpt-5.4`; pending clean confirmation rerun. | P1 | `phase1-agent-e-001` | Ash | mitigated |
-| RR-P1-003 | 2026-04-15 | output/citation correctness | Root cause identified: degraded citations were also model-floor related, not a postprocessing defect. Re-running `ask` on the same run id with `gpt-5.4` restored `all_answers_cited: true` and `evidence_level: "full"`. Default updated to `gpt-5.4`; pending clean confirmation rerun. | P1 | `phase1-agent-e-001` | Ash | mitigated |
+| RR-P1-002 | 2026-04-15 | output/citation correctness | Root cause identified and confirmed closed: defaulting the baseline path to `gpt-4o-mini` drove `extract-claims` to 0 claims on `demo_dataset_v1`. After updating the default to `gpt-5.4`, a fresh clean rerun from reset produced `68` claims and `246` mentions with no warnings. | P1 | `phase1-agent-b-002` | Ash | closed |
+| RR-P1-003 | 2026-04-15 | output/citation correctness | Root cause identified and confirmed closed: degraded citations were model-floor related, not a postprocessing defect. After updating the default to `gpt-5.4`, a fresh clean rerun from reset restored `all_answers_cited: true`, `citation_fallback_applied: false`, and `evidence_level: "full"`. | P1 | `phase1-agent-b-002` | Ash | closed |
 | RR-P1-004 | 2026-04-15 | CLI/UX | `citation_repair_attempted: false` is expected for the failing baseline run because repair is intentionally only attempted in `--all-runs` mode. Reclassified from unknown behavior to documented-by-code behavior. | P3 | `phase1-agent-e-001` | Ash | closed |
 | RR-P1-005 | 2026-04-15 | documentation drift | `run_demo.py reset` helper output still references script-path forms; Phase 1 posture is module invocation. Minor cosmetic drift. | P3 | `phase1-agent-a-001` | Ash | open |
 
@@ -342,8 +342,8 @@ Use this section as a compact execution-facing view of whether the repo is movin
 
 ### Gate-readiness summary
 
-- **Golden path manually proven:** `partial`
-- **Baseline dataset scenario validated:** `partial`
+- **Golden path manually proven:** `yes`
+- **Baseline dataset scenario validated:** `yes`
 - **Companion run-isolation scenario validated:** `no`
 - **Explicit dataset targeting validated:** `yes`
 - **Explicit run-id targeting validated:** `yes`
@@ -353,9 +353,9 @@ Use this section as a compact execution-facing view of whether the repo is movin
 
 ### Notes
 
-- **What is already true:** All 4 pipeline stages execute without crashing. Dataset and run targeting are explicit and honored. Retrieval returns non-empty results for the golden-path query. A targeted rerun on the same `UNSTRUCTURED_RUN_ID` with `gpt-5.4` restored nonzero claims and fully cited answers. The default demo model now matches the baseline-safe path (`gpt-5.4`). Interpreter and env requirements are understood.
-- **What remains uncertain:** Only whether a fresh run from reset with the corrected default reproduces the remediated quality signals cleanly enough to mark the baseline `PASS`.
-- **What must happen before package movement starts:** Perform one clean confirmation baseline run with the patched default (`gpt-5.4`), capture companion run-isolation scenario for `demo_dataset_v2` (Agent C), and select first automation target (Agent D).
+- **What is already true:** All 4 pipeline stages execute without crashing. Dataset and run targeting are explicit and honored. Retrieval returns non-empty results for the golden-path query. A fresh clean rerun from reset with the default `gpt-5.4` produced `68` claims, `246` mentions, a non-empty answer, `all_answers_cited: true`, `citation_fallback_applied: false`, and `evidence_level: "full"`. Interpreter and env requirements are understood.
+- **What remains uncertain:** Baseline proof is complete. The remaining open Phase 1 execution uncertainty is limited to the companion run-isolation scenario for `demo_dataset_v2` and first automation-target selection.
+- **What must happen before package movement starts:** Capture companion run-isolation scenario for `demo_dataset_v2` (Agent C) and select first automation target (Agent D).
 
 ---
 
@@ -654,6 +654,110 @@ python -m demo.run_demo ask --live --dataset demo_dataset_v1 --run-id "unstructu
 
 - **Next action owner:** Ash
 - **Next action:** Re-run the full baseline once with the new default and close RR-P1-002 / RR-P1-003 if the fresh manifests match the remediated run.
+- **Priority:** `P1`
+- **Escalation needed?:** no
+- **If escalated, to whom?:** (N/A)
+
+---
+
+### Run ID: `phase1-agent-b-002`
+
+#### Metadata
+
+- **Status:** `PASS`
+- **Date:** `2026-04-15`
+- **Operator / primary agent:** `Agent B`
+- **Supporting agents:** `Agent A` (environment prerequisites), `Agent E` (default-model remediation already landed)
+- **Branch:** `main`
+- **Commit SHA:** `cafa3b076d3b9c5b5a35c8c226802c38bd8faa2b`
+- **Environment / host context:** macOS, `.venv` Python 3.11.14, `OPENAI_MODEL` unset so CLI default path exercised, Docker Compose Neo4j healthy
+- **Related agent track:** `Agent B`
+
+#### Scope of attempt
+
+- **Intent of this run:** Re-run the full Phase 1 baseline once with the patched default model and promote the baseline to `PASS` only if the fresh manifests stay clean.
+- **Target scenario:** `baseline`
+- **Dataset(s):** `demo_dataset_v1`
+- **Expected run ID(s) involved:** fresh ingest-generated run id
+- **Neo4j posture / dependency state:** Clean reset performed first; single-run baseline executed against a fresh demo-owned graph state.
+- **Prerequisites assumed satisfied:** `.venv` Python 3.11.14 active, `OPENAI_API_KEY` set, `NEO4J_PASSWORD` set, local Neo4j reachable
+
+#### Canonical command reference
+
+- **Source doc section(s):**
+  - `repository_restructure_safety_harness.md` Section 9.6
+  - `repository_restructure_safety_harness.md` Section 10
+
+- **Documented command(s):**
+
+```bash
+python -m demo.reset_demo_db --confirm
+python -m demo.run_demo ingest-pdf --live --dataset demo_dataset_v1
+export UNSTRUCTURED_RUN_ID="<captured-from-ingest>"
+python -m demo.run_demo extract-claims --live --dataset demo_dataset_v1
+python -m demo.run_demo resolve-entities --live --dataset demo_dataset_v1
+python -m demo.run_demo ask --live --dataset demo_dataset_v1 --run-id "$UNSTRUCTURED_RUN_ID" --question "What does the document say about Endeavor and MercadoLibre?"
+```
+
+#### Executed command(s)
+
+```bash
+/Users/ash/Documents/repos/Zoomlytics/power-atlas/.venv/bin/python -m demo.reset_demo_db --confirm
+
+/Users/ash/Documents/repos/Zoomlytics/power-atlas/.venv/bin/python -m demo.run_demo ingest-pdf --live --dataset demo_dataset_v1
+
+export UNSTRUCTURED_RUN_ID="unstructured_ingest-20260415T084900882156Z-ebb71646"
+/Users/ash/Documents/repos/Zoomlytics/power-atlas/.venv/bin/python -m demo.run_demo extract-claims --live --dataset demo_dataset_v1
+/Users/ash/Documents/repos/Zoomlytics/power-atlas/.venv/bin/python -m demo.run_demo resolve-entities --live --dataset demo_dataset_v1
+/Users/ash/Documents/repos/Zoomlytics/power-atlas/.venv/bin/python -m demo.run_demo ask --live --dataset demo_dataset_v1 --run-id "unstructured_ingest-20260415T084900882156Z-ebb71646" --question "What does the document say about Endeavor and MercadoLibre?"
+```
+
+#### Outputs and captured identifiers
+
+- **Produced `UNSTRUCTURED_RUN_ID`:** `unstructured_ingest-20260415T084900882156Z-ebb71646`
+- **Other run IDs / identifiers:** reset report `demo/artifacts/reset_report_20260415T084829898432Z.json`
+- **Primary output summary:**
+  - Reset completed cleanly and re-established the demo vector index.
+  - Ingest produced a fresh independent run manifest for `demo_dataset_v1`.
+  - `extract-claims` produced `68` claims and `246` mentions with `extractor_model: "gpt-5.4"` and no warnings.
+  - `resolve-entities` clustered all `246` mentions into `158` clusters with no warnings.
+  - `ask` produced a substantive answer with 5 retrieval hits and fully cited output.
+- **Citation/output behavior observed:** `all_answers_cited: true`, `citation_fallback_applied: false`, `evidence_level: "full"`, no citation warnings, no malformed diagnostics.
+- **Artifact path(s):**
+  - `demo/artifacts/runs/unstructured_ingest-20260415T084900882156Z-ebb71646/pdf_ingest/manifest.json`
+  - `demo/artifacts/runs/unstructured_ingest-20260415T084900882156Z-ebb71646/claim_and_mention_extraction/manifest.json`
+  - `demo/artifacts/runs/unstructured_ingest-20260415T084900882156Z-ebb71646/entity_resolution/manifest.json`
+  - `demo/artifacts/runs/unstructured_ingest-20260415T084900882156Z-ebb71646/retrieval_and_qa/manifest.json`
+- **Stdout/stderr capture path(s):** `/tmp/phase1_reset_clean.log`, `/tmp/phase1_ingest_clean.log`, `/tmp/phase1_extract_clean.log`, `/tmp/phase1_resolve_clean.log`, `/tmp/phase1_ask_clean.log`
+
+#### Result assessment
+
+- **What worked:**
+  - The full reset -> ingest -> extract -> resolve -> ask baseline sequence completed on a fresh run id with exit 0 throughout.
+  - Dataset selection remained explicit and correct across all stages.
+  - Run targeting remained explicit and correct for Q&A.
+  - The patched default model path was exercised with `OPENAI_MODEL` unset and produced the expected baseline quality signals.
+  - The final retrieval manifest satisfies the safety-harness citation invariants.
+- **What failed or remained uncertain:** Nothing material for the baseline scenario. The only remaining Phase 1 execution work is the companion run-isolation scenario.
+- **Was dataset selection explicit and correct?:** Yes
+- **Was run targeting explicit and correct?:** Yes
+- **Did output match expected golden-path behavior?:** Yes
+- **Did this affect Phase 1 gates?:** `yes`
+- **If yes or uncertain, which gate/control is affected?:** Confirms the primary baseline path required by safety harness Section 9.6 and supports promoting the baseline execution record to `PASS`.
+
+#### Drift / findings
+
+- **Doc/code mismatch found?:** No new mismatch in the baseline path after the default-model correction.
+- **Runtime/config mismatch found?:** No. Fresh manifests confirm the corrected default model matches the baseline-safe path.
+- **Unexpected dependency or setup requirement?:** No
+- **Safety-harness impact note:** The accepted baseline scenario is now proven on a fresh run with explicit dataset and run targeting, clean extraction output, and fully cited answer output.
+- **Checklist impact note:** Baseline execution evidence is sufficient to mark the primary Phase 1 baseline scenario complete. Companion isolation and automation selection remain.
+- **Recommended immediate follow-up:** Proceed to Agent C run-isolation validation for `demo_dataset_v2`.
+
+#### Disposition
+
+- **Next action owner:** Ash
+- **Next action:** Execute the companion run-isolation scenario and then identify the first safe automation target.
 - **Priority:** `P1`
 - **Escalation needed?:** no
 - **If escalated, to whom?:** (N/A)
