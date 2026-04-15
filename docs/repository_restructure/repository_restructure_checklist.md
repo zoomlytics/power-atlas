@@ -71,7 +71,7 @@ Use the following status values consistently:
 ### Phase 1 deliverables checklist
 
 - [ ] identify critical CLI flow
-- [ ] identify critical API flow, if backend/API exists
+- [ ] identify critical API flow, if backend/API is an active product boundary
 - [ ] identify critical graph retrieval flow
 - [ ] identify critical answer/citation flow
 - [ ] identify critical ingestion or enrichment flow, if in active scope
@@ -317,7 +317,7 @@ The restructuring must not proceed into broad package movement until the followi
 At minimum, define and document:
 
 - one critical CLI flow,
-- one critical API flow, if the backend/API currently exists,
+- one critical API flow, if the backend/API is an active product boundary,
 - one critical graph retrieval flow,
 - one critical answer/citation flow,
 - one critical ingestion or enrichment flow, if it is part of the active product path.

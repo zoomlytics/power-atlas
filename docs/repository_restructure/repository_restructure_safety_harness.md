@@ -381,104 +381,188 @@ Use this section to record the initial selected scenarios.
 
 ### 9.1 CLI scenario
 
-- **Name:** TBD
-- **Purpose:** TBD
-- **Entrypoint:** TBD
-- **Command:** TBD
-- **Preconditions:** TBD
-- **Inputs:** TBD
-- **Expected invariants:** TBD
-- **Artifacts produced:** TBD
-- **How baseline is captured:** TBD
-- **Failure conditions:** TBD
+- **Name:** Candidate demo CLI retrieval-and-answer flow
+- **Purpose:** Verify that the active product path (`demo/` CLI orchestration) still executes end-to-end through retrieval and answer generation after package/import movement.
+- **Entrypoint:** `python -m demo.run_demo`
+- **Command:** Candidate sequence from `demo/VALIDATION_RUNBOOK.md`:
+	- `python -m demo.run_demo ingest-pdf --live`
+	- `python -m demo.run_demo extract-claims --live`
+	- `python -m demo.run_demo resolve-entities --live`
+	- `python -m demo.run_demo ask --live --run-id "$UNSTRUCTURED_RUN_ID" --question "What does the document say about Endeavor and MercadoLibre?"`
+- **Preconditions:**
+	- required environment variables and model/provider credentials are configured,
+	- Neo4j is reachable,
+	- dataset selection is explicit (`--dataset <name>` or `FIXTURE_DATASET=<name>`) when multiple datasets are present,
+	- `UNSTRUCTURED_RUN_ID` is captured from `ingest-pdf` output for downstream commands.
+- **Inputs:** One representative query already used in runbook validation.
+- **Expected invariants:**
+	- each command exits successfully,
+	- retrieval and answer flow completes,
+	- citation-grounded output structure appears on `ask`,
+	- no repo-root-only import hack is required.
+- **Artifacts produced:** Run manifests under `demo/artifacts/runs/<run_id>/...` and optional comparison artifacts under `demo/artifacts_compare/...`.
+- **How baseline is captured:** Capture command sequence, dataset selection, run id, and manifest-level invariants (not exact LLM wording).
+- **Failure conditions:**
+	- stage command fails,
+	- retrieval/answer stage does not complete,
+	- expected citation structure is missing,
+	- flow only works through accidental import path behavior.
 - **Owner:** TBD
 
 ### 9.2 API scenario
 
-- **Name:** TBD
-- **Required:** TBD (`yes` / `no`)
-- **Purpose:** TBD
-- **Endpoint:** TBD
-- **Request shape:** TBD
-- **Preconditions:** TBD
-- **Inputs:** TBD
-- **Expected invariants:** TBD
-- **Artifacts produced:** TBD
-- **How baseline is captured:** TBD
-- **Failure conditions:** TBD
+- **Name:** Candidate backend API answer endpoint flow
+- **Required:** no (current repository state indicates `backend/` is scaffolding and not connected to the active demo pipeline)
+- **Purpose:** Document API non-gating status for Phase 1 while preserving a future slot for API safety checks once backend integration is active.
+- **Endpoint:** Current placeholder endpoints are `/health` and `/graph/status` (`/graph/status` is intentionally HTTP 503).
+- **Request shape:** N/A for Phase 1 gating (no active graph-backed answer endpoint).
+- **Preconditions:** Backend starts for health/scaffold verification only.
+- **Inputs:** Optional GET request to `/health`.
+- **Expected invariants:**
+	- backend process can start,
+	- `/health` returns success,
+	- `/graph/status` remains explicit placeholder behavior (503) until real integration is implemented.
+- **Artifacts produced:** Optional HTTP response payloads and startup logs.
+- **How baseline is captured:** Record that API is non-required for first-pass migration safety because active product behavior currently runs through `demo/` CLI.
+- **Failure conditions:**
+	- this scenario is incorrectly treated as a gating product-path check before backend integration exists,
+	- placeholder behavior is mistaken for fully integrated graph-backed API readiness.
 - **Owner:** TBD
 
 ### 9.3 Graph retrieval scenario
 
-- **Name:** TBD
-- **Purpose:** TBD
-- **Entrypoint:** TBD
-- **Graph preconditions:** TBD
-- **Inputs:** TBD
-- **Expected invariants:** TBD
-- **Artifacts produced:** TBD
-- **How baseline is captured:** TBD
-- **Failure conditions:** TBD
+- **Name:** Candidate Neo4j retrieval smoke path (`ask --expand-graph`)
+- **Purpose:** Verify graph-backed retrieval behavior survives import/runtime changes in the active demo path.
+- **Entrypoint:** `python -m demo.run_demo ask --live --expand-graph`
+- **Graph preconditions:**
+	- Neo4j instance is available,
+	- known-good run exists (`UNSTRUCTURED_RUN_ID`),
+	- expected lexical/claim/entity-resolution data exists for that run.
+- **Inputs:** Representative query used in the runbook baseline.
+- **Expected invariants:**
+	- retrieval completes with non-empty hits for known-good data,
+	- `retrieval_and_qa` manifest shows graph-expanded retrieval path diagnostics,
+	- no raw Neo4j driver/session initialization errors occur.
+- **Artifacts produced:** `retrieval_and_qa` manifest (for example under `demo/artifacts_compare/pre_hybrid_expand/...`) plus console output.
+- **How baseline is captured:** Validate manifest fields and retrieval diagnostics structure rather than exact answer text.
+- **Failure conditions:**
+	- Neo4j connection failure,
+	- retrieval unexpectedly empty for known-good query,
+	- runtime/import wiring failure in retrieval path,
+	- manifest retrieval-path structure missing or malformed.
 - **Owner:** TBD
 
 ### 9.4 Answer/citation scenario
 
-- **Name:** TBD
-- **Purpose:** TBD
-- **Entrypoint:** TBD
-- **Input:** TBD
-- **Preconditions:** TBD
-- **Expected invariants:** TBD
-- **Artifacts produced:** TBD
-- **How baseline is captured:** TBD
-- **Failure conditions:** TBD
+- **Name:** Candidate citation-grounded answer flow (`ask` baseline)
+- **Purpose:** Verify that answer assembly still produces citation-grounded outputs in the active demo query path.
+- **Entrypoint:** `python -m demo.run_demo ask --live --run-id "$UNSTRUCTURED_RUN_ID"`
+- **Input:** Representative validation question from runbook.
+- **Preconditions:**
+	- retrieval path is functioning,
+	- Neo4j is reachable,
+	- model/provider access is configured,
+	- run scope is explicit (`--run-id`).
+- **Expected invariants:**
+	- answer is produced,
+	- citation/source structure is present,
+	- manifest-level citation quality signals indicate fully cited output for known-good baseline (`all_answers_cited: true`, `citation_fallback_applied: false`, `citation_quality.evidence_level: "full"`).
+- **Artifacts produced:** `retrieval_and_qa` manifest and answer output.
+- **How baseline is captured:** Capture structural citation/result invariants and manifest fields, not exact natural-language wording.
+- **Failure conditions:**
+	- answer generation fails,
+	- citation/source metadata missing or malformed,
+	- output contract shape drifts unexpectedly.
 - **Owner:** TBD
 
 ### 9.5 Ingestion/enrichment scenario
 
-- **Name:** TBD
-- **Required:** TBD (`yes` / `no`)
-- **Purpose:** TBD
-- **Entrypoint:** TBD
-- **Inputs:** TBD
-- **Preconditions:** TBD
-- **Expected invariants:** TBD
-- **Artifacts produced:** TBD
-- **How baseline is captured:** TBD
-- **Failure conditions:** TBD
+- **Name:** Candidate structured-ingest + hybrid-alignment enrichment path
+- **Required:** no (current active product flow is unstructured-first; structured ingest is optional enrichment in current demo posture)
+- **Purpose:** Keep an explicit optional regression check for enrichment paths without blocking Phase 1 on non-core flow.
+- **Entrypoint:**
+	- `python -m demo.run_demo ingest-structured --live`
+	- `python -m demo.run_demo resolve-entities --live --resolution-mode hybrid`
+- **Inputs:** Current fixture structured dataset (selected via `--dataset` or `FIXTURE_DATASET`).
+- **Preconditions:**
+	- Neo4j reachable,
+	- unstructured run already established,
+	- required structured fixture files present.
+- **Expected invariants:**
+	- structured ingest completes,
+	- hybrid alignment runs and reports alignment breakdown,
+	- clustering remains intact (`mentions_clustered == mentions_total` in known-good baseline).
+- **Artifacts produced:** Structured ingest and entity-resolution manifests.
+- **How baseline is captured:** Capture manifest-level invariants (`resolution_mode`, `aligned_clusters`, `clusters_pending_alignment`, warning posture).
+- **Failure conditions:**
+	- command failure,
+	- expected enrichment outputs absent,
+	- hybrid flow fails due to import/runtime wiring changes.
 - **Owner:** TBD
 
 ### 9.6 Golden-path scenario
 
-- **Name:** TBD
-- **Purpose:** TBD
-- **Entrypoint:** TBD
-- **Command or request:** TBD
-- **Preconditions:** TBD
-- **Inputs:** TBD
-- **Expected invariants:** TBD
-- **Artifacts produced:** TBD
-- **How baseline is captured:** TBD
-- **Failure conditions:** TBD
+- **Name:** Candidate unstructured-first retrieval -> answer -> citation golden path
+- **Purpose:** Primary before/after migration comparison scenario because it exercises the current highest-value active flow.
+- **Entrypoint:** Demo CLI path (`python -m demo.run_demo ...`)
+- **Command or request:** Candidate canonical sequence:
+	- `python -m demo.run_demo ingest-pdf --live`
+	- `python -m demo.run_demo extract-claims --live`
+	- `python -m demo.run_demo resolve-entities --live`
+	- `python -m demo.run_demo ask --live --run-id "$UNSTRUCTURED_RUN_ID" --question "What does the document say about Endeavor and MercadoLibre?"`
+- **Preconditions:**
+	- Neo4j available with known-good fixture dataset,
+	- credentials configured,
+	- question known to succeed in current runbook.
+- **Inputs:** One runbook question with known citation-grounded behavior.
+- **Expected invariants:**
+	- flow completes successfully,
+	- retrieval is non-empty,
+	- answer is produced,
+	- citation/source structure is present,
+	- manifest-level response shape remains stable.
+- **Artifacts produced:** Run manifests and answer output.
+- **How baseline is captured:** Record stable manifest/result invariants and run metadata; avoid exact token-level answer matching.
+- **Failure conditions:**
+	- flow fails,
+	- retrieval unexpectedly empty,
+	- answer missing,
+	- citation contract broken.
 - **Owner:** TBD
 
 ### 9.7 Neo4j integration path
 
-- **Name:** TBD
-- **Required Neo4j environment:** TBD
-- **Data/seed prerequisites:** TBD
-- **Setup/reset instructions:** TBD
-- **Command or test invocation:** TBD
-- **Expected invariants:** TBD
-- **Known sources of non-determinism:** TBD
+- **Name:** Candidate live Neo4j demo integration check
+- **Required Neo4j environment:** Local Docker Compose Neo4j (`docker compose up -d neo4j`) or equivalent standard dev Neo4j environment.
+- **Data/seed prerequisites:** Fixture dataset available (`demo/fixtures/datasets/<dataset_name>/...`), plus fresh graph reset before baseline capture.
+- **Setup/reset instructions:** Candidate baseline from runbook:
+	- `python -m demo.reset_demo_db --confirm`
+	- `python -m demo.run_demo ingest-pdf --live`
+	- `python -m demo.run_demo extract-claims --live`
+	- `python -m demo.run_demo resolve-entities --live`
+	- `python -m demo.run_demo ask --live --run-id "$UNSTRUCTURED_RUN_ID" --expand-graph --question "What does the document say about Endeavor and MercadoLibre?"`
+- **Command or test invocation:** Candidate command chain above; final canonical command set should remain aligned to `demo/VALIDATION_RUNBOOK.md` as it evolves.
+- **Expected invariants:**
+	- Neo4j connection succeeds,
+	- graph-backed retrieval executes,
+	- retrieval returns non-empty results for known-good query,
+	- downstream answer/citation step completes.
+- **Known sources of non-determinism:**
+	- LLM wording variation,
+	- result ordering when ranking scores are close.
 - **Owner:** TBD
 
 ### 9.8 Package/import validation
 
-- **Validation mechanism:** TBD (`CI command` / `local command` / `import validation script`)
-- **Command:** TBD
-- **What it confirms:** TBD
-- **Where documented:** TBD
+- **Validation mechanism:** Candidate local command + CI smoke command (to be finalized during Phase 1)
+- **Command:**
+	- Candidate local smoke: run active entrypoint via module invocation (`python -m demo.run_demo ...`) rather than script-path invocation.
+	- TBD — replace with canonical CI/local command that proves installed-package execution once Phase 2 packaging metadata is in place.
+- **What it confirms:**
+	- entrypoint resolution is explicit and reproducible,
+	- migration changes do not depend on accidental repo-root path leakage,
+	- package/import validation strategy is ready to harden as soon as package foundation work lands.
+- **Where documented:** This file, `docs/repository_restructure/repository_restructure_checklist.md`, and README/developer setup docs when canonical command is finalized.
 - **Owner:** TBD
 
 ---
@@ -505,8 +589,8 @@ Until these are complete, broad structural movement should be treated as prematu
 
 ## 11. Immediate next actions
 
-- [ ] decide whether API scenario is required
-- [ ] decide whether ingestion/enrichment scenario is required
+- [ ] confirm API scenario remains `Required: no` until backend is part of the active product path
+- [ ] confirm ingestion/enrichment remains `Required: no` for first-pass safety harness while retained as optional validation
 - [ ] enumerate candidate critical flows
 - [ ] choose the initial golden-path scenario
 - [ ] define the first Neo4j-backed integration path
