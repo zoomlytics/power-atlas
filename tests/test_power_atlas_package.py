@@ -14,6 +14,8 @@ def test_package_modules_import() -> None:
     text_utils_module = importlib.import_module("power_atlas.text_utils")
 
     assert package.ALIGNMENT_VERSION is contracts_module.ALIGNMENT_VERSION
+    assert package.PROMPT_IDS is contracts_module.PROMPT_IDS
+    assert package.POWER_ATLAS_RAG_TEMPLATE is contracts_module.POWER_ATLAS_RAG_TEMPLATE
     assert package.AppSettings is settings_module.AppSettings
     assert package.build_settings is bootstrap_module.build_settings
     assert package.build_openai_llm is llm_utils_module.build_openai_llm

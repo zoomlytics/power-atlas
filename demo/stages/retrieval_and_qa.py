@@ -12,6 +12,8 @@ from neo4j_graphrag.embeddings.openai import OpenAIEmbeddings
 from neo4j_graphrag.generation import GraphRAG
 from neo4j_graphrag.message_history import InMemoryMessageHistory, MessageHistory
 
+from power_atlas.bootstrap.clients import create_neo4j_driver
+from power_atlas.settings import Neo4jSettings
 from power_atlas.llm_utils import build_openai_llm
 from neo4j_graphrag.retrievers import VectorCypherRetriever
 from neo4j_graphrag.types import LLMMessage, RetrieverResultItem
@@ -2033,7 +2035,14 @@ def run_retrieval_and_qa(
     if missing_cfg:
         raise ValueError(f"Live retrieval requires config attributes: {', '.join(missing_cfg)}")
 
-    with neo4j.GraphDatabase.driver(neo4j_uri, auth=(neo4j_username, neo4j_password)) as driver:
+    with create_neo4j_driver(
+        Neo4jSettings(
+            uri=neo4j_uri,
+            username=neo4j_username,
+            password=neo4j_password,
+            database=neo4j_database,
+        )
+    ) as driver:
         # Build GraphRAG with the Power Atlas citation-enforcing prompt template and
         # capability-aware LLM for grounded, citation-enforced output.
         # Aligned with vendor pattern from vendor-resources/examples/customize/answer/custom_prompt.py
@@ -2299,7 +2308,14 @@ def run_interactive_qa(
 
     # Build driver, retriever, LLM, and GraphRAG once and reuse across all REPL turns
     # to avoid per-turn connection overhead and Neo4j driver churn.
-    with neo4j.GraphDatabase.driver(neo4j_uri, auth=(neo4j_username, neo4j_password)) as driver:
+    with create_neo4j_driver(
+        Neo4jSettings(
+            uri=neo4j_uri,
+            username=neo4j_username,
+            password=neo4j_password,
+            database=neo4j_database,
+        )
+    ) as driver:
         _, rag = _build_retriever_and_rag(
             driver,
             index_name=resolved_index_name,
