@@ -212,11 +212,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from demo.contracts import RETRIEVAL_METADATA_SURFACE_POLICY
-from demo.contracts import (
-    EARLY_RETURN_PRECEDENCE,
-    EARLY_RETURN_RULE_BY_NAME,
-    resolve_early_return_rule,
-)
 from demo.stages.retrieval_and_qa import (
     _CITATION_FALLBACK_PREFIX,
     _POSTPROCESS_FIELD_MAP,
@@ -224,6 +219,11 @@ from demo.stages.retrieval_and_qa import (
     _postprocess_answer,
     _project_postprocess_to_public,
     run_retrieval_and_qa,
+)
+from power_atlas.contracts import (
+    EARLY_RETURN_PRECEDENCE,
+    EARLY_RETURN_RULE_BY_NAME,
+    resolve_early_return_rule,
 )
 
 # ---------------------------------------------------------------------------
@@ -247,6 +247,16 @@ _DRY_RUN_CONFIG = types.SimpleNamespace(
     openai_model="gpt-4o-mini",
     dry_run=True,
 )
+
+
+def test_demo_early_return_contract_shim_matches_package_exports() -> None:
+    from demo.contracts import EARLY_RETURN_PRECEDENCE as demo_precedence
+    from demo.contracts import EARLY_RETURN_RULE_BY_NAME as demo_rule_by_name
+    from demo.contracts import resolve_early_return_rule as demo_resolver
+
+    assert demo_precedence is EARLY_RETURN_PRECEDENCE
+    assert demo_rule_by_name is EARLY_RETURN_RULE_BY_NAME
+    assert demo_resolver is resolve_early_return_rule
 
 #: A valid synthetic citation token shared across tests.
 _TOKEN = (

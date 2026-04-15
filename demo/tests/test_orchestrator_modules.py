@@ -23,10 +23,10 @@ from demo.contracts.pipeline import (
     CHUNK_EMBEDDING_LABEL,
     CHUNK_EMBEDDING_PROPERTY,
 )
-from demo.contracts.prompts import PROMPT_IDS
 from demo.contracts.runtime import Config, make_run_id
 from demo.contracts.structured import STRUCTURED_FILE_HEADERS
 from demo.stages import lint_and_clean_structured_csvs, run_pdf_ingest
+from power_atlas.contracts import POWER_ATLAS_RAG_TEMPLATE, PROMPT_IDS
 
 
 def _dry_run_config(tmp_path: Path) -> Config:
@@ -1783,8 +1783,6 @@ def test_format_cluster_context_handles_unknown_membership_status():
 
 def test_power_atlas_rag_template_includes_provisional_cluster_instructions():
     """The prompt template must include instructions for handling provisional cluster context."""
-    from demo.contracts.prompts import POWER_ATLAS_RAG_TEMPLATE
-
     tmpl = POWER_ATLAS_RAG_TEMPLATE.template
     sys_instructions = POWER_ATLAS_RAG_TEMPLATE.system_instructions
 
@@ -1860,8 +1858,6 @@ def test_build_citation_token_encodes_delimiter_chars():
 
 def test_power_atlas_rag_template_enforces_citation_instructions():
     """The Power Atlas RagTemplate must include citation-enforcement instructions."""
-    from demo.contracts.prompts import POWER_ATLAS_RAG_TEMPLATE
-
     tmpl = POWER_ATLAS_RAG_TEMPLATE.template
     assert "[CITATION|" in tmpl, "Template must reference citation token format"
     assert "context" in tmpl.lower(), "Template must reference context"
@@ -1874,8 +1870,6 @@ def test_power_atlas_rag_template_enforces_citation_instructions():
 def test_power_atlas_rag_template_prohibits_history_as_evidence():
     """The Power Atlas RagTemplate must explicitly state that message history provides
     conversational context only and must never be used as answer evidence."""
-    from demo.contracts.prompts import POWER_ATLAS_RAG_TEMPLATE
-
     tmpl = POWER_ATLAS_RAG_TEMPLATE.template
     sys_instructions = POWER_ATLAS_RAG_TEMPLATE.system_instructions
 
@@ -1899,18 +1893,23 @@ def test_power_atlas_rag_template_prohibits_history_as_evidence():
 def test_power_atlas_rag_template_uses_vendor_rag_template_class():
     """Power Atlas template must extend the vendor RagTemplate for GraphRAG wiring."""
     from neo4j_graphrag.generation import RagTemplate
-    from demo.contracts.prompts import POWER_ATLAS_RAG_TEMPLATE
 
     assert isinstance(POWER_ATLAS_RAG_TEMPLATE, RagTemplate)
 
 
 def test_power_atlas_rag_template_prompt_id_updated():
     """qa prompt ID must reflect the updated prompt version (qa_v3) with cluster-aware instructions."""
-    from demo.contracts.prompts import PROMPT_IDS
-
     assert PROMPT_IDS["qa"] == "qa_v3", (
         "PROMPT_IDS['qa'] must be updated to 'qa_v3' to reflect the cluster-aware prompt template"
     )
+
+
+def test_demo_prompt_contract_shim_matches_package_exports():
+    from demo.contracts.prompts import POWER_ATLAS_RAG_TEMPLATE as demo_prompt_template
+    from demo.contracts.prompts import PROMPT_IDS as demo_prompt_ids
+
+    assert demo_prompt_template is POWER_ATLAS_RAG_TEMPLATE
+    assert demo_prompt_ids is PROMPT_IDS
 
 
 def test_check_all_answers_cited_fully_cited():
@@ -2569,7 +2568,6 @@ def test_retrieval_and_qa_live_path_uses_openai_llm_with_model_from_config(tmp_p
 def test_retrieval_and_qa_live_path_uses_power_atlas_prompt_template(tmp_path: Path):
     """Live path must pass the Power Atlas citation-enforcing prompt template to GraphRAG."""
     from demo.stages import run_retrieval_and_qa
-    from demo.contracts.prompts import POWER_ATLAS_RAG_TEMPLATE
 
     captured_prompt: dict = {}
 

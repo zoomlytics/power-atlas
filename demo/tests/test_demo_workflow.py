@@ -14,7 +14,7 @@ from pathlib import Path
 
 import yaml
 
-from demo.contracts import PROMPT_IDS
+from power_atlas.contracts import PROMPT_IDS
 
 
 DEMO_DIR = Path(__file__).resolve().parents[1]
