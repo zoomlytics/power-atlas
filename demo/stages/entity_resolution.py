@@ -227,7 +227,7 @@ from urllib.parse import quote as _pct_encode
 
 from demo.contracts.pipeline import get_dataset_id
 from demo.contracts.resolution import ALIGNMENT_VERSION as _ALIGNMENT_VERSION
-from demo.text_utils import normalize_mention_text
+from power_atlas.text_utils import normalize_mention_text
 
 # Bump this constant whenever the resolution strategies or scoring logic change
 # so that RESOLVES_TO edges in the graph can be distinguished by the version that

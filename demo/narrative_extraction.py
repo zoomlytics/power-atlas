@@ -30,7 +30,7 @@ from neo4j_graphrag.experimental.components.types import (
     TextChunks,
 )
 
-from demo.llm_utils import build_openai_llm
+from power_atlas.llm_utils import build_openai_llm
 
 import neo4j
 

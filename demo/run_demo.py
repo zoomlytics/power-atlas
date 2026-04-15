@@ -9,6 +9,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Callable
 
+from power_atlas.bootstrap import build_settings as _build_package_settings
+
 from demo.contracts import pipeline as pipeline_contracts
 
 pipeline_contracts.refresh_pipeline_contract()
@@ -54,6 +56,7 @@ def _now_iso() -> str:
 
 
 def _add_common_args(parser: argparse.ArgumentParser) -> None:
+    package_settings = _build_package_settings()
     mode_group = parser.add_mutually_exclusive_group()
     mode_group.add_argument(
         "--dry-run",
@@ -69,11 +72,11 @@ def _add_common_args(parser: argparse.ArgumentParser) -> None:
     )
     parser.set_defaults(dry_run=True)
     parser.add_argument("--output-dir", type=Path, default=ARTIFACTS_DIR)
-    parser.add_argument("--neo4j-uri", default=os.getenv("NEO4J_URI", "neo4j://localhost:7687"))
-    parser.add_argument("--neo4j-username", default=os.getenv("NEO4J_USERNAME", "neo4j"))
-    parser.add_argument("--neo4j-password", default=os.getenv("NEO4J_PASSWORD", "CHANGE_ME_BEFORE_USE"))
-    parser.add_argument("--neo4j-database", default=DEFAULT_DB)
-    parser.add_argument("--openai-model", default=os.getenv("OPENAI_MODEL", "gpt-5.4"))
+    parser.add_argument("--neo4j-uri", default=package_settings.neo4j.uri)
+    parser.add_argument("--neo4j-username", default=package_settings.neo4j.username)
+    parser.add_argument("--neo4j-password", default=package_settings.neo4j.password)
+    parser.add_argument("--neo4j-database", default=package_settings.neo4j.database or DEFAULT_DB)
+    parser.add_argument("--openai-model", default=package_settings.openai_model)
     parser.add_argument(
         "--dataset",
         default=os.getenv("FIXTURE_DATASET"),
@@ -88,16 +91,27 @@ def _add_common_args(parser: argparse.ArgumentParser) -> None:
 
 
 def _build_config_from_args(args: argparse.Namespace) -> Config:
-    if not args.dry_run and args.neo4j_password in ("", "CHANGE_ME_BEFORE_USE"):
+    package_settings = _build_package_settings(
+        {
+            "NEO4J_URI": args.neo4j_uri,
+            "NEO4J_USERNAME": args.neo4j_username,
+            "NEO4J_PASSWORD": args.neo4j_password,
+            "NEO4J_DATABASE": args.neo4j_database,
+            "OPENAI_MODEL": args.openai_model,
+            "POWER_ATLAS_OUTPUT_DIR": str(args.output_dir),
+            "POWER_ATLAS_DATASET": getattr(args, "dataset", None) or "",
+        }
+    )
+    if not args.dry_run and package_settings.neo4j.password in ("", "CHANGE_ME_BEFORE_USE"):
         raise SystemExit("Set NEO4J_PASSWORD or pass --neo4j-password when using --live")
     return Config(
         dry_run=args.dry_run,
         output_dir=args.output_dir,
-        neo4j_uri=args.neo4j_uri,
-        neo4j_username=args.neo4j_username,
-        neo4j_password=args.neo4j_password,
-        neo4j_database=args.neo4j_database,
-        openai_model=args.openai_model,
+        neo4j_uri=package_settings.neo4j.uri,
+        neo4j_username=package_settings.neo4j.username,
+        neo4j_password=package_settings.neo4j.password,
+        neo4j_database=package_settings.neo4j.database,
+        openai_model=package_settings.openai_model,
         question=getattr(args, "question", None),
         resolution_mode=getattr(args, "resolution_mode", None) or "unstructured_only",
         dataset_name=getattr(args, "dataset", None) or None,

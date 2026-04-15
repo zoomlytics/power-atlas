@@ -82,7 +82,7 @@ from typing import Any
 
 import neo4j
 
-from demo.text_utils import normalize_mention_text
+from power_atlas.text_utils import normalize_mention_text
 
 # ---------------------------------------------------------------------------
 # Constants

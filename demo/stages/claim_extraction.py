@@ -22,7 +22,7 @@ async def _async_read_chunks_and_extract(
         claim_extraction_schema,
     )
     from demo.io import RunScopedNeo4jChunkReader
-    from demo.llm_utils import build_openai_llm
+    from power_atlas.llm_utils import build_openai_llm
 
     lexical_config = claim_extraction_lexical_config()
     chunk_reader = RunScopedNeo4jChunkReader(

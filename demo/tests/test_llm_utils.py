@@ -98,7 +98,7 @@ class TestBuildOpenAILLM:
 
     def test_standard_model_receives_temperature_zero(self) -> None:
         captured: dict = {}
-        with mock.patch("demo.llm_utils.OpenAILLM", self._make_fake_llm_class(captured)):
+        with mock.patch("power_atlas.llm_utils.OpenAILLM", self._make_fake_llm_class(captured)):
             build_openai_llm("gpt-4o-mini")
 
         assert captured["model_name"] == "gpt-4o-mini"
@@ -106,7 +106,7 @@ class TestBuildOpenAILLM:
 
     def test_reasoning_model_omits_temperature(self) -> None:
         captured: dict = {}
-        with mock.patch("demo.llm_utils.OpenAILLM", self._make_fake_llm_class(captured)):
+        with mock.patch("power_atlas.llm_utils.OpenAILLM", self._make_fake_llm_class(captured)):
             build_openai_llm("o1-mini")
 
         assert captured["model_name"] == "o1-mini"
@@ -114,7 +114,7 @@ class TestBuildOpenAILLM:
 
     def test_o3_mini_omits_temperature(self) -> None:
         captured: dict = {}
-        with mock.patch("demo.llm_utils.OpenAILLM", self._make_fake_llm_class(captured)):
+        with mock.patch("power_atlas.llm_utils.OpenAILLM", self._make_fake_llm_class(captured)):
             build_openai_llm("o3-mini")
 
         assert captured["model_name"] == "o3-mini"
@@ -122,7 +122,7 @@ class TestBuildOpenAILLM:
 
     def test_o4_mini_omits_temperature(self) -> None:
         captured: dict = {}
-        with mock.patch("demo.llm_utils.OpenAILLM", self._make_fake_llm_class(captured)):
+        with mock.patch("power_atlas.llm_utils.OpenAILLM", self._make_fake_llm_class(captured)):
             build_openai_llm("o4-mini")
 
         assert captured["model_name"] == "o4-mini"
@@ -130,14 +130,14 @@ class TestBuildOpenAILLM:
 
     def test_gpt4_retains_temperature_zero(self) -> None:
         captured: dict = {}
-        with mock.patch("demo.llm_utils.OpenAILLM", self._make_fake_llm_class(captured)):
+        with mock.patch("power_atlas.llm_utils.OpenAILLM", self._make_fake_llm_class(captured)):
             build_openai_llm("gpt-4")
 
         assert captured["model_params"] == {"temperature": 0}
 
     def test_gpt41_retains_temperature_zero(self) -> None:
         captured: dict = {}
-        with mock.patch("demo.llm_utils.OpenAILLM", self._make_fake_llm_class(captured)):
+        with mock.patch("power_atlas.llm_utils.OpenAILLM", self._make_fake_llm_class(captured)):
             build_openai_llm("gpt-4.1")
 
         assert captured["model_params"] == {"temperature": 0}
@@ -148,7 +148,7 @@ class TestBuildOpenAILLM:
     )
     def test_gpt5_base_variants_omit_temperature(self, model_name: str) -> None:
         captured: dict = {}
-        with mock.patch("demo.llm_utils.OpenAILLM", self._make_fake_llm_class(captured)):
+        with mock.patch("power_atlas.llm_utils.OpenAILLM", self._make_fake_llm_class(captured)):
             build_openai_llm(model_name)
 
         assert "temperature" not in (captured["model_params"] or {})
@@ -158,7 +158,7 @@ class TestBuildOpenAILLM:
         self, model_name: str
     ) -> None:
         captured: dict = {}
-        with mock.patch("demo.llm_utils.OpenAILLM", self._make_fake_llm_class(captured)):
+        with mock.patch("power_atlas.llm_utils.OpenAILLM", self._make_fake_llm_class(captured)):
             build_openai_llm(model_name, reasoning_effort="none")
 
         assert captured["model_params"].get("temperature") == 0
@@ -170,7 +170,7 @@ class TestBuildOpenAILLM:
         self, model_name: str, reasoning_effort: str | None
     ) -> None:
         captured: dict = {}
-        with mock.patch("demo.llm_utils.OpenAILLM", self._make_fake_llm_class(captured)):
+        with mock.patch("power_atlas.llm_utils.OpenAILLM", self._make_fake_llm_class(captured)):
             build_openai_llm(model_name, reasoning_effort=reasoning_effort)
 
         params = captured["model_params"] or {}

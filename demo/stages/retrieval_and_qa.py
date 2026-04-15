@@ -12,7 +12,7 @@ from neo4j_graphrag.embeddings.openai import OpenAIEmbeddings
 from neo4j_graphrag.generation import GraphRAG
 from neo4j_graphrag.message_history import InMemoryMessageHistory, MessageHistory
 
-from demo.llm_utils import build_openai_llm
+from power_atlas.llm_utils import build_openai_llm
 from neo4j_graphrag.retrievers import VectorCypherRetriever
 from neo4j_graphrag.types import LLMMessage, RetrieverResultItem
 

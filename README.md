@@ -61,10 +61,19 @@ cp .env.example .env
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+python -m pip install -e ".[dev]"
 ```
 
-### 3. Start Neo4j
+### 3. Installed-package smoke check
+
+Run this once after installation to confirm the new installed-package path is
+working before you start the live pipeline:
+
+```bash
+python -m pytest tests/test_power_atlas_package.py
+```
+
+### 4. Start Neo4j
 
 ```bash
 docker compose up -d neo4j
@@ -80,7 +89,7 @@ Neo4j will be available at:
 CALL gds.version();
 ```
 
-### 4. Run the demo pipeline
+### 5. Run the demo pipeline
 
 See **[`demo/README.md`](demo/README.md)** for the full walkthrough. A typical `unstructured_only` run:
 
