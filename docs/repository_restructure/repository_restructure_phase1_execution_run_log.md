@@ -222,28 +222,29 @@ Use this section to summarize the current best-known status of the companion iso
 
 ### Current run-isolation status
 
-- **Status:** `NOT STARTED | IN PROGRESS | PASS | PARTIAL | FAIL | BLOCKED`
+- **Status:** `PASS`
 - **Baseline dataset:** `demo_dataset_v1`
 - **Companion dataset:** `demo_dataset_v2`
-- **Latest baseline run ID:**
-- **Latest companion run ID:**
-- **Last execution date:**
+- **Latest baseline run ID:** `unstructured_ingest-20260415T084900882156Z-ebb71646`
+- **Latest companion run ID:** `unstructured_ingest-20260415T090432414317Z-e498907f`
+- **Last execution date:** `2026-04-15`
 - **Primary artifact location:**
-- **Notes:**
+  - `demo/artifacts/runs/unstructured_ingest-20260415T090432414317Z-e498907f/`
+- **Notes:** Companion ingest for `demo_dataset_v2` completed cleanly alongside the existing `demo_dataset_v1` graph state (no reset between datasets). Both ask flows produced `all_answers_cited: true`, `citation_fallback_applied: false`, `evidence_level: "full"`. Zero cross-run or cross-dataset leakage observed in retrieval results or graph storage. Explicit `--dataset` and `--run-id` both honored. Implicit dataset-aware latest-run selection correctly resolves per dataset in multi-dataset conditions. Cross-dataset mismatch (`--dataset v1` + `--run-id` from v2) warns but does not fail — warning-not-error posture is consistent with prior Agent A findings. See run entry `phase1-agent-c-001`.
 
 ### Run-isolation evidence checklist
 
-- [ ] baseline run ID recorded
-- [ ] companion ingest executed for `demo_dataset_v2`
-- [ ] companion run ID recorded
-- [ ] ask command executed against baseline dataset/run
-- [ ] ask command executed against companion dataset/run
-- [ ] command targeting remained explicit
-- [ ] no cross-run leakage observed
-- [ ] no cross-dataset ambiguity observed
-- [ ] artifacts saved
-- [ ] drift/issues logged
-- [ ] disposition assigned
+- [x] baseline run ID recorded
+- [x] companion ingest executed for `demo_dataset_v2`
+- [x] companion run ID recorded
+- [x] ask command executed against baseline dataset/run
+- [x] ask command executed against companion dataset/run
+- [x] command targeting remained explicit
+- [x] no cross-run leakage observed
+- [x] no cross-dataset ambiguity observed
+- [x] artifacts saved
+- [x] drift/issues logged
+- [x] disposition assigned
 
 ---
 
@@ -316,6 +317,8 @@ Use this section as a lightweight summary view. Full triage can live elsewhere i
 | RR-P1-003 | 2026-04-15 | output/citation correctness | Root cause identified and confirmed closed: degraded citations were model-floor related, not a postprocessing defect. After updating the default to `gpt-5.4`, a fresh clean rerun from reset restored `all_answers_cited: true`, `citation_fallback_applied: false`, and `evidence_level: "full"`. | P1 | `phase1-agent-b-002` | Ash | closed |
 | RR-P1-004 | 2026-04-15 | CLI/UX | `citation_repair_attempted: false` is expected for the failing baseline run because repair is intentionally only attempted in `--all-runs` mode. Reclassified from unknown behavior to documented-by-code behavior. | P3 | `phase1-agent-e-001` | Ash | closed |
 | RR-P1-005 | 2026-04-15 | documentation drift | `run_demo.py reset` helper output still references script-path forms; Phase 1 posture is module invocation. Minor cosmetic drift. | P3 | `phase1-agent-a-001` | Ash | open |
+| RR-P1-006 | 2026-04-15 | run-id handling | Cross-dataset mismatch (`--dataset <v1>` + `--run-id <v2-run>`) is warning-not-error. Operator gets a visible warning but execution proceeds with mismatched retrieval scope. Confirmed with live execution evidence during companion isolation probing. Consistent with Agent A findings. | P2 | `phase1-agent-c-001` | Ash | open |
+| RR-P1-007 | 2026-04-15 | dataset handling | Most graph nodes (EntityMention, ExtractedClaim, ResolvedEntityCluster) do NOT carry `dataset_id`; isolation relies on `run_id` (tagged on Chunk nodes and extraction nodes). This is by design: the retrieval query contract scopes by `run_id`, not `dataset_id`. No leakage observed, but the provenance coverage gap between `dataset_id` stamping on Chunk vs. non-Chunk nodes should be understood before automation. | P3 | `phase1-agent-c-001` | Ash | open |
 
 Suggested categories:
 
@@ -338,13 +341,13 @@ Use this section as a compact execution-facing view of whether the repo is movin
 ### Snapshot date
 
 - **Date:** `2026-04-15`
-- **Prepared by:** `Agent B`
+- **Prepared by:** `Agent C`
 
 ### Gate-readiness summary
 
 - **Golden path manually proven:** `yes`
 - **Baseline dataset scenario validated:** `yes`
-- **Companion run-isolation scenario validated:** `no`
+- **Companion run-isolation scenario validated:** `yes`
 - **Explicit dataset targeting validated:** `yes`
 - **Explicit run-id targeting validated:** `yes`
 - **Artifacts captured repeatably:** `yes`
@@ -353,9 +356,160 @@ Use this section as a compact execution-facing view of whether the repo is movin
 
 ### Notes
 
-- **What is already true:** All 4 pipeline stages execute without crashing. Dataset and run targeting are explicit and honored. Retrieval returns non-empty results for the golden-path query. A fresh clean rerun from reset with the default `gpt-5.4` produced `68` claims, `246` mentions, a non-empty answer, `all_answers_cited: true`, `citation_fallback_applied: false`, and `evidence_level: "full"`. Interpreter and env requirements are understood.
-- **What remains uncertain:** Baseline proof is complete. The remaining open Phase 1 execution uncertainty is limited to the companion run-isolation scenario for `demo_dataset_v2` and first automation-target selection.
-- **What must happen before package movement starts:** Capture companion run-isolation scenario for `demo_dataset_v2` (Agent C) and select first automation target (Agent D).
+- **What is already true:** All 4 pipeline stages execute without crashing for both `demo_dataset_v1` and `demo_dataset_v2`. Dataset and run targeting are explicit and honored. Retrieval is scoped correctly by `run_id` and `source_uri`. Both companion ask and baseline ask flows produced `all_answers_cited: true`, `citation_fallback_applied: false`, `evidence_level: "full"`. Zero cross-run or cross-dataset leakage observed in retrieval results or graph storage. Implicit dataset-aware latest-run selection correctly resolves per dataset in multi-dataset conditions.
+- **What remains uncertain:** First automation target not yet selected (Agent D).
+- **What must happen before package movement starts:** Select first automation target (Agent D). The run-isolation scenario is now complete.
+
+---
+
+---
+
+### Run ID: `phase1-agent-c-001`
+
+#### Metadata
+
+- **Status:** `PASS`
+- **Date:** `2026-04-15`
+- **Operator / primary agent:** `Agent C`
+- **Supporting agents:** `Agent A` (command forms and prerequisites), `Agent B` (baseline run ID and artifacts), `Agent E` (default-model remediation)
+- **Branch:** `main`
+- **Commit SHA:** `1055aadb546384724619f92b46f8b6a2c1ff4854`
+- **Environment / host context:** macOS, `.venv` Python 3.11.14, Docker Compose Neo4j (`power-atlas-neo4j`, healthy), `OPENAI_MODEL` unset (default `gpt-5.4` path exercised), `NEO4J_PASSWORD` set, `OPENAI_API_KEY` set
+- **Related agent track:** `Agent C`
+
+#### Scope of attempt
+
+- **Intent of this run:** Execute the companion run-isolation scenario for `demo_dataset_v2` alongside the existing `demo_dataset_v1` baseline state. Prove explicit dataset and run targeting remain reliable when both datasets and multiple runs are present in the same graph.
+- **Target scenario:** `run-isolation`
+- **Dataset(s):** `demo_dataset_v1` (baseline), `demo_dataset_v2` (companion)
+- **Expected run ID(s) involved:**
+  - Baseline: `unstructured_ingest-20260415T084900882156Z-ebb71646` (from `phase1-agent-b-002`)
+  - Companion: TBD (produced by companion ingest)
+- **Neo4j posture / dependency state:** Docker Compose Neo4j healthy. Graph contained `demo_dataset_v1` baseline data from `phase1-agent-b-002`; **no reset was performed before companion ingest** — this is the explicit multi-dataset coexistence test. Two v1 run_ids were already present in the graph (`unstructured_ingest-20260415T084733110436Z-90623657` [partial/12 nodes] and `unstructured_ingest-20260415T084900882156Z-ebb71646` [484 nodes]).
+- **Prerequisites assumed satisfied:** baseline PASS from `phase1-agent-b-002`, `.venv` Python 3.11.14 active, Neo4j running, env vars set, `demo/fixtures/datasets/demo_dataset_v2/` present and confirmed (manifest, `chain_of_issuance.pdf`, structured CSVs)
+
+#### Canonical command reference
+
+- **Source doc section(s):**
+  - `repository_restructure_safety_harness.md` Section 9 (companion dataset strategy)
+  - `repository_restructure_safety_harness.md` Section 9.6 (golden-path scenario)
+  - `demo/fixtures/datasets/demo_dataset_v2/README.md` (golden questions)
+
+- **Documented command(s):**
+
+```bash
+# Companion ingest (no reset — multi-dataset coexistence)
+python -m demo.run_demo ingest-pdf --live --dataset demo_dataset_v2
+export UNSTRUCTURED_RUN_ID="<companion-run-id>"
+python -m demo.run_demo extract-claims --live --dataset demo_dataset_v2
+python -m demo.run_demo resolve-entities --live --dataset demo_dataset_v2
+
+# Companion ask
+python -m demo.run_demo ask --live --dataset demo_dataset_v2 --run-id "$UNSTRUCTURED_RUN_ID" --question "Who is listed as the founder of Xapo?"
+
+# Baseline ask (confirm isolation)
+python -m demo.run_demo ask --live --dataset demo_dataset_v1 --run-id "unstructured_ingest-20260415T084900882156Z-ebb71646" --question "What does the document say about Endeavor and MercadoLibre?"
+```
+
+#### Executed command(s)
+
+```bash
+# Step 1: Companion ingest-pdf (no reset; graph retains demo_dataset_v1 data)
+.venv/bin/python -m demo.run_demo ingest-pdf --live --dataset demo_dataset_v2
+# -> companion run ID produced: unstructured_ingest-20260415T090432414317Z-e498907f
+
+# Step 2: Extract claims for companion dataset
+export UNSTRUCTURED_RUN_ID=unstructured_ingest-20260415T090432414317Z-e498907f
+.venv/bin/python -m demo.run_demo extract-claims --live --dataset demo_dataset_v2
+
+# Step 3: Resolve entities for companion dataset
+.venv/bin/python -m demo.run_demo resolve-entities --live --dataset demo_dataset_v2
+
+# Step 4: Ask against companion dataset/run
+.venv/bin/python -m demo.run_demo ask --live --dataset demo_dataset_v2 --run-id "unstructured_ingest-20260415T090432414317Z-e498907f" --question "Who is listed as the founder of Xapo?"
+
+# Step 5: Ask against baseline dataset/run (UNSTRUCTURED_RUN_ID set to v2; --run-id overrides it)
+.venv/bin/python -m demo.run_demo ask --live --dataset demo_dataset_v1 --run-id "unstructured_ingest-20260415T084900882156Z-ebb71646" --question "What does the document say about Endeavor and MercadoLibre?"
+# -> WARNING printed: UNSTRUCTURED_RUN_ID='...e498907f' is set but overridden by --run-id='...ebb71646'.
+
+# Ambiguity probe A: cross-dataset mismatch
+.venv/bin/python -m demo.run_demo ask --live --dataset demo_dataset_v1 --run-id "unstructured_ingest-20260415T090432414317Z-e498907f" --question "test mismatch"
+# -> WARNING printed: --run-id belongs to demo_dataset_v2, but --dataset=demo_dataset_v1 selected
+
+# Ambiguity probe B: implicit latest-run with --dataset (no --run-id)
+# For demo_dataset_v1:
+unset UNSTRUCTURED_RUN_ID
+.venv/bin/python -m demo.run_demo ask --live --dataset demo_dataset_v1 --question "What does the document say about Endeavor?"
+# -> Using retrieval scope: run=unstructured_ingest-20260415T084900882156Z-ebb71646 (correct v1 run)
+
+# For demo_dataset_v2:
+.venv/bin/python -m demo.run_demo ask --live --dataset demo_dataset_v2 --question "Who is associated with Xapo?"
+# -> Using retrieval scope: run=unstructured_ingest-20260415T090432414317Z-e498907f (correct v2 run)
+```
+
+#### Outputs and captured identifiers
+
+- **Produced `UNSTRUCTURED_RUN_ID`:** `unstructured_ingest-20260415T090432414317Z-e498907f`
+- **Other run IDs / identifiers:**
+  - Baseline run (from `phase1-agent-b-002`): `unstructured_ingest-20260415T084900882156Z-ebb71646`
+  - Companion ingest internal vendor pipeline run_id: `b17cc340-b36f-4a24-9bcd-0a7142bade55`
+- **Primary output summary:**
+  - Companion ingest-pdf: 1 document, 18 chunks, 4 pages, `chain_of_issuance.pdf`, `dataset_id: demo_dataset_v2`. No warnings.
+  - Companion extract-claims: `124` claims, `192` entity mentions, `extractor_model: gpt-5.4`, all 18 chunks processed. No warnings.
+  - Companion resolve-entities: `94` clusters created, `dataset_id: demo_dataset_v2`. 4-stage entity-type breakdown produced.
+  - Companion ask: 6 retrieval hits (scores 0.75–0.70), all from `chain_of_issuance.pdf`. `all_answers_cited: true`, `citation_fallback_applied: false`, `evidence_level: "full"`. Answer identified Wences Casares as associated with Xapo with clear in-text citation.
+  - Baseline ask (post-companion): 3 retrieval hits, all from `chain_of_custody.pdf`. `all_answers_cited: true`, `citation_fallback_applied: false`, `evidence_level: "full"`. No v2 content in results.
+- **Citation/output behavior observed:**
+  - Companion ask citations: all reference `chain_of_issuance.pdf` with `run_id=e498907f`. Zero `chain_of_custody.pdf` refs.
+  - Baseline ask citations: all reference `chain_of_custody.pdf` with `run_id=ebb71646`. Zero `chain_of_issuance.pdf` refs.
+  - Cross-mismatch probe: `--run-id overrides --dataset` distinction visible and warned; retrieval proceeds with the explicit run scope (mismatched dataset warning displayed, not failed).
+- **Artifact path(s):**
+  - `demo/artifacts/runs/unstructured_ingest-20260415T090432414317Z-e498907f/pdf_ingest/manifest.json`
+  - `demo/artifacts/runs/unstructured_ingest-20260415T090432414317Z-e498907f/claim_and_mention_extraction/manifest.json`
+  - `demo/artifacts/runs/unstructured_ingest-20260415T090432414317Z-e498907f/entity_resolution/manifest.json`
+  - `demo/artifacts/runs/unstructured_ingest-20260415T090432414317Z-e498907f/retrieval_and_qa/manifest.json`
+  - `demo/artifacts/runs/unstructured_ingest-20260415T084900882156Z-ebb71646/retrieval_and_qa/manifest.json` (updated by re-ask)
+- **Stdout/stderr capture path(s):** `/tmp/phase1_c_v2_ingest.log`, `/tmp/phase1_c_v2_extract.log`, `/tmp/phase1_c_v2_resolve.log`, `/tmp/phase1_c_v2_ask.log`, `/tmp/phase1_c_v1_ask.log`, `/tmp/phase1_c_mismatch_probe.log`, `/tmp/phase1_c_no_runid_probe.log` (session-local)
+
+#### Result assessment
+
+- **What worked:**
+  - Companion ingest completed cleanly for `demo_dataset_v2` without resetting the graph. The two datasets coexist in Neo4j with no cross-contamination.
+  - `dataset_id: "demo_dataset_v2"` confirmed in all four companion-run manifests.
+  - Companion run ID is unambiguous: single obvious line in manifest output.
+  - `extract-claims` produced 124 claims and 192 mentions using `gpt-5.4` with no warnings.
+  - `resolve-entities` produced 94 clusters with no warnings.
+  - Companion ask (`chain_of_issuance.pdf`): 6 retrieval hits, all v2 chunks, `evidence_level: "full"`, `all_answers_cited: true`, `citation_fallback_applied: false`.
+  - Baseline ask (`chain_of_custody.pdf`): 3 retrieval hits, all v1 chunks, `evidence_level: "full"`, `all_answers_cited: true`, `citation_fallback_applied: false`.
+  - `--run-id` explicitly overrides `UNSTRUCTURED_RUN_ID` env var with a visible printed warning — behavior is transparent.
+  - Implicit dataset-aware latest-run selection correctly resolves the right run per dataset in multi-dataset conditions (v1 → `ebb71646`, v2 → `e498907f`).
+  - Graph-level isolation confirmed: v2 Chunk nodes carry only `chain_of_issuance.pdf` source_uri; v1 Chunk nodes carry only `chain_of_custody.pdf` source_uri.
+  - Retrieval query contract uses `c.run_id = $run_id` filter as the primary isolation mechanism.
+- **What failed or remained uncertain:**
+  - Cross-dataset mismatch probe (`--dataset v1` + `--run-id from v2`) produced a visible warning but proceeded — this is warning-not-error behavior (consistent with Agent A findings). The answer for a nonsense question correctly returned a citation fallback (no v1 content appeared). Documented as RR-P1-006.
+  - Most graph nodes (EntityMention, ExtractedClaim, ResolvedEntityCluster) do not carry `dataset_id` — isolation relies on `run_id`. No leakage was observed. Documented as RR-P1-007.
+- **Was dataset selection explicit and correct?:** Yes — `--dataset demo_dataset_v2` confirmed in all 4 companion manifests; `--dataset demo_dataset_v1` confirmed in baseline ask.
+- **Was run targeting explicit and correct?:** Yes — `--run-id` used for both asks; `UNSTRUCTURED_RUN_ID` env var used for extract-claims and resolve-entities as documented; env var override by `--run-id` is transparent with a logged warning.
+- **Did output match expected golden-path behavior?:** Yes for both companion and baseline. Both produced `evidence_level: "full"`, `all_answers_cited: true`, `citation_fallback_applied: false`.
+- **Did this affect Phase 1 gates?:** `yes`
+- **If yes or uncertain, which gate/control is affected?:** Companion run-isolation scenario complete. Phase 1 execution gate is now clear on this dimension.
+
+#### Drift / findings
+
+- **Doc/code mismatch found?:** No new mismatch.
+- **Runtime/config mismatch found?:** No.
+- **Unexpected dependency or setup requirement?:** No new requirements beyond those identified by Agent A.
+- **Safety-harness impact note:** The companion isolation scenario validates the multi-dataset posture described in safety harness Section 9. Both datasets are operable in parallel in the same repo/graph state. Explicit `--dataset` and `--run-id` are honored. The retrieval query contract correctly enforces `run_id` scope. The warning-not-error behavior for cross-dataset mismatch is consistent with documented behavior but should be surfaced as a known operator-risk item (RR-P1-006).
+- **Checklist impact note:** Run-isolation scenario is now complete. The remaining Phase 1 execution gate item is first automation target selection (Agent D).
+- **Recommended immediate follow-up:** Proceed to Agent D automation-target selection. Consider whether RR-P1-006 (warning-not-error cross-dataset mismatch) should be upgraded to a hard-fail before automation is introduced.
+
+#### Disposition
+
+- **Next action owner:** Ash
+- **Next action:** Execute Agent D automation-target selection. Review RR-P1-006 to decide if warning-not-error behavior is acceptable for the automation candidate or should be hardened first.
+- **Priority:** `P1`
+- **Escalation needed?:** no
+- **If escalated, to whom?:** (N/A)
 
 ---
 
