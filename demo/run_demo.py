@@ -73,7 +73,7 @@ def _add_common_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--neo4j-username", default=os.getenv("NEO4J_USERNAME", "neo4j"))
     parser.add_argument("--neo4j-password", default=os.getenv("NEO4J_PASSWORD", "CHANGE_ME_BEFORE_USE"))
     parser.add_argument("--neo4j-database", default=DEFAULT_DB)
-    parser.add_argument("--openai-model", default=os.getenv("OPENAI_MODEL", "gpt-4o-mini"))
+    parser.add_argument("--openai-model", default=os.getenv("OPENAI_MODEL", "gpt-5.4"))
     parser.add_argument(
         "--dataset",
         default=os.getenv("FIXTURE_DATASET"),

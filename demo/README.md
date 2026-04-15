@@ -1148,7 +1148,7 @@ The orchestrator CLI exposes the following subcommands:
 | `NEO4J_USERNAME` | No | Defaults to `neo4j`. Note: `NEO4J_USERNAME`, not `NEO4J_USER` |
 | `NEO4J_PASSWORD` | Yes (live) | |
 | `NEO4J_DATABASE` | No | Defaults to `neo4j` |
-| `OPENAI_MODEL` | No | Defaults to `gpt-4o-mini` if unset |
+| `OPENAI_MODEL` | No | Defaults to `gpt-5.4` if unset. This is the baseline-safe default for `demo_dataset_v1`; `gpt-4o-mini` has produced zero-claim extraction and degraded citation quality on the Phase 1 golden path. |
 | `UNSTRUCTURED_RUN_ID` | Required for independent `extract-claims` and `resolve-entities`; optional for `ask` | For `ask`, `--run-id`, `--latest`, and `--all-runs` are preferred |
 
 Demo vector index: `demo_chunk_embedding_index` (label: `Chunk`, property: `embedding`, dimensions: `1536`).

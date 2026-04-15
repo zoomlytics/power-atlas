@@ -2656,7 +2656,7 @@ def test_retrieval_and_qa_live_path_qa_model_never_none(tmp_path: Path):
 
     assert result["qa_model"] is not None
     assert result["qa_model"] != ""
-    assert result["qa_model"] == "gpt-4o-mini"
+    assert result["qa_model"] == "gpt-5.4"
 
 
 def test_run_interactive_qa_prints_citation_warning_when_uncited(

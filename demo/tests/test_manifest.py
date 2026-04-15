@@ -22,7 +22,7 @@ from demo.contracts.manifest import (
 # ---------------------------------------------------------------------------
 
 def _make_config(**kwargs):
-    defaults = {"dry_run": True, "neo4j_database": "neo4j", "openai_model": "gpt-4o-mini"}
+    defaults = {"dry_run": True, "neo4j_database": "neo4j", "openai_model": "gpt-5.4"}
     defaults.update(kwargs)
     cfg = types.SimpleNamespace(**defaults)
     return cfg
@@ -39,7 +39,7 @@ def _minimal_manifest() -> dict:
             "structured_ingest_run_id": "structured_ingest-abc",
             "unstructured_ingest_run_id": "unstructured_ingest-abc",
         },
-        "config": {"dry_run": True, "neo4j_database": "neo4j", "openai_model": "gpt-4o-mini"},
+        "config": {"dry_run": True, "neo4j_database": "neo4j", "openai_model": "gpt-5.4"},
         "qa_signals": {"all_answers_cited": False, "evidence_level": "no_answer", "warning_count": 0, "warnings": []},
         "stages": {
             "structured_ingest": {"run_id": "structured_ingest-abc", "status": "dry_run", "claims": 5},

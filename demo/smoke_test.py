@@ -244,7 +244,7 @@ def _build_config(output_dir: Path) -> Config:
         neo4j_username=os.getenv("NEO4J_USERNAME", "neo4j"),
         neo4j_password=os.getenv("NEO4J_PASSWORD", "CHANGE_ME_BEFORE_USE"),
         neo4j_database=os.getenv("NEO4J_DATABASE", "neo4j"),
-        openai_model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+        openai_model=os.getenv("OPENAI_MODEL", "gpt-5.4"),
     )
 
 

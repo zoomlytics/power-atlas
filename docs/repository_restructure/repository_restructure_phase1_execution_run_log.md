@@ -199,7 +199,7 @@ Use this section to summarize the current best-known status of the primary basel
 - **Latest successful `UNSTRUCTURED_RUN_ID`:** `unstructured_ingest-20260415T074604232009Z-9339f3e4`
 - **Last execution date:** `2026-04-15`
 - **Primary artifact location:** `demo/artifacts/runs/unstructured_ingest-20260415T074604232009Z-9339f3e4/`
-- **Notes:** All 4 pipeline stages (reset, ingest-pdf, extract-claims, resolve-entities, ask) completed with exit 0. Dataset and run targeting confirmed explicit. Answer and citation tokens produced. Degraded citation quality (`evidence_level: "degraded"`, `citation_fallback_applied: true`). Zero ExtractedClaim nodes written by extract-claims. Safety harness citation quality invariants not yet met. See run entry `phase1-agent-b-001` for full evidence.
+- **Notes:** Initial baseline run with default `gpt-4o-mini` completed but degraded (`extracted_claim_count: 0`, `all_answers_cited: false`, `citation_fallback_applied: true`, `evidence_level: "degraded"`). Follow-up investigation on the same `UNSTRUCTURED_RUN_ID` showed this was not a first-run artifact and not a structural extraction/citation bug: re-running `extract-claims` and `ask` with `gpt-5.4` restored expected behavior (`extracted_claim_count: 77`, `all_answers_cited: true`, `citation_fallback_applied: false`, `evidence_level: "full"`). The demo default model was updated to `gpt-5.4` to match the baseline-safe path. A full clean rerun from reset with the new default is still recommended before promoting baseline status to `PASS`. See run entries `phase1-agent-b-001` and `phase1-agent-e-001`.
 
 ### Baseline evidence checklist
 
@@ -312,9 +312,9 @@ Use this section as a lightweight summary view. Full triage can live elsewhere i
 | ID | Date | Category | Summary | Priority | Source run entry | Owner | Status |
 |---|---|---|---|---|---|---|---|
 | RR-P1-001 | 2026-04-15 | documentation drift | Phase 1 docs do not state Python 3.11+ hard requirement. `datetime.UTC` fails on Python 3.9 immediately. | P1 | `phase1-agent-a-001` | Ash | open |
-| RR-P1-002 | 2026-04-15 | output/citation correctness | `extract-claims` produced 0 ExtractedClaim nodes for `demo_dataset_v1` (`chain_of_custody.pdf`) with `claims_v1` prompt. 181 EntityMention nodes produced. No crash or warning. Root cause unknown. | P1 | `phase1-agent-b-001` | Ash | open |
-| RR-P1-003 | 2026-04-15 | output/citation correctness | `ask` citation quality invariants not met: `all_answers_cited: false`, `citation_fallback_applied: true`, `evidence_level: "degraded"`. Safety harness Section 9.4 expected `true / false / "full"`. May be downstream of RR-P1-002 (zero claims → no graph enrichment). | P1 | `phase1-agent-b-001` | Ash | open |
-| RR-P1-004 | 2026-04-15 | CLI/UX | `citation_repair_attempted: false` — repair pathway was not tried before fallback for the baseline ask run. Expected behavior unclear. | P2 | `phase1-agent-b-001` | Ash | open |
+| RR-P1-002 | 2026-04-15 | output/citation correctness | Root cause identified: defaulting the baseline path to `gpt-4o-mini` drove `extract-claims` to 0 claims on `demo_dataset_v1`. Re-running the same run id with `gpt-5.4` produced `77` claims immediately. Default updated to `gpt-5.4`; pending clean confirmation rerun. | P1 | `phase1-agent-e-001` | Ash | mitigated |
+| RR-P1-003 | 2026-04-15 | output/citation correctness | Root cause identified: degraded citations were also model-floor related, not a postprocessing defect. Re-running `ask` on the same run id with `gpt-5.4` restored `all_answers_cited: true` and `evidence_level: "full"`. Default updated to `gpt-5.4`; pending clean confirmation rerun. | P1 | `phase1-agent-e-001` | Ash | mitigated |
+| RR-P1-004 | 2026-04-15 | CLI/UX | `citation_repair_attempted: false` is expected for the failing baseline run because repair is intentionally only attempted in `--all-runs` mode. Reclassified from unknown behavior to documented-by-code behavior. | P3 | `phase1-agent-e-001` | Ash | closed |
 | RR-P1-005 | 2026-04-15 | documentation drift | `run_demo.py reset` helper output still references script-path forms; Phase 1 posture is module invocation. Minor cosmetic drift. | P3 | `phase1-agent-a-001` | Ash | open |
 
 Suggested categories:
@@ -348,14 +348,14 @@ Use this section as a compact execution-facing view of whether the repo is movin
 - **Explicit dataset targeting validated:** `yes`
 - **Explicit run-id targeting validated:** `yes`
 - **Artifacts captured repeatably:** `yes`
-- **Blocking drift understood:** `partial`
+- **Blocking drift understood:** `yes`
 - **First automation target selected:** `no`
 
 ### Notes
 
-- **What is already true:** All 4 pipeline stages execute without crashing. Dataset and run targeting are explicit and honored. Retrieval returns non-empty results for the golden-path query. Citation token objects are structurally correct. Reset is clean and repeatable. Interpreter and env requirements are understood.
-- **What remains uncertain:** Whether zero-claims output from `extract-claims` is a baseline behavior or a defect. Whether degraded citation quality is the expected first-run state or a regression. Whether `--expand-graph` mode would produce materially different citation quality. Whether the current fallback answer satisfies the spirit of the golden-path citation contract.
-- **What must happen before package movement starts:** At minimum: triage RR-P1-002 (zero claims) and RR-P1-003 (citation quality), agree on whether current baseline output is acceptable as Phase 1 evidence, capture companion run-isolation scenario for `demo_dataset_v2` (Agent C), and select first automation target (Agent D).
+- **What is already true:** All 4 pipeline stages execute without crashing. Dataset and run targeting are explicit and honored. Retrieval returns non-empty results for the golden-path query. A targeted rerun on the same `UNSTRUCTURED_RUN_ID` with `gpt-5.4` restored nonzero claims and fully cited answers. The default demo model now matches the baseline-safe path (`gpt-5.4`). Interpreter and env requirements are understood.
+- **What remains uncertain:** Only whether a fresh run from reset with the corrected default reproduces the remediated quality signals cleanly enough to mark the baseline `PASS`.
+- **What must happen before package movement starts:** Perform one clean confirmation baseline run with the patched default (`gpt-5.4`), capture companion run-isolation scenario for `demo_dataset_v2` (Agent C), and select first automation target (Agent D).
 
 ---
 
@@ -560,3 +560,100 @@ export UNSTRUCTURED_RUN_ID=unstructured_ingest-20260415T074604232009Z-9339f3e4
 - **Priority:** `P1`
 - **Escalation needed?:** yes
 - **If escalated, to whom?:** Ash — citation invariants from safety harness Section 9.4 are not met; zero-claims is an unexpected gap in the graph layer.
+
+---
+
+### Run ID: `phase1-agent-e-001`
+
+#### Metadata
+
+- **Status:** `PASS`
+- **Date:** `2026-04-15`
+- **Operator / primary agent:** `Agent E`
+- **Supporting agents:** `Agent B` (baseline evidence), `Agent A` (command prerequisite reality check)
+- **Branch:** `main`
+- **Commit SHA:** `43805f19e62e65cdfa5b9e1796534d938adb09f0`
+- **Environment / host context:** macOS, `.venv` Python 3.11.14, Docker Compose Neo4j healthy, same run scope as `phase1-agent-b-001`
+- **Related agent track:** `Agent E`
+
+#### Scope of attempt
+
+- **Intent of this run:** Investigate RR-P1-002 (zero claims) and RR-P1-003 (degraded citations), determine whether they reflect first-run instability, prompt/model gap, or a code defect, and apply the smallest fix that restores the expected baseline quality.
+- **Target scenario:** `other: defect-triage and targeted remediation`
+- **Dataset(s):** `demo_dataset_v1`
+- **Expected run ID(s) involved:** `unstructured_ingest-20260415T074604232009Z-9339f3e4`
+- **Neo4j posture / dependency state:** Existing baseline ingest run reused; no reset or new ingest required for isolation.
+- **Prerequisites assumed satisfied:** same prerequisites as `phase1-agent-b-001`
+
+#### Canonical command reference
+
+- **Source doc section(s):**
+  - `repository_restructure_safety_harness.md` Section 9.4
+  - `repository_restructure_safety_harness.md` Section 9.6
+
+- **Documented command(s):**
+
+```bash
+python -m demo.run_demo extract-claims --live --dataset demo_dataset_v1
+python -m demo.run_demo ask --live --dataset demo_dataset_v1 --run-id "$UNSTRUCTURED_RUN_ID" --question "What does the document say about Endeavor and MercadoLibre?"
+```
+
+#### Executed command(s)
+
+```bash
+# Compare the same run_id with a stronger model, no code changes yet.
+python -m demo.run_demo ask --live --dataset demo_dataset_v1 --run-id "unstructured_ingest-20260415T074604232009Z-9339f3e4" --openai-model gpt-5.4 --question "What does the document say about Endeavor and MercadoLibre?"
+
+export UNSTRUCTURED_RUN_ID=unstructured_ingest-20260415T074604232009Z-9339f3e4
+python -m demo.run_demo extract-claims --live --dataset demo_dataset_v1 --openai-model gpt-5.4
+
+python -m demo.run_demo ask --live --dataset demo_dataset_v1 --run-id "unstructured_ingest-20260415T074604232009Z-9339f3e4" --openai-model gpt-5.4 --question "What does the document say about Endeavor and MercadoLibre?"
+
+# Remediation in code:
+# default OPENAI_MODEL fallback changed from gpt-4o-mini to gpt-5.4 in demo/run_demo.py,
+# demo/stages/retrieval_and_qa.py, and demo/smoke_test.py; docs and tests updated.
+```
+
+#### Outputs and captured identifiers
+
+- **Produced `UNSTRUCTURED_RUN_ID`:** reused existing run id `unstructured_ingest-20260415T074604232009Z-9339f3e4`
+- **Other run IDs / identifiers:** none
+- **Primary output summary:**
+  - `ask` with `gpt-5.4` on the same retrieval scope immediately restored full citation quality: `all_answers_cited: true`, `citation_fallback_applied: false`, `evidence_level: "full"`.
+  - `extract-claims` with `gpt-5.4` on the same ingest run wrote `77` ExtractedClaim nodes and `249` EntityMention nodes with no warnings.
+  - `ask` with `gpt-5.4` after re-extraction remained fully cited (`all_answers_cited: true`, `evidence_level: "full"`).
+  - Targeted tests after the code fix: `52 passed, 186 deselected`.
+  - Runtime default check after the code fix: `_parse_args(['ask']).openai_model` prints `gpt-5.4`.
+- **Citation/output behavior observed:** Fully cited 4-paragraph answer on the same query, with no fallback prefix and no citation warnings.
+- **Artifact path(s):**
+  - `demo/artifacts/runs/unstructured_ingest-20260415T074604232009Z-9339f3e4/claim_and_mention_extraction/manifest.json`
+  - `demo/artifacts/runs/unstructured_ingest-20260415T074604232009Z-9339f3e4/retrieval_and_qa/manifest.json`
+  - session-local captures: `/tmp/quality_compare_out.txt`, `/tmp/quality_fix_pytest.txt`, `/tmp/quality_fix_default.txt`
+- **Stdout/stderr capture path(s):** `/tmp/quality_compare_out.txt`, `/tmp/quality_fix_pytest.txt`, `/tmp/quality_fix_default.txt`
+
+#### Result assessment
+
+- **What worked:** The same run id produced good extraction and good citations as soon as the model was switched to `gpt-5.4`. The extraction pipeline code and citation postprocessing code behaved as designed. Updating the default model resolved the operator-facing regression path.
+- **What failed or remained uncertain:** A full clean rerun from reset with the new default has not yet been performed, so the baseline record remains conservatively `PARTIAL` until the entire path is replayed with the patched default.
+- **Was dataset selection explicit and correct?:** Yes
+- **Was run targeting explicit and correct?:** Yes
+- **Did output match expected golden-path behavior?:** Yes, for the targeted remediation rerun.
+- **Did this affect Phase 1 gates?:** `yes`
+- **If yes or uncertain, which gate/control is affected?:** It converts RR-P1-002 / RR-P1-003 from “unknown runtime quality gap” to “default model posture drift.” The Phase 1 gate is now blocked only on performing a clean confirmation run with the corrected default, not on an unresolved product defect.
+
+#### Drift / findings
+
+- **Doc/code mismatch found?:** Yes — repo docs and CLI default still treated `gpt-4o-mini` as the default despite the artifact history and fresh rerun showing `gpt-5.4` is the baseline-safe model for `demo_dataset_v1`.
+- **Runtime/config mismatch found?:** Yes — the degraded baseline was caused by defaulting to a model below the quality floor, not by broken stage wiring.
+- **Unexpected dependency or setup requirement?:** No new dependency. Only model selection changed.
+- **Safety-harness impact note:** RR-P1-002 and RR-P1-003 are reclassified as a model-floor issue. The safety harness remains valid; the default configuration was the drift point.
+- **Checklist impact note:** Phase 1 baseline evidence should now be captured again with the corrected default model. No packaging or structural blocker remains from these two findings.
+- **Recommended immediate follow-up:** Perform one clean reset → ingest-pdf → extract-claims → resolve-entities → ask run with the patched default (`gpt-5.4`) and update the baseline status if the manifests match the remediated quality signals.
+
+#### Disposition
+
+- **Next action owner:** Ash
+- **Next action:** Re-run the full baseline once with the new default and close RR-P1-002 / RR-P1-003 if the fresh manifests match the remediated run.
+- **Priority:** `P1`
+- **Escalation needed?:** no
+- **If escalated, to whom?:** (N/A)

@@ -1794,7 +1794,7 @@ def run_retrieval_and_qa(
     qa_model = getattr(config, "openai_model", None)
     # effective_qa_model is the model that will actually be used for generation; it
     # includes the fallback default so the manifest always reflects the true model.
-    effective_qa_model = qa_model or "gpt-4o-mini"
+    effective_qa_model = qa_model or "gpt-5.4"
     qa_prompt_version = PROMPT_IDS["qa"]
 
     # Use provided run_id/source_uri in citation examples so provenance fields align with stage metadata;
@@ -2282,7 +2282,7 @@ def run_interactive_qa(
         raise ValueError(f"Live retrieval requires config attributes: {', '.join(missing_cfg)}")
 
     resolved_index_name = index_name if index_name is not None else CHUNK_EMBEDDING_INDEX_NAME
-    effective_qa_model = getattr(config, "openai_model", None) or "gpt-4o-mini"
+    effective_qa_model = getattr(config, "openai_model", None) or "gpt-5.4"
     retrieval_query = _select_retrieval_query(
         expand_graph=expand_graph, cluster_aware=cluster_aware, all_runs=all_runs
     )
