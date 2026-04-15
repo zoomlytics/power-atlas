@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "power-atlas"
+version = "0.1.0"
+description = "Power Atlas package foundation"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "neo4j-graphrag[openai]",
+    "python-dotenv",
+    "pydantic>=2.6,<3",
+    "neo4j>=5,<6",
+    "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-cov",
+    "ruff",
+    "mypy",
+    "types-python-dateutil",
+]
+
+[tool.setuptools.package-dir]
+"" = "src"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["power_atlas*"]

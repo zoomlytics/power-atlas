@@ -1,0 +1,16 @@
+README.md
+pyproject.toml
+src/power_atlas/__init__.py
+src/power_atlas/settings.py
+src/power_atlas.egg-info/PKG-INFO
+src/power_atlas.egg-info/SOURCES.txt
+src/power_atlas.egg-info/dependency_links.txt
+src/power_atlas.egg-info/requires.txt
+src/power_atlas.egg-info/top_level.txt
+src/power_atlas/bootstrap/__init__.py
+src/power_atlas/bootstrap/app.py
+tests/test_example_synthetic_pdfs.py
+tests/test_local_pdf_graphrag.py
+tests/test_power_atlas_package.py
+tests/test_simple_kg_builder_from_pdf.py
+tests/test_sync_vendor_version.py
