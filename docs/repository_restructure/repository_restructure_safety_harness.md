@@ -1,6 +1,6 @@
 # Repository Restructure Safety Harness
 
-Status: Draft  
+Status: Accepted  
 Applies to: `zoomlytics/power-atlas`  
 Related documents:
 - `docs/repository_restructure/repository_restructure_plan.md`
@@ -502,10 +502,10 @@ Use this section to record the initial selected scenarios.
 
 ### 9.6 Golden-path scenario
 
-- **Name:** Candidate unstructured-first retrieval -> answer -> citation golden path
-- **Purpose:** Primary before/after migration comparison scenario because it exercises the current highest-value active flow.
+- **Name:** Selected unstructured-first retrieval -> answer -> citation golden path
+- **Purpose:** Selected initial baseline scenario for before/after migration comparison because it exercises the current highest-value active flow.
 - **Entrypoint:** Demo CLI path (`python -m demo.run_demo ...`)
-- **Command or request:** Candidate canonical sequence:
+- **Command or request:** Selected initial baseline sequence:
 	- `python -m demo.run_demo ingest-pdf --live`
 	- `python -m demo.run_demo extract-claims --live`
 	- `python -m demo.run_demo resolve-entities --live`
@@ -589,11 +589,12 @@ Until these are complete, broad structural movement should be treated as prematu
 
 ## 11. Immediate next actions
 
-- [ ] confirm API scenario remains `Required: no` until backend is part of the active product path
-- [ ] confirm ingestion/enrichment remains `Required: no` for first-pass safety harness while retained as optional validation
-- [ ] enumerate candidate critical flows
-- [ ] choose the initial golden-path scenario
-- [ ] define the first Neo4j-backed integration path
-- [ ] define the package/import validation command
-- [ ] assign owners for each initial scenario
+- [x] confirm API scenario is `Required: no` — backend is scaffolding, not an active product boundary
+- [x] confirm ingestion/enrichment is `Required: no` for first-pass Phase 1 gating, retained as optional validation
+- [x] enumerate candidate critical flows — initial repo-informed scenario inventory documented in Section 9
+- [x] choose the initial golden-path scenario — unstructured-first retrieval → answer → citation (Section 9.6)
+- [ ] finalize canonical entrypoint commands from scenario inventory with Phase 1 owner confirmation
+- [ ] confirm first runnable Neo4j integration baseline against local dev environment
+- [ ] finalize package/import validation command once Phase 2 packaging metadata is in place
+- [ ] assign owners for each scenario inventory item
 - [ ] record accepted behavior-preservation criteria

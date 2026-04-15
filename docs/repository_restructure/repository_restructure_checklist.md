@@ -58,7 +58,7 @@ Use the following status values consistently:
 **Status:** not started  
 **Owner:**  
 **Blockers:**  
-**Notes:**  
+**Notes:** Initial repo-informed scenario inventory has been documented in `repository_restructure_safety_harness.md`. Current first-pass safety posture treats the API scenario as non-required (backend is scaffolding) and ingestion/enrichment as optional. Owners and executable command finalization still needed before Phase 1 can begin execution.
 
 ### Exit criteria
 

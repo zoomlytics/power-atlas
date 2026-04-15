@@ -714,14 +714,14 @@ To avoid over-engineering, these are **out of scope for the first pass unless al
 
 ## 9. Recommended immediate next work items
 
-If implementation starts this week, do these in order:
+The decision register, migration checklist, and safety harness are in place. The next work in sequence is:
 
-1. accept and finalize the decision register,
-2. define the safety harness scenarios,
-3. create the restructuring checklist / phase tracker,
-4. set up `src/power_atlas/`, packaging, and bootstrap shell,
-5. move current implementation mechanically,
-6. stabilize imports and green the safety harness.
+1. accept and finalize the safety harness document,
+2. assign Phase 1 and Phase 2 owners,
+3. confirm the selected golden-path scenario and finalize its canonical command set,
+4. confirm the first runnable Neo4j-backed integration baseline,
+5. finalize the package/import validation command,
+6. begin Phase 1 execution tasks for the selected safety harness scenarios.
 
 ---
 
