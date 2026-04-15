@@ -6,13 +6,24 @@ from power_atlas.bootstrap import (
     build_settings,
     create_neo4j_driver,
 )
-from power_atlas.contracts import ALIGNMENT_VERSION, POWER_ATLAS_RAG_TEMPLATE, PROMPT_IDS
+from power_atlas.contracts import (
+    ALIGNMENT_VERSION,
+    EARLY_RETURN_PRECEDENCE,
+    EARLY_RETURN_RULE_BY_NAME,
+    EarlyReturnRule,
+    POWER_ATLAS_RAG_TEMPLATE,
+    PROMPT_IDS,
+    resolve_early_return_rule,
+)
 from power_atlas.llm_utils import build_openai_llm
 from power_atlas.settings import AppSettings, Neo4jSettings
 from power_atlas.text_utils import normalize_mention_text
 
 __all__ = [
     "ALIGNMENT_VERSION",
+    "EARLY_RETURN_PRECEDENCE",
+    "EARLY_RETURN_RULE_BY_NAME",
+    "EarlyReturnRule",
     "AppBootstrap",
     "AppSettings",
     "Neo4jSettings",
@@ -25,4 +36,5 @@ __all__ = [
     "build_settings",
     "create_neo4j_driver",
     "normalize_mention_text",
+    "resolve_early_return_rule",
 ]

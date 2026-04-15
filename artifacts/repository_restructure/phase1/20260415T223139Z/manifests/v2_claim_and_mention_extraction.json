@@ -1,0 +1,54 @@
+{
+  "config": {
+    "dry_run": false,
+    "neo4j_database": "neo4j",
+    "openai_model": "gpt-5.4"
+  },
+  "created_at": "2026-04-15T22:36:00.549111+00:00",
+  "dataset_id": "demo_dataset_v2",
+  "finished_at": "2026-04-15T22:36:00.548672+00:00",
+  "run_id": "unstructured_ingest-20260415T223350733663Z-ae7e23f8",
+  "run_scopes": {
+    "batch_mode": "single_independent_run",
+    "unstructured_ingest_run_id": "unstructured_ingest-20260415T223350733663Z-ae7e23f8"
+  },
+  "stages": {
+    "claim_and_mention_extraction": {
+      "chunk_ids": [
+        "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf:0",
+        "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf:1",
+        "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf:10",
+        "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf:11",
+        "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf:12",
+        "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf:13",
+        "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf:14",
+        "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf:15",
+        "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf:16",
+        "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf:17",
+        "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf:2",
+        "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf:3",
+        "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf:4",
+        "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf:5",
+        "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf:6",
+        "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf:7",
+        "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf:8",
+        "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf:9"
+      ],
+      "chunks_processed": 18,
+      "chunks_with_extractions": 18,
+      "claims": 129,
+      "entity_mention_count": 213,
+      "extracted_claim_count": 129,
+      "extractor_model": "gpt-5.4",
+      "mentions": 213,
+      "object_edges": 98,
+      "prompt_version": "claims_v1",
+      "run_id": "unstructured_ingest-20260415T223350733663Z-ae7e23f8",
+      "source_uri": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf",
+      "status": "live",
+      "subject_edges": 117,
+      "warnings": []
+    }
+  },
+  "started_at": "2026-04-15T22:34:46.435088+00:00"
+}

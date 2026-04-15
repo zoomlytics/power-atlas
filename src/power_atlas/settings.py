@@ -18,6 +18,7 @@ class Neo4jSettings:
 class AppSettings:
     neo4j: Neo4jSettings
     openai_model: str = "gpt-5.4"
+    embedder_model: str = "text-embedding-3-small"
     output_dir: Path = Path("artifacts")
     dataset_name: str | None = None
 
@@ -35,6 +36,11 @@ class AppSettings:
         return cls(
             neo4j=neo4j,
             openai_model=env.get("OPENAI_MODEL", cls.openai_model),
+            embedder_model=(
+                env.get("POWER_ATLAS_EMBEDDER_MODEL")
+                or env.get("OPENAI_EMBEDDER_MODEL")
+                or cls.embedder_model
+            ),
             output_dir=output_dir,
             dataset_name=dataset_name,
         )

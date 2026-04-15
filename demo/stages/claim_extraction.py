@@ -6,8 +6,8 @@ import os
 from typing import Any
 
 from power_atlas.bootstrap.clients import create_neo4j_driver
+from power_atlas.contracts.prompts import PROMPT_IDS
 from power_atlas.settings import Neo4jSettings
-from demo.contracts import PROMPT_IDS
 
 
 async def _async_read_chunks_and_extract(

@@ -12,16 +12,21 @@ from neo4j_graphrag.embeddings.openai import OpenAIEmbeddings
 from neo4j_graphrag.generation import GraphRAG
 from neo4j_graphrag.message_history import InMemoryMessageHistory, MessageHistory
 
-from power_atlas.bootstrap.clients import create_neo4j_driver
-from power_atlas.settings import Neo4jSettings
+from power_atlas.bootstrap.clients import build_embedder_for_settings, create_neo4j_driver
+from power_atlas.contracts import (
+    ALIGNMENT_VERSION,
+    POWER_ATLAS_RAG_TEMPLATE,
+    PROMPT_IDS,
+    resolve_early_return_rule,
+)
+from power_atlas.settings import AppSettings, Neo4jSettings
 from power_atlas.llm_utils import build_openai_llm
 from neo4j_graphrag.retrievers import VectorCypherRetriever
 from neo4j_graphrag.types import LLMMessage, RetrieverResultItem
 
-from demo.contracts import CHUNK_EMBEDDING_INDEX_NAME, EMBEDDER_MODEL_NAME, PROMPT_IDS, ALIGNMENT_VERSION, resolve_early_return_rule
+from demo.contracts import CHUNK_EMBEDDING_INDEX_NAME, EMBEDDER_MODEL_NAME
 from demo.contracts.paths import AmbiguousDatasetError as _AmbiguousDatasetError
 from demo.contracts.paths import resolve_dataset_root as _resolve_dataset_root
-from demo.contracts.prompts import POWER_ATLAS_RAG_TEMPLATE
 
 _DEFAULT_TOP_K = 10
 _logger = logging.getLogger(__name__)
@@ -1714,7 +1719,14 @@ def _build_retriever_and_rag(
     neo4j_database:
         Optional Neo4j database name; ``None`` uses the driver's default database.
     """
-    embedder = OpenAIEmbeddings(model=EMBEDDER_MODEL_NAME)
+    embedder = build_embedder_for_settings(
+        AppSettings(
+            neo4j=Neo4jSettings(),
+            openai_model=qa_model,
+            embedder_model=EMBEDDER_MODEL_NAME,
+        ),
+        embedder_factory=OpenAIEmbeddings,
+    )
     retriever = VectorCypherRetriever(
         driver=driver,
         index_name=index_name,

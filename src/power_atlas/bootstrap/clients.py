@@ -22,8 +22,14 @@ def build_llm_for_settings(
     return build_openai_llm(settings.openai_model, reasoning_effort=reasoning_effort)
 
 
-def build_embedder_for_settings(settings: AppSettings) -> OpenAIEmbeddings:
-    return OpenAIEmbeddings(model=settings.openai_model)
+def build_embedder_for_settings(
+    settings: AppSettings,
+    *,
+    embedder_factory=None,
+):
+    if embedder_factory is None:
+        embedder_factory = OpenAIEmbeddings
+    return embedder_factory(model=settings.embedder_model)
 
 
 __all__ = [

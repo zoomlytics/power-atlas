@@ -1,0 +1,48 @@
+=== Phase 1 Verify — Validation Summary ===
+Run timestamp:  20260415T223139Z
+Commit SHA:     c7064b26107c2b9f7c07585ae10576ecce95ae75
+Started at:     2026-04-15T22:31:39Z
+Finished at:    2026-04-15T22:36:35Z
+Model:          gpt-5.4
+
+--- Baseline: demo_dataset_v1 ---
+Run ID: unstructured_ingest-20260415T223143807315Z-d8a30306
+
+  Claim/mention extraction:
+  extracted_claim_count: 76
+  entity_mention_count:  241
+  extractor_model:       gpt-5.4
+
+  QA / citation (baseline ask):
+  all_answers_cited:         True
+  citation_fallback_applied: False
+  evidence_level:            full
+  hits:                      10
+  qa_model:                  gpt-5.4
+
+--- Companion: demo_dataset_v2 ---
+Run ID: unstructured_ingest-20260415T223350733663Z-ae7e23f8
+
+  Claim/mention extraction:
+  extracted_claim_count: 129
+  entity_mention_count:  213
+  extractor_model:       gpt-5.4
+
+  QA / citation (companion ask):
+  all_answers_cited:         True
+  citation_fallback_applied: False
+  evidence_level:            full
+  hits:                      7
+  qa_model:                  gpt-5.4
+
+--- Baseline isolation re-ask (demo_dataset_v1 post-v2 ingest) ---
+Run ID: unstructured_ingest-20260415T223143807315Z-d8a30306
+
+  QA / citation (isolation re-ask):
+  all_answers_cited:         True
+  citation_fallback_applied: False
+  evidence_level:            full
+  hits:                      5
+  qa_model:                  gpt-5.4
+
+=== End of validation summary ===
