@@ -481,23 +481,6 @@ Use this section to record the initial selected scenarios.
 - **Where documented:** TBD
 - **Owner:** TBD
 
-### 9.6 Neo4j-backed integration scenario
-
-- **Name:** TBD
-- **Entrypoint:** TBD
-- **Neo4j setup required:** TBD
-- **Expected invariants:** TBD
-- **Failure conditions:** TBD
-- **Owner:** TBD
-
-### 9.7 Package/import validation scenario
-
-- **Name:** TBD
-- **Command:** TBD
-- **What it proves:** TBD
-- **Failure conditions:** TBD
-- **Owner:** TBD
-
 ---
 
 ## 10. Phase 1 exit gate
