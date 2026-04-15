@@ -379,16 +379,23 @@ These should block progress unless explicitly approved:
 
 Use this section to record the initial selected scenarios.
 
+Initial dataset strategy for Phase 1:
+
+- Primary baseline dataset: `demo_dataset_v1`
+- Companion run-isolation dataset: `demo_dataset_v2`
+- In this multi-dataset repository, baseline commands should use explicit dataset selection (`--dataset <name>` or `FIXTURE_DATASET=<name>`) to avoid ambiguous dataset resolution.
+
 ### 9.1 CLI scenario
 
 - **Name:** Candidate demo CLI retrieval-and-answer flow
 - **Purpose:** Verify that the active product path (`demo/` CLI orchestration) still executes end-to-end through retrieval and answer generation after package/import movement.
 - **Entrypoint:** `python -m demo.run_demo`
 - **Command:** Candidate sequence from `demo/VALIDATION_RUNBOOK.md`:
-	- `python -m demo.run_demo ingest-pdf --live`
-	- `python -m demo.run_demo extract-claims --live`
-	- `python -m demo.run_demo resolve-entities --live`
-	- `python -m demo.run_demo ask --live --run-id "$UNSTRUCTURED_RUN_ID" --question "What does the document say about Endeavor and MercadoLibre?"`
+	- `python -m demo.run_demo ingest-pdf --live --dataset demo_dataset_v1`
+	- `export UNSTRUCTURED_RUN_ID="<run_id from ingest-pdf output>"`
+	- `python -m demo.run_demo extract-claims --live --dataset demo_dataset_v1`
+	- `python -m demo.run_demo resolve-entities --live --dataset demo_dataset_v1`
+	- `python -m demo.run_demo ask --live --dataset demo_dataset_v1 --run-id "$UNSTRUCTURED_RUN_ID" --question "What does the document say about Endeavor and MercadoLibre?"`
 - **Preconditions:**
 	- required environment variables and model/provider credentials are configured,
 	- Neo4j is reachable,
@@ -506,10 +513,12 @@ Use this section to record the initial selected scenarios.
 - **Purpose:** Selected initial baseline scenario for before/after migration comparison because it exercises the current highest-value active flow.
 - **Entrypoint:** Demo CLI path (`python -m demo.run_demo ...`)
 - **Command or request:** Selected initial baseline sequence:
-	- `python -m demo.run_demo ingest-pdf --live`
-	- `python -m demo.run_demo extract-claims --live`
-	- `python -m demo.run_demo resolve-entities --live`
-	- `python -m demo.run_demo ask --live --run-id "$UNSTRUCTURED_RUN_ID" --question "What does the document say about Endeavor and MercadoLibre?"`
+	- `python -m demo.reset_demo_db --confirm`
+	- `python -m demo.run_demo ingest-pdf --live --dataset demo_dataset_v1`
+	- `export UNSTRUCTURED_RUN_ID="<run_id from ingest-pdf output>"`
+	- `python -m demo.run_demo extract-claims --live --dataset demo_dataset_v1`
+	- `python -m demo.run_demo resolve-entities --live --dataset demo_dataset_v1`
+	- `python -m demo.run_demo ask --live --dataset demo_dataset_v1 --run-id "$UNSTRUCTURED_RUN_ID" --question "What does the document say about Endeavor and MercadoLibre?"`
 - **Preconditions:**
 	- Neo4j available with known-good fixture dataset,
 	- credentials configured,
@@ -537,10 +546,11 @@ Use this section to record the initial selected scenarios.
 - **Data/seed prerequisites:** Fixture dataset available (`demo/fixtures/datasets/<dataset_name>/...`), plus fresh graph reset before baseline capture.
 - **Setup/reset instructions:** Candidate baseline from runbook:
 	- `python -m demo.reset_demo_db --confirm`
-	- `python -m demo.run_demo ingest-pdf --live`
-	- `python -m demo.run_demo extract-claims --live`
-	- `python -m demo.run_demo resolve-entities --live`
-	- `python -m demo.run_demo ask --live --run-id "$UNSTRUCTURED_RUN_ID" --expand-graph --question "What does the document say about Endeavor and MercadoLibre?"`
+	- `python -m demo.run_demo ingest-pdf --live --dataset demo_dataset_v1`
+	- `export UNSTRUCTURED_RUN_ID="<run_id from ingest-pdf output>"`
+	- `python -m demo.run_demo extract-claims --live --dataset demo_dataset_v1`
+	- `python -m demo.run_demo resolve-entities --live --dataset demo_dataset_v1`
+	- `python -m demo.run_demo ask --live --dataset demo_dataset_v1 --run-id "$UNSTRUCTURED_RUN_ID" --expand-graph --question "What does the document say about Endeavor and MercadoLibre?"`
 - **Command or test invocation:** Candidate command chain above; final canonical command set should remain aligned to `demo/VALIDATION_RUNBOOK.md` as it evolves.
 - **Expected invariants:**
 	- Neo4j connection succeeds,

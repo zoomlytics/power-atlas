@@ -56,9 +56,9 @@ Use the following status values consistently:
 ## Phase 1 — Migration safety harness
 
 **Status:** not started  
-**Owner:**  
+**Owner:** Ash  
 **Blockers:**  
-**Notes:** Initial repo-informed scenario inventory has been documented in `repository_restructure_safety_harness.md`. Current first-pass safety posture treats the API scenario as non-required (backend is scaffolding) and ingestion/enrichment as optional. Owners and executable command finalization still needed before Phase 1 can begin execution.
+**Notes:** Initial repo-informed scenario inventory has been documented in `repository_restructure_safety_harness.md`. Current first-pass safety posture treats the API scenario as non-required (backend is scaffolding) and ingestion/enrichment as optional. Baseline dataset strategy is explicit: `demo_dataset_v1` for the selected golden path, with `demo_dataset_v2` retained for run-isolation companion validation. Executable command finalization remains needed before Phase 1 execution.
 
 ### Exit criteria
 
