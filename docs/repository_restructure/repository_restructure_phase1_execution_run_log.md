@@ -1083,4 +1083,111 @@ export UNSTRUCTURED_RUN_ID="unstructured_ingest-20260415T084900882156Z-ebb71646"
   - RR-P1-007: Non-Chunk graph nodes do not carry `dataset_id` (P3, by-design, no leakage observed, no automation impact).
   - No new drift discovered by Agent D.
 - **Blockers:** None.
-- **Recommended next action:** Implement `scripts/phase1_verify.sh` and `Makefile` target `phase1-verify` per the spec above. Smoke-test against local Neo4j with real datasets. Confirm artifacts land in `artifacts/repository_restructure/phase1/<datetime>/`. Once a clean first automated run completes, record a `phase1-agent-d-002` entry in this run log showing the first automation output and invariant check results.
+- **Recommended next action:** ~~Implement `scripts/phase1_verify.sh` and `Makefile` target `phase1-verify`.~~ **Done — see `phase1-agent-d-002`.** Next: add `scripts/` and `Makefile` to version control. Consider adding `artifacts/repository_restructure/` to `.gitignore` or a partial ignore (keep manifests, ignore large logs). Then proceed to Phase 1 exit gate review.
+
+---
+
+### Run ID: `phase1-agent-d-002`
+
+#### Metadata
+
+- **Status:** `PASS`
+- **Date:** `2026-04-15`
+- **Operator / primary agent:** `Agent D`
+- **Supporting agents:** `Agent A`, `Agent B`, `Agent C`, `Agent E`
+- **Branch:** `main`
+- **Commit SHA:** `f0d8067e97f3dcbc968bcc96d26885db372b8608`
+- **Environment / host context:** macOS, `.venv` Python 3.11.14, Docker Compose Neo4j healthy, `OPENAI_MODEL` unset (default `gpt-5.4` exercised), `OPENAI_API_KEY` set, `NEO4J_PASSWORD` set
+- **Related agent track:** `Agent D`
+
+#### Scope of attempt
+
+- **Intent of this run:** First automated execution of `scripts/phase1_verify.sh` (smoke-test). Validates the script runs cleanly end-to-end, preflight guards work, all 10 steps complete, and all citation quality invariants hold.
+- **Target scenario:** `artifact-capture`
+- **Dataset(s):** `demo_dataset_v1` (baseline), `demo_dataset_v2` (companion)
+- **Expected run ID(s) involved:** fresh (produced by script)
+- **Neo4j posture / dependency state:** Docker Compose Neo4j healthy. Graph was reset by the script as step 1.
+- **Prerequisites assumed satisfied:** `.venv` Python 3.11.14 active, Neo4j running, env vars set, fixture datasets present.
+
+#### Canonical command reference
+
+- **Source doc section(s):**
+  - `repository_restructure_safety_harness.md` Sections 9.6 and 9.7
+  - Agent D result (see above)
+
+- **Documented command(s):**
+
+```bash
+make phase1-verify
+# or equivalently:
+bash scripts/phase1_verify.sh
+```
+
+#### Executed command(s)
+
+```bash
+bash scripts/phase1_verify.sh > /tmp/phase1_verify_smoke.log 2>&1
+# EXIT_CODE=0
+```
+
+#### Outputs and captured identifiers
+
+- **Produced `UNSTRUCTURED_RUN_ID` (v1):** `unstructured_ingest-20260415T174326394617Z-37512fa6`
+- **Produced `UNSTRUCTURED_RUN_ID` (v2):** `unstructured_ingest-20260415T174836356973Z-0ba53142`
+- **Other run IDs / identifiers:** N/A
+- **Primary output summary:**
+  - Script ran all 10 steps with exit 0.
+  - Preflight guards: Python 3.11.14 ✓, model gpt-5.4 ✓, fixtures present ✓, credentials set ✓.
+  - Reset: `925 nodes`, `2139 relationships` deleted, reset report written.
+  - v1 extract-claims: `73` claims, `242` mentions, `extractor_model: gpt-5.4`.
+  - v2 extract-claims: `107` claims, `189` mentions, `extractor_model: gpt-5.4`.
+  - v1 ask (baseline): `all_answers_cited: True`, `citation_fallback_applied: False`, `evidence_level: full`, `hits: 10`.
+  - v2 ask (companion): `all_answers_cited: True`, `citation_fallback_applied: False`, `evidence_level: full`, `hits: 7`.
+  - v1 isolation re-ask (post-v2 ingest): `all_answers_cited: True`, `citation_fallback_applied: False`, `evidence_level: full`, `hits: 5`. Zero v2 content in retrieval results.
+  - Total wall time: ~7.5 minutes.
+- **Citation/output behavior observed:** All three ask operations produced fully cited output with no fallback. Isolation re-ask confirmed zero v2 leakage into v1 retrieval results.
+- **Artifact path(s):** `artifacts/repository_restructure/phase1/20260415T174324Z/`
+  - `commit_sha.txt`
+  - `run_metadata.json`
+  - `validation_summary.txt`
+  - `logs/00_reset.log` through `logs/09_v1_isolation_ask.log` (10 stage logs)
+  - `manifests/v1_pdf_ingest.json`, `v1_claim_and_mention_extraction.json`, `v1_entity_resolution.json`, `v1_retrieval_and_qa.json`, `v1_isolation_retrieval_and_qa.json`
+  - `manifests/v2_pdf_ingest.json`, `v2_claim_and_mention_extraction.json`, `v2_entity_resolution.json`, `v2_retrieval_and_qa.json`
+- **Stdout/stderr capture path(s):** `/tmp/phase1_verify_smoke.log` (session-local)
+
+#### Result assessment
+
+- **What worked:**
+  - All 10 steps of `phase1_verify.sh` completed successfully with exit 0 end-to-end.
+  - Model guard correctly rejected `gpt-4o-mini` with a clear error message (separately verified).
+  - Run ID extraction (snapshot-based via `comm -13`) correctly identified v1 and v2 run IDs without grepping stdout.
+  - Manifests were copied at the right points: v1 baseline ask manifest captured before the isolation re-ask overwrote it; isolation re-ask captured separately as `v1_isolation_retrieval_and_qa.json`.
+  - All citation quality invariants satisfied for all three ask operations:
+    - `all_answers_cited: True` ✓
+    - `citation_fallback_applied: False` ✓
+    - `evidence_level: full` ✓
+  - Artifact directory structure matches the per-run contract defined in Agent D result.
+  - `make phase1-verify` works as the entry point.
+- **What failed or remained uncertain:** Nothing. Clean first automated run.
+- **Was dataset selection explicit and correct?:** Yes — `--dataset demo_dataset_v1` and `--dataset demo_dataset_v2` used on all commands; confirmed in all manifests.
+- **Was run targeting explicit and correct?:** Yes — explicit `--run-id` on all ask commands; `UNSTRUCTURED_RUN_ID` env var set explicitly for extract/resolve.
+- **Did output match expected golden-path behavior?:** Yes.
+- **Did this affect Phase 1 gates?:** `yes`
+- **If yes or uncertain, which gate/control is affected?:** First automation target is now implemented and smoke-tested. Phase 1 execution gate is now fully met on the automation dimension.
+
+#### Drift / findings
+
+- **Doc/code mismatch found?:** No new drift. Script behavior matches documented contract exactly.
+- **Runtime/config mismatch found?:** No.
+- **Unexpected dependency or setup requirement?:** No. All prerequisites already documented by Agents A–C were sufficient.
+- **Safety-harness impact note:** The script encodes the complete safety harness scenario sequences (§9.6 and §9.7). Behavior preserved: isolation invariants hold, citation quality invariants hold, no leakage between runs.
+- **Checklist impact note:** Phase 1 automation candidate is now implemented, smoke-tested, and artifacts are captured. Remaining work: version control the script and Makefile, decide `.gitignore` posture for `artifacts/repository_restructure/`, proceed to Phase 1 exit gate review.
+- **Recommended immediate follow-up:** Commit `scripts/phase1_verify.sh` and `Makefile`. Decide ignore posture for `artifacts/repository_restructure/` directory. Then run Phase 1 exit gate review.
+
+#### Disposition
+
+- **Next action owner:** Ash
+- **Next action:** Commit `scripts/phase1_verify.sh` and `Makefile`. Review Phase 1 exit gate checklist in `repository_restructure_safety_harness.md` Section 10.
+- **Priority:** `P1`
+- **Escalation needed?:** no
+- **If escalated, to whom?:** (N/A)
