@@ -1,7 +1,10 @@
-# Versioned constants for entity resolution pipeline outputs.
-# Imported by both demo.stages.entity_resolution and demo.stages.retrieval_and_qa
-# so that ALIGNED_WITH edge filtering and edge creation always use the same value.
+"""Compatibility shim for the resolution contract.
 
-# Bump this constant whenever the cluster-to-canonical alignment logic changes so
-# that ALIGNED_WITH edges can be distinguished by the version that created them.
-ALIGNMENT_VERSION: str = "v1.0"
+The implementation now lives in ``power_atlas.contracts.resolution``. This
+legacy module remains so existing demo imports continue to work during the
+staged migration.
+"""
+
+from power_atlas.contracts.resolution import ALIGNMENT_VERSION
+
+__all__ = ["ALIGNMENT_VERSION"]

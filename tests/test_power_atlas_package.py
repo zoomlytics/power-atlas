@@ -7,11 +7,13 @@ from unittest import mock
 
 def test_package_modules_import() -> None:
     package = importlib.import_module("power_atlas")
+    contracts_module = importlib.import_module("power_atlas.contracts")
     settings_module = importlib.import_module("power_atlas.settings")
     bootstrap_module = importlib.import_module("power_atlas.bootstrap")
     llm_utils_module = importlib.import_module("power_atlas.llm_utils")
     text_utils_module = importlib.import_module("power_atlas.text_utils")
 
+    assert package.ALIGNMENT_VERSION is contracts_module.ALIGNMENT_VERSION
     assert package.AppSettings is settings_module.AppSettings
     assert package.build_settings is bootstrap_module.build_settings
     assert package.build_openai_llm is llm_utils_module.build_openai_llm

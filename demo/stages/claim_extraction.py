@@ -5,6 +5,8 @@ import json
 import os
 from typing import Any
 
+from power_atlas.bootstrap.clients import create_neo4j_driver
+from power_atlas.settings import Neo4jSettings
 from demo.contracts import PROMPT_IDS
 
 
@@ -87,7 +89,6 @@ def run_claim_and_mention_extraction(config: Any, *, run_id: str, source_uri: st
     if not os.getenv("OPENAI_API_KEY"):
         raise ValueError("OPENAI_API_KEY environment variable is required for live claim extraction.")
 
-    import neo4j
     from demo.extraction_utils import prepare_extracted_rows, write_all_extraction_data
     from demo.stages.claim_participation import (
         ROLE_OBJECT,
@@ -95,7 +96,14 @@ def run_claim_and_mention_extraction(config: Any, *, run_id: str, source_uri: st
         build_participation_edges,
     )
 
-    driver = neo4j.GraphDatabase.driver(config.neo4j_uri, auth=(config.neo4j_username, config.neo4j_password))
+    driver = create_neo4j_driver(
+        Neo4jSettings(
+            uri=config.neo4j_uri,
+            username=config.neo4j_username,
+            password=config.neo4j_password,
+            database=config.neo4j_database,
+        )
+    )
     edge_rows: list[dict] = []
     with driver:
         graph, text_chunks, lexical_config = asyncio.run(
