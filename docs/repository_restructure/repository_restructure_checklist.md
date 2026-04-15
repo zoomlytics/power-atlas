@@ -5,6 +5,7 @@ Applies to: `zoomlytics/power-atlas`
 Related documents:
 - `docs/repository_restructure/repository_restructure_plan.md`
 - `docs/repository_restructure/repository_restructure_decisions.md`
+- `docs/repository_restructure/repository_restructure_safety_harness.md`
 
 This document converts the canonical repository restructure plan and accepted decision register into an execution tracker.
 
@@ -306,6 +307,8 @@ Use the following status values consistently:
 ---
 
 ## 3. Phase 1 safety harness definition
+
+The full Phase 1 safety harness definition, scenario templates, and inventory are in `docs/repository_restructure/repository_restructure_safety_harness.md`.
 
 The restructuring must not proceed into broad package movement until the following minimum safeguards exist.
 
