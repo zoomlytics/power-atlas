@@ -55,10 +55,10 @@ Use the following status values consistently:
 
 ## Phase 1 — Migration safety harness
 
-**Status:** not started  
+**Status:** complete  
 **Owner:** Ash  
 **Blockers:**  
-**Notes:** Initial repo-informed scenario inventory has been documented in `repository_restructure_safety_harness.md`. Current first-pass safety posture treats the API scenario as non-required (backend is scaffolding) and ingestion/enrichment as optional. Baseline dataset strategy is explicit: `demo_dataset_v1` for the selected golden path, with `demo_dataset_v2` retained for run-isolation companion validation. Executable command finalization remains needed before Phase 1 execution.
+**Notes:** The accepted Phase 1 posture is now proven and documented. Canonical execution uses the `demo/` CLI path against live Neo4j with explicit dataset and run-id targeting. The validated baseline uses `demo_dataset_v1`; the validated companion isolation path uses `demo_dataset_v2`; the accepted automation entrypoint is `make phase1-verify` or `bash scripts/phase1_verify.sh`. Python 3.11+ is required. The accepted model posture is `gpt-5.4`, either via the patched default path with `OPENAI_MODEL` unset or by explicitly setting `OPENAI_MODEL=gpt-5.4`.
 
 ### Exit criteria
 
@@ -70,23 +70,23 @@ Use the following status values consistently:
 
 ### Phase 1 deliverables checklist
 
-- [ ] identify critical CLI flow
-- [ ] identify critical API flow, if backend/API is an active product boundary
-- [ ] identify critical graph retrieval flow
-- [ ] identify critical answer/citation flow
-- [ ] identify critical ingestion or enrichment flow, if in active scope
-- [ ] choose at least one golden-path scenario for stable output comparison
-- [ ] define at least one Neo4j-backed integration path
-- [ ] define package/import validation check
-- [ ] document how baseline outputs will be captured and reviewed
-- [ ] document what failures block Phase 2
+- [x] identify critical CLI flow
+- [x] identify critical API flow, if backend/API is an active product boundary
+- [x] identify critical graph retrieval flow
+- [x] identify critical answer/citation flow
+- [x] identify critical ingestion or enrichment flow, if in active scope
+- [x] choose at least one golden-path scenario for stable output comparison
+- [x] define at least one Neo4j-backed integration path
+- [x] define package/import validation check
+- [x] document how baseline outputs will be captured and reviewed
+- [x] document what failures block Phase 2
 
 ---
 
 ## Phase 2 — Package foundation and composition root
 
 **Status:** not started  
-**Owner:**  
+**Owner:** Ash  
 **Blockers:**  
 **Notes:**  
 
@@ -370,12 +370,12 @@ The following gate must be satisfied before Phase 2 and especially Phase 3 are a
 
 - [x] decision register is accepted
 - [x] canonical migration plan is current
-- [ ] critical-path scenarios are documented
-- [ ] at least one golden-path scenario is defined
-- [ ] at least one Neo4j-backed integration path is defined
-- [ ] package/import validation approach is defined
-- [ ] “behavior preserved” criteria are documented
-- [ ] initial owners for Phase 1 and Phase 2 are assigned
+- [x] critical-path scenarios are documented
+- [x] at least one golden-path scenario is defined
+- [x] at least one Neo4j-backed integration path is defined
+- [x] package/import validation approach is defined
+- [x] “behavior preserved” criteria are documented
+- [x] initial owners for Phase 1 and Phase 2 are assigned
 
 If these boxes are not checked, structural movement should be treated as premature.
 
@@ -395,6 +395,17 @@ Behavior is considered preserved for early restructuring if:
 - contract-breaking regressions are not introduced,
 - any known differences are documented and intentionally accepted.
 
+### Accepted Phase 1 criteria
+
+For Phase 1 gate purposes, behavior is explicitly accepted as preserved when all of the following remain true:
+
+- the canonical command path runs through module invocation (`python -m demo.run_demo ...`) under Python 3.11+,
+- the validated execution posture uses `gpt-5.4` either by leaving `OPENAI_MODEL` unset or by explicitly setting `OPENAI_MODEL=gpt-5.4`,
+- the baseline sequence for `demo_dataset_v1` completes end-to-end from reset with explicit `UNSTRUCTURED_RUN_ID` capture and explicit `--run-id` targeting on `ask`,
+- the companion `demo_dataset_v2` run-isolation sequence completes without reset after the baseline and preserves run-scoped retrieval isolation,
+- answer generation succeeds with citation-quality invariants intact for known-good baseline and isolation checks (`all_answers_cited: true`, `citation_fallback_applied: false`, `citation_quality.evidence_level: "full"`),
+- `make phase1-verify` or `bash scripts/phase1_verify.sh` captures logs, manifests, validation summary, and run metadata under `artifacts/repository_restructure/phase1/<timestamp>/`.
+
 ### Known acceptable differences
 
 Document any allowed differences here, for example:
@@ -403,6 +414,13 @@ Document any allowed differences here, for example:
 - logging changes,
 - file location changes for internal implementation details,
 - non-user-facing naming cleanup.
+
+For Phase 1, the following are explicitly accepted:
+
+- natural-language answer wording may vary as long as the accepted structural invariants and citation-quality signals hold,
+- retrieval hit counts may vary across clean runs as long as retrieval is non-empty for known-good prompts and cross-run isolation is preserved,
+- warning-not-error handling for deliberate cross-dataset mismatch probes remains acceptable because it is visible to operators and is not part of the accepted Phase 1 verification harness,
+- minor helper-text drift that does not affect the canonical module-invocation path does not block Phase 1 closure.
 
 ---
 

@@ -385,19 +385,29 @@ Initial dataset strategy for Phase 1:
 - Companion run-isolation dataset: `demo_dataset_v2`
 - In this multi-dataset repository, baseline commands should use explicit dataset selection (`--dataset <name>` or `FIXTURE_DATASET=<name>`) to avoid ambiguous dataset resolution.
 
+Accepted execution posture for Phase 1:
+
+- Python 3.11+ is required.
+- The validated model posture is `gpt-5.4`.
+- The accepted automation entrypoint is `make phase1-verify` or `bash scripts/phase1_verify.sh`.
+- The accepted CLI execution path uses module invocation (`python -m demo.run_demo ...`) throughout.
+
 ### 9.1 CLI scenario
 
-- **Name:** Candidate demo CLI retrieval-and-answer flow
+- **Name:** Canonical demo CLI retrieval-and-answer flow
 - **Purpose:** Verify that the active product path (`demo/` CLI orchestration) still executes end-to-end through retrieval and answer generation after package/import movement.
 - **Entrypoint:** `python -m demo.run_demo`
-- **Command:** Candidate sequence from `demo/VALIDATION_RUNBOOK.md`:
+- **Command:** Accepted canonical sequence:
+	- `python -m demo.reset_demo_db --confirm`
 	- `python -m demo.run_demo ingest-pdf --live --dataset demo_dataset_v1`
 	- `export UNSTRUCTURED_RUN_ID="<run_id from ingest-pdf output>"`
 	- `python -m demo.run_demo extract-claims --live --dataset demo_dataset_v1`
 	- `python -m demo.run_demo resolve-entities --live --dataset demo_dataset_v1`
 	- `python -m demo.run_demo ask --live --dataset demo_dataset_v1 --run-id "$UNSTRUCTURED_RUN_ID" --question "What does the document say about Endeavor and MercadoLibre?"`
 - **Preconditions:**
+	- Python 3.11+ is used,
 	- required environment variables and model/provider credentials are configured,
+	- `OPENAI_MODEL` is unset or explicitly set to `gpt-5.4`,
 	- Neo4j is reachable,
 	- dataset selection is explicit (`--dataset <name>` or `FIXTURE_DATASET=<name>`) when multiple datasets are present,
 	- `UNSTRUCTURED_RUN_ID` is captured from `ingest-pdf` output for downstream commands.
@@ -414,7 +424,7 @@ Initial dataset strategy for Phase 1:
 	- retrieval/answer stage does not complete,
 	- expected citation structure is missing,
 	- flow only works through accidental import path behavior.
-- **Owner:** TBD
+- **Owner:** Ash
 
 ### 9.2 API scenario
 
@@ -434,13 +444,13 @@ Initial dataset strategy for Phase 1:
 - **Failure conditions:**
 	- this scenario is incorrectly treated as a gating product-path check before backend integration exists,
 	- placeholder behavior is mistaken for fully integrated graph-backed API readiness.
-- **Owner:** TBD
+- **Owner:** Ash
 
 ### 9.3 Graph retrieval scenario
 
-- **Name:** Candidate Neo4j retrieval smoke path (`ask --expand-graph`)
+- **Name:** Canonical Neo4j-backed retrieval smoke path (`ask` baseline)
 - **Purpose:** Verify graph-backed retrieval behavior survives import/runtime changes in the active demo path.
-- **Entrypoint:** `python -m demo.run_demo ask --live --expand-graph`
+- **Entrypoint:** `python -m demo.run_demo ask --live --dataset demo_dataset_v1 --run-id "$UNSTRUCTURED_RUN_ID"`
 - **Graph preconditions:**
 	- Neo4j instance is available,
 	- known-good run exists (`UNSTRUCTURED_RUN_ID`),
@@ -448,20 +458,20 @@ Initial dataset strategy for Phase 1:
 - **Inputs:** Representative query used in the runbook baseline.
 - **Expected invariants:**
 	- retrieval completes with non-empty hits for known-good data,
-	- `retrieval_and_qa` manifest shows graph-expanded retrieval path diagnostics,
+	- `retrieval_and_qa` manifest shows stable retrieval diagnostics for the explicit run scope,
 	- no raw Neo4j driver/session initialization errors occur.
-- **Artifacts produced:** `retrieval_and_qa` manifest (for example under `demo/artifacts_compare/pre_hybrid_expand/...`) plus console output.
+- **Artifacts produced:** `retrieval_and_qa` manifest under `demo/artifacts/runs/<run_id>/retrieval_and_qa/manifest.json` plus console output.
 - **How baseline is captured:** Validate manifest fields and retrieval diagnostics structure rather than exact answer text.
 - **Failure conditions:**
 	- Neo4j connection failure,
 	- retrieval unexpectedly empty for known-good query,
 	- runtime/import wiring failure in retrieval path,
 	- manifest retrieval-path structure missing or malformed.
-- **Owner:** TBD
+- **Owner:** Ash
 
 ### 9.4 Answer/citation scenario
 
-- **Name:** Candidate citation-grounded answer flow (`ask` baseline)
+- **Name:** Canonical citation-grounded answer flow (`ask` baseline)
 - **Purpose:** Verify that answer assembly still produces citation-grounded outputs in the active demo query path.
 - **Entrypoint:** `python -m demo.run_demo ask --live --run-id "$UNSTRUCTURED_RUN_ID"`
 - **Input:** Representative validation question from runbook.
@@ -480,7 +490,7 @@ Initial dataset strategy for Phase 1:
 	- answer generation fails,
 	- citation/source metadata missing or malformed,
 	- output contract shape drifts unexpectedly.
-- **Owner:** TBD
+- **Owner:** Ash
 
 ### 9.5 Ingestion/enrichment scenario
 
@@ -505,14 +515,14 @@ Initial dataset strategy for Phase 1:
 	- command failure,
 	- expected enrichment outputs absent,
 	- hybrid flow fails due to import/runtime wiring changes.
-- **Owner:** TBD
+- **Owner:** Ash
 
 ### 9.6 Golden-path scenario
 
 - **Name:** Selected unstructured-first retrieval -> answer -> citation golden path
 - **Purpose:** Selected initial baseline scenario for before/after migration comparison because it exercises the current highest-value active flow.
 - **Entrypoint:** Demo CLI path (`python -m demo.run_demo ...`)
-- **Command or request:** Selected initial baseline sequence:
+- **Command or request:** Accepted canonical baseline sequence:
 	- `python -m demo.reset_demo_db --confirm`
 	- `python -m demo.run_demo ingest-pdf --live --dataset demo_dataset_v1`
 	- `export UNSTRUCTURED_RUN_ID="<run_id from ingest-pdf output>"`
@@ -520,7 +530,9 @@ Initial dataset strategy for Phase 1:
 	- `python -m demo.run_demo resolve-entities --live --dataset demo_dataset_v1`
 	- `python -m demo.run_demo ask --live --dataset demo_dataset_v1 --run-id "$UNSTRUCTURED_RUN_ID" --question "What does the document say about Endeavor and MercadoLibre?"`
 - **Preconditions:**
+	- Python 3.11+ is used,
 	- Neo4j available with known-good fixture dataset,
+	- `OPENAI_MODEL` is unset or explicitly set to `gpt-5.4`,
 	- credentials configured,
 	- question known to succeed in current runbook.
 - **Inputs:** One runbook question with known citation-grounded behavior.
@@ -529,7 +541,8 @@ Initial dataset strategy for Phase 1:
 	- retrieval is non-empty,
 	- answer is produced,
 	- citation/source structure is present,
-	- manifest-level response shape remains stable.
+	- manifest-level response shape remains stable,
+	- citation-quality invariants hold for known-good baseline (`all_answers_cited: true`, `citation_fallback_applied: false`, `citation_quality.evidence_level: "full"`).
 - **Artifacts produced:** Run manifests and answer output.
 - **How baseline is captured:** Record stable manifest/result invariants and run metadata; avoid exact token-level answer matching.
 - **Failure conditions:**
@@ -537,21 +550,21 @@ Initial dataset strategy for Phase 1:
 	- retrieval unexpectedly empty,
 	- answer missing,
 	- citation contract broken.
-- **Owner:** TBD
+- **Owner:** Ash
 
 ### 9.7 Neo4j integration path
 
-- **Name:** Candidate live Neo4j demo integration check
+- **Name:** Accepted live Neo4j demo integration check
 - **Required Neo4j environment:** Local Docker Compose Neo4j (`docker compose up -d neo4j`) or equivalent standard dev Neo4j environment.
 - **Data/seed prerequisites:** Fixture dataset available (`demo/fixtures/datasets/<dataset_name>/...`), plus fresh graph reset before baseline capture.
-- **Setup/reset instructions:** Candidate baseline from runbook:
+- **Setup/reset instructions:** Accepted proven baseline from live Phase 1 evidence:
 	- `python -m demo.reset_demo_db --confirm`
 	- `python -m demo.run_demo ingest-pdf --live --dataset demo_dataset_v1`
 	- `export UNSTRUCTURED_RUN_ID="<run_id from ingest-pdf output>"`
 	- `python -m demo.run_demo extract-claims --live --dataset demo_dataset_v1`
 	- `python -m demo.run_demo resolve-entities --live --dataset demo_dataset_v1`
-	- `python -m demo.run_demo ask --live --dataset demo_dataset_v1 --run-id "$UNSTRUCTURED_RUN_ID" --expand-graph --question "What does the document say about Endeavor and MercadoLibre?"`
-- **Command or test invocation:** Candidate command chain above; final canonical command set should remain aligned to `demo/VALIDATION_RUNBOOK.md` as it evolves.
+	- `python -m demo.run_demo ask --live --dataset demo_dataset_v1 --run-id "$UNSTRUCTURED_RUN_ID" --question "What does the document say about Endeavor and MercadoLibre?"`
+- **Command or test invocation:** The accepted local smoke is `make phase1-verify`, which runs the same module-invocation path and captures artifacts for baseline, companion, and isolation re-ask validation.
 - **Expected invariants:**
 	- Neo4j connection succeeds,
 	- graph-backed retrieval executes,
@@ -560,20 +573,21 @@ Initial dataset strategy for Phase 1:
 - **Known sources of non-determinism:**
 	- LLM wording variation,
 	- result ordering when ranking scores are close.
-- **Owner:** TBD
+- **Owner:** Ash
 
 ### 9.8 Package/import validation
 
-- **Validation mechanism:** Candidate local command + CI smoke command (to be finalized during Phase 1)
+- **Validation mechanism:** Accepted local reproducible smoke command for Phase 1
 - **Command:**
-	- Candidate local smoke: run active entrypoint via module invocation (`python -m demo.run_demo ...`) rather than script-path invocation.
-	- TBD — replace with canonical CI/local command that proves installed-package execution once Phase 2 packaging metadata is in place.
+	- `make phase1-verify`
+	- `bash scripts/phase1_verify.sh`
+	- underlying runtime path uses `.venv/bin/python -m demo.run_demo ...` rather than script-path invocation.
 - **What it confirms:**
 	- entrypoint resolution is explicit and reproducible,
 	- migration changes do not depend on accidental repo-root path leakage,
 	- package/import validation strategy is ready to harden as soon as package foundation work lands.
 - **Where documented:** This file, `docs/repository_restructure/repository_restructure_checklist.md`, and README/developer setup docs when canonical command is finalized.
-- **Owner:** TBD
+- **Owner:** Ash
 
 ---
 
@@ -581,17 +595,17 @@ Initial dataset strategy for Phase 1:
 
 Phase 1 should be considered complete only when all of the following are true:
 
-- [ ] critical CLI scenario is defined
-- [ ] critical API scenario is either defined or explicitly marked not required
-- [ ] critical graph retrieval scenario is defined
-- [ ] critical answer/citation scenario is defined
-- [ ] critical ingestion/enrichment scenario is either defined or explicitly marked not required
-- [ ] at least one golden-path scenario is selected
-- [ ] baseline capture method is documented
-- [ ] at least one Neo4j-backed integration path is documented and runnable
-- [ ] package/import validation method is documented
-- [ ] “behavior preserved” criteria are accepted by the team
-- [ ] scenario owners are assigned
+- [x] critical CLI scenario is defined
+- [x] critical API scenario is either defined or explicitly marked not required
+- [x] critical graph retrieval scenario is defined
+- [x] critical answer/citation scenario is defined
+- [x] critical ingestion/enrichment scenario is either defined or explicitly marked not required
+- [x] at least one golden-path scenario is selected
+- [x] baseline capture method is documented
+- [x] at least one Neo4j-backed integration path is documented and runnable
+- [x] package/import validation method is documented
+- [x] “behavior preserved” criteria are accepted by the team
+- [x] scenario owners are assigned
 
 Until these are complete, broad structural movement should be treated as premature.
 
@@ -603,8 +617,10 @@ Until these are complete, broad structural movement should be treated as prematu
 - [x] confirm ingestion/enrichment is `Required: no` for first-pass Phase 1 gating, retained as optional validation
 - [x] enumerate candidate critical flows — initial repo-informed scenario inventory documented in Section 9
 - [x] choose the initial golden-path scenario — unstructured-first retrieval → answer → citation (Section 9.6)
-- [ ] finalize canonical entrypoint commands from scenario inventory with Phase 1 owner confirmation
-- [ ] confirm first runnable Neo4j integration baseline against local dev environment
-- [ ] finalize package/import validation command once Phase 2 packaging metadata is in place
-- [ ] assign owners for each scenario inventory item
-- [ ] record accepted behavior-preservation criteria
+- [x] finalize canonical entrypoint commands from scenario inventory with Phase 1 owner confirmation
+- [x] confirm first runnable Neo4j integration baseline against local dev environment
+- [x] finalize package/import validation command for Phase 1 local reproducibility; installed-package hardening remains a Phase 2 concern
+- [x] assign owners for each scenario inventory item
+- [x] record accepted behavior-preservation criteria
+
+Phase 1 gate status: closed. Remaining work moves to later phases and does not reopen Phase 1 execution proof.
