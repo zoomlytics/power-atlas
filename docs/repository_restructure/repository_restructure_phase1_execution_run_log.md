@@ -283,25 +283,45 @@ Use this section to record the first recommended automation target after initial
 
 ### Current automation-candidate status
 
-- **Status:** `NOT STARTED | IN PROGRESS | SELECTED`
-- **Candidate type:** `script | make target | thin integration harness | other`
-- **Candidate name:**
-- **Selected by:**
-- **Selection date:**
-- **Why selected:**
+- **Status:** `SELECTED`
+- **Candidate type:** `script + make target`
+- **Candidate name:** `phase1-verify` (Make target) → `scripts/phase1_verify.sh`
+- **Selected by:** `Agent D`
+- **Selection date:** `2026-04-15`
+- **Why selected:** Mirrors the exact validated command sequence for both the baseline and companion isolation scenarios in a single linear script. No abstraction layer, no framework dependency. Preserves operator clarity and is directly debuggable. A Make target provides a memorable launch point without duplicating logic.
 - **What it automates:**
+  1. Commit SHA and datetime capture
+  2. Reset (`python -m demo.reset_demo_db --confirm`)
+  3. Baseline ingest-pdf (`--dataset demo_dataset_v1`), UNSTRUCTURED_RUN_ID captured
+  4. Baseline extract-claims (`--dataset demo_dataset_v1`)
+  5. Baseline resolve-entities (`--dataset demo_dataset_v1`)
+  6. Baseline ask (`--dataset demo_dataset_v1 --run-id <baseline-run-id> --question "..."`)
+  7. Companion ingest-pdf (`--dataset demo_dataset_v2`, no reset), companion run ID captured
+  8. Companion extract-claims (`--dataset demo_dataset_v2`)
+  9. Companion resolve-entities (`--dataset demo_dataset_v2`)
+  10. Companion ask (`--dataset demo_dataset_v2 --run-id <companion-run-id> --question "..."`)
+  11. Baseline isolation re-ask (`--dataset demo_dataset_v1 --run-id <baseline-run-id>`)
+  12. Manifest and key-invariant capture to a dated artifact directory
+  13. stdout/stderr log capture per stage
 - **What it explicitly does not automate yet:**
-- **Related artifact location:**
-- **Notes:**
+  - installed-package or import-path validation (Phase 2)
+  - API/backend scenario (not an active product boundary)
+  - structured ingest / hybrid alignment enrichment path (optional, not gating)
+  - `--expand-graph` retrieval path (manual validation only for now)
+  - CI/CD pipeline integration
+  - broad refactoring or new orchestration layers
+  - OWASP: script must not embed credentials — operator must supply `OPENAI_API_KEY` and `NEO4J_PASSWORD` as env vars before running
+- **Related artifact location:** `artifacts/repository_restructure/phase1/<YYYYMMDD-HHMMSS>/`
+- **Notes:** The combined baseline + isolation verifier is preferred over separate runners because the isolation scenario intentionally relies on the reset having been run only once (for v1) and must follow the baseline ingest without an intervening reset. A combined script correctly encodes this dependency. See run entry `phase1-agent-d-001`.
 
 ### Automation-candidate checklist
 
-- [ ] baseline manual proof exists
-- [ ] run-isolation evidence exists or has a clear plan
-- [ ] per-run artifact contract is defined
-- [ ] candidate mirrors documented command path
-- [ ] candidate avoids Phase 2 packaging expansion
-- [ ] candidate reduces immediate execution risk
+- [x] baseline manual proof exists
+- [x] run-isolation evidence exists or has a clear plan
+- [x] per-run artifact contract is defined
+- [x] candidate mirrors documented command path
+- [x] candidate avoids Phase 2 packaging expansion
+- [x] candidate reduces immediate execution risk
 - [ ] candidate owner assigned
 
 ---
@@ -317,7 +337,7 @@ Use this section as a lightweight summary view. Full triage can live elsewhere i
 | RR-P1-003 | 2026-04-15 | output/citation correctness | Root cause identified and confirmed closed: degraded citations were model-floor related, not a postprocessing defect. After updating the default to `gpt-5.4`, a fresh clean rerun from reset restored `all_answers_cited: true`, `citation_fallback_applied: false`, and `evidence_level: "full"`. | P1 | `phase1-agent-b-002` | Ash | closed |
 | RR-P1-004 | 2026-04-15 | CLI/UX | `citation_repair_attempted: false` is expected for the failing baseline run because repair is intentionally only attempted in `--all-runs` mode. Reclassified from unknown behavior to documented-by-code behavior. | P3 | `phase1-agent-e-001` | Ash | closed |
 | RR-P1-005 | 2026-04-15 | documentation drift | `run_demo.py reset` helper output still references script-path forms; Phase 1 posture is module invocation. Minor cosmetic drift. | P3 | `phase1-agent-a-001` | Ash | open |
-| RR-P1-006 | 2026-04-15 | run-id handling | Cross-dataset mismatch (`--dataset <v1>` + `--run-id <v2-run>`) is warning-not-error. Operator gets a visible warning but execution proceeds with mismatched retrieval scope. Confirmed with live execution evidence during companion isolation probing. Consistent with Agent A findings. | P2 | `phase1-agent-c-001` | Ash | open |
+| RR-P1-006 | 2026-04-15 | run-id handling | Cross-dataset mismatch (`--dataset <v1>` + `--run-id <v2-run>`) is warning-not-error. Operator gets a visible warning but execution proceeds with mismatched retrieval scope. Confirmed with live execution evidence during companion isolation probing. Consistent with Agent A findings. Automation impact: acceptable for Phase 1 because no automated step exercises the mismatch path; hardening deferred post-automation. | P2 | `phase1-agent-c-001` | Ash | open (deferred to post-automation) |
 | RR-P1-007 | 2026-04-15 | dataset handling | Most graph nodes (EntityMention, ExtractedClaim, ResolvedEntityCluster) do NOT carry `dataset_id`; isolation relies on `run_id` (tagged on Chunk nodes and extraction nodes). This is by design: the retrieval query contract scopes by `run_id`, not `dataset_id`. No leakage observed, but the provenance coverage gap between `dataset_id` stamping on Chunk vs. non-Chunk nodes should be understood before automation. | P3 | `phase1-agent-c-001` | Ash | open |
 
 Suggested categories:
@@ -352,13 +372,13 @@ Use this section as a compact execution-facing view of whether the repo is movin
 - **Explicit run-id targeting validated:** `yes`
 - **Artifacts captured repeatably:** `yes`
 - **Blocking drift understood:** `yes`
-- **First automation target selected:** `no`
+- **First automation target selected:** `yes` — `phase1-verify` script + Make target (see First Automation Candidate Record and `phase1-agent-d-001`)
 
 ### Notes
 
-- **What is already true:** All 4 pipeline stages execute without crashing for both `demo_dataset_v1` and `demo_dataset_v2`. Dataset and run targeting are explicit and honored. Retrieval is scoped correctly by `run_id` and `source_uri`. Both companion ask and baseline ask flows produced `all_answers_cited: true`, `citation_fallback_applied: false`, `evidence_level: "full"`. Zero cross-run or cross-dataset leakage observed in retrieval results or graph storage. Implicit dataset-aware latest-run selection correctly resolves per dataset in multi-dataset conditions.
-- **What remains uncertain:** First automation target not yet selected (Agent D).
-- **What must happen before package movement starts:** Select first automation target (Agent D). The run-isolation scenario is now complete.
+- **What is already true:** All 4 pipeline stages execute without crashing for both `demo_dataset_v1` and `demo_dataset_v2`. Dataset and run targeting are explicit and honored. Retrieval is scoped correctly by `run_id` and `source_uri`. Both companion ask and baseline ask flows produced `all_answers_cited: true`, `citation_fallback_applied: false`, `evidence_level: "full"`. Zero cross-run or cross-dataset leakage observed in retrieval results or graph storage. Implicit dataset-aware latest-run selection correctly resolves per dataset in multi-dataset conditions. First automation target selected and per-run artifact contract defined.
+- **What remains uncertain:** Candidate script/Make target not yet built (spec selected, implementation not started). RR-P1-006 mismatch hardening deferred (warning-not-error posture remains acceptable for Phase 1 automation because no automated step exercises the mismatch path).
+- **What must happen before package movement starts:** Build and smoke-test the `phase1-verify` script. Mismatch hardening (RR-P1-006) can follow after first automation completes.
 
 ---
 
@@ -915,3 +935,152 @@ export UNSTRUCTURED_RUN_ID="unstructured_ingest-20260415T084900882156Z-ebb71646"
 - **Priority:** `P1`
 - **Escalation needed?:** no
 - **If escalated, to whom?:** (N/A)
+
+---
+
+### Run ID: `phase1-agent-d-001`
+
+#### Metadata
+
+- **Status:** `PASS`
+- **Date:** `2026-04-15`
+- **Operator / primary agent:** `Agent D`
+- **Supporting agents:** `Agent A`, `Agent B`, `Agent C`, `Agent E` (all outputs consumed as inputs)
+- **Branch:** `main`
+- **Commit SHA:** `944c8e32bc6fad36ca2dff02f80677894280cb77`
+- **Environment / host context:** macOS. Static analysis and run-log synthesis only; no live execution performed.
+- **Related agent track:** `Agent D`
+
+#### Scope of attempt
+
+- **Intent of this run:** Review validated execution evidence from Agents A–C, define the minimum per-run artifact contract, select the first automation target, and document the recommended posture on mismatch-handling and explicit input requirements.
+- **Target scenario:** `artifact-capture`
+- **Dataset(s):** `demo_dataset_v1` (baseline), `demo_dataset_v2` (companion)
+- **Expected run ID(s) involved:** N/A — synthesis run only; no new live execution
+- **Neo4j posture / dependency state:** Not applicable to this run
+- **Prerequisites assumed satisfied:**
+  - Agent A/B/C/E results accepted as PASS or PARTIAL per their run entries above
+  - Baseline and companion isolation scenarios both PASS
+  - Model posture drift (RR-P1-002/003) confirmed closed
+
+#### Canonical command reference
+
+- **Source doc section(s):**
+  - `repository_restructure_safety_harness.md` Sections 9.6, 9.7
+  - `repository_restructure_agent_task_breakdown.md` — Agent D mission and deliverable
+  - `repository_restructure_checklist.md` Section 4 (do not start package movement until...)
+
+#### Executed command(s)
+
+```bash
+# No live execution — synthesis of existing run evidence and static doc analysis
+```
+
+#### Outputs and captured identifiers
+
+- **Produced `UNSTRUCTURED_RUN_ID`:** N/A
+- **Other run IDs / identifiers:** N/A
+- **Primary output summary:** Automation candidate selected. Per-run artifact contract defined. Mismatch-handling posture confirmed acceptable for first automation. Agent D result documented in Agent D Result section below and in First Automation Candidate Record above.
+- **Citation/output behavior observed:** N/A
+- **Artifact path(s):** (run log itself)
+- **Stdout/stderr capture path(s):** N/A
+
+#### Result assessment
+
+- **What worked:**
+  - All three prerequisite validation tracks (A/B/C) returned PASS or acceptable PARTIAL with no blocking unknowns for automation selection.
+  - Command forms are stable and fully confirmed.
+  - Explicit input requirements are clear: `--dataset`, `--run-id`, `UNSTRUCTURED_RUN_ID`, and model selection via env var or flag.
+  - Artifact directory structure from the existing runs is sufficient as the per-run contract basis.
+  - The combined baseline + isolation script design directly mirrors the validated command sequence with no abstraction gap.
+  - Mismatch-handling (RR-P1-006) is acceptable for first automation because no automated step exercises a mismatched `--dataset`/`--run-id` pair. Hardening can follow.
+- **What failed or remained uncertain:** No blockers. First script implementation not yet begun.
+- **Was dataset selection explicit and correct?:** N/A (synthesis only)
+- **Was run targeting explicit and correct?:** N/A
+- **Did output match expected golden-path behavior?:** N/A
+- **Did this affect Phase 1 gates?:** `yes`
+- **If yes or uncertain, which gate/control is affected?:** First automation target selected. Phase 1 gate-readiness snapshot now complete on this dimension.
+
+#### Drift / findings
+
+- **Doc/code mismatch found?:** No new drift discovered beyond existing open findings (RR-P1-001, RR-P1-005, RR-P1-006, RR-P1-007).
+- **Runtime/config mismatch found?:** No
+- **Unexpected dependency or setup requirement?:** No. All prerequisites were already captured by Agents A–C.
+- **Safety-harness impact note:** Automation candidate (script + Make target) was designed to mirror safety harness Sections 9.6 and 9.7 command sequences exactly. No new safety-harness concerns introduced.
+- **Checklist impact note:** First automation target is now selected. The remaining Phase 1 gate items are script implementation and smoke-test.
+- **Recommended immediate follow-up:** Build `scripts/phase1_verify.sh` and `Makefile` target `phase1-verify`. Smoke-test against local Neo4j. Confirm artifact output structure matches per-run artifact contract. Then proceed to Phase 1 exit gate review.
+
+#### Disposition
+
+- **Next action owner:** Ash
+- **Next action:** Implement `scripts/phase1_verify.sh` and `make phase1-verify` per the selected spec. Verify artifact layout matches contract.
+- **Priority:** `P1`
+- **Escalation needed?:** no
+- **If escalated, to whom?:** (N/A)
+
+---
+
+## Agent D Result
+
+### Agent D result
+
+- **Status:** `PASS`
+- **Commit SHA:** `944c8e32bc6fad36ca2dff02f80677894280cb77`
+- **Recommended first automation target:** `scripts/phase1_verify.sh` — a linear shell script encoding the complete Phase 1 verified command sequence (reset → baseline → companion isolation → artifact capture), invoked via a `make phase1-verify` Make target.
+- **Candidate type:** `script + make target`
+- **Why this target was selected:**
+  - Mirrors the exact command sequence validated by Agents A–C with no abstraction gap.
+  - The combined baseline + isolation design correctly encodes the required execution dependency: isolation runs without reset, immediately after baseline ingest, in the same graph state. Separating the two would require manual orchestration and reintroduce the risk of operator sequencing error.
+  - A shell script is the simplest debuggable artifact at this stage — no Python packaging, no framework, no test harness. Each stage is a `$?` check on an exact command.
+  - A Make target provides a memorable, easy-to-discover entry point (`make phase1-verify`) without duplicating logic.
+  - This is the smallest unit that satisfies all five success conditions: reduces execution risk, preserves operator clarity, mirrors the command path, captures sufficient artifacts, avoids Phase 2 drag.
+- **What it automates:**
+  1. Commit SHA and datetime capture
+  2. Reset (`python -m demo.reset_demo_db --confirm`)
+  3. Baseline ingest-pdf (`--dataset demo_dataset_v1`), `UNSTRUCTURED_RUN_ID` captured from manifest
+  4. Baseline extract-claims and resolve-entities (`--dataset demo_dataset_v1`)
+  5. Baseline ask (`--dataset demo_dataset_v1 --run-id <baseline-run-id> --question "What does the document say about Endeavor and MercadoLibre?"`)
+  6. Companion ingest-pdf (`--dataset demo_dataset_v2`, no reset), companion run ID captured
+  7. Companion extract-claims and resolve-entities (`--dataset demo_dataset_v2`)
+  8. Companion ask (`--dataset demo_dataset_v2 --run-id <companion-run-id> --question "Who is listed as the founder of Xapo?"`)
+  9. Baseline isolation re-ask (`--dataset demo_dataset_v1 --run-id <baseline-run-id>`) to confirm no v2 leakage
+  10. Per-stage stdout/stderr log capture
+  11. Manifest copy to dated artifact directory
+  12. Run summary written (commit SHA, datetime, model, run IDs, key invariants per stage)
+- **What it does not automate yet:**
+  - Installed-package / import-path validation (Phase 2)
+  - API/backend scenario (not an active product boundary)
+  - Structured ingest / hybrid alignment enrichment path (optional, not gating for Phase 1)
+  - `--expand-graph` retrieval path
+  - CI/CD pipeline integration
+  - Cross-dataset mismatch hard-fail behavior (RR-P1-006, deferred)
+  - Broad refactors, new orchestration layers, or large new abstractions
+- **Required explicit inputs:**
+  - `OPENAI_API_KEY` — env var, operator-supplied (not embedded in script)
+  - `NEO4J_PASSWORD` — env var, operator-supplied (not embedded in script)
+  - `NEO4J_URI` — env var, operator-supplied (default `bolt://localhost:7687`)
+  - `OPENAI_MODEL` — must be `gpt-5.4` or unset (script should warn/fail on any other value)
+  - `.venv` with Python 3.11+, activated or called via `.venv/bin/python`
+  - Neo4j running (`docker compose up -d neo4j`)
+  - Fixture datasets present (`demo/fixtures/datasets/demo_dataset_v1/`, `demo/fixtures/datasets/demo_dataset_v2/`)
+- **Required captured artifacts (per-run artifact contract):**
+  - `commit_sha.txt` — full git commit SHA at execution time
+  - `run_metadata.json` — datetime, operator, model used, dataset names, produced run IDs, exit codes per stage
+  - Per-stage stdout/stderr logs: `00_reset.log`, `01_v1_ingest.log`, `02_v1_extract.log`, `03_v1_resolve.log`, `04_v1_ask.log`, `05_v2_ingest.log`, `06_v2_extract.log`, `07_v2_resolve.log`, `08_v2_ask.log`, `09_v1_isolation_ask.log`
+  - Manifests copied from each produced run's artifact directory: `v1_ingest_manifest.json`, `v1_extract_manifest.json`, `v1_resolve_manifest.json`, `v1_ask_manifest.json`, `v2_ingest_manifest.json`, `v2_extract_manifest.json`, `v2_resolve_manifest.json`, `v2_ask_manifest.json`
+  - `validation_summary.txt` — key invariants extracted from ask manifests: `all_answers_cited`, `citation_fallback_applied`, `evidence_level`, `extracted_claim_count`, `entity_mention_count` for each run
+- **Model posture requirement:**
+  - `gpt-5.4` is the required model for all extraction and QA stages. This is the current code default after the Agent E remediation. The script must check: if `OPENAI_MODEL` is set to anything other than `gpt-5.4`, emit a visible error and exit before any execution begins. This ensures no automation run silently degrades to a lower-capability model and produces untrustworthy quality signals.
+  - Passing `--openai-model gpt-5.4` explicitly on every affected command is also acceptable as belt-and-suspenders enforcement inside the script.
+- **Artifact location recommendation:** `artifacts/repository_restructure/phase1/<YYYYMMDD-HHMMSS>/` — one dated directory per execution. One predictable root, isolated from `demo/artifacts/runs/`. Timestamp suffix ensures no overwrite between runs.
+- **Mismatch-handling recommendation:**
+  - Leave warning-not-error behavior for cross-dataset mismatch (RR-P1-006) **unchanged** for first automation. No automated step in the proposed script supplies a mismatched `--dataset`/`--run-id` pair, so the warning branch is never hit. Changing it now adds scope and risk.
+  - After the first automated run completes and artifacts are stable, escalate RR-P1-006 to a hard-fail as a Phase 1.5 follow-up. This should be done before the Phase 1 exit gate is formally closed, but must not block the first automation build.
+- **Doc/code/runtime drift observed:**
+  - RR-P1-001: Python 3.11+ hard requirement not documented (P1, open) — script should check Python version and fail clearly if below 3.11.
+  - RR-P1-005: `run_demo.py reset` output references script-path forms (P3, cosmetic, no impact on automation).
+  - RR-P1-006: Cross-dataset mismatch warning-not-error (P2, deferred post-automation).
+  - RR-P1-007: Non-Chunk graph nodes do not carry `dataset_id` (P3, by-design, no leakage observed, no automation impact).
+  - No new drift discovered by Agent D.
+- **Blockers:** None.
+- **Recommended next action:** Implement `scripts/phase1_verify.sh` and `Makefile` target `phase1-verify` per the spec above. Smoke-test against local Neo4j with real datasets. Confirm artifacts land in `artifacts/repository_restructure/phase1/<datetime>/`. Once a clean first automated run completes, record a `phase1-agent-d-002` entry in this run log showing the first automation output and invariant check results.
