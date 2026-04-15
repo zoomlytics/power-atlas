@@ -193,26 +193,26 @@ Use this section to summarize the current best-known status of the primary basel
 
 ### Current baseline status
 
-- **Status:** `NOT STARTED | IN PROGRESS | PASS | PARTIAL | FAIL | BLOCKED`
+- **Status:** `PARTIAL`
 - **Dataset:** `demo_dataset_v1`
-- **Latest successful commit SHA:**
-- **Latest successful `UNSTRUCTURED_RUN_ID`:**
-- **Last execution date:**
-- **Primary artifact location:**
-- **Notes:**
+- **Latest successful commit SHA:** `43805f19e62e65cdfa5b9e1796534d938adb09f0`
+- **Latest successful `UNSTRUCTURED_RUN_ID`:** `unstructured_ingest-20260415T074604232009Z-9339f3e4`
+- **Last execution date:** `2026-04-15`
+- **Primary artifact location:** `demo/artifacts/runs/unstructured_ingest-20260415T074604232009Z-9339f3e4/`
+- **Notes:** All 4 pipeline stages (reset, ingest-pdf, extract-claims, resolve-entities, ask) completed with exit 0. Dataset and run targeting confirmed explicit. Answer and citation tokens produced. Degraded citation quality (`evidence_level: "degraded"`, `citation_fallback_applied: true`). Zero ExtractedClaim nodes written by extract-claims. Safety harness citation quality invariants not yet met. See run entry `phase1-agent-b-001` for full evidence.
 
 ### Baseline evidence checklist
 
-- [ ] reset sequence executed
-- [ ] baseline ingest executed for `demo_dataset_v1`
-- [ ] `UNSTRUCTURED_RUN_ID` captured
-- [ ] ask command executed with explicit `--dataset demo_dataset_v1`
-- [ ] ask command executed with explicit `--run-id`
-- [ ] answer output observed
-- [ ] citation output observed
-- [ ] artifacts saved
-- [ ] drift/issues logged
-- [ ] disposition assigned
+- [x] reset sequence executed
+- [x] baseline ingest executed for `demo_dataset_v1`
+- [x] `UNSTRUCTURED_RUN_ID` captured
+- [x] ask command executed with explicit `--dataset demo_dataset_v1`
+- [x] ask command executed with explicit `--run-id`
+- [x] answer output observed
+- [x] citation output observed (citation tokens present; quality degraded)
+- [x] artifacts saved
+- [x] drift/issues logged
+- [x] disposition assigned
 
 ---
 
@@ -253,26 +253,26 @@ Use this section to summarize the current best-known status of Agent A findings.
 
 ### Current command reality-check status
 
-- **Status:** `NOT STARTED | IN PROGRESS | PASS | PARTIAL | FAIL | BLOCKED`
-- **Last execution date:**
-- **Validated by:**
-- **Branch / commit SHA:**
-- **Primary artifact location:**
-- **Notes:**
+- **Status:** `PARTIAL`
+- **Last execution date:** `2026-04-15`
+- **Validated by:** `Agent A`
+- **Branch / commit SHA:** `main / 43805f19e62e65cdfa5b9e1796534d938adb09f0`
+- **Primary artifact location:** (static analysis — no runtime artifact)
+- **Notes:** All Phase 1 command forms confirmed. Python 3.11+ `.venv` hard requirement identified (not documented). Dataset scoping confirmed working. `--run-id` on `ask` confirmed. `extract-claims` and `resolve-entities` require `UNSTRUCTURED_RUN_ID` env var (no `--run-id` argument). See run entry `phase1-agent-a-001`.
 
 ### Command reality-check evidence checklist
 
-- [ ] active execution path confirmed in `demo/`
-- [ ] canonical module invocation confirmed or corrected
-- [ ] reset entrypoint confirmed
-- [ ] ingest entrypoint confirmed
-- [ ] ask entrypoint confirmed
-- [ ] dataset flag behavior confirmed
-- [ ] `--run-id` behavior confirmed
-- [ ] required env/config prerequisites recorded
-- [ ] Neo4j dependency posture confirmed
-- [ ] doc/code mismatches recorded
-- [ ] gate-impact note recorded
+- [x] active execution path confirmed in `demo/`
+- [x] canonical module invocation confirmed or corrected
+- [x] reset entrypoint confirmed
+- [x] ingest entrypoint confirmed
+- [x] ask entrypoint confirmed
+- [x] dataset flag behavior confirmed
+- [x] `--run-id` behavior confirmed
+- [x] required env/config prerequisites recorded
+- [x] Neo4j dependency posture confirmed
+- [x] doc/code mismatches recorded
+- [x] gate-impact note recorded
 
 ---
 
@@ -311,7 +311,11 @@ Use this section as a lightweight summary view. Full triage can live elsewhere i
 
 | ID | Date | Category | Summary | Priority | Source run entry | Owner | Status |
 |---|---|---|---|---|---|---|---|
-| RR-P1-001 | YYYY-MM-DD | doc-drift | Example finding | P1 | `<local-run-log-id>` | Ash | open |
+| RR-P1-001 | 2026-04-15 | documentation drift | Phase 1 docs do not state Python 3.11+ hard requirement. `datetime.UTC` fails on Python 3.9 immediately. | P1 | `phase1-agent-a-001` | Ash | open |
+| RR-P1-002 | 2026-04-15 | output/citation correctness | `extract-claims` produced 0 ExtractedClaim nodes for `demo_dataset_v1` (`chain_of_custody.pdf`) with `claims_v1` prompt. 181 EntityMention nodes produced. No crash or warning. Root cause unknown. | P1 | `phase1-agent-b-001` | Ash | open |
+| RR-P1-003 | 2026-04-15 | output/citation correctness | `ask` citation quality invariants not met: `all_answers_cited: false`, `citation_fallback_applied: true`, `evidence_level: "degraded"`. Safety harness Section 9.4 expected `true / false / "full"`. May be downstream of RR-P1-002 (zero claims → no graph enrichment). | P1 | `phase1-agent-b-001` | Ash | open |
+| RR-P1-004 | 2026-04-15 | CLI/UX | `citation_repair_attempted: false` — repair pathway was not tried before fallback for the baseline ask run. Expected behavior unclear. | P2 | `phase1-agent-b-001` | Ash | open |
+| RR-P1-005 | 2026-04-15 | documentation drift | `run_demo.py reset` helper output still references script-path forms; Phase 1 posture is module invocation. Minor cosmetic drift. | P3 | `phase1-agent-a-001` | Ash | open |
 
 Suggested categories:
 
@@ -333,25 +337,25 @@ Use this section as a compact execution-facing view of whether the repo is movin
 
 ### Snapshot date
 
-- **Date:**
-- **Prepared by:**
+- **Date:** `2026-04-15`
+- **Prepared by:** `Agent B`
 
 ### Gate-readiness summary
 
-- **Golden path manually proven:** `yes | no | partial`
-- **Baseline dataset scenario validated:** `yes | no | partial`
-- **Companion run-isolation scenario validated:** `yes | no | partial`
-- **Explicit dataset targeting validated:** `yes | no | partial`
-- **Explicit run-id targeting validated:** `yes | no | partial`
-- **Artifacts captured repeatably:** `yes | no | partial`
-- **Blocking drift understood:** `yes | no | partial`
-- **First automation target selected:** `yes | no | partial`
+- **Golden path manually proven:** `partial`
+- **Baseline dataset scenario validated:** `partial`
+- **Companion run-isolation scenario validated:** `no`
+- **Explicit dataset targeting validated:** `yes`
+- **Explicit run-id targeting validated:** `yes`
+- **Artifacts captured repeatably:** `yes`
+- **Blocking drift understood:** `partial`
+- **First automation target selected:** `no`
 
 ### Notes
 
-- **What is already true:**
-- **What remains uncertain:**
-- **What must happen before package movement starts:**
+- **What is already true:** All 4 pipeline stages execute without crashing. Dataset and run targeting are explicit and honored. Retrieval returns non-empty results for the golden-path query. Citation token objects are structurally correct. Reset is clean and repeatable. Interpreter and env requirements are understood.
+- **What remains uncertain:** Whether zero-claims output from `extract-claims` is a baseline behavior or a defect. Whether degraded citation quality is the expected first-run state or a regression. Whether `--expand-graph` mode would produce materially different citation quality. Whether the current fallback answer satisfies the spirit of the golden-path citation contract.
+- **What must happen before package movement starts:** At minimum: triage RR-P1-002 (zero claims) and RR-P1-003 (citation quality), agree on whether current baseline output is acceptable as Phase 1 evidence, capture companion run-isolation scenario for `demo_dataset_v2` (Agent C), and select first automation target (Agent D).
 
 ---
 
@@ -363,13 +367,13 @@ If useful, start with the following first run entry.
 
 #### Metadata
 
-- **Status:** `NOT STARTED`
-- **Date:**
+- **Status:** `PARTIAL`
+- **Date:** `2026-04-15`
 - **Operator / primary agent:** `Agent A`
-- **Supporting agents:**
-- **Branch:**
-- **Commit SHA:**
-- **Environment / host context:**
+- **Supporting agents:** (none)
+- **Branch:** `main`
+- **Commit SHA:** `43805f19e62e65cdfa5b9e1796534d938adb09f0`
+- **Environment / host context:** macOS, `.venv` Python 3.11.14, Docker Compose Neo4j
 - **Related agent track:** `Agent A`
 
 #### Scope of attempt
@@ -378,7 +382,7 @@ If useful, start with the following first run entry.
 - **Target scenario:** `command-validation`
 - **Dataset(s):** `demo_dataset_v1`, `demo_dataset_v2`
 - **Expected run ID(s) involved:** none yet
-- **Neo4j posture / dependency state:** to be confirmed
+- **Neo4j posture / dependency state:** Docker Compose Neo4j confirmed available (`docker compose up -d neo4j`)
 - **Prerequisites assumed satisfied:** none
 
 #### Canonical command reference
@@ -390,41 +394,169 @@ If useful, start with the following first run entry.
 #### Executed command(s)
 
 ```bash
-# fill in during execution
+# Agent A - static code / doc analysis only; no live execution
+# Commands validated by reading source files:
+python -m demo.reset_demo_db --confirm
+python -m demo.run_demo ingest-pdf --live --dataset demo_dataset_v1
+export UNSTRUCTURED_RUN_ID=<run_id from ingest-pdf output>
+python -m demo.run_demo extract-claims --live --dataset demo_dataset_v1
+python -m demo.run_demo resolve-entities --live --dataset demo_dataset_v1
+python -m demo.run_demo ask --live --dataset demo_dataset_v1 --run-id "$UNSTRUCTURED_RUN_ID" --question "What does the document say about Endeavor and MercadoLibre?"
 ```
 
 #### Outputs and captured identifiers
 
-- **Produced `UNSTRUCTURED_RUN_ID`:**
-- **Other run IDs / identifiers:**
-- **Primary output summary:**
-- **Citation/output behavior observed:**
-- **Artifact path(s):**
-- **Stdout/stderr capture path(s):**
+- **Produced `UNSTRUCTURED_RUN_ID`:** (none — static analysis run only)
+- **Other run IDs / identifiers:** (none)
+- **Primary output summary:** Doc/code alignment check. Phase 1 commands confirmed. Python 3.11+ hard requirement identified. Dataset ambiguity handling confirmed (warning-based, not hard-fail). `--run-id` implementation confirmed on `ask`; `extract-claims` and `resolve-entities` use `UNSTRUCTURED_RUN_ID` env var.
+- **Citation/output behavior observed:** (none — not executed)
+- **Artifact path(s):** (none)
+- **Stdout/stderr capture path(s):** (none)
 
 #### Result assessment
 
-- **What worked:**
-- **What failed or remained uncertain:**
-- **Was dataset selection explicit and correct?:**
-- **Was run targeting explicit and correct?:**
-- **Did output match expected golden-path behavior?:**
-- **Did this affect Phase 1 gates?:**
-- **If yes or uncertain, which gate/control is affected?:**
+- **What worked:** Command forms confirmed. Dataset scoping confirmed. Module invocation path confirmed. Neo4j/env prerequisites identified.
+- **What failed or remained uncertain:** System Python 3.9 vs `.venv` Python 3.11+ gap documented. Dataset/run mismatch is warning-not-error.
+- **Was dataset selection explicit and correct?:** Yes — `--dataset demo_dataset_v1` is supported and required in multi-dataset mode.
+- **Was run targeting explicit and correct?:** Yes for `ask`; `extract-claims` / `resolve-entities` use env var.
+- **Did output match expected golden-path behavior?:** N/A — static check only.
+- **Did this affect Phase 1 gates?:** `uncertain`
+- **If yes or uncertain, which gate/control is affected?:** Python version gating and dataset/run-id discipline are operator-risk items that affect reproducibility of Phase 1 gate validation. Docs do not state Python 3.11+ hard requirement.
 
 #### Drift / findings
 
-- **Doc/code mismatch found?:**
-- **Runtime/config mismatch found?:**
-- **Unexpected dependency or setup requirement?:**
-- **Safety-harness impact note:**
-- **Checklist impact note:**
-- **Recommended immediate follow-up:**
+- **Doc/code mismatch found?:** Yes — Phase 1 docs do not clearly state the Python 3.11+ hard interpreter requirement. `datetime.UTC` fails on Python 3.9 immediately.
+- **Runtime/config mismatch found?:** Yes — `run_demo.py reset` helper output still references script-path forms; Phase 1 posture is module invocation.
+- **Unexpected dependency or setup requirement?:** `neo4j` package must be installed in `.venv`. `OPENAI_API_KEY` and `NEO4J_PASSWORD` required. Neo4j must be running.
+- **Safety-harness impact note:** Harness Section 9.6–9.7 commands are confirmed correct as documented. Interpreter version is an unwritten precondition.
+- **Checklist impact note:** Checklist should note Python 3.11+ and `.venv` interpreter as explicit Phase 1 prerequisites once confirmed by execution.
+- **Recommended immediate follow-up:** Agent B live execution using `.venv` Python 3.11+.
 
 #### Disposition
 
 - **Next action owner:** Ash
-- **Next action:** Start or refine Agent B baseline execution based on command-validation findings.
+- **Next action:** Start Agent B baseline execution based on command-validation findings. Use `docker compose up -d neo4j`, `.venv` Python 3.11+, `OPENAI_API_KEY`, `NEO4J_PASSWORD`.
 - **Priority:** `P0`
-- **Escalation needed?:**
-- **If escalated, to whom?:**
+- **Escalation needed?:** no
+- **If escalated, to whom?:** (N/A)
+
+---
+
+### Run ID: `phase1-agent-b-001`
+
+#### Metadata
+
+- **Status:** `PARTIAL`
+- **Date:** `2026-04-15`
+- **Operator / primary agent:** `Agent B`
+- **Supporting agents:** `Agent A` (command forms and prerequisites validated first)
+- **Branch:** `main`
+- **Commit SHA:** `43805f19e62e65cdfa5b9e1796534d938adb09f0`
+- **Environment / host context:** macOS, `.venv` Python 3.11.14, Docker Compose Neo4j (`power-atlas-neo4j`, healthy), `NEO4J_URI=bolt://localhost:7687`, `NEO4J_PASSWORD` set, `OPENAI_API_KEY` set, model=`gpt-4o-mini`
+- **Related agent track:** `Agent B`
+
+#### Scope of attempt
+
+- **Intent of this run:** Execute the documented Phase 1 golden-path baseline end-to-end for `demo_dataset_v1`. Capture first real execution evidence set.
+- **Target scenario:** `baseline`
+- **Dataset(s):** `demo_dataset_v1`
+- **Expected run ID(s) involved:** TBD (produced by ingest-pdf)
+- **Neo4j posture / dependency state:** Docker Compose Neo4j healthy before execution started. Pre-run graph contained 1,708 nodes and 3,806 relationships (from prior runs). Reset was run first.
+- **Prerequisites assumed satisfied:** Python 3.11+ `.venv`, Neo4j running, env vars set, fixture `demo/fixtures/datasets/demo_dataset_v1/` present (unstructured and structured subdirs confirmed).
+
+#### Canonical command reference
+
+- **Source doc section(s):**
+  - `repository_restructure_safety_harness.md` Section 9.6 (Golden-path scenario)
+  - `repository_restructure_safety_harness.md` Section 9.7 (Neo4j integration path)
+
+- **Documented command(s):**
+
+```bash
+python -m demo.reset_demo_db --confirm
+python -m demo.run_demo ingest-pdf --live --dataset demo_dataset_v1
+export UNSTRUCTURED_RUN_ID="<run_id from ingest-pdf output>"
+python -m demo.run_demo extract-claims --live --dataset demo_dataset_v1
+python -m demo.run_demo resolve-entities --live --dataset demo_dataset_v1
+python -m demo.run_demo ask --live --dataset demo_dataset_v1 --run-id "$UNSTRUCTURED_RUN_ID" --question "What does the document say about Endeavor and MercadoLibre?"
+```
+
+#### Executed command(s)
+
+```bash
+# Step 1: Reset
+.venv/bin/python -m demo.reset_demo_db --confirm
+
+# Step 2: Ingest PDF
+.venv/bin/python -m demo.run_demo ingest-pdf --live --dataset demo_dataset_v1
+
+# Steps 3–5: Extract, resolve, ask (via wrapper script due to tool env-var restrictions)
+# UNSTRUCTURED_RUN_ID=unstructured_ingest-20260415T074604232009Z-9339f3e4
+export UNSTRUCTURED_RUN_ID=unstructured_ingest-20260415T074604232009Z-9339f3e4
+.venv/bin/python -m demo.run_demo extract-claims --live --dataset demo_dataset_v1
+.venv/bin/python -m demo.run_demo resolve-entities --live --dataset demo_dataset_v1
+.venv/bin/python -m demo.run_demo ask --live --dataset demo_dataset_v1 --run-id "$UNSTRUCTURED_RUN_ID" --question "What does the document say about Endeavor and MercadoLibre?"
+```
+
+#### Outputs and captured identifiers
+
+- **Produced `UNSTRUCTURED_RUN_ID`:** `unstructured_ingest-20260415T074604232009Z-9339f3e4`
+- **Other run IDs / identifiers:** pdf_ingest internal pipeline run_id `26cb42c2-4959-41a8-8398-708533acd621` (vendor pipeline run, not the demo run ID)
+- **Primary output summary:**
+  - Reset: 1,708 nodes deleted, 3,806 relationships deleted, `demo_chunk_embedding_index` dropped. Reset report written.
+  - ingest-pdf: 1 document, 11 chunks, 3 pages. Vector index created (1536 dims). Exit 0.
+  - extract-claims: 181 entity mentions extracted. **0 claims extracted** (ExtractedClaim nodes = 0). Exit 0.
+  - resolve-entities: 110 ResolvedEntityCluster nodes created. Exit 0.
+  - ask: 5 retrieval hits (scores 0.72–0.80). Answer produced. 4 citation tokens present. `citation_fallback_applied: true`, `all_answers_cited: false`, `evidence_level: "degraded"`. Exit 0.
+- **Citation/output behavior observed:**
+  - Answer produced with substantive content about Endeavor and MercadoLibre.
+  - Raw answer had 4 paragraphs; not all sentences individually cited → system applied citation fallback.
+  - Final answer prefixed with `"Insufficient citations detected:"` and 4 citation tokens embedded.
+  - Citation objects are well-formed: chunk_id, run_id, source_uri, chunk_index, page, start_char, end_char all present.
+  - `citation_repair_attempted: false` — no repair was tried before fallback.
+- **Artifact path(s):**
+  - `demo/artifacts/reset_report_20260415T074446019068Z.json`
+  - `demo/artifacts/runs/unstructured_ingest-20260415T074604232009Z-9339f3e4/pdf_ingest/manifest.json`
+  - `demo/artifacts/runs/unstructured_ingest-20260415T074604232009Z-9339f3e4/claim_and_mention_extraction/manifest.json`
+  - `demo/artifacts/runs/unstructured_ingest-20260415T074604232009Z-9339f3e4/entity_resolution/manifest.json`
+  - `demo/artifacts/runs/unstructured_ingest-20260415T074604232009Z-9339f3e4/retrieval_and_qa/manifest.json`
+- **Stdout/stderr capture path(s):** `/tmp/ingest_pdf_out.txt`, `/tmp/pipeline_out.txt` (session-local; not committed)
+
+#### Result assessment
+
+- **What worked:**
+  - All 4 pipeline stages completed with exit 0.
+  - `demo_dataset_v1` was explicitly selected and confirmed in all manifests (`dataset_id: "demo_dataset_v1"`).
+  - Produced `UNSTRUCTURED_RUN_ID` was unambiguous (single line in manifest output).
+  - `--run-id` was honored by `ask` (`run_id` confirmed in retrieval scope and manifest).
+  - Neo4j connectivity worked end-to-end (reset, ingest writes + index creation, vector retrieval, entity resolution all succeeded).
+  - Retrieval returned 5 non-empty hits for known-good query. Golden-path retrieval path is functional.
+  - Answer output was produced with substantive on-topic content.
+  - Citation token objects are structurally correct (chunk_id, run_id, source_uri, page, char offsets all populated).
+- **What failed or remained uncertain:**
+  - `extract-claims` produced **0 ExtractedClaim nodes** (claims=0). 181 EntityMention nodes were written, but no claim structures. This is a meaningful gap: the golden-path scenario 9.4 expects the claim layer to be active. No claims means the graph layer carries mentions only, not claims.
+  - Citation quality invariants from safety harness Section 9.4 **not met**: expected `all_answers_cited: true`, `citation_fallback_applied: false`, `evidence_level: "full"`. Actual: `all_answers_cited: false`, `citation_fallback_applied: true`, `evidence_level: "degraded"`.
+  - `citation_repair_attempted: false` — the citation repair pathway was not tried before fallback was applied. Unclear if this is correct default behavior or a gap.
+  - The ask path used default (non-`--expand-graph`) retrieval. Graph expansion was not tested in this run. `HAS_PARTICIPANT` and `RESOLVES_TO` edges are not surfacing in the retrieval path diagnostics, consistent with no claims written.
+- **Was dataset selection explicit and correct?:** Yes — `--dataset demo_dataset_v1` used on all commands; `dataset_id: "demo_dataset_v1"` confirmed in all 4 manifests.
+- **Was run targeting explicit and correct?:** Yes — `--run-id unstructured_ingest-20260415T074604232009Z-9339f3e4` used on `ask`; `run_id` confirmed in retrieval scope in manifest. `extract-claims` and `resolve-entities` used `UNSTRUCTURED_RUN_ID` env var as documented.
+- **Did output match expected golden-path behavior?:** Partial. End-to-end execution succeeded. Retrieval and answer both worked. Citation tokens present but citation quality is degraded, not full. Claim extraction produced 0 claims.
+- **Did this affect Phase 1 gates?:** `yes`
+- **If yes or uncertain, which gate/control is affected?:** Safety harness Section 9.4 (answer/citation scenario) — invariant `all_answers_cited: true` and `evidence_level: "full"` not met. Checklist item "identify critical answer/citation flow" is met directionally (the flow runs), but the accepted invariants don't hold. Gate `critical answer/citation scenario is defined` can be checked as defined; however the baseline output does not yet satisfy the expected citation quality.
+
+#### Drift / findings
+
+- **Doc/code mismatch found?:** Minor. Documented golden-path scenario (safety harness 9.4) states expected invariants of `all_answers_cited: true`, `citation_fallback_applied: false`, `evidence_level: "full"`. Actual first run produced degraded citation quality. This may be a previously unobserved gap or a prompt/model behavior shift — needs investigation.
+- **Runtime/config mismatch found?:** `extract-claims` producing 0 claims is unexpected for a live run against `chain_of_custody.pdf`. The step exited 0 with no warnings logged. The `claims_v1` prompt may not be extracting structured claims from this document; or there may be a silent filter producing 0 claims. This needs triage.
+- **Unexpected dependency or setup requirement?:** None beyond what Agent A identified. Python 3.11+ `.venv` was used successfully. Neo4j Docker Compose worked as expected.
+- **Safety-harness impact note:** The golden-path scenario (Section 9.6) ran end-to-end without a crash. However, the specific citation quality invariants from scenario 9.4 are not met in this first pass. The zero-claims finding means the ExtractedClaim graph layer is empty for this run. Safety-harness scenarios 9.3 (graph retrieval) and 9.4 (answer/citation) both depend on a populated claim layer for full fidelity — that is not yet proven.
+- **Checklist impact note:** Phase 1 checklist items "identify critical answer/citation flow" and "identify critical graph retrieval flow" are directionally met (the flows run), but baseline quality evidence is degraded. Do not advance Phase 1 gate as fully satisfied until citation quality invariants are understood and either confirmed acceptable or fixed.
+- **Recommended immediate follow-up:** Triage zero-claims finding. Run `ask --expand-graph` to confirm whether graph expansion works with the existing EntityMention layer. Determine whether citation fallback is the expected baseline behavior or a regression vs. prior manual runs documented in `demo/VALIDATION_RUNBOOK.md`. Assign Agent E (defect triage) or Ash to investigate `claims_v1` prompt output for `chain_of_custody.pdf`.
+
+#### Disposition
+
+- **Next action owner:** Ash
+- **Next action:** Triage zero-claims and degraded citation quality. Determine if this is (a) a first-run environment issue, (b) a model/prompt behavior change, or (c) the actual current baseline for this dataset. Then decide: re-run with `--expand-graph`, or fix claims extraction first.
+- **Priority:** `P1`
+- **Escalation needed?:** yes
+- **If escalated, to whom?:** Ash — citation invariants from safety harness Section 9.4 are not met; zero-claims is an unexpected gap in the graph layer.
