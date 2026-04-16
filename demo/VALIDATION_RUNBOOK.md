@@ -124,7 +124,7 @@ If neither is set and multiple datasets exist, the command fails with a clear er
 **Listing available datasets**
 
 ```python
-from demo.contracts.paths import list_available_datasets
+from power_atlas.contracts.paths import list_available_datasets
 print(list_available_datasets())
 # ['demo_dataset_v1', 'demo_dataset_v2']
 ```

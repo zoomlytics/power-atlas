@@ -30,7 +30,7 @@ unexpected data shapes, fallback-to-default paths, and resource-state
 mismatches that are recovered automatically.
 
 ```python
-# demo/contracts/pipeline.py
+# src/power_atlas/contracts/pipeline.py
 _logger.warning(
     "Falling back to default chunk embedding contract; unable to load %s: %s",
     PDF_PIPELINE_CONFIG_PATH,
@@ -136,7 +136,7 @@ user-facing pipeline warnings because:
   code.
 
 All previously existing `warnings.warn(...)` calls in
-`demo/contracts/pipeline.py` have been migrated to `_logger.warning(...)` so
+`src/power_atlas/contracts/pipeline.py` have been migrated to `_logger.warning(...)` so
 that config-loading fallback conditions appear in the standard log stream.
 
 **Rule:** Do not add new `warnings.warn(...)` calls.  The only acceptable

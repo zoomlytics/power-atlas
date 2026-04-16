@@ -555,7 +555,7 @@ Phase 1 has been implemented in the following modules:
   `_RESOLVER_VERSION` so that cluster-membership edges can be distinguished by the version that
   created them.
 
-### `demo/contracts/claim_schema.py`
+### `src/power_atlas/contracts/claim_schema.py`
 
 - Added a new `resolution_layer_schema()` function (intentionally separate from
   `claim_extraction_schema()`) that defines the `ResolvedEntityCluster` `NodeType` with documented

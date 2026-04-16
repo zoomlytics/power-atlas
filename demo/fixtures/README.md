@@ -54,7 +54,7 @@ python -m demo.run_demo ingest --live --dataset demo_dataset_v2
 FIXTURE_DATASET=demo_dataset_v2 python -m demo.run_demo ingest --live
 
 # List available datasets from Python
-python -c "from demo.contracts.paths import list_available_datasets; print(list_available_datasets())"
+python -c "from power_atlas.contracts.paths import list_available_datasets; print(list_available_datasets())"
 ```
 
 Legacy compatibility: the top-level `structured/`, `unstructured/`, and

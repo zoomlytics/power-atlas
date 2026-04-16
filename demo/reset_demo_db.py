@@ -41,7 +41,7 @@ Stale participation edges (pre-v0.3 graphs only, non-migratable):
 Demo-owned indexes (dropped by name):
   - demo_chunk_embedding_index  (vector index on Chunk.embedding, created by
     ingest-pdf or run_demo.py setup; name pinned in
-    demo/config/pdf_simple_kg_pipeline.yaml and demo.contracts.pipeline)
+        demo/config/pdf_simple_kg_pipeline.yaml and power_atlas.contracts.pipeline)
 
 Preserved (not touched by this script):
   - Any nodes with labels not in the list above
@@ -232,12 +232,12 @@ def run_reset(
 
     # ── Drop demo-owned indexes ───────────────────────────────────────────────
     # Keep this reset contract aligned with demo/config/pdf_simple_kg_pipeline.yaml
-    # and demo.contracts.pipeline (CHUNK_EMBEDDING_INDEX_NAME).
+    # and power_atlas.contracts.pipeline (CHUNK_EMBEDDING_INDEX_NAME).
     for index_name in DEMO_OWNED_INDEXES:
         if _index_exists(driver, index_name, database):
             # Issue a direct DROP INDEX statement in a session scoped to the
             # demo database.  The index name is a compile-time constant from
-            # demo.contracts, but we validate it as a safe bare identifier
+            # power_atlas.contracts, but we validate it as a safe bare identifier
             # before interpolating it into the Cypher string.
             _validate_cypher_identifier(index_name, "index name")
             with driver.session(database=database) as _drop_session:

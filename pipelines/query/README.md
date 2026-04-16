@@ -1662,7 +1662,7 @@ or custom scripts:
 ```python
 from pathlib import Path
 
-from demo.contracts.runtime import Config
+from power_atlas.contracts.runtime import Config
 from demo.stages.graph_health import run_graph_health_diagnostics
 
 config = Config(
@@ -2031,7 +2031,7 @@ step to ensure the results are scoped to the correct cohort.
 ```python
 from pathlib import Path
 
-from demo.contracts.runtime import Config
+from power_atlas.contracts.runtime import Config
 from demo.stages.retrieval_benchmark import run_retrieval_benchmark
 
 config = Config(
