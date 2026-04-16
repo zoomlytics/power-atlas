@@ -1,6 +1,6 @@
 # Phase 2 Follow-Up Task — `demo/contracts` Deprecation Planning
 
-**Status:** not started  
+**Status:** in progress  
 **Owner:** Ash  
 **Date context:** 2026-04-16  
 **Related documents:**
@@ -40,6 +40,80 @@ As of 2026-04-16:
 The repository is therefore past blind package-foundation work but not yet ready
 to treat shim removal as a mechanical cleanup pass.
 
+## Initial inventory snapshot
+
+The first classification pass on 2026-04-16 found no remaining active
+non-shim runtime imports of `demo.contracts` outside the compatibility layer
+itself.
+
+The remaining references fall into the following classes.
+
+### A. Active shim modules
+
+These files are the compatibility layer itself and remain active by design:
+
+- `demo/contracts/__init__.py`
+- `demo/contracts/claim_schema.py`
+- `demo/contracts/manifest.py`
+- `demo/contracts/paths.py`
+- `demo/contracts/pipeline.py`
+- `demo/contracts/prompts.py`
+- `demo/contracts/resolution.py`
+- `demo/contracts/retrieval_early_return_policy.py`
+- `demo/contracts/retrieval_metadata_policy.py`
+- `demo/contracts/runtime.py`
+- `demo/contracts/structured.py`
+
+### B. Compatibility-test callers
+
+These references intentionally verify that the compatibility surface still
+behaves as documented and should not be treated as accidental cleanup debt.
+
+- `tests/test_power_atlas_package.py`
+  - verifies package-owned objects remain reachable via demo shim modules
+  - verifies `demo.contracts.pipeline` is the same module object as
+    `power_atlas.contracts.pipeline`
+- `demo/tests/test_retrieval_metadata_policy.py`
+  - verifies `demo.contracts` root re-exports for metadata policy objects
+- `demo/tests/test_retrieval_result_contract.py`
+  - verifies `demo.contracts` root re-exports for early-return policy objects
+- `demo/tests/test_orchestrator_modules.py`
+  - preserves explicit demo prompt-shim checks
+  - preserves explicit demo pipeline-module checks
+- `demo/tests/test_pipeline_contract.py`
+  - preserves logger-name and pipeline module behavior coverage
+- `demo/tests/test_demo_workflow.py`
+  - asserts warning logs under the preserved `demo.contracts.pipeline` logger
+    name
+- `demo/tests/test_retrieval_metadata_projection_parity.py`
+  - docs/tests reference the demo surface as the policy anchor for parity
+
+### C. Documentation-only compatibility references
+
+These references are intentional documentation of compatibility posture rather
+than runtime dependency.
+
+- `README.md`
+- `docs/architecture/retrieval-citation-result-contract-v0.1.md`
+- canonical restructure docs under `docs/repository_restructure/`
+
+### D. Deliberate special-case runtime exception
+
+- `src/power_atlas/contracts/pipeline.py`
+  - preserves the logger name `demo.contracts.pipeline`
+  - this is not an import dependency, but it is a compatibility-facing runtime
+    identity that must be treated as part of the shim surface
+
+### E. Generated metadata
+
+Generated package metadata may continue to echo compatibility wording copied
+from the README:
+
+- `src/power_atlas.egg-info/PKG-INFO`
+- virtualenv `dist-info/METADATA`
+
+These are not first-class retirement blockers; they follow the canonical docs.
+
 ## Non-goals
 
 This follow-up task does not authorize:
@@ -73,6 +147,27 @@ At minimum, distinguish between:
 The pipeline shim must be handled separately because it preserves shared mutable
 module identity.
 
+#### Current classification
+
+- **Simple package-owned contract shims**
+  - `claim_schema.py`
+  - `manifest.py`
+  - `paths.py`
+  - `prompts.py`
+  - `resolution.py`
+  - `retrieval_early_return_policy.py`
+  - `retrieval_metadata_policy.py`
+  - `runtime.py`
+  - `structured.py`
+- **Root compatibility proxy**
+  - `demo/contracts/__init__.py`
+  - special because it defines the demo-root compatibility surface and lazy
+    attributes
+- **Stateful module-alias shim**
+  - `demo/contracts/pipeline.py`
+  - special because it preserves shared mutable module identity, not just object
+    re-export behavior
+
 ### 3. What would count as safe retirement readiness?
 
 Define explicit retirement prerequisites, such as:
@@ -82,6 +177,18 @@ Define explicit retirement prerequisites, such as:
 - documentation updated,
 - operator impact reviewed,
 - an agreed stance on whether any deprecation window is required.
+
+#### Initial readiness assessment
+
+The repo is not yet retirement-ready because:
+
+- compatibility tests still intentionally depend on demo-surface imports,
+- the demo-root proxy and pipeline alias still encode explicit compatibility
+  promises,
+- the logger-name compatibility surface has not been reviewed for change
+  tolerance,
+- there is not yet an accepted decision on whether shim retirement belongs in
+  late Phase 2 or Phase 10.
 
 ### 4. What should happen before any code removal?
 
@@ -102,6 +209,48 @@ The planning task should produce:
 4. a validation plan for any future retirement implementation,
 5. a recommendation on whether retirement belongs to late Phase 2 work or should
    remain deferred to Phase 10.
+
+## Initial recommendation
+
+### Recommended retirement order
+
+1. **Plan only first**
+   - keep the current shims in place while the compatibility contract is made
+     explicit
+2. **Simple package-owned contract shims**
+   - these are the best first retirement candidates once the keep/remove
+     contract is agreed because they are mechanically simpler and already have
+     package-owned authoritative implementations
+3. **`demo/contracts/__init__.py` root proxy**
+   - retire only after the intended root-surface compatibility promise is either
+     removed or replaced with explicit package-native guidance
+4. **`demo/contracts/pipeline.py` module-alias shim and associated logger-name
+   compatibility**
+   - treat as the last retirement candidate because it carries mutable-state and
+     logging identity behavior that simple re-export shims do not
+
+### Recommended phase placement
+
+The planning work belongs in Phase 2 now.
+
+Actual shim-removal implementation should remain conditional:
+
+- if the resulting plan shows the remaining compatibility promise is narrow and
+  fully repo-internal, the first retirement slice could still be a late Phase 2
+  task;
+- if the promise is broader or the logger/pipeline alias surface remains sticky,
+  full retirement should stay deferred to Phase 10.
+
+### Validation gate for any future implementation
+
+Before any shim-removal code change, require at minimum:
+
+- `tests/test_power_atlas_package.py`
+- compatibility-focused demo tests that currently import or assert against
+  `demo.contracts`
+- any focused tests covering the affected contract surface
+- `make phase1-verify` for any change that can affect runtime behavior or the
+  accepted CLI path
 
 ## Suggested execution sequence
 
