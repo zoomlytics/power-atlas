@@ -368,14 +368,29 @@ later migration has already landed in the repo:
 - initial `bootstrap/` and typed settings entrypoints exist,
 - package/import proof exists in `tests/test_power_atlas_package.py`,
 - multiple contract modules have been promoted into `src/power_atlas/contracts/`,
+- more active entrypoints now resolve defaults and infrastructure through package-owned bootstrap seams,
 - maintainer-facing docs now point at package-owned contract paths,
 - `demo/contracts` remains in place intentionally as a compatibility layer.
 
 This means Phase 2 should no longer be treated as untouched future intent.
 However, it should also not yet be treated as full legacy retirement: the active
 CLI path remains `demo/`, the compatibility layer is still deliberate, and the
-next useful work is more likely to be shim/deprecation planning or broader
-bootstrap adoption than additional blind import cleanup.
+next useful work is broader bootstrap/composition-root adoption than additional
+blind import cleanup. Shim/deprecation planning is now documented separately and
+should not be confused with the next implementation lane.
+
+Since the previous documentation checkpoint, the package/bootstrap lane has
+expanded beyond structural foundation work into active entrypoint ownership:
+
+- `demo/smoke_test.py` now builds dry-run config through package bootstrap,
+- `demo/reset_demo_db.py` now resolves most Neo4j CLI defaults through package settings while preserving its missing-password guardrail,
+- `demo/run_demo.py` now routes remaining direct Neo4j driver creation through `create_neo4j_driver(...)` and aligns dataset/default selection with package settings,
+- query CLIs now use package-backed parser defaults for Neo4j URI, username, and database while preserving their intentional early-exit password behavior,
+- `power_atlas.contracts.paths.resolve_dataset_root(...)` now resolves dataset selection through `AppSettings.from_env(...)` rather than direct env reads.
+
+The strongest current proof point is the latest full `make phase1-verify` run on
+2026-04-16, which passed with fully cited baseline, companion, and isolation
+asks and no citation fallback.
 
 #### Objectives
 
@@ -467,6 +482,24 @@ This is a relocation phase, not an architecture cleanup phase.
 ---
 
 ### Phase 4 — First-order seam extraction
+
+#### Current checkpoint status
+
+Phase 4 is no longer untouched future work, but it is still materially
+incomplete.
+
+Early seam extraction has already landed additively:
+
+- first-party live Neo4j driver construction now mostly flows through the shared
+  bootstrap seam,
+- more entrypoints resolve config/default ownership through package settings,
+- direct env/default resolution has started moving out of package-owned and
+  entrypoint-owned helper code.
+
+That progress should not be overstated. The repo has not yet reached a true
+adapter/application/interface split for graph access, raw Cypher still appears in
+live stage modules, and interface/orchestration code is still thicker than the
+target architecture allows.
 
 #### Objectives
 
@@ -754,14 +787,15 @@ To avoid over-engineering, these are **out of scope for the first pass unless al
 
 ## 9. Recommended immediate next work items
 
-The decision register, migration checklist, and safety harness are in place. The next work in sequence is:
+The repo is past the original Phase 1/early-Phase 2 setup posture. The most
+useful next work in sequence is now:
 
-1. accept and finalize the safety harness document,
-2. assign Phase 1 and Phase 2 owners,
-3. confirm the selected golden-path scenario and finalize its canonical command set,
-4. confirm the first runnable Neo4j-backed integration baseline,
-5. finalize the package/import validation command,
-6. begin Phase 1 execution tasks for the selected safety harness scenarios.
+1. keep Phase 2 open, but treat its structural foundation deliverables as complete,
+2. treat Phase 3 as additive in-progress movement rather than the next untouched phase,
+3. treat Phase 4 as partially underway and use that framing to prioritize the next lane,
+4. audit remaining first-party live code for non-bootstrap dependency construction and env/default-resolution bypasses, excluding intentional runtime guards,
+5. take the next narrow migration slices on broader bootstrap/composition-root adoption rather than on `demo.contracts` removal,
+6. defer actual shim retirement until late migration unless the active execution surface changes materially.
 
 ---
 

@@ -88,7 +88,7 @@ Use the following status values consistently:
 **Status:** in progress  
 **Owner:** Ash  
 **Blockers:**  
-**Notes:** The package foundation has landed and is validated, so this phase is no longer untouched future work. `src/power_atlas/`, `pyproject.toml`, editable install, initial `bootstrap/`, typed settings, and installed-package import proof are all present. The package-first migration has already promoted multiple contract modules into `src/power_atlas/contracts/` while preserving `demo/contracts` as a compatibility layer. The current checkpoint should be read as: Phase 2 foundation deliverables are complete, broader compatibility-preserving package adoption is still in progress, and formal shim retirement has not started. A single 2026-04-16 harness run observed one baseline citation fallback after a compatibility-proxy cleanup, but companion and isolation asks remained fully cited; treat that as a residual signal to monitor, not as a confirmed Phase 2 regression.  
+**Notes:** The package foundation has landed and is validated, so this phase is no longer untouched future work. `src/power_atlas/`, `pyproject.toml`, editable install, initial `bootstrap/`, typed settings, and installed-package import proof are all present. The package-first migration has already promoted multiple contract modules into `src/power_atlas/contracts/` while preserving `demo/contracts` as a compatibility layer. Since the last documentation refresh, bootstrap/settings ownership has expanded across active entrypoints and helpers: `demo/smoke_test.py`, `demo/reset_demo_db.py`, `demo/run_demo.py`, `demo/narrative_extraction.py`, `pipelines/query/graph_health_diagnostics.py`, `pipelines/query/retrieval_benchmark.py`, and `power_atlas.contracts.paths.resolve_dataset_root(...)` now route more of their settings/default-resolution and Neo4j construction through package-owned seams. The current checkpoint should be read as: Phase 2 foundation deliverables are complete, broader compatibility-preserving package adoption/bootstrap work is still in progress, formal shim retirement has not started, and the latest full `make phase1-verify` run on 2026-04-16 finished with fully cited baseline, companion, and isolation asks and no citation fallback.  
 
 ### Exit criteria
 
@@ -140,10 +140,10 @@ Use the following status values consistently:
 
 ## Phase 4 — First-order seam extraction
 
-**Status:** not started  
+**Status:** in progress  
 **Owner:**  
 **Blockers:**  
-**Notes:**  
+**Notes:** Initial seam extraction is underway but incomplete. In first-party live code, Neo4j driver construction now largely routes through `power_atlas.bootstrap.create_neo4j_driver(...)`, and more entrypoint config/default ownership now flows through `build_settings(...)` plus `build_runtime_config(...)`. That is meaningful Phase 4 progress, but this phase is not close to exit: CLI/orchestration code is still thicker than intended, raw Cypher remains in live stage modules, and infrastructure assembly has not yet been isolated to adapter-local/application-facing boundaries.  
 
 ### Exit criteria
 
@@ -463,7 +463,8 @@ Track follow-up decisions that must be resolved before later phases can complete
 
 Use this section as the working short list.
 
-- [ ] decide whether to close Phase 2 formally now that the foundation deliverables are complete or keep it open until broader package adoption/bootstrap work reaches a clearer checkpoint
+- [x] decide whether to close Phase 2 formally now that the foundation deliverables are complete or keep it open until broader package adoption/bootstrap work reaches a clearer checkpoint
 - [x] execute the follow-up planning task in `docs/repository_restructure/repository_restructure_phase2_demo_contracts_retirement_task.md`
-- [ ] use the resolved shim-planning outcome to proceed on the broader bootstrap/composition-root adoption lane instead of treating shim retirement as the next implementation slice
-- [ ] monitor the one-off 2026-04-16 citation fallback only if it reproduces under `make phase1-verify`
+- [ ] start the next migration lane on broader bootstrap/composition-root adoption in first-party live code instead of treating shim retirement as the next implementation slice
+- [ ] audit remaining first-party env/default reads and direct infrastructure construction to separate true initialization debt from intentional runtime guards
+- [x] re-run the full `make phase1-verify` gate after the recent bootstrap/default-resolution cleanup and record whether the earlier one-off citation fallback reproduces
