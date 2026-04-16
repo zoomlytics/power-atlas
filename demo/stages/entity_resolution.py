@@ -221,10 +221,13 @@ import json
 import re
 from datetime import UTC, datetime
 from difflib import SequenceMatcher
-from typing import Any
 from pathlib import Path
+from typing import Any
 from urllib.parse import quote as _pct_encode
 
+import neo4j
+
+from power_atlas.bootstrap import create_neo4j_driver
 from power_atlas.contracts.pipeline import get_dataset_id
 from power_atlas.contracts.resolution import ALIGNMENT_VERSION as _ALIGNMENT_VERSION
 from power_atlas.text_utils import normalize_mention_text
@@ -1508,8 +1511,6 @@ def run_entity_resolution(
         unresolved_path.write_text(json.dumps([], indent=2), encoding="utf-8")
         return summary
 
-    import neo4j
-
     # Initialised here so they are always defined when building the summary below,
     # regardless of resolution_mode.  Set to graph-queried values inside the
     # driver context for unstructured-first modes.
@@ -1524,10 +1525,7 @@ def run_entity_resolution(
     # Warnings accumulated inside the driver block and surfaced in the summary.
     _stage_warnings: list[str] = []
 
-    driver = neo4j.GraphDatabase.driver(
-        config.neo4j_uri,
-        auth=(config.neo4j_username, config.neo4j_password),
-    )
+    driver = create_neo4j_driver(config)
     with driver:
         # 1. Read EntityMention nodes for this run_id.
         mention_result, _, _ = driver.execute_query(

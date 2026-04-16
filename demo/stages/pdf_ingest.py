@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 from typing import Any
 
+from power_atlas.bootstrap import create_neo4j_driver
 from power_atlas.contracts.pipeline import (
     CHUNK_EMBEDDING_DIMENSIONS,
     CHUNK_EMBEDDING_INDEX_NAME,
@@ -216,7 +217,6 @@ def run_pdf_ingest(
     if not os.getenv("OPENAI_API_KEY"):
         raise ValueError("Set OPENAI_API_KEY when using --live ingest-pdf")
 
-    import neo4j
     from neo4j_graphrag.experimental.pipeline.config.runner import PipelineRunner
 
     _validate_cypher_identifier(effective_index_name, "index name")
@@ -234,7 +234,7 @@ def run_pdf_ingest(
     os.environ.update(env_updates)
 
     try:
-        driver = neo4j.GraphDatabase.driver(config.neo4j_uri, auth=(config.neo4j_username, config.neo4j_password))
+        driver = create_neo4j_driver(config)
         with driver:
             index_creation_strategy = "cypher"
             with driver.session(database=config.neo4j_database) as session:

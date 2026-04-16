@@ -50,6 +50,7 @@ from typing import Any
 
 import neo4j
 
+from power_atlas.bootstrap import create_neo4j_driver
 from demo.stages.entity_resolution import build_entity_type_cypher_case as _build_entity_type_cypher_case
 
 _logger = logging.getLogger(__name__)
@@ -616,10 +617,7 @@ def run_graph_health_diagnostics(
         "alignment_version": alignment_version,
     }
 
-    with neo4j.GraphDatabase.driver(
-        config.neo4j_uri,
-        auth=(config.neo4j_username, config.neo4j_password),
-    ) as driver:
+    with create_neo4j_driver(config) as driver:
         def _query(cypher: str) -> list[dict[str, Any]]:
             records, _, _ = driver.execute_query(
                 cypher,

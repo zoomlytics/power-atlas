@@ -82,6 +82,7 @@ from typing import Any
 
 import neo4j
 
+from power_atlas.bootstrap import create_neo4j_driver
 _logger = logging.getLogger(__name__)
 
 __all__ = [
@@ -1180,10 +1181,7 @@ def run_retrieval_benchmark(
         "alignment_version": alignment_version,
     }
 
-    with neo4j.GraphDatabase.driver(
-        config.neo4j_uri,
-        auth=(config.neo4j_username, config.neo4j_password),
-    ) as driver:
+    with create_neo4j_driver(config) as driver:
 
         def _query(cypher: str, extra: dict[str, Any] | None = None) -> list[dict[str, Any]]:
             p = {**params, **(extra or {})}

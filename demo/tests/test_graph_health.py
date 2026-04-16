@@ -540,9 +540,7 @@ class TestRunGraphHealthDiagnosticsLive(unittest.TestCase):
             rows = self._make_rows()
             mock_driver = _make_mock_driver(rows)
 
-            with patch("demo.stages.graph_health.neo4j") as mock_neo4j:
-                mock_neo4j.GraphDatabase.driver.return_value = mock_driver
-                mock_neo4j.RoutingControl.READ = "READ"
+            with patch("power_atlas.bootstrap.clients.neo4j.GraphDatabase.driver", return_value=mock_driver):
                 result = run_graph_health_diagnostics(
                     config,
                     run_id="run-live-001",
@@ -564,9 +562,7 @@ class TestRunGraphHealthDiagnosticsLive(unittest.TestCase):
             rows = self._make_rows()
             mock_driver = _make_mock_driver(rows)
 
-            with patch("demo.stages.graph_health.neo4j") as mock_neo4j:
-                mock_neo4j.GraphDatabase.driver.return_value = mock_driver
-                mock_neo4j.RoutingControl.READ = "READ"
+            with patch("power_atlas.bootstrap.clients.neo4j.GraphDatabase.driver", return_value=mock_driver):
                 result = run_graph_health_diagnostics(
                     config, run_id="run-live-002", alignment_version=None
                 )
@@ -593,9 +589,7 @@ class TestRunGraphHealthDiagnosticsLive(unittest.TestCase):
             rows = self._make_rows()
             mock_driver = _make_mock_driver(rows)
 
-            with patch("demo.stages.graph_health.neo4j") as mock_neo4j:
-                mock_neo4j.GraphDatabase.driver.return_value = mock_driver
-                mock_neo4j.RoutingControl.READ = "READ"
+            with patch("power_atlas.bootstrap.clients.neo4j.GraphDatabase.driver", return_value=mock_driver):
                 run_graph_health_diagnostics(
                     config, run_id="run-live-003", alignment_version="v1.0"
                 )
@@ -610,9 +604,7 @@ class TestRunGraphHealthDiagnosticsLive(unittest.TestCase):
             rows = self._make_rows()
             mock_driver = _make_mock_driver(rows)
 
-            with patch("demo.stages.graph_health.neo4j") as mock_neo4j:
-                mock_neo4j.GraphDatabase.driver.return_value = mock_driver
-                mock_neo4j.RoutingControl.READ = "READ"
+            with patch("power_atlas.bootstrap.clients.neo4j.GraphDatabase.driver", return_value=mock_driver):
                 result = run_graph_health_diagnostics(
                     config, run_id="my-special-run", alignment_version=None
                 )
@@ -628,9 +620,7 @@ class TestRunGraphHealthDiagnosticsLive(unittest.TestCase):
             rows = self._make_rows()
             mock_driver = _make_mock_driver(rows)
 
-            with patch("demo.stages.graph_health.neo4j") as mock_neo4j:
-                mock_neo4j.GraphDatabase.driver.return_value = mock_driver
-                mock_neo4j.RoutingControl.READ = "READ"
+            with patch("power_atlas.bootstrap.clients.neo4j.GraphDatabase.driver", return_value=mock_driver):
                 result = run_graph_health_diagnostics(
                     config, run_id=None, alignment_version=None
                 )
@@ -675,9 +665,7 @@ class TestRunGraphHealthDiagnosticsLive(unittest.TestCase):
             config = self._config(tmp_path)
             mock_driver = _make_mock_driver(rows)
 
-            with patch("demo.stages.graph_health.neo4j") as mock_neo4j:
-                mock_neo4j.GraphDatabase.driver.return_value = mock_driver
-                mock_neo4j.RoutingControl.READ = "READ"
+            with patch("power_atlas.bootstrap.clients.neo4j.GraphDatabase.driver", return_value=mock_driver):
                 result = run_graph_health_diagnostics(
                     config, run_id="run-trunc-pc", alignment_version="v1.0"
                 )
@@ -721,9 +709,7 @@ class TestRunGraphHealthDiagnosticsLive(unittest.TestCase):
             config = self._config(tmp_path)
             mock_driver = _make_mock_driver(rows)
 
-            with patch("demo.stages.graph_health.neo4j") as mock_neo4j:
-                mock_neo4j.GraphDatabase.driver.return_value = mock_driver
-                mock_neo4j.RoutingControl.READ = "READ"
+            with patch("power_atlas.bootstrap.clients.neo4j.GraphDatabase.driver", return_value=mock_driver):
                 result = run_graph_health_diagnostics(
                     config, run_id="run-trunc-ch", alignment_version="v1.0"
                 )
@@ -745,9 +731,7 @@ class TestRunGraphHealthDiagnosticsLive(unittest.TestCase):
             config = self._config(tmp_path)
             mock_driver = _make_mock_driver(rows)
 
-            with patch("demo.stages.graph_health.neo4j") as mock_neo4j:
-                mock_neo4j.GraphDatabase.driver.return_value = mock_driver
-                mock_neo4j.RoutingControl.READ = "READ"
+            with patch("power_atlas.bootstrap.clients.neo4j.GraphDatabase.driver", return_value=mock_driver):
                 result = run_graph_health_diagnostics(
                     config, run_id="run-no-trunc", alignment_version="v1.0"
                 )

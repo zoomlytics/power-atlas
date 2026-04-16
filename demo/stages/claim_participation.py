@@ -82,6 +82,7 @@ from typing import Any
 
 import neo4j
 
+from power_atlas.bootstrap import create_neo4j_driver
 from power_atlas.text_utils import normalize_mention_text
 
 # ---------------------------------------------------------------------------
@@ -917,10 +918,7 @@ def run_claim_participation(
         summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
         return summary
 
-    driver = neo4j.GraphDatabase.driver(
-        config.neo4j_uri,
-        auth=(config.neo4j_username, config.neo4j_password),
-    )
+    driver = create_neo4j_driver(config)
     with driver:
         # 1. Read ExtractedClaim rows for this run.
         claim_result, _, _ = driver.execute_query(

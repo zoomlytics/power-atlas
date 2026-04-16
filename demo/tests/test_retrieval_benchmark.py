@@ -1234,9 +1234,7 @@ class TestRunRetrievalBenchmarkLive(unittest.TestCase):
     ) -> dict[str, Any]:
         config = _make_config(tmp_path, dry_run=False)
         mock_driver = _make_mock_driver(rows)
-        with patch("demo.stages.retrieval_benchmark.neo4j") as mock_neo4j:
-            mock_neo4j.GraphDatabase.driver.return_value = mock_driver
-            mock_neo4j.RoutingControl.READ = "READ"
+        with patch("power_atlas.bootstrap.clients.neo4j.GraphDatabase.driver", return_value=mock_driver):
             return run_retrieval_benchmark(
                 config,
                 run_id=run_id,
@@ -1285,9 +1283,7 @@ class TestRunRetrievalBenchmarkLive(unittest.TestCase):
             rows = [[]]  # one pairwise query
             mock_driver = _make_mock_driver(rows)
             config = _make_config(Path(tmp), dry_run=False)
-            with patch("demo.stages.retrieval_benchmark.neo4j") as mock_neo4j:
-                mock_neo4j.GraphDatabase.driver.return_value = mock_driver
-                mock_neo4j.RoutingControl.READ = "READ"
+            with patch("power_atlas.bootstrap.clients.neo4j.GraphDatabase.driver", return_value=mock_driver):
                 result = run_retrieval_benchmark(
                     config,
                     run_id="run-p",
@@ -1304,9 +1300,7 @@ class TestRunRetrievalBenchmarkLive(unittest.TestCase):
             rows = _empty_case_rows() + _empty_case_rows()
             mock_driver = _make_mock_driver(rows)
             config = _make_config(Path(tmp), dry_run=False)
-            with patch("demo.stages.retrieval_benchmark.neo4j") as mock_neo4j:
-                mock_neo4j.GraphDatabase.driver.return_value = mock_driver
-                mock_neo4j.RoutingControl.READ = "READ"
+            with patch("power_atlas.bootstrap.clients.neo4j.GraphDatabase.driver", return_value=mock_driver):
                 run_retrieval_benchmark(config, run_id="run-q", benchmark_cases=cases)
             # 2 non-pairwise cases × 5 queries each = 10
             self.assertEqual(mock_driver.execute_query.call_count, 10)
@@ -1708,9 +1702,7 @@ class TestDatasetIdScoping(unittest.TestCase):
         driver.__enter__ = MagicMock(return_value=driver)
         driver.__exit__ = MagicMock(return_value=False)
         driver.execute_query.side_effect = [(r, None, None) for r in rows]
-        with patch("demo.stages.retrieval_benchmark.neo4j") as mock_neo4j:
-            mock_neo4j.GraphDatabase.driver.return_value = driver
-            mock_neo4j.RoutingControl.READ = "READ"
+        with patch("power_atlas.bootstrap.clients.neo4j.GraphDatabase.driver", return_value=driver):
             result = run_retrieval_benchmark(
                 config,
                 run_id="run-live",
@@ -1746,9 +1738,7 @@ class TestDatasetIdScoping(unittest.TestCase):
             driver.__enter__ = MagicMock(return_value=driver)
             driver.__exit__ = MagicMock(return_value=False)
             driver.execute_query.side_effect = [(r, None, None) for r in rows]
-            with patch("demo.stages.retrieval_benchmark.neo4j") as mock_neo4j:
-                mock_neo4j.GraphDatabase.driver.return_value = driver
-                mock_neo4j.RoutingControl.READ = "READ"
+            with patch("power_atlas.bootstrap.clients.neo4j.GraphDatabase.driver", return_value=driver):
                 run_retrieval_benchmark(
                     config,
                     run_id="run-param",
@@ -1771,9 +1761,7 @@ class TestDatasetIdScoping(unittest.TestCase):
             driver.__enter__ = MagicMock(return_value=driver)
             driver.__exit__ = MagicMock(return_value=False)
             driver.execute_query.side_effect = [(r, None, None) for r in rows]
-            with patch("demo.stages.retrieval_benchmark.neo4j") as mock_neo4j:
-                mock_neo4j.GraphDatabase.driver.return_value = driver
-                mock_neo4j.RoutingControl.READ = "READ"
+            with patch("power_atlas.bootstrap.clients.neo4j.GraphDatabase.driver", return_value=driver):
                 run_retrieval_benchmark(
                     config,
                     run_id="run-noparam",
@@ -1868,9 +1856,7 @@ class TestDatasetIdScoping(unittest.TestCase):
             driver_v1.__exit__ = MagicMock(return_value=False)
             driver_v1.execute_query.side_effect = [(r, None, None) for r in v1_rows]
 
-            with patch("demo.stages.retrieval_benchmark.neo4j") as mock_neo4j:
-                mock_neo4j.GraphDatabase.driver.return_value = driver_v1
-                mock_neo4j.RoutingControl.READ = "READ"
+            with patch("power_atlas.bootstrap.clients.neo4j.GraphDatabase.driver", return_value=driver_v1):
                 result_v1 = run_retrieval_benchmark(
                     config,
                     run_id="run-v1-shared",
@@ -1894,9 +1880,7 @@ class TestDatasetIdScoping(unittest.TestCase):
             driver_all.__exit__ = MagicMock(return_value=False)
             driver_all.execute_query.side_effect = [(r, None, None) for r in unscoped_rows]
 
-            with patch("demo.stages.retrieval_benchmark.neo4j") as mock_neo4j:
-                mock_neo4j.GraphDatabase.driver.return_value = driver_all
-                mock_neo4j.RoutingControl.READ = "READ"
+            with patch("power_atlas.bootstrap.clients.neo4j.GraphDatabase.driver", return_value=driver_all):
                 result_all = run_retrieval_benchmark(
                     config,
                     run_id="run-all-shared",

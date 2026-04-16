@@ -131,6 +131,29 @@ def test_create_neo4j_driver_uses_settings_credentials() -> None:
     )
 
 
+def test_create_neo4j_driver_accepts_legacy_config_shape() -> None:
+    from power_atlas.bootstrap.clients import create_neo4j_driver
+    from power_atlas.contracts.runtime import Config
+
+    config = Config(
+        dry_run=False,
+        output_dir=Path("artifacts"),
+        neo4j_uri="bolt://legacy.test:7687",
+        neo4j_username="legacy-user",
+        neo4j_password="legacy-secret",
+        neo4j_database="legacy-db",
+        openai_model="gpt-5.4",
+    )
+
+    with mock.patch("power_atlas.bootstrap.clients.neo4j.GraphDatabase.driver") as driver:
+        create_neo4j_driver(config)
+
+    driver.assert_called_once_with(
+        "bolt://legacy.test:7687",
+        auth=("legacy-user", "legacy-secret"),
+    )
+
+
 def test_demo_runtime_contract_shim_matches_package_exports() -> None:
     import demo.contracts.runtime as demo_runtime
     import power_atlas.contracts as contracts_module

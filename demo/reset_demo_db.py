@@ -66,6 +66,7 @@ from typing import Any
 
 import neo4j
 
+from power_atlas.bootstrap import create_neo4j_driver
 from power_atlas.contracts import ARTIFACTS_DIR
 from power_atlas.contracts.pipeline import CHUNK_EMBEDDING_INDEX_NAME
 from demo.cypher_utils import validate_cypher_identifier as _validate_cypher_identifier
@@ -308,9 +309,7 @@ def main() -> None:
     if not args.neo4j_password:
         raise SystemExit("NEO4J_PASSWORD environment variable or --neo4j-password must be set")
 
-    driver = neo4j.GraphDatabase.driver(
-        args.neo4j_uri, auth=(args.neo4j_username, args.neo4j_password)
-    )
+    driver = create_neo4j_driver(args)
     with driver:
         report = run_reset(
             driver=driver,

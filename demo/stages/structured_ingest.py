@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from power_atlas.bootstrap import create_neo4j_driver
 from power_atlas.contracts import (
     CSV_FIRST_DATA_ROW,
     FIXTURES_DIR,
@@ -331,9 +332,7 @@ def run_structured_ingest(config: Any, run_id: str, *, fixtures_dir: Path | None
             "validation_warnings_path": str(validation_warnings_path),
             "validation_warning_count": len(validation_warnings),
         }
-    import neo4j
-
-    driver = neo4j.GraphDatabase.driver(config.neo4j_uri, auth=(config.neo4j_username, config.neo4j_password))
+    driver = create_neo4j_driver(config)
     with driver:
         with driver.session(database=config.neo4j_database) as session:
             session.run(
