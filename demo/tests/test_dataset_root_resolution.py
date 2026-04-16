@@ -87,6 +87,10 @@ class TestDatasetRootResolution(unittest.TestCase):
             else:
                 os.environ["FIXTURE_DATASET"] = original
 
+    def test_resolve_via_explicit_environ_mapping(self):
+        dr = resolve_dataset_root(environ={"POWER_ATLAS_DATASET": "demo_dataset_v1"})
+        self.assertEqual(dr.dataset_id, "demo_dataset_v1")
+
     def test_resolve_explicit_name_overrides_env_var(self):
         original = os.environ.pop("FIXTURE_DATASET", None)
         try:

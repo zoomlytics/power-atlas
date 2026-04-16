@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Mapping
+
+from power_atlas.settings import AppSettings
 
 # Centralized filesystem locations for the demo.
 BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent / "demo"
@@ -100,13 +102,17 @@ def _load_dataset_root_from_dir(root: Path) -> DatasetRoot:
     return DatasetRoot(root=root, dataset_id=dataset_id, pdf_filename=pdf_filename)
 
 
-def resolve_dataset_root(name: str | None = None) -> DatasetRoot:
+def resolve_dataset_root(
+    name: str | None = None,
+    *,
+    environ: Mapping[str, str] | None = None,
+) -> DatasetRoot:
     """Return the active :class:`DatasetRoot`.
 
     Resolution order:
 
     1. *name* argument (e.g. from ``--dataset`` CLI flag).
-    2. ``FIXTURE_DATASET`` environment variable.
+    2. Package settings dataset selection (``POWER_ATLAS_DATASET`` then ``FIXTURE_DATASET``).
     3. Auto-discover the single dataset under :data:`DATASETS_CONTAINER_DIR`.
     4. Legacy fallback: treat :data:`FIXTURES_DIR` itself as the dataset root
        (only when :data:`DATASETS_CONTAINER_DIR` does not exist at all).
@@ -120,7 +126,7 @@ def resolve_dataset_root(name: str | None = None) -> DatasetRoot:
       subdirectories (empty container signals misconfiguration rather than a
       clean legacy layout).
     """
-    effective_name: str | None = name or os.getenv("FIXTURE_DATASET")
+    effective_name: str | None = name or AppSettings.from_env(environ).dataset_name
 
     if effective_name:
         if (
