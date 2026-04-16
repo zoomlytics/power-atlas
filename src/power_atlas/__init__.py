@@ -10,6 +10,8 @@ from power_atlas.contracts import (
     ALIGNMENT_VERSION,
     ARTIFACTS_DIR,
     AmbiguousDatasetError,
+    build_batch_manifest,
+    build_stage_manifest,
     EARLY_RETURN_PRECEDENCE,
     EARLY_RETURN_RULE_BY_NAME,
     EarlyReturnRule,
@@ -34,6 +36,8 @@ from power_atlas.contracts import (
     resolve_dataset_root,
     resolve_early_return_rule,
     timestamp,
+    write_manifest,
+    write_manifest_md,
 )
 from power_atlas.llm_utils import build_openai_llm
 from power_atlas.settings import AppSettings, Neo4jSettings
@@ -43,6 +47,8 @@ __all__ = [
     "ALIGNMENT_VERSION",
     "ARTIFACTS_DIR",
     "AmbiguousDatasetError",
+    "build_batch_manifest",
+    "build_stage_manifest",
     "EARLY_RETURN_PRECEDENCE",
     "EARLY_RETURN_RULE_BY_NAME",
     "EarlyReturnRule",
@@ -77,4 +83,6 @@ __all__ = [
     "resolve_dataset_root",
     "resolve_early_return_rule",
     "timestamp",
+    "write_manifest",
+    "write_manifest_md",
 ]

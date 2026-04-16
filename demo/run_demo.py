@@ -27,13 +27,16 @@ from demo.contracts import (  # noqa: E402
     DEFAULT_DB,
     Config,
     EMBEDDER_MODEL_NAME,
-    build_batch_manifest,
-    build_stage_manifest,
     make_run_id,
     resolve_dataset_root,
     set_dataset_id,
 )
-from demo.contracts.manifest import write_manifest, write_manifest_md  # noqa: E402
+from power_atlas.contracts import (  # noqa: E402
+    build_batch_manifest,
+    build_stage_manifest,
+    write_manifest,
+    write_manifest_md,
+)
 from demo.stages import (  # noqa: E402
     lint_and_clean_structured_csvs,
     run_claim_and_mention_extraction,

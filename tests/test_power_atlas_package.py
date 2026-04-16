@@ -16,6 +16,8 @@ def test_package_modules_import() -> None:
     assert package.ALIGNMENT_VERSION is contracts_module.ALIGNMENT_VERSION
     assert package.AmbiguousDatasetError is contracts_module.AmbiguousDatasetError
     assert package.ARTIFACTS_DIR == contracts_module.ARTIFACTS_DIR
+    assert package.build_batch_manifest is contracts_module.build_batch_manifest
+    assert package.build_stage_manifest is contracts_module.build_stage_manifest
     assert package.EarlyReturnRule is contracts_module.EarlyReturnRule
     assert package.EARLY_RETURN_PRECEDENCE is contracts_module.EARLY_RETURN_PRECEDENCE
     assert package.EARLY_RETURN_RULE_BY_NAME is contracts_module.EARLY_RETURN_RULE_BY_NAME
@@ -40,6 +42,8 @@ def test_package_modules_import() -> None:
     assert package.resolve_dataset_root is contracts_module.resolve_dataset_root
     assert package.resolve_early_return_rule is contracts_module.resolve_early_return_rule
     assert package.timestamp is contracts_module.timestamp
+    assert package.write_manifest is contracts_module.write_manifest
+    assert package.write_manifest_md is contracts_module.write_manifest_md
     assert package.AppSettings is settings_module.AppSettings
     assert package.build_settings is bootstrap_module.build_settings
     assert package.build_openai_llm is llm_utils_module.build_openai_llm
@@ -155,6 +159,16 @@ def test_demo_paths_contract_shim_matches_package_exports() -> None:
     assert demo_paths.PDF_PIPELINE_CONFIG_PATH == contracts_module.PDF_PIPELINE_CONFIG_PATH
     assert demo_paths.list_available_datasets is contracts_module.list_available_datasets
     assert demo_paths.resolve_dataset_root is contracts_module.resolve_dataset_root
+
+
+def test_demo_manifest_contract_shim_matches_package_exports() -> None:
+    import demo.contracts.manifest as demo_manifest
+    import power_atlas.contracts as contracts_module
+
+    assert demo_manifest.build_batch_manifest is contracts_module.build_batch_manifest
+    assert demo_manifest.build_stage_manifest is contracts_module.build_stage_manifest
+    assert demo_manifest.write_manifest is contracts_module.write_manifest
+    assert demo_manifest.write_manifest_md is contracts_module.write_manifest_md
 
 
 def test_build_embedder_for_settings_uses_embedder_model() -> None:

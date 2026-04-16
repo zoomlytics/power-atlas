@@ -1,4 +1,4 @@
-"""Tests for demo/contracts/manifest.py: write_manifest, write_manifest_md,
+"""Tests for power_atlas/contracts/manifest.py: write_manifest, write_manifest_md,
 _manifest_md_summary, and build_*_manifest helpers."""
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from demo.contracts.manifest import (
+from power_atlas.contracts.manifest import (
     _manifest_md_summary,
     build_batch_manifest,
     build_stage_manifest,

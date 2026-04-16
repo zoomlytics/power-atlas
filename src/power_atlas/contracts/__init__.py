@@ -21,6 +21,12 @@ from power_atlas.contracts.paths import (
 	list_available_datasets,
 	resolve_dataset_root,
 )
+from power_atlas.contracts.manifest import (
+	build_batch_manifest,
+	build_stage_manifest,
+	write_manifest,
+	write_manifest_md,
+)
 from power_atlas.contracts.runtime import Config, make_run_id, timestamp
 from power_atlas.contracts.structured import (
 	COMMON_PREDICATE_LABELS,
@@ -35,6 +41,8 @@ __all__ = [
 	"ALIGNMENT_VERSION",
 	"AmbiguousDatasetError",
 	"ARTIFACTS_DIR",
+	"build_batch_manifest",
+	"build_stage_manifest",
 	"EARLY_RETURN_PRECEDENCE",
 	"EARLY_RETURN_RULE_BY_NAME",
 	"EarlyReturnRule",
@@ -59,4 +67,6 @@ __all__ = [
 	"resolve_dataset_root",
 	"resolve_early_return_rule",
 	"timestamp",
+	"write_manifest",
+	"write_manifest_md",
 ]
