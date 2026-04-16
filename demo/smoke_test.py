@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import tempfile
 from contextlib import ExitStack
 from pathlib import Path
 
-from run_demo import Config, run_demo, run_independent_demo
+from power_atlas.bootstrap import build_runtime_config, build_settings
+from power_atlas.contracts.runtime import Config
+from run_demo import run_demo, run_independent_demo
 
 # Valid evidence levels per citation contract (#159).
 _VALID_EVIDENCE_LEVELS = frozenset({"full", "degraded", "no_answer"})
@@ -237,15 +238,8 @@ def _validate_batch_manifest(manifest_path: Path) -> None:
 
 
 def _build_config(output_dir: Path) -> Config:
-    return Config(
-        dry_run=True,
-        output_dir=output_dir,
-        neo4j_uri=os.getenv("NEO4J_URI", "neo4j://localhost:7687"),
-        neo4j_username=os.getenv("NEO4J_USERNAME", "neo4j"),
-        neo4j_password=os.getenv("NEO4J_PASSWORD", "CHANGE_ME_BEFORE_USE"),
-        neo4j_database=os.getenv("NEO4J_DATABASE", "neo4j"),
-        openai_model=os.getenv("OPENAI_MODEL", "gpt-5.4"),
-    )
+    settings = build_settings()
+    return build_runtime_config(settings, dry_run=True, output_dir=output_dir)
 
 
 def _run_structured_scenario(output_dir: Path) -> Path:

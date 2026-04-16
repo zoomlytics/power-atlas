@@ -2403,6 +2403,87 @@ class ResetDemoDbTests(unittest.TestCase):
         reset_path = DEMO_DIR / "reset_demo_db.py"
         return _load_module(reset_path, name)
 
+    def test_reset_parse_args_uses_package_settings_defaults(self):
+        previous_password = os.environ.pop("NEO4J_PASSWORD", None)
+        previous_uri = os.environ.get("NEO4J_URI")
+        previous_username = os.environ.get("NEO4J_USERNAME")
+        previous_database = os.environ.get("NEO4J_DATABASE")
+        os.environ["NEO4J_URI"] = "bolt://reset.test:7687"
+        os.environ["NEO4J_USERNAME"] = "reset-user"
+        os.environ["NEO4J_DATABASE"] = "reset-db"
+        try:
+            module = self._load_reset_module("reset_parse_defaults_test")
+            args = module.parse_args(["--confirm"])
+        finally:
+            if previous_uri is None:
+                os.environ.pop("NEO4J_URI", None)
+            else:
+                os.environ["NEO4J_URI"] = previous_uri
+            if previous_username is None:
+                os.environ.pop("NEO4J_USERNAME", None)
+            else:
+                os.environ["NEO4J_USERNAME"] = previous_username
+            if previous_database is None:
+                os.environ.pop("NEO4J_DATABASE", None)
+            else:
+                os.environ["NEO4J_DATABASE"] = previous_database
+            if previous_password is None:
+                os.environ.pop("NEO4J_PASSWORD", None)
+            else:
+                os.environ["NEO4J_PASSWORD"] = previous_password
+
+        self.assertEqual(args.neo4j_uri, "bolt://reset.test:7687")
+        self.assertEqual(args.neo4j_username, "reset-user")
+        self.assertEqual(args.neo4j_database, "reset-db")
+        self.assertIsNone(args.neo4j_password)
+
+    def test_reset_parse_args_cli_overrides_defaults(self):
+        previous_password = os.environ.get("NEO4J_PASSWORD")
+        previous_uri = os.environ.get("NEO4J_URI")
+        previous_username = os.environ.get("NEO4J_USERNAME")
+        previous_database = os.environ.get("NEO4J_DATABASE")
+        os.environ["NEO4J_URI"] = "bolt://reset.test:7687"
+        os.environ["NEO4J_USERNAME"] = "reset-user"
+        os.environ["NEO4J_PASSWORD"] = "env-secret"
+        os.environ["NEO4J_DATABASE"] = "reset-db"
+        try:
+            module = self._load_reset_module("reset_parse_cli_override_test")
+            args = module.parse_args(
+                [
+                    "--confirm",
+                    "--neo4j-uri",
+                    "bolt://override.test:7687",
+                    "--neo4j-username",
+                    "override-user",
+                    "--neo4j-password",
+                    "override-secret",
+                    "--neo4j-database",
+                    "override-db",
+                ]
+            )
+        finally:
+            if previous_uri is None:
+                os.environ.pop("NEO4J_URI", None)
+            else:
+                os.environ["NEO4J_URI"] = previous_uri
+            if previous_username is None:
+                os.environ.pop("NEO4J_USERNAME", None)
+            else:
+                os.environ["NEO4J_USERNAME"] = previous_username
+            if previous_database is None:
+                os.environ.pop("NEO4J_DATABASE", None)
+            else:
+                os.environ["NEO4J_DATABASE"] = previous_database
+            if previous_password is None:
+                os.environ.pop("NEO4J_PASSWORD", None)
+            else:
+                os.environ["NEO4J_PASSWORD"] = previous_password
+
+        self.assertEqual(args.neo4j_uri, "bolt://override.test:7687")
+        self.assertEqual(args.neo4j_username, "override-user")
+        self.assertEqual(args.neo4j_password, "override-secret")
+        self.assertEqual(args.neo4j_database, "override-db")
+
     # ── run_reset report structure ────────────────────────────────────────────
 
     def test_run_reset_returns_report_with_expected_keys(self):

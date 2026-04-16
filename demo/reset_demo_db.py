@@ -66,7 +66,7 @@ from typing import Any
 
 import neo4j
 
-from power_atlas.bootstrap import create_neo4j_driver
+from power_atlas.bootstrap import build_settings, create_neo4j_driver
 from power_atlas.contracts import ARTIFACTS_DIR
 from power_atlas.contracts.pipeline import CHUNK_EMBEDDING_INDEX_NAME
 from demo.cypher_utils import validate_cypher_identifier as _validate_cypher_identifier
@@ -278,7 +278,8 @@ def run_reset(
     return report
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    settings = build_settings()
     parser = argparse.ArgumentParser(
         description="Reset demo nodes and indexes.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -289,17 +290,17 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument("--confirm", action="store_true", help="required safety flag")
-    parser.add_argument("--neo4j-uri", default=os.getenv("NEO4J_URI", "neo4j://localhost:7687"))
-    parser.add_argument("--neo4j-username", default=os.getenv("NEO4J_USERNAME", "neo4j"))
+    parser.add_argument("--neo4j-uri", default=settings.neo4j.uri)
+    parser.add_argument("--neo4j-username", default=settings.neo4j.username)
     parser.add_argument("--neo4j-password", default=os.getenv("NEO4J_PASSWORD"))
-    parser.add_argument("--neo4j-database", default=os.getenv("NEO4J_DATABASE", "neo4j"))
+    parser.add_argument("--neo4j-database", default=settings.neo4j.database)
     parser.add_argument(
         "--output-dir",
         type=Path,
         default=ARTIFACTS_DIR,
         help="Directory for the reset report JSON (default: demo/artifacts)",
     )
-    return parser.parse_args()
+    return parser.parse_args(argv)
 
 
 def main() -> None:
