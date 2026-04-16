@@ -1,0 +1,306 @@
+{
+  "config": {
+    "dry_run": false,
+    "neo4j_database": "neo4j",
+    "openai_model": "gpt-5.4"
+  },
+  "created_at": "2026-04-15T23:42:01.350523+00:00",
+  "dataset_id": "demo_dataset_v2",
+  "finished_at": "2026-04-15T23:42:01.350499+00:00",
+  "run_id": "unstructured_ingest-20260415T234014657638Z-57a282de",
+  "run_scopes": {
+    "batch_mode": "single_independent_run",
+    "unstructured_ingest_run_id": "unstructured_ingest-20260415T234014657638Z-57a282de"
+  },
+  "stages": {
+    "retrieval_and_qa": {
+      "all_answers_cited": true,
+      "answer": "The retrieved context states that \u201cWences Casares, through Xapo, belongs to an earlier generation of bitcoin infrastructure builders,\u201d which identifies Wences Casares as the person associated with Xapo in the provided material. [CITATION|chunk_id=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf:12|run_id=unstructured_ingest-20260415T234014657638Z-57a282de|source_uri=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf|chunk_index=12|page=3|start_char=9600|end_char=10591]",
+      "citation_example": {
+        "chunk_id": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf:12",
+        "chunk_index": 12,
+        "end_char": 10591,
+        "page": 3,
+        "run_id": "unstructured_ingest-20260415T234014657638Z-57a282de",
+        "source_uri": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf",
+        "start_char": 9600
+      },
+      "citation_fallback_applied": false,
+      "citation_object_example": {
+        "chunk_id": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf:12",
+        "chunk_index": 12,
+        "end_char": 10591,
+        "page": 3,
+        "run_id": "unstructured_ingest-20260415T234014657638Z-57a282de",
+        "source_uri": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf",
+        "start_char": 9600
+      },
+      "citation_quality": {
+        "all_cited": true,
+        "citation_warnings": [],
+        "evidence_level": "full",
+        "raw_answer_all_cited": true,
+        "warning_count": 0
+      },
+      "citation_repair_applied": false,
+      "citation_repair_attempted": false,
+      "citation_repair_source_chunk_id": null,
+      "citation_repair_strategy": null,
+      "citation_token_example": "[CITATION|chunk_id=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf:12|run_id=unstructured_ingest-20260415T234014657638Z-57a282de|source_uri=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf|chunk_index=12|page=3|start_char=9600|end_char=10591]",
+      "cluster_aware": false,
+      "debug_view": {
+        "all_cited": true,
+        "citation_fallback_applied": false,
+        "citation_repair_applied": false,
+        "citation_repair_attempted": false,
+        "citation_warnings": [],
+        "evidence_level": "full",
+        "malformed_diagnostics_count": 0,
+        "raw_answer_all_cited": true,
+        "warning_count": 0
+      },
+      "expand_graph": false,
+      "hits": 7,
+      "interactive_mode": false,
+      "malformed_diagnostics_count": 0,
+      "message_history_enabled": false,
+      "qa": "GraphRAG run-scoped citations",
+      "qa_model": "gpt-5.4",
+      "qa_prompt_version": "qa_v3",
+      "question": "Who is listed as the founder of Xapo?",
+      "raw_answer": "The retrieved context states that \u201cWences Casares, through Xapo, belongs to an earlier generation of bitcoin infrastructure builders,\u201d which identifies Wences Casares as the person associated with Xapo in the provided material. [CITATION|chunk_id=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf:12|run_id=unstructured_ingest-20260415T234014657638Z-57a282de|source_uri=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf|chunk_index=12|page=3|start_char=9600|end_char=10591]",
+      "raw_answer_all_cited": true,
+      "retrieval_path_summary": "=== Retrieval Path Summary ===\n\nHit 1: chunk_id='file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf:12'  score=0.7553\n  HAS_PARTICIPANT edges: (none)\n  RESOLVES_TO canonical entities: (none)\n  Cluster memberships (MEMBER_OF): (none)\n  Canonical via ALIGNED_WITH: (none)\n\nHit 2: chunk_id='file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf:5'  score=0.7274\n  HAS_PARTICIPANT edges: (none)\n  RESOLVES_TO canonical entities: (none)\n  Cluster memberships (MEMBER_OF): (none)\n  Canonical via ALIGNED_WITH: (none)\n\nHit 3: chunk_id='file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf:15'  score=0.7145\n  HAS_PARTICIPANT edges: (none)\n  RESOLVES_TO canonical entities: (none)\n  Cluster memberships (MEMBER_OF): (none)\n  Canonical via ALIGNED_WITH: (none)\n\nHit 4: chunk_id='file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf:1'  score=0.7124\n  HAS_PARTICIPANT edges: (none)\n  RESOLVES_TO canonical entities: (none)\n  Cluster memberships (MEMBER_OF): (none)\n  Canonical via ALIGNED_WITH: (none)\n\nHit 5: chunk_id='file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf:2'  score=0.7016\n  HAS_PARTICIPANT edges: (none)\n  RESOLVES_TO canonical entities: (none)\n  Cluster memberships (MEMBER_OF): (none)\n  Canonical via ALIGNED_WITH: (none)\n\nHit 6: chunk_id='file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf:8'  score=0.7007\n  HAS_PARTICIPANT edges: (none)\n  RESOLVES_TO canonical entities: (none)\n  Cluster memberships (MEMBER_OF): (none)\n  Canonical via ALIGNED_WITH: (none)\n\nHit 7: chunk_id='file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf:10'  score=0.6965\n  HAS_PARTICIPANT edges: (none)\n  RESOLVES_TO canonical entities: (none)\n  Cluster memberships (MEMBER_OF): (none)\n  Canonical via ALIGNED_WITH: (none)",
+      "retrieval_query_contract": "WITH node AS c, score\nWHERE c.run_id = $run_id\n  AND ($source_uri IS NULL OR c.source_uri = $source_uri)\nRETURN c.text AS chunk_text,\n       c.chunk_id AS chunk_id,\n       c.run_id AS run_id,\n       c.source_uri AS source_uri,\n       c.chunk_index AS chunk_index,\n       coalesce(c.page_number, c.page) AS page,\n       c.start_char AS start_char,\n       c.end_char AS end_char,\n       score AS similarityScore",
+      "retrieval_results": [
+        {
+          "content": "executives. Marcos Galperin appears through MercadoLibre's regional expansion. Charles\nCascarilla appears through Paxos' role as issuer , infrastructure provider , and patent holder . David Marcus\nhelps  connect  the  PayPal  and  Meta  chapters.  Wences  Casares,  through  Xapo,  belongs  to  an  earlier\ngeneration of bitcoin infrastructure builders, while Ben Davenport and Blockchain Capital bring the venture\nfinancing layer into view.\nThat convergence becomes clearer when the story is read across several sections instead of in a single pass.\nEarly on, Paxos may look like little more than the issuer behind PayPal's stablecoin. A few paragraphs later , it\nappears instead as a firm trying to position itself as regulated financial plumbing. Later still, it becomes a\npatent holder whose filings were cited by large incumbents including J.P . Morgan, Bank of America, IBM, \nAccenture,  eBay,  and  Microsoft.  None  of  those  citation  relationships  means  the  same  thing  as  an\n\n[CITATION|chunk_id=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf:12|run_id=unstructured_ingest-20260415T234014657638Z-57a282de|source_uri=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf|chunk_index=12|page=3|start_char=9600|end_char=10591]",
+          "metadata": {
+            "chunk_id": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf:12",
+            "chunk_index": 12,
+            "citation_object": {
+              "chunk_id": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf:12",
+              "chunk_index": 12,
+              "end_char": 10591,
+              "page": 3,
+              "run_id": "unstructured_ingest-20260415T234014657638Z-57a282de",
+              "source_uri": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf",
+              "start_char": 9600
+            },
+            "citation_token": "[CITATION|chunk_id=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf:12|run_id=unstructured_ingest-20260415T234014657638Z-57a282de|source_uri=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf|chunk_index=12|page=3|start_char=9600|end_char=10591]",
+            "empty_chunk_text": false,
+            "end_char": 10591,
+            "page": 3,
+            "retrieval_path_diagnostics": {
+              "canonical_via_resolves_to": [],
+              "cluster_canonical_via_aligned_with": [],
+              "cluster_memberships": [],
+              "has_participant_edges": []
+            },
+            "run_id": "unstructured_ingest-20260415T234014657638Z-57a282de",
+            "score": 0.7552615404129028,
+            "source_uri": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf",
+            "start_char": 9600
+          }
+        },
+        {
+          "content": "including\nBlockchain Capital, while  Ben Davenport was identified with Paxos' seed financing network. Over time,\nthe company's investor base expanded to include organizations and individuals with interests spanning\nfintech, venture investing, and digital asset infrastructure.\nPaxos also tried to shape the infrastructure layer through intellectual property. In 2016, the company filed a\npatent titled  \"Device, system, and method for transfer of commodities.\" The filing later appeared in\ncitations by a range of major firms, including J.P . Morgan, Bank of America, IBM, Accenture, eBay, and\nMicrosoft. That does not place all of those companies inside the same business alliance, but it does create\nanother kind of link around technical concepts, legal claims, and financial market design. The distinction\nmatters because a patent citation is not the same as an investment, a partnership, or a product launch,\neven though the same organizations may appear across all of those categories.\nOther \n[CITATION|chunk_id=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf:5|run_id=unstructured_ingest-20260415T234014657638Z-57a282de|source_uri=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf|chunk_index=5|page=2|start_char=4000|end_char=4996]",
+          "metadata": {
+            "chunk_id": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf:5",
+            "chunk_index": 5,
+            "citation_object": {
+              "chunk_id": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf:5",
+              "chunk_index": 5,
+              "end_char": 4996,
+              "page": 2,
+              "run_id": "unstructured_ingest-20260415T234014657638Z-57a282de",
+              "source_uri": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf",
+              "start_char": 4000
+            },
+            "citation_token": "[CITATION|chunk_id=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf:5|run_id=unstructured_ingest-20260415T234014657638Z-57a282de|source_uri=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf|chunk_index=5|page=2|start_char=4000|end_char=4996]",
+            "empty_chunk_text": false,
+            "end_char": 4996,
+            "page": 2,
+            "retrieval_path_diagnostics": {
+              "canonical_via_resolves_to": [],
+              "cluster_canonical_via_aligned_with": [],
+              "cluster_memberships": [],
+              "has_participant_edges": []
+            },
+            "run_id": "unstructured_ingest-20260415T234014657638Z-57a282de",
+            "score": 0.7274348735809326,
+            "source_uri": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf",
+            "start_char": 4000
+          }
+        },
+        {
+          "content": "peers; in another , it simply made them neighbors inside a wider ecosystem.\nFor that reason, the story does not resolve into a single clean hierarchy. The most obvious thread begins\nwith PayPal and PYUSD, but it opens onto a Meta branch through Novi and Diem, a Latin America branch\nthrough MercadoLibre and MercadoPago, an infrastructure branch through DTCC and the Paxos patent,\nand  a  venture  branch  through  Blockchain  Capital,  Ben  Davenport,  Xapo,  and  Wences  Casares.  Those\nbranches overlap without collapsing into one another , which is part of what gives the network its shape.\nSome of the relationships are direct and easy to state. PayPal launched PYUSD. Paxos Trust Company issued\nit. MercadoLibre invested in Paxos. Others are looser or more contextual. David Marcus connects different\ncorporate efforts over time. WhatsApp matters less as a standalone corporate actor than as part of the\nMeta branch's distribution logic. J.P . Morgan and Microsoft enter the picture through \n[CITATION|chunk_id=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf:15|run_id=unstructured_ingest-20260415T234014657638Z-57a282de|source_uri=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf|chunk_index=15|page=4|start_char=11999|end_char=12996]",
+          "metadata": {
+            "chunk_id": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf:15",
+            "chunk_index": 15,
+            "citation_object": {
+              "chunk_id": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf:15",
+              "chunk_index": 15,
+              "end_char": 12996,
+              "page": 4,
+              "run_id": "unstructured_ingest-20260415T234014657638Z-57a282de",
+              "source_uri": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf",
+              "start_char": 11999
+            },
+            "citation_token": "[CITATION|chunk_id=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf:15|run_id=unstructured_ingest-20260415T234014657638Z-57a282de|source_uri=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf|chunk_index=15|page=4|start_char=11999|end_char=12996]",
+            "empty_chunk_text": false,
+            "end_char": 12996,
+            "page": 4,
+            "retrieval_path_diagnostics": {
+              "canonical_via_resolves_to": [],
+              "cluster_canonical_via_aligned_with": [],
+              "cluster_memberships": [],
+              "has_participant_edges": []
+            },
+            "run_id": "unstructured_ingest-20260415T234014657638Z-57a282de",
+            "score": 0.7144902348518372,
+            "source_uri": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf",
+            "start_char": 11999
+          }
+        },
+        {
+          "content": "systems to established\nfinancial institutions. That strategy became more visible in 2018, when Paxos launched PAX, a dollar-linked\nstablecoin  meant  to  present  digital  assets  in  a  more  compliant,  institution-friendly  form.  Cascarilla\nincreasingly described the firm not as a retail crypto company, but as a layer of financial plumbing that\nother businesses could build on.\nThat framing helps explain why the company kept appearing alongside larger consumer platforms. Before\nthe PayPal partnership drew broad attention, Paxos had already worked with Meta on the payments effort\ntied to  Novi, the wallet project associated with the company once known as Facebook. Novi was also\nconnected to the broader Diem initiative, and the project brought in another familiar figure from the digital\npayments world:  David Marcus, the former PayPal executive who later became one of the most visible\nleaders behind Meta's digital currency ambitions. The overlap suggested that the same executives and\n\n[CITATION|chunk_id=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf:1|run_id=unstructured_ingest-20260415T234014657638Z-57a282de|source_uri=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf|chunk_index=1|page=1|start_char=800|end_char=1799]",
+          "metadata": {
+            "chunk_id": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf:1",
+            "chunk_index": 1,
+            "citation_object": {
+              "chunk_id": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf:1",
+              "chunk_index": 1,
+              "end_char": 1799,
+              "page": 1,
+              "run_id": "unstructured_ingest-20260415T234014657638Z-57a282de",
+              "source_uri": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf",
+              "start_char": 800
+            },
+            "citation_token": "[CITATION|chunk_id=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf:1|run_id=unstructured_ingest-20260415T234014657638Z-57a282de|source_uri=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf|chunk_index=1|page=1|start_char=800|end_char=1799]",
+            "empty_chunk_text": false,
+            "end_char": 1799,
+            "page": 1,
+            "retrieval_path_diagnostics": {
+              "canonical_via_resolves_to": [],
+              "cluster_canonical_via_aligned_with": [],
+              "cluster_memberships": [],
+              "has_participant_edges": []
+            },
+            "run_id": "unstructured_ingest-20260415T234014657638Z-57a282de",
+            "score": 0.7123867273330688,
+            "source_uri": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf",
+            "start_char": 800
+          }
+        },
+        {
+          "content": "ayments world:  David Marcus, the former PayPal executive who later became one of the most visible\nleaders behind Meta's digital currency ambitions. The overlap suggested that the same executives and\ninfrastructure providers who shaped the first generation of online payments were also trying to shape the\nnext.\nPayPal's stablecoin launch made those links easier to see. The token was distributed through PayPal's\nplatform, but it was issued by Paxos. Built as an ERC-20 token on Ethereum, it joined a growing class of\ndigital dollars designed to move across blockchain networks while remaining tied to the traditional currency\nsystem. For PayPal, the product extended a long-running effort to position itself at the center of digital\npayments. For Paxos, it was another proof point that its role was less about branding and more about\nbecoming the back-end provider for companies with much larger consumer reach.\nThe company's ties were not limited to PayPal. In Latin America, MercadoLibre and its \n[CITATION|chunk_id=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf:2|run_id=unstructured_ingest-20260415T234014657638Z-57a282de|source_uri=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf|chunk_index=2|page=1|start_char=1600|end_char=2599]",
+          "metadata": {
+            "chunk_id": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf:2",
+            "chunk_index": 2,
+            "citation_object": {
+              "chunk_id": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf:2",
+              "chunk_index": 2,
+              "end_char": 2599,
+              "page": 1,
+              "run_id": "unstructured_ingest-20260415T234014657638Z-57a282de",
+              "source_uri": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf",
+              "start_char": 1600
+            },
+            "citation_token": "[CITATION|chunk_id=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf:2|run_id=unstructured_ingest-20260415T234014657638Z-57a282de|source_uri=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf|chunk_index=2|page=1|start_char=1600|end_char=2599]",
+            "empty_chunk_text": false,
+            "end_char": 2599,
+            "page": 1,
+            "retrieval_path_diagnostics": {
+              "canonical_via_resolves_to": [],
+              "cluster_canonical_via_aligned_with": [],
+              "cluster_memberships": [],
+              "has_participant_edges": []
+            },
+            "run_id": "unstructured_ingest-20260415T234014657638Z-57a282de",
+            "score": 0.701611340045929,
+            "source_uri": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf",
+            "start_char": 1600
+          }
+        },
+        {
+          "content": " most users, PYUSD appeared as a PayPal product, another feature inside a familiar payments app. But\nunderneath that consumer-facing layer sat a firm that had spent years presenting itself as the kind of\nregulated intermediary that could connect blockchain networks to the existing financial system without\nadopting the posture of a typical crypto brand. In that sense, the launch was not only about a token. It was\nalso about who would control the rails under the next generation of digital money.\nThat question had been developing for years. In 2016, Paxos filed a patent titled  \"Device, system, and\nmethod for transfer of commodities,\" a move that suggested the company was thinking beyond retail\n2\ncrypto trading and toward broader market infrastructure. Two years later , the company launched  PAX, a\ndollar-linked stablecoin that reflected the same ambition in product form. The sequence showed how legal\nclaims, technical systems, and commercial products could evolve together . A patent \n[CITATION|chunk_id=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf:8|run_id=unstructured_ingest-20260415T234014657638Z-57a282de|source_uri=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf|chunk_index=8|page=2|start_char=6400|end_char=7395]",
+          "metadata": {
+            "chunk_id": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf:8",
+            "chunk_index": 8,
+            "citation_object": {
+              "chunk_id": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf:8",
+              "chunk_index": 8,
+              "end_char": 7395,
+              "page": 2,
+              "run_id": "unstructured_ingest-20260415T234014657638Z-57a282de",
+              "source_uri": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf",
+              "start_char": 6400
+            },
+            "citation_token": "[CITATION|chunk_id=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf:8|run_id=unstructured_ingest-20260415T234014657638Z-57a282de|source_uri=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf|chunk_index=8|page=2|start_char=6400|end_char=7395]",
+            "empty_chunk_text": false,
+            "end_char": 7395,
+            "page": 2,
+            "retrieval_path_diagnostics": {
+              "canonical_via_resolves_to": [],
+              "cluster_canonical_via_aligned_with": [],
+              "cluster_memberships": [],
+              "has_participant_edges": []
+            },
+            "run_id": "unstructured_ingest-20260415T234014657638Z-57a282de",
+            "score": 0.7006732225418091,
+            "source_uri": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf",
+            "start_char": 6400
+          }
+        },
+        {
+          "content": "made  Meta's  payments  ambitions  worth  watching  in  the  first  place.  David\nMarcus, who had held senior roles at PayPal before becoming one of the most recognizable faces of Meta's\ndigital currency plans, served as a connective figure across those chapters. His presence is one reason the\narticle reads less like a series of isolated corporate announcements and more like a recurring cast moving\nthrough adjacent institutions.\nThe same pattern appears when the focus shifts to Latin America. MercadoLibre entered the narrative as a\nregional e-commerce giant, but its relationship to Paxos quickly extended beyond simple adoption of third-\nparty  tools.  Through  MercadoPago,  the  company  integrated  Paxos  infrastructure  for  crypto-related\nservices in Brazil. Later , MercadoLibre also invested in Paxos, turning a vendor relationship into something\nmore layered. The overlap made the relationship harder to reduce to a single category. MercadoLibre was\ntied to Paxos through \n[CITATION|chunk_id=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf:10|run_id=unstructured_ingest-20260415T234014657638Z-57a282de|source_uri=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf|chunk_index=10|page=3|start_char=7999|end_char=8986]",
+          "metadata": {
+            "chunk_id": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf:10",
+            "chunk_index": 10,
+            "citation_object": {
+              "chunk_id": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf:10",
+              "chunk_index": 10,
+              "end_char": 8986,
+              "page": 3,
+              "run_id": "unstructured_ingest-20260415T234014657638Z-57a282de",
+              "source_uri": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf",
+              "start_char": 7999
+            },
+            "citation_token": "[CITATION|chunk_id=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf:10|run_id=unstructured_ingest-20260415T234014657638Z-57a282de|source_uri=file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf|chunk_index=10|page=3|start_char=7999|end_char=8986]",
+            "empty_chunk_text": false,
+            "end_char": 8986,
+            "page": 3,
+            "retrieval_path_diagnostics": {
+              "canonical_via_resolves_to": [],
+              "cluster_canonical_via_aligned_with": [],
+              "cluster_memberships": [],
+              "has_participant_edges": []
+            },
+            "run_id": "unstructured_ingest-20260415T234014657638Z-57a282de",
+            "score": 0.6965481042861938,
+            "source_uri": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf",
+            "start_char": 7999
+          }
+        }
+      ],
+      "retrieval_scope": {
+        "all_runs": false,
+        "run_id": "unstructured_ingest-20260415T234014657638Z-57a282de",
+        "scope_widened": false,
+        "source_uri": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf"
+      },
+      "retriever_index_name": "demo_chunk_embedding_index",
+      "retriever_type": "VectorCypherRetriever",
+      "retrievers": [
+        "VectorCypherRetriever"
+      ],
+      "run_id": "unstructured_ingest-20260415T234014657638Z-57a282de",
+      "source_uri": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v2/unstructured/chain_of_issuance.pdf",
+      "status": "live",
+      "top_k": 10,
+      "warnings": []
+    }
+  },
+  "started_at": "2026-04-15T23:41:57.121279+00:00"
+}

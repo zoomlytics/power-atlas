@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import pytest
 
-from demo.contracts.retrieval_metadata_policy import (
+from power_atlas.contracts.retrieval_metadata_policy import (
     FieldSurfacePolicy,
     RETRIEVAL_METADATA_SURFACE_POLICY,
 )
@@ -606,7 +606,7 @@ class TestPackagePublicExports:
     def test_package_exports_are_same_objects_as_submodule(self) -> None:
         """Names re-exported from ``demo.contracts`` must be the same objects as from the submodule."""
         import demo.contracts as _contracts  # noqa: PLC0415
-        from demo.contracts.retrieval_metadata_policy import (  # noqa: PLC0415
+        from power_atlas.contracts.retrieval_metadata_policy import (  # noqa: PLC0415
             FieldSurfacePolicy as _SubFieldSurfacePolicy,
             RetrievalMetadataSurface as _SubSurface,
             RETRIEVAL_METADATA_SURFACE_POLICY as _SubPolicy,

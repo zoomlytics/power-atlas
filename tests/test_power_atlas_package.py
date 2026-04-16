@@ -19,6 +19,9 @@ def test_package_modules_import() -> None:
     assert package.EARLY_RETURN_RULE_BY_NAME is contracts_module.EARLY_RETURN_RULE_BY_NAME
     assert package.PROMPT_IDS is contracts_module.PROMPT_IDS
     assert package.POWER_ATLAS_RAG_TEMPLATE is contracts_module.POWER_ATLAS_RAG_TEMPLATE
+    assert package.FieldSurfacePolicy is contracts_module.FieldSurfacePolicy
+    assert package.RETRIEVAL_METADATA_SURFACE_POLICY is contracts_module.RETRIEVAL_METADATA_SURFACE_POLICY
+    assert package.RetrievalMetadataSurface is contracts_module.RetrievalMetadataSurface
     assert package.resolve_early_return_rule is contracts_module.resolve_early_return_rule
     assert package.AppSettings is settings_module.AppSettings
     assert package.build_settings is bootstrap_module.build_settings

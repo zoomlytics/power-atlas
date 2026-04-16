@@ -38,7 +38,7 @@ from typing import Mapping
 
 import pytest
 
-from demo.contracts.retrieval_metadata_policy import (
+from power_atlas.contracts.retrieval_metadata_policy import (
     RETRIEVAL_METADATA_SURFACE_POLICY,
     RetrievalMetadataSurface,
 )

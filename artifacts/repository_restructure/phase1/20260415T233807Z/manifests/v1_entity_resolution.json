@@ -1,0 +1,96 @@
+{
+  "config": {
+    "dry_run": false,
+    "neo4j_database": "neo4j",
+    "openai_model": "gpt-5.4"
+  },
+  "created_at": "2026-04-15T23:39:55.703437+00:00",
+  "dataset_id": "demo_dataset_v1",
+  "finished_at": "2026-04-15T23:39:55.703420+00:00",
+  "run_id": "unstructured_ingest-20260415T233811906566Z-701a6c14",
+  "run_scopes": {
+    "batch_mode": "single_independent_run",
+    "unstructured_ingest_run_id": "unstructured_ingest-20260415T233811906566Z-701a6c14"
+  },
+  "stages": {
+    "entity_resolution": {
+      "cluster_version": "v1.3",
+      "clusters_created": 155,
+      "dataset_id": "demo_dataset_v1",
+      "entity_resolution_summary_path": "/Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/artifacts/runs/unstructured_ingest-20260415T233811906566Z-701a6c14/entity_resolution/entity_resolution_summary.json",
+      "entity_type_report": {
+        "mapped_variants": {
+          "Company": "Organization"
+        },
+        "normalized_counts": {
+          "Category": 3,
+          "Concept": 6,
+          "Event": 2,
+          "Group": 11,
+          "Location": 38,
+          "Organization": 108,
+          "OrganizationGroup": 1,
+          "Person": 54,
+          "Place": 8,
+          "Product": 1,
+          "Region": 2,
+          "RelationType": 10,
+          "Topic": 3
+        },
+        "null_or_empty_count": 0,
+        "passthrough_labels": [
+          "Category",
+          "Concept",
+          "Event",
+          "Group",
+          "Location",
+          "Organization",
+          "OrganizationGroup",
+          "Person",
+          "Place",
+          "Product",
+          "Region",
+          "RelationType",
+          "Topic"
+        ],
+        "raw_counts": {
+          "Category": 3,
+          "Company": 6,
+          "Concept": 6,
+          "Event": 2,
+          "Group": 11,
+          "Location": 38,
+          "Organization": 102,
+          "OrganizationGroup": 1,
+          "Person": 54,
+          "Place": 8,
+          "Product": 1,
+          "Region": 2,
+          "RelationType": 10,
+          "Topic": 3
+        },
+        "sentinel_label_warnings": []
+      },
+      "mentions_clustered": 247,
+      "mentions_total": 247,
+      "mentions_unclustered": 0,
+      "resolution_breakdown": {
+        "fuzzy": 1,
+        "label_cluster": 148,
+        "normalized_exact": 98
+      },
+      "resolution_mode": "unstructured_only",
+      "resolved": 0,
+      "resolved_at": "2026-04-15T23:39:55.176438+00:00",
+      "resolver_method": "unstructured_clustering",
+      "resolver_version": "v1.2",
+      "run_id": "unstructured_ingest-20260415T233811906566Z-701a6c14",
+      "source_uri": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v1/unstructured/chain_of_custody.pdf",
+      "status": "live",
+      "unresolved": 247,
+      "unresolved_mentions_path": "/Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/artifacts/runs/unstructured_ingest-20260415T233811906566Z-701a6c14/entity_resolution/unresolved_mentions.json",
+      "warnings": []
+    }
+  },
+  "started_at": "2026-04-15T23:39:55.176175+00:00"
+}

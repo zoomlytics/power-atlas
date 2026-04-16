@@ -74,7 +74,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from demo.contracts import RETRIEVAL_METADATA_SURFACE_POLICY, FieldSurfacePolicy
+from power_atlas.contracts import RETRIEVAL_METADATA_SURFACE_POLICY, FieldSurfacePolicy
 from demo.stages.retrieval_and_qa import run_retrieval_and_qa
 
 

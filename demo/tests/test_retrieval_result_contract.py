@@ -211,7 +211,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from demo.contracts import RETRIEVAL_METADATA_SURFACE_POLICY
+from power_atlas.contracts import RETRIEVAL_METADATA_SURFACE_POLICY
 from demo.stages.retrieval_and_qa import (
     _CITATION_FALLBACK_PREFIX,
     _POSTPROCESS_FIELD_MAP,

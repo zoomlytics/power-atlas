@@ -5,6 +5,11 @@ from power_atlas.contracts.retrieval_early_return_policy import (
 	EarlyReturnRule,
 	resolve_early_return_rule,
 )
+from power_atlas.contracts.retrieval_metadata_policy import (
+	FieldSurfacePolicy,
+	RETRIEVAL_METADATA_SURFACE_POLICY,
+	RetrievalMetadataSurface,
+)
 from power_atlas.contracts.resolution import ALIGNMENT_VERSION
 
 __all__ = [
@@ -12,7 +17,10 @@ __all__ = [
 	"EARLY_RETURN_PRECEDENCE",
 	"EARLY_RETURN_RULE_BY_NAME",
 	"EarlyReturnRule",
+	"FieldSurfacePolicy",
 	"POWER_ATLAS_RAG_TEMPLATE",
 	"PROMPT_IDS",
+	"RETRIEVAL_METADATA_SURFACE_POLICY",
+	"RetrievalMetadataSurface",
 	"resolve_early_return_rule",
 ]
