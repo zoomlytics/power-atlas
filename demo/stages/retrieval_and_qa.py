@@ -1944,7 +1944,7 @@ def run_retrieval_and_qa(
     # resolver evaluates conditions in that order so that mixed inputs
     # (e.g. dry_run=True and question=None simultaneously) always produce the
     # correct winning branch without duplicating precedence in manual if-chains.
-    # Precedence contract: demo/contracts/retrieval_early_return_policy.py
+    # Precedence contract: src/power_atlas/contracts/retrieval_early_return_policy.py
     # Contract doc: docs/architecture/retrieval-citation-result-contract-v0.1.md §5
     _early_rule = resolve_early_return_rule(
         is_dry_run=getattr(config, "dry_run", False),

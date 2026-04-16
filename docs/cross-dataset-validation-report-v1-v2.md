@@ -485,7 +485,7 @@ export FIXTURE_DATASET=demo_dataset_v1
 python -m demo.run_demo ingest --live
 
 # Python introspection
-python -c "from demo.contracts.paths import list_available_datasets; print(list_available_datasets())"
+python -c "from power_atlas.contracts.paths import list_available_datasets; print(list_available_datasets())"
 # ['demo_dataset_v1', 'demo_dataset_v2']
 ```
 

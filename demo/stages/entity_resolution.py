@@ -1386,7 +1386,7 @@ def run_entity_resolution(
     are added.
 
     Args:
-        config:          :class:`~demo.contracts.runtime.Config`.
+        config:          :class:`~power_atlas.contracts.runtime.Config`.
         run_id:          The run_id whose EntityMention nodes are to be resolved.
                          Must match the run_id used during PDF ingest / claim extraction.
         source_uri:      Provenance URI for the source document.
@@ -1403,9 +1403,9 @@ def run_entity_resolution(
                          artifacts from an earlier pass.
         dataset_id:      Dataset identifier used to scope :CanonicalEntity lookups to
                          the active dataset.  When ``None``, the value returned by
-                         :func:`~demo.contracts.pipeline.get_dataset_id` is used so
+                         :func:`~power_atlas.contracts.pipeline.get_dataset_id` is used so
                          that the active dataset set via
-                         :func:`~demo.contracts.pipeline.set_dataset_id` is respected.
+                         :func:`~power_atlas.contracts.pipeline.set_dataset_id` is respected.
                          Pass this explicitly when calling from an orchestrated pipeline
                          stage to avoid relying on module-level state.
 

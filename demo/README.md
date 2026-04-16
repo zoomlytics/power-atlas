@@ -1210,4 +1210,4 @@ Sentence-level splitting is needed because a multi-sentence paragraph ending wit
 
 ### Reset maintenance note
 
-Keep `DEMO_NODE_LABELS` and `DEMO_OWNED_INDEXES` in `demo/reset_demo_db.py` in sync with `demo/config/pdf_simple_kg_pipeline.yaml` and `demo/contracts/pipeline.py` whenever new demo-owned labels or indexes are introduced.
+Keep `DEMO_NODE_LABELS` and `DEMO_OWNED_INDEXES` in `demo/reset_demo_db.py` in sync with `demo/config/pdf_simple_kg_pipeline.yaml` and `src/power_atlas/contracts/pipeline.py` whenever new demo-owned labels or indexes are introduced.

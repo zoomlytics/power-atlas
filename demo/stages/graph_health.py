@@ -495,7 +495,7 @@ def run_graph_health_diagnostics(
     Parameters
     ----------
     config:
-        :class:`~demo.contracts.runtime.Config` instance providing
+        :class:`~power_atlas.contracts.runtime.Config` instance providing
         ``neo4j_uri``, ``neo4j_username``, ``neo4j_password``,
         ``neo4j_database``, ``output_dir``, and ``dry_run``.
     run_id:

@@ -867,7 +867,7 @@ def run_claim_participation(
     Parameters
     ----------
     config:
-        :class:`~demo.contracts.runtime.Config` instance with ``neo4j_uri``,
+        :class:`~power_atlas.contracts.runtime.Config` instance with ``neo4j_uri``,
         ``neo4j_username``, ``neo4j_password``, ``neo4j_database``,
         ``output_dir``, and ``dry_run`` attributes.
     run_id:

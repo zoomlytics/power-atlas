@@ -95,7 +95,7 @@ DEMO_NODE_LABELS: tuple[str, ...] = (
 )
 
 # Demo-owned index names dropped on reset.  Keep in sync with:
-#   - demo/contracts/pipeline.py  (CHUNK_EMBEDDING_INDEX_NAME)
+#   - src/power_atlas/contracts/pipeline.py  (CHUNK_EMBEDDING_INDEX_NAME)
 #   - demo/config/pdf_simple_kg_pipeline.yaml  (contract.chunk_embedding.index_name)
 DEMO_OWNED_INDEXES: tuple[str, ...] = (CHUNK_EMBEDDING_INDEX_NAME,)
 

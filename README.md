@@ -205,20 +205,23 @@ Manual validation checklist: [`demo/VALIDATION_RUNBOOK.md`](demo/VALIDATION_RUNB
 | [`retrieval_benchmark.py`](demo/stages/retrieval_benchmark.py) | Evaluate retrieval quality against a baseline; produce benchmark artifacts |
 | [`graph_health.py`](demo/stages/graph_health.py) | Run read-only graph diagnostics and emit a scoped health report |
 
-### Data contracts — `demo/contracts/`
+### Data contracts — `src/power_atlas/contracts/`
+
+`demo/contracts/` remains as a compatibility shim layer during the migration, but
+the package-owned implementations now live under `src/power_atlas/contracts/`.
 
 | Module | Purpose |
 |--------|---------|
-| [`claim_schema.py`](demo/contracts/claim_schema.py) | Pydantic schema for `ExtractedClaim` and related extraction types |
-| [`manifest.py`](demo/contracts/manifest.py) | Run manifest creation, loading, and validation |
-| [`paths.py`](demo/contracts/paths.py) | Canonical path resolution for pipeline artifacts |
-| [`pipeline.py`](demo/contracts/pipeline.py) | Pipeline-level contract refresh and consistency checks |
-| [`prompts.py`](demo/contracts/prompts.py) | LLM prompt templates for extraction and Q&A stages |
-| [`resolution.py`](demo/contracts/resolution.py) | Versioned alignment contract (`ALIGNMENT_VERSION`) for cluster-to-canonical alignment / `ALIGNED_WITH` edge filtering |
-| [`retrieval_early_return_policy.py`](demo/contracts/retrieval_early_return_policy.py) | Policy for short-circuiting retrieval under low-signal conditions |
-| [`retrieval_metadata_policy.py`](demo/contracts/retrieval_metadata_policy.py) | Citation metadata taxonomy and projection policy |
-| [`runtime.py`](demo/contracts/runtime.py) | Runtime configuration and environment variable bindings |
-| [`structured.py`](demo/contracts/structured.py) | Schema for structured CSV ingestion |
+| [`claim_schema.py`](src/power_atlas/contracts/claim_schema.py) | Pydantic schema for `ExtractedClaim` and related extraction types |
+| [`manifest.py`](src/power_atlas/contracts/manifest.py) | Run manifest creation, loading, and validation |
+| [`paths.py`](src/power_atlas/contracts/paths.py) | Canonical path resolution for pipeline artifacts |
+| [`pipeline.py`](src/power_atlas/contracts/pipeline.py) | Pipeline-level contract refresh and consistency checks |
+| [`prompts.py`](src/power_atlas/contracts/prompts.py) | LLM prompt templates for extraction and Q&A stages |
+| [`resolution.py`](src/power_atlas/contracts/resolution.py) | Versioned alignment contract (`ALIGNMENT_VERSION`) for cluster-to-canonical alignment / `ALIGNED_WITH` edge filtering |
+| [`retrieval_early_return_policy.py`](src/power_atlas/contracts/retrieval_early_return_policy.py) | Policy for short-circuiting retrieval under low-signal conditions |
+| [`retrieval_metadata_policy.py`](src/power_atlas/contracts/retrieval_metadata_policy.py) | Citation metadata taxonomy and projection policy |
+| [`runtime.py`](src/power_atlas/contracts/runtime.py) | Runtime configuration and environment variable bindings |
+| [`structured.py`](src/power_atlas/contracts/structured.py) | Schema for structured CSV ingestion |
 
 ### Architecture documents and ADRs — `docs/architecture/`
 

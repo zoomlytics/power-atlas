@@ -214,7 +214,7 @@ Hits where `retrieval_path_diagnostics` is **absent or `None`** are **not** coun
 
 ### 2.10 Metadata relationship taxonomy
 
-The machine-readable policy in `demo/contracts/retrieval_metadata_policy.py` (`FieldSurfacePolicy`) expresses five distinct relationship types between a field and each surface it touches.  Understanding these types lets future contributors quickly determine how any field is supposed to behave across surfaces without reading individual field notes.
+The machine-readable policy in `src/power_atlas/contracts/retrieval_metadata_policy.py` (`FieldSurfacePolicy`) expresses five distinct relationship types between a field and each surface it touches.  Understanding these types lets future contributors quickly determine how any field is supposed to behave across surfaces without reading individual field notes.
 
 #### Relationship types
 
@@ -243,7 +243,7 @@ The machine-readable policy in `demo/contracts/retrieval_metadata_policy.py` (`F
 - **Propagation vs mirror:** a propagation relationship (`citation_warnings` → `warnings`) means the destination is a *strict superset* — the destination may contain entries not present on the source.  A mirror relationship always preserves the exact value.
 - **Forbidden placement:** marks surfaces where a field must *never* appear, regardless of what decision-rule logic might otherwise suggest.  This enforces the boundary between surfaces (e.g. `evidence_level` and `warning_count` must not leak to the top level; `malformed_diagnostics_count` must not pollute `citation_quality` or `warnings`).
 
-The `FieldSurfacePolicy` dataclass in `demo/contracts/retrieval_metadata_policy.py` is the machine-readable complement to this taxonomy; the field classification table in §2.9 shows how these types map to concrete `debug_view` entries.
+The `FieldSurfacePolicy` dataclass in `src/power_atlas/contracts/retrieval_metadata_policy.py` is the machine-readable complement to this taxonomy; the field classification table in §2.9 shows how these types map to concrete `debug_view` entries.
 
 ---
 
@@ -475,7 +475,7 @@ All-runs mode (`all_runs=True`): repair preconditions were met (uncited answer, 
 
 `run_retrieval_and_qa()` has two short-circuit paths that return before `_postprocess_answer` runs.  These are called **early-return** paths.  Their result shapes differ from the live postprocessed shape documented in §2–§4 in predictable, contractual ways.
 
-The ordered precedence rules for these paths are captured in the machine-readable policy module `demo/contracts/retrieval_early_return_policy.py` as `EARLY_RETURN_PRECEDENCE` — an ordered tuple of `EarlyReturnRule` entries listed from highest to lowest priority.  That module is the single in-code reference for which branch wins when multiple conditions are simultaneously true (e.g. `dry_run=True` and `question=None`).
+The ordered precedence rules for these paths are captured in the machine-readable policy module `src/power_atlas/contracts/retrieval_early_return_policy.py` as `EARLY_RETURN_PRECEDENCE` — an ordered tuple of `EarlyReturnRule` entries listed from highest to lowest priority.  That module is the single in-code reference for which branch wins when multiple conditions are simultaneously true (e.g. `dry_run=True` and `question=None`).
 
 **Evaluation order** (first match wins):
 
@@ -692,8 +692,8 @@ The retrieval/citation contract is intentionally distributed across several arti
 
 | Responsibility | Artifact | Kind |
 |---|---|---|
-| **Early-return precedence / short-circuit ordering** | `demo/contracts/retrieval_early_return_policy.py` | Machine-readable policy |
-| **Metadata surface ownership, mirror, propagation, and forbidden-placement policy** | `demo/contracts/retrieval_metadata_policy.py` | Machine-readable policy |
+| **Early-return precedence / short-circuit ordering** | `src/power_atlas/contracts/retrieval_early_return_policy.py` | Machine-readable policy |
+| **Metadata surface ownership, mirror, propagation, and forbidden-placement policy** | `src/power_atlas/contracts/retrieval_metadata_policy.py` | Machine-readable policy |
 | **Runtime payload assembly** (postprocessing, citation repair, evidence-level derivation) | `demo/stages/retrieval_and_qa.py` | Runtime implementation |
 | **Taxonomy and narrative contract explanation** (this document) | `docs/architecture/retrieval-citation-result-contract-v0.1.md` | Narrative documentation |
 | **Readable scenario-based contract tests** | `demo/tests/test_retrieval_result_contract.py` | Contract tests |
@@ -702,7 +702,7 @@ The retrieval/citation contract is intentionally distributed across several arti
 
 ### How these artifacts relate
 
-- **Policy files** (`retrieval_early_return_policy.py`, `retrieval_metadata_policy.py`) are the machine-readable single source of truth.  They encode the rules that the runtime must follow.  Both are re-exported from `demo/contracts/__init__.py` for convenient import.
+- **Policy files** (`retrieval_early_return_policy.py`, `retrieval_metadata_policy.py`) are the machine-readable single source of truth.  They encode the rules that the runtime must follow.  Both are package-owned under `power_atlas.contracts` and remain available via `demo/contracts/__init__.py` for compatibility imports.
 - **The runtime** (`retrieval_and_qa.py`) consumes policy objects such as `EARLY_RETURN_PRECEDENCE` directly to drive early-return branching, and its metadata field projection behaviour is validated against `RETRIEVAL_METADATA_SURFACE_POLICY` via the policy-driven parity tests.  It should contain no duplicated rule logic — behaviour is derived from policy.
 - **This document** (narrative doc) explains *why* the rules exist, documents invariants in prose and tables, and is the canonical reference that any reviewer should read first.
 - **Contract tests** verify that the runtime matches what the policy and this document declare.  There are three complementary layers: scenario tests for readable coverage of documented cases, parity tests for exhaustive policy-driven checks, and fixture-backed scenarios to catch doc/runtime drift.
@@ -710,13 +710,13 @@ The retrieval/citation contract is intentionally distributed across several arti
 ### When making changes
 
 **Changing early-return precedence or adding a new early-return branch:**
-1. Edit `demo/contracts/retrieval_early_return_policy.py` (policy).
+1. Edit `src/power_atlas/contracts/retrieval_early_return_policy.py` (policy).
 2. Update the runtime handler in `demo/stages/retrieval_and_qa.py` if a new branch needs a code path.
 3. Update §5 of this document to reflect the new or reordered branch.
 4. Add or update readable scenario tests in `demo/tests/test_retrieval_result_contract.py`.
 
 **Changing metadata surface ownership, mirrors, propagation, or forbidden placement:**
-1. Edit `demo/contracts/retrieval_metadata_policy.py` (policy).
+1. Edit `src/power_atlas/contracts/retrieval_metadata_policy.py` (policy).
 2. Verify or update the runtime projection in `demo/stages/retrieval_and_qa.py`.
 3. Update §2–§3 of this document if the field taxonomy changes.
 4. The parametric parity tests in `demo/tests/test_retrieval_metadata_projection_parity.py` are policy-driven; they will automatically cover new fields once the policy is updated.
