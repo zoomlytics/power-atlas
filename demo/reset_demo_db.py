@@ -66,7 +66,7 @@ from typing import Any
 
 import neo4j
 
-from demo.contracts import ARTIFACTS_DIR
+from power_atlas.contracts import ARTIFACTS_DIR
 from power_atlas.contracts.pipeline import CHUNK_EMBEDDING_INDEX_NAME
 from demo.cypher_utils import validate_cypher_identifier as _validate_cypher_identifier
 

@@ -17,7 +17,7 @@ from power_atlas.contracts.pipeline import (
     EMBEDDER_MODEL_NAME,
     get_dataset_id,
 )
-from demo.contracts import (
+from power_atlas.contracts import (
     FIXTURES_DIR,
     PDF_PIPELINE_CONFIG_PATH,
 )

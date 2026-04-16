@@ -7,15 +7,15 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from demo.contracts import (
+from power_atlas.contracts import (
     CSV_FIRST_DATA_ROW,
     FIXTURES_DIR,
-    get_dataset_id,
     ID_PATTERNS,
     STRUCTURED_FILE_HEADERS,
     VALUE_TYPES,
+    COMMON_PREDICATE_LABELS,
 )
-from power_atlas.contracts import COMMON_PREDICATE_LABELS
+from power_atlas.contracts.pipeline import get_dataset_id
 
 
 def load_csv_rows(path: Path) -> list[dict[str, str]]:

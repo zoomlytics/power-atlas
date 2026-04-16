@@ -17,15 +17,13 @@ pipeline_contracts.refresh_pipeline_contract()
 
 _DATASET_ID_SAMPLE_LIMIT = 10
 
-from demo.contracts import (  # noqa: E402
+from power_atlas.contracts import (  # noqa: E402
     ARTIFACTS_DIR,
     Config,
-    make_run_id,
-    resolve_dataset_root,
-)
-from power_atlas.contracts import (  # noqa: E402
     build_batch_manifest,
     build_stage_manifest,
+    make_run_id,
+    resolve_dataset_root,
     write_manifest,
     write_manifest_md,
 )

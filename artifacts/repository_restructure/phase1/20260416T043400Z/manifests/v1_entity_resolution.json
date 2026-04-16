@@ -1,0 +1,110 @@
+{
+  "config": {
+    "dry_run": false,
+    "neo4j_database": "neo4j",
+    "openai_model": "gpt-5.4"
+  },
+  "created_at": "2026-04-16T04:36:25.252651+00:00",
+  "dataset_id": "demo_dataset_v1",
+  "finished_at": "2026-04-16T04:36:25.252635+00:00",
+  "run_id": "unstructured_ingest-20260416T043416768881Z-f58db463",
+  "run_scopes": {
+    "batch_mode": "single_independent_run",
+    "unstructured_ingest_run_id": "unstructured_ingest-20260416T043416768881Z-f58db463"
+  },
+  "stages": {
+    "entity_resolution": {
+      "cluster_version": "v1.3",
+      "clusters_created": 168,
+      "dataset_id": "demo_dataset_v1",
+      "entity_resolution_summary_path": "/Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/artifacts/runs/unstructured_ingest-20260416T043416768881Z-f58db463/entity_resolution/entity_resolution_summary.json",
+      "entity_type_report": {
+        "mapped_variants": {
+          "organization": "Organization",
+          "person": "Person"
+        },
+        "normalized_counts": {
+          "Concept": 2,
+          "Event": 2,
+          "Group": 7,
+          "Location": 33,
+          "Organization": 101,
+          "OrganizationGroup": 2,
+          "Person": 54,
+          "PersonRole": 3,
+          "Place": 10,
+          "Product": 1,
+          "Region": 1,
+          "Topic": 3,
+          "category": 11,
+          "company": 7,
+          "concept": 3,
+          "location": 1,
+          "relation_type": 10
+        },
+        "null_or_empty_count": 0,
+        "passthrough_labels": [
+          "Concept",
+          "Event",
+          "Group",
+          "Location",
+          "Organization",
+          "OrganizationGroup",
+          "Person",
+          "PersonRole",
+          "Place",
+          "Product",
+          "Region",
+          "Topic",
+          "category",
+          "company",
+          "concept",
+          "location",
+          "relation_type"
+        ],
+        "raw_counts": {
+          "Concept": 2,
+          "Event": 2,
+          "Group": 7,
+          "Location": 33,
+          "Organization": 85,
+          "OrganizationGroup": 2,
+          "Person": 36,
+          "PersonRole": 3,
+          "Place": 10,
+          "Product": 1,
+          "Region": 1,
+          "Topic": 3,
+          "category": 11,
+          "company": 7,
+          "concept": 3,
+          "location": 1,
+          "organization": 16,
+          "person": 18,
+          "relation_type": 10
+        },
+        "sentinel_label_warnings": []
+      },
+      "mentions_clustered": 251,
+      "mentions_total": 251,
+      "mentions_unclustered": 0,
+      "resolution_breakdown": {
+        "fuzzy": 1,
+        "label_cluster": 148,
+        "normalized_exact": 102
+      },
+      "resolution_mode": "unstructured_only",
+      "resolved": 0,
+      "resolved_at": "2026-04-16T04:36:24.548305+00:00",
+      "resolver_method": "unstructured_clustering",
+      "resolver_version": "v1.2",
+      "run_id": "unstructured_ingest-20260416T043416768881Z-f58db463",
+      "source_uri": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v1/unstructured/chain_of_custody.pdf",
+      "status": "live",
+      "unresolved": 251,
+      "unresolved_mentions_path": "/Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/artifacts/runs/unstructured_ingest-20260416T043416768881Z-f58db463/entity_resolution/unresolved_mentions.json",
+      "warnings": []
+    }
+  },
+  "started_at": "2026-04-16T04:36:24.548052+00:00"
+}
