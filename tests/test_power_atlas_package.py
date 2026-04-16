@@ -192,6 +192,30 @@ def test_demo_pipeline_contract_shim_is_package_module() -> None:
     assert demo_pipeline is package_pipeline
 
 
+def test_package_contracts_root_does_not_reexport_stateful_pipeline_symbols() -> None:
+    import power_atlas.contracts as contracts_module
+
+    disallowed_exports = {
+        "CHUNK_EMBEDDING_DIMENSIONS",
+        "CHUNK_EMBEDDING_INDEX_NAME",
+        "CHUNK_EMBEDDING_LABEL",
+        "CHUNK_EMBEDDING_PROPERTY",
+        "CHUNK_FALLBACK_STRIDE",
+        "DATASET_ID",
+        "DEFAULT_DB",
+        "EMBEDDER_MODEL_NAME",
+        "PIPELINE_CONFIG_DATA",
+        "ensure_pipeline_contract_loaded",
+        "get_dataset_id",
+        "refresh_pipeline_contract",
+        "set_dataset_id",
+    }
+
+    assert disallowed_exports.isdisjoint(contracts_module.__all__)
+    for name in disallowed_exports:
+        assert not hasattr(contracts_module, name)
+
+
 def test_build_embedder_for_settings_uses_embedder_model() -> None:
     from power_atlas.bootstrap.clients import build_embedder_for_settings
     from power_atlas.settings import AppSettings, Neo4jSettings

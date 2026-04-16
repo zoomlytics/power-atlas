@@ -42,6 +42,10 @@ from power_atlas.contracts.structured import (
 )
 from power_atlas.contracts.resolution import ALIGNMENT_VERSION
 
+# Keep the stateful pipeline contract submodule-only. Re-exporting mutable
+# pipeline globals from this package root would encourage stale imported
+# bindings after refreshes or dataset overrides.
+
 __all__ = [
 	"ALIGNMENT_VERSION",
 	"AmbiguousDatasetError",
