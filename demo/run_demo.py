@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Callable
 
+from power_atlas.bootstrap import create_neo4j_driver
 from power_atlas.bootstrap import build_runtime_config as _build_runtime_config
 from power_atlas.bootstrap import build_settings as _build_package_settings
 
@@ -304,11 +305,7 @@ def _fetch_latest_unstructured_run_id(
     ingested.  The resolved run_id is always returned so callers can proceed;
     the warning is informational only.
     """
-    import neo4j as _neo4j
-
-    with _neo4j.GraphDatabase.driver(
-        config.neo4j_uri, auth=(config.neo4j_username, config.neo4j_password)
-    ) as driver:
+    with create_neo4j_driver(config) as driver:
         with driver.session(database=config.neo4j_database) as session:
             if dataset_id is not None:
                 result = session.run(
@@ -382,11 +379,7 @@ def _fetch_dataset_id_for_run(config: Config, run_id: str) -> str | None:
     Returns None if no Chunk nodes with a non-null dataset_id exist for the run.
     Only call this in live mode; it opens a real Neo4j connection.
     """
-    import neo4j as _neo4j
-
-    with _neo4j.GraphDatabase.driver(
-        config.neo4j_uri, auth=(config.neo4j_username, config.neo4j_password)
-    ) as driver:
+    with create_neo4j_driver(config) as driver:
         with driver.session(database=config.neo4j_database) as session:
             # Fast path: detect whether the run has 0, 1, or multiple distinct
             # dataset_ids using a small sorted sample. This preserves the old
@@ -1179,12 +1172,9 @@ def main() -> None:
             raise SystemExit(
                 "Set NEO4J_PASSWORD or pass --neo4j-password when running reset --confirm"
             )
-        import neo4j as _neo4j
         from demo.reset_demo_db import run_reset
 
-        driver = _neo4j.GraphDatabase.driver(
-            args.neo4j_uri, auth=(args.neo4j_username, args.neo4j_password)
-        )
+        driver = create_neo4j_driver(args)
         with driver:
             report = run_reset(
                 driver=driver,

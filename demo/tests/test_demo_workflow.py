@@ -1845,6 +1845,7 @@ class WorkflowTests(unittest.TestCase):
     def test_fetch_dataset_id_warns_on_mixed_dataset_ids(self):
         """_fetch_dataset_id_for_run must warn when a run has multiple distinct dataset_ids."""
         module = _load_module(RUN_DEMO_PATH, "run_fetch_dataset_id_mixed_test")
+        import power_atlas.bootstrap.clients as bootstrap_clients
 
         # Build a fake neo4j that simulates the two-phase query behaviour:
         # - Fast-path query (LIMIT 2) → {"dataset_ids": ["dataset_a", "dataset_b"]}
@@ -1886,11 +1887,6 @@ class WorkflowTests(unittest.TestCase):
             def session(self, **kwargs):
                 return _FakeSession()
 
-        fake_neo4j = types.ModuleType("neo4j")
-        fake_neo4j.GraphDatabase = types.SimpleNamespace(
-            driver=lambda *_a, **_k: _FakeDriver()
-        )
-
         config = type(
             "Config",
             (),
@@ -1902,9 +1898,13 @@ class WorkflowTests(unittest.TestCase):
             },
         )()
 
-        with self._with_injected_modules({"neo4j": fake_neo4j}):
+        original_driver = bootstrap_clients.neo4j.GraphDatabase.driver
+        bootstrap_clients.neo4j.GraphDatabase.driver = lambda *_a, **_k: _FakeDriver()
+        try:
             with self.assertLogs(logger=module.__name__, level="WARNING") as log_cm:
                 result = module._fetch_dataset_id_for_run(config, "test-run-id-mixed")
+        finally:
+            bootstrap_clients.neo4j.GraphDatabase.driver = original_driver
 
         # When multiple distinct dataset_ids are found for a run, the function
         # should warn and return the first sorted dataset_id so the behavior
@@ -1950,6 +1950,7 @@ class WorkflowTests(unittest.TestCase):
     def test_fetch_dataset_id_returns_single_id_no_warning(self):
         """_fetch_dataset_id_for_run must return the lone dataset_id with no warning (fast-path, single ID)."""
         module = _load_module(RUN_DEMO_PATH, "run_fetch_dataset_id_single_test")
+        import power_atlas.bootstrap.clients as bootstrap_clients
 
         class _SingleResult:
             def single(self):
@@ -1975,11 +1976,6 @@ class WorkflowTests(unittest.TestCase):
             def session(self, **kwargs):
                 return _FakeSession()
 
-        fake_neo4j = types.ModuleType("neo4j")
-        fake_neo4j.GraphDatabase = types.SimpleNamespace(
-            driver=lambda *_a, **_k: _FakeDriver()
-        )
-
         config = type(
             "Config",
             (),
@@ -1991,9 +1987,13 @@ class WorkflowTests(unittest.TestCase):
             },
         )()
 
-        with self._with_injected_modules({"neo4j": fake_neo4j}):
+        original_driver = bootstrap_clients.neo4j.GraphDatabase.driver
+        bootstrap_clients.neo4j.GraphDatabase.driver = lambda *_a, **_k: _FakeDriver()
+        try:
             with self.assertNoLogs(logger=module.__name__, level="WARNING"):
                 result = module._fetch_dataset_id_for_run(config, "test-run-id-single")
+        finally:
+            bootstrap_clients.neo4j.GraphDatabase.driver = original_driver
 
         self.assertEqual(
             result,
@@ -2004,6 +2004,7 @@ class WorkflowTests(unittest.TestCase):
     def test_fetch_dataset_id_returns_none_for_no_datasets(self):
         """_fetch_dataset_id_for_run must return None with no warning when no dataset_ids exist."""
         module = _load_module(RUN_DEMO_PATH, "run_fetch_dataset_id_none_test")
+        import power_atlas.bootstrap.clients as bootstrap_clients
 
         class _EmptyResult:
             def single(self):
@@ -2029,11 +2030,6 @@ class WorkflowTests(unittest.TestCase):
             def session(self, **kwargs):
                 return _FakeSession()
 
-        fake_neo4j = types.ModuleType("neo4j")
-        fake_neo4j.GraphDatabase = types.SimpleNamespace(
-            driver=lambda *_a, **_k: _FakeDriver()
-        )
-
         config = type(
             "Config",
             (),
@@ -2045,9 +2041,13 @@ class WorkflowTests(unittest.TestCase):
             },
         )()
 
-        with self._with_injected_modules({"neo4j": fake_neo4j}):
+        original_driver = bootstrap_clients.neo4j.GraphDatabase.driver
+        bootstrap_clients.neo4j.GraphDatabase.driver = lambda *_a, **_k: _FakeDriver()
+        try:
             with self.assertNoLogs(logger=module.__name__, level="WARNING"):
                 result = module._fetch_dataset_id_for_run(config, "test-run-id-no-datasets")
+        finally:
+            bootstrap_clients.neo4j.GraphDatabase.driver = original_driver
 
         self.assertIsNone(
             result,
@@ -2057,6 +2057,7 @@ class WorkflowTests(unittest.TestCase):
     def test_fetch_dataset_id_slow_path_fallback_branch(self):
         """_fetch_dataset_id_for_run uses detected_ids when slow-path sampled_ids is empty."""
         module = _load_module(RUN_DEMO_PATH, "run_fetch_dataset_id_fallback_test")
+        import power_atlas.bootstrap.clients as bootstrap_clients
 
         # Simulate the two-phase query:
         # - Fast-path (LIMIT 2) detects two distinct ids.
@@ -2096,11 +2097,6 @@ class WorkflowTests(unittest.TestCase):
             def session(self, **kwargs):
                 return _FakeSession()
 
-        fake_neo4j = types.ModuleType("neo4j")
-        fake_neo4j.GraphDatabase = types.SimpleNamespace(
-            driver=lambda *_a, **_k: _FakeDriver()
-        )
-
         config = type(
             "Config",
             (),
@@ -2112,9 +2108,13 @@ class WorkflowTests(unittest.TestCase):
             },
         )()
 
-        with self._with_injected_modules({"neo4j": fake_neo4j}):
+        original_driver = bootstrap_clients.neo4j.GraphDatabase.driver
+        bootstrap_clients.neo4j.GraphDatabase.driver = lambda *_a, **_k: _FakeDriver()
+        try:
             with self.assertLogs(logger=module.__name__, level="WARNING") as log_cm:
                 result = module._fetch_dataset_id_for_run(config, "test-run-id-fallback")
+        finally:
+            bootstrap_clients.neo4j.GraphDatabase.driver = original_driver
 
         # Should return the first sorted id from the fast-path detected_ids fallback.
         self.assertEqual(
@@ -2133,6 +2133,7 @@ class WorkflowTests(unittest.TestCase):
     def test_fetch_latest_run_id_warns_on_inconsistent_dataset_stamps(self):
         """_fetch_latest_unstructured_run_id must warn when resolved run has multiple dataset_ids."""
         module = _load_module(RUN_DEMO_PATH, "run_fetch_latest_run_id_inconsistent_test")
+        import power_atlas.bootstrap.clients as bootstrap_clients
 
         # Session returns:
         # - First call (latest run query) → run_id record
@@ -2175,11 +2176,6 @@ class WorkflowTests(unittest.TestCase):
             def session(self, **kwargs):
                 return _FakeSession()
 
-        fake_neo4j = types.ModuleType("neo4j")
-        fake_neo4j.GraphDatabase = types.SimpleNamespace(
-            driver=lambda *_a, **_k: _FakeDriver()
-        )
-
         config = type(
             "Config",
             (),
@@ -2191,9 +2187,13 @@ class WorkflowTests(unittest.TestCase):
             },
         )()
 
-        with self._with_injected_modules({"neo4j": fake_neo4j}):
+        original_driver = bootstrap_clients.neo4j.GraphDatabase.driver
+        bootstrap_clients.neo4j.GraphDatabase.driver = lambda *_a, **_k: _FakeDriver()
+        try:
             with self.assertLogs(logger=module.__name__, level="WARNING") as log_cm:
                 result = module._fetch_latest_unstructured_run_id(config)
+        finally:
+            bootstrap_clients.neo4j.GraphDatabase.driver = original_driver
 
         self.assertEqual(
             result,
@@ -2825,6 +2825,7 @@ class ResetDemoDbTests(unittest.TestCase):
         or replaced with logging the warnings become invisible to CLI users.
         """
         module = _load_module(RUN_DEMO_PATH, "run_reset_warning_passthrough_test")
+        import power_atlas.bootstrap.clients as bootstrap_clients
         args = types.SimpleNamespace(
             command="reset",
             confirm=True,
@@ -2838,19 +2839,12 @@ class ResetDemoDbTests(unittest.TestCase):
             question=None,
         )
 
-        # Build a minimal fake neo4j module so the driver-creation path in
-        # main() works without a live database connection.
         class _FakeDriver:
             def __enter__(self):
                 return self
 
             def __exit__(self, *_):
                 return False
-
-        fake_neo4j = types.ModuleType("neo4j")
-        fake_neo4j.GraphDatabase = types.SimpleNamespace(
-            driver=lambda *_a, **_kw: _FakeDriver()
-        )
 
         # Stub run_reset to return a report containing warnings so that the
         # CLI passthrough code path (the print loop in main()) is exercised.
@@ -2870,11 +2864,11 @@ class ResetDemoDbTests(unittest.TestCase):
         fake_reset_module.run_reset = lambda **_kw: stub_report
 
         original_parse_args = module.parse_args
-        original_neo4j = sys.modules.get("neo4j")
         original_reset_db = sys.modules.get("demo.reset_demo_db")
+        original_driver = bootstrap_clients.neo4j.GraphDatabase.driver
         try:
             module.parse_args = lambda: args
-            sys.modules["neo4j"] = fake_neo4j
+            bootstrap_clients.neo4j.GraphDatabase.driver = lambda *_a, **_kw: _FakeDriver()
             sys.modules["demo.reset_demo_db"] = fake_reset_module
 
             with io.StringIO() as buffer, redirect_stdout(buffer):
@@ -2902,10 +2896,7 @@ class ResetDemoDbTests(unittest.TestCase):
             )
         finally:
             module.parse_args = original_parse_args
-            if original_neo4j is None:
-                sys.modules.pop("neo4j", None)
-            else:
-                sys.modules["neo4j"] = original_neo4j
+            bootstrap_clients.neo4j.GraphDatabase.driver = original_driver
             if original_reset_db is None:
                 sys.modules.pop("demo.reset_demo_db", None)
             else:
