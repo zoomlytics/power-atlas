@@ -1,0 +1,14 @@
+{
+  "started_at": "2026-04-16T05:11:18Z",
+  "finished_at": "2026-04-16T05:15:51Z",
+  "run_timestamp": "20260416T051118Z",
+  "commit_sha": "e68337ee52bee818e982e0f4d8bfbc2a6bb21a24",
+  "model": "gpt-5.4",
+  "datasets": [
+    "demo_dataset_v1",
+    "demo_dataset_v2"
+  ],
+  "v1_run_id": "unstructured_ingest-20260416T051123288484Z-7a5bd3e4",
+  "v2_run_id": "unstructured_ingest-20260416T051339852983Z-b905fbb5",
+  "artifact_dir": "/Users/ash/Documents/repos/Zoomlytics/power-atlas/artifacts/repository_restructure/phase1/20260416T051118Z"
+}

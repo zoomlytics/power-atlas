@@ -1,8 +1,8 @@
 from importlib import import_module
 from typing import Any
 
-from demo.contracts.manifest import build_batch_manifest, build_stage_manifest, write_manifest, write_manifest_md
-from demo.contracts.paths import (
+from power_atlas.contracts.manifest import build_batch_manifest, build_stage_manifest, write_manifest, write_manifest_md
+from power_atlas.contracts.paths import (
     ARTIFACTS_DIR,
     CONFIG_DIR,
     DATASETS_CONTAINER_DIR,
@@ -12,7 +12,7 @@ from demo.contracts.paths import (
     list_available_datasets,
     resolve_dataset_root,
 )
-from demo.contracts.pipeline import (
+from power_atlas.contracts.pipeline import (
     CHUNK_EMBEDDING_DIMENSIONS,
     CHUNK_EMBEDDING_INDEX_NAME,
     CHUNK_EMBEDDING_LABEL,
@@ -25,21 +25,21 @@ from demo.contracts.pipeline import (
     ensure_pipeline_contract_loaded,
     set_dataset_id,
 )
-from demo.contracts.prompts import POWER_ATLAS_RAG_TEMPLATE, PROMPT_IDS
-from demo.contracts.resolution import ALIGNMENT_VERSION
-from demo.contracts.retrieval_early_return_policy import (
+from power_atlas.contracts.prompts import POWER_ATLAS_RAG_TEMPLATE, PROMPT_IDS
+from power_atlas.contracts.resolution import ALIGNMENT_VERSION
+from power_atlas.contracts.retrieval_early_return_policy import (
     EarlyReturnRule,
     EARLY_RETURN_PRECEDENCE,
     EARLY_RETURN_RULE_BY_NAME,
     resolve_early_return_rule,
 )
-from demo.contracts.retrieval_metadata_policy import (
+from power_atlas.contracts.retrieval_metadata_policy import (
     FieldSurfacePolicy,
     RetrievalMetadataSurface,
     RETRIEVAL_METADATA_SURFACE_POLICY,
 )
-from demo.contracts.runtime import Config, make_run_id, timestamp
-from demo.contracts.structured import (
+from power_atlas.contracts.runtime import Config, make_run_id, timestamp
+from power_atlas.contracts.structured import (
     COMMON_PREDICATE_LABELS,
     CSV_FIRST_DATA_ROW,
     ID_PATTERNS,
@@ -97,10 +97,10 @@ __all__ = [
 
 def __getattr__(name: str) -> Any:  # pragma: no cover - thin import proxy
     if name in {"claim_extraction_lexical_config", "claim_extraction_schema"}:
-        module = import_module("demo.contracts.claim_schema")
+        module = import_module("power_atlas.contracts.claim_schema")
         return getattr(module, name)
     if name == "DATASET_ID":
-        return import_module("demo.contracts.pipeline").DATASET_ID
+        return import_module("power_atlas.contracts.pipeline").DATASET_ID
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
