@@ -94,6 +94,52 @@ class TestRetrievalBenchmarkCliMainArgParsing(unittest.TestCase):
                 main([])
             self.assertEqual(ctx.exception.code, 1)
 
+    def test_parse_args_uses_package_settings_defaults(self) -> None:
+        with patch.dict(
+            os.environ,
+            {
+                "NEO4J_URI": "bolt://rb.test:7687",
+                "NEO4J_USERNAME": "rb-user",
+                "NEO4J_DATABASE": "rb-db",
+            },
+            clear=True,
+        ):
+            args = cli_module._parse_args([])
+
+        self.assertEqual(args.neo4j_uri, "bolt://rb.test:7687")
+        self.assertEqual(args.neo4j_username, "rb-user")
+        self.assertEqual(args.neo4j_database, "rb-db")
+        self.assertEqual(args.neo4j_password, "")
+
+    def test_parse_args_cli_overrides_package_settings_defaults(self) -> None:
+        with patch.dict(
+            os.environ,
+            {
+                "NEO4J_URI": "bolt://rb.test:7687",
+                "NEO4J_USERNAME": "rb-user",
+                "NEO4J_PASSWORD": "env-secret",
+                "NEO4J_DATABASE": "rb-db",
+            },
+            clear=True,
+        ):
+            args = cli_module._parse_args(
+                [
+                    "--neo4j-uri",
+                    "bolt://override.test:7687",
+                    "--neo4j-username",
+                    "override-user",
+                    "--neo4j-password",
+                    "override-secret",
+                    "--neo4j-database",
+                    "override-db",
+                ]
+            )
+
+        self.assertEqual(args.neo4j_uri, "bolt://override.test:7687")
+        self.assertEqual(args.neo4j_username, "override-user")
+        self.assertEqual(args.neo4j_password, "override-secret")
+        self.assertEqual(args.neo4j_database, "override-db")
+
 
 class TestRetrievalBenchmarkCliUnscopedWarnings(unittest.TestCase):
     """CLI regression tests: verify warning behavior for unscoped runs.

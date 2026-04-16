@@ -68,6 +68,7 @@ def _build_cli_config(args: argparse.Namespace):
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    package_settings = build_settings()
     parser = argparse.ArgumentParser(
         description="Generate a repeatable graph-health diagnostics artifact.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -91,12 +92,12 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--neo4j-uri",
-        default=os.getenv("NEO4J_URI", "bolt://localhost:7687"),
+        default=package_settings.neo4j.uri,
         help="Neo4j bolt URI (default: $NEO4J_URI or bolt://localhost:7687).",
     )
     parser.add_argument(
         "--neo4j-username",
-        default=os.getenv("NEO4J_USERNAME", "neo4j"),
+        default=package_settings.neo4j.username,
         help="Neo4j username (default: $NEO4J_USERNAME or 'neo4j').",
     )
     parser.add_argument(
@@ -106,7 +107,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--neo4j-database",
-        default=os.getenv("NEO4J_DATABASE", "neo4j"),
+        default=package_settings.neo4j.database,
         help="Neo4j database name (default: $NEO4J_DATABASE or 'neo4j').",
     )
     parser.add_argument(
