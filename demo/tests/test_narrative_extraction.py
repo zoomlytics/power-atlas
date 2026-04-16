@@ -20,6 +20,7 @@ from demo.narrative_extraction import (  # noqa: E402
     PROMPT_VERSION,
     DEFAULT_NEO4J_PASSWORD,
     ExtractionConfig,
+    _parse_args,
     build_lexical_config,
     prepare_extracted_rows,
     run_narrative_extraction,
@@ -188,6 +189,31 @@ def test_run_narrative_extraction_rejects_default_password_for_live(tmp_path: Pa
 
     with pytest.raises(ValueError, match="NEO4J_PASSWORD must be set"):
         run_narrative_extraction(config)
+
+
+def test_parse_args_uses_package_settings_defaults(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("NEO4J_URI", "bolt://parser.test:7687")
+    monkeypatch.setenv("NEO4J_USERNAME", "parser-user")
+    monkeypatch.setenv("NEO4J_PASSWORD", "parser-secret")
+    monkeypatch.setenv("NEO4J_DATABASE", "parser-db")
+    monkeypatch.setenv("OPENAI_MODEL", "parser-model")
+
+    config = _parse_args(["--run-id", "parser-run"])
+
+    assert config.run_id == "parser-run"
+    assert config.neo4j_uri == "bolt://parser.test:7687"
+    assert config.neo4j_username == "parser-user"
+    assert config.neo4j_password == "parser-secret"
+    assert config.neo4j_database == "parser-db"
+    assert config.model_name == "parser-model"
+
+
+def test_parse_args_preserves_narrative_default_model(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.delenv("OPENAI_MODEL", raising=False)
+
+    config = _parse_args(["--run-id", "parser-run"])
+
+    assert config.model_name == "gpt-4o-mini"
 
 
 def test_write_extracted_rows_validates_cypher_identifiers():
