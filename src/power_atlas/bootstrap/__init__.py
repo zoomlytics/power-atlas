@@ -1,4 +1,4 @@
-from power_atlas.bootstrap.app import AppBootstrap, bootstrap_app, build_settings
+from power_atlas.bootstrap.app import AppBootstrap, bootstrap_app, build_runtime_config, build_settings
 from power_atlas.bootstrap.clients import (
 	build_embedder_for_settings,
 	build_llm_for_settings,
@@ -8,6 +8,7 @@ from power_atlas.bootstrap.clients import (
 __all__ = [
 	"AppBootstrap",
 	"bootstrap_app",
+	"build_runtime_config",
 	"build_embedder_for_settings",
 	"build_llm_for_settings",
 	"build_settings",

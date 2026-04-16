@@ -81,6 +81,42 @@ def test_build_settings_from_env_mapping() -> None:
     assert app.settings.dataset_name == "demo_dataset_v1"
 
 
+def test_build_runtime_config_from_settings() -> None:
+    from power_atlas.bootstrap import build_runtime_config
+    from power_atlas.settings import AppSettings, Neo4jSettings
+
+    settings = AppSettings(
+        neo4j=Neo4jSettings(
+            uri="bolt://example.test:7687",
+            username="atlas",
+            password="secret",
+            database="analytics",
+        ),
+        openai_model="gpt-5.4",
+        embedder_model="text-embedding-3-large",
+        output_dir=Path("build/power-atlas"),
+        dataset_name="demo_dataset_v1",
+    )
+
+    config = build_runtime_config(
+        settings,
+        dry_run=False,
+        question="Who acquired Xapo?",
+        resolution_mode="hybrid",
+    )
+
+    assert config.dry_run is False
+    assert config.output_dir == Path("build/power-atlas")
+    assert config.neo4j_uri == "bolt://example.test:7687"
+    assert config.neo4j_username == "atlas"
+    assert config.neo4j_password == "secret"
+    assert config.neo4j_database == "analytics"
+    assert config.openai_model == "gpt-5.4"
+    assert config.question == "Who acquired Xapo?"
+    assert config.resolution_mode == "hybrid"
+    assert config.dataset_name == "demo_dataset_v1"
+
+
 def test_normalize_mention_text() -> None:
     from power_atlas.text_utils import normalize_mention_text
 

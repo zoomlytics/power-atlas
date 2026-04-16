@@ -83,13 +83,27 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from power_atlas.contracts.runtime import Config  # noqa: E402
+from power_atlas.bootstrap import build_runtime_config, build_settings  # noqa: E402
 from demo.stages.retrieval_benchmark import run_retrieval_benchmark  # noqa: E402
 
 # Base output directory — the parent of `runs/`, matching Config.output_dir conventions.
 _PIPELINES_DIR = Path(__file__).resolve().parent.parent
 
 _logger = logging.getLogger(__name__)
+
+
+def _build_cli_config(args: argparse.Namespace):
+    settings = build_settings(
+        {
+            **os.environ,
+            "NEO4J_URI": args.neo4j_uri,
+            "NEO4J_USERNAME": args.neo4j_username,
+            "NEO4J_PASSWORD": args.neo4j_password,
+            "NEO4J_DATABASE": args.neo4j_database,
+            "POWER_ATLAS_OUTPUT_DIR": str(args.output_dir),
+        }
+    )
+    return build_runtime_config(settings, dry_run=False, output_dir=args.output_dir)
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -167,15 +181,7 @@ def main(argv: list[str] | None = None) -> None:
         )
         sys.exit(1)
 
-    config = Config(
-        dry_run=False,
-        output_dir=args.output_dir,
-        neo4j_uri=args.neo4j_uri,
-        neo4j_username=args.neo4j_username,
-        neo4j_password=args.neo4j_password,
-        neo4j_database=args.neo4j_database,
-        openai_model="",  # not needed for read-only benchmark queries
-    )
+    config = _build_cli_config(args)
 
     result = run_retrieval_benchmark(
         config,
