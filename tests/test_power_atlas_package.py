@@ -19,10 +19,13 @@ def test_package_modules_import() -> None:
     assert package.EARLY_RETURN_RULE_BY_NAME is contracts_module.EARLY_RETURN_RULE_BY_NAME
     assert package.PROMPT_IDS is contracts_module.PROMPT_IDS
     assert package.POWER_ATLAS_RAG_TEMPLATE is contracts_module.POWER_ATLAS_RAG_TEMPLATE
+    assert package.Config is contracts_module.Config
     assert package.FieldSurfacePolicy is contracts_module.FieldSurfacePolicy
     assert package.RETRIEVAL_METADATA_SURFACE_POLICY is contracts_module.RETRIEVAL_METADATA_SURFACE_POLICY
     assert package.RetrievalMetadataSurface is contracts_module.RetrievalMetadataSurface
+    assert package.make_run_id is contracts_module.make_run_id
     assert package.resolve_early_return_rule is contracts_module.resolve_early_return_rule
+    assert package.timestamp is contracts_module.timestamp
     assert package.AppSettings is settings_module.AppSettings
     assert package.build_settings is bootstrap_module.build_settings
     assert package.build_openai_llm is llm_utils_module.build_openai_llm
@@ -103,6 +106,15 @@ def test_create_neo4j_driver_uses_settings_credentials() -> None:
         "bolt://example.test:7687",
         auth=("atlas", "secret"),
     )
+
+
+def test_demo_runtime_contract_shim_matches_package_exports() -> None:
+    import demo.contracts.runtime as demo_runtime
+    import power_atlas.contracts as contracts_module
+
+    assert demo_runtime.Config is contracts_module.Config
+    assert demo_runtime.make_run_id is contracts_module.make_run_id
+    assert demo_runtime.timestamp is contracts_module.timestamp
 
 
 def test_build_embedder_for_settings_uses_embedder_model() -> None:

@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from demo.contracts.runtime import make_run_id
+from power_atlas.contracts import make_run_id
 
 
 def build_batch_manifest(

@@ -12,11 +12,14 @@ from power_atlas.contracts import (
     EARLY_RETURN_RULE_BY_NAME,
     EarlyReturnRule,
     FieldSurfacePolicy,
+    Config,
     POWER_ATLAS_RAG_TEMPLATE,
     PROMPT_IDS,
     RETRIEVAL_METADATA_SURFACE_POLICY,
     RetrievalMetadataSurface,
+    make_run_id,
     resolve_early_return_rule,
+    timestamp,
 )
 from power_atlas.llm_utils import build_openai_llm
 from power_atlas.settings import AppSettings, Neo4jSettings
@@ -30,6 +33,7 @@ __all__ = [
     "FieldSurfacePolicy",
     "AppBootstrap",
     "AppSettings",
+    "Config",
     "Neo4jSettings",
     "POWER_ATLAS_RAG_TEMPLATE",
     "PROMPT_IDS",
@@ -41,6 +45,8 @@ __all__ = [
     "build_openai_llm",
     "build_settings",
     "create_neo4j_driver",
+    "make_run_id",
     "normalize_mention_text",
     "resolve_early_return_rule",
+    "timestamp",
 ]

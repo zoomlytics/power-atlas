@@ -19,8 +19,8 @@ from demo.contracts import (
     get_dataset_id,
     PDF_PIPELINE_CONFIG_PATH,
 )
-from demo.contracts.runtime import make_run_id
 from demo.cypher_utils import validate_cypher_identifier as _validate_cypher_identifier
+from power_atlas.contracts import make_run_id
 
 # Local fallback to avoid importing a private implementation detail from
 # demo.contracts.paths. Resolved datasets should use DatasetRoot.pdf_filename.

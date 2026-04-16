@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
 
-from demo.contracts.runtime import Config
+from power_atlas.contracts import Config
 from demo.stages.entity_resolution import (
     _ALIGNMENT_VERSION,
     _CLUSTER_VERSION,
@@ -808,7 +808,7 @@ class TestBatchManifestEntityResolution(unittest.TestCase):
 
     def test_entity_resolution_stage_included_when_provided(self):
         from demo.contracts.manifest import build_batch_manifest
-        from demo.contracts.runtime import Config
+        from power_atlas.contracts import Config
 
         with tempfile.TemporaryDirectory() as tmpdir:
             config = Config(
@@ -836,7 +836,7 @@ class TestBatchManifestEntityResolution(unittest.TestCase):
 
     def test_entity_resolution_stage_absent_by_default(self):
         from demo.contracts.manifest import build_batch_manifest
-        from demo.contracts.runtime import Config
+        from power_atlas.contracts import Config
 
         with tempfile.TemporaryDirectory() as tmpdir:
             config = Config(

@@ -23,10 +23,9 @@ from demo.contracts.pipeline import (
     CHUNK_EMBEDDING_LABEL,
     CHUNK_EMBEDDING_PROPERTY,
 )
-from demo.contracts.runtime import Config, make_run_id
 from demo.contracts.structured import STRUCTURED_FILE_HEADERS
 from demo.stages import lint_and_clean_structured_csvs, run_pdf_ingest
-from power_atlas.contracts import POWER_ATLAS_RAG_TEMPLATE, PROMPT_IDS
+from power_atlas.contracts import Config, POWER_ATLAS_RAG_TEMPLATE, PROMPT_IDS, make_run_id
 
 
 def _dry_run_config(tmp_path: Path) -> Config:
@@ -6320,7 +6319,7 @@ def test_benchmark_failure_in_orchestrated_run_writes_manifest(tmp_path: Path):
     from unittest.mock import MagicMock, patch
 
     from demo.run_demo import _run_orchestrated
-    from demo.contracts.runtime import Config
+    from power_atlas.contracts import Config
 
     config = Config(
         dry_run=True,
@@ -6393,7 +6392,7 @@ def test_orchestrated_run_warns_when_alignment_version_missing(tmp_path: Path):
     from unittest.mock import MagicMock, patch
 
     from demo.run_demo import _run_orchestrated
-    from demo.contracts.runtime import Config
+    from power_atlas.contracts import Config
 
     config = Config(
         dry_run=True,
@@ -6459,7 +6458,7 @@ def test_orchestrated_run_emits_exactly_one_alignment_version_warning(tmp_path: 
     from unittest.mock import MagicMock, patch
 
     from demo.run_demo import _run_orchestrated
-    from demo.contracts.runtime import Config
+    from power_atlas.contracts import Config
 
     config = Config(
         dry_run=True,
@@ -6559,7 +6558,7 @@ def test_e2e_orchestrated_exactly_one_alignment_version_warning(tmp_path: Path):
     from unittest.mock import MagicMock, patch
 
     from demo.run_demo import _run_orchestrated
-    from demo.contracts.runtime import Config
+    from power_atlas.contracts import Config
 
     config = Config(
         dry_run=True,
