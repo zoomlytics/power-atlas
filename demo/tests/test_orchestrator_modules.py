@@ -16,7 +16,6 @@ from neo4j_graphrag.experimental.components.types import (
     TextChunks,
 )
 
-from demo.contracts.manifest import build_batch_manifest, build_stage_manifest
 from demo.contracts.pipeline import (
     CHUNK_EMBEDDING_DIMENSIONS,
     CHUNK_EMBEDDING_INDEX_NAME,
@@ -29,6 +28,11 @@ from power_atlas.contracts import (
     POWER_ATLAS_RAG_TEMPLATE,
     PROMPT_IDS,
     STRUCTURED_FILE_HEADERS,
+    AmbiguousDatasetError,
+    DatasetRoot,
+    ALIGNMENT_VERSION,
+    build_batch_manifest,
+    build_stage_manifest,
     make_run_id,
 )
 
@@ -1357,7 +1361,6 @@ def test_retrieval_and_qa_cluster_aware_passes_alignment_version_in_query_params
     """When cluster_aware=True, alignment_version must be included in the query params passed to
     the retriever so that ALIGNED_WITH edge filtering in the Cypher query is version-scoped."""
     from demo.stages import run_retrieval_and_qa
-    from demo.contracts import ALIGNMENT_VERSION
 
     captured_params: dict = {}
 
@@ -5530,7 +5533,6 @@ def test_resolve_ask_scope_live_dataset_v1_selects_v1_run(
     ) as mock_fetch, mock.patch(
         "demo.run_demo.resolve_dataset_root"
     ) as mock_resolve:
-        from demo.contracts.paths import DatasetRoot
         from pathlib import Path as _Path
 
         mock_resolve.return_value = DatasetRoot(
@@ -5563,7 +5565,6 @@ def test_resolve_ask_scope_live_dataset_v2_selects_v2_run(
     ) as mock_fetch, mock.patch(
         "demo.run_demo.resolve_dataset_root"
     ) as mock_resolve:
-        from demo.contracts.paths import DatasetRoot
         from pathlib import Path as _Path
 
         mock_resolve.return_value = DatasetRoot(
@@ -5588,7 +5589,6 @@ def test_resolve_ask_scope_two_datasets_different_latest_runs(
     return the latest run for dataset <x>.
     """
     from demo.run_demo import _resolve_ask_scope, parse_args
-    from demo.contracts.paths import DatasetRoot
     from pathlib import Path as _Path
 
     monkeypatch.delenv("UNSTRUCTURED_RUN_ID", raising=False)
@@ -5655,8 +5655,6 @@ def test_resolve_ask_scope_ambiguous_dataset_falls_back_to_unfiltered(
     """Implicit dataset (no --dataset flag) that raises AmbiguousDatasetError falls back to
     unfiltered latest-run query (legacy single-dataset behaviour preserved)."""
     from demo.run_demo import _resolve_ask_scope, parse_args
-    from demo.contracts.paths import AmbiguousDatasetError
-
     monkeypatch.delenv("UNSTRUCTURED_RUN_ID", raising=False)
 
     latest_run = "unstructured_ingest-20260401T000000000000Z-fallback0"
@@ -5981,7 +5979,6 @@ def test_resolve_ask_scope_explicit_run_id_wrong_dataset_warns_live(
     ) as mock_resolve, mock.patch(
         "demo.run_demo._fetch_dataset_id_for_run", return_value="demo_dataset_v1"
     ) as mock_fetch:
-        from demo.contracts.paths import DatasetRoot
         from pathlib import Path as _Path
 
         mock_resolve.return_value = DatasetRoot(
@@ -6033,7 +6030,6 @@ def test_resolve_ask_scope_explicit_run_id_correct_dataset_no_warning_live(
     ) as mock_resolve, mock.patch(
         "demo.run_demo._fetch_dataset_id_for_run", return_value="demo_dataset_v2"
     ):
-        from demo.contracts.paths import DatasetRoot
         from pathlib import Path as _Path
 
         mock_resolve.return_value = DatasetRoot(
@@ -6076,7 +6072,6 @@ def test_resolve_ask_scope_explicit_run_id_not_found_no_warning_live(
         # Simulate run not found: returns None
         "demo.run_demo._fetch_dataset_id_for_run", return_value=None
     ):
-        from demo.contracts.paths import DatasetRoot
         from pathlib import Path as _Path
 
         mock_resolve.return_value = DatasetRoot(
@@ -6188,7 +6183,6 @@ def test_resolve_ask_scope_explicit_run_id_wrong_fixture_dataset_warns_live(
     ) as mock_resolve, mock.patch(
         "demo.run_demo._fetch_dataset_id_for_run", return_value="demo_dataset_v2"
     ):
-        from demo.contracts.paths import DatasetRoot
         from pathlib import Path as _Path
 
         mock_resolve.return_value = DatasetRoot(
@@ -6237,7 +6231,6 @@ def test_resolve_ask_scope_explicit_run_id_wrong_dataset_overrides_fixture_warns
     ) as mock_resolve, mock.patch(
         "demo.run_demo._fetch_dataset_id_for_run", return_value="demo_dataset_v3"
     ):
-        from demo.contracts.paths import DatasetRoot
         from pathlib import Path as _Path
 
         mock_resolve.return_value = DatasetRoot(
@@ -6278,8 +6271,6 @@ def test_benchmark_failure_preserves_manifest_with_error_status(tmp_path: Path):
     (QA/retrieval signals, structured_ingest, etc.) must also be present so that
     partial results are not lost.
     """
-    from demo.contracts.manifest import build_batch_manifest
-
     config = _dry_run_config(tmp_path)
 
     earlier_stages = {

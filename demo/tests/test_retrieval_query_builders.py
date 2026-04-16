@@ -572,7 +572,7 @@ class TestBuildQueryParams:
         assert params["source_uri"] is None
 
     def test_cluster_aware_adds_alignment_version(self) -> None:
-        from demo.contracts import ALIGNMENT_VERSION
+        from power_atlas.contracts import ALIGNMENT_VERSION
         params = _build_query_params(
             run_id="r", source_uri=None, all_runs=False, cluster_aware=True
         )
@@ -585,7 +585,7 @@ class TestBuildQueryParams:
         assert "alignment_version" not in params
 
     def test_all_runs_cluster_aware_has_no_run_id_but_has_alignment_version(self) -> None:
-        from demo.contracts import ALIGNMENT_VERSION
+        from power_atlas.contracts import ALIGNMENT_VERSION
         params = _build_query_params(
             run_id="r", source_uri=None, all_runs=True, cluster_aware=True
         )

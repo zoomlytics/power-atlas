@@ -807,7 +807,7 @@ class TestBatchManifestEntityResolution(unittest.TestCase):
     """Verify build_batch_manifest includes entity_resolution when provided."""
 
     def test_entity_resolution_stage_included_when_provided(self):
-        from demo.contracts.manifest import build_batch_manifest
+        from power_atlas.contracts.manifest import build_batch_manifest
         from power_atlas.contracts import Config
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -835,7 +835,7 @@ class TestBatchManifestEntityResolution(unittest.TestCase):
             self.assertEqual(manifest["stages"]["entity_resolution"]["status"], "dry_run")
 
     def test_entity_resolution_stage_absent_by_default(self):
-        from demo.contracts.manifest import build_batch_manifest
+        from power_atlas.contracts.manifest import build_batch_manifest
         from power_atlas.contracts import Config
 
         with tempfile.TemporaryDirectory() as tmpdir:
