@@ -187,8 +187,9 @@ The repo is not yet retirement-ready because:
   promises,
 - the logger-name compatibility surface has not been reviewed for change
   tolerance,
-- there is not yet an accepted decision on whether shim retirement belongs in
-  late Phase 2 or Phase 10.
+- the accepted phase-placement decision is to defer actual shim-retirement
+  implementation to Phase 10 while `demo/` remains the active execution
+  surface.
 
 ### 4. What should happen before any code removal?
 
@@ -233,13 +234,31 @@ The planning task should produce:
 
 The planning work belongs in Phase 2 now.
 
-Actual shim-removal implementation should remain conditional:
+Actual shim-removal implementation should be treated as **deferred to Phase 10**
+unless a later repo state materially changes the current execution posture.
 
-- if the resulting plan shows the remaining compatibility promise is narrow and
-  fully repo-internal, the first retirement slice could still be a late Phase 2
-  task;
-- if the promise is broader or the logger/pipeline alias surface remains sticky,
-  full retirement should stay deferred to Phase 10.
+#### Current recommendation
+
+Based on the current repo state, the retirement implementation should not be
+scheduled as a late-Phase-2 slice.
+
+Reasons:
+
+- `demo/` remains the active execution center of gravity,
+- the remaining demo contract surface is now primarily an explicit compatibility
+  promise rather than stray runtime coupling,
+- the root proxy and pipeline alias still encode compatibility behavior that is
+  broader than a simple import cleanup,
+- Phase 10 is already defined as the legacy-retirement phase where transitional
+  structures and compatibility shims are removed deliberately.
+
+This means the right Phase 2 outcome is:
+
+- keep the shim inventory and compatibility contract explicit,
+- avoid more blind import cleanup framed as retirement,
+- continue package adoption and broader architectural movement elsewhere,
+- defer actual shim-removal implementation to Phase 10 unless the repo later
+  stops treating `demo/` as an active execution surface.
 
 ### Validation gate for any future implementation
 
@@ -277,3 +296,13 @@ the following:
 
 Until then, `demo/contracts` should continue to be treated as an intentional,
 tracked compatibility layer.
+
+## Current decision outcome
+
+As of 2026-04-16, this planning task recommends:
+
+- **Phase 2:** finish planning, classification, and compatibility-boundary
+  documentation only
+- **Phase 10:** perform actual `demo/contracts` retirement work, unless a future
+  checkpoint shows that `demo/` is no longer an active execution surface and the
+  compatibility promise has already been narrowed materially

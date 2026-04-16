@@ -455,7 +455,7 @@ Track follow-up decisions that must be resolved before later phases can complete
 | Prompt storage/versioning model | Phase 4 / 7 |  | not started |  |
 | API schema versioning approach | Phase 8 / 9 |  | not started |  |
 | Worker necessity decision | Phase 8 |  | not started |  |
-| `demo.contracts` deprecation / retirement strategy | Phase 2 / 10 | Ash | not started | Follow-up task is captured in `docs/repository_restructure/repository_restructure_phase2_demo_contracts_retirement_task.md`; strategy itself is still pending |
+| `demo.contracts` deprecation / retirement strategy | Phase 2 / 10 | Ash | in progress | Follow-up task is captured in `docs/repository_restructure/repository_restructure_phase2_demo_contracts_retirement_task.md`; current recommendation is to complete planning in Phase 2 and defer actual shim-removal implementation to Phase 10 while `demo/` remains the active execution surface |
 
 ---
 
@@ -463,7 +463,7 @@ Track follow-up decisions that must be resolved before later phases can complete
 
 Use this section as the working short list.
 
-- [ ] decide whether to close Phase 2 formally now that the foundation deliverables are complete or keep it open until the compatibility posture is reviewed explicitly
-- [ ] execute the follow-up planning task in `docs/repository_restructure/repository_restructure_phase2_demo_contracts_retirement_task.md`
-- [ ] choose the next package-first follow-up lane: broader bootstrap/composition-root adoption or explicit shim retirement planning
+- [ ] decide whether to close Phase 2 formally now that the foundation deliverables are complete or keep it open until broader package adoption/bootstrap work reaches a clearer checkpoint
+- [x] execute the follow-up planning task in `docs/repository_restructure/repository_restructure_phase2_demo_contracts_retirement_task.md`
+- [ ] use the resolved shim-planning outcome to proceed on the broader bootstrap/composition-root adoption lane instead of treating shim retirement as the next implementation slice
 - [ ] monitor the one-off 2026-04-16 citation fallback only if it reproduces under `make phase1-verify`
