@@ -493,6 +493,10 @@ def _current_env_dataset_selection() -> tuple[str | None, str | None, str | None
     return power_atlas_dataset, fixture_dataset, effective_dataset
 
 
+def _current_env_unstructured_run_id() -> str | None:
+    return os.getenv("UNSTRUCTURED_RUN_ID") or None
+
+
 def _warn_explicit_run_id_dataset_mismatch(
     explicit_run_id: str,
     expected_dataset_id: str,
@@ -568,7 +572,7 @@ def _resolve_ask_scope(
     overrides the ``UNSTRUCTURED_RUN_ID`` environment variable. Warnings are
     logged whenever the env var is overridden or stale.
     """
-    env_run_id = os.getenv("UNSTRUCTURED_RUN_ID")
+    env_run_id = _current_env_unstructured_run_id()
     all_runs: bool = getattr(args, "all_runs", False)
     explicit_run_id: str | None = getattr(args, "run_id", None)
     use_latest: bool = getattr(args, "latest", False)
@@ -1008,7 +1012,7 @@ def _run_independent_stage(
     stage_name, run_scope_key, stage_runner = stage_runners[command]
     run_scope = run_scope_key.removesuffix("_run_id")
     if command in ("extract-claims", "resolve-entities"):
-        env_run_id = os.getenv("UNSTRUCTURED_RUN_ID")
+        env_run_id = _current_env_unstructured_run_id()
         if not env_run_id:
             raise ValueError(
                 "UNSTRUCTURED_RUN_ID is not set. When running "
