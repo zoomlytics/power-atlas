@@ -356,6 +356,27 @@ This is a safety harness, not a testing overhaul.
 
 ### Phase 2 — Package foundation and composition root
 
+#### Current checkpoint status
+
+Phase 2 is materially in progress as of 2026-04-16.
+
+The package foundation work that was originally planned as the entry condition for
+later migration has already landed in the repo:
+
+- `src/power_atlas/` exists and is installable via the committed `pyproject.toml`,
+- editable install has been verified repeatedly,
+- initial `bootstrap/` and typed settings entrypoints exist,
+- package/import proof exists in `tests/test_power_atlas_package.py`,
+- multiple contract modules have been promoted into `src/power_atlas/contracts/`,
+- maintainer-facing docs now point at package-owned contract paths,
+- `demo/contracts` remains in place intentionally as a compatibility layer.
+
+This means Phase 2 should no longer be treated as untouched future intent.
+However, it should also not yet be treated as full legacy retirement: the active
+CLI path remains `demo/`, the compatibility layer is still deliberate, and the
+next useful work is more likely to be shim/deprecation planning or broader
+bootstrap adoption than additional blind import cleanup.
+
 #### Objectives
 
 - establish the new package root cleanly,
@@ -385,9 +406,28 @@ This is a safety harness, not a testing overhaul.
 
 Keep this phase mostly structural.
 
+At the current checkpoint, the structural package foundation is already proven.
+The remaining Phase 2 work should preserve the additive migration posture:
+
+- keep package-owned stable contract surfaces authoritative,
+- keep `demo/contracts` explicitly documented as compatibility-only,
+- avoid re-opening Phase 1 execution posture,
+- avoid treating remaining compatibility references as accidental by default.
+
 ---
 
 ### Phase 3 — Mechanical promotion of current implementation
+
+#### Current checkpoint status
+
+Phase 3 should still be treated as incomplete, but it is no longer purely
+theoretical.
+
+Several low-risk contract modules have already been promoted into
+`src/power_atlas/contracts/` under the Phase 2 package-first lane, with
+compatibility shims preserved in `demo/contracts`. That progress should be read
+as additive early promotion work, not as proof that the broader implementation
+has left `demo/` as its execution center.
 
 #### Objectives
 

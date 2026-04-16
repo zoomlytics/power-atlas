@@ -444,6 +444,79 @@ Which exact flows are designated as critical-path scenarios.
 
 None blocking.
 
+## Decision 15 — Stateful pipeline contract stays submodule-only at package root
+
+### Decision
+
+`power_atlas.contracts.pipeline` is the canonical package location for the
+stateful pipeline contract, but its mutable names are intentionally not
+re-exported from `power_atlas.contracts`.
+
+In practice this means:
+
+- `power_atlas.contracts.pipeline` is the explicit import path for stateful
+	pipeline access,
+- package-root exports in `power_atlas.contracts` are reserved for stable,
+	stateless contract values and helpers,
+- mutable pipeline symbols such as dataset overrides and refreshed config-bound
+	globals must not be treated as package-root imports.
+
+### Why
+
+- The pipeline contract owns mutable module state.
+- Re-exporting those names from package root would blur the state boundary.
+- Root-level imports of mutable names would encourage stale bindings after
+	config refreshes or dataset overrides.
+
+### Consequences
+
+- Code that needs pipeline state must import from
+	`power_atlas.contracts.pipeline` explicitly.
+- `power_atlas.contracts.__all__` should not grow stateful pipeline exports.
+- Compatibility tests should continue to enforce this boundary.
+
+### Open Questions
+
+None for the current package-first migration lane.
+
+## Decision 16 — `demo.contracts` remains an intentional compatibility layer during Phase 2
+
+### Decision
+
+`demo.contracts` remains in the repository as an intentional compatibility
+surface during the current Phase 2 package-first migration work. It is not the
+long-term package-native target surface.
+
+The preferred contract locations are:
+
+- `power_atlas.contracts`
+- `power_atlas.contracts.<submodule>`
+
+The `demo.contracts` package should be treated as a tracked compatibility layer
+until there is an explicit deprecation/removal plan.
+
+### Why
+
+- The migration is being executed additively rather than as a flag day.
+- Existing demo runtime paths and compatibility tests still depend on the shim
+	surface.
+- Remaining `demo.contracts` references are not automatically proof of missed
+	cleanup; some are deliberate compatibility coverage.
+
+### Consequences
+
+- Package-first migration work should prefer package-owned imports for stable
+	symbols.
+- Remaining `demo.contracts` references should be classified before cleanup,
+	not removed blindly.
+- Shim removal should be planned deliberately rather than folded into incidental
+	import cleanup.
+
+### Open Questions
+
+- When to begin formal deprecation planning for `demo/contracts/*`.
+- Whether shim retirement should be grouped into a dedicated later-phase task.
+
 ---
 
 ## Summary of decisions that still require follow-up

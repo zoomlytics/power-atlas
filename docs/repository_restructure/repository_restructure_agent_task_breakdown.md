@@ -8,6 +8,24 @@
 **Primary baseline dataset:** `demo_dataset_v1`  
 **Companion run-isolation dataset:** `demo_dataset_v2`
 
+## Checkpoint note
+
+Phase 1 is complete and this document should now be read as an execution record
+for the accepted Phase 1 posture, not as the current canonical next-task list for
+repository restructuring.
+
+As of 2026-04-16, the repository has already moved into compatibility-preserving
+Phase 2 package-foundation work:
+
+- `src/power_atlas/`, packaging metadata, bootstrap, and typed settings are present,
+- package/import proof exists and editable install has been re-verified,
+- multiple contract modules have been promoted into `src/power_atlas/contracts/`,
+- `demo/contracts` remains intentional compatibility surface rather than the
+   package-native target.
+
+Use the checklist and decision register for current Phase 2 status and follow-up
+sequencing.
+
 ## Purpose
 
 This document turns the accepted repository restructure plan into a practical execution sequence for locally orchestrated coding agents.

@@ -85,10 +85,10 @@ Use the following status values consistently:
 
 ## Phase 2 — Package foundation and composition root
 
-**Status:** not started  
+**Status:** in progress  
 **Owner:** Ash  
 **Blockers:**  
-**Notes:**  
+**Notes:** The package foundation has landed and is validated, so this phase is no longer untouched future work. `src/power_atlas/`, `pyproject.toml`, editable install, initial `bootstrap/`, typed settings, and installed-package import proof are all present. The package-first migration has already promoted multiple contract modules into `src/power_atlas/contracts/` while preserving `demo/contracts` as a compatibility layer. The current checkpoint should be read as: Phase 2 foundation deliverables are complete, broader compatibility-preserving package adoption is still in progress, and formal shim retirement has not started. A single 2026-04-16 harness run observed one baseline citation fallback after a compatibility-proxy cleanup, but companion and isolation asks remained fully cited; treat that as a residual signal to monitor, not as a confirmed Phase 2 regression.  
 
 ### Exit criteria
 
@@ -101,22 +101,22 @@ Use the following status values consistently:
 
 ### Phase 2 deliverables checklist
 
-- [ ] create `src/power_atlas/`
-- [ ] add package `__init__.py`
-- [ ] add or update packaging metadata (`pyproject.toml` or equivalent)
-- [ ] verify editable install
-- [ ] add initial `bootstrap/`
-- [ ] add initial typed settings/config entrypoint
-- [ ] prove imports work through installed package path
+- [x] create `src/power_atlas/`
+- [x] add package `__init__.py`
+- [x] add or update packaging metadata (`pyproject.toml` or equivalent)
+- [x] verify editable install
+- [x] add initial `bootstrap/`
+- [x] add initial typed settings/config entrypoint
+- [x] prove imports work through installed package path
 
 ---
 
 ## Phase 3 — Mechanical promotion of current implementation
 
-**Status:** not started  
+**Status:** in progress  
 **Owner:**  
 **Blockers:**  
-**Notes:**  
+**Notes:** Low-risk contract promotion has already started additively: multiple contract modules now live under `src/power_atlas/contracts/` and remain reachable through tracked `demo/contracts` compatibility shims. Do not read this as full Phase 3 closure. `demo/` is still the active execution center, and broader implementation movement plus intentional shim retirement planning remain open.  
 
 ### Exit criteria
 
@@ -430,7 +430,9 @@ Use this table to track temporary migration shims so they do not become permanen
 
 | Shim path / module | Introduced in PR | Purpose | Owner | Removal trigger | Status |
 |---|---|---|---|---|---|
-| _none yet_ |  |  |  |  |  |
+| `demo/contracts/__init__.py` | local Phase 2 package-first slices through 2026-04-16 | Compatibility proxy to package-owned contract exports while legacy demo imports remain supported | Ash | Replace demo-root contract imports with package-native imports and approve a formal shim deprecation/removal plan | active |
+| `demo/contracts/*.py` package-owned contract shims | local Phase 2 package-first slices through 2026-04-16 | Preserve import compatibility while package-owned contract modules under `src/power_atlas/contracts/` become authoritative | Ash | Complete deliberate shim retirement plan; remove only after callers and compatibility obligations are intentionally closed | active |
+| `demo/contracts/pipeline.py` module-alias shim | local Phase 2 pipeline promotion slice on 2026-04-16 | Preserve shared mutable module identity between `demo.contracts.pipeline` and `power_atlas.contracts.pipeline` | Ash | Only remove after stateful pipeline access no longer needs demo-surface compatibility and a dedicated retirement plan is accepted | active |
 
 ### Shim tracking rules
 
@@ -453,7 +455,7 @@ Track follow-up decisions that must be resolved before later phases can complete
 | Prompt storage/versioning model | Phase 4 / 7 |  | not started |  |
 | API schema versioning approach | Phase 8 / 9 |  | not started |  |
 | Worker necessity decision | Phase 8 |  | not started |  |
-| Critical-path safety harness scenarios | Phase 1 |  | not started |  |
+| `demo.contracts` deprecation / retirement strategy | Phase 2 / 10 | Ash | not started | Package-first contract migration is materially advanced; next follow-up should be deliberate shim planning rather than incidental import cleanup |
 
 ---
 
@@ -461,10 +463,7 @@ Track follow-up decisions that must be resolved before later phases can complete
 
 Use this section as the working short list.
 
-- [ ] assign owner for Phase 1
-- [ ] assign owner for Phase 2
-- [ ] enumerate critical-path scenarios
-- [ ] choose initial golden-path scenario
-- [ ] define first Neo4j-backed integration path
-- [ ] document package/import validation command
-- [ ] decide what failures block Phase 2
+- [ ] decide whether to close Phase 2 formally now that the foundation deliverables are complete or keep it open until the compatibility posture is reviewed explicitly
+- [ ] define a deliberate deprecation / retirement plan for `demo/contracts` rather than continuing blind cleanup
+- [ ] choose the next package-first follow-up lane: broader bootstrap/composition-root adoption or explicit shim retirement planning
+- [ ] monitor the one-off 2026-04-16 citation fallback only if it reproduces under `make phase1-verify`
