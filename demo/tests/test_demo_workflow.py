@@ -2313,6 +2313,54 @@ class WorkflowTests(unittest.TestCase):
             "Warning must mention the dataset name that failed to resolve",
         )
 
+    def test_resolve_ask_scope_warning_names_power_atlas_dataset_env(self):
+        module = _load_module(RUN_DEMO_PATH, "run_resolve_ask_scope_power_atlas_dataset_test")
+
+        config = type(
+            "Config",
+            (),
+            {
+                "dry_run": True,
+                "dataset_name": None,
+            },
+        )()
+        args = type(
+            "Args",
+            (),
+            {
+                "run_id": None,
+                "latest": False,
+                "all_runs": False,
+            },
+        )()
+
+        env_backup_fixture = os.environ.pop("FIXTURE_DATASET", None)
+        env_backup_power_atlas = os.environ.pop("POWER_ATLAS_DATASET", None)
+        env_backup_run_id = os.environ.get("UNSTRUCTURED_RUN_ID")
+        os.environ["POWER_ATLAS_DATASET"] = "demo_dataset_v2"
+        os.environ["UNSTRUCTURED_RUN_ID"] = "unstructured_ingest-test-12345678"
+        try:
+            with self.assertLogs(logger=module.__name__, level="WARNING") as log_cm:
+                run_id, all_runs = module._resolve_ask_scope(args, config)
+        finally:
+            if env_backup_fixture is not None:
+                os.environ["FIXTURE_DATASET"] = env_backup_fixture
+            else:
+                os.environ.pop("FIXTURE_DATASET", None)
+            if env_backup_power_atlas is not None:
+                os.environ["POWER_ATLAS_DATASET"] = env_backup_power_atlas
+            else:
+                os.environ.pop("POWER_ATLAS_DATASET", None)
+            if env_backup_run_id is not None:
+                os.environ["UNSTRUCTURED_RUN_ID"] = env_backup_run_id
+            else:
+                os.environ.pop("UNSTRUCTURED_RUN_ID", None)
+
+        self.assertEqual(run_id, "unstructured_ingest-test-12345678")
+        self.assertFalse(all_runs)
+        combined = "\n".join(log_cm.output)
+        self.assertIn("POWER_ATLAS_DATASET='demo_dataset_v2'", combined)
+
 
 class ResetDemoDbTests(unittest.TestCase):
     """Tests for demo/reset_demo_db.py run_reset() and related helpers."""

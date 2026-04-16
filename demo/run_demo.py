@@ -455,21 +455,42 @@ def _fetch_dataset_id_for_run(config: Config, run_id: str) -> str | None:
 
 def _format_dataset_label(
     config_dataset: str | None,
+    power_atlas_dataset: str | None,
     fixture_dataset: str | None,
 ) -> str:
     """Return a human-readable label for the effective dataset selection.
 
-    When ``--dataset`` overrides ``FIXTURE_DATASET``, both values are shown for
-    clarity.  Used consistently across all dataset-mismatch warnings.
+    When ``--dataset`` overrides an environment-provided dataset selection, both
+    values are shown for clarity. Used consistently across all dataset-mismatch
+    warnings.
     """
+    if config_dataset and power_atlas_dataset and config_dataset != power_atlas_dataset:
+        return (
+            f"--dataset={config_dataset!r} "
+            f"(overrides POWER_ATLAS_DATASET={power_atlas_dataset!r})"
+        )
     if config_dataset and fixture_dataset and config_dataset != fixture_dataset:
         return (
             f"--dataset={config_dataset!r} "
             f"(overrides FIXTURE_DATASET={fixture_dataset!r})"
         )
+    if power_atlas_dataset and fixture_dataset and power_atlas_dataset != fixture_dataset:
+        return (
+            f"POWER_ATLAS_DATASET={power_atlas_dataset!r} "
+            f"(overrides FIXTURE_DATASET={fixture_dataset!r})"
+        )
+    if power_atlas_dataset:
+        return f"POWER_ATLAS_DATASET={power_atlas_dataset!r}"
     if fixture_dataset:
         return f"FIXTURE_DATASET={fixture_dataset!r}"
     return f"--dataset={config_dataset!r}"
+
+
+def _current_env_dataset_selection() -> tuple[str | None, str | None, str | None]:
+    power_atlas_dataset = os.getenv("POWER_ATLAS_DATASET") or None
+    fixture_dataset = os.getenv("FIXTURE_DATASET") or None
+    effective_dataset = _build_package_settings().dataset_name
+    return power_atlas_dataset, fixture_dataset, effective_dataset
 
 
 def _warn_explicit_run_id_dataset_mismatch(
@@ -478,6 +499,7 @@ def _warn_explicit_run_id_dataset_mismatch(
     actual_dataset_id: str,
     *,
     config_dataset: str | None,
+    power_atlas_dataset: str | None,
     fixture_dataset: str | None,
 ) -> None:
     """Emit a WARNING log when --run-id belongs to a different dataset than the one selected.
@@ -487,7 +509,7 @@ def _warn_explicit_run_id_dataset_mismatch(
     When both ``--dataset`` and ``FIXTURE_DATASET`` are present and differ,
     ``--dataset`` is the effective override and is named as such.
     """
-    dataset_label = _format_dataset_label(config_dataset, fixture_dataset)
+    dataset_label = _format_dataset_label(config_dataset, power_atlas_dataset, fixture_dataset)
     _logger.warning(
         "--run-id=%r belongs to dataset %r, "
         "but %s is selected (expected dataset_id=%r). "
@@ -503,6 +525,7 @@ def _warn_explicit_run_id_dataset_mismatch(
 def _warn_env_run_id_dataset_mismatch(
     env_run_id: str,
     config_dataset: str | None,
+    power_atlas_dataset: str | None,
     fixture_dataset: str | None,
 ) -> None:
     """Emit a WARNING log when UNSTRUCTURED_RUN_ID is set alongside an explicit dataset.
@@ -517,7 +540,7 @@ def _warn_env_run_id_dataset_mismatch(
     overrides ``FIXTURE_DATASET``, the warning names ``--dataset`` and includes the
     overridden fixture value for clarity.
     """
-    dataset_label = _format_dataset_label(config_dataset, fixture_dataset)
+    dataset_label = _format_dataset_label(config_dataset, power_atlas_dataset, fixture_dataset)
     _logger.warning(
         "UNSTRUCTURED_RUN_ID=%r is set and will be "
         "used as the retrieval scope, but %s "
@@ -572,8 +595,8 @@ def _resolve_ask_scope(
         # because Neo4j is unavailable and the run cannot be verified.
         if not config.dry_run:
             _cli_dataset = config.dataset_name
-            _fixture_dataset = os.getenv("FIXTURE_DATASET")
-            effective_dataset = _cli_dataset or _fixture_dataset
+            _power_atlas_dataset, _fixture_dataset, effective_env_dataset = _current_env_dataset_selection()
+            effective_dataset = _cli_dataset or effective_env_dataset
             if effective_dataset:
                 try:
                     expected_dataset_id = resolve_dataset_root(effective_dataset).dataset_id
@@ -597,6 +620,7 @@ def _resolve_ask_scope(
                             expected_dataset_id,
                             actual_dataset_id,
                             config_dataset=_cli_dataset,
+                            power_atlas_dataset=_power_atlas_dataset,
                             fixture_dataset=_fixture_dataset,
                         )
         return explicit_run_id, False
@@ -612,9 +636,14 @@ def _resolve_ask_scope(
             # Use --latest (in --live mode) or --run-id for guaranteed
             # dataset-scoped selection.
             config_dataset = config.dataset_name
-            fixture_dataset = os.getenv("FIXTURE_DATASET")
-            if config_dataset or fixture_dataset:
-                _warn_env_run_id_dataset_mismatch(env_run_id, config_dataset, fixture_dataset)
+            power_atlas_dataset, fixture_dataset, effective_env_dataset = _current_env_dataset_selection()
+            if config_dataset or effective_env_dataset:
+                _warn_env_run_id_dataset_mismatch(
+                    env_run_id,
+                    config_dataset,
+                    power_atlas_dataset,
+                    fixture_dataset,
+                )
             return env_run_id, False
         return None, False
 
@@ -629,9 +658,14 @@ def _resolve_ask_scope(
         # Warn the operator so the mismatch is visible.  Use --latest or --run-id
         # to enforce dataset-scoped selection.
         config_dataset = config.dataset_name
-        fixture_dataset = os.getenv("FIXTURE_DATASET")
-        if config_dataset or fixture_dataset:
-            _warn_env_run_id_dataset_mismatch(env_run_id, config_dataset, fixture_dataset)
+        power_atlas_dataset, fixture_dataset, effective_env_dataset = _current_env_dataset_selection()
+        if config_dataset or effective_env_dataset:
+            _warn_env_run_id_dataset_mismatch(
+                env_run_id,
+                config_dataset,
+                power_atlas_dataset,
+                fixture_dataset,
+            )
         return env_run_id, False
 
     # Either --latest was explicitly requested, or no env var is set: query Neo4j.
@@ -645,7 +679,8 @@ def _resolve_ask_scope(
         # Treat both --dataset <name> and FIXTURE_DATASET=<name> as explicit
         # selections; a failure to resolve an explicit name must never silently
         # fall through to an unfiltered query that could pick the wrong run.
-        explicit_source = config.dataset_name or os.getenv("FIXTURE_DATASET")
+        _power_atlas_dataset, _fixture_dataset, explicit_env_dataset = _current_env_dataset_selection()
+        explicit_source = config.dataset_name or explicit_env_dataset
         if explicit_source:
             raise SystemExit(
                 f"Failed to resolve dataset {explicit_source!r}: {exc}"
