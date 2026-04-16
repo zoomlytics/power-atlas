@@ -15,8 +15,10 @@ from neo4j_graphrag.message_history import InMemoryMessageHistory, MessageHistor
 from power_atlas.bootstrap.clients import build_embedder_for_settings, create_neo4j_driver
 from power_atlas.contracts import (
     ALIGNMENT_VERSION,
+    AmbiguousDatasetError,
     POWER_ATLAS_RAG_TEMPLATE,
     PROMPT_IDS,
+    resolve_dataset_root,
     resolve_early_return_rule,
 )
 from power_atlas.settings import AppSettings, Neo4jSettings
@@ -25,8 +27,6 @@ from neo4j_graphrag.retrievers import VectorCypherRetriever
 from neo4j_graphrag.types import LLMMessage, RetrieverResultItem
 
 from demo.contracts import CHUNK_EMBEDDING_INDEX_NAME, EMBEDDER_MODEL_NAME
-from demo.contracts.paths import AmbiguousDatasetError as _AmbiguousDatasetError
-from demo.contracts.paths import resolve_dataset_root as _resolve_dataset_root
 
 _DEFAULT_TOP_K = 10
 _logger = logging.getLogger(__name__)
@@ -1818,8 +1818,8 @@ def run_retrieval_and_qa(
         citation_source_uri = source_uri
     else:
         try:
-            citation_source_uri = _resolve_dataset_root().pdf_path.resolve().as_uri()
-        except _AmbiguousDatasetError:
+            citation_source_uri = resolve_dataset_root().pdf_path.resolve().as_uri()
+        except AmbiguousDatasetError:
             citation_source_uri = "placeholder://citation-source"
 
     citation_token_example = _build_citation_token(

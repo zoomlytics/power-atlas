@@ -14,21 +14,30 @@ def test_package_modules_import() -> None:
     text_utils_module = importlib.import_module("power_atlas.text_utils")
 
     assert package.ALIGNMENT_VERSION is contracts_module.ALIGNMENT_VERSION
+    assert package.AmbiguousDatasetError is contracts_module.AmbiguousDatasetError
+    assert package.ARTIFACTS_DIR == contracts_module.ARTIFACTS_DIR
     assert package.EarlyReturnRule is contracts_module.EarlyReturnRule
     assert package.EARLY_RETURN_PRECEDENCE is contracts_module.EARLY_RETURN_PRECEDENCE
     assert package.EARLY_RETURN_RULE_BY_NAME is contracts_module.EARLY_RETURN_RULE_BY_NAME
+    assert package.CONFIG_DIR == contracts_module.CONFIG_DIR
     assert package.PROMPT_IDS is contracts_module.PROMPT_IDS
     assert package.POWER_ATLAS_RAG_TEMPLATE is contracts_module.POWER_ATLAS_RAG_TEMPLATE
     assert package.Config is contracts_module.Config
     assert package.COMMON_PREDICATE_LABELS is contracts_module.COMMON_PREDICATE_LABELS
     assert package.CSV_FIRST_DATA_ROW is contracts_module.CSV_FIRST_DATA_ROW
+    assert package.DATASETS_CONTAINER_DIR == contracts_module.DATASETS_CONTAINER_DIR
+    assert package.DatasetRoot is contracts_module.DatasetRoot
     assert package.FieldSurfacePolicy is contracts_module.FieldSurfacePolicy
+    assert package.FIXTURES_DIR == contracts_module.FIXTURES_DIR
     assert package.ID_PATTERNS is contracts_module.ID_PATTERNS
+    assert package.PDF_PIPELINE_CONFIG_PATH == contracts_module.PDF_PIPELINE_CONFIG_PATH
     assert package.RETRIEVAL_METADATA_SURFACE_POLICY is contracts_module.RETRIEVAL_METADATA_SURFACE_POLICY
     assert package.RetrievalMetadataSurface is contracts_module.RetrievalMetadataSurface
     assert package.STRUCTURED_FILE_HEADERS is contracts_module.STRUCTURED_FILE_HEADERS
     assert package.VALUE_TYPES is contracts_module.VALUE_TYPES
+    assert package.list_available_datasets is contracts_module.list_available_datasets
     assert package.make_run_id is contracts_module.make_run_id
+    assert package.resolve_dataset_root is contracts_module.resolve_dataset_root
     assert package.resolve_early_return_rule is contracts_module.resolve_early_return_rule
     assert package.timestamp is contracts_module.timestamp
     assert package.AppSettings is settings_module.AppSettings
@@ -131,6 +140,21 @@ def test_demo_structured_contract_shim_matches_package_exports() -> None:
     assert demo_structured.ID_PATTERNS is contracts_module.ID_PATTERNS
     assert demo_structured.STRUCTURED_FILE_HEADERS is contracts_module.STRUCTURED_FILE_HEADERS
     assert demo_structured.VALUE_TYPES is contracts_module.VALUE_TYPES
+
+
+def test_demo_paths_contract_shim_matches_package_exports() -> None:
+    import demo.contracts.paths as demo_paths
+    import power_atlas.contracts as contracts_module
+
+    assert demo_paths.AmbiguousDatasetError is contracts_module.AmbiguousDatasetError
+    assert demo_paths.ARTIFACTS_DIR == contracts_module.ARTIFACTS_DIR
+    assert demo_paths.CONFIG_DIR == contracts_module.CONFIG_DIR
+    assert demo_paths.DATASETS_CONTAINER_DIR == contracts_module.DATASETS_CONTAINER_DIR
+    assert demo_paths.DatasetRoot is contracts_module.DatasetRoot
+    assert demo_paths.FIXTURES_DIR == contracts_module.FIXTURES_DIR
+    assert demo_paths.PDF_PIPELINE_CONFIG_PATH == contracts_module.PDF_PIPELINE_CONFIG_PATH
+    assert demo_paths.list_available_datasets is contracts_module.list_available_datasets
+    assert demo_paths.resolve_dataset_root is contracts_module.resolve_dataset_root
 
 
 def test_build_embedder_for_settings_uses_embedder_model() -> None:

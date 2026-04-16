@@ -8,7 +8,7 @@ from typing import Any
 
 import yaml
 
-from demo.contracts.paths import PDF_PIPELINE_CONFIG_PATH
+from power_atlas.contracts import PDF_PIPELINE_CONFIG_PATH
 
 _logger = logging.getLogger(__name__)
 

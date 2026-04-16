@@ -1,4 +1,4 @@
-"""Tests for demo.contracts.paths.DatasetRoot and resolve_dataset_root().
+"""Tests for power_atlas.contracts.paths.DatasetRoot and resolve_dataset_root().
 
 These tests exercise the fixture-path abstraction layer introduced in the
 multi-dataset support phase.  All assertions use the live filesystem so they
@@ -13,7 +13,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from demo.contracts.paths import (
+from power_atlas.contracts.paths import (
     AmbiguousDatasetError,
     DATASETS_CONTAINER_DIR,
     DatasetRoot,
@@ -118,7 +118,7 @@ class TestDatasetRootResolution(unittest.TestCase):
                     encoding="utf-8",
                 )
 
-                import demo.contracts.paths as paths_mod
+                import power_atlas.contracts.paths as paths_mod
                 original_container = paths_mod.DATASETS_CONTAINER_DIR
                 try:
                     paths_mod.DATASETS_CONTAINER_DIR = fake_container
@@ -141,7 +141,7 @@ class TestDatasetRootResolution(unittest.TestCase):
                 empty_container = Path(tmpdir) / "datasets"
                 empty_container.mkdir()  # Exists but has no subdirectories.
 
-                import demo.contracts.paths as paths_mod
+                import power_atlas.contracts.paths as paths_mod
                 original_container = paths_mod.DATASETS_CONTAINER_DIR
                 try:
                     paths_mod.DATASETS_CONTAINER_DIR = empty_container
@@ -166,7 +166,7 @@ class TestDatasetRootResolution(unittest.TestCase):
                 (fake_container / "beta").mkdir(parents=True)
 
                 # Monkey-patch the module-level constant for the duration of the call.
-                import demo.contracts.paths as paths_mod
+                import power_atlas.contracts.paths as paths_mod
                 original_container = paths_mod.DATASETS_CONTAINER_DIR
                 try:
                     paths_mod.DATASETS_CONTAINER_DIR = fake_container
@@ -232,7 +232,7 @@ class TestDatasetRootResolution(unittest.TestCase):
         """When datasets/ dir is absent, FIXTURES_DIR is treated as the dataset root."""
         original_env = os.environ.pop("FIXTURE_DATASET", None)
         try:
-            import demo.contracts.paths as paths_mod
+            import power_atlas.contracts.paths as paths_mod
             original_container = paths_mod.DATASETS_CONTAINER_DIR
             try:
                 # Point container to a non-existent directory.
