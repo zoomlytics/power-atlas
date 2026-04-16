@@ -6,7 +6,7 @@ import logging
 import pytest
 import yaml
 
-from demo.contracts import pipeline
+import power_atlas.contracts.pipeline as pipeline
 
 
 @pytest.fixture(autouse=True)

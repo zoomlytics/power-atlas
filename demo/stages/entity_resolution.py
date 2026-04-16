@@ -225,7 +225,7 @@ from typing import Any
 from pathlib import Path
 from urllib.parse import quote as _pct_encode
 
-from demo.contracts.pipeline import get_dataset_id
+from power_atlas.contracts.pipeline import get_dataset_id
 from demo.contracts.resolution import ALIGNMENT_VERSION as _ALIGNMENT_VERSION
 from power_atlas.text_utils import normalize_mention_text
 

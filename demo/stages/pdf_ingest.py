@@ -8,15 +8,17 @@ import os
 from pathlib import Path
 from typing import Any
 
-from demo.contracts import (
+from power_atlas.contracts.pipeline import (
     CHUNK_EMBEDDING_DIMENSIONS,
     CHUNK_EMBEDDING_INDEX_NAME,
     CHUNK_EMBEDDING_LABEL,
     CHUNK_EMBEDDING_PROPERTY,
     CHUNK_FALLBACK_STRIDE,
     EMBEDDER_MODEL_NAME,
-    FIXTURES_DIR,
     get_dataset_id,
+)
+from demo.contracts import (
+    FIXTURES_DIR,
     PDF_PIPELINE_CONFIG_PATH,
 )
 from demo.cypher_utils import validate_cypher_identifier as _validate_cypher_identifier

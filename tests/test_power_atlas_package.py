@@ -8,6 +8,7 @@ from unittest import mock
 def test_package_modules_import() -> None:
     package = importlib.import_module("power_atlas")
     contracts_module = importlib.import_module("power_atlas.contracts")
+    pipeline_module = importlib.import_module("power_atlas.contracts.pipeline")
     settings_module = importlib.import_module("power_atlas.settings")
     bootstrap_module = importlib.import_module("power_atlas.bootstrap")
     llm_utils_module = importlib.import_module("power_atlas.llm_utils")
@@ -51,6 +52,7 @@ def test_package_modules_import() -> None:
     assert package.build_settings is bootstrap_module.build_settings
     assert package.build_openai_llm is llm_utils_module.build_openai_llm
     assert package.normalize_mention_text is text_utils_module.normalize_mention_text
+    assert pipeline_module.get_dataset_id() == pipeline_module.DATASET_ID
 
 
 def test_build_settings_from_env_mapping() -> None:
@@ -181,6 +183,13 @@ def test_demo_claim_schema_contract_shim_matches_package_exports() -> None:
     assert demo_claim_schema.claim_extraction_lexical_config is contracts_module.claim_extraction_lexical_config
     assert demo_claim_schema.claim_extraction_schema is contracts_module.claim_extraction_schema
     assert demo_claim_schema.resolution_layer_schema is contracts_module.resolution_layer_schema
+
+
+def test_demo_pipeline_contract_shim_is_package_module() -> None:
+    import demo.contracts.pipeline as demo_pipeline
+    import power_atlas.contracts.pipeline as package_pipeline
+
+    assert demo_pipeline is package_pipeline
 
 
 def test_build_embedder_for_settings_uses_embedder_model() -> None:

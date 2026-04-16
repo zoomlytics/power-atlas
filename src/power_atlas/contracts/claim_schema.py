@@ -3,7 +3,7 @@ from __future__ import annotations
 from neo4j_graphrag.experimental.components.schema import GraphSchema, NodeType, PropertyType, RelationshipType
 from neo4j_graphrag.experimental.components.types import LexicalGraphConfig
 
-from demo.contracts.pipeline import CHUNK_EMBEDDING_LABEL, CHUNK_EMBEDDING_PROPERTY
+from power_atlas.contracts.pipeline import CHUNK_EMBEDDING_LABEL, CHUNK_EMBEDDING_PROPERTY
 
 
 def claim_extraction_lexical_config() -> LexicalGraphConfig:

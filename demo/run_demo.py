@@ -11,7 +11,7 @@ from typing import Any, Callable
 
 from power_atlas.bootstrap import build_settings as _build_package_settings
 
-from demo.contracts import pipeline as pipeline_contracts
+import power_atlas.contracts.pipeline as pipeline_contracts
 
 pipeline_contracts.refresh_pipeline_contract()
 
@@ -19,17 +19,9 @@ _DATASET_ID_SAMPLE_LIMIT = 10
 
 from demo.contracts import (  # noqa: E402
     ARTIFACTS_DIR,
-    CHUNK_EMBEDDING_DIMENSIONS,
-    CHUNK_EMBEDDING_INDEX_NAME,
-    CHUNK_EMBEDDING_LABEL,
-    CHUNK_EMBEDDING_PROPERTY,
-    CHUNK_FALLBACK_STRIDE,
-    DEFAULT_DB,
     Config,
-    EMBEDDER_MODEL_NAME,
     make_run_id,
     resolve_dataset_root,
-    set_dataset_id,
 )
 from power_atlas.contracts import (  # noqa: E402
     build_batch_manifest,
@@ -50,6 +42,15 @@ from demo.stages import (  # noqa: E402
 from demo.stages.retrieval_and_qa import _format_scope_label  # noqa: E402
 from demo.stages.retrieval_benchmark import run_retrieval_benchmark  # noqa: E402
 from demo.stages.pdf_ingest import sha256_file  # noqa: E402, F401 - re-exported for callers and tests
+
+CHUNK_EMBEDDING_DIMENSIONS = pipeline_contracts.CHUNK_EMBEDDING_DIMENSIONS
+CHUNK_EMBEDDING_INDEX_NAME = pipeline_contracts.CHUNK_EMBEDDING_INDEX_NAME
+CHUNK_EMBEDDING_LABEL = pipeline_contracts.CHUNK_EMBEDDING_LABEL
+CHUNK_EMBEDDING_PROPERTY = pipeline_contracts.CHUNK_EMBEDDING_PROPERTY
+CHUNK_FALLBACK_STRIDE = pipeline_contracts.CHUNK_FALLBACK_STRIDE
+DEFAULT_DB = pipeline_contracts.DEFAULT_DB
+EMBEDDER_MODEL_NAME = pipeline_contracts.EMBEDDER_MODEL_NAME
+set_dataset_id = pipeline_contracts.set_dataset_id
 
 _logger = logging.getLogger(__name__)
 

@@ -26,7 +26,7 @@ from power_atlas.llm_utils import build_openai_llm
 from neo4j_graphrag.retrievers import VectorCypherRetriever
 from neo4j_graphrag.types import LLMMessage, RetrieverResultItem
 
-from demo.contracts import CHUNK_EMBEDDING_INDEX_NAME, EMBEDDER_MODEL_NAME
+from power_atlas.contracts.pipeline import CHUNK_EMBEDDING_INDEX_NAME, EMBEDDER_MODEL_NAME
 
 _DEFAULT_TOP_K = 10
 _logger = logging.getLogger(__name__)
