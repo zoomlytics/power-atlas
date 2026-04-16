@@ -23,9 +23,14 @@ from demo.contracts.pipeline import (
     CHUNK_EMBEDDING_LABEL,
     CHUNK_EMBEDDING_PROPERTY,
 )
-from demo.contracts.structured import STRUCTURED_FILE_HEADERS
 from demo.stages import lint_and_clean_structured_csvs, run_pdf_ingest
-from power_atlas.contracts import Config, POWER_ATLAS_RAG_TEMPLATE, PROMPT_IDS, make_run_id
+from power_atlas.contracts import (
+    Config,
+    POWER_ATLAS_RAG_TEMPLATE,
+    PROMPT_IDS,
+    STRUCTURED_FILE_HEADERS,
+    make_run_id,
+)
 
 
 def _dry_run_config(tmp_path: Path) -> Config:

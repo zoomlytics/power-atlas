@@ -20,9 +20,14 @@ def test_package_modules_import() -> None:
     assert package.PROMPT_IDS is contracts_module.PROMPT_IDS
     assert package.POWER_ATLAS_RAG_TEMPLATE is contracts_module.POWER_ATLAS_RAG_TEMPLATE
     assert package.Config is contracts_module.Config
+    assert package.COMMON_PREDICATE_LABELS is contracts_module.COMMON_PREDICATE_LABELS
+    assert package.CSV_FIRST_DATA_ROW is contracts_module.CSV_FIRST_DATA_ROW
     assert package.FieldSurfacePolicy is contracts_module.FieldSurfacePolicy
+    assert package.ID_PATTERNS is contracts_module.ID_PATTERNS
     assert package.RETRIEVAL_METADATA_SURFACE_POLICY is contracts_module.RETRIEVAL_METADATA_SURFACE_POLICY
     assert package.RetrievalMetadataSurface is contracts_module.RetrievalMetadataSurface
+    assert package.STRUCTURED_FILE_HEADERS is contracts_module.STRUCTURED_FILE_HEADERS
+    assert package.VALUE_TYPES is contracts_module.VALUE_TYPES
     assert package.make_run_id is contracts_module.make_run_id
     assert package.resolve_early_return_rule is contracts_module.resolve_early_return_rule
     assert package.timestamp is contracts_module.timestamp
@@ -115,6 +120,17 @@ def test_demo_runtime_contract_shim_matches_package_exports() -> None:
     assert demo_runtime.Config is contracts_module.Config
     assert demo_runtime.make_run_id is contracts_module.make_run_id
     assert demo_runtime.timestamp is contracts_module.timestamp
+
+
+def test_demo_structured_contract_shim_matches_package_exports() -> None:
+    import demo.contracts.structured as demo_structured
+    import power_atlas.contracts as contracts_module
+
+    assert demo_structured.COMMON_PREDICATE_LABELS is contracts_module.COMMON_PREDICATE_LABELS
+    assert demo_structured.CSV_FIRST_DATA_ROW is contracts_module.CSV_FIRST_DATA_ROW
+    assert demo_structured.ID_PATTERNS is contracts_module.ID_PATTERNS
+    assert demo_structured.STRUCTURED_FILE_HEADERS is contracts_module.STRUCTURED_FILE_HEADERS
+    assert demo_structured.VALUE_TYPES is contracts_module.VALUE_TYPES
 
 
 def test_build_embedder_for_settings_uses_embedder_model() -> None:

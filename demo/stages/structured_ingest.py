@@ -15,7 +15,7 @@ from demo.contracts import (
     STRUCTURED_FILE_HEADERS,
     VALUE_TYPES,
 )
-from demo.contracts.structured import COMMON_PREDICATE_LABELS
+from power_atlas.contracts import COMMON_PREDICATE_LABELS
 
 
 def load_csv_rows(path: Path) -> list[dict[str, str]]:

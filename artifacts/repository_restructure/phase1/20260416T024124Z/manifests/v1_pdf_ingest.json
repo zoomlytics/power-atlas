@@ -1,0 +1,59 @@
+{
+  "config": {
+    "dry_run": false,
+    "neo4j_database": "neo4j",
+    "openai_model": "gpt-5.4"
+  },
+  "created_at": "2026-04-16T02:42:54.876782+00:00",
+  "dataset_id": "demo_dataset_v1",
+  "finished_at": "2026-04-16T02:42:54.876322+00:00",
+  "run_id": "unstructured_ingest-20260416T024128424996Z-ad043740",
+  "run_scopes": {
+    "batch_mode": "single_independent_run",
+    "unstructured_ingest_run_id": "unstructured_ingest-20260416T024128424996Z-ad043740"
+  },
+  "stages": {
+    "pdf_ingest": {
+      "counts": {
+        "chunks": 11,
+        "documents": 1,
+        "pages": 3
+      },
+      "documents": [
+        "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v1/unstructured/chain_of_custody.pdf"
+      ],
+      "embedding_model": "text-embedding-3-small",
+      "ingest_summary_path": "/Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/artifacts/runs/unstructured_ingest-20260416T024128424996Z-ad043740/pdf_ingest/ingest_summary.json",
+      "pdf_fingerprint_sha256": "3abfdae809f9cfe81a3cf7e6ae6188d0dab8cdfd66d74c255d61106543ae8323",
+      "pdf_ingest_dir": "/Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/artifacts/runs/unstructured_ingest-20260416T024128424996Z-ad043740/pdf_ingest",
+      "pipeline_config": "/Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/config/pdf_simple_kg_pipeline.yaml",
+      "pipeline_config_sha256": "e9db5f599f0cd9fbfefadaac2539c395f742e460223d3a202dcce9c99e90b3c8",
+      "pipeline_result": {
+        "summary": "PipelineResult(run_id='eb581d05-1141-483e-8460-e3baa600fe8a', result={'resolver': {'number_of_nodes_to_resolve': 1020, 'number_of_created_nodes': 745}})",
+        "type": "PipelineResult"
+      },
+      "provenance": {
+        "chunk_id_property": "chunk_id",
+        "chunk_index_property": "chunk_index",
+        "chunk_order_property": "chunk_order",
+        "dataset_id": "demo_dataset_v1",
+        "end_char_property": "end_char",
+        "page_property": "page_number",
+        "run_id": "unstructured_ingest-20260416T024128424996Z-ad043740",
+        "source_uri": "file:///Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/fixtures/datasets/demo_dataset_v1/unstructured/chain_of_custody.pdf",
+        "start_char_property": "start_char"
+      },
+      "run_id": "unstructured_ingest-20260416T024128424996Z-ad043740",
+      "status": "live",
+      "vector_index": {
+        "creation_strategy": "cypher",
+        "dimensions": 1536,
+        "embedding_property": "embedding",
+        "index_name": "demo_chunk_embedding_index",
+        "label": "Chunk"
+      },
+      "warnings": []
+    }
+  },
+  "started_at": "2026-04-16T02:41:28.425258+00:00"
+}
