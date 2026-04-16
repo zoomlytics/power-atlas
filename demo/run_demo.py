@@ -48,7 +48,6 @@ CHUNK_EMBEDDING_INDEX_NAME = pipeline_contracts.CHUNK_EMBEDDING_INDEX_NAME
 CHUNK_EMBEDDING_LABEL = pipeline_contracts.CHUNK_EMBEDDING_LABEL
 CHUNK_EMBEDDING_PROPERTY = pipeline_contracts.CHUNK_EMBEDDING_PROPERTY
 CHUNK_FALLBACK_STRIDE = pipeline_contracts.CHUNK_FALLBACK_STRIDE
-DEFAULT_DB = pipeline_contracts.DEFAULT_DB
 EMBEDDER_MODEL_NAME = pipeline_contracts.EMBEDDER_MODEL_NAME
 set_dataset_id = pipeline_contracts.set_dataset_id
 
@@ -79,7 +78,7 @@ def _add_common_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--neo4j-uri", default=package_settings.neo4j.uri)
     parser.add_argument("--neo4j-username", default=package_settings.neo4j.username)
     parser.add_argument("--neo4j-password", default=package_settings.neo4j.password)
-    parser.add_argument("--neo4j-database", default=package_settings.neo4j.database or DEFAULT_DB)
+    parser.add_argument("--neo4j-database", default=package_settings.neo4j.database)
     parser.add_argument("--openai-model", default=package_settings.openai_model)
     parser.add_argument(
         "--dataset",

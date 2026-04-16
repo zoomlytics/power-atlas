@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import os
 import re
 import threading
 from typing import Any
@@ -12,7 +11,6 @@ from power_atlas.contracts.paths import PDF_PIPELINE_CONFIG_PATH
 
 _logger = logging.getLogger("demo.contracts.pipeline")
 
-DEFAULT_DB = os.getenv("NEO4J_DATABASE", "neo4j")
 _DEFAULT_CHUNK_SIZE = 1000
 _DEFAULT_CHUNK_OVERLAP = 0
 _DEFAULT_CHUNK_EMBEDDING_INDEX_NAME = "demo_chunk_embedding_index"
@@ -195,7 +193,6 @@ __all__ = [
     "CHUNK_EMBEDDING_PROPERTY",
     "CHUNK_FALLBACK_STRIDE",
     "DATASET_ID",
-    "DEFAULT_DB",
     "EMBEDDER_MODEL_NAME",
     "PIPELINE_CONFIG_DATA",
     "ensure_pipeline_contract_loaded",
