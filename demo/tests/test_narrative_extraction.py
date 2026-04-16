@@ -150,7 +150,7 @@ def test_run_narrative_extraction_live_path_uses_run_scoped_reader_and_writer(tm
     ), mock.patch(
             "demo.narrative_extraction.write_extracted_rows",
             side_effect=_fake_write_extracted_rows,
-        ), mock.patch("neo4j.GraphDatabase.driver"):
+        ), mock.patch("power_atlas.bootstrap.clients.neo4j.GraphDatabase.driver"):
         config = ExtractionConfig(
             run_id="run-live",
             source_uri="file:///doc.pdf",

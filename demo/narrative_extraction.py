@@ -10,6 +10,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Iterable
 
+from power_atlas.bootstrap import create_neo4j_driver
 from power_atlas.contracts import (
     PROMPT_IDS,
     build_stage_manifest,
@@ -31,8 +32,6 @@ from neo4j_graphrag.experimental.components.types import (
 )
 
 from power_atlas.llm_utils import build_openai_llm
-
-import neo4j
 
 PROMPT_VERSION = PROMPT_IDS["narrative_extraction"]
 DEFAULT_OUTPUT_ROOT = Path(__file__).resolve().parent / "runs"
@@ -203,9 +202,7 @@ def run_narrative_extraction(config: ExtractionConfig) -> dict[str, Any]:
     if not os.getenv("OPENAI_API_KEY"):
         raise ValueError("OPENAI_API_KEY environment variable is required for narrative extraction.")
 
-    with neo4j.GraphDatabase.driver(
-        config.neo4j_uri, auth=(config.neo4j_username, config.neo4j_password)
-    ) as driver:
+    with create_neo4j_driver(config) as driver:
         graph, text_chunks = asyncio.run(
             _read_chunks_and_extract(
                 driver,

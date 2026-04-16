@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Callable
 
+from power_atlas.bootstrap import build_runtime_config as _build_runtime_config
 from power_atlas.bootstrap import build_settings as _build_package_settings
 
 import power_atlas.contracts.pipeline as pipeline_contracts
@@ -106,17 +107,12 @@ def _build_config_from_args(args: argparse.Namespace) -> Config:
     )
     if not args.dry_run and package_settings.neo4j.password in ("", "CHANGE_ME_BEFORE_USE"):
         raise SystemExit("Set NEO4J_PASSWORD or pass --neo4j-password when using --live")
-    return Config(
+    return _build_runtime_config(
+        package_settings,
         dry_run=args.dry_run,
         output_dir=args.output_dir,
-        neo4j_uri=package_settings.neo4j.uri,
-        neo4j_username=package_settings.neo4j.username,
-        neo4j_password=package_settings.neo4j.password,
-        neo4j_database=package_settings.neo4j.database,
-        openai_model=package_settings.openai_model,
         question=getattr(args, "question", None),
         resolution_mode=getattr(args, "resolution_mode", None) or "unstructured_only",
-        dataset_name=getattr(args, "dataset", None) or None,
     )
 
 
@@ -1086,15 +1082,21 @@ run_independent_demo = _run_independent_stage
 def main() -> None:
     args = parse_args()
     if args.command == "lint-structured":
-        config = Config(
+        package_settings = _build_package_settings(
+            {
+                "NEO4J_URI": args.neo4j_uri,
+                "NEO4J_USERNAME": args.neo4j_username,
+                "NEO4J_PASSWORD": args.neo4j_password,
+                "NEO4J_DATABASE": args.neo4j_database,
+                "OPENAI_MODEL": args.openai_model,
+                "POWER_ATLAS_OUTPUT_DIR": str(args.output_dir),
+                "POWER_ATLAS_DATASET": getattr(args, "dataset", None) or "",
+            }
+        )
+        config = _build_runtime_config(
+            package_settings,
             dry_run=True,
             output_dir=args.output_dir,
-            neo4j_uri=args.neo4j_uri,
-            neo4j_username=args.neo4j_username,
-            neo4j_password=args.neo4j_password,
-            neo4j_database=args.neo4j_database,
-            openai_model=args.openai_model,
-            dataset_name=getattr(args, "dataset", None) or None,
         )
         dataset_root = resolve_dataset_root(config.dataset_name)
         run_id = make_run_id("structured_lint")
