@@ -185,6 +185,43 @@ class WorkflowTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             module.parse_args(["--dry-run", "ingest", "--l"])
 
+    def test_parse_args_dataset_default_uses_fixture_dataset_env(self):
+        module = _load_module(RUN_DEMO_PATH, "run_parse_args_fixture_dataset_test")
+        previous_power_atlas_dataset = os.environ.pop("POWER_ATLAS_DATASET", None)
+        previous_fixture_dataset = os.environ.get("FIXTURE_DATASET")
+        os.environ["FIXTURE_DATASET"] = "demo_dataset_v1"
+        try:
+            args = module.parse_args(["ingest"])
+        finally:
+            if previous_power_atlas_dataset is not None:
+                os.environ["POWER_ATLAS_DATASET"] = previous_power_atlas_dataset
+            if previous_fixture_dataset is None:
+                os.environ.pop("FIXTURE_DATASET", None)
+            else:
+                os.environ["FIXTURE_DATASET"] = previous_fixture_dataset
+
+        self.assertEqual(args.dataset, "demo_dataset_v1")
+
+    def test_parse_args_dataset_default_prefers_power_atlas_dataset_env(self):
+        module = _load_module(RUN_DEMO_PATH, "run_parse_args_power_atlas_dataset_test")
+        previous_power_atlas_dataset = os.environ.get("POWER_ATLAS_DATASET")
+        previous_fixture_dataset = os.environ.get("FIXTURE_DATASET")
+        os.environ["POWER_ATLAS_DATASET"] = "demo_dataset_v2"
+        os.environ["FIXTURE_DATASET"] = "demo_dataset_v1"
+        try:
+            args = module.parse_args(["ingest"])
+        finally:
+            if previous_power_atlas_dataset is None:
+                os.environ.pop("POWER_ATLAS_DATASET", None)
+            else:
+                os.environ["POWER_ATLAS_DATASET"] = previous_power_atlas_dataset
+            if previous_fixture_dataset is None:
+                os.environ.pop("FIXTURE_DATASET", None)
+            else:
+                os.environ["FIXTURE_DATASET"] = previous_fixture_dataset
+
+        self.assertEqual(args.dataset, "demo_dataset_v2")
+
     def test_reset_command_skips_password_validation(self):
         module = _load_module(RUN_DEMO_PATH, "run_main_reset_test")
         args = type(

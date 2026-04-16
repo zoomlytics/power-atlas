@@ -82,12 +82,12 @@ def _add_common_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--openai-model", default=package_settings.openai_model)
     parser.add_argument(
         "--dataset",
-        default=os.getenv("FIXTURE_DATASET"),
+        default=package_settings.dataset_name,
         dest="dataset",
         metavar="DATASET_NAME",
         help=(
             "Name of the fixture dataset to use (directory under demo/fixtures/datasets/). "
-            "Defaults to the FIXTURE_DATASET environment variable; if neither is set, "
+            "Defaults to POWER_ATLAS_DATASET or FIXTURE_DATASET; if neither is set, "
             "the single available dataset is auto-discovered."
         ),
     )
