@@ -18,6 +18,8 @@ def test_package_modules_import() -> None:
     assert package.ARTIFACTS_DIR == contracts_module.ARTIFACTS_DIR
     assert package.build_batch_manifest is contracts_module.build_batch_manifest
     assert package.build_stage_manifest is contracts_module.build_stage_manifest
+    assert package.claim_extraction_lexical_config is contracts_module.claim_extraction_lexical_config
+    assert package.claim_extraction_schema is contracts_module.claim_extraction_schema
     assert package.EarlyReturnRule is contracts_module.EarlyReturnRule
     assert package.EARLY_RETURN_PRECEDENCE is contracts_module.EARLY_RETURN_PRECEDENCE
     assert package.EARLY_RETURN_RULE_BY_NAME is contracts_module.EARLY_RETURN_RULE_BY_NAME
@@ -41,6 +43,7 @@ def test_package_modules_import() -> None:
     assert package.make_run_id is contracts_module.make_run_id
     assert package.resolve_dataset_root is contracts_module.resolve_dataset_root
     assert package.resolve_early_return_rule is contracts_module.resolve_early_return_rule
+    assert package.resolution_layer_schema is contracts_module.resolution_layer_schema
     assert package.timestamp is contracts_module.timestamp
     assert package.write_manifest is contracts_module.write_manifest
     assert package.write_manifest_md is contracts_module.write_manifest_md
@@ -169,6 +172,15 @@ def test_demo_manifest_contract_shim_matches_package_exports() -> None:
     assert demo_manifest.build_stage_manifest is contracts_module.build_stage_manifest
     assert demo_manifest.write_manifest is contracts_module.write_manifest
     assert demo_manifest.write_manifest_md is contracts_module.write_manifest_md
+
+
+def test_demo_claim_schema_contract_shim_matches_package_exports() -> None:
+    import demo.contracts.claim_schema as demo_claim_schema
+    import power_atlas.contracts as contracts_module
+
+    assert demo_claim_schema.claim_extraction_lexical_config is contracts_module.claim_extraction_lexical_config
+    assert demo_claim_schema.claim_extraction_schema is contracts_module.claim_extraction_schema
+    assert demo_claim_schema.resolution_layer_schema is contracts_module.resolution_layer_schema
 
 
 def test_build_embedder_for_settings_uses_embedder_model() -> None:

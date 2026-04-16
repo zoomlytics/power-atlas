@@ -10,8 +10,13 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Iterable
 
-from demo.contracts import claim_extraction_lexical_config, claim_extraction_schema
-from power_atlas.contracts import PROMPT_IDS, build_stage_manifest, write_manifest
+from power_atlas.contracts import (
+    PROMPT_IDS,
+    build_stage_manifest,
+    claim_extraction_lexical_config,
+    claim_extraction_schema,
+    write_manifest,
+)
 from demo.extraction_utils import prepare_extracted_rows, write_extracted_rows
 from demo.io import RunScopedNeo4jChunkReader
 from neo4j_graphrag.experimental.components.entity_relation_extractor import (

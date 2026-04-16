@@ -19,7 +19,7 @@ async def _async_read_chunks_and_extract(
     model_name: str,
 ) -> tuple[Any, list[Any], Any]:
     from neo4j_graphrag.experimental.components.entity_relation_extractor import LLMEntityRelationExtractor
-    from demo.contracts import (
+    from power_atlas.contracts import (
         claim_extraction_lexical_config,
         claim_extraction_schema,
     )

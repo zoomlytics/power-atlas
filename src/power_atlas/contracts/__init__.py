@@ -27,6 +27,11 @@ from power_atlas.contracts.manifest import (
 	write_manifest,
 	write_manifest_md,
 )
+from power_atlas.contracts.claim_schema import (
+	claim_extraction_lexical_config,
+	claim_extraction_schema,
+	resolution_layer_schema,
+)
 from power_atlas.contracts.runtime import Config, make_run_id, timestamp
 from power_atlas.contracts.structured import (
 	COMMON_PREDICATE_LABELS,
@@ -43,6 +48,8 @@ __all__ = [
 	"ARTIFACTS_DIR",
 	"build_batch_manifest",
 	"build_stage_manifest",
+	"claim_extraction_lexical_config",
+	"claim_extraction_schema",
 	"EARLY_RETURN_PRECEDENCE",
 	"EARLY_RETURN_RULE_BY_NAME",
 	"EarlyReturnRule",
@@ -66,6 +73,7 @@ __all__ = [
 	"make_run_id",
 	"resolve_dataset_root",
 	"resolve_early_return_rule",
+	"resolution_layer_schema",
 	"timestamp",
 	"write_manifest",
 	"write_manifest_md",
