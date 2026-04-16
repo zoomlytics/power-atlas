@@ -83,7 +83,7 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from demo.contracts.runtime import Config  # noqa: E402
+from power_atlas.contracts.runtime import Config  # noqa: E402
 from demo.stages.retrieval_benchmark import run_retrieval_benchmark  # noqa: E402
 
 # Base output directory — the parent of `runs/`, matching Config.output_dir conventions.
