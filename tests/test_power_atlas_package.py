@@ -117,6 +117,27 @@ def test_build_runtime_config_from_settings() -> None:
     assert config.dataset_name == "demo_dataset_v1"
 
 
+def test_dataset_env_selection_prefers_power_atlas_dataset() -> None:
+    from power_atlas.bootstrap import dataset_env_selection
+
+    selection = dataset_env_selection(
+        {
+            "POWER_ATLAS_DATASET": "demo_dataset_v2",
+            "FIXTURE_DATASET": "demo_dataset_v1",
+        }
+    )
+
+    assert selection == ("demo_dataset_v2", "demo_dataset_v1", "demo_dataset_v2")
+
+
+def test_dataset_env_selection_uses_fixture_dataset_when_power_atlas_missing() -> None:
+    from power_atlas.bootstrap import dataset_env_selection
+
+    selection = dataset_env_selection({"FIXTURE_DATASET": "demo_dataset_v1"})
+
+    assert selection == (None, "demo_dataset_v1", "demo_dataset_v1")
+
+
 def test_require_openai_api_key_uses_mapping() -> None:
     from power_atlas.bootstrap import has_openai_api_key, require_openai_api_key
 

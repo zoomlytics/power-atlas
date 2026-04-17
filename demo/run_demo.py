@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from power_atlas.bootstrap import create_neo4j_driver
+from power_atlas.bootstrap import dataset_env_selection
 from power_atlas.bootstrap import build_runtime_config as _build_runtime_config
 from power_atlas.bootstrap import build_settings as _build_package_settings
 
@@ -487,10 +488,7 @@ def _format_dataset_label(
 
 
 def _current_env_dataset_selection() -> tuple[str | None, str | None, str | None]:
-    power_atlas_dataset = os.getenv("POWER_ATLAS_DATASET") or None
-    fixture_dataset = os.getenv("FIXTURE_DATASET") or None
-    effective_dataset = _build_package_settings().dataset_name
-    return power_atlas_dataset, fixture_dataset, effective_dataset
+    return dataset_env_selection()
 
 
 def _current_env_unstructured_run_id() -> str | None:

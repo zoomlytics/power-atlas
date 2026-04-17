@@ -19,6 +19,16 @@ def build_settings(environ: Mapping[str, str] | None = None) -> AppSettings:
     return AppSettings.from_env(environ=environ)
 
 
+def dataset_env_selection(
+    environ: Mapping[str, str] | None = None,
+) -> tuple[str | None, str | None, str | None]:
+    settings = build_settings(environ=environ)
+    env = os.environ if environ is None else environ
+    power_atlas_dataset = env.get("POWER_ATLAS_DATASET") or None
+    fixture_dataset = env.get("FIXTURE_DATASET") or None
+    return power_atlas_dataset, fixture_dataset, settings.dataset_name
+
+
 def has_openai_api_key(environ: Mapping[str, str] | None = None) -> bool:
     env = os.environ if environ is None else environ
     return bool(env.get("OPENAI_API_KEY"))
@@ -83,6 +93,7 @@ __all__ = [
     "bootstrap_app",
     "build_runtime_config",
     "build_settings",
+    "dataset_env_selection",
     "has_openai_api_key",
     "require_openai_api_key",
     "temporary_environment",
