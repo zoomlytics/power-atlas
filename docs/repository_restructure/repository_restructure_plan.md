@@ -580,9 +580,10 @@ The repo has now completed a first concrete runtime-state reduction pass:
   backing state in `power_atlas.contracts.pipeline`, with deprecated
   compatibility access for legacy global reads/writes plus an explicit
   `get_pipeline_contract_config_data()` helper for raw config inspection,
-- `demo.contracts` root no longer eagerly imports those deprecated non-dataset
-  pipeline globals, and `demo.run_demo` now reads live pipeline settings
-  through the snapshot seam rather than relaying deprecated global access,
+- `demo.contracts` root no longer eagerly imports or re-exports those
+  deprecated non-dataset pipeline globals, and `demo.run_demo` now reads live
+  pipeline settings through the snapshot seam rather than relaying deprecated
+  global access,
 - the mutable dataset-state surface is now effectively reduced to compatibility
   exports and the pipeline submodule itself rather than active stage/orchestrator
   behavior.

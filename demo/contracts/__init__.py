@@ -47,11 +47,6 @@ __all__ = [
     "COMMON_PREDICATE_LABELS",
     "CONFIG_DIR",
     "CSV_FIRST_DATA_ROW",
-    "CHUNK_EMBEDDING_DIMENSIONS",
-    "CHUNK_EMBEDDING_INDEX_NAME",
-    "CHUNK_EMBEDDING_LABEL",
-    "CHUNK_EMBEDDING_PROPERTY",
-    "CHUNK_FALLBACK_STRIDE",
     "DATASETS_CONTAINER_DIR",
     "DatasetRoot",
     "Config",
@@ -59,14 +54,12 @@ __all__ = [
     "EARLY_RETURN_RULE_BY_NAME",
     "EarlyReturnRule",
     "resolve_early_return_rule",
-    "EMBEDDER_MODEL_NAME",
     "ensure_pipeline_contract_loaded",
     "FIXTURES_DIR",
     "ID_PATTERNS",
     "list_available_datasets",
     "make_run_id",
     "PDF_PIPELINE_CONFIG_PATH",
-    "PIPELINE_CONFIG_DATA",
     "POWER_ATLAS_RAG_TEMPLATE",
     "PROMPT_IDS",
     "FieldSurfacePolicy",
@@ -82,17 +75,6 @@ __all__ = [
 def __getattr__(name: str) -> Any:  # pragma: no cover - thin import proxy
     if name in {"claim_extraction_lexical_config", "claim_extraction_schema"}:
         module = import_module("power_atlas.contracts.claim_schema")
-        return getattr(module, name)
-    if name in {
-        "CHUNK_EMBEDDING_DIMENSIONS",
-        "CHUNK_EMBEDDING_INDEX_NAME",
-        "CHUNK_EMBEDDING_LABEL",
-        "CHUNK_EMBEDDING_PROPERTY",
-        "CHUNK_FALLBACK_STRIDE",
-        "EMBEDDER_MODEL_NAME",
-        "PIPELINE_CONFIG_DATA",
-    }:
-        module = import_module("power_atlas.contracts.pipeline")
         return getattr(module, name)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
