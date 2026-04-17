@@ -3,17 +3,13 @@ from __future__ import annotations
 from typing import Any
 
 
-def write_structured_ingest_graph(
+def _write_dataset_source(
     session: Any,
     *,
     run_id: str,
     source_uri: str,
     dataset_id: str,
     ingested_at: str,
-    entities_rows: list[dict[str, str]],
-    facts_rows: list[dict[str, str]],
-    relationship_rows: list[dict[str, str]],
-    claims_rows: list[dict[str, str]],
 ) -> None:
     session.run(
         """
@@ -28,6 +24,17 @@ def write_structured_ingest_graph(
         dataset_id=dataset_id,
         ingested_at=ingested_at,
     ).consume()
+
+
+def _write_entities(
+    session: Any,
+    *,
+    rows: list[dict[str, str]],
+    run_id: str,
+    source_uri: str,
+    dataset_id: str,
+    ingested_at: str,
+) -> None:
     session.run(
         """
         UNWIND $rows AS row
@@ -47,12 +54,23 @@ def write_structured_ingest_graph(
             asserted_in.source_uri = $source_uri,
             asserted_in.retrieved_at = $ingested_at
         """,
-        rows=entities_rows,
+        rows=rows,
         run_id=run_id,
         source_uri=source_uri,
         dataset_id=dataset_id,
         ingested_at=ingested_at,
     ).consume()
+
+
+def _write_facts(
+    session: Any,
+    *,
+    rows: list[dict[str, str]],
+    run_id: str,
+    source_uri: str,
+    dataset_id: str,
+    ingested_at: str,
+) -> None:
     session.run(
         """
         UNWIND $rows AS row
@@ -95,12 +113,23 @@ def write_structured_ingest_graph(
                 cited_from.retrieved_at = coalesce(row.retrieved_at, $ingested_at)
         )
         """,
-        rows=facts_rows,
+        rows=rows,
         run_id=run_id,
         source_uri=source_uri,
         dataset_id=dataset_id,
         ingested_at=ingested_at,
     ).consume()
+
+
+def _write_relationships(
+    session: Any,
+    *,
+    rows: list[dict[str, str]],
+    run_id: str,
+    source_uri: str,
+    dataset_id: str,
+    ingested_at: str,
+) -> None:
     session.run(
         """
         UNWIND $rows AS row
@@ -154,12 +183,23 @@ def write_structured_ingest_graph(
                 cited_from.retrieved_at = coalesce(row.retrieved_at, $ingested_at)
         )
         """,
-        rows=relationship_rows,
+        rows=rows,
         run_id=run_id,
         source_uri=source_uri,
         dataset_id=dataset_id,
         ingested_at=ingested_at,
     ).consume()
+
+
+def _write_claims(
+    session: Any,
+    *,
+    rows: list[dict[str, str]],
+    run_id: str,
+    source_uri: str,
+    dataset_id: str,
+    ingested_at: str,
+) -> None:
     session.run(
         """
         UNWIND $rows AS row
@@ -239,12 +279,65 @@ def write_structured_ingest_graph(
                 cited_from.retrieved_at = coalesce(row.retrieved_at, $ingested_at)
         )
         """,
-        rows=claims_rows,
+        rows=rows,
         run_id=run_id,
         source_uri=source_uri,
         dataset_id=dataset_id,
         ingested_at=ingested_at,
     ).consume()
+
+
+def write_structured_ingest_graph(
+    session: Any,
+    *,
+    run_id: str,
+    source_uri: str,
+    dataset_id: str,
+    ingested_at: str,
+    entities_rows: list[dict[str, str]],
+    facts_rows: list[dict[str, str]],
+    relationship_rows: list[dict[str, str]],
+    claims_rows: list[dict[str, str]],
+) -> None:
+    _write_dataset_source(
+        session,
+        run_id=run_id,
+        source_uri=source_uri,
+        dataset_id=dataset_id,
+        ingested_at=ingested_at,
+    )
+    _write_entities(
+        session,
+        rows=entities_rows,
+        run_id=run_id,
+        source_uri=source_uri,
+        dataset_id=dataset_id,
+        ingested_at=ingested_at,
+    )
+    _write_facts(
+        session,
+        rows=facts_rows,
+        run_id=run_id,
+        source_uri=source_uri,
+        dataset_id=dataset_id,
+        ingested_at=ingested_at,
+    )
+    _write_relationships(
+        session,
+        rows=relationship_rows,
+        run_id=run_id,
+        source_uri=source_uri,
+        dataset_id=dataset_id,
+        ingested_at=ingested_at,
+    )
+    _write_claims(
+        session,
+        rows=claims_rows,
+        run_id=run_id,
+        source_uri=source_uri,
+        dataset_id=dataset_id,
+        ingested_at=ingested_at,
+    )
 
 
 __all__ = ["write_structured_ingest_graph"]
