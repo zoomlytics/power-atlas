@@ -228,7 +228,7 @@ from urllib.parse import quote as _pct_encode
 import neo4j
 
 from power_atlas.bootstrap import create_neo4j_driver
-from power_atlas.contracts.pipeline import get_dataset_id
+from power_atlas.contracts import resolve_dataset_root
 from power_atlas.contracts.resolution import ALIGNMENT_VERSION as _ALIGNMENT_VERSION
 from power_atlas.text_utils import normalize_mention_text
 
@@ -268,6 +268,7 @@ _VALID_RESOLUTION_MODES = frozenset({
     _RESOLUTION_MODE_UNSTRUCTURED_ONLY,
     _RESOLUTION_MODE_HYBRID,
 })
+_DEFAULT_ENTITY_RESOLUTION_DATASET = "demo_dataset_v1"
 
 # Mapping of synonymous/variant entity-type labels to their canonical forms.
 # This table is the single authoritative source of truth for entity-type
@@ -313,6 +314,20 @@ _ENTITY_TYPE_SYNONYMS: dict[str, str] = {
 # sentinel_label_warnings.  Do NOT change this value without also updating any
 # consumers of entity_type_report summaries/artifacts that rely on this sentinel.
 _ENTITY_TYPE_NULL_SENTINEL = "__null__"
+
+
+def _resolve_effective_dataset_id(config: Any, dataset_id: str | None) -> str:
+    if isinstance(dataset_id, str) and dataset_id:
+        return dataset_id
+
+    configured_dataset_name = getattr(config, "dataset_name", None)
+    if isinstance(configured_dataset_name, str) and configured_dataset_name:
+        return resolve_dataset_root(configured_dataset_name).dataset_id
+
+    # Compatibility fallback for direct unit-test and standalone callers that do not
+    # yet thread dataset_name through Config. This keeps the stage off mutable
+    # pipeline module state while preserving the historical demo default.
+    return resolve_dataset_root(_DEFAULT_ENTITY_RESOLUTION_DATASET).dataset_id
 
 
 def _normalize_entity_type(entity_type: str | None) -> str | None:
@@ -1405,12 +1420,11 @@ def run_entity_resolution(
                          multiple times for the same *run_id* to avoid overwriting
                          artifacts from an earlier pass.
         dataset_id:      Dataset identifier used to scope :CanonicalEntity lookups to
-                         the active dataset.  When ``None``, the value returned by
-                         :func:`~power_atlas.contracts.pipeline.get_dataset_id` is used so
-                         that the active dataset set via
-                         :func:`~power_atlas.contracts.pipeline.set_dataset_id` is respected.
-                         Pass this explicitly when calling from an orchestrated pipeline
-                         stage to avoid relying on module-level state.
+                 the active dataset. When ``None``, the stage resolves scope
+                 from ``config.dataset_name`` and then falls back to the demo's
+                 historical default dataset for compatibility with direct callers.
+                 Pass this explicitly when calling from an orchestrated pipeline
+                 stage to avoid relying on implicit defaults.
 
     Returns:
         A summary dict with counts, resolution breakdown, ``resolution_mode``,
@@ -1432,12 +1446,9 @@ def run_entity_resolution(
         )
 
     # Resolve the effective dataset_id for scoping CanonicalEntity lookups.
-    # Explicit parameter takes precedence; fall back to the module-level active dataset
-    # set by set_dataset_id() so that orchestrated pipelines that call set_dataset_id()
-    # before this stage automatically get the correct scope.
-    # get_dataset_id() always returns a non-empty str (defaults to "demo_dataset_v1");
-    # the type annotation is str because neither branch can produce None here.
-    effective_dataset_id: str = dataset_id if isinstance(dataset_id, str) and dataset_id else get_dataset_id()
+    # Explicit parameter takes precedence; otherwise use config.dataset_name when
+    # available and finally the historical demo default dataset for compatibility.
+    effective_dataset_id: str = _resolve_effective_dataset_id(config, dataset_id)
 
     resolved_at = datetime.now(UTC).isoformat()
 

@@ -652,6 +652,26 @@ class TestRunEntityResolutionLive(unittest.TestCase):
             self.assertEqual(result["resolved"], 1)
             self.assertEqual(result["resolution_breakdown"].get("alias_exact"), 1)
 
+    def test_live_uses_config_dataset_name_when_dataset_id_omitted(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = dataclass_replace(_live_config(Path(tmpdir)), dataset_name="demo_dataset_v2")
+            mentions = [{"mention_id": "m3b", "name": "Douglas Adams", "entity_type": "person"}]
+            canonicals = [
+                {"entity_id": "Q84", "run_id": "run-s2", "name": "Douglas Adams", "aliases": None, "dataset_id": "demo_dataset_v2"}
+            ]
+            driver = self._make_driver(mentions, canonicals)
+
+            with patch("neo4j.GraphDatabase.driver", return_value=driver):
+                result = run_entity_resolution(
+                    config,
+                    run_id="run-live-config-dataset-001",
+                    source_uri=None,
+                    resolution_mode="structured_anchor",
+                )
+
+            self.assertEqual(result["resolved"], 1)
+            self.assertEqual(result["resolution_breakdown"].get("label_exact"), 1)
+
     def test_live_unresolved_fallback(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             config = _live_config(Path(tmpdir))
