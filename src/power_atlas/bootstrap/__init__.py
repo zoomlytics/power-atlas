@@ -5,6 +5,7 @@ from power_atlas.bootstrap.app import (
 	build_settings,
 	has_openai_api_key,
 	require_openai_api_key,
+	temporary_environment,
 )
 from power_atlas.bootstrap.clients import (
 	build_embedder_for_settings,
@@ -22,4 +23,5 @@ __all__ = [
 	"create_neo4j_driver",
 	"has_openai_api_key",
 	"require_openai_api_key",
+	"temporary_environment",
 ]

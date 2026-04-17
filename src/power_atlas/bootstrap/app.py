@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Mapping
+from typing import Iterator, Mapping, MutableMapping
 import os
 
 from power_atlas.contracts.runtime import Config
@@ -30,6 +31,25 @@ def require_openai_api_key(
 ) -> None:
     if not has_openai_api_key(environ=environ):
         raise ValueError(error_message)
+
+
+@contextmanager
+def temporary_environment(
+    overrides: Mapping[str, str],
+    *,
+    environ: MutableMapping[str, str] | None = None,
+) -> Iterator[None]:
+    target_env = os.environ if environ is None else environ
+    previous_env = {key: (key in target_env, target_env.get(key)) for key in overrides}
+    target_env.update(overrides)
+    try:
+        yield
+    finally:
+        for key, (had_key, previous_value) in previous_env.items():
+            if not had_key:
+                target_env.pop(key, None)
+            elif previous_value is not None:
+                target_env[key] = previous_value
 
 
 def build_runtime_config(
@@ -65,4 +85,5 @@ __all__ = [
     "build_settings",
     "has_openai_api_key",
     "require_openai_api_key",
+    "temporary_environment",
 ]

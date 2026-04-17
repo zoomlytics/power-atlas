@@ -133,6 +133,18 @@ def test_require_openai_api_key_uses_mapping() -> None:
         raise AssertionError("Expected require_openai_api_key to raise for missing key")
 
 
+def test_temporary_environment_restores_mapping_state() -> None:
+    from power_atlas.bootstrap import temporary_environment
+
+    env = {"EXISTING": "before"}
+
+    with temporary_environment({"EXISTING": "after", "NEW_KEY": "value"}, environ=env):
+        assert env["EXISTING"] == "after"
+        assert env["NEW_KEY"] == "value"
+
+    assert env == {"EXISTING": "before"}
+
+
 def test_normalize_mention_text() -> None:
     from power_atlas.text_utils import normalize_mention_text
 

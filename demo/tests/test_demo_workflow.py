@@ -9,6 +9,7 @@ import types
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from contextlib import contextmanager, redirect_stdout
 from pathlib import Path
 
@@ -141,11 +142,21 @@ class WorkflowTests(unittest.TestCase):
         originals = {name: sys.modules.get(name) for name in injected_modules}
         had_openai_api_key = "OPENAI_API_KEY" in os.environ
         original_openai_api_key = os.environ.get("OPENAI_API_KEY")
+        bootstrap_driver_patch = None
         try:
+            fake_neo4j = injected_modules.get("neo4j")
+            if fake_neo4j is not None:
+                bootstrap_driver_patch = mock.patch(
+                    "power_atlas.bootstrap.clients.neo4j.GraphDatabase.driver",
+                    new=fake_neo4j.GraphDatabase.driver,
+                )
+                bootstrap_driver_patch.start()
             sys.modules.update(injected_modules)
             os.environ["OPENAI_API_KEY"] = "test-openai-api-key"
             yield
         finally:
+            if bootstrap_driver_patch is not None:
+                bootstrap_driver_patch.stop()
             for name, original in originals.items():
                 if original is None:
                     sys.modules.pop(name, None)
@@ -738,6 +749,16 @@ class WorkflowTests(unittest.TestCase):
             module.resolve_dataset_root("demo_dataset_v1").pdf_path
         )
         initial_openai_state = ("OPENAI_API_KEY" in os.environ, os.environ.get("OPENAI_API_KEY"))
+        initial_bridge_env = {
+            key: (key in os.environ, os.environ.get(key))
+            for key in (
+                "NEO4J_URI",
+                "NEO4J_USERNAME",
+                "NEO4J_PASSWORD",
+                "NEO4J_DATABASE",
+                "OPENAI_MODEL",
+            )
+        }
         with self._with_injected_pdf_ingest_modules(injected_modules):
             result = module._run_pdf_ingest(config, run_id="unstructured_ingest-test")
 
@@ -829,6 +850,12 @@ class WorkflowTests(unittest.TestCase):
             ("OPENAI_API_KEY" in os.environ, os.environ.get("OPENAI_API_KEY")),
             initial_openai_state,
         )
+        for key, expected_state in initial_bridge_env.items():
+            self.assertEqual(
+                (key in os.environ, os.environ.get(key)),
+                expected_state,
+                f"Expected {key} to be restored after pdf_ingest vendor bridge",
+            )
 
     def test_pdf_ingest_query_payload_prefers_specific_markers(self):
         module = _load_module(RUN_DEMO_PATH, "run_marker_test")

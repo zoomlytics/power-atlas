@@ -4,11 +4,10 @@ import asyncio
 import hashlib
 import json
 import logging
-import os
 from pathlib import Path
 from typing import Any
 
-from power_atlas.bootstrap import create_neo4j_driver, require_openai_api_key
+from power_atlas.bootstrap import create_neo4j_driver, require_openai_api_key, temporary_environment
 from power_atlas.contracts.pipeline import (
     CHUNK_EMBEDDING_DIMENSIONS,
     CHUNK_EMBEDDING_INDEX_NAME,
@@ -229,10 +228,8 @@ def run_pdf_ingest(
         "NEO4J_DATABASE": config.neo4j_database,
         "OPENAI_MODEL": config.openai_model,
     }
-    previous_env = {key: (key in os.environ, os.environ.get(key)) for key in env_updates}
-    os.environ.update(env_updates)
 
-    try:
+    with temporary_environment(env_updates):
         driver = create_neo4j_driver(config)
         with driver:
             index_creation_strategy = "cypher"
@@ -471,12 +468,6 @@ def run_pdf_ingest(
                 ).single()["missing_char_offset_count"]
                 if missing_char_offset_count:
                     raise ValueError("Chunk offset contract violation: expected start_char/end_char on all chunks")
-    finally:
-        for key, (had_key, previous_value) in previous_env.items():
-            if not had_key:
-                os.environ.pop(key, None)
-            else:
-                os.environ[key] = previous_value
 
     ingest_summary = {
         "run_id": stage_run_id,
