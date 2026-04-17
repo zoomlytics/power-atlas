@@ -538,7 +538,10 @@ class WorkflowTests(unittest.TestCase):
             fake_neo4j = types.ModuleType("neo4j")
             fake_neo4j.GraphDatabase = types.SimpleNamespace(driver=lambda *_args, **_kwargs: _FakeDriver())
 
-            with self._with_injected_modules({"neo4j": fake_neo4j}):
+            with self._with_injected_modules({"neo4j": fake_neo4j}), mock.patch(
+                "power_atlas.bootstrap.clients.neo4j.GraphDatabase.driver",
+                new=fake_neo4j.GraphDatabase.driver,
+            ):
                 result = module._run_structured_ingest(config, run_id="structured_ingest-test")
 
             self.assertEqual(result["status"], "live")
