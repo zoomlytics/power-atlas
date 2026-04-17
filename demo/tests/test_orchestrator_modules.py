@@ -6355,7 +6355,7 @@ def test_benchmark_failure_in_orchestrated_run_writes_manifest(tmp_path: Path):
             root=tmp_path,
             pdf_filename="test.pdf",
         ),
-    ), patch("demo.run_demo.set_dataset_id"), patch(
+    ), patch(
         "demo.run_demo.run_pdf_ingest",
         return_value={"status": "dry_run"},
     ), patch(
@@ -6431,7 +6431,7 @@ def test_orchestrated_run_warns_when_alignment_version_missing(tmp_path: Path):
                 root=tmp_path,
                 pdf_filename="test.pdf",
             ),
-        ), patch("demo.run_demo.set_dataset_id"), patch(
+        ), patch(
             "demo.run_demo.run_pdf_ingest",
             return_value={"status": "dry_run"},
         ), patch(
@@ -6500,7 +6500,7 @@ def test_orchestrated_run_emits_exactly_one_alignment_version_warning(tmp_path: 
                 root=tmp_path,
                 pdf_filename="test.pdf",
             ),
-        ), patch("demo.run_demo.set_dataset_id"), patch(
+        ), patch(
             "demo.run_demo.run_pdf_ingest",
             return_value={"status": "dry_run"},
         ), patch(
@@ -6612,7 +6612,7 @@ def test_e2e_orchestrated_exactly_one_alignment_version_warning(tmp_path: Path):
                 root=tmp_path,
                 pdf_filename="test.pdf",
             ),
-        ), patch("demo.run_demo.set_dataset_id"), patch(
+        ), patch(
             "demo.run_demo.run_pdf_ingest",
             return_value={"status": "dry_run"},
         ), patch(
@@ -6700,7 +6700,7 @@ def test_run_orchestrated_surfaces_stage_warnings(
             root=tmp_path,
             pdf_filename="test.pdf",
         ),
-    ), patch("demo.run_demo.set_dataset_id"), patch(
+    ), patch(
         "demo.run_demo.run_pdf_ingest",
         return_value=stage_with_warning,
     ), patch(

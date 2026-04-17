@@ -50,7 +50,6 @@ CHUNK_EMBEDDING_LABEL = pipeline_contracts.CHUNK_EMBEDDING_LABEL
 CHUNK_EMBEDDING_PROPERTY = pipeline_contracts.CHUNK_EMBEDDING_PROPERTY
 CHUNK_FALLBACK_STRIDE = pipeline_contracts.CHUNK_FALLBACK_STRIDE
 EMBEDDER_MODEL_NAME = pipeline_contracts.EMBEDDER_MODEL_NAME
-set_dataset_id = pipeline_contracts.set_dataset_id
 
 _logger = logging.getLogger(__name__)
 
@@ -576,7 +575,6 @@ def _run_orchestrated(config: Config) -> Path:
     unstructured_run_id = make_run_id("unstructured_ingest")
 
     dataset_root = resolve_dataset_root(config.dataset_name)
-    set_dataset_id(dataset_root.dataset_id)
 
     # ── Phase 1: Unstructured-only pass ──────────────────────────────────────
     # Ingest the PDF and build the lexical graph first.
@@ -765,7 +763,6 @@ def _run_independent_stage(
     # skip resolution to avoid raising on a multi-dataset repo.
     if not _ask_all_runs:
         dataset_root = resolve_dataset_root(config.dataset_name)
-        set_dataset_id(dataset_root.dataset_id)
         _fixture_dir: Path | None = dataset_root.root
         _pdf_filename: str | None = dataset_root.pdf_filename
         _pdf_source_uri: str | None = str((_fixture_dir / "unstructured" / _pdf_filename).resolve().as_uri())
