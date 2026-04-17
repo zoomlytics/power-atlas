@@ -572,6 +572,12 @@ The repo has now completed a first concrete runtime-state reduction pass:
   exports and the pipeline submodule itself rather than active stage/orchestrator
   behavior.
 
+That remaining compatibility surface is now explicitly deprecated:
+
+- `power_atlas.contracts.pipeline.DATASET_ID`,
+- `power_atlas.contracts.pipeline.get_dataset_id()`,
+- `power_atlas.contracts.pipeline.set_dataset_id()`.
+
 That is meaningful progress, but it does not yet satisfy the phase. The pipeline
 contract still contains mutable module-level state, `AppContext` / `RequestContext`
  do not exist, and the remaining stateful pipeline surface still needs an explicit

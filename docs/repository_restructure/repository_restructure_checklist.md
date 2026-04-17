@@ -169,7 +169,7 @@ Use the following status values consistently:
 **Status:** in progress  
 **Owner:**  
 **Blockers:**  
-**Notes:** This phase is now partially underway even though the broader context-object design work has not started. Recent slices removed the main active dataset-state dependencies from `demo/stages/structured_ingest.py`, `demo/stages/pdf_ingest.py`, and `demo/stages/entity_resolution.py`, and `demo/run_demo.py` no longer writes dataset scope through `set_dataset_id(...)`. The remaining mutable dataset-state surface is now mostly confined to `power_atlas.contracts.pipeline` itself and compatibility-only exports rather than active stage behavior. `AppContext` / `RequestContext` design and the broader mutable-global inventory still remain open.  
+**Notes:** This phase is now partially underway even though the broader context-object design work has not started. Recent slices removed the main active dataset-state dependencies from `demo/stages/structured_ingest.py`, `demo/stages/pdf_ingest.py`, and `demo/stages/entity_resolution.py`, and `demo/run_demo.py` no longer writes dataset scope through `set_dataset_id(...)`. The remaining mutable dataset-state surface is now mostly confined to `power_atlas.contracts.pipeline` itself and compatibility-only exports rather than active stage behavior, and `DATASET_ID`, `get_dataset_id()`, and `set_dataset_id()` are now explicitly deprecated there. `AppContext` / `RequestContext` design and the broader mutable-global inventory still remain open.  
 
 ### Exit criteria
 

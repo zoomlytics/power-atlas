@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import logging
 import re
+import sys
 import threading
+from types import ModuleType
 from typing import Any
+import warnings
 
 import yaml
 
@@ -30,29 +33,35 @@ CHUNK_EMBEDDING_PROPERTY = _DEFAULT_CHUNK_EMBEDDING_PROPERTY
 CHUNK_EMBEDDING_DIMENSIONS = _DEFAULT_CHUNK_EMBEDDING_DIMENSIONS
 EMBEDDER_MODEL_NAME = _DEFAULT_EMBEDDER_MODEL_NAME
 CHUNK_FALLBACK_STRIDE = max(_DEFAULT_CHUNK_SIZE - _DEFAULT_CHUNK_OVERLAP, 1)
-DATASET_ID = _DEFAULT_DATASET_ID
+_DATASET_ID = _DEFAULT_DATASET_ID
+_DATASET_STATE_DEPRECATION_MESSAGE = (
+    "power_atlas.contracts.pipeline DATASET_ID/get_dataset_id()/set_dataset_id() are deprecated; "
+    "pass dataset scope explicitly via stage/orchestrator arguments or injected context instead."
+)
 
 
 def refresh_pipeline_contract() -> None:
     """Force a reload of the pipeline contract from disk, even if already loaded."""
     global PIPELINE_CONFIG_DATA, CHUNK_EMBEDDING_INDEX_NAME, CHUNK_EMBEDDING_LABEL, CHUNK_EMBEDDING_PROPERTY
-    global CHUNK_EMBEDDING_DIMENSIONS, EMBEDDER_MODEL_NAME, CHUNK_FALLBACK_STRIDE, DATASET_ID
+    global CHUNK_EMBEDDING_DIMENSIONS, EMBEDDER_MODEL_NAME, CHUNK_FALLBACK_STRIDE, _DATASET_ID
     with _PIPELINE_CONTRACT_LOCK:
         _load_pipeline_contract()
         _PIPELINE_CONTRACT_LOADED.set()
 
 
 def set_dataset_id(dataset_id: str) -> None:
-    """Override :data:`DATASET_ID` with the active dataset's identifier."""
-    global DATASET_ID
+    """Deprecated compatibility shim for overriding the active dataset identifier."""
+    global _DATASET_ID
+    _warn_deprecated_dataset_state("set_dataset_id()")
     if isinstance(dataset_id, str) and dataset_id:
         with _PIPELINE_CONTRACT_LOCK:
-            DATASET_ID = dataset_id
+            _DATASET_ID = dataset_id
 
 
 def get_dataset_id() -> str:
-    """Return the current active :data:`DATASET_ID`."""
-    return DATASET_ID
+    """Deprecated compatibility shim for reading the active dataset identifier."""
+    _warn_deprecated_dataset_state("get_dataset_id()")
+    return _DATASET_ID
 
 
 def ensure_pipeline_contract_loaded() -> None:
@@ -66,7 +75,7 @@ def ensure_pipeline_contract_loaded() -> None:
 def _load_pipeline_contract() -> None:
     """Internal helper that reads the pipeline contract from disk and updates globals."""
     global PIPELINE_CONFIG_DATA, CHUNK_EMBEDDING_INDEX_NAME, CHUNK_EMBEDDING_LABEL, CHUNK_EMBEDDING_PROPERTY
-    global CHUNK_EMBEDDING_DIMENSIONS, EMBEDDER_MODEL_NAME, CHUNK_FALLBACK_STRIDE, DATASET_ID
+    global CHUNK_EMBEDDING_DIMENSIONS, EMBEDDER_MODEL_NAME, CHUNK_FALLBACK_STRIDE, _DATASET_ID
 
     PIPELINE_CONFIG_DATA = {}
     if PDF_PIPELINE_CONFIG_PATH.is_file():
@@ -162,12 +171,34 @@ def _load_pipeline_contract() -> None:
                 chunk_overlap = _DEFAULT_CHUNK_OVERLAP
     CHUNK_FALLBACK_STRIDE = max(chunk_size - chunk_overlap, 1)
 
-    DATASET_ID = _DEFAULT_DATASET_ID
+    _DATASET_ID = _DEFAULT_DATASET_ID
     kg_writer_config = PIPELINE_CONFIG_DATA.get("kg_writer")
     kg_writer_params = kg_writer_config.get("params_") if isinstance(kg_writer_config, dict) else {}
     cfg_dataset_id = kg_writer_params.get("dataset_id") if isinstance(kg_writer_params, dict) else None
     if isinstance(cfg_dataset_id, str) and cfg_dataset_id:
-        DATASET_ID = cfg_dataset_id
+        _DATASET_ID = cfg_dataset_id
+
+
+def _warn_deprecated_dataset_state(symbol_name: str) -> None:
+    warnings.warn(
+        f"{symbol_name} is deprecated. {_DATASET_STATE_DEPRECATION_MESSAGE}",
+        DeprecationWarning,
+        stacklevel=3,
+    )
+
+
+class _PipelineModule(ModuleType):
+    def __getattribute__(self, name: str) -> Any:
+        if name == "DATASET_ID":
+            _warn_deprecated_dataset_state("DATASET_ID")
+            return super().__getattribute__("_DATASET_ID")
+        return super().__getattribute__(name)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        if name == "DATASET_ID":
+            _warn_deprecated_dataset_state("DATASET_ID")
+            name = "_DATASET_ID"
+        super().__setattr__(name, value)
 
 
 def _coerce_identifier(value: Any, default: str, field_name: str) -> str:
@@ -184,6 +215,7 @@ def _coerce_identifier(value: Any, default: str, field_name: str) -> str:
 
 
 ensure_pipeline_contract_loaded()
+sys.modules[__name__].__class__ = _PipelineModule
 
 
 __all__ = [
