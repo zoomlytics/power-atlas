@@ -44,14 +44,39 @@ from demo.stages.retrieval_and_qa import _format_scope_label  # noqa: E402
 from demo.stages.retrieval_benchmark import run_retrieval_benchmark  # noqa: E402
 from demo.stages.pdf_ingest import sha256_file  # noqa: E402, F401 - re-exported for callers and tests
 
-CHUNK_EMBEDDING_DIMENSIONS = pipeline_contracts.CHUNK_EMBEDDING_DIMENSIONS
-CHUNK_EMBEDDING_INDEX_NAME = pipeline_contracts.CHUNK_EMBEDDING_INDEX_NAME
-CHUNK_EMBEDDING_LABEL = pipeline_contracts.CHUNK_EMBEDDING_LABEL
-CHUNK_EMBEDDING_PROPERTY = pipeline_contracts.CHUNK_EMBEDDING_PROPERTY
-CHUNK_FALLBACK_STRIDE = pipeline_contracts.CHUNK_FALLBACK_STRIDE
-EMBEDDER_MODEL_NAME = pipeline_contracts.EMBEDDER_MODEL_NAME
+_PIPELINE_CONTRACT_EXPORTS = {
+    "CHUNK_EMBEDDING_DIMENSIONS",
+    "CHUNK_EMBEDDING_INDEX_NAME",
+    "CHUNK_EMBEDDING_LABEL",
+    "CHUNK_EMBEDDING_PROPERTY",
+    "CHUNK_FALLBACK_STRIDE",
+    "EMBEDDER_MODEL_NAME",
+}
 
 _logger = logging.getLogger(__name__)
+
+
+def _pipeline_contract_value(name: str) -> Any:
+    if name in globals():
+        return globals()[name]
+    return getattr(pipeline_contracts, name)
+
+
+def _pipeline_contract_view() -> dict[str, Any]:
+    return {
+        "index_name": _pipeline_contract_value("CHUNK_EMBEDDING_INDEX_NAME"),
+        "chunk_label": _pipeline_contract_value("CHUNK_EMBEDDING_LABEL"),
+        "embedding_property": _pipeline_contract_value("CHUNK_EMBEDDING_PROPERTY"),
+        "embedding_dimensions": _pipeline_contract_value("CHUNK_EMBEDDING_DIMENSIONS"),
+        "embedder_model": _pipeline_contract_value("EMBEDDER_MODEL_NAME"),
+        "chunk_stride": _pipeline_contract_value("CHUNK_FALLBACK_STRIDE"),
+    }
+
+
+def __getattr__(name: str) -> Any:
+    if name in _PIPELINE_CONTRACT_EXPORTS:
+        return getattr(pipeline_contracts, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def _now_iso() -> str:
@@ -573,6 +598,7 @@ def _run_orchestrated(config: Config) -> Path:
     started_at = _now_iso()
     structured_run_id = make_run_id("structured_ingest")
     unstructured_run_id = make_run_id("unstructured_ingest")
+    pipeline_contract = _pipeline_contract_view()
 
     dataset_root = resolve_dataset_root(config.dataset_name)
 
@@ -584,12 +610,12 @@ def _run_orchestrated(config: Config) -> Path:
         fixtures_dir=dataset_root.root,
         pdf_filename=dataset_root.pdf_filename,
         dataset_id=dataset_root.dataset_id,
-        index_name=CHUNK_EMBEDDING_INDEX_NAME,
-        chunk_label=CHUNK_EMBEDDING_LABEL,
-        embedding_property=CHUNK_EMBEDDING_PROPERTY,
-        embedding_dimensions=CHUNK_EMBEDDING_DIMENSIONS,
-        embedder_model=EMBEDDER_MODEL_NAME,
-        chunk_stride=CHUNK_FALLBACK_STRIDE,
+        index_name=pipeline_contract["index_name"],
+        chunk_label=pipeline_contract["chunk_label"],
+        embedding_property=pipeline_contract["embedding_property"],
+        embedding_dimensions=pipeline_contract["embedding_dimensions"],
+        embedder_model=pipeline_contract["embedder_model"],
+        chunk_stride=pipeline_contract["chunk_stride"],
     )
     pdf_source_uri = pdf_stage.get("provenance", {}).get("source_uri") if isinstance(pdf_stage, dict) else None
     if not pdf_source_uri and isinstance(pdf_stage, dict):
@@ -627,7 +653,7 @@ def _run_orchestrated(config: Config) -> Path:
         config,
         run_id=unstructured_run_id,
         source_uri=pdf_source_uri,
-        index_name=CHUNK_EMBEDDING_INDEX_NAME,
+        index_name=pipeline_contract["index_name"],
         question=getattr(config, "question", None),
     )
 
@@ -654,7 +680,7 @@ def _run_orchestrated(config: Config) -> Path:
         config,
         run_id=unstructured_run_id,
         source_uri=pdf_source_uri,
-        index_name=CHUNK_EMBEDDING_INDEX_NAME,
+        index_name=pipeline_contract["index_name"],
         question=getattr(config, "question", None),
     )
 
@@ -755,6 +781,7 @@ def _run_independent_stage(
     expand_graph: bool = False,
 ) -> Path:
     config.output_dir.mkdir(parents=True, exist_ok=True)
+    pipeline_contract = _pipeline_contract_view()
     # all_runs is only relevant for the ask command.
     _ask_all_runs = all_runs and command == "ask"
 
@@ -791,12 +818,12 @@ def _run_independent_stage(
                 fixtures_dir=_fixture_dir,
                 pdf_filename=_pdf_filename,
                 dataset_id=dataset_root.dataset_id,
-                index_name=CHUNK_EMBEDDING_INDEX_NAME,
-                chunk_label=CHUNK_EMBEDDING_LABEL,
-                embedding_property=CHUNK_EMBEDDING_PROPERTY,
-                embedding_dimensions=CHUNK_EMBEDDING_DIMENSIONS,
-                embedder_model=EMBEDDER_MODEL_NAME,
-                chunk_stride=CHUNK_FALLBACK_STRIDE,
+                index_name=pipeline_contract["index_name"],
+                chunk_label=pipeline_contract["chunk_label"],
+                embedding_property=pipeline_contract["embedding_property"],
+                embedding_dimensions=pipeline_contract["embedding_dimensions"],
+                embedder_model=pipeline_contract["embedder_model"],
+                chunk_stride=pipeline_contract["chunk_stride"],
             ),
         ),
         "extract-claims": (
@@ -835,7 +862,7 @@ def _run_independent_stage(
                 # queries the whole database (no run_id and no source_uri filter).
                 # In single-run mode, default to the active dataset's PDF URI.
                 source_uri=None if _ask_all_runs else _pdf_source_uri,
-                index_name=CHUNK_EMBEDDING_INDEX_NAME,
+                index_name=pipeline_contract["index_name"],
                 all_runs=_ask_all_runs,
                 cluster_aware=cluster_aware,
                 expand_graph=expand_graph,
@@ -924,18 +951,19 @@ def _run_structured_ingest(config: Config, run_id: str) -> dict[str, Any]:
 
 def _run_pdf_ingest(config: Config, run_id: str | None = None) -> dict[str, Any]:
     dataset_root = resolve_dataset_root(config.dataset_name)
+    pipeline_contract = _pipeline_contract_view()
     return run_pdf_ingest(
         config,
         run_id,
         fixtures_dir=dataset_root.root,
         pdf_filename=dataset_root.pdf_filename,
         dataset_id=dataset_root.dataset_id,
-        index_name=CHUNK_EMBEDDING_INDEX_NAME,
-        chunk_label=CHUNK_EMBEDDING_LABEL,
-        embedding_property=CHUNK_EMBEDDING_PROPERTY,
-        embedding_dimensions=CHUNK_EMBEDDING_DIMENSIONS,
-        embedder_model=EMBEDDER_MODEL_NAME,
-        chunk_stride=CHUNK_FALLBACK_STRIDE,
+        index_name=pipeline_contract["index_name"],
+        chunk_label=pipeline_contract["chunk_label"],
+        embedding_property=pipeline_contract["embedding_property"],
+        embedding_dimensions=pipeline_contract["embedding_dimensions"],
+        embedder_model=pipeline_contract["embedder_model"],
+        chunk_stride=pipeline_contract["chunk_stride"],
     )
 
 
@@ -1000,7 +1028,7 @@ def main() -> None:
                     source_uri=None if ask_all_runs else str(
                         resolve_dataset_root(config.dataset_name).pdf_path.resolve().as_uri()
                     ),
-                    index_name=CHUNK_EMBEDDING_INDEX_NAME,
+                    index_name=_pipeline_contract_view()["index_name"],
                     cluster_aware=getattr(args, "cluster_aware", False),
                     expand_graph=getattr(args, "expand_graph", False),
                     debug=getattr(args, "debug", False),

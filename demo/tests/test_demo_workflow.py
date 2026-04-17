@@ -1191,6 +1191,32 @@ class WorkflowTests(unittest.TestCase):
         finally:
             yaml.safe_load = original_safe_load
 
+    def test_run_demo_uses_live_pipeline_contract_values_without_import_time_snapshot(self):
+        module = _load_module(RUN_DEMO_PATH, "run_live_pipeline_contract_test")
+        config = module.Config(
+            dry_run=True,
+            output_dir=DEMO_DIR / "artifacts",
+            neo4j_uri="neo4j://localhost:7687",
+            neo4j_username="neo4j",
+            neo4j_password="testtesttest",
+            neo4j_database="neo4j",
+            openai_model="gpt-4o-mini",
+        )
+
+        import power_atlas.contracts.pipeline as pipeline_contracts
+
+        original_index_name = pipeline_contracts.CHUNK_EMBEDDING_INDEX_NAME
+        try:
+            pipeline_contracts.CHUNK_EMBEDDING_INDEX_NAME = "dynamic_contract_index"
+
+            self.assertEqual(module.CHUNK_EMBEDDING_INDEX_NAME, "dynamic_contract_index")
+
+            summary = module._run_pdf_ingest(config, run_id="dynamic-contract-run")
+
+            self.assertEqual(summary["vector_index"]["index_name"], "dynamic_contract_index")
+        finally:
+            pipeline_contracts.CHUNK_EMBEDDING_INDEX_NAME = original_index_name
+
     def test_run_demo_warns_and_falls_back_when_chunk_embedding_is_not_mapping(self):
         original_safe_load = yaml.safe_load
         try:

@@ -568,6 +568,8 @@ The repo has now completed a first concrete runtime-state reduction pass:
 - `structured_ingest`, `pdf_ingest`, and `entity_resolution` no longer depend on
   ambient dataset state from `power_atlas.contracts.pipeline.get_dataset_id()`,
 - `demo/run_demo.py` no longer writes dataset scope via `set_dataset_id(...)`,
+- `demo/run_demo.py` no longer snapshots pipeline contract embedding/index settings
+  into import-time module globals for its live stage execution path,
 - the mutable dataset-state surface is now effectively reduced to compatibility
   exports and the pipeline submodule itself rather than active stage/orchestrator
   behavior.
