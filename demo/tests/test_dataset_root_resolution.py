@@ -276,6 +276,24 @@ class TestDatasetRootResolution(unittest.TestCase):
             self.assertEqual(result["lint_summary"]["status"], "ok")
             self.assertIn("claims.csv", result["files"])
 
+    def test_lint_uses_manifest_dataset_id_from_custom_fixtures_dir(self):
+        """lint_and_clean_structured_csvs derives dataset_id from a custom dataset manifest."""
+        from demo.stages import lint_and_clean_structured_csvs
+
+        dr = resolve_dataset_root("demo_dataset_v1")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            copied_dataset = Path(tmpdir) / "dataset_copy"
+            shutil.copytree(dr.structured_dir, copied_dataset / "structured")
+            shutil.copy2(dr.manifest_path, copied_dataset / "manifest.json")
+            output_dir = Path(tmpdir) / "output"
+            result = lint_and_clean_structured_csvs(
+                run_id="test-lint-run",
+                output_dir=output_dir,
+                fixtures_dir=copied_dataset,
+            )
+            lint_report = json.loads(Path(result["lint_report_path"]).read_text(encoding="utf-8"))
+            self.assertEqual(lint_report["dataset_id"], dr.dataset_id)
+
 
 if __name__ == "__main__":
     unittest.main()

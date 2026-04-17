@@ -34,6 +34,7 @@ from power_atlas.contracts import (
     build_batch_manifest,
     build_stage_manifest,
     make_run_id,
+    resolve_dataset_root,
 )
 
 
@@ -84,11 +85,18 @@ def test_stage_manifest_carries_config(tmp_path: Path):
 
 
 def test_structured_lint_writes_clean_files(tmp_path: Path):
-    result = lint_and_clean_structured_csvs(run_id="test-run", output_dir=tmp_path)
+    fixtures_dir = resolve_dataset_root("demo_dataset_v1").root
+    result = lint_and_clean_structured_csvs(
+        run_id="test-run",
+        output_dir=tmp_path,
+        fixtures_dir=fixtures_dir,
+    )
     clean_dir = Path(result["structured_clean_dir"])
     assert clean_dir.exists()
     assert Path(result["lint_report_path"]).exists()
     assert result["lint_summary"]["status"] == "ok"
+    lint_report = json.loads(Path(result["lint_report_path"]).read_text(encoding="utf-8"))
+    assert lint_report["dataset_id"] == "demo_dataset_v1"
 
 
 def _write_structured_csv(structured_dir: Path, name: str, headers: list[str], rows: list[dict[str, str]]) -> None:

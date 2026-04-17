@@ -12,12 +12,13 @@ from power_atlas.contracts import (
     CSV_FIRST_DATA_ROW,
     FIXTURES_DIR,
     ID_PATTERNS,
+    DatasetRoot,
     STRUCTURED_FILE_HEADERS,
     VALUE_TYPES,
     COMMON_PREDICATE_LABELS,
+    resolve_dataset_root,
 )
 from power_atlas.structured_ingest_writes import write_structured_ingest_graph
-from power_atlas.contracts.pipeline import get_dataset_id
 
 
 def load_csv_rows(path: Path) -> list[dict[str, str]]:
@@ -27,6 +28,33 @@ def load_csv_rows(path: Path) -> list[dict[str, str]]:
 
 def _timestamp() -> str:
     return datetime.now(UTC).isoformat()
+
+
+def _dataset_id_from_fixtures_root(fixtures_root: Path) -> str:
+    manifest_path = fixtures_root / "manifest.json"
+    if manifest_path.is_file():
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            manifest = None
+        if isinstance(manifest, dict):
+            candidate = manifest.get("dataset")
+            if isinstance(candidate, str) and candidate:
+                return candidate
+    return fixtures_root.name
+
+
+def _resolve_structured_dataset(
+    fixtures_dir: Path | None,
+    dataset_id: str | None,
+) -> tuple[Path, str]:
+    if fixtures_dir is None:
+        dataset_root: DatasetRoot = resolve_dataset_root()
+        effective_dataset_id = dataset_id if isinstance(dataset_id, str) and dataset_id else dataset_root.dataset_id
+        return dataset_root.root, effective_dataset_id
+
+    effective_dataset_id = dataset_id if isinstance(dataset_id, str) and dataset_id else _dataset_id_from_fixtures_root(fixtures_dir)
+    return fixtures_dir, effective_dataset_id
 
 
 def _is_parseable_date(value: str) -> bool:
@@ -68,7 +96,8 @@ def _is_blank_csv_row(row: dict[str | None, str | list[str] | None]) -> bool:
 
 
 def lint_and_clean_structured_csvs(run_id: str, output_dir: Path, fixtures_dir: Path | None = None, *, dataset_id: str | None = None) -> dict[str, Any]:
-    structured_dir = (fixtures_dir or FIXTURES_DIR) / "structured"
+    fixtures_root, effective_dataset_id = _resolve_structured_dataset(fixtures_dir, dataset_id)
+    structured_dir = fixtures_root / "structured"
     run_root = output_dir / "runs" / run_id
     clean_dir = run_root / "structured_clean"
     clean_dir.mkdir(parents=True, exist_ok=True)
@@ -253,7 +282,7 @@ def lint_and_clean_structured_csvs(run_id: str, output_dir: Path, fixtures_dir: 
     )
     lint_report = {
         "run_id": run_id,
-        "dataset_id": dataset_id if isinstance(dataset_id, str) and dataset_id else get_dataset_id(),
+        "dataset_id": effective_dataset_id,
         "method": "structured_pre_ingest_lint_and_dedup",
         "source_uri": str(structured_dir),
         "structured_clean_dir": str(clean_dir),
@@ -278,15 +307,19 @@ def lint_and_clean_structured_csvs(run_id: str, output_dir: Path, fixtures_dir: 
 
 
 def run_structured_ingest(config: Any, run_id: str, *, fixtures_dir: Path | None = None, dataset_id: str | None = None) -> dict[str, Any]:
-    effective_dataset_id = dataset_id if isinstance(dataset_id, str) and dataset_id else get_dataset_id()
-    lint_output = lint_and_clean_structured_csvs(run_id=run_id, output_dir=config.output_dir, fixtures_dir=fixtures_dir, dataset_id=effective_dataset_id)
+    fixtures_root, effective_dataset_id = _resolve_structured_dataset(fixtures_dir, dataset_id)
+    lint_output = lint_and_clean_structured_csvs(
+        run_id=run_id,
+        output_dir=config.output_dir,
+        fixtures_dir=fixtures_root,
+        dataset_id=effective_dataset_id,
+    )
     structured_clean_dir = Path(lint_output["structured_clean_dir"])
     entities_rows = load_csv_rows(structured_clean_dir / "entities.csv")
     facts_rows = load_csv_rows(structured_clean_dir / "facts.csv")
     relationship_rows = load_csv_rows(structured_clean_dir / "relationships.csv")
     claims_rows = load_csv_rows(structured_clean_dir / "claims.csv")
-    effective_fixtures_dir = fixtures_dir or FIXTURES_DIR
-    source_uri = str(effective_fixtures_dir / "structured")
+    source_uri = str(fixtures_root / "structured")
     ingested_at = _timestamp()
 
     # Detailed validation of claim source_row_id values is performed during linting
