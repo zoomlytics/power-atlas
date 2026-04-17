@@ -14,26 +14,26 @@ def isolate_pipeline_contract(monkeypatch):
     original_path = pipeline.PDF_PIPELINE_CONFIG_PATH
     contract_was_loaded = pipeline._PIPELINE_CONTRACT_LOADED.is_set()
     original_state = {
-        "PIPELINE_CONFIG_DATA": deepcopy(pipeline.PIPELINE_CONFIG_DATA),
-        "CHUNK_EMBEDDING_INDEX_NAME": pipeline.CHUNK_EMBEDDING_INDEX_NAME,
-        "CHUNK_EMBEDDING_LABEL": pipeline.CHUNK_EMBEDDING_LABEL,
-        "CHUNK_EMBEDDING_PROPERTY": pipeline.CHUNK_EMBEDDING_PROPERTY,
-        "CHUNK_EMBEDDING_DIMENSIONS": pipeline.CHUNK_EMBEDDING_DIMENSIONS,
-        "EMBEDDER_MODEL_NAME": pipeline.EMBEDDER_MODEL_NAME,
-        "CHUNK_FALLBACK_STRIDE": pipeline.CHUNK_FALLBACK_STRIDE,
+        "PIPELINE_CONFIG_DATA": deepcopy(pipeline._PIPELINE_CONFIG_DATA),
+        "CHUNK_EMBEDDING_INDEX_NAME": pipeline._CHUNK_EMBEDDING_INDEX_NAME,
+        "CHUNK_EMBEDDING_LABEL": pipeline._CHUNK_EMBEDDING_LABEL,
+        "CHUNK_EMBEDDING_PROPERTY": pipeline._CHUNK_EMBEDDING_PROPERTY,
+        "CHUNK_EMBEDDING_DIMENSIONS": pipeline._CHUNK_EMBEDDING_DIMENSIONS,
+        "EMBEDDER_MODEL_NAME": pipeline._EMBEDDER_MODEL_NAME,
+        "CHUNK_FALLBACK_STRIDE": pipeline._CHUNK_FALLBACK_STRIDE,
         "DATASET_ID": pipeline._DATASET_ID,
     }
     try:
         yield
     finally:
         pipeline.PDF_PIPELINE_CONFIG_PATH = original_path
-        pipeline.PIPELINE_CONFIG_DATA = deepcopy(original_state["PIPELINE_CONFIG_DATA"])
-        pipeline.CHUNK_EMBEDDING_INDEX_NAME = original_state["CHUNK_EMBEDDING_INDEX_NAME"]
-        pipeline.CHUNK_EMBEDDING_LABEL = original_state["CHUNK_EMBEDDING_LABEL"]
-        pipeline.CHUNK_EMBEDDING_PROPERTY = original_state["CHUNK_EMBEDDING_PROPERTY"]
-        pipeline.CHUNK_EMBEDDING_DIMENSIONS = original_state["CHUNK_EMBEDDING_DIMENSIONS"]
-        pipeline.EMBEDDER_MODEL_NAME = original_state["EMBEDDER_MODEL_NAME"]
-        pipeline.CHUNK_FALLBACK_STRIDE = original_state["CHUNK_FALLBACK_STRIDE"]
+        pipeline._PIPELINE_CONFIG_DATA = deepcopy(original_state["PIPELINE_CONFIG_DATA"])
+        pipeline._CHUNK_EMBEDDING_INDEX_NAME = original_state["CHUNK_EMBEDDING_INDEX_NAME"]
+        pipeline._CHUNK_EMBEDDING_LABEL = original_state["CHUNK_EMBEDDING_LABEL"]
+        pipeline._CHUNK_EMBEDDING_PROPERTY = original_state["CHUNK_EMBEDDING_PROPERTY"]
+        pipeline._CHUNK_EMBEDDING_DIMENSIONS = original_state["CHUNK_EMBEDDING_DIMENSIONS"]
+        pipeline._EMBEDDER_MODEL_NAME = original_state["EMBEDDER_MODEL_NAME"]
+        pipeline._CHUNK_FALLBACK_STRIDE = original_state["CHUNK_FALLBACK_STRIDE"]
         pipeline._DATASET_ID = original_state["DATASET_ID"]
         if contract_was_loaded:
             pipeline._PIPELINE_CONTRACT_LOADED.set()
@@ -42,14 +42,14 @@ def isolate_pipeline_contract(monkeypatch):
 
 
 def _reset_contract_state() -> None:
-    pipeline.PIPELINE_CONFIG_DATA = {}
+    pipeline._PIPELINE_CONFIG_DATA = {}
     pipeline._PIPELINE_CONTRACT_LOADED.clear()
-    pipeline.CHUNK_EMBEDDING_INDEX_NAME = pipeline._DEFAULT_CHUNK_EMBEDDING_INDEX_NAME
-    pipeline.CHUNK_EMBEDDING_LABEL = pipeline._DEFAULT_CHUNK_EMBEDDING_LABEL
-    pipeline.CHUNK_EMBEDDING_PROPERTY = pipeline._DEFAULT_CHUNK_EMBEDDING_PROPERTY
-    pipeline.CHUNK_EMBEDDING_DIMENSIONS = pipeline._DEFAULT_CHUNK_EMBEDDING_DIMENSIONS
-    pipeline.EMBEDDER_MODEL_NAME = pipeline._DEFAULT_EMBEDDER_MODEL_NAME
-    pipeline.CHUNK_FALLBACK_STRIDE = max(pipeline._DEFAULT_CHUNK_SIZE - pipeline._DEFAULT_CHUNK_OVERLAP, 1)
+    pipeline._CHUNK_EMBEDDING_INDEX_NAME = pipeline._DEFAULT_CHUNK_EMBEDDING_INDEX_NAME
+    pipeline._CHUNK_EMBEDDING_LABEL = pipeline._DEFAULT_CHUNK_EMBEDDING_LABEL
+    pipeline._CHUNK_EMBEDDING_PROPERTY = pipeline._DEFAULT_CHUNK_EMBEDDING_PROPERTY
+    pipeline._CHUNK_EMBEDDING_DIMENSIONS = pipeline._DEFAULT_CHUNK_EMBEDDING_DIMENSIONS
+    pipeline._EMBEDDER_MODEL_NAME = pipeline._DEFAULT_EMBEDDER_MODEL_NAME
+    pipeline._CHUNK_FALLBACK_STRIDE = max(pipeline._DEFAULT_CHUNK_SIZE - pipeline._DEFAULT_CHUNK_OVERLAP, 1)
     pipeline._DATASET_ID = pipeline._DEFAULT_DATASET_ID
 
 
@@ -78,14 +78,14 @@ def test_refresh_pipeline_contract_applies_overrides(tmp_path, monkeypatch):
 
     pipeline.refresh_pipeline_contract()
 
-    assert pipeline.CHUNK_EMBEDDING_INDEX_NAME == "custom_index"
-    assert pipeline.CHUNK_EMBEDDING_LABEL == "CustomLabel"
-    assert pipeline.CHUNK_EMBEDDING_PROPERTY == "custom_prop"
-    assert pipeline.CHUNK_EMBEDDING_DIMENSIONS == 2048
-    assert pipeline.EMBEDDER_MODEL_NAME == "text-embedding-3-large"
-    assert pipeline.CHUNK_FALLBACK_STRIDE == 180
+    assert pipeline._CHUNK_EMBEDDING_INDEX_NAME == "custom_index"
+    assert pipeline._CHUNK_EMBEDDING_LABEL == "CustomLabel"
+    assert pipeline._CHUNK_EMBEDDING_PROPERTY == "custom_prop"
+    assert pipeline._CHUNK_EMBEDDING_DIMENSIONS == 2048
+    assert pipeline._EMBEDDER_MODEL_NAME == "text-embedding-3-large"
+    assert pipeline._CHUNK_FALLBACK_STRIDE == 180
     assert pipeline._DATASET_ID == "custom_dataset"
-    assert pipeline.PIPELINE_CONFIG_DATA["contract"]["chunk_embedding"]["dimensions"] == "2048"
+    assert pipeline._PIPELINE_CONFIG_DATA["contract"]["chunk_embedding"]["dimensions"] == "2048"
 
 
 def test_refresh_pipeline_contract_falls_back_on_invalid_types(tmp_path, monkeypatch):
@@ -113,12 +113,12 @@ def test_refresh_pipeline_contract_falls_back_on_invalid_types(tmp_path, monkeyp
 
     pipeline.refresh_pipeline_contract()
 
-    assert pipeline.CHUNK_EMBEDDING_INDEX_NAME == pipeline._DEFAULT_CHUNK_EMBEDDING_INDEX_NAME
-    assert pipeline.CHUNK_EMBEDDING_LABEL == pipeline._DEFAULT_CHUNK_EMBEDDING_LABEL
-    assert pipeline.CHUNK_EMBEDDING_PROPERTY == pipeline._DEFAULT_CHUNK_EMBEDDING_PROPERTY
-    assert pipeline.CHUNK_EMBEDDING_DIMENSIONS == pipeline._DEFAULT_CHUNK_EMBEDDING_DIMENSIONS
-    assert pipeline.EMBEDDER_MODEL_NAME == pipeline._DEFAULT_EMBEDDER_MODEL_NAME
-    assert pipeline.CHUNK_FALLBACK_STRIDE == max(pipeline._DEFAULT_CHUNK_SIZE - pipeline._DEFAULT_CHUNK_OVERLAP, 1)
+    assert pipeline._CHUNK_EMBEDDING_INDEX_NAME == pipeline._DEFAULT_CHUNK_EMBEDDING_INDEX_NAME
+    assert pipeline._CHUNK_EMBEDDING_LABEL == pipeline._DEFAULT_CHUNK_EMBEDDING_LABEL
+    assert pipeline._CHUNK_EMBEDDING_PROPERTY == pipeline._DEFAULT_CHUNK_EMBEDDING_PROPERTY
+    assert pipeline._CHUNK_EMBEDDING_DIMENSIONS == pipeline._DEFAULT_CHUNK_EMBEDDING_DIMENSIONS
+    assert pipeline._EMBEDDER_MODEL_NAME == pipeline._DEFAULT_EMBEDDER_MODEL_NAME
+    assert pipeline._CHUNK_FALLBACK_STRIDE == max(pipeline._DEFAULT_CHUNK_SIZE - pipeline._DEFAULT_CHUNK_OVERLAP, 1)
     assert pipeline._DATASET_ID == pipeline._DEFAULT_DATASET_ID
 
 
@@ -167,12 +167,12 @@ def test_dataset_id_module_attribute_emits_deprecation_warnings() -> None:
 
 def test_pipeline_contract_snapshot_reflects_current_values() -> None:
     _reset_contract_state()
-    pipeline.CHUNK_EMBEDDING_INDEX_NAME = "snapshot_index"
-    pipeline.CHUNK_EMBEDDING_LABEL = "SnapshotChunk"
-    pipeline.CHUNK_EMBEDDING_PROPERTY = "snapshot_embedding"
-    pipeline.CHUNK_EMBEDDING_DIMENSIONS = 3072
-    pipeline.EMBEDDER_MODEL_NAME = "text-embedding-3-large"
-    pipeline.CHUNK_FALLBACK_STRIDE = 256
+    pipeline._CHUNK_EMBEDDING_INDEX_NAME = "snapshot_index"
+    pipeline._CHUNK_EMBEDDING_LABEL = "SnapshotChunk"
+    pipeline._CHUNK_EMBEDDING_PROPERTY = "snapshot_embedding"
+    pipeline._CHUNK_EMBEDDING_DIMENSIONS = 3072
+    pipeline._EMBEDDER_MODEL_NAME = "text-embedding-3-large"
+    pipeline._CHUNK_FALLBACK_STRIDE = 256
 
     snapshot = pipeline.get_pipeline_contract_snapshot()
 
@@ -182,3 +182,28 @@ def test_pipeline_contract_snapshot_reflects_current_values() -> None:
     assert snapshot.chunk_embedding_dimensions == 3072
     assert snapshot.embedder_model_name == "text-embedding-3-large"
     assert snapshot.chunk_fallback_stride == 256
+
+
+def test_pipeline_contract_config_data_getter_returns_copy() -> None:
+    _reset_contract_state()
+    pipeline._PIPELINE_CONFIG_DATA = {"contract": {"chunk_embedding": {"index_name": "demo_index"}}}
+
+    result = pipeline.get_pipeline_contract_config_data()
+
+    assert result == {"contract": {"chunk_embedding": {"index_name": "demo_index"}}}
+    assert result is not pipeline._PIPELINE_CONFIG_DATA
+
+
+def test_non_dataset_pipeline_compat_exports_emit_deprecation_warnings() -> None:
+    _reset_contract_state()
+
+    with pytest.deprecated_call(match="CHUNK_EMBEDDING_INDEX_NAME is deprecated"):
+        assert pipeline.CHUNK_EMBEDDING_INDEX_NAME == pipeline._DEFAULT_CHUNK_EMBEDDING_INDEX_NAME
+
+    with pytest.deprecated_call(match="PIPELINE_CONFIG_DATA is deprecated"):
+        assert pipeline.PIPELINE_CONFIG_DATA == {}
+
+    with pytest.deprecated_call(match="EMBEDDER_MODEL_NAME is deprecated"):
+        pipeline.EMBEDDER_MODEL_NAME = "compat-model"
+
+    assert pipeline._EMBEDDER_MODEL_NAME == "compat-model"

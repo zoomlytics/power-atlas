@@ -12,16 +12,7 @@ from power_atlas.contracts.paths import (
     list_available_datasets,
     resolve_dataset_root,
 )
-from power_atlas.contracts.pipeline import (
-    CHUNK_EMBEDDING_DIMENSIONS,
-    CHUNK_EMBEDDING_INDEX_NAME,
-    CHUNK_EMBEDDING_LABEL,
-    CHUNK_EMBEDDING_PROPERTY,
-    CHUNK_FALLBACK_STRIDE,
-    EMBEDDER_MODEL_NAME,
-    PIPELINE_CONFIG_DATA,
-    ensure_pipeline_contract_loaded,
-)
+from power_atlas.contracts.pipeline import ensure_pipeline_contract_loaded
 from power_atlas.contracts.prompts import POWER_ATLAS_RAG_TEMPLATE, PROMPT_IDS
 from power_atlas.contracts.resolution import ALIGNMENT_VERSION
 from power_atlas.contracts.retrieval_early_return_policy import (
@@ -91,6 +82,17 @@ __all__ = [
 def __getattr__(name: str) -> Any:  # pragma: no cover - thin import proxy
     if name in {"claim_extraction_lexical_config", "claim_extraction_schema"}:
         module = import_module("power_atlas.contracts.claim_schema")
+        return getattr(module, name)
+    if name in {
+        "CHUNK_EMBEDDING_DIMENSIONS",
+        "CHUNK_EMBEDDING_INDEX_NAME",
+        "CHUNK_EMBEDDING_LABEL",
+        "CHUNK_EMBEDDING_PROPERTY",
+        "CHUNK_FALLBACK_STRIDE",
+        "EMBEDDER_MODEL_NAME",
+        "PIPELINE_CONFIG_DATA",
+    }:
+        module = import_module("power_atlas.contracts.pipeline")
         return getattr(module, name)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 

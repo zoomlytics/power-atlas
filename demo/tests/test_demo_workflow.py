@@ -1205,9 +1205,11 @@ class WorkflowTests(unittest.TestCase):
 
         import power_atlas.contracts.pipeline as pipeline_contracts
 
-        original_index_name = pipeline_contracts.CHUNK_EMBEDDING_INDEX_NAME
+        with self.assertWarnsRegex(DeprecationWarning, "CHUNK_EMBEDDING_INDEX_NAME is deprecated"):
+            original_index_name = pipeline_contracts.CHUNK_EMBEDDING_INDEX_NAME
         try:
-            pipeline_contracts.CHUNK_EMBEDDING_INDEX_NAME = "dynamic_contract_index"
+            with self.assertWarnsRegex(DeprecationWarning, "CHUNK_EMBEDDING_INDEX_NAME is deprecated"):
+                pipeline_contracts.CHUNK_EMBEDDING_INDEX_NAME = "dynamic_contract_index"
 
             self.assertEqual(module.CHUNK_EMBEDDING_INDEX_NAME, "dynamic_contract_index")
 
@@ -1215,7 +1217,8 @@ class WorkflowTests(unittest.TestCase):
 
             self.assertEqual(summary["vector_index"]["index_name"], "dynamic_contract_index")
         finally:
-            pipeline_contracts.CHUNK_EMBEDDING_INDEX_NAME = original_index_name
+            with self.assertWarnsRegex(DeprecationWarning, "CHUNK_EMBEDDING_INDEX_NAME is deprecated"):
+                pipeline_contracts.CHUNK_EMBEDDING_INDEX_NAME = original_index_name
 
     def test_run_demo_warns_and_falls_back_when_chunk_embedding_is_not_mapping(self):
         original_safe_load = yaml.safe_load
@@ -2702,16 +2705,19 @@ class ResetDemoDbTests(unittest.TestCase):
 
         import power_atlas.contracts.pipeline as pipeline_contracts
 
-        original_index_name = pipeline_contracts.CHUNK_EMBEDDING_INDEX_NAME
+        with self.assertWarnsRegex(DeprecationWarning, "CHUNK_EMBEDDING_INDEX_NAME is deprecated"):
+            original_index_name = pipeline_contracts.CHUNK_EMBEDDING_INDEX_NAME
         try:
-            pipeline_contracts.CHUNK_EMBEDDING_INDEX_NAME = "dynamic_reset_index"
+            with self.assertWarnsRegex(DeprecationWarning, "CHUNK_EMBEDDING_INDEX_NAME is deprecated"):
+                pipeline_contracts.CHUNK_EMBEDDING_INDEX_NAME = "dynamic_reset_index"
             report = module.run_reset(
                 driver=fake_neo4j.GraphDatabase.driver("neo4j://localhost:7687"),
                 database="neo4j",
                 output_dir=None,
             )
         finally:
-            pipeline_contracts.CHUNK_EMBEDDING_INDEX_NAME = original_index_name
+            with self.assertWarnsRegex(DeprecationWarning, "CHUNK_EMBEDDING_INDEX_NAME is deprecated"):
+                pipeline_contracts.CHUNK_EMBEDDING_INDEX_NAME = original_index_name
 
         self.assertEqual(report["indexes_dropped"], ["dynamic_reset_index"])
         self.assertEqual(report["indexes_not_found"], [])

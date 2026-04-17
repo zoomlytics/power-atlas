@@ -55,10 +55,22 @@ _PIPELINE_CONTRACT_EXPORTS = {
 
 _logger = logging.getLogger(__name__)
 
+_PIPELINE_SNAPSHOT_FIELDS = {
+    "CHUNK_EMBEDDING_DIMENSIONS": "chunk_embedding_dimensions",
+    "CHUNK_EMBEDDING_INDEX_NAME": "chunk_embedding_index_name",
+    "CHUNK_EMBEDDING_LABEL": "chunk_embedding_label",
+    "CHUNK_EMBEDDING_PROPERTY": "chunk_embedding_property",
+    "CHUNK_FALLBACK_STRIDE": "chunk_fallback_stride",
+    "EMBEDDER_MODEL_NAME": "embedder_model_name",
+}
+
 
 def _pipeline_contract_value(name: str) -> Any:
     if name in globals():
         return globals()[name]
+    snapshot_field = _PIPELINE_SNAPSHOT_FIELDS.get(name)
+    if snapshot_field is not None:
+        return getattr(pipeline_contracts.get_pipeline_contract_snapshot(), snapshot_field)
     return getattr(pipeline_contracts, name)
 
 
@@ -75,7 +87,7 @@ def _pipeline_contract_view() -> dict[str, Any]:
 
 def __getattr__(name: str) -> Any:
     if name in _PIPELINE_CONTRACT_EXPORTS:
-        return getattr(pipeline_contracts, name)
+        return _pipeline_contract_value(name)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 

@@ -303,19 +303,25 @@ def test_claim_extraction_lexical_config_reads_live_pipeline_contract_snapshot()
     import power_atlas.contracts.claim_schema as claim_schema_module
     import power_atlas.contracts.pipeline as pipeline_module
 
-    original_label = pipeline_module.CHUNK_EMBEDDING_LABEL
-    original_property = pipeline_module.CHUNK_EMBEDDING_PROPERTY
+    with pytest.deprecated_call(match="CHUNK_EMBEDDING_LABEL is deprecated"):
+        original_label = pipeline_module.CHUNK_EMBEDDING_LABEL
+    with pytest.deprecated_call(match="CHUNK_EMBEDDING_PROPERTY is deprecated"):
+        original_property = pipeline_module.CHUNK_EMBEDDING_PROPERTY
     try:
-        pipeline_module.CHUNK_EMBEDDING_LABEL = "DynamicChunk"
-        pipeline_module.CHUNK_EMBEDDING_PROPERTY = "dynamic_embedding"
+        with pytest.deprecated_call(match="CHUNK_EMBEDDING_LABEL is deprecated"):
+            pipeline_module.CHUNK_EMBEDDING_LABEL = "DynamicChunk"
+        with pytest.deprecated_call(match="CHUNK_EMBEDDING_PROPERTY is deprecated"):
+            pipeline_module.CHUNK_EMBEDDING_PROPERTY = "dynamic_embedding"
 
         lexical_config = claim_schema_module.claim_extraction_lexical_config()
 
         assert lexical_config.chunk_node_label == "DynamicChunk"
         assert lexical_config.chunk_embedding_property == "dynamic_embedding"
     finally:
-        pipeline_module.CHUNK_EMBEDDING_LABEL = original_label
-        pipeline_module.CHUNK_EMBEDDING_PROPERTY = original_property
+        with pytest.deprecated_call(match="CHUNK_EMBEDDING_LABEL is deprecated"):
+            pipeline_module.CHUNK_EMBEDDING_LABEL = original_label
+        with pytest.deprecated_call(match="CHUNK_EMBEDDING_PROPERTY is deprecated"):
+            pipeline_module.CHUNK_EMBEDDING_PROPERTY = original_property
 
 
 def test_demo_pipeline_contract_shim_is_package_module() -> None:
