@@ -388,6 +388,108 @@ def _warn_env_run_id_dataset_mismatch(
     )
 
 
+def _warn_if_env_run_id_bypasses_dataset_selection(
+    env_run_id: str,
+    *,
+    config_dataset: str | None,
+) -> None:
+    power_atlas_dataset, fixture_dataset, effective_env_dataset = _current_env_dataset_selection()
+    if config_dataset or effective_env_dataset:
+        _warn_env_run_id_dataset_mismatch(
+            env_run_id,
+            config_dataset,
+            power_atlas_dataset,
+            fixture_dataset,
+        )
+
+
+def _validate_explicit_run_id_dataset_selection(
+    config: Config,
+    explicit_run_id: str,
+) -> None:
+    if config.dry_run:
+        return
+
+    config_dataset = config.dataset_name
+    power_atlas_dataset, fixture_dataset, effective_env_dataset = _current_env_dataset_selection()
+    effective_dataset = config_dataset or effective_env_dataset
+    if not effective_dataset:
+        return
+
+    try:
+        expected_dataset_id = resolve_dataset_root(effective_dataset).dataset_id
+    except ValueError as exc:
+        _logger.warning(
+            "Could not resolve dataset %r to "
+            "validate --run-id dataset ownership "
+            "(%s). Dataset-ownership check skipped.",
+            effective_dataset,
+            exc,
+        )
+        return
+
+    actual_dataset_id = _fetch_dataset_id_for_run(config, explicit_run_id)
+    if actual_dataset_id is not None and actual_dataset_id != expected_dataset_id:
+        _warn_explicit_run_id_dataset_mismatch(
+            explicit_run_id,
+            expected_dataset_id,
+            actual_dataset_id,
+            config_dataset=config_dataset,
+            power_atlas_dataset=power_atlas_dataset,
+            fixture_dataset=fixture_dataset,
+        )
+
+
+def _resolve_latest_dataset_id(config: Config) -> str | None:
+    try:
+        return resolve_dataset_root(config.dataset_name).dataset_id
+    except ValueError as exc:
+        _power_atlas_dataset, _fixture_dataset, explicit_env_dataset = _current_env_dataset_selection()
+        explicit_source = config.dataset_name or explicit_env_dataset
+        if explicit_source:
+            raise SystemExit(
+                f"Failed to resolve dataset {explicit_source!r}: {exc}"
+            ) from exc
+        return None
+
+
+def _resolve_latest_run_scope(
+    config: Config,
+    *,
+    env_run_id: str | None,
+    use_latest: bool,
+) -> str:
+    resolved_dataset_id = _resolve_latest_dataset_id(config)
+    latest_run_id = _fetch_latest_unstructured_run_id(config, dataset_id=resolved_dataset_id)
+    if latest_run_id is None:
+        raise SystemExit(
+            "No unstructured ingest runs found in the database. "
+            "Run 'ingest-pdf' first, or use --all-runs to query all available data."
+        )
+    if use_latest and env_run_id and env_run_id != latest_run_id:
+        _logger.warning(
+            "UNSTRUCTURED_RUN_ID=%r is set but overridden by --latest. "
+            "Using latest: %r.",
+            env_run_id,
+            latest_run_id,
+        )
+    return latest_run_id
+
+
+def _resolve_dry_run_ask_scope(
+    config: Config,
+    *,
+    env_run_id: str | None,
+) -> tuple[str | None, bool]:
+    if env_run_id:
+        _warn_if_env_run_id_bypasses_dataset_selection(
+            env_run_id,
+            config_dataset=config.dataset_name,
+        )
+        return env_run_id, False
+    return None, False
+
+
 def _resolve_ask_scope(
     args: argparse.Namespace, config: Config
 ) -> tuple[str | None, bool]:
@@ -425,118 +527,23 @@ def _resolve_ask_scope(
                 env_run_id,
                 explicit_run_id,
             )
-        # Dataset-integrity check: when a dataset is explicitly selected, verify
-        # that --run-id actually belongs to that dataset.  Skip in dry-run mode
-        # because Neo4j is unavailable and the run cannot be verified.
-        if not config.dry_run:
-            _cli_dataset = config.dataset_name
-            _power_atlas_dataset, _fixture_dataset, effective_env_dataset = _current_env_dataset_selection()
-            effective_dataset = _cli_dataset or effective_env_dataset
-            if effective_dataset:
-                try:
-                    expected_dataset_id = resolve_dataset_root(effective_dataset).dataset_id
-                except ValueError as exc:
-                    # Dataset resolution failed (e.g. typo or unknown dataset name).
-                    # Emit a visible warning so the operator knows validation was
-                    # skipped; do not raise so the pipeline can still proceed with
-                    # the explicitly-requested run-id.
-                    _logger.warning(
-                        "Could not resolve dataset %r to "
-                        "validate --run-id dataset ownership "
-                        "(%s). Dataset-ownership check skipped.",
-                        effective_dataset,
-                        exc,
-                    )
-                else:
-                    actual_dataset_id = _fetch_dataset_id_for_run(config, explicit_run_id)
-                    if actual_dataset_id is not None and actual_dataset_id != expected_dataset_id:
-                        _warn_explicit_run_id_dataset_mismatch(
-                            explicit_run_id,
-                            expected_dataset_id,
-                            actual_dataset_id,
-                            config_dataset=_cli_dataset,
-                            power_atlas_dataset=_power_atlas_dataset,
-                            fixture_dataset=_fixture_dataset,
-                        )
+        _validate_explicit_run_id_dataset_selection(config, explicit_run_id)
         return explicit_run_id, False
 
     # Default / --latest: resolve the latest run_id.
     if config.dry_run:
-        # In dry-run mode, Neo4j is unavailable; honour env var if set, else proceed
-        # without a run scope (dry-run stubs don't require a real run_id).
-        if env_run_id:
-            # Dataset-integrity warning (dry-run): UNSTRUCTURED_RUN_ID bypasses
-            # dataset-aware run selection when an explicit dataset is also provided.
-            # The run pointed to by the env var may belong to a different dataset.
-            # Use --latest (in --live mode) or --run-id for guaranteed
-            # dataset-scoped selection.
-            config_dataset = config.dataset_name
-            power_atlas_dataset, fixture_dataset, effective_env_dataset = _current_env_dataset_selection()
-            if config_dataset or effective_env_dataset:
-                _warn_env_run_id_dataset_mismatch(
-                    env_run_id,
-                    config_dataset,
-                    power_atlas_dataset,
-                    fixture_dataset,
-                )
-            return env_run_id, False
-        return None, False
+        return _resolve_dry_run_ask_scope(config, env_run_id=env_run_id)
 
     # Live mode: resolve run_id according to precedence:
     # CLI flags (--run-id/--latest/--all-runs) > UNSTRUCTURED_RUN_ID > implicit latest.
     if not use_latest and env_run_id:
-        # No explicit --latest flag; honour UNSTRUCTURED_RUN_ID if set.
-        # Dataset-integrity warning: UNSTRUCTURED_RUN_ID bypasses dataset-aware run
-        # selection when an explicit dataset is also provided (via --dataset or
-        # FIXTURE_DATASET).  The run pointed to by the env var may belong to a
-        # different dataset, which would silently retrieve from the wrong scope.
-        # Warn the operator so the mismatch is visible.  Use --latest or --run-id
-        # to enforce dataset-scoped selection.
-        config_dataset = config.dataset_name
-        power_atlas_dataset, fixture_dataset, effective_env_dataset = _current_env_dataset_selection()
-        if config_dataset or effective_env_dataset:
-            _warn_env_run_id_dataset_mismatch(
-                env_run_id,
-                config_dataset,
-                power_atlas_dataset,
-                fixture_dataset,
-            )
+        _warn_if_env_run_id_bypasses_dataset_selection(
+            env_run_id,
+            config_dataset=config.dataset_name,
+        )
         return env_run_id, False
 
-    # Either --latest was explicitly requested, or no env var is set: query Neo4j.
-    # Resolve dataset_id for dataset-aware latest run selection so that in a
-    # multi-dataset repo ``ask --dataset demo_dataset_v1`` never picks up a run
-    # that belongs to demo_dataset_v2.
-    resolved_dataset_id: str | None = None
-    try:
-        resolved_dataset_id = resolve_dataset_root(config.dataset_name).dataset_id
-    except ValueError as exc:
-        # Treat both --dataset <name> and FIXTURE_DATASET=<name> as explicit
-        # selections; a failure to resolve an explicit name must never silently
-        # fall through to an unfiltered query that could pick the wrong run.
-        _power_atlas_dataset, _fixture_dataset, explicit_env_dataset = _current_env_dataset_selection()
-        explicit_source = config.dataset_name or explicit_env_dataset
-        if explicit_source:
-            raise SystemExit(
-                f"Failed to resolve dataset {explicit_source!r}: {exc}"
-            ) from exc
-        # Implicit/auto-discovered dataset resolution failed (e.g.
-        # AmbiguousDatasetError with no explicit selection): preserve legacy
-        # behaviour by falling back to an unfiltered latest-run query.
-    latest_run_id = _fetch_latest_unstructured_run_id(config, dataset_id=resolved_dataset_id)
-    if latest_run_id is None:
-        raise SystemExit(
-            "No unstructured ingest runs found in the database. "
-            "Run 'ingest-pdf' first, or use --all-runs to query all available data."
-        )
-    if use_latest and env_run_id and env_run_id != latest_run_id:
-        _logger.warning(
-            "UNSTRUCTURED_RUN_ID=%r is set but overridden by --latest. "
-            "Using latest: %r.",
-            env_run_id,
-            latest_run_id,
-        )
-    return latest_run_id, False
+    return _resolve_latest_run_scope(config, env_run_id=env_run_id, use_latest=use_latest), False
 
 
 def _run_orchestrated(config: Config) -> Path:
