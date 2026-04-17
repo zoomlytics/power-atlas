@@ -19,10 +19,8 @@ from power_atlas.contracts.pipeline import (
     CHUNK_EMBEDDING_PROPERTY,
     CHUNK_FALLBACK_STRIDE,
     EMBEDDER_MODEL_NAME,
-    get_dataset_id,
     PIPELINE_CONFIG_DATA,
     ensure_pipeline_contract_loaded,
-    set_dataset_id,
 )
 from power_atlas.contracts.prompts import POWER_ATLAS_RAG_TEMPLATE, PROMPT_IDS
 from power_atlas.contracts.resolution import ALIGNMENT_VERSION
@@ -63,7 +61,6 @@ __all__ = [
     "CHUNK_EMBEDDING_LABEL",
     "CHUNK_EMBEDDING_PROPERTY",
     "CHUNK_FALLBACK_STRIDE",
-    "DATASET_ID",
     "DATASETS_CONTAINER_DIR",
     "DatasetRoot",
     "Config",
@@ -74,7 +71,6 @@ __all__ = [
     "EMBEDDER_MODEL_NAME",
     "ensure_pipeline_contract_loaded",
     "FIXTURES_DIR",
-    "get_dataset_id",
     "ID_PATTERNS",
     "list_available_datasets",
     "make_run_id",
@@ -86,7 +82,6 @@ __all__ = [
     "RetrievalMetadataSurface",
     "RETRIEVAL_METADATA_SURFACE_POLICY",
     "resolve_dataset_root",
-    "set_dataset_id",
     "STRUCTURED_FILE_HEADERS",
     "timestamp",
     "VALUE_TYPES",
@@ -97,8 +92,6 @@ def __getattr__(name: str) -> Any:  # pragma: no cover - thin import proxy
     if name in {"claim_extraction_lexical_config", "claim_extraction_schema"}:
         module = import_module("power_atlas.contracts.claim_schema")
         return getattr(module, name)
-    if name == "DATASET_ID":
-        return import_module("power_atlas.contracts.pipeline").DATASET_ID
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 

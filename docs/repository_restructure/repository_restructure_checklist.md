@@ -143,7 +143,7 @@ Use the following status values consistently:
 **Status:** in progress  
 **Owner:**  
 **Blockers:**  
-**Notes:** Initial seam extraction is underway but incomplete. In first-party live code, Neo4j driver construction now largely routes through `power_atlas.bootstrap.create_neo4j_driver(...)`, more entrypoint config/default ownership now flows through `build_settings(...)` plus `build_runtime_config(...)`, and the remaining env/default cleanup work has been reduced mostly to intentional runtime overrides rather than scattered initialization debt. That is meaningful Phase 4 progress, but this phase is not close to exit: CLI/orchestration code is still thicker than intended, raw Cypher remains in live stage modules, and infrastructure assembly has not yet been isolated to adapter-local/application-facing boundaries.  
+**Notes:** Initial seam extraction is underway but incomplete. In first-party live code, Neo4j driver construction now largely routes through `power_atlas.bootstrap.create_neo4j_driver(...)`, more entrypoint config/default ownership now flows through `build_settings(...)` plus `build_runtime_config(...)`, and the remaining env/default cleanup work has been reduced mostly to intentional runtime overrides rather than scattered initialization debt. Follow-on slices have now also landed package-owned run-scope query seams plus first write/query seams for `claim_participation` and `structured_ingest`, and the stage/orchestrator dataset-scope behavior has been thinned materially. That is meaningful Phase 4 progress, but this phase is not close to exit: CLI/orchestration code is still thicker than intended, raw Cypher remains in live stage modules, and infrastructure assembly has not yet been isolated to adapter-local/application-facing boundaries.  
 
 ### Exit criteria
 
@@ -166,10 +166,10 @@ Use the following status values consistently:
 
 ## Phase 5 — Runtime state cleanup
 
-**Status:** not started  
+**Status:** in progress  
 **Owner:**  
 **Blockers:**  
-**Notes:**  
+**Notes:** This phase is now partially underway even though the broader context-object design work has not started. Recent slices removed the main active dataset-state dependencies from `demo/stages/structured_ingest.py`, `demo/stages/pdf_ingest.py`, and `demo/stages/entity_resolution.py`, and `demo/run_demo.py` no longer writes dataset scope through `set_dataset_id(...)`. The remaining mutable dataset-state surface is now mostly confined to `power_atlas.contracts.pipeline` itself and compatibility-only exports rather than active stage behavior. `AppContext` / `RequestContext` design and the broader mutable-global inventory still remain open.  
 
 ### Exit criteria
 

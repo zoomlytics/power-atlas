@@ -324,6 +324,20 @@ def test_package_contracts_root_does_not_reexport_stateful_pipeline_symbols() ->
         assert not hasattr(contracts_module, name)
 
 
+def test_demo_contracts_root_does_not_reexport_mutable_dataset_pipeline_symbols() -> None:
+    import demo.contracts as demo_contracts
+
+    disallowed_exports = {
+        "DATASET_ID",
+        "get_dataset_id",
+        "set_dataset_id",
+    }
+
+    assert disallowed_exports.isdisjoint(demo_contracts.__all__)
+    for name in disallowed_exports:
+        assert not hasattr(demo_contracts, name)
+
+
 def test_build_embedder_for_settings_uses_embedder_model() -> None:
     from power_atlas.bootstrap.clients import build_embedder_for_settings
     from power_atlas.settings import AppSettings, Neo4jSettings

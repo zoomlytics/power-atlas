@@ -509,7 +509,12 @@ Early seam extraction has already landed additively:
 - direct env/default resolution has started moving out of package-owned and
   entrypoint-owned helper code,
 - the env/default cleanup lane now appears to be nearing exhaustion, with most
-  remaining cases looking intentional rather than accidental.
+  remaining cases looking intentional rather than accidental,
+- first package-owned query/write seams now exist for run-scope lookup,
+  claim-participation writes, and structured-ingest writes,
+- the main stage-level ambient dataset-id fallbacks have been removed from
+  `structured_ingest`, `pdf_ingest`, and `entity_resolution`, and the
+  orchestrator no longer writes dataset scope through `set_dataset_id(...)`.
 
 That progress should not be overstated. The repo has not yet reached a true
 adapter/application/interface split for graph access, raw Cypher still appears in
@@ -553,6 +558,24 @@ Prefer practical query services over overgeneralized repositories where needed.
 ---
 
 ### Phase 5 — Runtime state cleanup
+
+#### Current checkpoint status
+
+Phase 5 is no longer purely future work, but it is still early and partial.
+
+The repo has now completed a first concrete runtime-state reduction pass:
+
+- `structured_ingest`, `pdf_ingest`, and `entity_resolution` no longer depend on
+  ambient dataset state from `power_atlas.contracts.pipeline.get_dataset_id()`,
+- `demo/run_demo.py` no longer writes dataset scope via `set_dataset_id(...)`,
+- the mutable dataset-state surface is now effectively reduced to compatibility
+  exports and the pipeline submodule itself rather than active stage/orchestrator
+  behavior.
+
+That is meaningful progress, but it does not yet satisfy the phase. The pipeline
+contract still contains mutable module-level state, `AppContext` / `RequestContext`
+ do not exist, and the remaining stateful pipeline surface still needs an explicit
+ disposition rather than simple coexistence.
 
 #### Objectives
 
