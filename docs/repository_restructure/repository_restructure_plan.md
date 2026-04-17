@@ -573,6 +573,9 @@ The repo has now completed a first concrete runtime-state reduction pass:
 - `claim_schema` and `reset_demo_db` now read pipeline embedding/index settings
   through an explicit immutable snapshot helper rather than direct import-time
   constant bindings,
+- `pdf_ingest` and `retrieval_and_qa` now also resolve pipeline embedding/index
+  settings through snapshot-backed stage helpers rather than direct import-time
+  bindings to mutable pipeline globals,
 - the mutable dataset-state surface is now effectively reduced to compatibility
   exports and the pipeline submodule itself rather than active stage/orchestrator
   behavior.

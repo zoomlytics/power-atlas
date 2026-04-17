@@ -211,6 +211,28 @@ def test_pdf_ingest_dry_run_uses_contract(tmp_path: Path):
     assert ingest_summary["dataset_id"] == "demo_dataset_v1"
 
 
+def test_pdf_ingest_reads_live_pipeline_contract_snapshot(tmp_path: Path):
+    import demo.stages.pdf_ingest as pdf_ingest_module
+    import power_atlas.contracts.pipeline as pipeline_module
+
+    config = _dry_run_config(tmp_path)
+    fixtures_dir = resolve_dataset_root("demo_dataset_v1").root
+    original_index_name = pipeline_module.CHUNK_EMBEDDING_INDEX_NAME
+    try:
+        pipeline_module.CHUNK_EMBEDDING_INDEX_NAME = "dynamic_pdf_index"
+
+        summary = pdf_ingest_module.run_pdf_ingest(
+            config,
+            run_id="dynamic-pdf-run",
+            fixtures_dir=fixtures_dir,
+        )
+
+        assert pdf_ingest_module.CHUNK_EMBEDDING_INDEX_NAME == "dynamic_pdf_index"
+        assert summary["vector_index"]["index_name"] == "dynamic_pdf_index"
+    finally:
+        pipeline_module.CHUNK_EMBEDDING_INDEX_NAME = original_index_name
+
+
 def test_pdf_ingest_rejects_dot_pdf_filename(tmp_path: Path):
     config = _dry_run_config(tmp_path)
     with pytest.raises(ValueError, match="pdf_filename"):
@@ -294,6 +316,27 @@ def test_retrieval_and_qa_dry_run_includes_metadata_fields(tmp_path: Path):
     for key in required_keys:
         assert key in kv_pairs, f"Expected '{key}' field in citation token"
         assert kv_pairs[key] == str(citation_obj[key]), f"Expected '{key}' value {citation_obj[key]!r}, got {kv_pairs[key]!r}"
+
+
+def test_retrieval_and_qa_reads_live_pipeline_contract_snapshot(tmp_path: Path):
+    import demo.stages.retrieval_and_qa as retrieval_module
+    import power_atlas.contracts.pipeline as pipeline_module
+
+    config = _dry_run_config(tmp_path)
+    original_index_name = pipeline_module.CHUNK_EMBEDDING_INDEX_NAME
+    try:
+        pipeline_module.CHUNK_EMBEDDING_INDEX_NAME = "dynamic_retrieval_index"
+
+        result = retrieval_module.run_retrieval_and_qa(
+            config,
+            run_id="qa-dynamic-run",
+            source_uri="file:///example/doc.pdf",
+        )
+
+        assert retrieval_module.CHUNK_EMBEDDING_INDEX_NAME == "dynamic_retrieval_index"
+        assert result["retriever_index_name"] == "dynamic_retrieval_index"
+    finally:
+        pipeline_module.CHUNK_EMBEDDING_INDEX_NAME = original_index_name
 
 
 def test_retrieval_and_qa_run_id_appears_in_batch_manifest(tmp_path: Path):

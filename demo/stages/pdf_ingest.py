@@ -8,14 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from power_atlas.bootstrap import create_neo4j_driver, require_openai_api_key, temporary_environment
-from power_atlas.contracts.pipeline import (
-    CHUNK_EMBEDDING_DIMENSIONS,
-    CHUNK_EMBEDDING_INDEX_NAME,
-    CHUNK_EMBEDDING_LABEL,
-    CHUNK_EMBEDDING_PROPERTY,
-    CHUNK_FALLBACK_STRIDE,
-    EMBEDDER_MODEL_NAME,
-)
+from power_atlas.contracts.pipeline import get_pipeline_contract_snapshot
 from power_atlas.contracts import (
     DatasetRoot,
     FIXTURES_DIR,
@@ -29,6 +22,27 @@ from power_atlas.contracts import make_run_id
 # power_atlas.contracts.paths. Resolved datasets should use DatasetRoot.pdf_filename.
 _DEFAULT_PDF_FILENAME = "chain_of_custody.pdf"
 _logger = logging.getLogger(__name__)
+_PIPELINE_CONTRACT_EXPORTS = {
+    "CHUNK_EMBEDDING_DIMENSIONS": "chunk_embedding_dimensions",
+    "CHUNK_EMBEDDING_INDEX_NAME": "chunk_embedding_index_name",
+    "CHUNK_EMBEDDING_LABEL": "chunk_embedding_label",
+    "CHUNK_EMBEDDING_PROPERTY": "chunk_embedding_property",
+    "CHUNK_FALLBACK_STRIDE": "chunk_fallback_stride",
+    "EMBEDDER_MODEL_NAME": "embedder_model_name",
+}
+
+
+def _pipeline_contract_value(name: str) -> Any:
+    if name in globals():
+        return globals()[name]
+    snapshot = get_pipeline_contract_snapshot()
+    return getattr(snapshot, _PIPELINE_CONTRACT_EXPORTS[name])
+
+
+def __getattr__(name: str) -> Any:
+    if name in _PIPELINE_CONTRACT_EXPORTS:
+        return _pipeline_contract_value(name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def _dataset_metadata_from_fixtures_root(fixtures_root: Path) -> tuple[str, str]:
@@ -188,19 +202,19 @@ def run_pdf_ingest(
         raise FileNotFoundError(f"Required PDF fixture not found: {pdf_path}")
     pdf_file_path = str(pdf_path)
     pdf_source_uri = pdf_path.as_uri()
-    effective_index_name = index_name or CHUNK_EMBEDDING_INDEX_NAME
-    effective_chunk_label = chunk_label or CHUNK_EMBEDDING_LABEL
-    effective_embedding_property = embedding_property or CHUNK_EMBEDDING_PROPERTY
+    effective_index_name = index_name or _pipeline_contract_value("CHUNK_EMBEDDING_INDEX_NAME")
+    effective_chunk_label = chunk_label or _pipeline_contract_value("CHUNK_EMBEDDING_LABEL")
+    effective_embedding_property = embedding_property or _pipeline_contract_value("CHUNK_EMBEDDING_PROPERTY")
     effective_embedding_dimensions = (
         _require_positive_int(embedding_dimensions, "embedding_dimensions")
         if embedding_dimensions is not None
-        else CHUNK_EMBEDDING_DIMENSIONS
+        else _pipeline_contract_value("CHUNK_EMBEDDING_DIMENSIONS")
     )
-    effective_embedder_model = embedder_model or EMBEDDER_MODEL_NAME
+    effective_embedder_model = embedder_model or _pipeline_contract_value("EMBEDDER_MODEL_NAME")
     effective_chunk_stride = (
         _require_positive_int(chunk_stride, "chunk_stride")
         if chunk_stride is not None
-        else CHUNK_FALLBACK_STRIDE
+        else _pipeline_contract_value("CHUNK_FALLBACK_STRIDE")
     )
     stage_run_id = run_id or make_run_id("unstructured_ingest")
     run_root = config.output_dir / "runs" / stage_run_id

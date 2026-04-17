@@ -27,10 +27,27 @@ from power_atlas.llm_utils import build_openai_llm
 from neo4j_graphrag.retrievers import VectorCypherRetriever
 from neo4j_graphrag.types import LLMMessage, RetrieverResultItem
 
-from power_atlas.contracts.pipeline import CHUNK_EMBEDDING_INDEX_NAME, EMBEDDER_MODEL_NAME
+from power_atlas.contracts.pipeline import get_pipeline_contract_snapshot
 
 _DEFAULT_TOP_K = 10
 _logger = logging.getLogger(__name__)
+_PIPELINE_CONTRACT_EXPORTS = {
+    "CHUNK_EMBEDDING_INDEX_NAME": "chunk_embedding_index_name",
+    "EMBEDDER_MODEL_NAME": "embedder_model_name",
+}
+
+
+def _pipeline_contract_value(name: str) -> str:
+    if name in globals():
+        return cast(str, globals()[name])
+    snapshot = get_pipeline_contract_snapshot()
+    return cast(str, getattr(snapshot, _PIPELINE_CONTRACT_EXPORTS[name]))
+
+
+def __getattr__(name: str) -> object:
+    if name in _PIPELINE_CONTRACT_EXPORTS:
+        return _pipeline_contract_value(name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 # ---------------------------------------------------------------------------
 # Private query sub-expression builders.
@@ -1724,7 +1741,7 @@ def _build_retriever_and_rag(
         AppSettings(
             neo4j=Neo4jSettings(),
             openai_model=qa_model,
-            embedder_model=EMBEDDER_MODEL_NAME,
+            embedder_model=_pipeline_contract_value("EMBEDDER_MODEL_NAME"),
         ),
         embedder_factory=OpenAIEmbeddings,
     )
@@ -1805,7 +1822,7 @@ def run_retrieval_and_qa(
         Citations may span multiple runs/files; *run_id* is ignored.  In this
         mode each citation still carries its own ``run_id`` provenance field.
     """
-    resolved_index_name = index_name if index_name is not None else CHUNK_EMBEDDING_INDEX_NAME
+    resolved_index_name = index_name if index_name is not None else _pipeline_contract_value("CHUNK_EMBEDDING_INDEX_NAME")
     qa_model = getattr(config, "openai_model", None)
     # effective_qa_model is the model that will actually be used for generation; it
     # includes the fallback default so the manifest always reflects the true model.
@@ -2305,7 +2322,7 @@ def run_interactive_qa(
     if missing_cfg:
         raise ValueError(f"Live retrieval requires config attributes: {', '.join(missing_cfg)}")
 
-    resolved_index_name = index_name if index_name is not None else CHUNK_EMBEDDING_INDEX_NAME
+    resolved_index_name = index_name if index_name is not None else _pipeline_contract_value("CHUNK_EMBEDDING_INDEX_NAME")
     effective_qa_model = getattr(config, "openai_model", None) or "gpt-5.4"
     retrieval_query = _select_retrieval_query(
         expand_graph=expand_graph, cluster_aware=cluster_aware, all_runs=all_runs
