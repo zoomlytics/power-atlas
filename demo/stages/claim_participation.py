@@ -83,6 +83,7 @@ from typing import Any
 import neo4j
 
 from power_atlas.bootstrap import create_neo4j_driver
+from power_atlas.claim_participation_writes import write_claim_participation_edges
 from power_atlas.text_utils import normalize_mention_text
 
 # ---------------------------------------------------------------------------
@@ -812,18 +813,10 @@ def write_participation_edges(
             f"(row indices: {invalid_type})."
         )
 
-    driver.execute_query(
-        """
-        UNWIND $rows AS row
-        MATCH (claim:ExtractedClaim {claim_id: row.claim_id, run_id: row.run_id})
-        MATCH (mention:EntityMention {mention_id: row.mention_id, run_id: row.run_id})
-        MERGE (claim)-[r:HAS_PARTICIPANT {role: row.role}]->(mention)
-        SET r.run_id = row.run_id,
-            r.source_uri = coalesce(row.source_uri, r.source_uri),
-            r.match_method = row.match_method
-        """,
-        parameters_={"rows": edge_rows},
-        database_=neo4j_database,
+    write_claim_participation_edges(
+        driver,
+        neo4j_database=neo4j_database,
+        edge_rows=edge_rows,
     )
 
 
