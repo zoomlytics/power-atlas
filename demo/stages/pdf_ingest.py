@@ -15,11 +15,12 @@ from power_atlas.contracts.pipeline import (
     CHUNK_EMBEDDING_PROPERTY,
     CHUNK_FALLBACK_STRIDE,
     EMBEDDER_MODEL_NAME,
-    get_dataset_id,
 )
 from power_atlas.contracts import (
+    DatasetRoot,
     FIXTURES_DIR,
     PDF_PIPELINE_CONFIG_PATH,
+    resolve_dataset_root,
 )
 from demo.cypher_utils import validate_cypher_identifier as _validate_cypher_identifier
 from power_atlas.contracts import make_run_id
@@ -28,6 +29,46 @@ from power_atlas.contracts import make_run_id
 # power_atlas.contracts.paths. Resolved datasets should use DatasetRoot.pdf_filename.
 _DEFAULT_PDF_FILENAME = "chain_of_custody.pdf"
 _logger = logging.getLogger(__name__)
+
+
+def _dataset_metadata_from_fixtures_root(fixtures_root: Path) -> tuple[str, str]:
+    manifest_path = fixtures_root / "manifest.json"
+    dataset_id = fixtures_root.name
+    pdf_filename = _DEFAULT_PDF_FILENAME
+    if manifest_path.is_file():
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            manifest = None
+        if isinstance(manifest, dict):
+            candidate_id = manifest.get("dataset")
+            if isinstance(candidate_id, str) and candidate_id:
+                dataset_id = candidate_id
+            for entry in manifest.get("provenance", []):
+                if isinstance(entry, dict) and entry.get("kind") == "pdf":
+                    candidate_pdf = Path(str(entry.get("path", ""))).name
+                    if candidate_pdf:
+                        pdf_filename = candidate_pdf
+                        break
+    return dataset_id, pdf_filename
+
+
+def _resolve_pdf_dataset(
+    config: Any,
+    fixtures_dir: Path | None,
+    dataset_id: str | None,
+    pdf_filename: str | None,
+) -> tuple[Path, str, str]:
+    if fixtures_dir is None:
+        dataset_root: DatasetRoot = resolve_dataset_root(getattr(config, "dataset_name", None))
+        effective_dataset_id = dataset_id if isinstance(dataset_id, str) and dataset_id else dataset_root.dataset_id
+        effective_pdf_filename = pdf_filename or dataset_root.pdf_filename
+        return dataset_root.root, effective_dataset_id, effective_pdf_filename
+
+    derived_dataset_id, derived_pdf_filename = _dataset_metadata_from_fixtures_root(fixtures_dir)
+    effective_dataset_id = dataset_id if isinstance(dataset_id, str) and dataset_id else derived_dataset_id
+    effective_pdf_filename = pdf_filename or derived_pdf_filename
+    return fixtures_dir, effective_dataset_id, effective_pdf_filename
 
 
 def sha256_file(path: Path, *, chunk_size: int = 1024 * 1024) -> str:
@@ -129,7 +170,13 @@ def run_pdf_ingest(
         raise ValueError(
             f"pdf_filename must be a plain .pdf basename without path separators, got {_pdf_filename!r}"
         )
-    pdf_base_dir = ((fixtures_dir or FIXTURES_DIR) / "unstructured").resolve()
+    fixtures_root, effective_dataset_id, _pdf_filename = _resolve_pdf_dataset(
+        config,
+        fixtures_dir,
+        dataset_id,
+        _pdf_filename,
+    )
+    pdf_base_dir = (fixtures_root / "unstructured").resolve()
     pdf_path = (pdf_base_dir / _pdf_filename).resolve()
     try:
         pdf_path.relative_to(pdf_base_dir)
@@ -141,7 +188,6 @@ def run_pdf_ingest(
         raise FileNotFoundError(f"Required PDF fixture not found: {pdf_path}")
     pdf_file_path = str(pdf_path)
     pdf_source_uri = pdf_path.as_uri()
-    effective_dataset_id = dataset_id if isinstance(dataset_id, str) and dataset_id else get_dataset_id()
     effective_index_name = index_name or CHUNK_EMBEDDING_INDEX_NAME
     effective_chunk_label = chunk_label or CHUNK_EMBEDDING_LABEL
     effective_embedding_property = embedding_property or CHUNK_EMBEDDING_PROPERTY

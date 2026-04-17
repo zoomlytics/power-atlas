@@ -196,12 +196,19 @@ def test_structured_lint_reports_and_raises_on_invalid_data(tmp_path: Path):
 
 def test_pdf_ingest_dry_run_uses_contract(tmp_path: Path):
     config = _dry_run_config(tmp_path)
-    summary = run_pdf_ingest(config, run_id="test-unstructured")
+    fixtures_dir = resolve_dataset_root("demo_dataset_v1").root
+    summary = run_pdf_ingest(
+        config,
+        run_id="test-unstructured",
+        fixtures_dir=fixtures_dir,
+    )
     assert summary["vector_index"]["index_name"] == CHUNK_EMBEDDING_INDEX_NAME
     assert summary["vector_index"]["label"] == CHUNK_EMBEDDING_LABEL
     assert summary["vector_index"]["embedding_property"] == CHUNK_EMBEDDING_PROPERTY
     assert summary["vector_index"]["dimensions"] == CHUNK_EMBEDDING_DIMENSIONS
     assert Path(summary["ingest_summary_path"]).exists()
+    ingest_summary = json.loads(Path(summary["ingest_summary_path"]).read_text(encoding="utf-8"))
+    assert ingest_summary["dataset_id"] == "demo_dataset_v1"
 
 
 def test_pdf_ingest_rejects_dot_pdf_filename(tmp_path: Path):
