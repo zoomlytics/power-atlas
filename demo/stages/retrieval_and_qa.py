@@ -12,6 +12,7 @@ from neo4j_graphrag.embeddings.openai import OpenAIEmbeddings
 from neo4j_graphrag.generation import GraphRAG
 from neo4j_graphrag.message_history import InMemoryMessageHistory, MessageHistory
 
+from power_atlas.bootstrap import require_openai_api_key
 from power_atlas.bootstrap.clients import build_embedder_for_settings, create_neo4j_driver
 from power_atlas.contracts import (
     ALIGNMENT_VERSION,
@@ -2035,8 +2036,9 @@ def run_retrieval_and_qa(
     citation_warnings_list: list[str] = []
     hits: list[dict[str, object]] = []
 
-    if not os.getenv("OPENAI_API_KEY"):
-        raise ValueError("OPENAI_API_KEY environment variable is required for live retrieval.")
+    require_openai_api_key(
+        "OPENAI_API_KEY environment variable is required for live retrieval."
+    )
 
     neo4j_uri = getattr(config, "neo4j_uri", None)
     neo4j_username = getattr(config, "neo4j_username", None)
@@ -2290,8 +2292,9 @@ def run_interactive_qa(
             "Pass run_id, or set all_runs=True to query across all data."
         )
 
-    if not os.getenv("OPENAI_API_KEY"):
-        raise ValueError("OPENAI_API_KEY environment variable is required for live retrieval.")
+    require_openai_api_key(
+        "OPENAI_API_KEY environment variable is required for live retrieval."
+    )
 
     neo4j_uri = getattr(config, "neo4j_uri", None)
     neo4j_username = getattr(config, "neo4j_username", None)

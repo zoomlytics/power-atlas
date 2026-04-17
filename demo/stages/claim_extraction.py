@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
 from typing import Any
 
+from power_atlas.bootstrap import require_openai_api_key
 from power_atlas.bootstrap.clients import create_neo4j_driver
 from power_atlas.contracts.prompts import PROMPT_IDS
 from power_atlas.settings import Neo4jSettings
@@ -86,8 +86,9 @@ def run_claim_and_mention_extraction(config: Any, *, run_id: str, source_uri: st
         summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
         return summary
 
-    if not os.getenv("OPENAI_API_KEY"):
-        raise ValueError("OPENAI_API_KEY environment variable is required for live claim extraction.")
+    require_openai_api_key(
+        "OPENAI_API_KEY environment variable is required for live claim extraction."
+    )
 
     from demo.extraction_utils import prepare_extracted_rows, write_all_extraction_data
     from demo.stages.claim_participation import (

@@ -117,6 +117,22 @@ def test_build_runtime_config_from_settings() -> None:
     assert config.dataset_name == "demo_dataset_v1"
 
 
+def test_require_openai_api_key_uses_mapping() -> None:
+    from power_atlas.bootstrap import has_openai_api_key, require_openai_api_key
+
+    assert has_openai_api_key({"OPENAI_API_KEY": "test-key"}) is True
+    assert has_openai_api_key({"OPENAI_API_KEY": ""}) is False
+
+    require_openai_api_key("missing key", environ={"OPENAI_API_KEY": "test-key"})
+
+    try:
+        require_openai_api_key("missing key", environ={})
+    except ValueError as exc:
+        assert str(exc) == "missing key"
+    else:
+        raise AssertionError("Expected require_openai_api_key to raise for missing key")
+
+
 def test_normalize_mention_text() -> None:
     from power_atlas.text_utils import normalize_mention_text
 

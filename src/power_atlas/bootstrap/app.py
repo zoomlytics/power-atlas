@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping
+import os
 
 from power_atlas.contracts.runtime import Config
 from power_atlas.settings import AppSettings
@@ -15,6 +16,20 @@ class AppBootstrap:
 
 def build_settings(environ: Mapping[str, str] | None = None) -> AppSettings:
     return AppSettings.from_env(environ=environ)
+
+
+def has_openai_api_key(environ: Mapping[str, str] | None = None) -> bool:
+    env = os.environ if environ is None else environ
+    return bool(env.get("OPENAI_API_KEY"))
+
+
+def require_openai_api_key(
+    error_message: str,
+    *,
+    environ: Mapping[str, str] | None = None,
+) -> None:
+    if not has_openai_api_key(environ=environ):
+        raise ValueError(error_message)
 
 
 def build_runtime_config(
@@ -43,4 +58,11 @@ def bootstrap_app(environ: Mapping[str, str] | None = None) -> AppBootstrap:
     return AppBootstrap(settings=build_settings(environ=environ))
 
 
-__all__ = ["AppBootstrap", "bootstrap_app", "build_runtime_config", "build_settings"]
+__all__ = [
+    "AppBootstrap",
+    "bootstrap_app",
+    "build_runtime_config",
+    "build_settings",
+    "has_openai_api_key",
+    "require_openai_api_key",
+]

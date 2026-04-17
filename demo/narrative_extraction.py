@@ -12,6 +12,7 @@ from typing import Any, Iterable
 
 from power_atlas.bootstrap import build_settings
 from power_atlas.bootstrap import create_neo4j_driver
+from power_atlas.bootstrap import require_openai_api_key
 from power_atlas.contracts import (
     PROMPT_IDS,
     build_stage_manifest,
@@ -230,8 +231,9 @@ def run_narrative_extraction(config: ExtractionConfig) -> dict[str, Any]:
             "Use --neo4j-password or the NEO4J_PASSWORD environment variable."
         )
 
-    if not os.getenv("OPENAI_API_KEY"):
-        raise ValueError("OPENAI_API_KEY environment variable is required for narrative extraction.")
+    require_openai_api_key(
+        "OPENAI_API_KEY environment variable is required for narrative extraction."
+    )
 
     with create_neo4j_driver(config) as driver:
         graph, text_chunks = asyncio.run(

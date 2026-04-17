@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from power_atlas.bootstrap import create_neo4j_driver
+from power_atlas.bootstrap import create_neo4j_driver, require_openai_api_key
 from power_atlas.contracts.pipeline import (
     CHUNK_EMBEDDING_DIMENSIONS,
     CHUNK_EMBEDDING_INDEX_NAME,
@@ -214,8 +214,7 @@ def run_pdf_ingest(
             "warnings": extraction_warnings,
         }
 
-    if not os.getenv("OPENAI_API_KEY"):
-        raise ValueError("Set OPENAI_API_KEY when using --live ingest-pdf")
+    require_openai_api_key("Set OPENAI_API_KEY when using --live ingest-pdf")
 
     from neo4j_graphrag.experimental.pipeline.config.runner import PipelineRunner
 
