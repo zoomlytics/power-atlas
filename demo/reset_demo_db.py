@@ -68,7 +68,7 @@ import neo4j
 
 from power_atlas.bootstrap import build_settings, create_neo4j_driver
 from power_atlas.contracts import ARTIFACTS_DIR
-from power_atlas.contracts.pipeline import CHUNK_EMBEDDING_INDEX_NAME
+from power_atlas.contracts.pipeline import get_pipeline_contract_snapshot
 from demo.cypher_utils import validate_cypher_identifier as _validate_cypher_identifier
 
 logger = logging.getLogger(__name__)
@@ -95,10 +95,10 @@ DEMO_NODE_LABELS: tuple[str, ...] = (
     "ResolvedEntityCluster",
 )
 
-# Demo-owned index names dropped on reset.  Keep in sync with:
-#   - src/power_atlas/contracts/pipeline.py  (CHUNK_EMBEDDING_INDEX_NAME)
-#   - demo/config/pdf_simple_kg_pipeline.yaml  (contract.chunk_embedding.index_name)
-DEMO_OWNED_INDEXES: tuple[str, ...] = (CHUNK_EMBEDDING_INDEX_NAME,)
+def _demo_owned_indexes() -> tuple[str, ...]:
+    """Return the current demo-owned index names from the active pipeline contract."""
+    pipeline_contract = get_pipeline_contract_snapshot()
+    return (pipeline_contract.chunk_embedding_index_name,)
 
 
 def _index_exists(driver: neo4j.Driver, index_name: str, database: str) -> bool:
@@ -234,7 +234,7 @@ def run_reset(
     # ── Drop demo-owned indexes ───────────────────────────────────────────────
     # Keep this reset contract aligned with demo/config/pdf_simple_kg_pipeline.yaml
     # and power_atlas.contracts.pipeline (CHUNK_EMBEDDING_INDEX_NAME).
-    for index_name in DEMO_OWNED_INDEXES:
+    for index_name in _demo_owned_indexes():
         if _index_exists(driver, index_name, database):
             # Issue a direct DROP INDEX statement in a session scoped to the
             # demo database.  The index name is a compile-time constant from
@@ -285,7 +285,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             f"Deletes all nodes with demo-owned labels ({', '.join(DEMO_NODE_LABELS)})\n"
-            f"and drops the following indexes: {', '.join(DEMO_OWNED_INDEXES)}.\n"
+            f"and drops the following indexes: {', '.join(_demo_owned_indexes())}.\n"
             "Run only against a dedicated demo database to avoid data loss."
         ),
     )

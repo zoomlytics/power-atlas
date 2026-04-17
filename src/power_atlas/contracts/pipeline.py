@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 import logging
 import re
 import sys
@@ -40,6 +41,16 @@ _DATASET_STATE_DEPRECATION_MESSAGE = (
 )
 
 
+@dataclass(frozen=True)
+class PipelineContractSnapshot:
+    chunk_embedding_index_name: str
+    chunk_embedding_label: str
+    chunk_embedding_property: str
+    chunk_embedding_dimensions: int
+    embedder_model_name: str
+    chunk_fallback_stride: int
+
+
 def refresh_pipeline_contract() -> None:
     """Force a reload of the pipeline contract from disk, even if already loaded."""
     global PIPELINE_CONFIG_DATA, CHUNK_EMBEDDING_INDEX_NAME, CHUNK_EMBEDDING_LABEL, CHUNK_EMBEDDING_PROPERTY
@@ -70,6 +81,18 @@ def ensure_pipeline_contract_loaded() -> None:
         if not _PIPELINE_CONTRACT_LOADED.is_set():
             _load_pipeline_contract()
             _PIPELINE_CONTRACT_LOADED.set()
+
+
+def get_pipeline_contract_snapshot() -> PipelineContractSnapshot:
+    """Return an immutable snapshot of the current non-dataset pipeline contract values."""
+    return PipelineContractSnapshot(
+        chunk_embedding_index_name=CHUNK_EMBEDDING_INDEX_NAME,
+        chunk_embedding_label=CHUNK_EMBEDDING_LABEL,
+        chunk_embedding_property=CHUNK_EMBEDDING_PROPERTY,
+        chunk_embedding_dimensions=CHUNK_EMBEDDING_DIMENSIONS,
+        embedder_model_name=EMBEDDER_MODEL_NAME,
+        chunk_fallback_stride=CHUNK_FALLBACK_STRIDE,
+    )
 
 
 def _load_pipeline_contract() -> None:
@@ -226,8 +249,10 @@ __all__ = [
     "CHUNK_FALLBACK_STRIDE",
     "DATASET_ID",
     "EMBEDDER_MODEL_NAME",
+    "PipelineContractSnapshot",
     "PIPELINE_CONFIG_DATA",
     "ensure_pipeline_contract_loaded",
+    "get_pipeline_contract_snapshot",
     "refresh_pipeline_contract",
     "get_dataset_id",
     "set_dataset_id",

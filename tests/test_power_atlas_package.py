@@ -299,6 +299,25 @@ def test_demo_claim_schema_contract_shim_matches_package_exports() -> None:
     assert demo_claim_schema.resolution_layer_schema is contracts_module.resolution_layer_schema
 
 
+def test_claim_extraction_lexical_config_reads_live_pipeline_contract_snapshot() -> None:
+    import power_atlas.contracts.claim_schema as claim_schema_module
+    import power_atlas.contracts.pipeline as pipeline_module
+
+    original_label = pipeline_module.CHUNK_EMBEDDING_LABEL
+    original_property = pipeline_module.CHUNK_EMBEDDING_PROPERTY
+    try:
+        pipeline_module.CHUNK_EMBEDDING_LABEL = "DynamicChunk"
+        pipeline_module.CHUNK_EMBEDDING_PROPERTY = "dynamic_embedding"
+
+        lexical_config = claim_schema_module.claim_extraction_lexical_config()
+
+        assert lexical_config.chunk_node_label == "DynamicChunk"
+        assert lexical_config.chunk_embedding_property == "dynamic_embedding"
+    finally:
+        pipeline_module.CHUNK_EMBEDDING_LABEL = original_label
+        pipeline_module.CHUNK_EMBEDDING_PROPERTY = original_property
+
+
 def test_demo_pipeline_contract_shim_is_package_module() -> None:
     import demo.contracts.pipeline as demo_pipeline
     import power_atlas.contracts.pipeline as package_pipeline

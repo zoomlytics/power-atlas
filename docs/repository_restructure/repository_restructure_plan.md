@@ -570,6 +570,9 @@ The repo has now completed a first concrete runtime-state reduction pass:
 - `demo/run_demo.py` no longer writes dataset scope via `set_dataset_id(...)`,
 - `demo/run_demo.py` no longer snapshots pipeline contract embedding/index settings
   into import-time module globals for its live stage execution path,
+- `claim_schema` and `reset_demo_db` now read pipeline embedding/index settings
+  through an explicit immutable snapshot helper rather than direct import-time
+  constant bindings,
 - the mutable dataset-state surface is now effectively reduced to compatibility
   exports and the pipeline submodule itself rather than active stage/orchestrator
   behavior.

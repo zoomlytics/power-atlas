@@ -163,3 +163,22 @@ def test_dataset_id_module_attribute_emits_deprecation_warnings() -> None:
         pipeline.DATASET_ID = "compat_dataset"
 
     assert pipeline._DATASET_ID == "compat_dataset"
+
+
+def test_pipeline_contract_snapshot_reflects_current_values() -> None:
+    _reset_contract_state()
+    pipeline.CHUNK_EMBEDDING_INDEX_NAME = "snapshot_index"
+    pipeline.CHUNK_EMBEDDING_LABEL = "SnapshotChunk"
+    pipeline.CHUNK_EMBEDDING_PROPERTY = "snapshot_embedding"
+    pipeline.CHUNK_EMBEDDING_DIMENSIONS = 3072
+    pipeline.EMBEDDER_MODEL_NAME = "text-embedding-3-large"
+    pipeline.CHUNK_FALLBACK_STRIDE = 256
+
+    snapshot = pipeline.get_pipeline_contract_snapshot()
+
+    assert snapshot.chunk_embedding_index_name == "snapshot_index"
+    assert snapshot.chunk_embedding_label == "SnapshotChunk"
+    assert snapshot.chunk_embedding_property == "snapshot_embedding"
+    assert snapshot.chunk_embedding_dimensions == 3072
+    assert snapshot.embedder_model_name == "text-embedding-3-large"
+    assert snapshot.chunk_fallback_stride == 256
