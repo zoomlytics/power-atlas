@@ -388,6 +388,19 @@ expanded beyond structural foundation work into active entrypoint ownership:
 - query CLIs now use package-backed parser defaults for Neo4j URI, username, and database while preserving their intentional early-exit password behavior,
 - `power_atlas.contracts.paths.resolve_dataset_root(...)` now resolves dataset selection through `AppSettings.from_env(...)` rather than direct env reads.
 
+Subsequent narrow slices tightened this further:
+
+- first-party live `OPENAI_API_KEY` checks now route through a shared bootstrap guard helper,
+- the `pdf_ingest` vendor bridge now uses a shared temporary-environment helper rather than hand-rolling process env mutation,
+- `run_demo` dataset-env selection now routes through bootstrap instead of reading `POWER_ATLAS_DATASET` and `FIXTURE_DATASET` directly.
+
+At this checkpoint, the remaining first-party env-touch cases appear to be
+intentional local behavior rather than migration debt:
+
+- `UNSTRUCTURED_RUN_ID` remains a demo-specific runtime override in `run_demo`,
+- `reset_demo_db.py` still preserves a special password-default path so its
+  missing-password guard remains operator-visible.
+
 The strongest current proof point is the latest full `make phase1-verify` run on
 2026-04-16, which passed with fully cited baseline, companion, and isolation
 asks and no citation fallback.
@@ -494,7 +507,9 @@ Early seam extraction has already landed additively:
   bootstrap seam,
 - more entrypoints resolve config/default ownership through package settings,
 - direct env/default resolution has started moving out of package-owned and
-  entrypoint-owned helper code.
+  entrypoint-owned helper code,
+- the env/default cleanup lane now appears to be nearing exhaustion, with most
+  remaining cases looking intentional rather than accidental.
 
 That progress should not be overstated. The repo has not yet reached a true
 adapter/application/interface split for graph access, raw Cypher still appears in
@@ -793,8 +808,8 @@ useful next work in sequence is now:
 1. keep Phase 2 open, but treat its structural foundation deliverables as complete,
 2. treat Phase 3 as additive in-progress movement rather than the next untouched phase,
 3. treat Phase 4 as partially underway and use that framing to prioritize the next lane,
-4. audit remaining first-party live code for non-bootstrap dependency construction and env/default-resolution bypasses, excluding intentional runtime guards,
-5. take the next narrow migration slices on broader bootstrap/composition-root adoption rather than on `demo.contracts` removal,
+4. treat the first-party env/default cleanup lane as mostly complete and avoid reopening it unless new real debt is found,
+5. take the next narrow migration slices on broader Phase 4 seam extraction, especially raw Cypher isolation and thinner orchestration boundaries,
 6. defer actual shim retirement until late migration unless the active execution surface changes materially.
 
 ---
