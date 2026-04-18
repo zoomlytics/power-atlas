@@ -11,7 +11,7 @@ from demo.stages.graph_health import (
     GraphHealthArtifact,
     _CANONICAL_CHAIN_HEALTH_LIMIT,
     _PER_CANONICAL_ALIGNMENT_LIMIT,
-    _Q_CLUSTER_TYPE_FRAGMENTATION,
+    _get_cluster_type_fragmentation_query,
     _compute_alignment_summary,
     _compute_mention_summary,
     _compute_participation_summary,
@@ -746,7 +746,7 @@ class TestRunGraphHealthDiagnosticsLive(unittest.TestCase):
 
 
 class TestClusterTypeFragmentationQueryAlignment(unittest.TestCase):
-    """Verify that _Q_CLUSTER_TYPE_FRAGMENTATION reflects the entity-resolution
+    """Verify that the live cluster fragmentation query reflects the entity-resolution
     normalization policy, not a separate ad-hoc mapping.
 
     These tests are the divergence guard required by the issue: they must fail
@@ -766,6 +766,7 @@ class TestClusterTypeFragmentationQueryAlignment(unittest.TestCase):
         escaped form, not the raw value.
         """
         for raw, canonical in _ENTITY_TYPE_SYNONYMS.items():
+            query = _get_cluster_type_fragmentation_query()
             escaped_raw = raw.replace("'", "''")
             escaped_canonical = canonical.replace("'", "''")
             # Assert on the single-quoted Cypher literal (e.g. "'ORG'") rather
@@ -773,23 +774,23 @@ class TestClusterTypeFragmentationQueryAlignment(unittest.TestCase):
             # is a substring of the canonical form (e.g. "ORG" ⊂ "Organization").
             self.assertIn(
                 f"'{escaped_raw}'",
-                _Q_CLUSTER_TYPE_FRAGMENTATION,
+                query,
                 msg=(
                     f"Quoted synonym literal '{escaped_raw}' from _ENTITY_TYPE_SYNONYMS "
-                    f"is missing from _Q_CLUSTER_TYPE_FRAGMENTATION.  "
+                    f"is missing from the live cluster fragmentation query.  "
                     f"This indicates the fragmentation query was not regenerated "
                     f"from build_entity_type_cypher_case.  Ensure "
-                    f"_Q_CLUSTER_TYPE_FRAGMENTATION is built via "
+                    f"the cluster fragmentation query is built via "
                     f"build_entity_type_cypher_case (and that query regeneration "
                     f"is not bypassed) so it stays in sync with _ENTITY_TYPE_SYNONYMS."
                 ),
             )
             self.assertIn(
                 f"'{escaped_canonical}'",
-                _Q_CLUSTER_TYPE_FRAGMENTATION,
+                query,
                 msg=(
                     f"Quoted canonical literal '{escaped_canonical}' "
-                    f"(for synonym '{raw}') is missing from _Q_CLUSTER_TYPE_FRAGMENTATION."
+                    f"(for synonym '{raw}') is missing from the live cluster fragmentation query."
                 ),
             )
 
@@ -811,7 +812,7 @@ class TestClusterTypeFragmentationQueryAlignment(unittest.TestCase):
             ]
 
         expected = _data_lines(expected_case)
-        query = _data_lines(_Q_CLUSTER_TYPE_FRAGMENTATION)
+        query = _data_lines(_get_cluster_type_fragmentation_query())
 
         for line in expected:
             self.assertIn(
@@ -819,7 +820,7 @@ class TestClusterTypeFragmentationQueryAlignment(unittest.TestCase):
                 query,
                 msg=(
                     f"Normalization line {line!r} from build_entity_type_cypher_case "
-                    f"is missing from _Q_CLUSTER_TYPE_FRAGMENTATION.  "
+                    f"is missing from the live cluster fragmentation query.  "
                     f"The fragmentation query must be built via "
                     f"build_entity_type_cypher_case so it stays in sync with "
                     f"entity-resolution normalization policy."
@@ -847,13 +848,14 @@ class TestClusterTypeFragmentationQueryAlignment(unittest.TestCase):
             clear=False,
         ):
             extended_case = build_entity_type_cypher_case("m.entity_type")
+            extended_query = _get_cluster_type_fragmentation_query()
 
         # The regenerated expression must contain the sentinel synonym and its
         # canonical form, demonstrating that it is wired to the synonym table.
         self.assertIn(sentinel_raw, extended_case)
         self.assertIn(sentinel_canonical, extended_case)
-        # The current (un-extended) query must not contain the sentinel.
-        self.assertNotIn(sentinel_raw, _Q_CLUSTER_TYPE_FRAGMENTATION)
+        self.assertIn(sentinel_raw, extended_query)
+        self.assertIn(sentinel_canonical, extended_query)
 
 
 if __name__ == "__main__":

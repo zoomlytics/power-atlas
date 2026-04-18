@@ -138,7 +138,14 @@ def _build_cluster_type_fragmentation_query() -> str:
     )
 
 
-_Q_CLUSTER_TYPE_FRAGMENTATION = _build_cluster_type_fragmentation_query()
+
+def _get_cluster_type_fragmentation_query() -> str:
+    """Return the current cluster type-fragmentation query.
+
+    This stays live with entity-resolution normalization policy changes rather
+    than freezing the derived Cypher text at module import time.
+    """
+    return _build_cluster_type_fragmentation_query()
 
 _Q_ALIGNMENT_COVERAGE = """\
 MATCH (cluster:ResolvedEntityCluster)
@@ -643,7 +650,7 @@ def run_graph_health_diagnostics(
         cluster_size_dist = _query(_Q_CLUSTER_SIZE_DIST)
 
         _logger.info("graph_health: running cluster type fragmentation query")
-        cluster_type_frag = _query(_Q_CLUSTER_TYPE_FRAGMENTATION)
+        cluster_type_frag = _query(_get_cluster_type_fragmentation_query())
 
         _logger.info("graph_health: running alignment coverage query")
         alignment_coverage = _query(_Q_ALIGNMENT_COVERAGE)

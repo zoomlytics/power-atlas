@@ -610,9 +610,13 @@ The repo has now completed a first concrete runtime-state reduction pass:
   removed the process-wide page-tracking coordinator singleton from
   `demo/io/page_tracking.py` in favor of task-local `ContextVar` storage, so
   loader/splitter page offsets no longer ride on mutable process-global state.
-  The remaining work is the rest of the mutable-global inventory outside
-  those modules plus any further ownership cleanup warranted around the
-  remaining single cached state.
+  Another small import-time runtime-state dependency was also removed from
+  `demo/stages/graph_health.py`: the cluster-fragmentation query is now
+  generated on demand from the live entity-resolution normalization helper
+  instead of freezing derived Cypher text at module import time. The remaining
+  work is the rest of the mutable-global inventory outside those modules plus
+  any further ownership cleanup warranted around the remaining single cached
+  state.
   ingest and independent `ingest-pdf` execution
   to bundle settings, pipeline snapshot state, and per-request runtime metadata.
 
