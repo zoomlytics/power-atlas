@@ -9,6 +9,7 @@ import pytest
 
 def test_package_modules_import() -> None:
     package = importlib.import_module("power_atlas")
+    context_module = importlib.import_module("power_atlas.context")
     contracts_module = importlib.import_module("power_atlas.contracts")
     pipeline_module = importlib.import_module("power_atlas.contracts.pipeline")
     settings_module = importlib.import_module("power_atlas.settings")
@@ -37,8 +38,10 @@ def test_package_modules_import() -> None:
     assert package.FieldSurfacePolicy is contracts_module.FieldSurfacePolicy
     assert package.FIXTURES_DIR == contracts_module.FIXTURES_DIR
     assert package.ID_PATTERNS is contracts_module.ID_PATTERNS
+    assert package.AppContext is context_module.AppContext
     assert package.PDF_PIPELINE_CONFIG_PATH == contracts_module.PDF_PIPELINE_CONFIG_PATH
     assert package.RETRIEVAL_METADATA_SURFACE_POLICY is contracts_module.RETRIEVAL_METADATA_SURFACE_POLICY
+    assert package.RequestContext is context_module.RequestContext
     assert package.RetrievalMetadataSurface is contracts_module.RetrievalMetadataSurface
     assert package.STRUCTURED_FILE_HEADERS is contracts_module.STRUCTURED_FILE_HEADERS
     assert package.VALUE_TYPES is contracts_module.VALUE_TYPES
@@ -52,11 +55,20 @@ def test_package_modules_import() -> None:
     assert package.write_manifest_md is contracts_module.write_manifest_md
     assert package.AppSettings is settings_module.AppSettings
     assert package.build_settings is bootstrap_module.build_settings
+    assert package.build_app_context is bootstrap_module.build_app_context
+    assert package.build_request_context is bootstrap_module.build_request_context
     assert package.build_openai_llm is llm_utils_module.build_openai_llm
     assert package.normalize_mention_text is text_utils_module.normalize_mention_text
     assert not hasattr(pipeline_module, "DATASET_ID")
     assert not hasattr(pipeline_module, "get_dataset_id")
     assert not hasattr(pipeline_module, "set_dataset_id")
+    assert not hasattr(pipeline_module, "PIPELINE_CONFIG_DATA")
+    assert not hasattr(pipeline_module, "CHUNK_EMBEDDING_INDEX_NAME")
+    assert not hasattr(pipeline_module, "CHUNK_EMBEDDING_LABEL")
+    assert not hasattr(pipeline_module, "CHUNK_EMBEDDING_PROPERTY")
+    assert not hasattr(pipeline_module, "CHUNK_EMBEDDING_DIMENSIONS")
+    assert not hasattr(pipeline_module, "EMBEDDER_MODEL_NAME")
+    assert not hasattr(pipeline_module, "CHUNK_FALLBACK_STRIDE")
 
 
 def test_build_settings_from_env_mapping() -> None:
@@ -119,6 +131,41 @@ def test_build_runtime_config_from_settings() -> None:
     assert config.question == "Who acquired Xapo?"
     assert config.resolution_mode == "hybrid"
     assert config.dataset_name == "demo_dataset_v1"
+
+
+def test_bootstrap_app_exposes_app_context_and_request_context() -> None:
+    from power_atlas.bootstrap import bootstrap_app, build_request_context
+
+    app = bootstrap_app(
+        {
+            "NEO4J_URI": "bolt://example.test:7687",
+            "NEO4J_USERNAME": "atlas",
+            "NEO4J_PASSWORD": "secret",
+            "NEO4J_DATABASE": "analytics",
+            "OPENAI_MODEL": "gpt-5.4",
+            "POWER_ATLAS_DATASET": "demo_dataset_v1",
+        }
+    )
+
+    request_context = build_request_context(
+        app.app_context,
+        command="ask",
+        dry_run=False,
+        question="Who acquired Xapo?",
+        resolution_mode="hybrid",
+        run_id="run-123",
+        source_uri="file:///example/doc.pdf",
+    )
+
+    assert app.app_context.settings is app.settings
+    assert request_context.app is app.app_context
+    assert request_context.settings is app.settings
+    assert request_context.command == "ask"
+    assert request_context.run_id == "run-123"
+    assert request_context.source_uri == "file:///example/doc.pdf"
+    assert request_context.config.question == "Who acquired Xapo?"
+    assert request_context.config.resolution_mode == "hybrid"
+    assert request_context.config.dataset_name == "demo_dataset_v1"
 
 
 def test_dataset_env_selection_prefers_power_atlas_dataset() -> None:
@@ -301,25 +348,19 @@ def test_claim_extraction_lexical_config_reads_live_pipeline_contract_snapshot()
     import power_atlas.contracts.claim_schema as claim_schema_module
     import power_atlas.contracts.pipeline as pipeline_module
 
-    with pytest.deprecated_call(match="CHUNK_EMBEDDING_LABEL is deprecated"):
-        original_label = pipeline_module.CHUNK_EMBEDDING_LABEL
-    with pytest.deprecated_call(match="CHUNK_EMBEDDING_PROPERTY is deprecated"):
-        original_property = pipeline_module.CHUNK_EMBEDDING_PROPERTY
+    original_label = pipeline_module._CHUNK_EMBEDDING_LABEL
+    original_property = pipeline_module._CHUNK_EMBEDDING_PROPERTY
     try:
-        with pytest.deprecated_call(match="CHUNK_EMBEDDING_LABEL is deprecated"):
-            pipeline_module.CHUNK_EMBEDDING_LABEL = "DynamicChunk"
-        with pytest.deprecated_call(match="CHUNK_EMBEDDING_PROPERTY is deprecated"):
-            pipeline_module.CHUNK_EMBEDDING_PROPERTY = "dynamic_embedding"
+        pipeline_module._CHUNK_EMBEDDING_LABEL = "DynamicChunk"
+        pipeline_module._CHUNK_EMBEDDING_PROPERTY = "dynamic_embedding"
 
         lexical_config = claim_schema_module.claim_extraction_lexical_config()
 
         assert lexical_config.chunk_node_label == "DynamicChunk"
         assert lexical_config.chunk_embedding_property == "dynamic_embedding"
     finally:
-        with pytest.deprecated_call(match="CHUNK_EMBEDDING_LABEL is deprecated"):
-            pipeline_module.CHUNK_EMBEDDING_LABEL = original_label
-        with pytest.deprecated_call(match="CHUNK_EMBEDDING_PROPERTY is deprecated"):
-            pipeline_module.CHUNK_EMBEDDING_PROPERTY = original_property
+        pipeline_module._CHUNK_EMBEDDING_LABEL = original_label
+        pipeline_module._CHUNK_EMBEDDING_PROPERTY = original_property
 
 
 def test_demo_pipeline_contract_shim_is_package_module() -> None:

@@ -576,35 +576,27 @@ The repo has now completed a first concrete runtime-state reduction pass:
 - `pdf_ingest` and `retrieval_and_qa` now also resolve pipeline embedding/index
   settings through snapshot-backed stage helpers rather than direct import-time
   bindings to mutable pipeline globals,
-- the remaining non-dataset mutable pipeline exports now sit behind private
-  backing state in `power_atlas.contracts.pipeline`, with deprecated
-  compatibility access for legacy global reads/writes plus an explicit
-  `get_pipeline_contract_config_data()` helper for raw config inspection,
-- `demo.contracts` root no longer eagerly imports or re-exports those
-  deprecated non-dataset pipeline globals, and `demo.run_demo` now reads live
-  pipeline settings only through the snapshot seam rather than exposing or
-  honoring module-level compatibility state for those values,
+- the remaining public non-dataset pipeline globals have now been removed from
+  `power_atlas.contracts.pipeline`; the module still owns private cache/backing
+  state plus explicit `get_pipeline_contract_snapshot()` and
+  `get_pipeline_contract_config_data()` read APIs,
+- `demo.contracts` root no longer eagerly imports or re-exports those former
+  non-dataset pipeline globals, and `demo.run_demo` now reads live pipeline
+  settings only through the snapshot seam rather than exposing or honoring
+  module-level compatibility state for those values,
 - the deprecated dataset-state compatibility surface
   (`DATASET_ID` / `get_dataset_id()` / `set_dataset_id()`) has now been
   removed from `power_atlas.contracts.pipeline` entirely rather than merely
-  narrowed to a smaller compatibility boundary.
-
-The remaining pipeline compatibility surface is now explicitly deprecated and
-limited to non-dataset raw-config and embedding/index globals:
-
-- `power_atlas.contracts.pipeline.PIPELINE_CONFIG_DATA`,
-- `power_atlas.contracts.pipeline.CHUNK_EMBEDDING_INDEX_NAME`,
-- `power_atlas.contracts.pipeline.CHUNK_EMBEDDING_LABEL`,
-- `power_atlas.contracts.pipeline.CHUNK_EMBEDDING_PROPERTY`,
-- `power_atlas.contracts.pipeline.CHUNK_EMBEDDING_DIMENSIONS`,
-- `power_atlas.contracts.pipeline.EMBEDDER_MODEL_NAME`,
-- `power_atlas.contracts.pipeline.CHUNK_FALLBACK_STRIDE`.
+- narrowed to a smaller compatibility boundary,
+- an initial `AppContext` / `RequestContext` seam now exists in the package and
+  is already used by bootstrap helpers plus `demo/run_demo.py` argument handling
+  to bundle settings, pipeline snapshot state, and per-request runtime metadata.
 
 That is meaningful progress, but it does not yet satisfy the phase. The pipeline
 contract still contains mutable module-level state for config/cache concerns,
-`AppContext` / `RequestContext` do not exist, and the remaining stateful
-pipeline surface still needs an explicit disposition rather than simple
-coexistence.
+and the remaining stateful pipeline surface still needs an explicit disposition
+rather than simple coexistence. The new context seam is intentionally narrow so
+far and has not yet been adopted across stage-level execution paths.
 
 #### Objectives
 

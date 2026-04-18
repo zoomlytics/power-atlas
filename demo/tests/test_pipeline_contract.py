@@ -169,16 +169,11 @@ def test_pipeline_contract_config_data_getter_returns_copy() -> None:
     assert result is not pipeline._PIPELINE_CONFIG_DATA
 
 
-def test_non_dataset_pipeline_compat_exports_emit_deprecation_warnings() -> None:
-    _reset_contract_state()
-
-    with pytest.deprecated_call(match="CHUNK_EMBEDDING_INDEX_NAME is deprecated"):
-        assert pipeline.CHUNK_EMBEDDING_INDEX_NAME == pipeline._DEFAULT_CHUNK_EMBEDDING_INDEX_NAME
-
-    with pytest.deprecated_call(match="PIPELINE_CONFIG_DATA is deprecated"):
-        assert pipeline.PIPELINE_CONFIG_DATA == {}
-
-    with pytest.deprecated_call(match="EMBEDDER_MODEL_NAME is deprecated"):
-        pipeline.EMBEDDER_MODEL_NAME = "compat-model"
-
-    assert pipeline._EMBEDDER_MODEL_NAME == "compat-model"
+def test_non_dataset_pipeline_compat_exports_are_removed() -> None:
+    assert not hasattr(pipeline, "PIPELINE_CONFIG_DATA")
+    assert not hasattr(pipeline, "CHUNK_EMBEDDING_INDEX_NAME")
+    assert not hasattr(pipeline, "CHUNK_EMBEDDING_LABEL")
+    assert not hasattr(pipeline, "CHUNK_EMBEDDING_PROPERTY")
+    assert not hasattr(pipeline, "CHUNK_EMBEDDING_DIMENSIONS")
+    assert not hasattr(pipeline, "EMBEDDER_MODEL_NAME")
+    assert not hasattr(pipeline, "CHUNK_FALLBACK_STRIDE")

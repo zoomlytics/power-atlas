@@ -213,11 +213,9 @@ def test_pdf_ingest_reads_live_pipeline_contract_snapshot(tmp_path: Path):
 
     config = _dry_run_config(tmp_path)
     fixtures_dir = resolve_dataset_root("demo_dataset_v1").root
-    with pytest.deprecated_call(match="CHUNK_EMBEDDING_INDEX_NAME is deprecated"):
-        original_index_name = pipeline_module.CHUNK_EMBEDDING_INDEX_NAME
+    original_index_name = pipeline_module._CHUNK_EMBEDDING_INDEX_NAME
     try:
-        with pytest.deprecated_call(match="CHUNK_EMBEDDING_INDEX_NAME is deprecated"):
-            pipeline_module.CHUNK_EMBEDDING_INDEX_NAME = "dynamic_pdf_index"
+        pipeline_module._CHUNK_EMBEDDING_INDEX_NAME = "dynamic_pdf_index"
 
         summary = pdf_ingest_module.run_pdf_ingest(
             config,
@@ -228,8 +226,7 @@ def test_pdf_ingest_reads_live_pipeline_contract_snapshot(tmp_path: Path):
         assert pdf_ingest_module.CHUNK_EMBEDDING_INDEX_NAME == "dynamic_pdf_index"
         assert summary["vector_index"]["index_name"] == "dynamic_pdf_index"
     finally:
-        with pytest.deprecated_call(match="CHUNK_EMBEDDING_INDEX_NAME is deprecated"):
-            pipeline_module.CHUNK_EMBEDDING_INDEX_NAME = original_index_name
+        pipeline_module._CHUNK_EMBEDDING_INDEX_NAME = original_index_name
 
 
 def test_pdf_ingest_rejects_dot_pdf_filename(tmp_path: Path):
@@ -322,11 +319,9 @@ def test_retrieval_and_qa_reads_live_pipeline_contract_snapshot(tmp_path: Path):
     import power_atlas.contracts.pipeline as pipeline_module
 
     config = _dry_run_config(tmp_path)
-    with pytest.deprecated_call(match="CHUNK_EMBEDDING_INDEX_NAME is deprecated"):
-        original_index_name = pipeline_module.CHUNK_EMBEDDING_INDEX_NAME
+    original_index_name = pipeline_module._CHUNK_EMBEDDING_INDEX_NAME
     try:
-        with pytest.deprecated_call(match="CHUNK_EMBEDDING_INDEX_NAME is deprecated"):
-            pipeline_module.CHUNK_EMBEDDING_INDEX_NAME = "dynamic_retrieval_index"
+        pipeline_module._CHUNK_EMBEDDING_INDEX_NAME = "dynamic_retrieval_index"
 
         result = retrieval_module.run_retrieval_and_qa(
             config,
@@ -337,8 +332,7 @@ def test_retrieval_and_qa_reads_live_pipeline_contract_snapshot(tmp_path: Path):
         assert retrieval_module.CHUNK_EMBEDDING_INDEX_NAME == "dynamic_retrieval_index"
         assert result["retriever_index_name"] == "dynamic_retrieval_index"
     finally:
-        with pytest.deprecated_call(match="CHUNK_EMBEDDING_INDEX_NAME is deprecated"):
-            pipeline_module.CHUNK_EMBEDDING_INDEX_NAME = original_index_name
+        pipeline_module._CHUNK_EMBEDDING_INDEX_NAME = original_index_name
 
 
 def test_retrieval_and_qa_run_id_appears_in_batch_manifest(tmp_path: Path):

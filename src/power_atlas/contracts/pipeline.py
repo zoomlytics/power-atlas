@@ -4,11 +4,8 @@ from copy import deepcopy
 from dataclasses import dataclass
 import logging
 import re
-import sys
 import threading
-from types import ModuleType
 from typing import Any
-import warnings
 
 import yaml
 
@@ -34,19 +31,6 @@ _CHUNK_EMBEDDING_PROPERTY = _DEFAULT_CHUNK_EMBEDDING_PROPERTY
 _CHUNK_EMBEDDING_DIMENSIONS = _DEFAULT_CHUNK_EMBEDDING_DIMENSIONS
 _EMBEDDER_MODEL_NAME = _DEFAULT_EMBEDDER_MODEL_NAME
 _CHUNK_FALLBACK_STRIDE = max(_DEFAULT_CHUNK_SIZE - _DEFAULT_CHUNK_OVERLAP, 1)
-_PIPELINE_STATE_DEPRECATION_MESSAGE = (
-    "Mutable pipeline contract globals are deprecated; use get_pipeline_contract_snapshot() for "
-    "embedding/index settings or get_pipeline_contract_config_data() for raw config inspection instead."
-)
-_PIPELINE_COMPAT_ATTRS = {
-    "PIPELINE_CONFIG_DATA": "_PIPELINE_CONFIG_DATA",
-    "CHUNK_EMBEDDING_INDEX_NAME": "_CHUNK_EMBEDDING_INDEX_NAME",
-    "CHUNK_EMBEDDING_LABEL": "_CHUNK_EMBEDDING_LABEL",
-    "CHUNK_EMBEDDING_PROPERTY": "_CHUNK_EMBEDDING_PROPERTY",
-    "CHUNK_EMBEDDING_DIMENSIONS": "_CHUNK_EMBEDDING_DIMENSIONS",
-    "EMBEDDER_MODEL_NAME": "_EMBEDDER_MODEL_NAME",
-    "CHUNK_FALLBACK_STRIDE": "_CHUNK_FALLBACK_STRIDE",
-}
 
 
 @dataclass(frozen=True)
@@ -193,28 +177,6 @@ def _load_pipeline_contract() -> None:
     _CHUNK_FALLBACK_STRIDE = max(chunk_size - chunk_overlap, 1)
 
 
-def _warn_deprecated_pipeline_state(symbol_name: str) -> None:
-    warnings.warn(
-        f"{symbol_name} is deprecated. {_PIPELINE_STATE_DEPRECATION_MESSAGE}",
-        DeprecationWarning,
-        stacklevel=3,
-    )
-
-
-class _PipelineModule(ModuleType):
-    def __getattribute__(self, name: str) -> Any:
-        if name in _PIPELINE_COMPAT_ATTRS:
-            _warn_deprecated_pipeline_state(name)
-            return super().__getattribute__(_PIPELINE_COMPAT_ATTRS[name])
-        return super().__getattribute__(name)
-
-    def __setattr__(self, name: str, value: Any) -> None:
-        if name in _PIPELINE_COMPAT_ATTRS:
-            _warn_deprecated_pipeline_state(name)
-            name = _PIPELINE_COMPAT_ATTRS[name]
-        super().__setattr__(name, value)
-
-
 def _coerce_identifier(value: Any, default: str, field_name: str) -> str:
     if isinstance(value, str):
         candidate = value.strip()
@@ -229,18 +191,9 @@ def _coerce_identifier(value: Any, default: str, field_name: str) -> str:
 
 
 ensure_pipeline_contract_loaded()
-sys.modules[__name__].__class__ = _PipelineModule
-
 
 __all__ = [
-    "CHUNK_EMBEDDING_DIMENSIONS",
-    "CHUNK_EMBEDDING_INDEX_NAME",
-    "CHUNK_EMBEDDING_LABEL",
-    "CHUNK_EMBEDDING_PROPERTY",
-    "CHUNK_FALLBACK_STRIDE",
-    "EMBEDDER_MODEL_NAME",
     "PipelineContractSnapshot",
-    "PIPELINE_CONFIG_DATA",
     "ensure_pipeline_contract_loaded",
     "get_pipeline_contract_config_data",
     "get_pipeline_contract_snapshot",

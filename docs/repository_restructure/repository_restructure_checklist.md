@@ -169,7 +169,7 @@ Use the following status values consistently:
 **Status:** in progress  
 **Owner:**  
 **Blockers:**  
-**Notes:** This phase is now partially underway even though the broader context-object design work has not started. Recent slices removed the main active dataset-state dependencies from `demo/stages/structured_ingest.py`, `demo/stages/pdf_ingest.py`, and `demo/stages/entity_resolution.py`, and `demo/run_demo.py` no longer writes dataset scope through `set_dataset_id(...)`. `demo/run_demo.py` also no longer depends on import-time snapshots of pipeline contract embedding/index settings for its live execution path, and `claim_schema`, `reset_demo_db`, `pdf_ingest`, plus `retrieval_and_qa` now read those settings through explicit snapshot-backed helpers instead of direct import-time constant bindings to mutable pipeline globals. The deprecated dataset-state compatibility API has now been removed from `power_atlas.contracts.pipeline` entirely, while the remaining non-dataset mutable pipeline exports are backed by private state there with deprecated compatibility globals and a `get_pipeline_contract_config_data()` escape hatch for raw config inspection; `demo.contracts` root no longer eagerly imports or re-exports those deprecated names, and `demo.run_demo` no longer exposes or honors module-level compatibility state for them either. `PIPELINE_CONFIG_DATA` plus the mutable embedding/index globals remain explicitly deprecated compatibility names, and `AppContext` / `RequestContext` design plus the broader mutable-global inventory still remain open.  
+**Notes:** This phase is now partially underway. Recent slices removed the main active dataset-state dependencies from `demo/stages/structured_ingest.py`, `demo/stages/pdf_ingest.py`, and `demo/stages/entity_resolution.py`, and `demo/run_demo.py` no longer writes dataset scope through `set_dataset_id(...)`. `demo/run_demo.py` also no longer depends on import-time snapshots of pipeline contract embedding/index settings for its live execution path, and `claim_schema`, `reset_demo_db`, `pdf_ingest`, plus `retrieval_and_qa` now read those settings through explicit snapshot-backed helpers instead of direct import-time constant bindings to mutable pipeline globals. The deprecated dataset-state compatibility API and the remaining public non-dataset pipeline globals have now been removed from `power_atlas.contracts.pipeline`; that module still owns private cache/backing state plus explicit snapshot/raw-config getters. An initial `AppContext` / `RequestContext` seam now exists in the package and is already used by bootstrap helpers plus `demo/run_demo.py` argument handling, but broader stage-level adoption and the rest of the mutable-global inventory still remain open.  
 
 ### Exit criteria
 
@@ -180,8 +180,8 @@ Use the following status values consistently:
 
 ### Phase 5 deliverables checklist
 
-- [ ] define `AppContext`
-- [ ] define `RequestContext`
+- [x] define `AppContext`
+- [x] define `RequestContext`
 - [ ] inventory existing mutable global runtime state
 - [ ] replace or isolate high-risk globals
 - [ ] document any deferred state cleanup

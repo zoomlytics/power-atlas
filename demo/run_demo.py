@@ -11,6 +11,8 @@ from typing import Any, Callable
 
 from power_atlas.bootstrap import create_neo4j_driver
 from power_atlas.bootstrap import dataset_env_selection
+from power_atlas.bootstrap import build_app_context as _build_app_context
+from power_atlas.bootstrap import build_request_context as _build_request_context
 from power_atlas.bootstrap import build_runtime_config as _build_runtime_config
 from power_atlas.bootstrap import build_settings as _build_package_settings
 from power_atlas.run_scope_queries import fetch_dataset_id_for_run
@@ -72,6 +74,8 @@ def _pipeline_contract_view() -> dict[str, Any]:
         "embedder_model": _pipeline_contract_value("EMBEDDER_MODEL_NAME"),
         "chunk_stride": _pipeline_contract_value("CHUNK_FALLBACK_STRIDE"),
     }
+
+
 def _now_iso() -> str:
     return datetime.now(UTC).isoformat()
 
@@ -131,6 +135,39 @@ def _build_config_from_args(args: argparse.Namespace) -> Config:
         output_dir=args.output_dir,
         question=getattr(args, "question", None),
         resolution_mode=getattr(args, "resolution_mode", None) or "unstructured_only",
+    )
+
+
+def _build_request_context_from_args(
+    args: argparse.Namespace,
+    *,
+    dry_run: bool | None = None,
+    run_id: str | None = None,
+    all_runs: bool = False,
+    source_uri: str | None = None,
+):
+    package_settings = _build_package_settings(
+        {
+            "NEO4J_URI": args.neo4j_uri,
+            "NEO4J_USERNAME": args.neo4j_username,
+            "NEO4J_PASSWORD": args.neo4j_password,
+            "NEO4J_DATABASE": args.neo4j_database,
+            "OPENAI_MODEL": args.openai_model,
+            "POWER_ATLAS_OUTPUT_DIR": str(args.output_dir),
+            "POWER_ATLAS_DATASET": getattr(args, "dataset", None) or "",
+        }
+    )
+    app_context = _build_app_context(settings=package_settings)
+    return _build_request_context(
+        app_context,
+        command=getattr(args, "command", None),
+        dry_run=args.dry_run if dry_run is None else dry_run,
+        output_dir=args.output_dir,
+        question=getattr(args, "question", None),
+        resolution_mode=getattr(args, "resolution_mode", None) or "unstructured_only",
+        run_id=run_id,
+        all_runs=all_runs,
+        source_uri=source_uri,
     )
 
 
@@ -969,22 +1006,8 @@ run_independent_demo = _run_independent_stage
 def main() -> None:
     args = parse_args()
     if args.command == "lint-structured":
-        package_settings = _build_package_settings(
-            {
-                "NEO4J_URI": args.neo4j_uri,
-                "NEO4J_USERNAME": args.neo4j_username,
-                "NEO4J_PASSWORD": args.neo4j_password,
-                "NEO4J_DATABASE": args.neo4j_database,
-                "OPENAI_MODEL": args.openai_model,
-                "POWER_ATLAS_OUTPUT_DIR": str(args.output_dir),
-                "POWER_ATLAS_DATASET": getattr(args, "dataset", None) or "",
-            }
-        )
-        config = _build_runtime_config(
-            package_settings,
-            dry_run=True,
-            output_dir=args.output_dir,
-        )
+        request_context = _build_request_context_from_args(args, dry_run=True)
+        config = request_context.config
         dataset_root = resolve_dataset_root(config.dataset_name)
         run_id = make_run_id("structured_lint")
         lint_result = lint_and_clean_structured_csvs(
@@ -997,7 +1020,8 @@ def main() -> None:
         return
     config_commands = {"ingest", "ingest-structured", "ingest-pdf", "extract-claims", "resolve-entities", "ask"}
     if args.command in config_commands:
-        config = _build_config_from_args(args)
+        request_context = _build_request_context_from_args(args)
+        config = request_context.config
         try:
             if args.command == "ingest":
                 manifest_path = run_demo(config)

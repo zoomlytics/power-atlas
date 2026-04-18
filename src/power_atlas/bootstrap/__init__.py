@@ -1,6 +1,8 @@
 from power_atlas.bootstrap.app import (
 	AppBootstrap,
 	bootstrap_app,
+	build_app_context,
+	build_request_context,
 	build_runtime_config,
 	build_settings,
 	dataset_env_selection,
@@ -17,6 +19,8 @@ from power_atlas.bootstrap.clients import (
 __all__ = [
 	"AppBootstrap",
 	"bootstrap_app",
+	"build_app_context",
+	"build_request_context",
 	"build_runtime_config",
 	"build_embedder_for_settings",
 	"build_llm_for_settings",

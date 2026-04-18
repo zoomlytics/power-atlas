@@ -6,6 +6,8 @@ from pathlib import Path
 from typing import Iterator, Mapping, MutableMapping
 import os
 
+from power_atlas.context import AppContext, RequestContext
+from power_atlas.contracts.pipeline import get_pipeline_contract_config_data, get_pipeline_contract_snapshot
 from power_atlas.contracts.runtime import Config
 from power_atlas.settings import AppSettings
 
@@ -13,10 +15,24 @@ from power_atlas.settings import AppSettings
 @dataclass(frozen=True)
 class AppBootstrap:
     settings: AppSettings
+    app_context: AppContext
 
 
 def build_settings(environ: Mapping[str, str] | None = None) -> AppSettings:
     return AppSettings.from_env(environ=environ)
+
+
+def build_app_context(
+    *,
+    settings: AppSettings | None = None,
+    environ: Mapping[str, str] | None = None,
+) -> AppContext:
+    resolved_settings = build_settings(environ=environ) if settings is None else settings
+    return AppContext(
+        settings=resolved_settings,
+        pipeline_contract=get_pipeline_contract_snapshot(),
+        pipeline_contract_config_data=get_pipeline_contract_config_data(),
+    )
 
 
 def dataset_env_selection(
@@ -84,12 +100,43 @@ def build_runtime_config(
     )
 
 
+def build_request_context(
+    app_context: AppContext,
+    *,
+    command: str | None,
+    dry_run: bool,
+    output_dir: Path | None = None,
+    question: str | None = None,
+    resolution_mode: str = "unstructured_only",
+    run_id: str | None = None,
+    all_runs: bool = False,
+    source_uri: str | None = None,
+) -> RequestContext:
+    return RequestContext(
+        app=app_context,
+        config=build_runtime_config(
+            app_context.settings,
+            dry_run=dry_run,
+            output_dir=output_dir,
+            question=question,
+            resolution_mode=resolution_mode,
+        ),
+        command=command,
+        run_id=run_id,
+        all_runs=all_runs,
+        source_uri=source_uri,
+    )
+
+
 def bootstrap_app(environ: Mapping[str, str] | None = None) -> AppBootstrap:
-    return AppBootstrap(settings=build_settings(environ=environ))
+    settings = build_settings(environ=environ)
+    return AppBootstrap(settings=settings, app_context=build_app_context(settings=settings))
 
 
 __all__ = [
     "AppBootstrap",
+    "build_app_context",
+    "build_request_context",
     "bootstrap_app",
     "build_runtime_config",
     "build_settings",

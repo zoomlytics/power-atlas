@@ -2732,19 +2732,16 @@ class ResetDemoDbTests(unittest.TestCase):
 
         import power_atlas.contracts.pipeline as pipeline_contracts
 
-        with self.assertWarnsRegex(DeprecationWarning, "CHUNK_EMBEDDING_INDEX_NAME is deprecated"):
-            original_index_name = pipeline_contracts.CHUNK_EMBEDDING_INDEX_NAME
+        original_index_name = pipeline_contracts._CHUNK_EMBEDDING_INDEX_NAME
         try:
-            with self.assertWarnsRegex(DeprecationWarning, "CHUNK_EMBEDDING_INDEX_NAME is deprecated"):
-                pipeline_contracts.CHUNK_EMBEDDING_INDEX_NAME = "dynamic_reset_index"
+            pipeline_contracts._CHUNK_EMBEDDING_INDEX_NAME = "dynamic_reset_index"
             report = module.run_reset(
                 driver=fake_neo4j.GraphDatabase.driver("neo4j://localhost:7687"),
                 database="neo4j",
                 output_dir=None,
             )
         finally:
-            with self.assertWarnsRegex(DeprecationWarning, "CHUNK_EMBEDDING_INDEX_NAME is deprecated"):
-                pipeline_contracts.CHUNK_EMBEDDING_INDEX_NAME = original_index_name
+            pipeline_contracts._CHUNK_EMBEDDING_INDEX_NAME = original_index_name
 
         self.assertEqual(report["indexes_dropped"], ["dynamic_reset_index"])
         self.assertEqual(report["indexes_not_found"], [])

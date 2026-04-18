@@ -1,11 +1,14 @@
 from power_atlas.bootstrap import (
     AppBootstrap,
     bootstrap_app,
+    build_app_context,
     build_embedder_for_settings,
     build_llm_for_settings,
+    build_request_context,
     build_settings,
     create_neo4j_driver,
 )
+from power_atlas.context import AppContext, RequestContext
 from power_atlas.contracts import (
     ALIGNMENT_VERSION,
     ARTIFACTS_DIR,
@@ -59,6 +62,7 @@ __all__ = [
     "EarlyReturnRule",
     "FieldSurfacePolicy",
     "AppBootstrap",
+    "AppContext",
     "AppSettings",
     "COMMON_PREDICATE_LABELS",
     "CONFIG_DIR",
@@ -77,9 +81,11 @@ __all__ = [
     "STRUCTURED_FILE_HEADERS",
     "VALUE_TYPES",
     "bootstrap_app",
+    "build_app_context",
     "build_embedder_for_settings",
     "build_llm_for_settings",
     "build_openai_llm",
+    "build_request_context",
     "build_settings",
     "create_neo4j_driver",
     "list_available_datasets",
@@ -87,6 +93,7 @@ __all__ = [
     "normalize_mention_text",
     "resolve_dataset_root",
     "resolve_early_return_rule",
+    "RequestContext",
     "resolution_layer_schema",
     "timestamp",
     "write_manifest",
