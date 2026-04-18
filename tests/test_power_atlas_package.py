@@ -376,6 +376,22 @@ def test_demo_contracts_root_does_not_reexport_mutable_pipeline_symbols() -> Non
         assert not hasattr(demo_contracts, name)
 
 
+def test_demo_run_demo_module_does_not_reexport_mutable_pipeline_symbols() -> None:
+    import demo.run_demo as run_demo_module
+
+    disallowed_exports = {
+        "CHUNK_EMBEDDING_DIMENSIONS",
+        "CHUNK_EMBEDDING_INDEX_NAME",
+        "CHUNK_EMBEDDING_LABEL",
+        "CHUNK_EMBEDDING_PROPERTY",
+        "CHUNK_FALLBACK_STRIDE",
+        "EMBEDDER_MODEL_NAME",
+    }
+
+    for name in disallowed_exports:
+        assert not hasattr(run_demo_module, name)
+
+
 def test_build_embedder_for_settings_uses_embedder_model() -> None:
     from power_atlas.bootstrap.clients import build_embedder_for_settings
     from power_atlas.settings import AppSettings, Neo4jSettings

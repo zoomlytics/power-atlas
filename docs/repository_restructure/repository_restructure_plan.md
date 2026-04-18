@@ -582,8 +582,8 @@ The repo has now completed a first concrete runtime-state reduction pass:
   `get_pipeline_contract_config_data()` helper for raw config inspection,
 - `demo.contracts` root no longer eagerly imports or re-exports those
   deprecated non-dataset pipeline globals, and `demo.run_demo` now reads live
-  pipeline settings through the snapshot seam rather than relaying deprecated
-  global access,
+  pipeline settings only through the snapshot seam rather than exposing or
+  honoring module-level compatibility state for those values,
 - the mutable dataset-state surface is now effectively reduced to compatibility
   exports and the pipeline submodule itself rather than active stage/orchestrator
   behavior.

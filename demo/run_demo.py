@@ -44,15 +44,6 @@ from demo.stages.retrieval_and_qa import _format_scope_label  # noqa: E402
 from demo.stages.retrieval_benchmark import run_retrieval_benchmark  # noqa: E402
 from demo.stages.pdf_ingest import sha256_file  # noqa: E402, F401 - re-exported for callers and tests
 
-_PIPELINE_CONTRACT_EXPORTS = {
-    "CHUNK_EMBEDDING_DIMENSIONS",
-    "CHUNK_EMBEDDING_INDEX_NAME",
-    "CHUNK_EMBEDDING_LABEL",
-    "CHUNK_EMBEDDING_PROPERTY",
-    "CHUNK_FALLBACK_STRIDE",
-    "EMBEDDER_MODEL_NAME",
-}
-
 _logger = logging.getLogger(__name__)
 
 _PIPELINE_SNAPSHOT_FIELDS = {
@@ -66,8 +57,6 @@ _PIPELINE_SNAPSHOT_FIELDS = {
 
 
 def _pipeline_contract_value(name: str) -> Any:
-    if name in globals():
-        return globals()[name]
     snapshot_field = _PIPELINE_SNAPSHOT_FIELDS.get(name)
     if snapshot_field is not None:
         return getattr(pipeline_contracts.get_pipeline_contract_snapshot(), snapshot_field)
@@ -83,14 +72,6 @@ def _pipeline_contract_view() -> dict[str, Any]:
         "embedder_model": _pipeline_contract_value("EMBEDDER_MODEL_NAME"),
         "chunk_stride": _pipeline_contract_value("CHUNK_FALLBACK_STRIDE"),
     }
-
-
-def __getattr__(name: str) -> Any:
-    if name in _PIPELINE_CONTRACT_EXPORTS:
-        return _pipeline_contract_value(name)
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
-
-
 def _now_iso() -> str:
     return datetime.now(UTC).isoformat()
 

@@ -36,6 +36,28 @@ def _load_module(path: Path, module_name: str):
     return module
 
 
+_RUN_DEMO_PIPELINE_PRIVATE_FIELDS = {
+    "CHUNK_EMBEDDING_INDEX_NAME": "_CHUNK_EMBEDDING_INDEX_NAME",
+    "CHUNK_EMBEDDING_LABEL": "_CHUNK_EMBEDDING_LABEL",
+    "CHUNK_EMBEDDING_PROPERTY": "_CHUNK_EMBEDDING_PROPERTY",
+    "CHUNK_EMBEDDING_DIMENSIONS": "_CHUNK_EMBEDDING_DIMENSIONS",
+    "CHUNK_FALLBACK_STRIDE": "_CHUNK_FALLBACK_STRIDE",
+    "EMBEDDER_MODEL_NAME": "_EMBEDDER_MODEL_NAME",
+}
+
+
+def _run_demo_pipeline_snapshot(module):
+    return module.pipeline_contracts.get_pipeline_contract_snapshot()
+
+
+def _set_run_demo_pipeline_private(module, public_name: str, value):
+    setattr(module.pipeline_contracts, _RUN_DEMO_PIPELINE_PRIVATE_FIELDS[public_name], value)
+
+
+def _get_run_demo_pipeline_private(module, public_name: str):
+    return getattr(module.pipeline_contracts, _RUN_DEMO_PIPELINE_PRIVATE_FIELDS[public_name])
+
+
 class WorkflowTests(unittest.TestCase):
     def setUp(self):
         # When multiple fixture datasets exist the auto-discovery raises
@@ -782,7 +804,7 @@ class WorkflowTests(unittest.TestCase):
             result["pipeline_config_sha256"],
             module.sha256_file(DEMO_DIR / "config" / "pdf_simple_kg_pipeline.yaml"),
         )
-        self.assertEqual(summary["embedding_model"], module.EMBEDDER_MODEL_NAME)
+        self.assertEqual(summary["embedding_model"], _run_demo_pipeline_snapshot(module).embedder_model_name)
         self.assertEqual(result["vector_index"]["creation_strategy"], "cypher")
         self.assertEqual(result["pipeline_result"], {"ok": True})
         self.assertEqual(result["provenance"]["dataset_id"], "demo_dataset_v1")
@@ -830,7 +852,7 @@ class WorkflowTests(unittest.TestCase):
         self.assertIsNotNone(normalization_entry, "Expected chunk normalization query to run")
         self.assertEqual(
             normalization_entry[1].get("default_chunk_stride"),
-            module.CHUNK_FALLBACK_STRIDE,
+            _run_demo_pipeline_snapshot(module).chunk_fallback_stride,
         )
         self.assertIn("toIntegerOrNull", normalization_entry[0])
         self.assertTrue(
@@ -913,8 +935,9 @@ class WorkflowTests(unittest.TestCase):
             self.assertEqual(summary["pdf_fingerprint_sha256"], expected_fingerprint)
             self.assertEqual(summary["counts"], {"documents": 0, "pages": 0, "chunks": 0})
             self.assertEqual(summary["dataset_id"], "demo_dataset_v1")
-            self.assertEqual(summary["embedding_model"], module.EMBEDDER_MODEL_NAME)
-            self.assertEqual(summary["embedding_dimensions"], module.CHUNK_EMBEDDING_DIMENSIONS)
+            pipeline_contract = _run_demo_pipeline_snapshot(module)
+            self.assertEqual(summary["embedding_model"], pipeline_contract.embedder_model_name)
+            self.assertEqual(summary["embedding_dimensions"], pipeline_contract.chunk_embedding_dimensions)
             self.assertEqual(
                 summary["pipeline_config_sha256"],
                 module.sha256_file(DEMO_DIR / "config" / "pdf_simple_kg_pipeline.yaml"),
@@ -1005,9 +1028,9 @@ class WorkflowTests(unittest.TestCase):
             calls=calls,
         )
         original_identifiers = {
-            "CHUNK_EMBEDDING_INDEX_NAME": module.CHUNK_EMBEDDING_INDEX_NAME,
-            "CHUNK_EMBEDDING_LABEL": module.CHUNK_EMBEDDING_LABEL,
-            "CHUNK_EMBEDDING_PROPERTY": module.CHUNK_EMBEDDING_PROPERTY,
+            "CHUNK_EMBEDDING_INDEX_NAME": _get_run_demo_pipeline_private(module, "CHUNK_EMBEDDING_INDEX_NAME"),
+            "CHUNK_EMBEDDING_LABEL": _get_run_demo_pipeline_private(module, "CHUNK_EMBEDDING_LABEL"),
+            "CHUNK_EMBEDDING_PROPERTY": _get_run_demo_pipeline_private(module, "CHUNK_EMBEDDING_PROPERTY"),
         }
         try:
             with self._with_injected_pdf_ingest_modules(injected_modules):
@@ -1017,14 +1040,14 @@ class WorkflowTests(unittest.TestCase):
                     ("CHUNK_EMBEDDING_PROPERTY", "embedding`bad", "Unsafe property for Cypher index creation"),
                 ]:
                     for original_attr_name, original_value in original_identifiers.items():
-                        setattr(module, original_attr_name, original_value)
-                    setattr(module, attr_name, value)
+                        _set_run_demo_pipeline_private(module, original_attr_name, original_value)
+                    _set_run_demo_pipeline_private(module, attr_name, value)
                     with self.assertRaisesRegex(ValueError, expected):
                         module._run_pdf_ingest(config, run_id="unstructured_ingest-test")
                 self.assertFalse(calls.get("queries"))
         finally:
             for attr_name, original_value in original_identifiers.items():
-                setattr(module, attr_name, original_value)
+                _set_run_demo_pipeline_private(module, attr_name, original_value)
 
     def test_run_pdf_ingest_raises_when_contract_index_not_found_after_creation(self):
         """Post-creation validation raises a clear contract violation when the index is absent."""
@@ -1163,10 +1186,11 @@ class WorkflowTests(unittest.TestCase):
             yaml.safe_load = lambda *_args, **_kwargs: (_ for _ in ()).throw(yaml.YAMLError("bad yaml"))
             with self.assertLogs("demo.contracts.pipeline", level="WARNING") as captured:
                 module = _load_module(RUN_DEMO_PATH, "run_yaml_warn_test")
-            self.assertEqual(module.CHUNK_EMBEDDING_INDEX_NAME, "demo_chunk_embedding_index")
-            self.assertEqual(module.CHUNK_EMBEDDING_LABEL, "Chunk")
-            self.assertEqual(module.CHUNK_EMBEDDING_PROPERTY, "embedding")
-            self.assertEqual(module.CHUNK_EMBEDDING_DIMENSIONS, 1536)
+            pipeline_contract = _run_demo_pipeline_snapshot(module)
+            self.assertEqual(pipeline_contract.chunk_embedding_index_name, "demo_chunk_embedding_index")
+            self.assertEqual(pipeline_contract.chunk_embedding_label, "Chunk")
+            self.assertEqual(pipeline_contract.chunk_embedding_property, "embedding")
+            self.assertEqual(pipeline_contract.chunk_embedding_dimensions, 1536)
             self.assertTrue(
                 any("Falling back to default chunk embedding contract" in msg for msg in captured.output),
                 "Expected warning when pipeline config cannot be parsed",
@@ -1180,10 +1204,11 @@ class WorkflowTests(unittest.TestCase):
             yaml.safe_load = lambda *_args, **_kwargs: []
             with self.assertLogs("demo.contracts.pipeline", level="WARNING") as captured:
                 module = _load_module(RUN_DEMO_PATH, "run_yaml_top_level_type_warn_test")
-            self.assertEqual(module.CHUNK_EMBEDDING_INDEX_NAME, "demo_chunk_embedding_index")
-            self.assertEqual(module.CHUNK_EMBEDDING_LABEL, "Chunk")
-            self.assertEqual(module.CHUNK_EMBEDDING_PROPERTY, "embedding")
-            self.assertEqual(module.CHUNK_EMBEDDING_DIMENSIONS, 1536)
+            pipeline_contract = _run_demo_pipeline_snapshot(module)
+            self.assertEqual(pipeline_contract.chunk_embedding_index_name, "demo_chunk_embedding_index")
+            self.assertEqual(pipeline_contract.chunk_embedding_label, "Chunk")
+            self.assertEqual(pipeline_contract.chunk_embedding_property, "embedding")
+            self.assertEqual(pipeline_contract.chunk_embedding_dimensions, 1536)
             self.assertTrue(
                 any("expected mapping at top-level" in msg for msg in captured.output),
                 "Expected warning when pipeline config top-level is not a mapping",
@@ -1205,20 +1230,20 @@ class WorkflowTests(unittest.TestCase):
 
         import power_atlas.contracts.pipeline as pipeline_contracts
 
-        with self.assertWarnsRegex(DeprecationWarning, "CHUNK_EMBEDDING_INDEX_NAME is deprecated"):
-            original_index_name = pipeline_contracts.CHUNK_EMBEDDING_INDEX_NAME
+        original_index_name = pipeline_contracts._CHUNK_EMBEDDING_INDEX_NAME
         try:
-            with self.assertWarnsRegex(DeprecationWarning, "CHUNK_EMBEDDING_INDEX_NAME is deprecated"):
-                pipeline_contracts.CHUNK_EMBEDDING_INDEX_NAME = "dynamic_contract_index"
+            pipeline_contracts._CHUNK_EMBEDDING_INDEX_NAME = "dynamic_contract_index"
 
-            self.assertEqual(module.CHUNK_EMBEDDING_INDEX_NAME, "dynamic_contract_index")
+            self.assertEqual(
+                _run_demo_pipeline_snapshot(module).chunk_embedding_index_name,
+                "dynamic_contract_index",
+            )
 
             summary = module._run_pdf_ingest(config, run_id="dynamic-contract-run")
 
             self.assertEqual(summary["vector_index"]["index_name"], "dynamic_contract_index")
         finally:
-            with self.assertWarnsRegex(DeprecationWarning, "CHUNK_EMBEDDING_INDEX_NAME is deprecated"):
-                pipeline_contracts.CHUNK_EMBEDDING_INDEX_NAME = original_index_name
+            pipeline_contracts._CHUNK_EMBEDDING_INDEX_NAME = original_index_name
 
     def test_run_demo_warns_and_falls_back_when_chunk_embedding_is_not_mapping(self):
         original_safe_load = yaml.safe_load
@@ -1226,10 +1251,11 @@ class WorkflowTests(unittest.TestCase):
             yaml.safe_load = lambda *_args, **_kwargs: {"contract": {"chunk_embedding": []}}
             with self.assertLogs("demo.contracts.pipeline", level="WARNING") as captured:
                 module = _load_module(RUN_DEMO_PATH, "run_chunk_contract_type_warn_test")
-            self.assertEqual(module.CHUNK_EMBEDDING_INDEX_NAME, "demo_chunk_embedding_index")
-            self.assertEqual(module.CHUNK_EMBEDDING_LABEL, "Chunk")
-            self.assertEqual(module.CHUNK_EMBEDDING_PROPERTY, "embedding")
-            self.assertEqual(module.CHUNK_EMBEDDING_DIMENSIONS, 1536)
+            pipeline_contract = _run_demo_pipeline_snapshot(module)
+            self.assertEqual(pipeline_contract.chunk_embedding_index_name, "demo_chunk_embedding_index")
+            self.assertEqual(pipeline_contract.chunk_embedding_label, "Chunk")
+            self.assertEqual(pipeline_contract.chunk_embedding_property, "embedding")
+            self.assertEqual(pipeline_contract.chunk_embedding_dimensions, 1536)
             self.assertTrue(
                 any("contract.chunk_embedding" in msg for msg in captured.output),
                 "Expected warning when chunk embedding contract is not a mapping",
@@ -1243,10 +1269,11 @@ class WorkflowTests(unittest.TestCase):
             yaml.safe_load = lambda *_args, **_kwargs: {"contract": "not-a-dict"}
             with self.assertLogs("demo.contracts.pipeline", level="WARNING") as captured:
                 module = _load_module(RUN_DEMO_PATH, "run_pipeline_contract_type_warn_test")
-            self.assertEqual(module.CHUNK_EMBEDDING_INDEX_NAME, "demo_chunk_embedding_index")
-            self.assertEqual(module.CHUNK_EMBEDDING_LABEL, "Chunk")
-            self.assertEqual(module.CHUNK_EMBEDDING_PROPERTY, "embedding")
-            self.assertEqual(module.CHUNK_EMBEDDING_DIMENSIONS, 1536)
+            pipeline_contract = _run_demo_pipeline_snapshot(module)
+            self.assertEqual(pipeline_contract.chunk_embedding_index_name, "demo_chunk_embedding_index")
+            self.assertEqual(pipeline_contract.chunk_embedding_label, "Chunk")
+            self.assertEqual(pipeline_contract.chunk_embedding_property, "embedding")
+            self.assertEqual(pipeline_contract.chunk_embedding_dimensions, 1536)
             self.assertTrue(
                 any("expected mapping for contract" in msg for msg in captured.output),
                 "Expected warning when pipeline contract is not a mapping",
