@@ -171,3 +171,13 @@ def test_non_dataset_pipeline_compat_exports_are_removed() -> None:
     assert not hasattr(pipeline, "CHUNK_EMBEDDING_DIMENSIONS")
     assert not hasattr(pipeline, "EMBEDDER_MODEL_NAME")
     assert not hasattr(pipeline, "CHUNK_FALLBACK_STRIDE")
+
+
+def test_private_pipeline_compat_exports_are_removed() -> None:
+    assert not hasattr(pipeline, "_PIPELINE_CONFIG_DATA")
+    assert not hasattr(pipeline, "_CHUNK_EMBEDDING_INDEX_NAME")
+    assert not hasattr(pipeline, "_CHUNK_EMBEDDING_LABEL")
+    assert not hasattr(pipeline, "_CHUNK_EMBEDDING_PROPERTY")
+    assert not hasattr(pipeline, "_CHUNK_EMBEDDING_DIMENSIONS")
+    assert not hasattr(pipeline, "_EMBEDDER_MODEL_NAME")
+    assert not hasattr(pipeline, "_CHUNK_FALLBACK_STRIDE")

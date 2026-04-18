@@ -22,15 +22,8 @@ _DEFAULT_CHUNK_EMBEDDING_DIMENSIONS = 1536
 _DEFAULT_EMBEDDER_MODEL_NAME = "text-embedding-3-small"
 _IDENTIFIER_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
-_PIPELINE_CONFIG_DATA: dict[str, Any] = {}
 _PIPELINE_CONTRACT_LOADED = threading.Event()
 _PIPELINE_CONTRACT_LOCK = threading.Lock()
-_CHUNK_EMBEDDING_INDEX_NAME = _DEFAULT_CHUNK_EMBEDDING_INDEX_NAME
-_CHUNK_EMBEDDING_LABEL = _DEFAULT_CHUNK_EMBEDDING_LABEL
-_CHUNK_EMBEDDING_PROPERTY = _DEFAULT_CHUNK_EMBEDDING_PROPERTY
-_CHUNK_EMBEDDING_DIMENSIONS = _DEFAULT_CHUNK_EMBEDDING_DIMENSIONS
-_EMBEDDER_MODEL_NAME = _DEFAULT_EMBEDDER_MODEL_NAME
-_CHUNK_FALLBACK_STRIDE = max(_DEFAULT_CHUNK_SIZE - _DEFAULT_CHUNK_OVERLAP, 1)
 
 
 @dataclass(frozen=True)
@@ -266,25 +259,6 @@ def _load_pipeline_contract() -> _PipelineContractState:
             chunk_fallback_stride=max(chunk_size - chunk_overlap, 1),
         ),
     )
-
-
-def __getattr__(name: str) -> Any:
-    snapshot = _PIPELINE_CONTRACT_STATE.snapshot
-    if name == "_PIPELINE_CONFIG_DATA":
-        return deepcopy(_PIPELINE_CONTRACT_STATE.config_data)
-    if name == "_CHUNK_EMBEDDING_INDEX_NAME":
-        return snapshot.chunk_embedding_index_name
-    if name == "_CHUNK_EMBEDDING_LABEL":
-        return snapshot.chunk_embedding_label
-    if name == "_CHUNK_EMBEDDING_PROPERTY":
-        return snapshot.chunk_embedding_property
-    if name == "_CHUNK_EMBEDDING_DIMENSIONS":
-        return snapshot.chunk_embedding_dimensions
-    if name == "_EMBEDDER_MODEL_NAME":
-        return snapshot.embedder_model_name
-    if name == "_CHUNK_FALLBACK_STRIDE":
-        return snapshot.chunk_fallback_stride
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def _coerce_identifier(value: Any, default: str, field_name: str) -> str:

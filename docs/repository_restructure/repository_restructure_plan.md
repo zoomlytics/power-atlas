@@ -624,10 +624,13 @@ The repo has now completed a first concrete runtime-state reduction pass:
   than dropping back to legacy Config-only stage calls mid-pipeline.
   `demo/run_demo.py` also no longer forces `refresh_pipeline_contract()` at
   module import time; pipeline reloads now occur only through explicit test-
-  owned refresh calls or the normal bootstrap/snapshot path. The remaining
-  work is the rest of the mutable-global inventory outside those modules plus
-  any further ownership cleanup warranted around the remaining single cached
-  state.
+  owned refresh calls or the normal bootstrap/snapshot path. The pipeline
+  contract module's unused private compatibility interception and dead backing
+  globals have now also been removed, leaving the cached state, snapshot
+  getter, raw-config getter, and explicit refresh helpers as the remaining
+  surface. The remaining work is the rest of the mutable-global inventory
+  outside those modules plus any further ownership cleanup warranted around the
+  remaining single cached state.
   ingest and independent `ingest-pdf` execution
   to bundle settings, pipeline snapshot state, and per-request runtime metadata.
 
