@@ -393,6 +393,25 @@ def test_claim_extraction_request_context_uses_request_scope(tmp_path: Path):
     assert summary["status"] == "dry_run"
 
 
+def test_entity_resolution_request_context_uses_request_scope(tmp_path: Path):
+    """The RequestContext entity-resolution helper must forward run and source scope directly."""
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.entity_resolution import run_entity_resolution_request_context
+
+    request_context = _request_context_from_config(
+        _dry_run_config(tmp_path),
+        command="resolve-entities",
+        run_id="context-entity-run",
+        source_uri="file:///context/entity.pdf",
+    )
+
+    summary = run_entity_resolution_request_context(request_context)
+
+    assert summary["run_id"] == "context-entity-run"
+    assert summary["source_uri"] == "file:///context/entity.pdf"
+    assert summary["status"] == "dry_run"
+
+
 def test_claim_extraction_live_path_uses_create_lexical_graph_false(tmp_path: Path):
     """Verify that _async_read_chunks_and_extract instantiates LLMEntityRelationExtractor
     with create_lexical_graph=False, keeping extraction non-destructive:

@@ -228,6 +228,7 @@ from urllib.parse import quote as _pct_encode
 import neo4j
 
 from power_atlas.bootstrap import create_neo4j_driver
+from power_atlas.context import RequestContext
 from power_atlas.contracts import resolve_dataset_root
 from power_atlas.contracts.resolution import ALIGNMENT_VERSION as _ALIGNMENT_VERSION
 from power_atlas.text_utils import normalize_mention_text
@@ -1886,9 +1887,28 @@ def run_entity_resolution(
     return summary
 
 
+def run_entity_resolution_request_context(
+    request_context: RequestContext,
+    *,
+    resolution_mode: str | None = None,
+    artifact_subdir: str = "entity_resolution",
+    dataset_id: str | None = None,
+) -> dict[str, Any]:
+    """Run entity resolution using request-scoped context as the primary input."""
+    return run_entity_resolution(
+        request_context.config,
+        run_id=request_context.run_id,
+        source_uri=request_context.source_uri,
+        resolution_mode=resolution_mode,
+        artifact_subdir=artifact_subdir,
+        dataset_id=dataset_id,
+    )
+
+
 __all__ = [
     "build_entity_type_cypher_case",
     "run_entity_resolution",
+    "run_entity_resolution_request_context",
     "_build_entity_type_report",
     "_RESOLUTION_MODE_STRUCTURED_ANCHOR",
     "_RESOLUTION_MODE_UNSTRUCTURED_ONLY",

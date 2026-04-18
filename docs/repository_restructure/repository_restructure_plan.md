@@ -596,7 +596,9 @@ The repo has now completed a first concrete runtime-state reduction pass:
   stage-facing retrieval entrypoints now also accept `RequestContext`
   directly for both single-turn and interactive ask execution, and claim
   extraction now has a matching context-aware entrypoint used by both the
-  orchestrated ingest path and the independent `extract-claims` path
+  orchestrated ingest path and the independent `extract-claims` path; entity
+  resolution now follows the same pattern for both the orchestrated ingest
+  passes and the independent `resolve-entities` path
   to bundle settings, pipeline snapshot state, and per-request runtime metadata.
 
 That is meaningful progress, but it does not yet satisfy the phase. The pipeline

@@ -46,6 +46,7 @@ from demo.stages import (  # noqa: E402
 )
 from demo.stages.retrieval_and_qa import _format_scope_label  # noqa: E402
 from demo.stages.claim_extraction import run_claim_and_mention_extraction_request_context  # noqa: E402
+from demo.stages.entity_resolution import run_entity_resolution_request_context  # noqa: E402
 from demo.stages.retrieval_and_qa import run_interactive_qa_request_context  # noqa: E402
 from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context  # noqa: E402
 from demo.stages.retrieval_benchmark import run_retrieval_benchmark  # noqa: E402
@@ -705,6 +706,21 @@ def _run_claim_extraction_request_context(request_context: RequestContext) -> di
     return run_claim_and_mention_extraction_request_context(request_context)
 
 
+def _run_entity_resolution_request_context(
+    request_context: RequestContext,
+    *,
+    resolution_mode: str | None = None,
+    artifact_subdir: str = "entity_resolution",
+    dataset_id: str | None = None,
+) -> dict[str, Any]:
+    return run_entity_resolution_request_context(
+        request_context,
+        resolution_mode=resolution_mode,
+        artifact_subdir=artifact_subdir,
+        dataset_id=dataset_id,
+    )
+
+
 def _run_orchestrated_request_context(request_context: RequestContext) -> Path:
     """Run the full demo batch sequence with an unstructured-first posture.
 
@@ -778,10 +794,12 @@ def _run_orchestrated_request_context(request_context: RequestContext) -> Path:
     # the unstructured-only artifacts when both passes share the same run_id.
     # Pass dataset_id explicitly (preferred explicit-scope pattern) rather than relying
     # on the ambient value set by set_dataset_id() earlier in orchestration.
-    entity_resolution_unstructured_stage = run_entity_resolution(
-        config,
-        run_id=unstructured_run_id,
-        source_uri=pdf_source_uri,
+    entity_resolution_unstructured_stage = _run_entity_resolution_request_context(
+        replace(
+            request_context,
+            run_id=unstructured_run_id,
+            source_uri=pdf_source_uri,
+        ),
         resolution_mode="unstructured_only",
         artifact_subdir="entity_resolution_unstructured_only",
         dataset_id=dataset_root.dataset_id,
@@ -805,10 +823,12 @@ def _run_orchestrated_request_context(request_context: RequestContext) -> Path:
     # Hybrid alignment enriches existing ResolvedEntityCluster nodes with ALIGNED_WITH
     # edges to CanonicalEntity nodes; gracefully degrades when no matches exist.
     # Use a separate artifact subdirectory to preserve the unstructured-only artifacts.
-    entity_resolution_hybrid_stage = run_entity_resolution(
-        config,
-        run_id=unstructured_run_id,
-        source_uri=pdf_source_uri,
+    entity_resolution_hybrid_stage = _run_entity_resolution_request_context(
+        replace(
+            request_context,
+            run_id=unstructured_run_id,
+            source_uri=pdf_source_uri,
+        ),
         resolution_mode="hybrid",
         artifact_subdir="entity_resolution_hybrid",
         dataset_id=dataset_root.dataset_id,
@@ -996,12 +1016,14 @@ def _run_independent_stage(
         "resolve-entities": (
             "entity_resolution",
             "unstructured_ingest_run_id",
-            lambda cfg, stage_run_id: run_entity_resolution(
-                cfg,
-                run_id=stage_run_id,
-                # Independent-stage default: use the active dataset's PDF URI.
-                # See note above for extract-claims.
-                source_uri=_pdf_source_uri,
+            lambda cfg, stage_run_id: _run_entity_resolution_request_context(
+                replace(
+                    request_context,
+                    run_id=stage_run_id,
+                    # Independent-stage default: use the active dataset's PDF URI.
+                    # See note above for extract-claims.
+                    source_uri=_pdf_source_uri,
+                ),
                 dataset_id=dataset_root.dataset_id,
             ),
         ),

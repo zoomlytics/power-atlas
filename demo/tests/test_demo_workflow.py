@@ -366,16 +366,20 @@ class WorkflowTests(unittest.TestCase):
 
         module = _load_module(RUN_DEMO_PATH, "run_demo_test_module")
 
-        # Capture every call made to run_entity_resolution as the orchestrator runs.
+        # Capture every call made to the entity-resolution request-context helper as the orchestrator runs.
         captured_calls: list = []
-        real_fn = module._run_entity_resolution
+        real_fn = module._run_entity_resolution_request_context
 
-        def _fake_run_entity_resolution(*args, **kwargs):
+        def _fake_run_entity_resolution_request_context(*args, **kwargs):
             captured_calls.append(kwargs)
             return real_fn(*args, **kwargs)
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            with mock_patch.object(module, "run_entity_resolution", side_effect=_fake_run_entity_resolution):
+            with mock_patch.object(
+                module,
+                "_run_entity_resolution_request_context",
+                side_effect=_fake_run_entity_resolution_request_context,
+            ):
                 module.run_demo(
                     module.Config(
                         dry_run=True,
@@ -391,7 +395,7 @@ class WorkflowTests(unittest.TestCase):
 
         # There must be exactly two entity-resolution calls in the orchestrated flow:
         # one unstructured_only and one hybrid.
-        self.assertEqual(len(captured_calls), 2, "Expected exactly two run_entity_resolution calls")
+        self.assertEqual(len(captured_calls), 2, "Expected exactly two entity-resolution helper calls")
 
         uo_call = next(
             (c for c in captured_calls if c.get("resolution_mode") == "unstructured_only"), None
