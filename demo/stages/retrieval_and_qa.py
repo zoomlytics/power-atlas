@@ -14,6 +14,7 @@ from neo4j_graphrag.message_history import InMemoryMessageHistory, MessageHistor
 
 from power_atlas.bootstrap import require_openai_api_key
 from power_atlas.bootstrap.clients import build_embedder_for_settings, create_neo4j_driver
+from power_atlas.context import RequestContext
 from power_atlas.contracts import (
     ALIGNMENT_VERSION,
     AmbiguousDatasetError,
@@ -1762,6 +1763,33 @@ def _build_retriever_and_rag(
     return retriever, rag
 
 
+def run_retrieval_and_qa_request_context(
+    request_context: RequestContext,
+    *,
+    top_k: int = _DEFAULT_TOP_K,
+    index_name: str | None = None,
+    question: str | None = None,
+    expand_graph: bool = False,
+    cluster_aware: bool = False,
+    message_history: MessageHistory | list[dict[str, str]] | None = None,
+    interactive: bool = False,
+) -> dict[str, object]:
+    """Run single-turn retrieval using request-scoped context as the primary input."""
+    return run_retrieval_and_qa(
+        request_context.config,
+        run_id=request_context.run_id,
+        source_uri=request_context.source_uri,
+        top_k=top_k,
+        index_name=index_name or request_context.pipeline_contract.chunk_embedding_index_name,
+        question=question if question is not None else getattr(request_context.config, "question", None),
+        expand_graph=expand_graph,
+        cluster_aware=cluster_aware,
+        message_history=message_history,
+        interactive=interactive,
+        all_runs=request_context.all_runs,
+    )
+
+
 def run_retrieval_and_qa(
     config: object,
     *,
@@ -2413,9 +2441,35 @@ def run_interactive_qa(
             print()
 
 
+def run_interactive_qa_request_context(
+    request_context: RequestContext,
+    *,
+    top_k: int = _DEFAULT_TOP_K,
+    index_name: str | None = None,
+    expand_graph: bool = False,
+    cluster_aware: bool = False,
+    all_runs: bool | None = None,
+    debug: bool = False,
+) -> None:
+    """Run interactive retrieval using request-scoped context as the primary input."""
+    return run_interactive_qa(
+        request_context.config,
+        run_id=request_context.run_id,
+        source_uri=request_context.source_uri,
+        top_k=top_k,
+        index_name=index_name or request_context.pipeline_contract.chunk_embedding_index_name,
+        expand_graph=expand_graph,
+        cluster_aware=cluster_aware,
+        all_runs=request_context.all_runs if all_runs is None else all_runs,
+        debug=debug,
+    )
+
+
 __all__ = [
     "run_retrieval_and_qa",
+    "run_retrieval_and_qa_request_context",
     "run_interactive_qa",
+    "run_interactive_qa_request_context",
     "_CITATION_FALLBACK_PREFIX",
     "_format_scope_label",
     "_format_retrieval_path_summary",

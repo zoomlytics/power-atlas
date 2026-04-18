@@ -45,6 +45,8 @@ from demo.stages import (  # noqa: E402
     run_structured_ingest,
 )
 from demo.stages.retrieval_and_qa import _format_scope_label  # noqa: E402
+from demo.stages.retrieval_and_qa import run_interactive_qa_request_context  # noqa: E402
+from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context  # noqa: E402
 from demo.stages.retrieval_benchmark import run_retrieval_benchmark  # noqa: E402
 from demo.stages.pdf_ingest import sha256_file  # noqa: E402, F401 - re-exported for callers and tests
 
@@ -691,14 +693,8 @@ def _run_ask_request_context(
     cluster_aware: bool = False,
     expand_graph: bool = False,
 ) -> dict[str, Any]:
-    pipeline_contract = _pipeline_contract_view_from_request_context(request_context)
-    return run_retrieval_and_qa(
-        request_context.config,
-        run_id=request_context.run_id,
-        question=request_context.config.question,
-        source_uri=request_context.source_uri,
-        index_name=pipeline_contract["index_name"],
-        all_runs=request_context.all_runs,
+    return run_retrieval_and_qa_request_context(
+        request_context,
         cluster_aware=cluster_aware,
         expand_graph=expand_graph,
     )
@@ -1150,15 +1146,8 @@ def main() -> None:
                 print(
                     f"Using retrieval scope: {_format_scope_label(request_context.run_id, request_context.all_runs)}"
                 )
-                run_interactive_qa(
-                    request_context.config,
-                    run_id=request_context.run_id,
-                    all_runs=request_context.all_runs,
-                    # In all-runs mode, do not constrain by source_uri so that retrieval
-                    # queries the whole database (no run_id and no source_uri filter).
-                    # In single-run mode, default to the active dataset's PDF URI.
-                    source_uri=request_context.source_uri,
-                    index_name=_pipeline_contract_view_from_request_context(request_context)["index_name"],
+                run_interactive_qa_request_context(
+                    request_context,
                     cluster_aware=getattr(args, "cluster_aware", False),
                     expand_graph=getattr(args, "expand_graph", False),
                     debug=getattr(args, "debug", False),

@@ -592,7 +592,9 @@ The repo has now completed a first concrete runtime-state reduction pass:
   is already used by bootstrap helpers plus `demo/run_demo.py` argument
   handling, ask-scope resolution, orchestrated/independent execution paths,
   and a dedicated ask-specific preparation/execution lane that preserves
-  pre-resolved request metadata through the legacy wrappers
+  pre-resolved request metadata through the legacy wrappers; the first
+  stage-facing retrieval entrypoints now also accept `RequestContext`
+  directly for both single-turn and interactive ask execution
   to bundle settings, pipeline snapshot state, and per-request runtime metadata.
 
 That is meaningful progress, but it does not yet satisfy the phase. The pipeline

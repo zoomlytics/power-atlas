@@ -4279,6 +4279,27 @@ def test_prepare_ask_request_context_sets_source_uri(tmp_path: Path, monkeypatch
     assert prepared.source_uri == str(resolve_dataset_root("demo_dataset_v1").pdf_path.resolve().as_uri())
 
 
+def test_run_retrieval_and_qa_request_context_uses_request_scope(tmp_path: Path):
+    """The RequestContext retrieval helper must forward run and source scope directly."""
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context
+
+    request_context = _request_context_from_config(
+        _dry_run_config(tmp_path),
+        command="ask",
+        run_id="context-qa-run",
+        source_uri="file:///context/doc.pdf",
+    )
+
+    result = run_retrieval_and_qa_request_context(request_context)
+
+    assert result["run_id"] == "context-qa-run"
+    assert result["source_uri"] == "file:///context/doc.pdf"
+    assert result["retrieval_scope"]["run_id"] == "context-qa-run"
+    assert result["retrieval_scope"]["source_uri"] == "file:///context/doc.pdf"
+    assert result["retriever_index_name"] == request_context.pipeline_contract.chunk_embedding_index_name
+
+
 def test_resolve_ask_scope_run_id_flag_overrides_env_var(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ):

@@ -1763,7 +1763,14 @@ class WorkflowTests(unittest.TestCase):
         module = _load_module(RUN_DEMO_PATH, "run_ask_interactive_all_runs_regression_test")
         captured: dict[str, object] = {}
 
-        def _fake_run_interactive_qa(config, **kwargs):
+        def _fake_run_interactive_qa_request_context(request_context, **kwargs):
+            captured.update(
+                {
+                    "run_id": request_context.run_id,
+                    "all_runs": request_context.all_runs,
+                    "source_uri": request_context.source_uri,
+                }
+            )
             captured.update(kwargs)
 
         args = type(
@@ -1786,17 +1793,17 @@ class WorkflowTests(unittest.TestCase):
             },
         )()
         original_parse_args = module.parse_args
-        original_run_interactive_qa = module.run_interactive_qa
+        original_run_interactive_qa_request_context = module.run_interactive_qa_request_context
         try:
             module.parse_args = lambda: args
-            module.run_interactive_qa = _fake_run_interactive_qa
+            module.run_interactive_qa_request_context = _fake_run_interactive_qa_request_context
             with io.StringIO() as buf, redirect_stdout(buf):
                 module.main()
         finally:
             module.parse_args = original_parse_args
-            module.run_interactive_qa = original_run_interactive_qa
+            module.run_interactive_qa_request_context = original_run_interactive_qa_request_context
 
-        self.assertIn("source_uri", captured, "run_interactive_qa must be called with source_uri kwarg")
+        self.assertIn("source_uri", captured, "interactive ask request context must carry source_uri")
         self.assertIsNone(
             captured["source_uri"],
             "ask --interactive --all-runs must pass source_uri=None (whole-database retrieval)",
@@ -1895,7 +1902,14 @@ class WorkflowTests(unittest.TestCase):
         module = _load_module(RUN_DEMO_PATH, "run_ask_interactive_cluster_aware_test")
         captured: dict[str, object] = {}
 
-        def _fake_run_interactive_qa(config, **kwargs):
+        def _fake_run_interactive_qa_request_context(request_context, **kwargs):
+            captured.update(
+                {
+                    "run_id": request_context.run_id,
+                    "all_runs": request_context.all_runs,
+                    "source_uri": request_context.source_uri,
+                }
+            )
             captured.update(kwargs)
 
         args = type(
@@ -1920,18 +1934,18 @@ class WorkflowTests(unittest.TestCase):
             },
         )()
         original_parse_args = module.parse_args
-        original_run_interactive_qa = module.run_interactive_qa
+        original_run_interactive_qa_request_context = module.run_interactive_qa_request_context
         original_resolve = module._resolve_ask_scope
         try:
             module.parse_args = lambda: args
-            module.run_interactive_qa = _fake_run_interactive_qa
+            module.run_interactive_qa_request_context = _fake_run_interactive_qa_request_context
             # Stub _resolve_ask_scope to avoid a live Neo4j call.
             module._resolve_ask_scope = lambda _args, _cfg: ("test-run-id", False)
             with io.StringIO() as buf, redirect_stdout(buf):
                 module.main()
         finally:
             module.parse_args = original_parse_args
-            module.run_interactive_qa = original_run_interactive_qa
+            module.run_interactive_qa_request_context = original_run_interactive_qa_request_context
             module._resolve_ask_scope = original_resolve
 
         self.assertTrue(
