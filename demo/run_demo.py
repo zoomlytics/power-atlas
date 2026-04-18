@@ -55,33 +55,6 @@ from demo.stages.pdf_ingest import sha256_file  # noqa: E402, F401 - re-exported
 
 _logger = logging.getLogger(__name__)
 
-_PIPELINE_SNAPSHOT_FIELDS = {
-    "CHUNK_EMBEDDING_DIMENSIONS": "chunk_embedding_dimensions",
-    "CHUNK_EMBEDDING_INDEX_NAME": "chunk_embedding_index_name",
-    "CHUNK_EMBEDDING_LABEL": "chunk_embedding_label",
-    "CHUNK_EMBEDDING_PROPERTY": "chunk_embedding_property",
-    "CHUNK_FALLBACK_STRIDE": "chunk_fallback_stride",
-    "EMBEDDER_MODEL_NAME": "embedder_model_name",
-}
-
-
-def _pipeline_contract_value(name: str) -> Any:
-    snapshot_field = _PIPELINE_SNAPSHOT_FIELDS.get(name)
-    if snapshot_field is not None:
-        return getattr(pipeline_contracts.get_pipeline_contract_snapshot(), snapshot_field)
-    return getattr(pipeline_contracts, name)
-
-
-def _pipeline_contract_view() -> dict[str, Any]:
-    return {
-        "index_name": _pipeline_contract_value("CHUNK_EMBEDDING_INDEX_NAME"),
-        "chunk_label": _pipeline_contract_value("CHUNK_EMBEDDING_LABEL"),
-        "embedding_property": _pipeline_contract_value("CHUNK_EMBEDDING_PROPERTY"),
-        "embedding_dimensions": _pipeline_contract_value("CHUNK_EMBEDDING_DIMENSIONS"),
-        "embedder_model": _pipeline_contract_value("EMBEDDER_MODEL_NAME"),
-        "chunk_stride": _pipeline_contract_value("CHUNK_FALLBACK_STRIDE"),
-    }
-
 
 def _pipeline_contract_view_from_request_context(request_context: RequestContext) -> dict[str, Any]:
     pipeline_contract = request_context.pipeline_contract
@@ -211,6 +184,15 @@ def _request_context_from_config(
         }
     )
     app_context = _build_app_context(settings=package_settings)
+    config_pipeline_contract = getattr(config, "pipeline_contract", None)
+    if config_pipeline_contract is not None:
+        app_context = replace(
+            app_context,
+            pipeline_contract=config_pipeline_contract,
+            pipeline_contract_config_data=dict(
+                getattr(config, "pipeline_contract_config_data", app_context.pipeline_contract_config_data)
+            ),
+        )
     return _build_request_context(
         app_context,
         command=command,

@@ -85,6 +85,8 @@ def build_runtime_config(
     output_dir: Path | None = None,
     question: str | None = None,
     resolution_mode: str = "unstructured_only",
+    pipeline_contract=None,
+    pipeline_contract_config_data=None,
 ) -> Config:
     return Config(
         dry_run=dry_run,
@@ -97,6 +99,14 @@ def build_runtime_config(
         question=question,
         resolution_mode=resolution_mode,
         dataset_name=settings.dataset_name,
+        pipeline_contract=(
+            get_pipeline_contract_snapshot() if pipeline_contract is None else pipeline_contract
+        ),
+        pipeline_contract_config_data=(
+            get_pipeline_contract_config_data()
+            if pipeline_contract_config_data is None
+            else dict(pipeline_contract_config_data)
+        ),
     )
 
 
@@ -120,6 +130,8 @@ def build_request_context(
             output_dir=output_dir,
             question=question,
             resolution_mode=resolution_mode,
+            pipeline_contract=app_context.pipeline_contract,
+            pipeline_contract_config_data=app_context.pipeline_contract_config_data,
         ),
         command=command,
         run_id=run_id,

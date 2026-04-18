@@ -12,6 +12,20 @@ from power_atlas.contracts.prompts import PROMPT_IDS
 from power_atlas.settings import Neo4jSettings
 
 
+def _resolve_pipeline_contract(
+    config: Any,
+    pipeline_contract: PipelineContractSnapshot | None,
+) -> PipelineContractSnapshot:
+    if pipeline_contract is not None:
+        return pipeline_contract
+    config_pipeline_contract = getattr(config, "pipeline_contract", None)
+    if isinstance(config_pipeline_contract, PipelineContractSnapshot):
+        return config_pipeline_contract
+    raise ValueError(
+        "claim extraction requires a pipeline contract from RequestContext/AppContext-derived config or an explicit pipeline_contract argument"
+    )
+
+
 async def _async_read_chunks_and_extract(
     driver: "neo4j.Driver",  # type: ignore[name-defined]  # noqa: F821
     *,
@@ -68,6 +82,7 @@ def run_claim_and_mention_extraction(
     source_uri: str | None,
     pipeline_contract: PipelineContractSnapshot | None = None,
 ) -> dict[str, Any]:
+    resolved_pipeline_contract = _resolve_pipeline_contract(config, pipeline_contract)
     run_root = config.output_dir / "runs" / run_id
     extraction_dir = run_root / "claim_extraction"
     extraction_dir.mkdir(parents=True, exist_ok=True)
@@ -123,7 +138,7 @@ def run_claim_and_mention_extraction(
                 source_uri=source_uri,
                 neo4j_database=config.neo4j_database,
                 model_name=config.openai_model,
-                pipeline_contract=pipeline_contract,
+                pipeline_contract=resolved_pipeline_contract,
             )
         )
         claim_rows, mention_rows, warnings = prepare_extracted_rows(

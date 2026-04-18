@@ -1232,15 +1232,6 @@ class WorkflowTests(unittest.TestCase):
 
     def test_run_demo_uses_live_pipeline_contract_values_without_import_time_snapshot(self):
         module = _load_module(RUN_DEMO_PATH, "run_live_pipeline_contract_test")
-        config = module.Config(
-            dry_run=True,
-            output_dir=DEMO_DIR / "artifacts",
-            neo4j_uri="neo4j://localhost:7687",
-            neo4j_username="neo4j",
-            neo4j_password="testtesttest",
-            neo4j_database="neo4j",
-            openai_model="gpt-4o-mini",
-        )
 
         import power_atlas.contracts.pipeline as pipeline_contracts
 
@@ -1248,6 +1239,16 @@ class WorkflowTests(unittest.TestCase):
         try:
             pipeline_contracts._set_pipeline_contract_state_for_test(
                 chunk_embedding_index_name="dynamic_contract_index"
+            )
+
+            config = module.Config(
+                dry_run=True,
+                output_dir=DEMO_DIR / "artifacts",
+                neo4j_uri="neo4j://localhost:7687",
+                neo4j_username="neo4j",
+                neo4j_password="testtesttest",
+                neo4j_database="neo4j",
+                openai_model="gpt-4o-mini",
             )
 
             self.assertEqual(

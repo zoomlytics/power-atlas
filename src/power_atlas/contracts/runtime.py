@@ -1,9 +1,16 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 from uuid import uuid4
+
+from power_atlas.contracts.pipeline import (
+    PipelineContractSnapshot,
+    get_pipeline_contract_config_data,
+    get_pipeline_contract_snapshot,
+)
 
 
 @dataclass(frozen=True)
@@ -18,6 +25,8 @@ class Config:
     question: str | None = None
     resolution_mode: str = "unstructured_only"
     dataset_name: str | None = None
+    pipeline_contract: PipelineContractSnapshot = field(default_factory=get_pipeline_contract_snapshot)
+    pipeline_contract_config_data: dict[str, Any] = field(default_factory=get_pipeline_contract_config_data)
 
 
 def timestamp() -> str:

@@ -643,9 +643,13 @@ The repo has now completed a first concrete runtime-state reduction pass:
   contract helper plus the active `pdf_ingest` and retrieval helpers now also
   accept explicit snapshots, so request-context execution carries owned
   contract state through those internals instead of falling back to the module
-  cache. The remaining work is the rest of the mutable-global inventory
-  outside those modules plus any further ownership cleanup warranted around
-  that remaining single cached state.
+  cache. The final tightening pass now also moves active runtime stage helpers
+  onto bootstrap-built `Config` / `RequestContext` ownership for pipeline
+  contract state, removes the remaining direct stage-level reads from
+  `power_atlas.contracts.pipeline`, and makes claim-schema lexical-config
+  runtime use explicit via an injected snapshot. The remaining work is the
+  rest of the mutable-global inventory outside those modules plus any further
+  ownership cleanup warranted around that remaining single cached state.
   ingest and independent `ingest-pdf` execution
   to bundle settings, pipeline snapshot state, and per-request runtime metadata.
 

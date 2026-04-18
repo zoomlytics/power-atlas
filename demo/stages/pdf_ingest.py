@@ -36,9 +36,23 @@ _PIPELINE_CONTRACT_EXPORTS = {
 
 def _pipeline_contract_value(
     name: str,
-    pipeline_contract: PipelineContractSnapshot | None = None,
+    pipeline_contract: PipelineContractSnapshot,
 ) -> Any:
     return get_stage_pipeline_contract_value(name, _PIPELINE_CONTRACT_EXPORTS, pipeline_contract)
+
+
+def _resolve_pipeline_contract(
+    config: Any,
+    pipeline_contract: PipelineContractSnapshot | None,
+) -> PipelineContractSnapshot:
+    if pipeline_contract is not None:
+        return pipeline_contract
+    config_pipeline_contract = getattr(config, "pipeline_contract", None)
+    if isinstance(config_pipeline_contract, PipelineContractSnapshot):
+        return config_pipeline_contract
+    raise ValueError(
+        "run_pdf_ingest requires a pipeline contract from RequestContext/AppContext-derived config or an explicit pipeline_contract argument"
+    )
 
 
 def _dataset_metadata_from_fixtures_root(fixtures_root: Path) -> tuple[str, str]:
@@ -172,6 +186,7 @@ def run_pdf_ingest(
     chunk_stride: int | None = None,
     pipeline_contract: PipelineContractSnapshot | None = None,
 ) -> dict[str, Any]:
+    resolved_pipeline_contract = _resolve_pipeline_contract(config, pipeline_contract)
     _pdf_filename = pdf_filename or _DEFAULT_PDF_FILENAME
     if (
         _pdf_filename in (".", "..")
@@ -199,21 +214,21 @@ def run_pdf_ingest(
         raise FileNotFoundError(f"Required PDF fixture not found: {pdf_path}")
     pdf_file_path = str(pdf_path)
     pdf_source_uri = pdf_path.as_uri()
-    effective_index_name = index_name or _pipeline_contract_value("CHUNK_EMBEDDING_INDEX_NAME", pipeline_contract)
-    effective_chunk_label = chunk_label or _pipeline_contract_value("CHUNK_EMBEDDING_LABEL", pipeline_contract)
+    effective_index_name = index_name or _pipeline_contract_value("CHUNK_EMBEDDING_INDEX_NAME", resolved_pipeline_contract)
+    effective_chunk_label = chunk_label or _pipeline_contract_value("CHUNK_EMBEDDING_LABEL", resolved_pipeline_contract)
     effective_embedding_property = embedding_property or _pipeline_contract_value(
-        "CHUNK_EMBEDDING_PROPERTY", pipeline_contract
+        "CHUNK_EMBEDDING_PROPERTY", resolved_pipeline_contract
     )
     effective_embedding_dimensions = (
         _require_positive_int(embedding_dimensions, "embedding_dimensions")
         if embedding_dimensions is not None
-        else _pipeline_contract_value("CHUNK_EMBEDDING_DIMENSIONS", pipeline_contract)
+        else _pipeline_contract_value("CHUNK_EMBEDDING_DIMENSIONS", resolved_pipeline_contract)
     )
-    effective_embedder_model = embedder_model or _pipeline_contract_value("EMBEDDER_MODEL_NAME", pipeline_contract)
+    effective_embedder_model = embedder_model or _pipeline_contract_value("EMBEDDER_MODEL_NAME", resolved_pipeline_contract)
     effective_chunk_stride = (
         _require_positive_int(chunk_stride, "chunk_stride")
         if chunk_stride is not None
-        else _pipeline_contract_value("CHUNK_FALLBACK_STRIDE", pipeline_contract)
+        else _pipeline_contract_value("CHUNK_FALLBACK_STRIDE", resolved_pipeline_contract)
     )
     stage_run_id = run_id or make_run_id("unstructured_ingest")
     run_root = config.output_dir / "runs" / stage_run_id

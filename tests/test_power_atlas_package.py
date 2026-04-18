@@ -355,7 +355,9 @@ def test_claim_extraction_lexical_config_reads_live_pipeline_contract_snapshot()
             chunk_embedding_property="dynamic_embedding",
         )
 
-        lexical_config = claim_schema_module.claim_extraction_lexical_config()
+        lexical_config = claim_schema_module.claim_extraction_lexical_config(
+            pipeline_module.get_pipeline_contract_snapshot()
+        )
 
         assert lexical_config.chunk_node_label == "DynamicChunk"
         assert lexical_config.chunk_embedding_property == "dynamic_embedding"

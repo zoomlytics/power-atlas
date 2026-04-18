@@ -41,9 +41,23 @@ _PIPELINE_CONTRACT_EXPORTS = {
 
 def _pipeline_contract_value(
     name: str,
-    pipeline_contract: PipelineContractSnapshot | None = None,
+    pipeline_contract: PipelineContractSnapshot,
 ) -> str:
     return cast(str, get_stage_pipeline_contract_value(name, _PIPELINE_CONTRACT_EXPORTS, pipeline_contract))
+
+
+def _resolve_pipeline_contract(
+    config: object,
+    pipeline_contract: PipelineContractSnapshot | None,
+) -> PipelineContractSnapshot:
+    if pipeline_contract is not None:
+        return pipeline_contract
+    config_pipeline_contract = getattr(config, "pipeline_contract", None)
+    if isinstance(config_pipeline_contract, PipelineContractSnapshot):
+        return config_pipeline_contract
+    raise ValueError(
+        "retrieval helpers require a pipeline contract from RequestContext/AppContext-derived config or an explicit pipeline_contract argument"
+    )
 
 # ---------------------------------------------------------------------------
 # Private query sub-expression builders.
@@ -1732,7 +1746,7 @@ def _build_retriever_and_rag(
     retrieval_query: str,
     qa_model: str,
     neo4j_database: str | None,
-    pipeline_contract: PipelineContractSnapshot | None = None,
+    pipeline_contract: PipelineContractSnapshot,
 ) -> tuple[VectorCypherRetriever, GraphRAG]:
     """Construct a VectorCypherRetriever and GraphRAG instance for a Neo4j session.
 
@@ -1821,6 +1835,7 @@ def run_retrieval_and_qa(
     all_runs: bool = False,
     pipeline_contract: PipelineContractSnapshot | None = None,
 ) -> dict[str, object]:
+    resolved_pipeline_contract = _resolve_pipeline_contract(config, pipeline_contract)
     """Run retrieval and GraphRAG Q&A for a single question or interactive session.
 
     Parameters
@@ -1870,7 +1885,7 @@ def run_retrieval_and_qa(
     resolved_index_name = (
         index_name
         if index_name is not None
-        else _pipeline_contract_value("CHUNK_EMBEDDING_INDEX_NAME", pipeline_contract)
+        else _pipeline_contract_value("CHUNK_EMBEDDING_INDEX_NAME", resolved_pipeline_contract)
     )
     qa_model = getattr(config, "openai_model", None)
     # effective_qa_model is the model that will actually be used for generation; it
@@ -2133,7 +2148,7 @@ def run_retrieval_and_qa(
             retrieval_query=retrieval_query,
             qa_model=effective_qa_model,
             neo4j_database=neo4j_database,
-            pipeline_contract=pipeline_contract,
+            pipeline_contract=resolved_pipeline_contract,
         )
 
         # Run the GraphRAG search with optional message history for interactive mode.
@@ -2306,6 +2321,7 @@ def run_interactive_qa(
     debug: bool = False,
     pipeline_contract: PipelineContractSnapshot | None = None,
 ) -> None:
+    resolved_pipeline_contract = _resolve_pipeline_contract(config, pipeline_contract)
     """Run a REPL-style interactive Q&A session.
 
     Reads questions from stdin and prints citation-grounded answers until the user
@@ -2376,7 +2392,7 @@ def run_interactive_qa(
     resolved_index_name = (
         index_name
         if index_name is not None
-        else _pipeline_contract_value("CHUNK_EMBEDDING_INDEX_NAME", pipeline_contract)
+        else _pipeline_contract_value("CHUNK_EMBEDDING_INDEX_NAME", resolved_pipeline_contract)
     )
     effective_qa_model = getattr(config, "openai_model", None) or "gpt-5.4"
     retrieval_query = _select_runtime_retrieval_query(
@@ -2409,7 +2425,7 @@ def run_interactive_qa(
             retrieval_query=retrieval_query,
             qa_model=effective_qa_model,
             neo4j_database=neo4j_database,
-            pipeline_contract=pipeline_contract,
+            pipeline_contract=resolved_pipeline_contract,
         )
         try:
             while True:

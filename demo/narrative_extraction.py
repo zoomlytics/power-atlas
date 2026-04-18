@@ -10,6 +10,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Iterable
 
+from power_atlas.bootstrap import build_app_context
 from power_atlas.bootstrap import build_settings
 from power_atlas.bootstrap import create_neo4j_driver
 from power_atlas.bootstrap import require_openai_api_key
@@ -54,7 +55,8 @@ class ExtractionConfig:
 
 
 def build_lexical_config() -> LexicalGraphConfig:
-    return claim_extraction_lexical_config()
+    app_context = build_app_context(settings=build_settings())
+    return claim_extraction_lexical_config(app_context.pipeline_contract)
 
 
 def _extraction_schema() -> GraphSchema:
