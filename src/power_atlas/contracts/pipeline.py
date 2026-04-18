@@ -117,6 +117,7 @@ def _set_pipeline_contract_state_for_test(
             ),
         ),
     )
+    _PIPELINE_CONTRACT_LOADED.set()
 
 
 def _reset_pipeline_contract_state_for_test() -> None:
@@ -146,11 +147,13 @@ def ensure_pipeline_contract_loaded() -> None:
 
 def get_pipeline_contract_snapshot() -> PipelineContractSnapshot:
     """Return an immutable snapshot of the current non-dataset pipeline contract values."""
+    ensure_pipeline_contract_loaded()
     return _PIPELINE_CONTRACT_STATE.snapshot
 
 
 def get_pipeline_contract_config_data() -> dict[str, Any]:
     """Return a defensive copy of the loaded raw pipeline contract config data."""
+    ensure_pipeline_contract_loaded()
     return deepcopy(_PIPELINE_CONTRACT_STATE.config_data)
 
 
@@ -272,9 +275,6 @@ def _coerce_identifier(value: Any, default: str, field_name: str) -> str:
             value,
         )
     return default
-
-
-ensure_pipeline_contract_loaded()
 
 __all__ = [
     "PipelineContractSnapshot",

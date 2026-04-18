@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import importlib
 import logging
 
 import pytest
@@ -103,6 +104,36 @@ def test_refresh_pipeline_contract_falls_back_on_invalid_types(tmp_path, monkeyp
     assert snapshot.chunk_embedding_dimensions == pipeline._DEFAULT_CHUNK_EMBEDDING_DIMENSIONS
     assert snapshot.embedder_model_name == pipeline._DEFAULT_EMBEDDER_MODEL_NAME
     assert snapshot.chunk_fallback_stride == max(pipeline._DEFAULT_CHUNK_SIZE - pipeline._DEFAULT_CHUNK_OVERLAP, 1)
+
+
+def test_pipeline_contract_module_import_is_lazy(monkeypatch):
+    safe_load_calls = 0
+    original_path = pipeline.PDF_PIPELINE_CONFIG_PATH
+    real_safe_load = yaml.safe_load
+
+    def tracking_safe_load(*args, **kwargs):
+        nonlocal safe_load_calls
+        safe_load_calls += 1
+        return real_safe_load(*args, **kwargs)
+
+    monkeypatch.setattr(yaml, "safe_load", tracking_safe_load)
+    pipeline.PDF_PIPELINE_CONFIG_PATH = original_path
+    _reset_contract_state()
+
+    try:
+        importlib.reload(pipeline)
+
+        assert not pipeline._PIPELINE_CONTRACT_LOADED.is_set()
+        assert safe_load_calls == 0
+
+        snapshot = pipeline.get_pipeline_contract_snapshot()
+
+        assert pipeline._PIPELINE_CONTRACT_LOADED.is_set()
+        assert safe_load_calls == 1
+        assert snapshot.chunk_embedding_index_name
+    finally:
+        monkeypatch.setattr(yaml, "safe_load", real_safe_load)
+        importlib.reload(pipeline)
 
 
 def test_coerce_identifier_strips_and_accepts_valid():

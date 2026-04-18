@@ -633,9 +633,13 @@ The repo has now completed a first concrete runtime-state reduction pass:
   has now also been centralized into a shared stage utility, and the remaining
   dynamic stage export compatibility hooks in those modules have now been
   removed as well; focused tests now assert the live runtime outputs directly
-  instead of relying on pseudo-constant stage attributes. The remaining work is
-  the rest of the mutable-global inventory outside those modules plus any
-  further ownership cleanup warranted around the remaining single cached state.
+  instead of relying on pseudo-constant stage attributes. The pipeline contract
+  module itself also no longer forces a load at import time; the remaining
+  cached state is now entered only through explicit refresh calls or the
+  snapshot/raw-config getters used by bootstrap and runtime consumers. The
+  remaining work is the rest of the mutable-global inventory outside those
+  modules plus any further ownership cleanup warranted around that remaining
+  single cached state.
   ingest and independent `ingest-pdf` execution
   to bundle settings, pipeline snapshot state, and per-request runtime metadata.
 
