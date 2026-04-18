@@ -4247,6 +4247,20 @@ def test_resolve_ask_scope_run_id_flag(tmp_path: Path, monkeypatch: pytest.Monke
     assert all_runs is False
 
 
+def test_resolve_ask_scope_accepts_request_context(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """The ask-scope helper must accept RequestContext directly for live context-threaded callers."""
+    from demo.run_demo import _request_context_from_config, _resolve_ask_scope, parse_args
+
+    monkeypatch.delenv("UNSTRUCTURED_RUN_ID", raising=False)
+    args = parse_args(["--dry-run", "ask", "--run-id", "context-run-123"])
+    request_context = _request_context_from_config(_dry_run_config(tmp_path), command="ask")
+
+    run_id, all_runs = _resolve_ask_scope(args, request_context)
+
+    assert run_id == "context-run-123"
+    assert all_runs is False
+
+
 def test_resolve_ask_scope_run_id_flag_overrides_env_var(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ):

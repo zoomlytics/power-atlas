@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import replace
 import logging
 import os
 import sys
@@ -15,6 +16,7 @@ from power_atlas.bootstrap import build_app_context as _build_app_context
 from power_atlas.bootstrap import build_request_context as _build_request_context
 from power_atlas.bootstrap import build_runtime_config as _build_runtime_config
 from power_atlas.bootstrap import build_settings as _build_package_settings
+from power_atlas.context import RequestContext
 from power_atlas.run_scope_queries import fetch_dataset_id_for_run
 from power_atlas.run_scope_queries import fetch_latest_unstructured_run_id
 
@@ -73,6 +75,18 @@ def _pipeline_contract_view() -> dict[str, Any]:
         "embedding_dimensions": _pipeline_contract_value("CHUNK_EMBEDDING_DIMENSIONS"),
         "embedder_model": _pipeline_contract_value("EMBEDDER_MODEL_NAME"),
         "chunk_stride": _pipeline_contract_value("CHUNK_FALLBACK_STRIDE"),
+    }
+
+
+def _pipeline_contract_view_from_request_context(request_context: RequestContext) -> dict[str, Any]:
+    pipeline_contract = request_context.pipeline_contract
+    return {
+        "index_name": pipeline_contract.chunk_embedding_index_name,
+        "chunk_label": pipeline_contract.chunk_embedding_label,
+        "embedding_property": pipeline_contract.chunk_embedding_property,
+        "embedding_dimensions": pipeline_contract.chunk_embedding_dimensions,
+        "embedder_model": pipeline_contract.embedder_model_name,
+        "chunk_stride": pipeline_contract.chunk_fallback_stride,
     }
 
 
@@ -169,6 +183,50 @@ def _build_request_context_from_args(
         all_runs=all_runs,
         source_uri=source_uri,
     )
+
+
+def _request_context_from_config(
+    config: Config,
+    *,
+    command: str | None = None,
+    run_id: str | None = None,
+    all_runs: bool = False,
+    source_uri: str | None = None,
+) -> RequestContext:
+    default_settings = _build_package_settings()
+    package_settings = _build_package_settings(
+        {
+            "NEO4J_URI": getattr(config, "neo4j_uri", default_settings.neo4j.uri),
+            "NEO4J_USERNAME": getattr(config, "neo4j_username", default_settings.neo4j.username),
+            "NEO4J_PASSWORD": getattr(config, "neo4j_password", default_settings.neo4j.password),
+            "NEO4J_DATABASE": getattr(config, "neo4j_database", default_settings.neo4j.database),
+            "OPENAI_MODEL": getattr(config, "openai_model", default_settings.openai_model),
+            "POWER_ATLAS_OUTPUT_DIR": str(getattr(config, "output_dir", default_settings.output_dir)),
+            "POWER_ATLAS_DATASET": getattr(config, "dataset_name", None) or "",
+        }
+    )
+    app_context = _build_app_context(settings=package_settings)
+    return _build_request_context(
+        app_context,
+        command=command,
+        dry_run=getattr(config, "dry_run", True),
+        output_dir=getattr(config, "output_dir", default_settings.output_dir),
+        question=getattr(config, "question", None),
+        resolution_mode=getattr(config, "resolution_mode", "unstructured_only"),
+        run_id=run_id,
+        all_runs=all_runs,
+        source_uri=source_uri,
+    )
+
+
+def _ensure_request_context(
+    request_context_or_config: RequestContext | Config,
+    *,
+    command: str | None = None,
+) -> RequestContext:
+    if isinstance(request_context_or_config, RequestContext):
+        return request_context_or_config
+    return _request_context_from_config(request_context_or_config, command=command)
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -544,8 +602,56 @@ def _resolve_dry_run_ask_scope(
     return None, False
 
 
+def _resolve_ask_request_context(
+    args: argparse.Namespace,
+    request_context: RequestContext,
+) -> RequestContext:
+    config = request_context.config
+    env_run_id = _current_env_unstructured_run_id()
+    all_runs: bool = getattr(args, "all_runs", False)
+    explicit_run_id: str | None = getattr(args, "run_id", None)
+    use_latest: bool = getattr(args, "latest", False)
+
+    if all_runs:
+        if env_run_id:
+            _logger.warning(
+                "UNSTRUCTURED_RUN_ID=%r is set "
+                "but overridden by --all-runs.",
+                env_run_id,
+            )
+        return replace(request_context, run_id=None, all_runs=True)
+
+    if explicit_run_id:
+        if env_run_id and env_run_id != explicit_run_id:
+            _logger.warning(
+                "UNSTRUCTURED_RUN_ID=%r is set "
+                "but overridden by --run-id=%r.",
+                env_run_id,
+                explicit_run_id,
+            )
+        _validate_explicit_run_id_dataset_selection(config, explicit_run_id)
+        return replace(request_context, run_id=explicit_run_id, all_runs=False)
+
+    if config.dry_run:
+        resolved_run_id, resolved_all_runs = _resolve_dry_run_ask_scope(config, env_run_id=env_run_id)
+        return replace(request_context, run_id=resolved_run_id, all_runs=resolved_all_runs)
+
+    if not use_latest and env_run_id:
+        _warn_if_env_run_id_bypasses_dataset_selection(
+            env_run_id,
+            config_dataset=config.dataset_name,
+        )
+        return replace(request_context, run_id=env_run_id, all_runs=False)
+
+    return replace(
+        request_context,
+        run_id=_resolve_latest_run_scope(config, env_run_id=env_run_id, use_latest=use_latest),
+        all_runs=False,
+    )
+
+
 def _resolve_ask_scope(
-    args: argparse.Namespace, config: Config
+    args: argparse.Namespace, request_context_or_config: RequestContext | Config
 ) -> tuple[str | None, bool]:
     """Resolve the retrieval scope for the ask command.
 
@@ -559,48 +665,12 @@ def _resolve_ask_scope(
     overrides the ``UNSTRUCTURED_RUN_ID`` environment variable. Warnings are
     logged whenever the env var is overridden or stale.
     """
-    env_run_id = _current_env_unstructured_run_id()
-    all_runs: bool = getattr(args, "all_runs", False)
-    explicit_run_id: str | None = getattr(args, "run_id", None)
-    use_latest: bool = getattr(args, "latest", False)
-
-    if all_runs:
-        if env_run_id:
-            _logger.warning(
-                "UNSTRUCTURED_RUN_ID=%r is set "
-                "but overridden by --all-runs.",
-                env_run_id,
-            )
-        return None, True
-
-    if explicit_run_id:
-        if env_run_id and env_run_id != explicit_run_id:
-            _logger.warning(
-                "UNSTRUCTURED_RUN_ID=%r is set "
-                "but overridden by --run-id=%r.",
-                env_run_id,
-                explicit_run_id,
-            )
-        _validate_explicit_run_id_dataset_selection(config, explicit_run_id)
-        return explicit_run_id, False
-
-    # Default / --latest: resolve the latest run_id.
-    if config.dry_run:
-        return _resolve_dry_run_ask_scope(config, env_run_id=env_run_id)
-
-    # Live mode: resolve run_id according to precedence:
-    # CLI flags (--run-id/--latest/--all-runs) > UNSTRUCTURED_RUN_ID > implicit latest.
-    if not use_latest and env_run_id:
-        _warn_if_env_run_id_bypasses_dataset_selection(
-            env_run_id,
-            config_dataset=config.dataset_name,
-        )
-        return env_run_id, False
-
-    return _resolve_latest_run_scope(config, env_run_id=env_run_id, use_latest=use_latest), False
+    request_context = _ensure_request_context(request_context_or_config, command="ask")
+    resolved_request_context = _resolve_ask_request_context(args, request_context)
+    return resolved_request_context.run_id, resolved_request_context.all_runs
 
 
-def _run_orchestrated(config: Config) -> Path:
+def _run_orchestrated_request_context(request_context: RequestContext) -> Path:
     """Run the full demo batch sequence with an unstructured-first posture.
 
     Sequence:
@@ -624,11 +694,12 @@ def _run_orchestrated(config: Config) -> Path:
        gracefully degrades if no matches exist
     7. Final Q&A — demonstrates enriched retrieval after structured alignment
     """
+    config = request_context.config
     config.output_dir.mkdir(parents=True, exist_ok=True)
     started_at = _now_iso()
     structured_run_id = make_run_id("structured_ingest")
     unstructured_run_id = make_run_id("unstructured_ingest")
-    pipeline_contract = _pipeline_contract_view()
+    pipeline_contract = _pipeline_contract_view_from_request_context(request_context)
 
     dataset_root = resolve_dataset_root(config.dataset_name)
 
@@ -801,8 +872,13 @@ def _run_orchestrated(config: Config) -> Path:
     return manifest_path
 
 
+def _run_orchestrated(request_context_or_config: RequestContext | Config) -> Path:
+    request_context = _ensure_request_context(request_context_or_config, command="ingest")
+    return _run_orchestrated_request_context(request_context)
+
+
 def _run_independent_stage(
-    config: Config,
+    config_or_request_context: RequestContext | Config,
     command: str,
     *,
     resolved_run_id: str | None = None,
@@ -810,10 +886,13 @@ def _run_independent_stage(
     cluster_aware: bool = False,
     expand_graph: bool = False,
 ) -> Path:
+    request_context = _ensure_request_context(config_or_request_context, command=command)
+    request_context = replace(request_context, run_id=resolved_run_id, all_runs=all_runs)
+    config = request_context.config
     config.output_dir.mkdir(parents=True, exist_ok=True)
-    pipeline_contract = _pipeline_contract_view()
+    pipeline_contract = _pipeline_contract_view_from_request_context(request_context)
     # all_runs is only relevant for the ask command.
-    _ask_all_runs = all_runs and command == "ask"
+    _ask_all_runs = request_context.all_runs and command == "ask"
 
     # Resolve the active dataset root for commands that need fixture paths.
     # For `ask --all-runs`, no dataset-specific fixture path is required, so we
@@ -921,8 +1000,8 @@ def _run_independent_stage(
             # a unique artifact id for this ask execution rather than using the sentinel
             # "all_runs" string, which is not a real ingest run id.
             stage_run_id = make_run_id("ask")
-        elif resolved_run_id is not None:
-            stage_run_id = resolved_run_id
+        elif request_context.run_id is not None:
+            stage_run_id = request_context.run_id
         else:
             # dry-run without a specific run scope; use a placeholder to keep the path valid.
             stage_run_id = "dry_run_no_scope"
@@ -956,8 +1035,8 @@ def _run_independent_stage(
     return manifest_path
 
 
-def run_demo(config: Config) -> Path:
-    return _run_orchestrated(config)
+def run_demo(config_or_request_context: RequestContext | Config) -> Path:
+    return _run_orchestrated(config_or_request_context)
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -1021,50 +1100,55 @@ def main() -> None:
     config_commands = {"ingest", "ingest-structured", "ingest-pdf", "extract-claims", "resolve-entities", "ask"}
     if args.command in config_commands:
         request_context = _build_request_context_from_args(args)
-        config = request_context.config
         try:
             if args.command == "ingest":
-                manifest_path = run_demo(config)
+                manifest_path = run_demo(request_context)
                 print(f"Demo manifest written to: {manifest_path}")
             elif args.command == "ask" and getattr(args, "interactive", False):
                 # Interactive mode: start a REPL session; no manifest is written.
-                if config.dry_run:
+                if request_context.config.dry_run:
                     raise SystemExit(
                         "Interactive 'ask' is not supported in dry-run mode. "
                         "Re-run the command with --live to enable live Neo4j/OpenAI calls."
                     )
-                resolved_run_id, ask_all_runs = _resolve_ask_scope(args, config)
-                print(f"Using retrieval scope: {_format_scope_label(resolved_run_id, ask_all_runs)}")
+                request_context = _resolve_ask_request_context(args, request_context)
+                request_context = replace(
+                    request_context,
+                    source_uri=None if request_context.all_runs else str(
+                        resolve_dataset_root(request_context.config.dataset_name).pdf_path.resolve().as_uri()
+                    ),
+                )
+                print(
+                    f"Using retrieval scope: {_format_scope_label(request_context.run_id, request_context.all_runs)}"
+                )
                 run_interactive_qa(
-                    config,
-                    run_id=resolved_run_id,
-                    all_runs=ask_all_runs,
+                    request_context.config,
+                    run_id=request_context.run_id,
+                    all_runs=request_context.all_runs,
                     # In all-runs mode, do not constrain by source_uri so that retrieval
                     # queries the whole database (no run_id and no source_uri filter).
                     # In single-run mode, default to the active dataset's PDF URI.
-                    source_uri=None if ask_all_runs else str(
-                        resolve_dataset_root(config.dataset_name).pdf_path.resolve().as_uri()
-                    ),
-                    index_name=_pipeline_contract_view()["index_name"],
+                    source_uri=request_context.source_uri,
+                    index_name=_pipeline_contract_view_from_request_context(request_context)["index_name"],
                     cluster_aware=getattr(args, "cluster_aware", False),
                     expand_graph=getattr(args, "expand_graph", False),
                     debug=getattr(args, "debug", False),
                 )
             elif args.command == "ask":
                 # Non-interactive ask: resolve scope, print it, then run and write manifest.
-                resolved_run_id, ask_all_runs = _resolve_ask_scope(args, config)
-                print(f"Using retrieval scope: {_format_scope_label(resolved_run_id, ask_all_runs)}")
+                request_context = _resolve_ask_request_context(args, request_context)
+                print(
+                    f"Using retrieval scope: {_format_scope_label(request_context.run_id, request_context.all_runs)}"
+                )
                 manifest_path = _run_independent_stage(
-                    config,
+                    request_context,
                     args.command,
-                    resolved_run_id=resolved_run_id,
-                    all_runs=ask_all_runs,
                     cluster_aware=getattr(args, "cluster_aware", False),
                     expand_graph=getattr(args, "expand_graph", False),
                 )
                 print(f"Independent run manifest written to: {manifest_path}")
             else:
-                manifest_path = _run_independent_stage(config, args.command)
+                manifest_path = _run_independent_stage(request_context, args.command)
                 print(f"Independent run manifest written to: {manifest_path}")
         except SystemExit:
             raise
