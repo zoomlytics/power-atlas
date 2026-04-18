@@ -374,6 +374,25 @@ def test_claim_extraction_dry_run_includes_participation_edge_counts(tmp_path: P
     assert summary["object_edges"] == 0
 
 
+def test_claim_extraction_request_context_uses_request_scope(tmp_path: Path):
+    """The RequestContext claim extraction helper must forward run and source scope directly."""
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.claim_extraction import run_claim_and_mention_extraction_request_context
+
+    request_context = _request_context_from_config(
+        _dry_run_config(tmp_path),
+        command="extract-claims",
+        run_id="context-claim-run",
+        source_uri="file:///context/claim.pdf",
+    )
+
+    summary = run_claim_and_mention_extraction_request_context(request_context)
+
+    assert summary["run_id"] == "context-claim-run"
+    assert summary["source_uri"] == "file:///context/claim.pdf"
+    assert summary["status"] == "dry_run"
+
+
 def test_claim_extraction_live_path_uses_create_lexical_graph_false(tmp_path: Path):
     """Verify that _async_read_chunks_and_extract instantiates LLMEntityRelationExtractor
     with create_lexical_graph=False, keeping extraction non-destructive:

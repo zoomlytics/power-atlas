@@ -45,6 +45,7 @@ from demo.stages import (  # noqa: E402
     run_structured_ingest,
 )
 from demo.stages.retrieval_and_qa import _format_scope_label  # noqa: E402
+from demo.stages.claim_extraction import run_claim_and_mention_extraction_request_context  # noqa: E402
 from demo.stages.retrieval_and_qa import run_interactive_qa_request_context  # noqa: E402
 from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context  # noqa: E402
 from demo.stages.retrieval_benchmark import run_retrieval_benchmark  # noqa: E402
@@ -700,6 +701,10 @@ def _run_ask_request_context(
     )
 
 
+def _run_claim_extraction_request_context(request_context: RequestContext) -> dict[str, Any]:
+    return run_claim_and_mention_extraction_request_context(request_context)
+
+
 def _run_orchestrated_request_context(request_context: RequestContext) -> Path:
     """Run the full demo batch sequence with an unstructured-first posture.
 
@@ -753,10 +758,12 @@ def _run_orchestrated_request_context(request_context: RequestContext) -> Path:
         documents = pdf_stage.get("documents") if isinstance(pdf_stage.get("documents"), list) else []
         pdf_source_uri = documents[0] if documents else None
 
-    claim_stage = run_claim_and_mention_extraction(
-        config,
-        run_id=unstructured_run_id,
-        source_uri=pdf_source_uri,
+    claim_stage = _run_claim_extraction_request_context(
+        replace(
+            request_context,
+            run_id=unstructured_run_id,
+            source_uri=pdf_source_uri,
+        )
     )
     # Link ExtractedClaim subject/object slots to EntityMention nodes in the same
     # chunk/run via deterministic text matching (raw_exact → casefold_exact →
@@ -974,14 +981,16 @@ def _run_independent_stage(
         "extract-claims": (
             "claim_and_mention_extraction",
             "unstructured_ingest_run_id",
-            lambda cfg, stage_run_id: run_claim_and_mention_extraction(
-                cfg,
-                run_id=stage_run_id,
-                # Independent-stage default: use the active dataset's PDF URI.
-                # This is intentional — the dataset fixture is the stable source for all
-                # independent runs.  In the orchestrated batch path, source_uri is
-                # derived from the prior pdf_ingest stage output instead.
-                source_uri=_pdf_source_uri,
+            lambda cfg, stage_run_id: _run_claim_extraction_request_context(
+                replace(
+                    request_context,
+                    run_id=stage_run_id,
+                    # Independent-stage default: use the active dataset's PDF URI.
+                    # This is intentional — the dataset fixture is the stable source for all
+                    # independent runs.  In the orchestrated batch path, source_uri is
+                    # derived from the prior pdf_ingest stage output instead.
+                    source_uri=_pdf_source_uri,
+                )
             ),
         ),
         "resolve-entities": (

@@ -6,6 +6,7 @@ from typing import Any
 
 from power_atlas.bootstrap import require_openai_api_key
 from power_atlas.bootstrap.clients import create_neo4j_driver
+from power_atlas.context import RequestContext
 from power_atlas.contracts.prompts import PROMPT_IDS
 from power_atlas.settings import Neo4jSettings
 
@@ -160,4 +161,13 @@ def run_claim_and_mention_extraction(config: Any, *, run_id: str, source_uri: st
     return summary
 
 
-__all__ = ["run_claim_and_mention_extraction"]
+def run_claim_and_mention_extraction_request_context(request_context: RequestContext) -> dict[str, Any]:
+    """Run claim extraction using request-scoped context as the primary input."""
+    return run_claim_and_mention_extraction(
+        request_context.config,
+        run_id=request_context.run_id,
+        source_uri=request_context.source_uri,
+    )
+
+
+__all__ = ["run_claim_and_mention_extraction", "run_claim_and_mention_extraction_request_context"]

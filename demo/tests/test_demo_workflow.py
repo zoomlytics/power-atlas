@@ -1811,6 +1811,44 @@ class WorkflowTests(unittest.TestCase):
         self.assertTrue(captured.get("all_runs"))
         self.assertIsNone(captured.get("run_id"))
 
+    def test_extract_claims_independent_manifest_preserves_request_scope(self):
+        """Independent extract-claims must preserve run_id and source_uri through the request-context helper."""
+        module = _load_module(RUN_DEMO_PATH, "run_extract_claims_request_context_test")
+        dataset_root = module.resolve_dataset_root("demo_dataset_v1")
+        expected_source_uri = str(dataset_root.pdf_path.resolve().as_uri())
+
+        env_backup_run_id = os.environ.get("UNSTRUCTURED_RUN_ID")
+        env_backup_dataset = os.environ.get("FIXTURE_DATASET")
+        try:
+            os.environ["UNSTRUCTURED_RUN_ID"] = "context-claim-run-001"
+            os.environ["FIXTURE_DATASET"] = "demo_dataset_v1"
+            with tempfile.TemporaryDirectory() as tmpdir:
+                config = module.Config(
+                    dry_run=True,
+                    output_dir=Path(tmpdir),
+                    neo4j_uri="neo4j://localhost:7687",
+                    neo4j_username="neo4j",
+                    neo4j_password="testtesttest",
+                    neo4j_database="neo4j",
+                    openai_model="gpt-4o-mini",
+                )
+                manifest_path = module.run_independent_demo(config, "extract-claims")
+                manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        finally:
+            if env_backup_run_id is None:
+                os.environ.pop("UNSTRUCTURED_RUN_ID", None)
+            else:
+                os.environ["UNSTRUCTURED_RUN_ID"] = env_backup_run_id
+            if env_backup_dataset is None:
+                os.environ.pop("FIXTURE_DATASET", None)
+            else:
+                os.environ["FIXTURE_DATASET"] = env_backup_dataset
+
+        stage = manifest["stages"]["claim_and_mention_extraction"]
+        self.assertEqual(stage["run_id"], "context-claim-run-001")
+        self.assertEqual(stage["source_uri"], expected_source_uri)
+        self.assertEqual(manifest["run_scopes"]["unstructured_ingest_run_id"], "context-claim-run-001")
+
     # ── cluster-aware / expand-graph retrieval flags ───────────────────────────
 
     def test_ask_cluster_aware_manifest_records_cluster_aware_true(self):
