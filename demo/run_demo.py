@@ -670,6 +670,40 @@ def _resolve_ask_scope(
     return resolved_request_context.run_id, resolved_request_context.all_runs
 
 
+def _resolve_ask_source_uri(request_context: RequestContext) -> str | None:
+    if request_context.all_runs:
+        return None
+    return str(resolve_dataset_root(request_context.config.dataset_name).pdf_path.resolve().as_uri())
+
+
+def _prepare_ask_request_context(
+    args: argparse.Namespace,
+    request_context_or_config: RequestContext | Config,
+) -> RequestContext:
+    request_context = _ensure_request_context(request_context_or_config, command="ask")
+    request_context = _resolve_ask_request_context(args, request_context)
+    return replace(request_context, source_uri=_resolve_ask_source_uri(request_context))
+
+
+def _run_ask_request_context(
+    request_context: RequestContext,
+    *,
+    cluster_aware: bool = False,
+    expand_graph: bool = False,
+) -> dict[str, Any]:
+    pipeline_contract = _pipeline_contract_view_from_request_context(request_context)
+    return run_retrieval_and_qa(
+        request_context.config,
+        run_id=request_context.run_id,
+        question=request_context.config.question,
+        source_uri=request_context.source_uri,
+        index_name=pipeline_contract["index_name"],
+        all_runs=request_context.all_runs,
+        cluster_aware=cluster_aware,
+        expand_graph=expand_graph,
+    )
+
+
 def _run_orchestrated_request_context(request_context: RequestContext) -> Path:
     """Run the full demo batch sequence with an unstructured-first posture.
 
@@ -887,7 +921,13 @@ def _run_independent_stage(
     expand_graph: bool = False,
 ) -> Path:
     request_context = _ensure_request_context(config_or_request_context, command=command)
-    request_context = replace(request_context, run_id=resolved_run_id, all_runs=all_runs)
+    request_context = replace(
+        request_context,
+        run_id=resolved_run_id if resolved_run_id is not None else request_context.run_id,
+        all_runs=all_runs or request_context.all_runs,
+    )
+    if command == "ask" and request_context.source_uri is None and not request_context.all_runs:
+        request_context = replace(request_context, source_uri=_resolve_ask_source_uri(request_context))
     config = request_context.config
     config.output_dir.mkdir(parents=True, exist_ok=True)
     pipeline_contract = _pipeline_contract_view_from_request_context(request_context)
@@ -963,16 +1003,11 @@ def _run_independent_stage(
         "ask": (
             "retrieval_and_qa",
             "unstructured_ingest_run_id",
-            lambda cfg, stage_run_id: run_retrieval_and_qa(
-                cfg,
-                run_id=stage_run_id if not _ask_all_runs else None,
-                question=getattr(cfg, "question", None),
-                # In all-runs mode, do not constrain by source_uri so that retrieval
-                # queries the whole database (no run_id and no source_uri filter).
-                # In single-run mode, default to the active dataset's PDF URI.
-                source_uri=None if _ask_all_runs else _pdf_source_uri,
-                index_name=pipeline_contract["index_name"],
-                all_runs=_ask_all_runs,
+            lambda cfg, stage_run_id: _run_ask_request_context(
+                replace(
+                    request_context,
+                    run_id=stage_run_id if not _ask_all_runs else None,
+                ),
                 cluster_aware=cluster_aware,
                 expand_graph=expand_graph,
             ),
@@ -1111,13 +1146,7 @@ def main() -> None:
                         "Interactive 'ask' is not supported in dry-run mode. "
                         "Re-run the command with --live to enable live Neo4j/OpenAI calls."
                     )
-                request_context = _resolve_ask_request_context(args, request_context)
-                request_context = replace(
-                    request_context,
-                    source_uri=None if request_context.all_runs else str(
-                        resolve_dataset_root(request_context.config.dataset_name).pdf_path.resolve().as_uri()
-                    ),
-                )
+                request_context = _prepare_ask_request_context(args, request_context)
                 print(
                     f"Using retrieval scope: {_format_scope_label(request_context.run_id, request_context.all_runs)}"
                 )
@@ -1136,13 +1165,15 @@ def main() -> None:
                 )
             elif args.command == "ask":
                 # Non-interactive ask: resolve scope, print it, then run and write manifest.
-                request_context = _resolve_ask_request_context(args, request_context)
+                request_context = _prepare_ask_request_context(args, request_context)
                 print(
                     f"Using retrieval scope: {_format_scope_label(request_context.run_id, request_context.all_runs)}"
                 )
                 manifest_path = _run_independent_stage(
                     request_context,
                     args.command,
+                    resolved_run_id=request_context.run_id,
+                    all_runs=request_context.all_runs,
                     cluster_aware=getattr(args, "cluster_aware", False),
                     expand_graph=getattr(args, "expand_graph", False),
                 )
