@@ -28,7 +28,6 @@ from power_atlas.llm_utils import build_openai_llm
 from neo4j_graphrag.retrievers import VectorCypherRetriever
 from neo4j_graphrag.types import LLMMessage, RetrieverResultItem
 
-from demo.stages.pipeline_contract_compat import get_stage_pipeline_contract_attr
 from demo.stages.pipeline_contract_compat import get_stage_pipeline_contract_value
 
 _DEFAULT_TOP_K = 10
@@ -41,10 +40,6 @@ _PIPELINE_CONTRACT_EXPORTS = {
 
 def _pipeline_contract_value(name: str) -> str:
     return cast(str, get_stage_pipeline_contract_value(name, _PIPELINE_CONTRACT_EXPORTS))
-
-
-def __getattr__(name: str) -> object:
-    return get_stage_pipeline_contract_attr(__name__, name, _PIPELINE_CONTRACT_EXPORTS)
 
 # ---------------------------------------------------------------------------
 # Private query sub-expression builders.

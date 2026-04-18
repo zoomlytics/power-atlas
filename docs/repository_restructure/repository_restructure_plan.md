@@ -630,11 +630,12 @@ The repo has now completed a first concrete runtime-state reduction pass:
   getter, raw-config getter, and explicit refresh helpers as the remaining
   surface. The duplicated stage-local pipeline contract compatibility helper
   logic in `demo/stages/pdf_ingest.py` and `demo/stages/retrieval_and_qa.py`
-  has now also been centralized into a shared stage utility, while preserving
-  the existing stage export behavior used by focused regressions. The remaining
-  work is the rest of the mutable-global inventory outside those modules plus
-  any further ownership cleanup warranted around the remaining single cached
-  state.
+  has now also been centralized into a shared stage utility, and the remaining
+  dynamic stage export compatibility hooks in those modules have now been
+  removed as well; focused tests now assert the live runtime outputs directly
+  instead of relying on pseudo-constant stage attributes. The remaining work is
+  the rest of the mutable-global inventory outside those modules plus any
+  further ownership cleanup warranted around the remaining single cached state.
   ingest and independent `ingest-pdf` execution
   to bundle settings, pipeline snapshot state, and per-request runtime metadata.
 

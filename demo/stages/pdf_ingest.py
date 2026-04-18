@@ -16,7 +16,6 @@ from power_atlas.contracts import (
     resolve_dataset_root,
 )
 from demo.cypher_utils import validate_cypher_identifier as _validate_cypher_identifier
-from demo.stages.pipeline_contract_compat import get_stage_pipeline_contract_attr
 from demo.stages.pipeline_contract_compat import get_stage_pipeline_contract_value
 from power_atlas.contracts import make_run_id
 
@@ -36,10 +35,6 @@ _PIPELINE_CONTRACT_EXPORTS = {
 
 def _pipeline_contract_value(name: str) -> Any:
     return get_stage_pipeline_contract_value(name, _PIPELINE_CONTRACT_EXPORTS)
-
-
-def __getattr__(name: str) -> Any:
-    return get_stage_pipeline_contract_attr(__name__, name, _PIPELINE_CONTRACT_EXPORTS)
 
 
 def _dataset_metadata_from_fixtures_root(fixtures_root: Path) -> tuple[str, str]:

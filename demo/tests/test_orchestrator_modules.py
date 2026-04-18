@@ -225,7 +225,7 @@ def test_pdf_ingest_reads_live_pipeline_contract_snapshot(tmp_path: Path):
             fixtures_dir=fixtures_dir,
         )
 
-        assert pdf_ingest_module.CHUNK_EMBEDDING_INDEX_NAME == "dynamic_pdf_index"
+        assert not hasattr(pdf_ingest_module, "CHUNK_EMBEDDING_INDEX_NAME")
         assert summary["vector_index"]["index_name"] == "dynamic_pdf_index"
     finally:
         pipeline_module._set_pipeline_contract_state_for_test(
@@ -389,7 +389,7 @@ def test_retrieval_and_qa_reads_live_pipeline_contract_snapshot(tmp_path: Path):
             source_uri="file:///example/doc.pdf",
         )
 
-        assert retrieval_module.CHUNK_EMBEDDING_INDEX_NAME == "dynamic_retrieval_index"
+        assert not hasattr(retrieval_module, "CHUNK_EMBEDDING_INDEX_NAME")
         assert result["retriever_index_name"] == "dynamic_retrieval_index"
     finally:
         pipeline_module._set_pipeline_contract_state_for_test(
