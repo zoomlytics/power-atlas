@@ -253,6 +253,30 @@ def test_pdf_ingest_request_context_uses_request_scope(tmp_path: Path):
     assert summary["vector_index"]["index_name"] == request_context.pipeline_contract.chunk_embedding_index_name
 
 
+def test_structured_ingest_request_context_uses_request_scope(tmp_path: Path):
+    """The RequestContext structured-ingest helper must forward run scope directly."""
+    import json
+    from pathlib import Path
+
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.structured_ingest import run_structured_ingest_request_context
+    from power_atlas.contracts import resolve_dataset_root
+
+    request_context = _request_context_from_config(
+        _dry_run_config(tmp_path),
+        command="ingest-structured",
+        run_id="context-structured-run",
+    )
+    fixtures_dir = resolve_dataset_root("demo_dataset_v1").root
+
+    summary = run_structured_ingest_request_context(request_context, fixtures_dir=fixtures_dir)
+    ingest_summary = json.loads(Path(summary["ingest_summary_path"]).read_text(encoding="utf-8"))
+
+    assert summary["status"] == "dry_run"
+    assert ingest_summary["run_id"] == "context-structured-run"
+    assert summary["claims"] > 0
+
+
 def test_pdf_ingest_rejects_dot_pdf_filename(tmp_path: Path):
     config = _dry_run_config(tmp_path)
     with pytest.raises(ValueError, match="pdf_filename"):

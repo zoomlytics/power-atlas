@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from power_atlas.bootstrap import create_neo4j_driver
+from power_atlas.context import RequestContext
 from power_atlas.contracts import (
     CSV_FIRST_DATA_ROW,
     FIXTURES_DIR,
@@ -403,4 +404,24 @@ def run_structured_ingest(config: Any, run_id: str, *, fixtures_dir: Path | None
     }
 
 
-__all__ = ["lint_and_clean_structured_csvs", "load_csv_rows", "run_structured_ingest"]
+def run_structured_ingest_request_context(
+    request_context: RequestContext,
+    *,
+    fixtures_dir: Path | None = None,
+    dataset_id: str | None = None,
+) -> dict[str, Any]:
+    """Run structured ingest using request-scoped context as the primary input."""
+    return run_structured_ingest(
+        request_context.config,
+        request_context.run_id,
+        fixtures_dir=fixtures_dir,
+        dataset_id=dataset_id,
+    )
+
+
+__all__ = [
+    "lint_and_clean_structured_csvs",
+    "load_csv_rows",
+    "run_structured_ingest",
+    "run_structured_ingest_request_context",
+]

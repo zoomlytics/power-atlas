@@ -600,6 +600,11 @@ The repo has now completed a first concrete runtime-state reduction pass:
   resolution now follows the same pattern for both the orchestrated ingest
   passes and the independent `resolve-entities` path; `pdf_ingest` now also
   has a context-aware entrypoint that `run_demo` uses for both orchestrated
+  ingest and independent `ingest-pdf` execution; `structured_ingest` now
+  follows the same pattern for both the orchestrated ingest path and the
+  independent `ingest-structured` path, so the main stage-entrypoint adoption
+  lane is complete and the remaining work is the rest of the mutable-global
+  inventory plus the private cache/backing-state ownership question.
   ingest and independent `ingest-pdf` execution
   to bundle settings, pipeline snapshot state, and per-request runtime metadata.
 

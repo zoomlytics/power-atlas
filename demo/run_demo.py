@@ -48,6 +48,7 @@ from demo.stages.retrieval_and_qa import _format_scope_label  # noqa: E402
 from demo.stages.claim_extraction import run_claim_and_mention_extraction_request_context  # noqa: E402
 from demo.stages.entity_resolution import run_entity_resolution_request_context  # noqa: E402
 from demo.stages.pdf_ingest import run_pdf_ingest_request_context  # noqa: E402
+from demo.stages.structured_ingest import run_structured_ingest_request_context  # noqa: E402
 from demo.stages.retrieval_and_qa import run_interactive_qa_request_context  # noqa: E402
 from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context  # noqa: E402
 from demo.stages.retrieval_benchmark import run_retrieval_benchmark  # noqa: E402
@@ -737,6 +738,19 @@ def _run_pdf_ingest_request_context(
     )
 
 
+def _run_structured_ingest_request_context(
+    request_context: RequestContext,
+    *,
+    fixtures_dir: Path | None = None,
+    dataset_id: str | None = None,
+) -> dict[str, Any]:
+    return run_structured_ingest_request_context(
+        request_context,
+        fixtures_dir=fixtures_dir,
+        dataset_id=dataset_id,
+    )
+
+
 def _run_orchestrated_request_context(request_context: RequestContext) -> Path:
     """Run the full demo batch sequence with an unstructured-first posture.
 
@@ -824,8 +838,8 @@ def _run_orchestrated_request_context(request_context: RequestContext) -> Path:
 
     # ── Phase 2: Structured enrichment pass ──────────────────────────────────
     # Structured ingest is deferred to demonstrate it is optional enrichment.
-    structured_stage = run_structured_ingest(
-        config, structured_run_id,
+    structured_stage = _run_structured_ingest_request_context(
+        replace(request_context, run_id=structured_run_id),
         fixtures_dir=dataset_root.root,
         dataset_id=dataset_root.dataset_id,
     )
@@ -984,8 +998,8 @@ def _run_independent_stage(
         "ingest-structured": (
             "structured_ingest",
             "structured_ingest_run_id",
-            lambda cfg, stage_run_id: run_structured_ingest(
-                cfg, stage_run_id,
+            lambda cfg, stage_run_id: _run_structured_ingest_request_context(
+                replace(request_context, run_id=stage_run_id),
                 fixtures_dir=_fixture_dir,
                 dataset_id=dataset_root.dataset_id,
             ),
@@ -1119,24 +1133,20 @@ def _lint_and_clean_structured_csvs(run_id: str, output_dir: Path) -> dict[str, 
 
 def _run_structured_ingest(config: Config, run_id: str) -> dict[str, Any]:
     dataset_root = resolve_dataset_root(config.dataset_name)
-    return run_structured_ingest(config, run_id, fixtures_dir=dataset_root.root, dataset_id=dataset_root.dataset_id)
+    return _run_structured_ingest_request_context(
+        _request_context_from_config(config, command="ingest-structured", run_id=run_id),
+        fixtures_dir=dataset_root.root,
+        dataset_id=dataset_root.dataset_id,
+    )
 
 
 def _run_pdf_ingest(config: Config, run_id: str | None = None) -> dict[str, Any]:
     dataset_root = resolve_dataset_root(config.dataset_name)
-    pipeline_contract = _pipeline_contract_view()
-    return run_pdf_ingest(
-        config,
-        run_id,
+    return _run_pdf_ingest_request_context(
+        _request_context_from_config(config, command="ingest-pdf", run_id=run_id),
         fixtures_dir=dataset_root.root,
         pdf_filename=dataset_root.pdf_filename,
         dataset_id=dataset_root.dataset_id,
-        index_name=pipeline_contract["index_name"],
-        chunk_label=pipeline_contract["chunk_label"],
-        embedding_property=pipeline_contract["embedding_property"],
-        embedding_dimensions=pipeline_contract["embedding_dimensions"],
-        embedder_model=pipeline_contract["embedder_model"],
-        chunk_stride=pipeline_contract["chunk_stride"],
     )
 
 
