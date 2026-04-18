@@ -2536,6 +2536,19 @@ class WorkflowTests(unittest.TestCase):
 class ResetDemoDbTests(unittest.TestCase):
     """Tests for demo/reset_demo_db.py run_reset() and related helpers."""
 
+    @staticmethod
+    def _default_pipeline_contract(module, **overrides):
+        defaults = {
+            "chunk_embedding_index_name": "demo_chunk_embedding_index",
+            "chunk_embedding_label": "Chunk",
+            "chunk_embedding_property": "embedding",
+            "chunk_embedding_dimensions": 1536,
+            "embedder_model_name": "text-embedding-3-small",
+            "chunk_fallback_stride": 1000,
+        }
+        defaults.update(overrides)
+        return module.PipelineContractSnapshot(**defaults)
+
     def _make_fake_modules(
         self,
         *,
@@ -2753,6 +2766,7 @@ class ResetDemoDbTests(unittest.TestCase):
                 driver=fake_neo4j.GraphDatabase.driver("neo4j://localhost:7687"),
                 database="neo4j",
                 output_dir=None,
+                pipeline_contract=self._default_pipeline_contract(module),
             )
 
         required_keys = {
@@ -2781,6 +2795,7 @@ class ResetDemoDbTests(unittest.TestCase):
                 driver=fake_neo4j.GraphDatabase.driver("neo4j://localhost:7687"),
                 database="testdb",
                 output_dir=None,
+                pipeline_contract=self._default_pipeline_contract(module),
             )
 
         self.assertEqual(report["deleted_nodes"], 7)
@@ -2801,6 +2816,7 @@ class ResetDemoDbTests(unittest.TestCase):
                 driver=fake_neo4j.GraphDatabase.driver("neo4j://localhost:7687"),
                 database="neo4j",
                 output_dir=None,
+                pipeline_contract=self._default_pipeline_contract(module),
             )
 
         self.assertIn("demo_chunk_embedding_index", report["indexes_dropped"])
@@ -2826,6 +2842,10 @@ class ResetDemoDbTests(unittest.TestCase):
                 driver=fake_neo4j.GraphDatabase.driver("neo4j://localhost:7687"),
                 database="neo4j",
                 output_dir=None,
+                pipeline_contract=self._default_pipeline_contract(
+                    module,
+                    chunk_embedding_index_name="dynamic_reset_index",
+                ),
             )
         finally:
             pipeline_contracts._set_pipeline_contract_state_for_test(
@@ -2883,6 +2903,7 @@ class ResetDemoDbTests(unittest.TestCase):
                 driver=fake_neo4j.GraphDatabase.driver("neo4j://localhost:7687"),
                 database="neo4j",
                 output_dir=None,
+                pipeline_contract=self._default_pipeline_contract(module),
             )
 
         self.assertTrue(report["idempotent"])
@@ -2911,6 +2932,7 @@ class ResetDemoDbTests(unittest.TestCase):
                 driver=fake_neo4j.GraphDatabase.driver("neo4j://localhost:7687"),
                 database="neo4j",
                 output_dir=None,
+                pipeline_contract=self._default_pipeline_contract(module),
             )
 
         self.assertFalse(report["idempotent"])
@@ -2925,6 +2947,7 @@ class ResetDemoDbTests(unittest.TestCase):
                 driver=fake_neo4j.GraphDatabase.driver("neo4j://localhost:7687"),
                 database="neo4j",
                 output_dir=None,
+                pipeline_contract=self._default_pipeline_contract(module),
             )
 
         self.assertFalse(report["idempotent"])
@@ -2941,6 +2964,7 @@ class ResetDemoDbTests(unittest.TestCase):
                 driver=fake_neo4j.GraphDatabase.driver("neo4j://localhost:7687"),
                 database="neo4j",
                 output_dir=None,
+                pipeline_contract=self._default_pipeline_contract(module),
             )
 
         self.assertFalse(report["idempotent"])
@@ -2961,6 +2985,7 @@ class ResetDemoDbTests(unittest.TestCase):
                 driver=fake_neo4j.GraphDatabase.driver("neo4j://localhost:7687"),
                 database="neo4j",
                 output_dir=None,
+                pipeline_contract=self._default_pipeline_contract(module),
             )
 
         self.assertEqual(report["stale_participation_edges_deleted"], 0)
@@ -2979,6 +3004,7 @@ class ResetDemoDbTests(unittest.TestCase):
                     driver=fake_neo4j.GraphDatabase.driver("neo4j://localhost:7687"),
                     database="neo4j",
                     output_dir=Path(tmpdir),
+                    pipeline_contract=self._default_pipeline_contract(module),
                 )
                 report_path = Path(report["report_path"])
                 self.assertTrue(report_path.exists(), "Report file should be written")
@@ -2995,6 +3021,7 @@ class ResetDemoDbTests(unittest.TestCase):
                 driver=fake_neo4j.GraphDatabase.driver("neo4j://localhost:7687"),
                 database="neo4j",
                 output_dir=None,
+                pipeline_contract=self._default_pipeline_contract(module),
             )
 
         self.assertNotIn("report_path", report)
@@ -3009,6 +3036,7 @@ class ResetDemoDbTests(unittest.TestCase):
                 driver=fake_neo4j.GraphDatabase.driver("neo4j://localhost:7687"),
                 database="neo4j",
                 output_dir=None,
+                pipeline_contract=self._default_pipeline_contract(module),
             )
 
         expected_labels = {
@@ -3029,6 +3057,7 @@ class ResetDemoDbTests(unittest.TestCase):
                 driver=fake_neo4j.GraphDatabase.driver("neo4j://localhost:7687"),
                 database="neo4j",
                 output_dir=None,
+                pipeline_contract=self._default_pipeline_contract(module),
             )
 
         # Find the session object stored by the fake driver's session() call.

@@ -66,9 +66,9 @@ from typing import Any
 
 import neo4j
 
-from power_atlas.bootstrap import build_settings, create_neo4j_driver
+from power_atlas.bootstrap import build_app_context, build_settings, create_neo4j_driver
 from power_atlas.contracts import ARTIFACTS_DIR
-from power_atlas.contracts.pipeline import PipelineContractSnapshot, get_pipeline_contract_snapshot
+from power_atlas.contracts.pipeline import PipelineContractSnapshot
 from demo.cypher_utils import validate_cypher_identifier as _validate_cypher_identifier
 
 logger = logging.getLogger(__name__)
@@ -96,13 +96,10 @@ DEMO_NODE_LABELS: tuple[str, ...] = (
 )
 
 def _demo_owned_indexes(
-    pipeline_contract: PipelineContractSnapshot | None = None,
+    pipeline_contract: PipelineContractSnapshot,
 ) -> tuple[str, ...]:
-    """Return the current demo-owned index names from the active pipeline contract."""
-    resolved_pipeline_contract = (
-        get_pipeline_contract_snapshot() if pipeline_contract is None else pipeline_contract
-    )
-    return (resolved_pipeline_contract.chunk_embedding_index_name,)
+    """Return the current demo-owned index names from the provided pipeline contract."""
+    return (pipeline_contract.chunk_embedding_index_name,)
 
 
 def _index_exists(driver: neo4j.Driver, index_name: str, database: str) -> bool:
@@ -121,7 +118,7 @@ def run_reset(
     driver: neo4j.Driver,
     database: str,
     output_dir: Path | None = None,
-    pipeline_contract: PipelineContractSnapshot | None = None,
+    pipeline_contract: PipelineContractSnapshot,
 ) -> dict[str, Any]:
     """Reset demo-owned graph content and indexes in *database*.
 
@@ -286,13 +283,13 @@ def run_reset(
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     settings = build_settings()
-    pipeline_contract = get_pipeline_contract_snapshot()
+    app_context = build_app_context(settings=settings)
     parser = argparse.ArgumentParser(
         description="Reset demo nodes and indexes.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             f"Deletes all nodes with demo-owned labels ({', '.join(DEMO_NODE_LABELS)})\n"
-            f"and drops the following indexes: {', '.join(_demo_owned_indexes(pipeline_contract))}.\n"
+            f"and drops the following indexes: {', '.join(_demo_owned_indexes(app_context.pipeline_contract))}.\n"
             "Run only against a dedicated demo database to avoid data loss."
         ),
     )
@@ -317,14 +314,14 @@ def main() -> None:
     if not args.neo4j_password:
         raise SystemExit("NEO4J_PASSWORD environment variable or --neo4j-password must be set")
 
-    pipeline_contract = get_pipeline_contract_snapshot()
+    app_context = build_app_context(settings=build_settings())
     driver = create_neo4j_driver(args)
     with driver:
         report = run_reset(
             driver=driver,
             database=args.neo4j_database,
             output_dir=args.output_dir,
-            pipeline_contract=pipeline_contract,
+            pipeline_contract=app_context.pipeline_contract,
         )
 
     print(

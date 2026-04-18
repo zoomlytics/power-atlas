@@ -647,8 +647,12 @@ The repo has now completed a first concrete runtime-state reduction pass:
   onto bootstrap-built `Config` / `RequestContext` ownership for pipeline
   contract state, removes the remaining direct stage-level reads from
   `power_atlas.contracts.pipeline`, and makes claim-schema lexical-config
-  runtime use explicit via an injected snapshot. The remaining work is the
-  rest of the mutable-global inventory outside those modules plus any further
+  runtime use explicit via an injected snapshot. The next follow-up slice also
+  removes the reset/runtime fallback: `demo/reset_demo_db.py` now requires an
+  explicit `PipelineContractSnapshot` for `run_reset(...)`, while its CLI help
+  text and `main()` resolve that snapshot through bootstrap-built app context
+  instead of direct pipeline-module reads. The remaining work is the rest of
+  the mutable-global inventory outside those modules plus any further
   ownership cleanup warranted around that remaining single cached state.
   ingest and independent `ingest-pdf` execution
   to bundle settings, pipeline snapshot state, and per-request runtime metadata.
