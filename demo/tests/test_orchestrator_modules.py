@@ -403,6 +403,25 @@ def test_retrieval_and_qa_reads_live_pipeline_contract_snapshot(tmp_path: Path):
         )
 
 
+def test_retrieval_and_qa_runtime_query_contract_uses_live_builder(tmp_path: Path):
+    import demo.stages.retrieval_and_qa as retrieval_module
+
+    config = _dry_run_config(tmp_path)
+
+    with mock.patch.object(
+        retrieval_module,
+        "_build_retrieval_query",
+        return_value="\nRETURN 'live_builder_query' AS retrieval_query\n",
+    ):
+        result = retrieval_module.run_retrieval_and_qa(
+            config,
+            run_id="qa-live-builder-run",
+            expand_graph=True,
+        )
+
+    assert result["retrieval_query_contract"] == "RETURN 'live_builder_query' AS retrieval_query"
+
+
 def test_retrieval_and_qa_run_id_appears_in_batch_manifest(tmp_path: Path):
     from demo.stages import run_retrieval_and_qa
 

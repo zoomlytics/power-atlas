@@ -613,10 +613,13 @@ The repo has now completed a first concrete runtime-state reduction pass:
   Another small import-time runtime-state dependency was also removed from
   `demo/stages/graph_health.py`: the cluster-fragmentation query is now
   generated on demand from the live entity-resolution normalization helper
-  instead of freezing derived Cypher text at module import time. The remaining
-  work is the rest of the mutable-global inventory outside those modules plus
-  any further ownership cleanup warranted around the remaining single cached
-  state.
+  instead of freezing derived Cypher text at module import time. `demo/stages/
+  retrieval_and_qa.py` now also rebuilds its selected retrieval query on demand
+  for the active dry-run/live execution paths and manifest contract recording,
+  while keeping the historical exported query constants only as compatibility
+  snapshots for the heavy query-contract test surface. The remaining work is
+  the rest of the mutable-global inventory outside those modules plus any
+  further ownership cleanup warranted around the remaining single cached state.
   ingest and independent `ingest-pdf` execution
   to bundle settings, pipeline snapshot state, and per-request runtime metadata.
 

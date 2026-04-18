@@ -285,6 +285,25 @@ def _select_retrieval_query(
     if expand_graph:
         return _RETRIEVAL_QUERY_WITH_EXPANSION
     return _RETRIEVAL_QUERY_BASE
+    
+def _select_runtime_retrieval_query(
+    *,
+    expand_graph: bool = False,
+    cluster_aware: bool = False,
+    all_runs: bool = False,
+) -> str:
+    """Return the live-built retrieval query for the given mode combination.
+
+    ``_select_retrieval_query`` preserves the historical pre-built query
+    constants for compatibility and contract tests. This helper rebuilds the
+    selected variant on demand so the active retrieval path is not coupled to
+    import-time frozen query strings.
+    """
+    return _build_retrieval_query(
+        expand_graph=expand_graph,
+        cluster_aware=cluster_aware,
+        all_runs=all_runs,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1882,7 +1901,7 @@ def run_retrieval_and_qa(
     # effective_expand_graph records whether any form of graph expansion is active so
     # manifests accurately describe the retrieval context used.
     effective_expand_graph = expand_graph or cluster_aware
-    retrieval_query_contract = _select_retrieval_query(
+    retrieval_query_contract = _select_runtime_retrieval_query(
         expand_graph=expand_graph, cluster_aware=cluster_aware, all_runs=all_runs
     )
     citation_object_example: dict[str, object] = {
@@ -2045,7 +2064,7 @@ def run_retrieval_and_qa(
             "Pass --run-id, --latest, or use --all-runs to query across all data."
         )
 
-    retrieval_query = _select_retrieval_query(
+    retrieval_query = _select_runtime_retrieval_query(
         expand_graph=expand_graph, cluster_aware=cluster_aware, all_runs=all_runs
     )
 
@@ -2352,7 +2371,7 @@ def run_interactive_qa(
 
     resolved_index_name = index_name if index_name is not None else _pipeline_contract_value("CHUNK_EMBEDDING_INDEX_NAME")
     effective_qa_model = getattr(config, "openai_model", None) or "gpt-5.4"
-    retrieval_query = _select_retrieval_query(
+    retrieval_query = _select_runtime_retrieval_query(
         expand_graph=expand_graph, cluster_aware=cluster_aware, all_runs=all_runs
     )
     query_params = _build_query_params(
