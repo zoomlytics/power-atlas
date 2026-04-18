@@ -15,7 +15,7 @@ from power_atlas.contracts import (
     PDF_PIPELINE_CONFIG_PATH,
     resolve_dataset_root,
 )
-from power_atlas.contracts.pipeline import PipelineContractSnapshot
+from power_atlas.contracts.pipeline import PipelineContractSnapshot, is_pipeline_contract_snapshot
 from demo.cypher_utils import validate_cypher_identifier as _validate_cypher_identifier
 from demo.stages.pipeline_contract_compat import get_stage_pipeline_contract_value
 from power_atlas.contracts import make_run_id
@@ -48,7 +48,7 @@ def _resolve_pipeline_contract(
     if pipeline_contract is not None:
         return pipeline_contract
     config_pipeline_contract = getattr(config, "pipeline_contract", None)
-    if isinstance(config_pipeline_contract, PipelineContractSnapshot):
+    if is_pipeline_contract_snapshot(config_pipeline_contract):
         return config_pipeline_contract
     raise ValueError(
         "run_pdf_ingest requires a pipeline contract from RequestContext/AppContext-derived config or an explicit pipeline_contract argument"

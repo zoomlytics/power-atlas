@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from power_atlas.contracts.pipeline import PipelineContractSnapshot
+from power_atlas.contracts.pipeline import PipelineContractSnapshot, is_pipeline_contract_snapshot
 from power_atlas.contracts.runtime import Config
 from power_atlas.settings import AppSettings
 
@@ -30,7 +30,15 @@ class RequestContext:
 
     @property
     def pipeline_contract(self) -> PipelineContractSnapshot:
-        return self.app.pipeline_contract
+        app_pipeline_contract = getattr(self.app, "pipeline_contract", None)
+        if is_pipeline_contract_snapshot(app_pipeline_contract):
+            return app_pipeline_contract
+        config_pipeline_contract = getattr(self.config, "pipeline_contract", None)
+        if is_pipeline_contract_snapshot(config_pipeline_contract):
+            return config_pipeline_contract
+        raise ValueError(
+            "RequestContext requires a pipeline contract on app or config runtime state"
+        )
 
 
 __all__ = ["AppContext", "RequestContext"]

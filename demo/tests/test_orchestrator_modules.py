@@ -6695,7 +6695,6 @@ def test_benchmark_failure_in_orchestrated_run_writes_manifest(tmp_path: Path):
     from unittest.mock import MagicMock, patch
 
     from demo.run_demo import _run_orchestrated
-    from power_atlas.contracts import Config
 
     config = Config(
         dry_run=True,
@@ -6768,7 +6767,6 @@ def test_orchestrated_run_warns_when_alignment_version_missing(tmp_path: Path):
     from unittest.mock import MagicMock, patch
 
     from demo.run_demo import _run_orchestrated
-    from power_atlas.contracts import Config
 
     config = Config(
         dry_run=True,
@@ -6834,7 +6832,6 @@ def test_orchestrated_run_emits_exactly_one_alignment_version_warning(tmp_path: 
     from unittest.mock import MagicMock, patch
 
     from demo.run_demo import _run_orchestrated
-    from power_atlas.contracts import Config
 
     config = Config(
         dry_run=True,
@@ -6934,7 +6931,6 @@ def test_e2e_orchestrated_exactly_one_alignment_version_warning(tmp_path: Path):
     from unittest.mock import MagicMock, patch
 
     from demo.run_demo import _run_orchestrated
-    from power_atlas.contracts import Config
 
     config = Config(
         dry_run=True,

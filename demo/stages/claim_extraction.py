@@ -7,7 +7,7 @@ from typing import Any
 from power_atlas.bootstrap import require_openai_api_key
 from power_atlas.bootstrap.clients import build_llm as build_openai_llm, create_neo4j_driver
 from power_atlas.context import RequestContext
-from power_atlas.contracts.pipeline import PipelineContractSnapshot
+from power_atlas.contracts.pipeline import PipelineContractSnapshot, is_pipeline_contract_snapshot
 from power_atlas.contracts.prompts import PROMPT_IDS
 
 
@@ -18,7 +18,7 @@ def _resolve_pipeline_contract(
     if pipeline_contract is not None:
         return pipeline_contract
     config_pipeline_contract = getattr(config, "pipeline_contract", None)
-    if isinstance(config_pipeline_contract, PipelineContractSnapshot):
+    if is_pipeline_contract_snapshot(config_pipeline_contract):
         return config_pipeline_contract
     raise ValueError(
         "claim extraction requires a pipeline contract from RequestContext/AppContext-derived config or an explicit pipeline_contract argument"

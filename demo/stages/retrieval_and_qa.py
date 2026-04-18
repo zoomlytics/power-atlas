@@ -23,7 +23,7 @@ from power_atlas.contracts import (
     resolve_dataset_root,
     resolve_early_return_rule,
 )
-from power_atlas.contracts.pipeline import PipelineContractSnapshot
+from power_atlas.contracts.pipeline import PipelineContractSnapshot, is_pipeline_contract_snapshot
 from power_atlas.settings import Neo4jSettings
 from neo4j_graphrag.retrievers import VectorCypherRetriever
 from neo4j_graphrag.types import LLMMessage, RetrieverResultItem
@@ -52,7 +52,7 @@ def _resolve_pipeline_contract(
     if pipeline_contract is not None:
         return pipeline_contract
     config_pipeline_contract = getattr(config, "pipeline_contract", None)
-    if isinstance(config_pipeline_contract, PipelineContractSnapshot):
+    if is_pipeline_contract_snapshot(config_pipeline_contract):
         return config_pipeline_contract
     raise ValueError(
         "retrieval helpers require a pipeline contract from RequestContext/AppContext-derived config or an explicit pipeline_contract argument"

@@ -43,6 +43,14 @@ class _PipelineContractState:
 
 
 _UNSET = object()
+_PIPELINE_CONTRACT_SNAPSHOT_FIELDS = (
+    "chunk_embedding_index_name",
+    "chunk_embedding_label",
+    "chunk_embedding_property",
+    "chunk_embedding_dimensions",
+    "embedder_model_name",
+    "chunk_fallback_stride",
+)
 
 
 def _default_pipeline_contract_snapshot() -> PipelineContractSnapshot:
@@ -155,6 +163,11 @@ def get_pipeline_contract_config_data() -> dict[str, Any]:
     """Return a defensive copy of the loaded raw pipeline contract config data."""
     ensure_pipeline_contract_loaded()
     return deepcopy(_PIPELINE_CONTRACT_STATE.config_data)
+
+
+def is_pipeline_contract_snapshot(value: object) -> bool:
+    """Return True for any snapshot-shaped object, including instances from a reloaded module."""
+    return all(hasattr(value, field_name) for field_name in _PIPELINE_CONTRACT_SNAPSHOT_FIELDS)
 
 
 def _load_pipeline_contract() -> _PipelineContractState:
@@ -281,5 +294,6 @@ __all__ = [
     "ensure_pipeline_contract_loaded",
     "get_pipeline_contract_config_data",
     "get_pipeline_contract_snapshot",
+    "is_pipeline_contract_snapshot",
     "refresh_pipeline_contract",
 ]
