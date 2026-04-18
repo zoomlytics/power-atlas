@@ -639,9 +639,13 @@ The repo has now completed a first concrete runtime-state reduction pass:
   snapshot/raw-config getters used by bootstrap and runtime consumers. Claim
   extraction lexical config plus the reset path now also accept explicit
   pipeline contract snapshots so request/app-context owned callers no longer
-  need to read that cache directly in those flows. The remaining work is the
-  rest of the mutable-global inventory outside those modules plus any further
-  ownership cleanup warranted around that remaining single cached state.
+  need to read that cache directly in those flows. The shared stage pipeline
+  contract helper plus the active `pdf_ingest` and retrieval helpers now also
+  accept explicit snapshots, so request-context execution carries owned
+  contract state through those internals instead of falling back to the module
+  cache. The remaining work is the rest of the mutable-global inventory
+  outside those modules plus any further ownership cleanup warranted around
+  that remaining single cached state.
   ingest and independent `ingest-pdf` execution
   to bundle settings, pipeline snapshot state, and per-request runtime metadata.
 

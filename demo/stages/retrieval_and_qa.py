@@ -23,6 +23,7 @@ from power_atlas.contracts import (
     resolve_dataset_root,
     resolve_early_return_rule,
 )
+from power_atlas.contracts.pipeline import PipelineContractSnapshot
 from power_atlas.settings import AppSettings, Neo4jSettings
 from power_atlas.llm_utils import build_openai_llm
 from neo4j_graphrag.retrievers import VectorCypherRetriever
@@ -38,8 +39,11 @@ _PIPELINE_CONTRACT_EXPORTS = {
 }
 
 
-def _pipeline_contract_value(name: str) -> str:
-    return cast(str, get_stage_pipeline_contract_value(name, _PIPELINE_CONTRACT_EXPORTS))
+def _pipeline_contract_value(
+    name: str,
+    pipeline_contract: PipelineContractSnapshot | None = None,
+) -> str:
+    return cast(str, get_stage_pipeline_contract_value(name, _PIPELINE_CONTRACT_EXPORTS, pipeline_contract))
 
 # ---------------------------------------------------------------------------
 # Private query sub-expression builders.
@@ -1728,6 +1732,7 @@ def _build_retriever_and_rag(
     retrieval_query: str,
     qa_model: str,
     neo4j_database: str | None,
+    pipeline_contract: PipelineContractSnapshot | None = None,
 ) -> tuple[VectorCypherRetriever, GraphRAG]:
     """Construct a VectorCypherRetriever and GraphRAG instance for a Neo4j session.
 
@@ -1752,7 +1757,7 @@ def _build_retriever_and_rag(
         AppSettings(
             neo4j=Neo4jSettings(),
             openai_model=qa_model,
-            embedder_model=_pipeline_contract_value("EMBEDDER_MODEL_NAME"),
+            embedder_model=_pipeline_contract_value("EMBEDDER_MODEL_NAME", pipeline_contract),
         ),
         embedder_factory=OpenAIEmbeddings,
     )
@@ -1797,6 +1802,7 @@ def run_retrieval_and_qa_request_context(
         message_history=message_history,
         interactive=interactive,
         all_runs=request_context.all_runs,
+        pipeline_contract=request_context.pipeline_contract,
     )
 
 
@@ -1813,6 +1819,7 @@ def run_retrieval_and_qa(
     message_history: MessageHistory | list[dict[str, str]] | None = None,
     interactive: bool = False,
     all_runs: bool = False,
+    pipeline_contract: PipelineContractSnapshot | None = None,
 ) -> dict[str, object]:
     """Run retrieval and GraphRAG Q&A for a single question or interactive session.
 
@@ -1860,7 +1867,11 @@ def run_retrieval_and_qa(
         Citations may span multiple runs/files; *run_id* is ignored.  In this
         mode each citation still carries its own ``run_id`` provenance field.
     """
-    resolved_index_name = index_name if index_name is not None else _pipeline_contract_value("CHUNK_EMBEDDING_INDEX_NAME")
+    resolved_index_name = (
+        index_name
+        if index_name is not None
+        else _pipeline_contract_value("CHUNK_EMBEDDING_INDEX_NAME", pipeline_contract)
+    )
     qa_model = getattr(config, "openai_model", None)
     # effective_qa_model is the model that will actually be used for generation; it
     # includes the fallback default so the manifest always reflects the true model.
@@ -2122,6 +2133,7 @@ def run_retrieval_and_qa(
             retrieval_query=retrieval_query,
             qa_model=effective_qa_model,
             neo4j_database=neo4j_database,
+            pipeline_contract=pipeline_contract,
         )
 
         # Run the GraphRAG search with optional message history for interactive mode.
@@ -2292,6 +2304,7 @@ def run_interactive_qa(
     cluster_aware: bool = False,
     all_runs: bool = False,
     debug: bool = False,
+    pipeline_contract: PipelineContractSnapshot | None = None,
 ) -> None:
     """Run a REPL-style interactive Q&A session.
 
@@ -2360,7 +2373,11 @@ def run_interactive_qa(
     if missing_cfg:
         raise ValueError(f"Live retrieval requires config attributes: {', '.join(missing_cfg)}")
 
-    resolved_index_name = index_name if index_name is not None else _pipeline_contract_value("CHUNK_EMBEDDING_INDEX_NAME")
+    resolved_index_name = (
+        index_name
+        if index_name is not None
+        else _pipeline_contract_value("CHUNK_EMBEDDING_INDEX_NAME", pipeline_contract)
+    )
     effective_qa_model = getattr(config, "openai_model", None) or "gpt-5.4"
     retrieval_query = _select_runtime_retrieval_query(
         expand_graph=expand_graph, cluster_aware=cluster_aware, all_runs=all_runs
@@ -2392,6 +2409,7 @@ def run_interactive_qa(
             retrieval_query=retrieval_query,
             qa_model=effective_qa_model,
             neo4j_database=neo4j_database,
+            pipeline_contract=pipeline_contract,
         )
         try:
             while True:
@@ -2472,6 +2490,7 @@ def run_interactive_qa_request_context(
         cluster_aware=cluster_aware,
         all_runs=request_context.all_runs if all_runs is None else all_runs,
         debug=debug,
+        pipeline_contract=request_context.pipeline_contract,
     )
 
 

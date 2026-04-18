@@ -239,6 +239,34 @@ def test_pdf_ingest_reads_live_pipeline_contract_snapshot(tmp_path: Path):
         )
 
 
+def test_pdf_ingest_accepts_explicit_pipeline_contract(tmp_path: Path):
+    import demo.stages.pdf_ingest as pdf_ingest_module
+    from power_atlas.contracts.pipeline import PipelineContractSnapshot
+
+    config = _dry_run_config(tmp_path)
+    fixtures_dir = resolve_dataset_root("demo_dataset_v1").root
+
+    summary = pdf_ingest_module.run_pdf_ingest(
+        config,
+        run_id="explicit-pdf-run",
+        fixtures_dir=fixtures_dir,
+        pipeline_contract=PipelineContractSnapshot(
+            chunk_embedding_index_name="explicit_pdf_index",
+            chunk_embedding_label="ExplicitChunk",
+            chunk_embedding_property="explicit_embedding",
+            chunk_embedding_dimensions=2048,
+            embedder_model_name="text-embedding-3-large",
+            chunk_fallback_stride=777,
+        ),
+    )
+
+    assert summary["vector_index"]["index_name"] == "explicit_pdf_index"
+    assert summary["vector_index"]["label"] == "ExplicitChunk"
+    assert summary["vector_index"]["embedding_property"] == "explicit_embedding"
+    assert summary["vector_index"]["dimensions"] == 2048
+    assert summary["embedding_model"] == "text-embedding-3-large"
+
+
 def test_pdf_ingest_request_context_uses_request_scope(tmp_path: Path):
     """The RequestContext pdf-ingest helper must forward run scope and pipeline defaults."""
     import json
@@ -401,6 +429,29 @@ def test_retrieval_and_qa_reads_live_pipeline_contract_snapshot(tmp_path: Path):
             embedder_model_name=original_state.snapshot.embedder_model_name,
             chunk_fallback_stride=original_state.snapshot.chunk_fallback_stride,
         )
+
+
+def test_retrieval_and_qa_accepts_explicit_pipeline_contract(tmp_path: Path):
+    import demo.stages.retrieval_and_qa as retrieval_module
+    from power_atlas.contracts.pipeline import PipelineContractSnapshot
+
+    config = _dry_run_config(tmp_path)
+
+    result = retrieval_module.run_retrieval_and_qa(
+        config,
+        run_id="qa-explicit-run",
+        source_uri="file:///example/doc.pdf",
+        pipeline_contract=PipelineContractSnapshot(
+            chunk_embedding_index_name="explicit_retrieval_index",
+            chunk_embedding_label="Chunk",
+            chunk_embedding_property="embedding",
+            chunk_embedding_dimensions=1536,
+            embedder_model_name="text-embedding-3-large",
+            chunk_fallback_stride=1000,
+        ),
+    )
+
+    assert result["retriever_index_name"] == "explicit_retrieval_index"
 
 
 def test_retrieval_and_qa_runtime_query_contract_uses_live_builder(tmp_path: Path):
@@ -943,6 +994,67 @@ def test_retrieval_and_qa_live_path_uses_vector_cypher_retriever(tmp_path: Path)
     # Embedder must use the contract's model name to match the index dimensions
     assert len(captured_embedder_args) == 1
     assert captured_embedder_args[0][1].get("model") == pipeline_contract.embedder_model_name
+
+
+def test_retrieval_and_qa_live_path_uses_explicit_pipeline_contract(tmp_path: Path):
+    from demo.stages import run_retrieval_and_qa
+    from demo.stages.retrieval_and_qa import _chunk_citation_formatter
+    from power_atlas.contracts.pipeline import PipelineContractSnapshot
+
+    captured_init: dict = {}
+    captured_embedder_args: list = []
+
+    class _FakeEmbedder:
+        def __init__(self, *args, **kwargs):
+            captured_embedder_args.append((args, kwargs))
+
+    class _FakeRetriever:
+        def __init__(self, **kwargs):
+            captured_init.update(kwargs)
+
+        def search(self, **kwargs):
+            return _make_fake_retriever_result([])
+
+    live_config = Config(
+        dry_run=False,
+        output_dir=tmp_path,
+        neo4j_uri="bolt://example.invalid",
+        neo4j_username="neo4j",
+        neo4j_password="not-used",
+        neo4j_database="neo4j",
+        openai_model="gpt-4o-mini",
+    )
+
+    explicit_pipeline_contract = PipelineContractSnapshot(
+        chunk_embedding_index_name="explicit_live_retrieval_index",
+        chunk_embedding_label="Chunk",
+        chunk_embedding_property="embedding",
+        chunk_embedding_dimensions=1536,
+        embedder_model_name="text-embedding-3-large",
+        chunk_fallback_stride=1000,
+    )
+
+    _StubGraphRAG = _make_stub_graphrag_class()
+
+    with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAIEmbeddings", _FakeEmbedder
+    ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _StubGraphRAG), mock.patch(
+        "demo.stages.retrieval_and_qa.build_openai_llm"
+    ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+        result = run_retrieval_and_qa(
+            live_config,
+            run_id="live-run-explicit",
+            source_uri="file:///doc.pdf",
+            top_k=3,
+            question="What happened?",
+            pipeline_contract=explicit_pipeline_contract,
+        )
+
+    assert captured_init["index_name"] == "explicit_live_retrieval_index"
+    assert captured_init["result_formatter"] is _chunk_citation_formatter
+    assert result["status"] == "live"
+    assert len(captured_embedder_args) == 1
+    assert captured_embedder_args[0][1].get("model") == "text-embedding-3-large"
 
 
 def test_retrieval_and_qa_live_path_formats_citation_tokens(tmp_path: Path):
