@@ -18,7 +18,7 @@ from neo4j_graphrag.experimental.components.types import (
 
 from demo.stages import lint_and_clean_structured_csvs, run_pdf_ingest
 from power_atlas.contracts import (
-    Config,
+    Config as _RuntimeConfig,
     POWER_ATLAS_RAG_TEMPLATE,
     PROMPT_IDS,
     STRUCTURED_FILE_HEADERS,
@@ -30,7 +30,16 @@ from power_atlas.contracts import (
     make_run_id,
     resolve_dataset_root,
 )
-from power_atlas.contracts.pipeline import get_pipeline_contract_snapshot
+from power_atlas.contracts.pipeline import (
+    get_pipeline_contract_config_data,
+    get_pipeline_contract_snapshot,
+)
+
+
+def Config(*args, **kwargs):
+    kwargs.setdefault("pipeline_contract", get_pipeline_contract_snapshot())
+    kwargs.setdefault("pipeline_contract_config_data", get_pipeline_contract_config_data())
+    return _RuntimeConfig(*args, **kwargs)
 
 
 def _dry_run_config(tmp_path: Path) -> Config:

@@ -11,7 +11,34 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
 
-from power_atlas.contracts import Config
+from power_atlas.contracts import Config as _RuntimeConfig
+from power_atlas.contracts.pipeline import (
+    get_pipeline_contract_config_data,
+    get_pipeline_contract_snapshot,
+)
+
+
+def Config(*args, **kwargs):
+    kwargs.setdefault("pipeline_contract", get_pipeline_contract_snapshot())
+    kwargs.setdefault("pipeline_contract_config_data", get_pipeline_contract_config_data())
+    return _RuntimeConfig(*args, **kwargs)
+
+
+def _wrap_module_config(module):
+    runtime_config = module.Config
+
+    def _config_with_pipeline_defaults(*args, **kwargs):
+        kwargs.setdefault("pipeline_contract", get_pipeline_contract_snapshot())
+        kwargs.setdefault(
+            "pipeline_contract_config_data",
+            get_pipeline_contract_config_data(),
+        )
+        return runtime_config(*args, **kwargs)
+
+    module.Config = _config_with_pipeline_defaults
+    return module
+
+
 from demo.stages.entity_resolution import (
     _ALIGNMENT_VERSION,
     _CLUSTER_VERSION,
@@ -757,6 +784,7 @@ class TestRunEntityResolutionOrchestratorIntegration(unittest.TestCase):
         try:
             sys.modules["_run_demo_test"] = module
             spec.loader.exec_module(module)  # type: ignore[union-attr]
+            _wrap_module_config(module)
         finally:
             sys.modules.pop("_run_demo_test", None)
 
@@ -798,6 +826,7 @@ class TestRunEntityResolutionOrchestratorIntegration(unittest.TestCase):
         try:
             sys.modules["_run_demo_test2"] = module
             spec.loader.exec_module(module)  # type: ignore[union-attr]
+            _wrap_module_config(module)
         finally:
             sys.modules.pop("_run_demo_test2", None)
 
@@ -828,7 +857,6 @@ class TestBatchManifestEntityResolution(unittest.TestCase):
 
     def test_entity_resolution_stage_included_when_provided(self):
         from power_atlas.contracts.manifest import build_batch_manifest
-        from power_atlas.contracts import Config
 
         with tempfile.TemporaryDirectory() as tmpdir:
             config = Config(
@@ -856,7 +884,6 @@ class TestBatchManifestEntityResolution(unittest.TestCase):
 
     def test_entity_resolution_stage_absent_by_default(self):
         from power_atlas.contracts.manifest import build_batch_manifest
-        from power_atlas.contracts import Config
 
         with tempfile.TemporaryDirectory() as tmpdir:
             config = Config(

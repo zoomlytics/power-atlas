@@ -9,7 +9,6 @@ from power_atlas.bootstrap.clients import build_llm as build_openai_llm, create_
 from power_atlas.context import RequestContext
 from power_atlas.contracts.pipeline import PipelineContractSnapshot
 from power_atlas.contracts.prompts import PROMPT_IDS
-from power_atlas.settings import Neo4jSettings
 
 
 def _resolve_pipeline_contract(
@@ -118,14 +117,7 @@ def run_claim_and_mention_extraction(
         build_participation_edges,
     )
 
-    driver = create_neo4j_driver(
-        Neo4jSettings(
-            uri=config.neo4j_uri,
-            username=config.neo4j_username,
-            password=config.neo4j_password,
-            database=config.neo4j_database,
-        )
-    )
+    driver = create_neo4j_driver(config)
     edge_rows: list[dict] = []
     with driver:
         graph, text_chunks, lexical_config = asyncio.run(

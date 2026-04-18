@@ -31,6 +31,23 @@ def _load_module(path: Path, module_name: str):
     try:
         sys.modules[module_name] = module
         spec.loader.exec_module(module)
+        if hasattr(module, "Config"):
+            from power_atlas.contracts.pipeline import (
+                get_pipeline_contract_config_data,
+                get_pipeline_contract_snapshot,
+            )
+
+            runtime_config = module.Config
+
+            def _config_with_pipeline_defaults(*args, **kwargs):
+                kwargs.setdefault("pipeline_contract", get_pipeline_contract_snapshot())
+                kwargs.setdefault(
+                    "pipeline_contract_config_data",
+                    get_pipeline_contract_config_data(),
+                )
+                return runtime_config(*args, **kwargs)
+
+            module.Config = _config_with_pipeline_defaults
     finally:
         sys.modules.pop(module_name, None)
     return module
@@ -1020,15 +1037,6 @@ class WorkflowTests(unittest.TestCase):
 
     def test_run_pdf_ingest_non_dry_run_rejects_unsafe_cypher_identifiers(self):
         module = _load_module(RUN_DEMO_PATH, "run_non_dry_unsafe_identifier_test")
-        config = module.Config(
-            dry_run=False,
-            output_dir=DEMO_DIR / "artifacts",
-            neo4j_uri="neo4j://localhost:7687",
-            neo4j_username="neo4j",
-            neo4j_password="testtesttest",
-            neo4j_database="neo4j",
-            openai_model="gpt-4o-mini",
-        )
         calls: dict[str, object] = {}
         injected_modules = self._build_pdf_ingest_test_modules(
             calls=calls,
@@ -1048,6 +1056,15 @@ class WorkflowTests(unittest.TestCase):
                     for original_attr_name, original_value in original_identifiers.items():
                         _set_run_demo_pipeline_private(module, original_attr_name, original_value)
                     _set_run_demo_pipeline_private(module, attr_name, value)
+                    config = module.Config(
+                        dry_run=False,
+                        output_dir=DEMO_DIR / "artifacts",
+                        neo4j_uri="neo4j://localhost:7687",
+                        neo4j_username="neo4j",
+                        neo4j_password="testtesttest",
+                        neo4j_database="neo4j",
+                        openai_model="gpt-4o-mini",
+                    )
                     with self.assertRaisesRegex(ValueError, expected):
                         module._run_pdf_ingest(config, run_id="unstructured_ingest-test")
                 self.assertFalse(calls.get("queries"))

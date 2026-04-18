@@ -2123,14 +2123,7 @@ def run_retrieval_and_qa(
     if missing_cfg:
         raise ValueError(f"Live retrieval requires config attributes: {', '.join(missing_cfg)}")
 
-    with create_neo4j_driver(
-        Neo4jSettings(
-            uri=neo4j_uri,
-            username=neo4j_username,
-            password=neo4j_password,
-            database=neo4j_database,
-        )
-    ) as driver:
+    with create_neo4j_driver(config) as driver:
         # Build GraphRAG with the Power Atlas citation-enforcing prompt template and
         # capability-aware LLM for grounded, citation-enforced output.
         # Aligned with vendor pattern from vendor-resources/examples/customize/answer/custom_prompt.py
@@ -2403,14 +2396,7 @@ def run_interactive_qa(
 
     # Build driver, retriever, LLM, and GraphRAG once and reuse across all REPL turns
     # to avoid per-turn connection overhead and Neo4j driver churn.
-    with create_neo4j_driver(
-        Neo4jSettings(
-            uri=neo4j_uri,
-            username=neo4j_username,
-            password=neo4j_password,
-            database=neo4j_database,
-        )
-    ) as driver:
+    with create_neo4j_driver(config) as driver:
         _, rag = _build_retriever_and_rag(
             driver,
             index_name=resolved_index_name,

@@ -270,6 +270,10 @@ def test_create_neo4j_driver_uses_settings_credentials() -> None:
 def test_create_neo4j_driver_accepts_legacy_config_shape() -> None:
     from power_atlas.bootstrap.clients import create_neo4j_driver
     from power_atlas.contracts.runtime import Config
+    from power_atlas.contracts.pipeline import (
+        get_pipeline_contract_config_data,
+        get_pipeline_contract_snapshot,
+    )
 
     config = Config(
         dry_run=False,
@@ -279,6 +283,8 @@ def test_create_neo4j_driver_accepts_legacy_config_shape() -> None:
         neo4j_password="legacy-secret",
         neo4j_database="legacy-db",
         openai_model="gpt-5.4",
+        pipeline_contract=get_pipeline_contract_snapshot(),
+        pipeline_contract_config_data=get_pipeline_contract_config_data(),
     )
 
     with mock.patch("power_atlas.bootstrap.clients.neo4j.GraphDatabase.driver") as driver:

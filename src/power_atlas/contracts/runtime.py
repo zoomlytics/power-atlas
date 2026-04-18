@@ -1,16 +1,12 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from power_atlas.contracts.pipeline import (
-    PipelineContractSnapshot,
-    get_pipeline_contract_config_data,
-    get_pipeline_contract_snapshot,
-)
+from power_atlas.contracts.pipeline import PipelineContractSnapshot
 
 
 @dataclass(frozen=True)
@@ -22,11 +18,11 @@ class Config:
     neo4j_password: str
     neo4j_database: str
     openai_model: str
+    pipeline_contract: PipelineContractSnapshot
+    pipeline_contract_config_data: dict[str, Any]
     question: str | None = None
     resolution_mode: str = "unstructured_only"
     dataset_name: str | None = None
-    pipeline_contract: PipelineContractSnapshot = field(default_factory=get_pipeline_contract_snapshot)
-    pipeline_contract_config_data: dict[str, Any] = field(default_factory=get_pipeline_contract_config_data)
 
 
 def timestamp() -> str:
