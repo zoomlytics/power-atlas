@@ -348,19 +348,27 @@ def test_claim_extraction_lexical_config_reads_live_pipeline_contract_snapshot()
     import power_atlas.contracts.claim_schema as claim_schema_module
     import power_atlas.contracts.pipeline as pipeline_module
 
-    original_label = pipeline_module._CHUNK_EMBEDDING_LABEL
-    original_property = pipeline_module._CHUNK_EMBEDDING_PROPERTY
+    original_state = pipeline_module._get_pipeline_contract_state_for_test()
     try:
-        pipeline_module._CHUNK_EMBEDDING_LABEL = "DynamicChunk"
-        pipeline_module._CHUNK_EMBEDDING_PROPERTY = "dynamic_embedding"
+        pipeline_module._set_pipeline_contract_state_for_test(
+            chunk_embedding_label="DynamicChunk",
+            chunk_embedding_property="dynamic_embedding",
+        )
 
         lexical_config = claim_schema_module.claim_extraction_lexical_config()
 
         assert lexical_config.chunk_node_label == "DynamicChunk"
         assert lexical_config.chunk_embedding_property == "dynamic_embedding"
     finally:
-        pipeline_module._CHUNK_EMBEDDING_LABEL = original_label
-        pipeline_module._CHUNK_EMBEDDING_PROPERTY = original_property
+        pipeline_module._set_pipeline_contract_state_for_test(
+            config_data=original_state.config_data,
+            chunk_embedding_index_name=original_state.snapshot.chunk_embedding_index_name,
+            chunk_embedding_label=original_state.snapshot.chunk_embedding_label,
+            chunk_embedding_property=original_state.snapshot.chunk_embedding_property,
+            chunk_embedding_dimensions=original_state.snapshot.chunk_embedding_dimensions,
+            embedder_model_name=original_state.snapshot.embedder_model_name,
+            chunk_fallback_stride=original_state.snapshot.chunk_fallback_stride,
+        )
 
 
 def test_demo_pipeline_contract_shim_is_package_module() -> None:

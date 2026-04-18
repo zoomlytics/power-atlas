@@ -37,12 +37,12 @@ def _load_module(path: Path, module_name: str):
 
 
 _RUN_DEMO_PIPELINE_PRIVATE_FIELDS = {
-    "CHUNK_EMBEDDING_INDEX_NAME": "_CHUNK_EMBEDDING_INDEX_NAME",
-    "CHUNK_EMBEDDING_LABEL": "_CHUNK_EMBEDDING_LABEL",
-    "CHUNK_EMBEDDING_PROPERTY": "_CHUNK_EMBEDDING_PROPERTY",
-    "CHUNK_EMBEDDING_DIMENSIONS": "_CHUNK_EMBEDDING_DIMENSIONS",
-    "CHUNK_FALLBACK_STRIDE": "_CHUNK_FALLBACK_STRIDE",
-    "EMBEDDER_MODEL_NAME": "_EMBEDDER_MODEL_NAME",
+    "CHUNK_EMBEDDING_INDEX_NAME": "chunk_embedding_index_name",
+    "CHUNK_EMBEDDING_LABEL": "chunk_embedding_label",
+    "CHUNK_EMBEDDING_PROPERTY": "chunk_embedding_property",
+    "CHUNK_EMBEDDING_DIMENSIONS": "chunk_embedding_dimensions",
+    "CHUNK_FALLBACK_STRIDE": "chunk_fallback_stride",
+    "EMBEDDER_MODEL_NAME": "embedder_model_name",
 }
 
 
@@ -51,11 +51,13 @@ def _run_demo_pipeline_snapshot(module):
 
 
 def _set_run_demo_pipeline_private(module, public_name: str, value):
-    setattr(module.pipeline_contracts, _RUN_DEMO_PIPELINE_PRIVATE_FIELDS[public_name], value)
+    module.pipeline_contracts._set_pipeline_contract_state_for_test(
+        **{_RUN_DEMO_PIPELINE_PRIVATE_FIELDS[public_name]: value}
+    )
 
 
 def _get_run_demo_pipeline_private(module, public_name: str):
-    return getattr(module.pipeline_contracts, _RUN_DEMO_PIPELINE_PRIVATE_FIELDS[public_name])
+    return getattr(_run_demo_pipeline_snapshot(module), _RUN_DEMO_PIPELINE_PRIVATE_FIELDS[public_name])
 
 
 class WorkflowTests(unittest.TestCase):
@@ -1234,9 +1236,11 @@ class WorkflowTests(unittest.TestCase):
 
         import power_atlas.contracts.pipeline as pipeline_contracts
 
-        original_index_name = pipeline_contracts._CHUNK_EMBEDDING_INDEX_NAME
+        original_state = pipeline_contracts._get_pipeline_contract_state_for_test()
         try:
-            pipeline_contracts._CHUNK_EMBEDDING_INDEX_NAME = "dynamic_contract_index"
+            pipeline_contracts._set_pipeline_contract_state_for_test(
+                chunk_embedding_index_name="dynamic_contract_index"
+            )
 
             self.assertEqual(
                 _run_demo_pipeline_snapshot(module).chunk_embedding_index_name,
@@ -1247,7 +1251,15 @@ class WorkflowTests(unittest.TestCase):
 
             self.assertEqual(summary["vector_index"]["index_name"], "dynamic_contract_index")
         finally:
-            pipeline_contracts._CHUNK_EMBEDDING_INDEX_NAME = original_index_name
+            pipeline_contracts._set_pipeline_contract_state_for_test(
+                config_data=original_state.config_data,
+                chunk_embedding_index_name=original_state.snapshot.chunk_embedding_index_name,
+                chunk_embedding_label=original_state.snapshot.chunk_embedding_label,
+                chunk_embedding_property=original_state.snapshot.chunk_embedding_property,
+                chunk_embedding_dimensions=original_state.snapshot.chunk_embedding_dimensions,
+                embedder_model_name=original_state.snapshot.embedder_model_name,
+                chunk_fallback_stride=original_state.snapshot.chunk_fallback_stride,
+            )
 
     def test_run_demo_warns_and_falls_back_when_chunk_embedding_is_not_mapping(self):
         original_safe_load = yaml.safe_load
@@ -2788,16 +2800,26 @@ class ResetDemoDbTests(unittest.TestCase):
 
         import power_atlas.contracts.pipeline as pipeline_contracts
 
-        original_index_name = pipeline_contracts._CHUNK_EMBEDDING_INDEX_NAME
+        original_state = pipeline_contracts._get_pipeline_contract_state_for_test()
         try:
-            pipeline_contracts._CHUNK_EMBEDDING_INDEX_NAME = "dynamic_reset_index"
+            pipeline_contracts._set_pipeline_contract_state_for_test(
+                chunk_embedding_index_name="dynamic_reset_index"
+            )
             report = module.run_reset(
                 driver=fake_neo4j.GraphDatabase.driver("neo4j://localhost:7687"),
                 database="neo4j",
                 output_dir=None,
             )
         finally:
-            pipeline_contracts._CHUNK_EMBEDDING_INDEX_NAME = original_index_name
+            pipeline_contracts._set_pipeline_contract_state_for_test(
+                config_data=original_state.config_data,
+                chunk_embedding_index_name=original_state.snapshot.chunk_embedding_index_name,
+                chunk_embedding_label=original_state.snapshot.chunk_embedding_label,
+                chunk_embedding_property=original_state.snapshot.chunk_embedding_property,
+                chunk_embedding_dimensions=original_state.snapshot.chunk_embedding_dimensions,
+                embedder_model_name=original_state.snapshot.embedder_model_name,
+                chunk_fallback_stride=original_state.snapshot.chunk_fallback_stride,
+            )
 
         self.assertEqual(report["indexes_dropped"], ["dynamic_reset_index"])
         self.assertEqual(report["indexes_not_found"], [])

@@ -43,46 +43,127 @@ class PipelineContractSnapshot:
     chunk_fallback_stride: int
 
 
+@dataclass(frozen=True)
+class _PipelineContractState:
+    config_data: dict[str, Any]
+    snapshot: PipelineContractSnapshot
+
+
+_UNSET = object()
+
+
+def _default_pipeline_contract_snapshot() -> PipelineContractSnapshot:
+    return PipelineContractSnapshot(
+        chunk_embedding_index_name=_DEFAULT_CHUNK_EMBEDDING_INDEX_NAME,
+        chunk_embedding_label=_DEFAULT_CHUNK_EMBEDDING_LABEL,
+        chunk_embedding_property=_DEFAULT_CHUNK_EMBEDDING_PROPERTY,
+        chunk_embedding_dimensions=_DEFAULT_CHUNK_EMBEDDING_DIMENSIONS,
+        embedder_model_name=_DEFAULT_EMBEDDER_MODEL_NAME,
+        chunk_fallback_stride=max(_DEFAULT_CHUNK_SIZE - _DEFAULT_CHUNK_OVERLAP, 1),
+    )
+
+
+_PIPELINE_CONTRACT_STATE = _PipelineContractState(
+    config_data={},
+    snapshot=_default_pipeline_contract_snapshot(),
+)
+
+
+def _get_pipeline_contract_state_for_test() -> _PipelineContractState:
+    return deepcopy(_PIPELINE_CONTRACT_STATE)
+
+
+def _set_pipeline_contract_state_for_test(
+    *,
+    config_data: dict[str, Any] | object = _UNSET,
+    chunk_embedding_index_name: str | object = _UNSET,
+    chunk_embedding_label: str | object = _UNSET,
+    chunk_embedding_property: str | object = _UNSET,
+    chunk_embedding_dimensions: int | object = _UNSET,
+    embedder_model_name: str | object = _UNSET,
+    chunk_fallback_stride: int | object = _UNSET,
+) -> None:
+    global _PIPELINE_CONTRACT_STATE
+    current_snapshot = _PIPELINE_CONTRACT_STATE.snapshot
+    _PIPELINE_CONTRACT_STATE = _PipelineContractState(
+        config_data=(
+            deepcopy(_PIPELINE_CONTRACT_STATE.config_data)
+            if config_data is _UNSET
+            else deepcopy(config_data)
+        ),
+        snapshot=PipelineContractSnapshot(
+            chunk_embedding_index_name=(
+                current_snapshot.chunk_embedding_index_name
+                if chunk_embedding_index_name is _UNSET
+                else str(chunk_embedding_index_name)
+            ),
+            chunk_embedding_label=(
+                current_snapshot.chunk_embedding_label
+                if chunk_embedding_label is _UNSET
+                else str(chunk_embedding_label)
+            ),
+            chunk_embedding_property=(
+                current_snapshot.chunk_embedding_property
+                if chunk_embedding_property is _UNSET
+                else str(chunk_embedding_property)
+            ),
+            chunk_embedding_dimensions=(
+                current_snapshot.chunk_embedding_dimensions
+                if chunk_embedding_dimensions is _UNSET
+                else int(chunk_embedding_dimensions)
+            ),
+            embedder_model_name=(
+                current_snapshot.embedder_model_name
+                if embedder_model_name is _UNSET
+                else str(embedder_model_name)
+            ),
+            chunk_fallback_stride=(
+                current_snapshot.chunk_fallback_stride
+                if chunk_fallback_stride is _UNSET
+                else int(chunk_fallback_stride)
+            ),
+        ),
+    )
+
+
+def _reset_pipeline_contract_state_for_test() -> None:
+    global _PIPELINE_CONTRACT_STATE
+    _PIPELINE_CONTRACT_STATE = _PipelineContractState(
+        config_data={},
+        snapshot=_default_pipeline_contract_snapshot(),
+    )
+
+
 def refresh_pipeline_contract() -> None:
     """Force a reload of the pipeline contract from disk, even if already loaded."""
-    global _PIPELINE_CONFIG_DATA, _CHUNK_EMBEDDING_INDEX_NAME, _CHUNK_EMBEDDING_LABEL, _CHUNK_EMBEDDING_PROPERTY
-    global _CHUNK_EMBEDDING_DIMENSIONS, _EMBEDDER_MODEL_NAME, _CHUNK_FALLBACK_STRIDE
+    global _PIPELINE_CONTRACT_STATE
     with _PIPELINE_CONTRACT_LOCK:
-        _load_pipeline_contract()
+        _PIPELINE_CONTRACT_STATE = _load_pipeline_contract()
         _PIPELINE_CONTRACT_LOADED.set()
 
 
 def ensure_pipeline_contract_loaded() -> None:
     """Load the pipeline contract once in a thread-safe way."""
+    global _PIPELINE_CONTRACT_STATE
     with _PIPELINE_CONTRACT_LOCK:
         if not _PIPELINE_CONTRACT_LOADED.is_set():
-            _load_pipeline_contract()
+            _PIPELINE_CONTRACT_STATE = _load_pipeline_contract()
             _PIPELINE_CONTRACT_LOADED.set()
 
 
 def get_pipeline_contract_snapshot() -> PipelineContractSnapshot:
     """Return an immutable snapshot of the current non-dataset pipeline contract values."""
-    return PipelineContractSnapshot(
-        chunk_embedding_index_name=_CHUNK_EMBEDDING_INDEX_NAME,
-        chunk_embedding_label=_CHUNK_EMBEDDING_LABEL,
-        chunk_embedding_property=_CHUNK_EMBEDDING_PROPERTY,
-        chunk_embedding_dimensions=_CHUNK_EMBEDDING_DIMENSIONS,
-        embedder_model_name=_EMBEDDER_MODEL_NAME,
-        chunk_fallback_stride=_CHUNK_FALLBACK_STRIDE,
-    )
+    return _PIPELINE_CONTRACT_STATE.snapshot
 
 
 def get_pipeline_contract_config_data() -> dict[str, Any]:
     """Return a defensive copy of the loaded raw pipeline contract config data."""
-    return deepcopy(_PIPELINE_CONFIG_DATA)
+    return deepcopy(_PIPELINE_CONTRACT_STATE.config_data)
 
 
-def _load_pipeline_contract() -> None:
-    """Internal helper that reads the pipeline contract from disk and updates globals."""
-    global _PIPELINE_CONFIG_DATA, _CHUNK_EMBEDDING_INDEX_NAME, _CHUNK_EMBEDDING_LABEL, _CHUNK_EMBEDDING_PROPERTY
-    global _CHUNK_EMBEDDING_DIMENSIONS, _EMBEDDER_MODEL_NAME, _CHUNK_FALLBACK_STRIDE
-
-    _PIPELINE_CONFIG_DATA = {}
+def _load_pipeline_contract() -> _PipelineContractState:
+    """Internal helper that reads the pipeline contract from disk and returns a new cached state."""
+    config_data: dict[str, Any] = {}
     if PDF_PIPELINE_CONFIG_PATH.is_file():
         cfg_data: Any = {}
         try:
@@ -103,9 +184,9 @@ def _load_pipeline_contract() -> None:
                 type(cfg_data).__name__,
             )
             cfg_data = {}
-        _PIPELINE_CONFIG_DATA = cfg_data if cfg_is_mapping else {}
+        config_data = cfg_data if cfg_is_mapping else {}
 
-    pipeline_contract = _PIPELINE_CONFIG_DATA.get("contract") if isinstance(_PIPELINE_CONFIG_DATA, dict) else {}
+    pipeline_contract = config_data.get("contract") if isinstance(config_data, dict) else {}
     if pipeline_contract is None:
         pipeline_contract = {}
     elif not isinstance(pipeline_contract, dict):
@@ -127,17 +208,17 @@ def _load_pipeline_contract() -> None:
         )
         chunk_embedding_contract = {}
 
-    _CHUNK_EMBEDDING_INDEX_NAME = _coerce_identifier(
+    chunk_embedding_index_name = _coerce_identifier(
         chunk_embedding_contract.get("index_name"),
         _DEFAULT_CHUNK_EMBEDDING_INDEX_NAME,
         "chunk_embedding.index_name",
     )
-    _CHUNK_EMBEDDING_LABEL = _coerce_identifier(
+    chunk_embedding_label = _coerce_identifier(
         chunk_embedding_contract.get("label"),
         _DEFAULT_CHUNK_EMBEDDING_LABEL,
         "chunk_embedding.label",
     )
-    _CHUNK_EMBEDDING_PROPERTY = _coerce_identifier(
+    chunk_embedding_property = _coerce_identifier(
         chunk_embedding_contract.get("embedding_property"),
         _DEFAULT_CHUNK_EMBEDDING_PROPERTY,
         "chunk_embedding.embedding_property",
@@ -146,21 +227,21 @@ def _load_pipeline_contract() -> None:
     dimensions_value = chunk_embedding_contract.get("dimensions")
     if dimensions_value is not None:
         try:
-            _CHUNK_EMBEDDING_DIMENSIONS = int(dimensions_value)
+            chunk_embedding_dimensions = int(dimensions_value)
         except (TypeError, ValueError):
-            _CHUNK_EMBEDDING_DIMENSIONS = _DEFAULT_CHUNK_EMBEDDING_DIMENSIONS
+            chunk_embedding_dimensions = _DEFAULT_CHUNK_EMBEDDING_DIMENSIONS
     else:
-        _CHUNK_EMBEDDING_DIMENSIONS = _DEFAULT_CHUNK_EMBEDDING_DIMENSIONS
-    _EMBEDDER_MODEL_NAME = _DEFAULT_EMBEDDER_MODEL_NAME
-    embedder_config = _PIPELINE_CONFIG_DATA.get("embedder_config", {})
+        chunk_embedding_dimensions = _DEFAULT_CHUNK_EMBEDDING_DIMENSIONS
+    embedder_model_name = _DEFAULT_EMBEDDER_MODEL_NAME
+    embedder_config = config_data.get("embedder_config", {})
     if isinstance(embedder_config, dict):
         embedder_params = embedder_config.get("params_")
         if isinstance(embedder_params, dict):
             embedder_model = embedder_params.get("model")
             if isinstance(embedder_model, str):
-                _EMBEDDER_MODEL_NAME = embedder_model
+                embedder_model_name = embedder_model
 
-    text_splitter_config = _PIPELINE_CONFIG_DATA.get("text_splitter", {})
+    text_splitter_config = config_data.get("text_splitter", {})
     chunk_size = _DEFAULT_CHUNK_SIZE
     chunk_overlap = _DEFAULT_CHUNK_OVERLAP
     if isinstance(text_splitter_config, dict):
@@ -174,7 +255,36 @@ def _load_pipeline_contract() -> None:
                 chunk_overlap = int(text_splitter_params.get("chunk_overlap"))
             except (TypeError, ValueError):
                 chunk_overlap = _DEFAULT_CHUNK_OVERLAP
-    _CHUNK_FALLBACK_STRIDE = max(chunk_size - chunk_overlap, 1)
+    return _PipelineContractState(
+        config_data=config_data,
+        snapshot=PipelineContractSnapshot(
+            chunk_embedding_index_name=chunk_embedding_index_name,
+            chunk_embedding_label=chunk_embedding_label,
+            chunk_embedding_property=chunk_embedding_property,
+            chunk_embedding_dimensions=chunk_embedding_dimensions,
+            embedder_model_name=embedder_model_name,
+            chunk_fallback_stride=max(chunk_size - chunk_overlap, 1),
+        ),
+    )
+
+
+def __getattr__(name: str) -> Any:
+    snapshot = _PIPELINE_CONTRACT_STATE.snapshot
+    if name == "_PIPELINE_CONFIG_DATA":
+        return deepcopy(_PIPELINE_CONTRACT_STATE.config_data)
+    if name == "_CHUNK_EMBEDDING_INDEX_NAME":
+        return snapshot.chunk_embedding_index_name
+    if name == "_CHUNK_EMBEDDING_LABEL":
+        return snapshot.chunk_embedding_label
+    if name == "_CHUNK_EMBEDDING_PROPERTY":
+        return snapshot.chunk_embedding_property
+    if name == "_CHUNK_EMBEDDING_DIMENSIONS":
+        return snapshot.chunk_embedding_dimensions
+    if name == "_EMBEDDER_MODEL_NAME":
+        return snapshot.embedder_model_name
+    if name == "_CHUNK_FALLBACK_STRIDE":
+        return snapshot.chunk_fallback_stride
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def _coerce_identifier(value: Any, default: str, field_name: str) -> str:

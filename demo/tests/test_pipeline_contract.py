@@ -13,26 +13,20 @@ import power_atlas.contracts.pipeline as pipeline
 def isolate_pipeline_contract(monkeypatch):
     original_path = pipeline.PDF_PIPELINE_CONFIG_PATH
     contract_was_loaded = pipeline._PIPELINE_CONTRACT_LOADED.is_set()
-    original_state = {
-        "PIPELINE_CONFIG_DATA": deepcopy(pipeline._PIPELINE_CONFIG_DATA),
-        "CHUNK_EMBEDDING_INDEX_NAME": pipeline._CHUNK_EMBEDDING_INDEX_NAME,
-        "CHUNK_EMBEDDING_LABEL": pipeline._CHUNK_EMBEDDING_LABEL,
-        "CHUNK_EMBEDDING_PROPERTY": pipeline._CHUNK_EMBEDDING_PROPERTY,
-        "CHUNK_EMBEDDING_DIMENSIONS": pipeline._CHUNK_EMBEDDING_DIMENSIONS,
-        "EMBEDDER_MODEL_NAME": pipeline._EMBEDDER_MODEL_NAME,
-        "CHUNK_FALLBACK_STRIDE": pipeline._CHUNK_FALLBACK_STRIDE,
-    }
+    original_state = pipeline._get_pipeline_contract_state_for_test()
     try:
         yield
     finally:
         pipeline.PDF_PIPELINE_CONFIG_PATH = original_path
-        pipeline._PIPELINE_CONFIG_DATA = deepcopy(original_state["PIPELINE_CONFIG_DATA"])
-        pipeline._CHUNK_EMBEDDING_INDEX_NAME = original_state["CHUNK_EMBEDDING_INDEX_NAME"]
-        pipeline._CHUNK_EMBEDDING_LABEL = original_state["CHUNK_EMBEDDING_LABEL"]
-        pipeline._CHUNK_EMBEDDING_PROPERTY = original_state["CHUNK_EMBEDDING_PROPERTY"]
-        pipeline._CHUNK_EMBEDDING_DIMENSIONS = original_state["CHUNK_EMBEDDING_DIMENSIONS"]
-        pipeline._EMBEDDER_MODEL_NAME = original_state["EMBEDDER_MODEL_NAME"]
-        pipeline._CHUNK_FALLBACK_STRIDE = original_state["CHUNK_FALLBACK_STRIDE"]
+        pipeline._set_pipeline_contract_state_for_test(
+            config_data=original_state.config_data,
+            chunk_embedding_index_name=original_state.snapshot.chunk_embedding_index_name,
+            chunk_embedding_label=original_state.snapshot.chunk_embedding_label,
+            chunk_embedding_property=original_state.snapshot.chunk_embedding_property,
+            chunk_embedding_dimensions=original_state.snapshot.chunk_embedding_dimensions,
+            embedder_model_name=original_state.snapshot.embedder_model_name,
+            chunk_fallback_stride=original_state.snapshot.chunk_fallback_stride,
+        )
         if contract_was_loaded:
             pipeline._PIPELINE_CONTRACT_LOADED.set()
         else:
@@ -40,14 +34,8 @@ def isolate_pipeline_contract(monkeypatch):
 
 
 def _reset_contract_state() -> None:
-    pipeline._PIPELINE_CONFIG_DATA = {}
+    pipeline._reset_pipeline_contract_state_for_test()
     pipeline._PIPELINE_CONTRACT_LOADED.clear()
-    pipeline._CHUNK_EMBEDDING_INDEX_NAME = pipeline._DEFAULT_CHUNK_EMBEDDING_INDEX_NAME
-    pipeline._CHUNK_EMBEDDING_LABEL = pipeline._DEFAULT_CHUNK_EMBEDDING_LABEL
-    pipeline._CHUNK_EMBEDDING_PROPERTY = pipeline._DEFAULT_CHUNK_EMBEDDING_PROPERTY
-    pipeline._CHUNK_EMBEDDING_DIMENSIONS = pipeline._DEFAULT_CHUNK_EMBEDDING_DIMENSIONS
-    pipeline._EMBEDDER_MODEL_NAME = pipeline._DEFAULT_EMBEDDER_MODEL_NAME
-    pipeline._CHUNK_FALLBACK_STRIDE = max(pipeline._DEFAULT_CHUNK_SIZE - pipeline._DEFAULT_CHUNK_OVERLAP, 1)
 
 
 def test_refresh_pipeline_contract_applies_overrides(tmp_path, monkeypatch):
@@ -74,13 +62,14 @@ def test_refresh_pipeline_contract_applies_overrides(tmp_path, monkeypatch):
 
     pipeline.refresh_pipeline_contract()
 
-    assert pipeline._CHUNK_EMBEDDING_INDEX_NAME == "custom_index"
-    assert pipeline._CHUNK_EMBEDDING_LABEL == "CustomLabel"
-    assert pipeline._CHUNK_EMBEDDING_PROPERTY == "custom_prop"
-    assert pipeline._CHUNK_EMBEDDING_DIMENSIONS == 2048
-    assert pipeline._EMBEDDER_MODEL_NAME == "text-embedding-3-large"
-    assert pipeline._CHUNK_FALLBACK_STRIDE == 180
-    assert pipeline._PIPELINE_CONFIG_DATA["contract"]["chunk_embedding"]["dimensions"] == "2048"
+    snapshot = pipeline.get_pipeline_contract_snapshot()
+    assert snapshot.chunk_embedding_index_name == "custom_index"
+    assert snapshot.chunk_embedding_label == "CustomLabel"
+    assert snapshot.chunk_embedding_property == "custom_prop"
+    assert snapshot.chunk_embedding_dimensions == 2048
+    assert snapshot.embedder_model_name == "text-embedding-3-large"
+    assert snapshot.chunk_fallback_stride == 180
+    assert pipeline.get_pipeline_contract_config_data()["contract"]["chunk_embedding"]["dimensions"] == "2048"
 
 
 def test_refresh_pipeline_contract_falls_back_on_invalid_types(tmp_path, monkeypatch):
@@ -107,12 +96,13 @@ def test_refresh_pipeline_contract_falls_back_on_invalid_types(tmp_path, monkeyp
 
     pipeline.refresh_pipeline_contract()
 
-    assert pipeline._CHUNK_EMBEDDING_INDEX_NAME == pipeline._DEFAULT_CHUNK_EMBEDDING_INDEX_NAME
-    assert pipeline._CHUNK_EMBEDDING_LABEL == pipeline._DEFAULT_CHUNK_EMBEDDING_LABEL
-    assert pipeline._CHUNK_EMBEDDING_PROPERTY == pipeline._DEFAULT_CHUNK_EMBEDDING_PROPERTY
-    assert pipeline._CHUNK_EMBEDDING_DIMENSIONS == pipeline._DEFAULT_CHUNK_EMBEDDING_DIMENSIONS
-    assert pipeline._EMBEDDER_MODEL_NAME == pipeline._DEFAULT_EMBEDDER_MODEL_NAME
-    assert pipeline._CHUNK_FALLBACK_STRIDE == max(pipeline._DEFAULT_CHUNK_SIZE - pipeline._DEFAULT_CHUNK_OVERLAP, 1)
+    snapshot = pipeline.get_pipeline_contract_snapshot()
+    assert snapshot.chunk_embedding_index_name == pipeline._DEFAULT_CHUNK_EMBEDDING_INDEX_NAME
+    assert snapshot.chunk_embedding_label == pipeline._DEFAULT_CHUNK_EMBEDDING_LABEL
+    assert snapshot.chunk_embedding_property == pipeline._DEFAULT_CHUNK_EMBEDDING_PROPERTY
+    assert snapshot.chunk_embedding_dimensions == pipeline._DEFAULT_CHUNK_EMBEDDING_DIMENSIONS
+    assert snapshot.embedder_model_name == pipeline._DEFAULT_EMBEDDER_MODEL_NAME
+    assert snapshot.chunk_fallback_stride == max(pipeline._DEFAULT_CHUNK_SIZE - pipeline._DEFAULT_CHUNK_OVERLAP, 1)
 
 
 def test_coerce_identifier_strips_and_accepts_valid():
@@ -142,12 +132,14 @@ def test_dataset_state_compat_api_is_removed() -> None:
 
 def test_pipeline_contract_snapshot_reflects_current_values() -> None:
     _reset_contract_state()
-    pipeline._CHUNK_EMBEDDING_INDEX_NAME = "snapshot_index"
-    pipeline._CHUNK_EMBEDDING_LABEL = "SnapshotChunk"
-    pipeline._CHUNK_EMBEDDING_PROPERTY = "snapshot_embedding"
-    pipeline._CHUNK_EMBEDDING_DIMENSIONS = 3072
-    pipeline._EMBEDDER_MODEL_NAME = "text-embedding-3-large"
-    pipeline._CHUNK_FALLBACK_STRIDE = 256
+    pipeline._set_pipeline_contract_state_for_test(
+        chunk_embedding_index_name="snapshot_index",
+        chunk_embedding_label="SnapshotChunk",
+        chunk_embedding_property="snapshot_embedding",
+        chunk_embedding_dimensions=3072,
+        embedder_model_name="text-embedding-3-large",
+        chunk_fallback_stride=256,
+    )
 
     snapshot = pipeline.get_pipeline_contract_snapshot()
 
@@ -161,12 +153,14 @@ def test_pipeline_contract_snapshot_reflects_current_values() -> None:
 
 def test_pipeline_contract_config_data_getter_returns_copy() -> None:
     _reset_contract_state()
-    pipeline._PIPELINE_CONFIG_DATA = {"contract": {"chunk_embedding": {"index_name": "demo_index"}}}
+    pipeline._set_pipeline_contract_state_for_test(
+        config_data={"contract": {"chunk_embedding": {"index_name": "demo_index"}}}
+    )
 
     result = pipeline.get_pipeline_contract_config_data()
 
     assert result == {"contract": {"chunk_embedding": {"index_name": "demo_index"}}}
-    assert result is not pipeline._PIPELINE_CONFIG_DATA
+    assert result is not pipeline.get_pipeline_contract_config_data()
 
 
 def test_non_dataset_pipeline_compat_exports_are_removed() -> None:

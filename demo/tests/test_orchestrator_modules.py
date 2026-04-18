@@ -213,9 +213,11 @@ def test_pdf_ingest_reads_live_pipeline_contract_snapshot(tmp_path: Path):
 
     config = _dry_run_config(tmp_path)
     fixtures_dir = resolve_dataset_root("demo_dataset_v1").root
-    original_index_name = pipeline_module._CHUNK_EMBEDDING_INDEX_NAME
+    original_state = pipeline_module._get_pipeline_contract_state_for_test()
     try:
-        pipeline_module._CHUNK_EMBEDDING_INDEX_NAME = "dynamic_pdf_index"
+        pipeline_module._set_pipeline_contract_state_for_test(
+            chunk_embedding_index_name="dynamic_pdf_index"
+        )
 
         summary = pdf_ingest_module.run_pdf_ingest(
             config,
@@ -226,7 +228,15 @@ def test_pdf_ingest_reads_live_pipeline_contract_snapshot(tmp_path: Path):
         assert pdf_ingest_module.CHUNK_EMBEDDING_INDEX_NAME == "dynamic_pdf_index"
         assert summary["vector_index"]["index_name"] == "dynamic_pdf_index"
     finally:
-        pipeline_module._CHUNK_EMBEDDING_INDEX_NAME = original_index_name
+        pipeline_module._set_pipeline_contract_state_for_test(
+            config_data=original_state.config_data,
+            chunk_embedding_index_name=original_state.snapshot.chunk_embedding_index_name,
+            chunk_embedding_label=original_state.snapshot.chunk_embedding_label,
+            chunk_embedding_property=original_state.snapshot.chunk_embedding_property,
+            chunk_embedding_dimensions=original_state.snapshot.chunk_embedding_dimensions,
+            embedder_model_name=original_state.snapshot.embedder_model_name,
+            chunk_fallback_stride=original_state.snapshot.chunk_fallback_stride,
+        )
 
 
 def test_pdf_ingest_request_context_uses_request_scope(tmp_path: Path):
@@ -367,9 +377,11 @@ def test_retrieval_and_qa_reads_live_pipeline_contract_snapshot(tmp_path: Path):
     import power_atlas.contracts.pipeline as pipeline_module
 
     config = _dry_run_config(tmp_path)
-    original_index_name = pipeline_module._CHUNK_EMBEDDING_INDEX_NAME
+    original_state = pipeline_module._get_pipeline_contract_state_for_test()
     try:
-        pipeline_module._CHUNK_EMBEDDING_INDEX_NAME = "dynamic_retrieval_index"
+        pipeline_module._set_pipeline_contract_state_for_test(
+            chunk_embedding_index_name="dynamic_retrieval_index"
+        )
 
         result = retrieval_module.run_retrieval_and_qa(
             config,
@@ -380,7 +392,15 @@ def test_retrieval_and_qa_reads_live_pipeline_contract_snapshot(tmp_path: Path):
         assert retrieval_module.CHUNK_EMBEDDING_INDEX_NAME == "dynamic_retrieval_index"
         assert result["retriever_index_name"] == "dynamic_retrieval_index"
     finally:
-        pipeline_module._CHUNK_EMBEDDING_INDEX_NAME = original_index_name
+        pipeline_module._set_pipeline_contract_state_for_test(
+            config_data=original_state.config_data,
+            chunk_embedding_index_name=original_state.snapshot.chunk_embedding_index_name,
+            chunk_embedding_label=original_state.snapshot.chunk_embedding_label,
+            chunk_embedding_property=original_state.snapshot.chunk_embedding_property,
+            chunk_embedding_dimensions=original_state.snapshot.chunk_embedding_dimensions,
+            embedder_model_name=original_state.snapshot.embedder_model_name,
+            chunk_fallback_stride=original_state.snapshot.chunk_fallback_stride,
+        )
 
 
 def test_retrieval_and_qa_run_id_appears_in_batch_manifest(tmp_path: Path):

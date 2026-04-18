@@ -603,8 +603,12 @@ The repo has now completed a first concrete runtime-state reduction pass:
   ingest and independent `ingest-pdf` execution; `structured_ingest` now
   follows the same pattern for both the orchestrated ingest path and the
   independent `ingest-structured` path, so the main stage-entrypoint adoption
-  lane is complete and the remaining work is the rest of the mutable-global
-  inventory plus the private cache/backing-state ownership question.
+  lane is complete; the remaining pipeline-contract private cache/backing
+  state has now been narrowed from multiple field-level mutable globals to a
+  single cached state object plus explicit snapshot/raw-config getters and
+  narrow test override helpers. The remaining work is the rest of the
+  mutable-global inventory outside that module plus any further ownership
+  cleanup warranted around the remaining single cached state.
   ingest and independent `ingest-pdf` execution
   to bundle settings, pipeline snapshot state, and per-request runtime metadata.
 
