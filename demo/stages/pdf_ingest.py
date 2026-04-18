@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from power_atlas.bootstrap import create_neo4j_driver, require_openai_api_key, temporary_environment
+from power_atlas.context import RequestContext
 from power_atlas.contracts.pipeline import get_pipeline_contract_snapshot
 from power_atlas.contracts import (
     DatasetRoot,
@@ -583,4 +584,40 @@ def run_pdf_ingest(
     }
 
 
-__all__ = ["run_pdf_ingest", "sha256_file"]
+def run_pdf_ingest_request_context(
+    request_context: RequestContext,
+    *,
+    fixtures_dir: Path | None = None,
+    pdf_filename: str | None = None,
+    dataset_id: str | None = None,
+    index_name: str | None = None,
+    chunk_label: str | None = None,
+    embedding_property: str | None = None,
+    embedding_dimensions: int | None = None,
+    embedder_model: str | None = None,
+    chunk_stride: int | None = None,
+) -> dict[str, Any]:
+    """Run PDF ingest using request-scoped context as the primary input."""
+    pipeline_contract = request_context.pipeline_contract
+    return run_pdf_ingest(
+        request_context.config,
+        request_context.run_id,
+        fixtures_dir=fixtures_dir,
+        pdf_filename=pdf_filename,
+        dataset_id=dataset_id,
+        index_name=index_name or pipeline_contract.chunk_embedding_index_name,
+        chunk_label=chunk_label or pipeline_contract.chunk_embedding_label,
+        embedding_property=embedding_property or pipeline_contract.chunk_embedding_property,
+        embedding_dimensions=(
+            embedding_dimensions
+            if embedding_dimensions is not None
+            else pipeline_contract.chunk_embedding_dimensions
+        ),
+        embedder_model=embedder_model or pipeline_contract.embedder_model_name,
+        chunk_stride=(
+            chunk_stride if chunk_stride is not None else pipeline_contract.chunk_fallback_stride
+        ),
+    )
+
+
+__all__ = ["run_pdf_ingest", "run_pdf_ingest_request_context", "sha256_file"]

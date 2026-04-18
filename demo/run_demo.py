@@ -47,6 +47,7 @@ from demo.stages import (  # noqa: E402
 from demo.stages.retrieval_and_qa import _format_scope_label  # noqa: E402
 from demo.stages.claim_extraction import run_claim_and_mention_extraction_request_context  # noqa: E402
 from demo.stages.entity_resolution import run_entity_resolution_request_context  # noqa: E402
+from demo.stages.pdf_ingest import run_pdf_ingest_request_context  # noqa: E402
 from demo.stages.retrieval_and_qa import run_interactive_qa_request_context  # noqa: E402
 from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context  # noqa: E402
 from demo.stages.retrieval_benchmark import run_retrieval_benchmark  # noqa: E402
@@ -721,6 +722,21 @@ def _run_entity_resolution_request_context(
     )
 
 
+def _run_pdf_ingest_request_context(
+    request_context: RequestContext,
+    *,
+    fixtures_dir: Path | None = None,
+    pdf_filename: str | None = None,
+    dataset_id: str | None = None,
+) -> dict[str, Any]:
+    return run_pdf_ingest_request_context(
+        request_context,
+        fixtures_dir=fixtures_dir,
+        pdf_filename=pdf_filename,
+        dataset_id=dataset_id,
+    )
+
+
 def _run_orchestrated_request_context(request_context: RequestContext) -> Path:
     """Run the full demo batch sequence with an unstructured-first posture.
 
@@ -756,18 +772,11 @@ def _run_orchestrated_request_context(request_context: RequestContext) -> Path:
 
     # ── Phase 1: Unstructured-only pass ──────────────────────────────────────
     # Ingest the PDF and build the lexical graph first.
-    pdf_stage = run_pdf_ingest(
-        config,
-        unstructured_run_id,
+    pdf_stage = _run_pdf_ingest_request_context(
+        replace(request_context, run_id=unstructured_run_id),
         fixtures_dir=dataset_root.root,
         pdf_filename=dataset_root.pdf_filename,
         dataset_id=dataset_root.dataset_id,
-        index_name=pipeline_contract["index_name"],
-        chunk_label=pipeline_contract["chunk_label"],
-        embedding_property=pipeline_contract["embedding_property"],
-        embedding_dimensions=pipeline_contract["embedding_dimensions"],
-        embedder_model=pipeline_contract["embedder_model"],
-        chunk_stride=pipeline_contract["chunk_stride"],
     )
     pdf_source_uri = pdf_stage.get("provenance", {}).get("source_uri") if isinstance(pdf_stage, dict) else None
     if not pdf_source_uri and isinstance(pdf_stage, dict):
@@ -984,18 +993,11 @@ def _run_independent_stage(
         "ingest-pdf": (
             "pdf_ingest",
             "unstructured_ingest_run_id",
-            lambda cfg, stage_run_id: run_pdf_ingest(
-                cfg,
-                stage_run_id,
+            lambda cfg, stage_run_id: _run_pdf_ingest_request_context(
+                replace(request_context, run_id=stage_run_id),
                 fixtures_dir=_fixture_dir,
                 pdf_filename=_pdf_filename,
                 dataset_id=dataset_root.dataset_id,
-                index_name=pipeline_contract["index_name"],
-                chunk_label=pipeline_contract["chunk_label"],
-                embedding_property=pipeline_contract["embedding_property"],
-                embedding_dimensions=pipeline_contract["embedding_dimensions"],
-                embedder_model=pipeline_contract["embedder_model"],
-                chunk_stride=pipeline_contract["chunk_stride"],
             ),
         ),
         "extract-claims": (

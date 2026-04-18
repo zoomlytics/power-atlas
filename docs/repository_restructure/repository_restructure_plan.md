@@ -598,7 +598,9 @@ The repo has now completed a first concrete runtime-state reduction pass:
   extraction now has a matching context-aware entrypoint used by both the
   orchestrated ingest path and the independent `extract-claims` path; entity
   resolution now follows the same pattern for both the orchestrated ingest
-  passes and the independent `resolve-entities` path
+  passes and the independent `resolve-entities` path; `pdf_ingest` now also
+  has a context-aware entrypoint that `run_demo` uses for both orchestrated
+  ingest and independent `ingest-pdf` execution
   to bundle settings, pipeline snapshot state, and per-request runtime metadata.
 
 That is meaningful progress, but it does not yet satisfy the phase. The pipeline
