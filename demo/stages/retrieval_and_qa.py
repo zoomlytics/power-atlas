@@ -13,7 +13,7 @@ from neo4j_graphrag.generation import GraphRAG
 from neo4j_graphrag.message_history import InMemoryMessageHistory, MessageHistory
 
 from power_atlas.bootstrap import require_openai_api_key
-from power_atlas.bootstrap.clients import build_embedder_for_settings, create_neo4j_driver
+from power_atlas.bootstrap.clients import build_embedder, build_llm as build_openai_llm, create_neo4j_driver
 from power_atlas.context import RequestContext
 from power_atlas.contracts import (
     ALIGNMENT_VERSION,
@@ -24,8 +24,7 @@ from power_atlas.contracts import (
     resolve_early_return_rule,
 )
 from power_atlas.contracts.pipeline import PipelineContractSnapshot
-from power_atlas.settings import AppSettings, Neo4jSettings
-from power_atlas.llm_utils import build_openai_llm
+from power_atlas.settings import Neo4jSettings
 from neo4j_graphrag.retrievers import VectorCypherRetriever
 from neo4j_graphrag.types import LLMMessage, RetrieverResultItem
 
@@ -1767,12 +1766,8 @@ def _build_retriever_and_rag(
     neo4j_database:
         Optional Neo4j database name; ``None`` uses the driver's default database.
     """
-    embedder = build_embedder_for_settings(
-        AppSettings(
-            neo4j=Neo4jSettings(),
-            openai_model=qa_model,
-            embedder_model=_pipeline_contract_value("EMBEDDER_MODEL_NAME", pipeline_contract),
-        ),
+    embedder = build_embedder(
+        _pipeline_contract_value("EMBEDDER_MODEL_NAME", pipeline_contract),
         embedder_factory=OpenAIEmbeddings,
     )
     retriever = VectorCypherRetriever(
@@ -1816,7 +1811,6 @@ def run_retrieval_and_qa_request_context(
         message_history=message_history,
         interactive=interactive,
         all_runs=request_context.all_runs,
-        pipeline_contract=request_context.pipeline_contract,
     )
 
 
@@ -1833,9 +1827,8 @@ def run_retrieval_and_qa(
     message_history: MessageHistory | list[dict[str, str]] | None = None,
     interactive: bool = False,
     all_runs: bool = False,
-    pipeline_contract: PipelineContractSnapshot | None = None,
 ) -> dict[str, object]:
-    resolved_pipeline_contract = _resolve_pipeline_contract(config, pipeline_contract)
+    resolved_pipeline_contract = _resolve_pipeline_contract(config, None)
     """Run retrieval and GraphRAG Q&A for a single question or interactive session.
 
     Parameters
@@ -2319,9 +2312,8 @@ def run_interactive_qa(
     cluster_aware: bool = False,
     all_runs: bool = False,
     debug: bool = False,
-    pipeline_contract: PipelineContractSnapshot | None = None,
 ) -> None:
-    resolved_pipeline_contract = _resolve_pipeline_contract(config, pipeline_contract)
+    resolved_pipeline_contract = _resolve_pipeline_contract(config, None)
     """Run a REPL-style interactive Q&A session.
 
     Reads questions from stdin and prints citation-grounded answers until the user

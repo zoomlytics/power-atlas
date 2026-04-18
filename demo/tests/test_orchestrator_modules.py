@@ -211,13 +211,13 @@ def test_pdf_ingest_reads_live_pipeline_contract_snapshot(tmp_path: Path):
     import demo.stages.pdf_ingest as pdf_ingest_module
     import power_atlas.contracts.pipeline as pipeline_module
 
-    config = _dry_run_config(tmp_path)
     fixtures_dir = resolve_dataset_root("demo_dataset_v1").root
     original_state = pipeline_module._get_pipeline_contract_state_for_test()
     try:
         pipeline_module._set_pipeline_contract_state_for_test(
             chunk_embedding_index_name="dynamic_pdf_index"
         )
+        config = _dry_run_config(tmp_path)
 
         summary = pdf_ingest_module.run_pdf_ingest(
             config,
@@ -243,21 +243,25 @@ def test_pdf_ingest_accepts_explicit_pipeline_contract(tmp_path: Path):
     import demo.stages.pdf_ingest as pdf_ingest_module
     from power_atlas.contracts.pipeline import PipelineContractSnapshot
 
-    config = _dry_run_config(tmp_path)
+    config = Config(
+        **{
+            **_dry_run_config(tmp_path).__dict__,
+            "pipeline_contract": PipelineContractSnapshot(
+                chunk_embedding_index_name="explicit_pdf_index",
+                chunk_embedding_label="ExplicitChunk",
+                chunk_embedding_property="explicit_embedding",
+                chunk_embedding_dimensions=2048,
+                embedder_model_name="text-embedding-3-large",
+                chunk_fallback_stride=777,
+            ),
+        }
+    )
     fixtures_dir = resolve_dataset_root("demo_dataset_v1").root
 
     summary = pdf_ingest_module.run_pdf_ingest(
         config,
         run_id="explicit-pdf-run",
         fixtures_dir=fixtures_dir,
-        pipeline_contract=PipelineContractSnapshot(
-            chunk_embedding_index_name="explicit_pdf_index",
-            chunk_embedding_label="ExplicitChunk",
-            chunk_embedding_property="explicit_embedding",
-            chunk_embedding_dimensions=2048,
-            embedder_model_name="text-embedding-3-large",
-            chunk_fallback_stride=777,
-        ),
     )
 
     assert summary["vector_index"]["index_name"] == "explicit_pdf_index"
@@ -404,12 +408,12 @@ def test_retrieval_and_qa_reads_live_pipeline_contract_snapshot(tmp_path: Path):
     import demo.stages.retrieval_and_qa as retrieval_module
     import power_atlas.contracts.pipeline as pipeline_module
 
-    config = _dry_run_config(tmp_path)
     original_state = pipeline_module._get_pipeline_contract_state_for_test()
     try:
         pipeline_module._set_pipeline_contract_state_for_test(
             chunk_embedding_index_name="dynamic_retrieval_index"
         )
+        config = _dry_run_config(tmp_path)
 
         result = retrieval_module.run_retrieval_and_qa(
             config,
@@ -435,20 +439,24 @@ def test_retrieval_and_qa_accepts_explicit_pipeline_contract(tmp_path: Path):
     import demo.stages.retrieval_and_qa as retrieval_module
     from power_atlas.contracts.pipeline import PipelineContractSnapshot
 
-    config = _dry_run_config(tmp_path)
+    config = Config(
+        **{
+            **_dry_run_config(tmp_path).__dict__,
+            "pipeline_contract": PipelineContractSnapshot(
+                chunk_embedding_index_name="explicit_retrieval_index",
+                chunk_embedding_label="Chunk",
+                chunk_embedding_property="embedding",
+                chunk_embedding_dimensions=1536,
+                embedder_model_name="text-embedding-3-large",
+                chunk_fallback_stride=1000,
+            ),
+        }
+    )
 
     result = retrieval_module.run_retrieval_and_qa(
         config,
         run_id="qa-explicit-run",
         source_uri="file:///example/doc.pdf",
-        pipeline_contract=PipelineContractSnapshot(
-            chunk_embedding_index_name="explicit_retrieval_index",
-            chunk_embedding_label="Chunk",
-            chunk_embedding_property="embedding",
-            chunk_embedding_dimensions=1536,
-            embedder_model_name="text-embedding-3-large",
-            chunk_fallback_stride=1000,
-        ),
     )
 
     assert result["retriever_index_name"] == "explicit_retrieval_index"
@@ -1041,13 +1049,13 @@ def test_retrieval_and_qa_live_path_uses_explicit_pipeline_contract(tmp_path: Pa
     ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _StubGraphRAG), mock.patch(
         "demo.stages.retrieval_and_qa.build_openai_llm"
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+        live_config = Config(**{**live_config.__dict__, "pipeline_contract": explicit_pipeline_contract})
         result = run_retrieval_and_qa(
             live_config,
             run_id="live-run-explicit",
             source_uri="file:///doc.pdf",
             top_k=3,
             question="What happened?",
-            pipeline_contract=explicit_pipeline_contract,
         )
 
     assert captured_init["index_name"] == "explicit_live_retrieval_index"

@@ -184,9 +184,8 @@ def run_pdf_ingest(
     embedding_dimensions: int | None = None,
     embedder_model: str | None = None,
     chunk_stride: int | None = None,
-    pipeline_contract: PipelineContractSnapshot | None = None,
 ) -> dict[str, Any]:
-    resolved_pipeline_contract = _resolve_pipeline_contract(config, pipeline_contract)
+    resolved_pipeline_contract = _resolve_pipeline_contract(config, None)
     _pdf_filename = pdf_filename or _DEFAULT_PDF_FILENAME
     if (
         _pdf_filename in (".", "..")
@@ -630,7 +629,6 @@ def run_pdf_ingest_request_context(
         chunk_stride=(
             chunk_stride if chunk_stride is not None else pipeline_contract.chunk_fallback_stride
         ),
-        pipeline_contract=pipeline_contract,
     )
 
 

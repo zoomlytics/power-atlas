@@ -14,6 +14,7 @@ from power_atlas.bootstrap import build_app_context
 from power_atlas.bootstrap import build_settings
 from power_atlas.bootstrap import create_neo4j_driver
 from power_atlas.bootstrap import require_openai_api_key
+from power_atlas.bootstrap.clients import build_llm as build_openai_llm
 from power_atlas.contracts import (
     PROMPT_IDS,
     build_stage_manifest,
@@ -33,8 +34,6 @@ from neo4j_graphrag.experimental.components.types import (
     TextChunk,
     TextChunks,
 )
-
-from power_atlas.llm_utils import build_openai_llm
 
 PROMPT_VERSION = PROMPT_IDS["narrative_extraction"]
 DEFAULT_OUTPUT_ROOT = Path(__file__).resolve().parent / "runs"

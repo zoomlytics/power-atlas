@@ -476,3 +476,21 @@ def test_build_embedder_for_settings_uses_embedder_model() -> None:
         build_embedder_for_settings(settings)
 
     embedder_cls.assert_called_once_with(model="text-embedding-3-large")
+
+
+def test_build_llm_uses_explicit_model_name() -> None:
+    from power_atlas.bootstrap.clients import build_llm
+
+    with mock.patch("power_atlas.bootstrap.clients.build_openai_llm") as build_openai_llm:
+        build_llm("gpt-5.4", reasoning_effort="none")
+
+    build_openai_llm.assert_called_once_with("gpt-5.4", reasoning_effort="none")
+
+
+def test_build_embedder_uses_explicit_model_name() -> None:
+    from power_atlas.bootstrap.clients import build_embedder
+
+    with mock.patch("power_atlas.bootstrap.clients.OpenAIEmbeddings") as embedder_cls:
+        build_embedder("text-embedding-3-large")
+
+    embedder_cls.assert_called_once_with(model="text-embedding-3-large")
