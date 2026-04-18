@@ -54,11 +54,9 @@ def test_package_modules_import() -> None:
     assert package.build_settings is bootstrap_module.build_settings
     assert package.build_openai_llm is llm_utils_module.build_openai_llm
     assert package.normalize_mention_text is text_utils_module.normalize_mention_text
-    with pytest.deprecated_call(match=r"get_dataset_id\(\) is deprecated"):
-        dataset_id = pipeline_module.get_dataset_id()
-    with pytest.deprecated_call(match="DATASET_ID is deprecated"):
-        exported_dataset_id = pipeline_module.DATASET_ID
-    assert dataset_id == exported_dataset_id
+    assert not hasattr(pipeline_module, "DATASET_ID")
+    assert not hasattr(pipeline_module, "get_dataset_id")
+    assert not hasattr(pipeline_module, "set_dataset_id")
 
 
 def test_build_settings_from_env_mapping() -> None:

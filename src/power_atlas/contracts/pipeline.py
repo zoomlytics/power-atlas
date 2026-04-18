@@ -23,7 +23,6 @@ _DEFAULT_CHUNK_EMBEDDING_LABEL = "Chunk"
 _DEFAULT_CHUNK_EMBEDDING_PROPERTY = "embedding"
 _DEFAULT_CHUNK_EMBEDDING_DIMENSIONS = 1536
 _DEFAULT_EMBEDDER_MODEL_NAME = "text-embedding-3-small"
-_DEFAULT_DATASET_ID = "demo_dataset_v1"
 _IDENTIFIER_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 _PIPELINE_CONFIG_DATA: dict[str, Any] = {}
@@ -35,11 +34,6 @@ _CHUNK_EMBEDDING_PROPERTY = _DEFAULT_CHUNK_EMBEDDING_PROPERTY
 _CHUNK_EMBEDDING_DIMENSIONS = _DEFAULT_CHUNK_EMBEDDING_DIMENSIONS
 _EMBEDDER_MODEL_NAME = _DEFAULT_EMBEDDER_MODEL_NAME
 _CHUNK_FALLBACK_STRIDE = max(_DEFAULT_CHUNK_SIZE - _DEFAULT_CHUNK_OVERLAP, 1)
-_DATASET_ID = _DEFAULT_DATASET_ID
-_DATASET_STATE_DEPRECATION_MESSAGE = (
-    "power_atlas.contracts.pipeline DATASET_ID/get_dataset_id()/set_dataset_id() are deprecated; "
-    "pass dataset scope explicitly via stage/orchestrator arguments or injected context instead."
-)
 _PIPELINE_STATE_DEPRECATION_MESSAGE = (
     "Mutable pipeline contract globals are deprecated; use get_pipeline_contract_snapshot() for "
     "embedding/index settings or get_pipeline_contract_config_data() for raw config inspection instead."
@@ -68,25 +62,10 @@ class PipelineContractSnapshot:
 def refresh_pipeline_contract() -> None:
     """Force a reload of the pipeline contract from disk, even if already loaded."""
     global _PIPELINE_CONFIG_DATA, _CHUNK_EMBEDDING_INDEX_NAME, _CHUNK_EMBEDDING_LABEL, _CHUNK_EMBEDDING_PROPERTY
-    global _CHUNK_EMBEDDING_DIMENSIONS, _EMBEDDER_MODEL_NAME, _CHUNK_FALLBACK_STRIDE, _DATASET_ID
+    global _CHUNK_EMBEDDING_DIMENSIONS, _EMBEDDER_MODEL_NAME, _CHUNK_FALLBACK_STRIDE
     with _PIPELINE_CONTRACT_LOCK:
         _load_pipeline_contract()
         _PIPELINE_CONTRACT_LOADED.set()
-
-
-def set_dataset_id(dataset_id: str) -> None:
-    """Deprecated compatibility shim for overriding the active dataset identifier."""
-    global _DATASET_ID
-    _warn_deprecated_dataset_state("set_dataset_id()")
-    if isinstance(dataset_id, str) and dataset_id:
-        with _PIPELINE_CONTRACT_LOCK:
-            _DATASET_ID = dataset_id
-
-
-def get_dataset_id() -> str:
-    """Deprecated compatibility shim for reading the active dataset identifier."""
-    _warn_deprecated_dataset_state("get_dataset_id()")
-    return _DATASET_ID
 
 
 def ensure_pipeline_contract_loaded() -> None:
@@ -117,7 +96,7 @@ def get_pipeline_contract_config_data() -> dict[str, Any]:
 def _load_pipeline_contract() -> None:
     """Internal helper that reads the pipeline contract from disk and updates globals."""
     global _PIPELINE_CONFIG_DATA, _CHUNK_EMBEDDING_INDEX_NAME, _CHUNK_EMBEDDING_LABEL, _CHUNK_EMBEDDING_PROPERTY
-    global _CHUNK_EMBEDDING_DIMENSIONS, _EMBEDDER_MODEL_NAME, _CHUNK_FALLBACK_STRIDE, _DATASET_ID
+    global _CHUNK_EMBEDDING_DIMENSIONS, _EMBEDDER_MODEL_NAME, _CHUNK_FALLBACK_STRIDE
 
     _PIPELINE_CONFIG_DATA = {}
     if PDF_PIPELINE_CONFIG_PATH.is_file():
@@ -213,21 +192,6 @@ def _load_pipeline_contract() -> None:
                 chunk_overlap = _DEFAULT_CHUNK_OVERLAP
     _CHUNK_FALLBACK_STRIDE = max(chunk_size - chunk_overlap, 1)
 
-    _DATASET_ID = _DEFAULT_DATASET_ID
-    kg_writer_config = _PIPELINE_CONFIG_DATA.get("kg_writer")
-    kg_writer_params = kg_writer_config.get("params_") if isinstance(kg_writer_config, dict) else {}
-    cfg_dataset_id = kg_writer_params.get("dataset_id") if isinstance(kg_writer_params, dict) else None
-    if isinstance(cfg_dataset_id, str) and cfg_dataset_id:
-        _DATASET_ID = cfg_dataset_id
-
-
-def _warn_deprecated_dataset_state(symbol_name: str) -> None:
-    warnings.warn(
-        f"{symbol_name} is deprecated. {_DATASET_STATE_DEPRECATION_MESSAGE}",
-        DeprecationWarning,
-        stacklevel=3,
-    )
-
 
 def _warn_deprecated_pipeline_state(symbol_name: str) -> None:
     warnings.warn(
@@ -239,19 +203,13 @@ def _warn_deprecated_pipeline_state(symbol_name: str) -> None:
 
 class _PipelineModule(ModuleType):
     def __getattribute__(self, name: str) -> Any:
-        if name == "DATASET_ID":
-            _warn_deprecated_dataset_state("DATASET_ID")
-            return super().__getattribute__("_DATASET_ID")
         if name in _PIPELINE_COMPAT_ATTRS:
             _warn_deprecated_pipeline_state(name)
             return super().__getattribute__(_PIPELINE_COMPAT_ATTRS[name])
         return super().__getattribute__(name)
 
     def __setattr__(self, name: str, value: Any) -> None:
-        if name == "DATASET_ID":
-            _warn_deprecated_dataset_state("DATASET_ID")
-            name = "_DATASET_ID"
-        elif name in _PIPELINE_COMPAT_ATTRS:
+        if name in _PIPELINE_COMPAT_ATTRS:
             _warn_deprecated_pipeline_state(name)
             name = _PIPELINE_COMPAT_ATTRS[name]
         super().__setattr__(name, value)
@@ -280,7 +238,6 @@ __all__ = [
     "CHUNK_EMBEDDING_LABEL",
     "CHUNK_EMBEDDING_PROPERTY",
     "CHUNK_FALLBACK_STRIDE",
-    "DATASET_ID",
     "EMBEDDER_MODEL_NAME",
     "PipelineContractSnapshot",
     "PIPELINE_CONFIG_DATA",
@@ -288,6 +245,4 @@ __all__ = [
     "get_pipeline_contract_config_data",
     "get_pipeline_contract_snapshot",
     "refresh_pipeline_contract",
-    "get_dataset_id",
-    "set_dataset_id",
 ]

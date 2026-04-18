@@ -21,7 +21,6 @@ def isolate_pipeline_contract(monkeypatch):
         "CHUNK_EMBEDDING_DIMENSIONS": pipeline._CHUNK_EMBEDDING_DIMENSIONS,
         "EMBEDDER_MODEL_NAME": pipeline._EMBEDDER_MODEL_NAME,
         "CHUNK_FALLBACK_STRIDE": pipeline._CHUNK_FALLBACK_STRIDE,
-        "DATASET_ID": pipeline._DATASET_ID,
     }
     try:
         yield
@@ -34,7 +33,6 @@ def isolate_pipeline_contract(monkeypatch):
         pipeline._CHUNK_EMBEDDING_DIMENSIONS = original_state["CHUNK_EMBEDDING_DIMENSIONS"]
         pipeline._EMBEDDER_MODEL_NAME = original_state["EMBEDDER_MODEL_NAME"]
         pipeline._CHUNK_FALLBACK_STRIDE = original_state["CHUNK_FALLBACK_STRIDE"]
-        pipeline._DATASET_ID = original_state["DATASET_ID"]
         if contract_was_loaded:
             pipeline._PIPELINE_CONTRACT_LOADED.set()
         else:
@@ -50,7 +48,6 @@ def _reset_contract_state() -> None:
     pipeline._CHUNK_EMBEDDING_DIMENSIONS = pipeline._DEFAULT_CHUNK_EMBEDDING_DIMENSIONS
     pipeline._EMBEDDER_MODEL_NAME = pipeline._DEFAULT_EMBEDDER_MODEL_NAME
     pipeline._CHUNK_FALLBACK_STRIDE = max(pipeline._DEFAULT_CHUNK_SIZE - pipeline._DEFAULT_CHUNK_OVERLAP, 1)
-    pipeline._DATASET_ID = pipeline._DEFAULT_DATASET_ID
 
 
 def test_refresh_pipeline_contract_applies_overrides(tmp_path, monkeypatch):
@@ -68,7 +65,6 @@ def test_refresh_pipeline_contract_applies_overrides(tmp_path, monkeypatch):
                 },
                 "embedder_config": {"params_": {"model": "text-embedding-3-large"}},
                 "text_splitter": {"params_": {"chunk_size": 200, "chunk_overlap": 20}},
-                "kg_writer": {"params_": {"dataset_id": "custom_dataset"}},
             }
         ),
         encoding="utf-8",
@@ -84,7 +80,6 @@ def test_refresh_pipeline_contract_applies_overrides(tmp_path, monkeypatch):
     assert pipeline._CHUNK_EMBEDDING_DIMENSIONS == 2048
     assert pipeline._EMBEDDER_MODEL_NAME == "text-embedding-3-large"
     assert pipeline._CHUNK_FALLBACK_STRIDE == 180
-    assert pipeline._DATASET_ID == "custom_dataset"
     assert pipeline._PIPELINE_CONFIG_DATA["contract"]["chunk_embedding"]["dimensions"] == "2048"
 
 
@@ -103,7 +98,6 @@ def test_refresh_pipeline_contract_falls_back_on_invalid_types(tmp_path, monkeyp
                 },
                 "embedder_config": {"params_": {"model": 123}},
                 "text_splitter": {"params_": {"chunk_size": "bad", "chunk_overlap": "bad"}},
-                "kg_writer": {"params_": {"dataset_id": 0}},
             }
         ),
         encoding="utf-8",
@@ -119,7 +113,6 @@ def test_refresh_pipeline_contract_falls_back_on_invalid_types(tmp_path, monkeyp
     assert pipeline._CHUNK_EMBEDDING_DIMENSIONS == pipeline._DEFAULT_CHUNK_EMBEDDING_DIMENSIONS
     assert pipeline._EMBEDDER_MODEL_NAME == pipeline._DEFAULT_EMBEDDER_MODEL_NAME
     assert pipeline._CHUNK_FALLBACK_STRIDE == max(pipeline._DEFAULT_CHUNK_SIZE - pipeline._DEFAULT_CHUNK_OVERLAP, 1)
-    assert pipeline._DATASET_ID == pipeline._DEFAULT_DATASET_ID
 
 
 def test_coerce_identifier_strips_and_accepts_valid():
@@ -141,28 +134,10 @@ def test_coerce_identifier_warns_and_falls_back(
     )
 
 
-def test_dataset_state_accessors_emit_deprecation_warnings() -> None:
-    _reset_contract_state()
-
-    with pytest.deprecated_call(match=r"get_dataset_id\(\) is deprecated"):
-        assert pipeline.get_dataset_id() == pipeline._DEFAULT_DATASET_ID
-
-    with pytest.deprecated_call(match=r"set_dataset_id\(\) is deprecated"):
-        pipeline.set_dataset_id("compat_dataset")
-
-    assert pipeline._DATASET_ID == "compat_dataset"
-
-
-def test_dataset_id_module_attribute_emits_deprecation_warnings() -> None:
-    _reset_contract_state()
-
-    with pytest.deprecated_call(match="DATASET_ID is deprecated"):
-        assert pipeline.DATASET_ID == pipeline._DEFAULT_DATASET_ID
-
-    with pytest.deprecated_call(match="DATASET_ID is deprecated"):
-        pipeline.DATASET_ID = "compat_dataset"
-
-    assert pipeline._DATASET_ID == "compat_dataset"
+def test_dataset_state_compat_api_is_removed() -> None:
+    assert not hasattr(pipeline, "DATASET_ID")
+    assert not hasattr(pipeline, "get_dataset_id")
+    assert not hasattr(pipeline, "set_dataset_id")
 
 
 def test_pipeline_contract_snapshot_reflects_current_values() -> None:

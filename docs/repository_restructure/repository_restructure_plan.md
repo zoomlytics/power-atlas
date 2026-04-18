@@ -584,15 +584,14 @@ The repo has now completed a first concrete runtime-state reduction pass:
   deprecated non-dataset pipeline globals, and `demo.run_demo` now reads live
   pipeline settings only through the snapshot seam rather than exposing or
   honoring module-level compatibility state for those values,
-- the mutable dataset-state surface is now effectively reduced to compatibility
-  exports and the pipeline submodule itself rather than active stage/orchestrator
-  behavior.
+- the deprecated dataset-state compatibility surface
+  (`DATASET_ID` / `get_dataset_id()` / `set_dataset_id()`) has now been
+  removed from `power_atlas.contracts.pipeline` entirely rather than merely
+  narrowed to a smaller compatibility boundary.
 
-That remaining compatibility surface is now explicitly deprecated:
+The remaining pipeline compatibility surface is now explicitly deprecated and
+limited to non-dataset raw-config and embedding/index globals:
 
-- `power_atlas.contracts.pipeline.DATASET_ID`,
-- `power_atlas.contracts.pipeline.get_dataset_id()`,
-- `power_atlas.contracts.pipeline.set_dataset_id()`,
 - `power_atlas.contracts.pipeline.PIPELINE_CONFIG_DATA`,
 - `power_atlas.contracts.pipeline.CHUNK_EMBEDDING_INDEX_NAME`,
 - `power_atlas.contracts.pipeline.CHUNK_EMBEDDING_LABEL`,
@@ -602,9 +601,10 @@ That remaining compatibility surface is now explicitly deprecated:
 - `power_atlas.contracts.pipeline.CHUNK_FALLBACK_STRIDE`.
 
 That is meaningful progress, but it does not yet satisfy the phase. The pipeline
-contract still contains mutable module-level state, `AppContext` / `RequestContext`
- do not exist, and the remaining stateful pipeline surface still needs an explicit
- disposition rather than simple coexistence.
+contract still contains mutable module-level state for config/cache concerns,
+`AppContext` / `RequestContext` do not exist, and the remaining stateful
+pipeline surface still needs an explicit disposition rather than simple
+coexistence.
 
 #### Objectives
 
