@@ -371,6 +371,25 @@ def test_claim_extraction_lexical_config_reads_live_pipeline_contract_snapshot()
         )
 
 
+def test_claim_extraction_lexical_config_accepts_explicit_pipeline_contract() -> None:
+    import power_atlas.contracts.claim_schema as claim_schema_module
+    from power_atlas.contracts.pipeline import PipelineContractSnapshot
+
+    lexical_config = claim_schema_module.claim_extraction_lexical_config(
+        PipelineContractSnapshot(
+            chunk_embedding_index_name="ignored_index",
+            chunk_embedding_label="ExplicitChunk",
+            chunk_embedding_property="explicit_embedding",
+            chunk_embedding_dimensions=1536,
+            embedder_model_name="text-embedding-3-small",
+            chunk_fallback_stride=1000,
+        )
+    )
+
+    assert lexical_config.chunk_node_label == "ExplicitChunk"
+    assert lexical_config.chunk_embedding_property == "explicit_embedding"
+
+
 def test_demo_pipeline_contract_shim_is_package_module() -> None:
     import demo.contracts.pipeline as demo_pipeline
     import power_atlas.contracts.pipeline as package_pipeline

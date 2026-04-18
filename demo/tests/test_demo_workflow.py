@@ -2841,6 +2841,34 @@ class ResetDemoDbTests(unittest.TestCase):
         self.assertEqual(report["indexes_not_found"], [])
         self.assertEqual(drop_calls, ["dynamic_reset_index"])
 
+    def test_run_reset_accepts_explicit_pipeline_contract(self):
+        drop_calls: list = []
+        fake_neo4j = self._make_fake_modules(
+            nodes_deleted=2, relationships_deleted=1, index_exists=True, drop_calls=drop_calls
+        )
+        with self._inject_reset_modules(fake_neo4j):
+            module = self._load_reset_module("reset_explicit_index_test")
+
+        from power_atlas.contracts.pipeline import PipelineContractSnapshot
+
+        report = module.run_reset(
+            driver=fake_neo4j.GraphDatabase.driver("neo4j://localhost:7687"),
+            database="neo4j",
+            output_dir=None,
+            pipeline_contract=PipelineContractSnapshot(
+                chunk_embedding_index_name="explicit_reset_index",
+                chunk_embedding_label="Chunk",
+                chunk_embedding_property="embedding",
+                chunk_embedding_dimensions=1536,
+                embedder_model_name="text-embedding-3-small",
+                chunk_fallback_stride=1000,
+            ),
+        )
+
+        self.assertEqual(report["indexes_dropped"], ["explicit_reset_index"])
+        self.assertEqual(report["indexes_not_found"], [])
+        self.assertEqual(drop_calls, ["explicit_reset_index"])
+
     # ── idempotent no-op paths ────────────────────────────────────────────────
 
     def test_run_reset_idempotent_when_graph_empty_and_index_absent(self):

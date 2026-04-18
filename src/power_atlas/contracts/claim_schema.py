@@ -3,17 +3,21 @@ from __future__ import annotations
 from neo4j_graphrag.experimental.components.schema import GraphSchema, NodeType, PropertyType, RelationshipType
 from neo4j_graphrag.experimental.components.types import LexicalGraphConfig
 
-from power_atlas.contracts.pipeline import get_pipeline_contract_snapshot
+from power_atlas.contracts.pipeline import PipelineContractSnapshot, get_pipeline_contract_snapshot
 
 
-def claim_extraction_lexical_config() -> LexicalGraphConfig:
-    pipeline_contract = get_pipeline_contract_snapshot()
+def claim_extraction_lexical_config(
+    pipeline_contract: PipelineContractSnapshot | None = None,
+) -> LexicalGraphConfig:
+    resolved_pipeline_contract = (
+        get_pipeline_contract_snapshot() if pipeline_contract is None else pipeline_contract
+    )
     return LexicalGraphConfig(
-        chunk_node_label=pipeline_contract.chunk_embedding_label,
+        chunk_node_label=resolved_pipeline_contract.chunk_embedding_label,
         chunk_id_property="chunk_id",
         chunk_index_property="chunk_index",
         chunk_text_property="text",
-        chunk_embedding_property=pipeline_contract.chunk_embedding_property,
+        chunk_embedding_property=resolved_pipeline_contract.chunk_embedding_property,
         node_to_chunk_relationship_type="MENTIONED_IN",
     )
 

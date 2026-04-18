@@ -7,6 +7,7 @@ from typing import Any
 from power_atlas.bootstrap import require_openai_api_key
 from power_atlas.bootstrap.clients import create_neo4j_driver
 from power_atlas.context import RequestContext
+from power_atlas.contracts.pipeline import PipelineContractSnapshot
 from power_atlas.contracts.prompts import PROMPT_IDS
 from power_atlas.settings import Neo4jSettings
 
@@ -18,6 +19,7 @@ async def _async_read_chunks_and_extract(
     source_uri: str | None,
     neo4j_database: str,
     model_name: str,
+    pipeline_contract: PipelineContractSnapshot | None = None,
 ) -> tuple[Any, list[Any], Any]:
     from neo4j_graphrag.experimental.components.entity_relation_extractor import LLMEntityRelationExtractor
     from power_atlas.contracts import (
@@ -27,7 +29,7 @@ async def _async_read_chunks_and_extract(
     from demo.io import RunScopedNeo4jChunkReader
     from power_atlas.llm_utils import build_openai_llm
 
-    lexical_config = claim_extraction_lexical_config()
+    lexical_config = claim_extraction_lexical_config(pipeline_contract)
     chunk_reader = RunScopedNeo4jChunkReader(
         driver,
         run_id=run_id,
@@ -59,7 +61,13 @@ async def _async_read_chunks_and_extract(
     return graph, text_chunks.chunks, lexical_config
 
 
-def run_claim_and_mention_extraction(config: Any, *, run_id: str, source_uri: str | None) -> dict[str, Any]:
+def run_claim_and_mention_extraction(
+    config: Any,
+    *,
+    run_id: str,
+    source_uri: str | None,
+    pipeline_contract: PipelineContractSnapshot | None = None,
+) -> dict[str, Any]:
     run_root = config.output_dir / "runs" / run_id
     extraction_dir = run_root / "claim_extraction"
     extraction_dir.mkdir(parents=True, exist_ok=True)
@@ -115,6 +123,7 @@ def run_claim_and_mention_extraction(config: Any, *, run_id: str, source_uri: st
                 source_uri=source_uri,
                 neo4j_database=config.neo4j_database,
                 model_name=config.openai_model,
+                pipeline_contract=pipeline_contract,
             )
         )
         claim_rows, mention_rows, warnings = prepare_extracted_rows(
@@ -167,6 +176,7 @@ def run_claim_and_mention_extraction_request_context(request_context: RequestCon
         request_context.config,
         run_id=request_context.run_id,
         source_uri=request_context.source_uri,
+        pipeline_contract=request_context.pipeline_contract,
     )
 
 

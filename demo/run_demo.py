@@ -1260,12 +1260,14 @@ def main() -> None:
             )
         from demo.reset_demo_db import run_reset
 
+        request_context = _build_request_context_from_args(args)
         driver = create_neo4j_driver(args)
         with driver:
             report = run_reset(
                 driver=driver,
                 database=args.neo4j_database,
                 output_dir=args.output_dir,
+                pipeline_contract=request_context.pipeline_contract,
             )
         print(
             f"Demo graph reset complete: "

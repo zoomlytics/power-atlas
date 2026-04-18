@@ -636,10 +636,12 @@ The repo has now completed a first concrete runtime-state reduction pass:
   instead of relying on pseudo-constant stage attributes. The pipeline contract
   module itself also no longer forces a load at import time; the remaining
   cached state is now entered only through explicit refresh calls or the
-  snapshot/raw-config getters used by bootstrap and runtime consumers. The
-  remaining work is the rest of the mutable-global inventory outside those
-  modules plus any further ownership cleanup warranted around that remaining
-  single cached state.
+  snapshot/raw-config getters used by bootstrap and runtime consumers. Claim
+  extraction lexical config plus the reset path now also accept explicit
+  pipeline contract snapshots so request/app-context owned callers no longer
+  need to read that cache directly in those flows. The remaining work is the
+  rest of the mutable-global inventory outside those modules plus any further
+  ownership cleanup warranted around that remaining single cached state.
   ingest and independent `ingest-pdf` execution
   to bundle settings, pipeline snapshot state, and per-request runtime metadata.
 
