@@ -9,7 +9,6 @@ from typing import Any
 
 from power_atlas.bootstrap import create_neo4j_driver, require_openai_api_key, temporary_environment
 from power_atlas.context import RequestContext
-from power_atlas.contracts.pipeline import get_pipeline_contract_snapshot
 from power_atlas.contracts import (
     DatasetRoot,
     FIXTURES_DIR,
@@ -17,6 +16,8 @@ from power_atlas.contracts import (
     resolve_dataset_root,
 )
 from demo.cypher_utils import validate_cypher_identifier as _validate_cypher_identifier
+from demo.stages.pipeline_contract_compat import get_stage_pipeline_contract_attr
+from demo.stages.pipeline_contract_compat import get_stage_pipeline_contract_value
 from power_atlas.contracts import make_run_id
 
 # Local fallback to avoid importing a private implementation detail from
@@ -34,16 +35,11 @@ _PIPELINE_CONTRACT_EXPORTS = {
 
 
 def _pipeline_contract_value(name: str) -> Any:
-    if name in globals():
-        return globals()[name]
-    snapshot = get_pipeline_contract_snapshot()
-    return getattr(snapshot, _PIPELINE_CONTRACT_EXPORTS[name])
+    return get_stage_pipeline_contract_value(name, _PIPELINE_CONTRACT_EXPORTS)
 
 
 def __getattr__(name: str) -> Any:
-    if name in _PIPELINE_CONTRACT_EXPORTS:
-        return _pipeline_contract_value(name)
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    return get_stage_pipeline_contract_attr(__name__, name, _PIPELINE_CONTRACT_EXPORTS)
 
 
 def _dataset_metadata_from_fixtures_root(fixtures_root: Path) -> tuple[str, str]:
