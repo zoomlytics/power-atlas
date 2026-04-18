@@ -4261,6 +4261,24 @@ def test_resolve_ask_scope_accepts_request_context(tmp_path: Path, monkeypatch: 
     assert all_runs is False
 
 
+def test_prepare_ask_request_context_sets_source_uri(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """Prepared ask request contexts must carry the resolved source_uri for single-run retrieval."""
+    from demo.run_demo import _prepare_ask_request_context, _request_context_from_config, parse_args
+    from power_atlas.contracts import resolve_dataset_root
+
+    monkeypatch.setenv("FIXTURE_DATASET", "demo_dataset_v1")
+    monkeypatch.delenv("UNSTRUCTURED_RUN_ID", raising=False)
+    args = parse_args(["--dry-run", "ask", "--run-id", "context-run-456"])
+    request_context = _request_context_from_config(_dry_run_config(tmp_path), command="ask")
+
+    prepared = _prepare_ask_request_context(args, request_context)
+
+    assert prepared.run_id == "context-run-456"
+    assert prepared.all_runs is False
+    assert prepared.source_uri is not None
+    assert prepared.source_uri == str(resolve_dataset_root("demo_dataset_v1").pdf_path.resolve().as_uri())
+
+
 def test_resolve_ask_scope_run_id_flag_overrides_env_var(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ):

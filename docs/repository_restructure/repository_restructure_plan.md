@@ -590,7 +590,9 @@ The repo has now completed a first concrete runtime-state reduction pass:
 - narrowed to a smaller compatibility boundary,
 - an initial `AppContext` / `RequestContext` seam now exists in the package and
   is already used by bootstrap helpers plus `demo/run_demo.py` argument
-  handling, ask-scope resolution, and orchestrated/independent execution paths
+  handling, ask-scope resolution, orchestrated/independent execution paths,
+  and a dedicated ask-specific preparation/execution lane that preserves
+  pre-resolved request metadata through the legacy wrappers
   to bundle settings, pipeline snapshot state, and per-request runtime metadata.
 
 That is meaningful progress, but it does not yet satisfy the phase. The pipeline
