@@ -10,8 +10,10 @@ from demo.stages import pdf_ingest
 from demo.io.page_tracking import (
     PageAwareFixedSizeSplitter,
     PageTrackingPdfLoader,
-    _coordinator,
+    _clear_page_offsets,
+    _get_page_offsets,
     _page_number_for_offset,
+    _set_page_offsets,
 )
 
 
@@ -73,10 +75,23 @@ def _run(coro):
     return asyncio.run(coro)
 
 
+async def _run_loader_and_capture_offsets(loader, *args, **kwargs):
+    result = await loader.run(*args, **kwargs)
+    return result, _get_page_offsets()
+
+
+async def _run_loader_error_and_capture_offsets(loader, *args, **kwargs):
+    try:
+        await loader.run(*args, **kwargs)
+    except Exception as exc:  # noqa: BLE001
+        return exc, _get_page_offsets()
+    raise AssertionError("Expected loader.run() to raise")
+
+
 def test_page_tracking_loader_clears_coordinator_at_start():
     """run() clears any stale page offsets at the beginning of each call."""
-    _coordinator.set([0, 100, 200])
-    assert _coordinator.get() == [0, 100, 200], "pre-condition: coordinator has stale offsets"
+    _set_page_offsets([0, 100, 200])
+    assert _get_page_offsets() == [0, 100, 200], "pre-condition: page offsets store has stale offsets"
 
     loader = PageTrackingPdfLoader()
     # Force ImportError for 'pypdf' via builtins.__import__ so we reliably
@@ -90,13 +105,10 @@ def test_page_tracking_loader_clears_coordinator_at_start():
         return _original_import(name, *args, **kwargs)
 
     with patch("builtins.__import__", side_effect=_raise_for_pypdf):
-        try:
-            _run(loader.run("/nonexistent/path.pdf"))
-        except Exception:
-            pass
+        _, offsets = _run(_run_loader_error_and_capture_offsets(loader, "/nonexistent/path.pdf"))
 
     # Coordinator must be empty regardless of whether the rest of run() succeeded.
-    assert _coordinator.get() == []
+    assert offsets == []
 
 
 def test_page_tracking_loader_sets_offsets_with_pypdf():
@@ -119,21 +131,20 @@ def test_page_tracking_loader_sets_offsets_with_pypdf():
     mock_fs = MagicMock()
     mock_fs.open.return_value.__enter__.return_value = io.BytesIO(b"")
 
-    _coordinator.clear()
+    _clear_page_offsets()
     loader = PageTrackingPdfLoader()
 
     with patch.dict("sys.modules", {"pypdf": mock_pypdf}):
         with patch("demo.io.page_tracking.is_default_fs", return_value=True):
-            _run(loader.run("/fake/doc.pdf", fs=mock_fs))
+            _, offsets = _run(_run_loader_and_capture_offsets(loader, "/fake/doc.pdf", fs=mock_fs))
 
-    offsets = _coordinator.get()
     # Page 1 starts at 0; page 2 starts at len(page1_text) + 1 (for the '\n' joiner).
     assert offsets == [0, len(page1_text) + 1]
 
 
 def test_page_tracking_loader_fallback_leaves_coordinator_empty_on_import_error():
     """When pypdf is not installed, the coordinator is left empty (all chunks → page 1)."""
-    _coordinator.set([0, 100])  # stale offsets from a previous run
+    _set_page_offsets([0, 100])  # stale offsets from a previous run
     loader = PageTrackingPdfLoader()
 
     vendor_result = MagicMock()
@@ -150,16 +161,16 @@ def test_page_tracking_loader_fallback_leaves_coordinator_empty_on_import_error(
         return_value=vendor_result,
     ):
         with patch("builtins.__import__", side_effect=_raise_for_pypdf):
-            result = _run(loader.run("/fake/doc.pdf"))
+            result, offsets = _run(_run_loader_and_capture_offsets(loader, "/fake/doc.pdf"))
 
     # Coordinator must be empty — no offsets from a failed import.
-    assert _coordinator.get() == []
+    assert offsets == []
     assert result is vendor_result
 
 
 def test_page_tracking_loader_fallback_leaves_coordinator_empty_on_exception():
     """When the single-pass load raises an unexpected error, the coordinator stays empty."""
-    _coordinator.clear()
+    _clear_page_offsets()
     loader = PageTrackingPdfLoader()
 
     mock_pypdf = MagicMock()
@@ -176,9 +187,9 @@ def test_page_tracking_loader_fallback_leaves_coordinator_empty_on_exception():
     ):
         with patch.dict("sys.modules", {"pypdf": mock_pypdf}):
             with patch("demo.io.page_tracking.is_default_fs", return_value=True):
-                result = _run(loader.run("/fake/doc.pdf", fs=mock_fs))
+                result, offsets = _run(_run_loader_and_capture_offsets(loader, "/fake/doc.pdf", fs=mock_fs))
 
-    assert _coordinator.get() == []
+    assert offsets == []
     assert result is vendor_result
 
 
@@ -189,7 +200,7 @@ def test_page_tracking_loader_clears_coordinator_on_late_failure():
     step after offset computation) raises an exception, which must not leave
     stale offsets in the coordinator for the fallback run.
     """
-    _coordinator.clear()
+    _clear_page_offsets()
     loader = PageTrackingPdfLoader()
 
     mock_page = MagicMock()
@@ -216,10 +227,10 @@ def test_page_tracking_loader_clears_coordinator_on_late_failure():
                     "get_document_metadata",
                     side_effect=RuntimeError("metadata error"),
                 ):
-                    result = _run(loader.run("/fake/doc.pdf", fs=mock_fs))
+                    result, offsets = _run(_run_loader_and_capture_offsets(loader, "/fake/doc.pdf", fs=mock_fs))
 
     # Offsets must NOT have been leaked into the coordinator.
-    assert _coordinator.get() == []
+    assert offsets == []
     assert result is vendor_result
 
 
@@ -239,12 +250,12 @@ def test_page_aware_splitter_assigns_page_numbers_from_coordinator():
     # Page offsets: page 1 starts at 0, page 2 starts at 101 (100 + '\n'), page 3 at 202.
     page_offsets = [0, 101, 202]
 
-    _coordinator.set(page_offsets)
+    _set_page_offsets(page_offsets)
     try:
         splitter = PageAwareFixedSizeSplitter(chunk_size=110, chunk_overlap=0, approximate=False)
         result = _run(splitter.run(text))
     finally:
-        _coordinator.clear()
+        _clear_page_offsets()
 
     assert len(result.chunks) > 0
     assert page_offsets, "page_offsets must be non-empty for this test to exercise page mapping"
@@ -263,7 +274,7 @@ def test_page_aware_splitter_assigns_page_numbers_from_coordinator():
 
 def test_page_aware_splitter_assigns_page_1_without_coordinator_offsets():
     """Splitter defaults to page 1 for all chunks when no page offsets are available."""
-    _coordinator.clear()
+    _clear_page_offsets()
     splitter = PageAwareFixedSizeSplitter(chunk_size=50, chunk_overlap=0, approximate=False)
     result = _run(splitter.run("x" * 200))
 
@@ -276,12 +287,12 @@ def test_page_aware_splitter_assigns_page_1_without_coordinator_offsets():
 def test_page_aware_splitter_start_char_matches_text_slice():
     """Chunk text must equal text[start_char:end_char+1]."""
     text = "Hello world. This is a longer piece of text for testing. " * 5
-    _coordinator.set([0])
+    _set_page_offsets([0])
     try:
         splitter = PageAwareFixedSizeSplitter(chunk_size=50, chunk_overlap=10, approximate=False)
         result = _run(splitter.run(text))
     finally:
-        _coordinator.clear()
+        _clear_page_offsets()
 
     for chunk in result.chunks:
         sc = chunk.metadata["start_char"]
@@ -293,12 +304,12 @@ def test_page_aware_splitter_first_chunk_starts_on_page_1():
     """The first chunk must always be on page 1 regardless of total pages."""
     text = "First page content. " * 10 + "\n" + "Second page content. " * 10
     page_offsets = [0, len("First page content. " * 10) + 1]
-    _coordinator.set(page_offsets)
+    _set_page_offsets(page_offsets)
     try:
         splitter = PageAwareFixedSizeSplitter(chunk_size=80, chunk_overlap=0, approximate=False)
         result = _run(splitter.run(text))
     finally:
-        _coordinator.clear()
+        _clear_page_offsets()
 
     assert result.chunks[0].metadata["page_number"] == 1
 
@@ -306,12 +317,12 @@ def test_page_aware_splitter_first_chunk_starts_on_page_1():
 def test_page_aware_splitter_index_is_sequential():
     """Chunk indices must start at 0 and be sequential."""
     text = "word " * 200
-    _coordinator.set([0])
+    _set_page_offsets([0])
     try:
         splitter = PageAwareFixedSizeSplitter(chunk_size=100, chunk_overlap=0, approximate=False)
         result = _run(splitter.run(text))
     finally:
-        _coordinator.clear()
+        _clear_page_offsets()
 
     for i, chunk in enumerate(result.chunks):
         assert chunk.index == i
@@ -319,7 +330,7 @@ def test_page_aware_splitter_index_is_sequential():
 
 def test_page_aware_splitter_empty_text_produces_no_chunks():
     """Splitting empty text must produce no chunks (matches vendor behaviour)."""
-    _coordinator.clear()
+    _clear_page_offsets()
     splitter = PageAwareFixedSizeSplitter(chunk_size=100, chunk_overlap=0, approximate=False)
     result = _run(splitter.run(""))
     assert result.chunks == []

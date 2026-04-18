@@ -1,18 +1,19 @@
 """Page-aware PDF loading and text splitting for the Power Atlas demo pipeline.
 
 ``PageTrackingPdfLoader`` wraps the vendor ``PdfLoader`` and records the character
-offset of each page boundary into a module-level coordinator so that the downstream
+offset of each page boundary into a task-local offsets store so that the downstream
 ``PageAwareFixedSizeSplitter`` can assign a ``page_number`` (and accurate
 ``start_char``/``end_char``) to every chunk it creates.
 
-The two classes share state through a module-level ``_coordinator`` instance.
-Because the ``SimpleKGPipeline`` processes one document at a time inside a single
-asyncio event loop (no concurrent pipeline runs), module-level state is safe here.
+The two classes share state through a ``ContextVar`` rather than a mutable
+process-wide singleton, which narrows leakage risk across overlapping async runs
+while preserving the existing implicit loader/splitter handoff.
 """
 
 from __future__ import annotations
 
 import bisect
+from contextvars import ContextVar
 import io
 import logging
 from pathlib import Path
@@ -71,28 +72,24 @@ def _adjust_chunk_end(text: str, start: int, approximate_end: int) -> int:
 _logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Module-level coordinator: shared between PageTrackingPdfLoader and
+# Task-local page offsets: shared between PageTrackingPdfLoader and
 # PageAwareFixedSizeSplitter within a single pipeline run.
 # ---------------------------------------------------------------------------
 
 
-class _PageOffsetCoordinator:
-    """Holds page-start character offsets for the most-recently loaded PDF."""
-
-    def __init__(self) -> None:
-        self._offsets: list[int] = []
-
-    def set(self, offsets: list[int]) -> None:
-        self._offsets = list(offsets)
-
-    def get(self) -> list[int]:
-        return list(self._offsets)
-
-    def clear(self) -> None:
-        self._offsets = []
+_PAGE_OFFSETS: ContextVar[list[int]] = ContextVar("page_tracking_offsets", default=[])
 
 
-_coordinator = _PageOffsetCoordinator()
+def _set_page_offsets(offsets: list[int]) -> None:
+    _PAGE_OFFSETS.set(list(offsets))
+
+
+def _get_page_offsets() -> list[int]:
+    return list(_PAGE_OFFSETS.get())
+
+
+def _clear_page_offsets() -> None:
+    _PAGE_OFFSETS.set([])
 
 
 # ---------------------------------------------------------------------------
@@ -177,7 +174,7 @@ class PageTrackingPdfLoader(PdfLoader):
         metadata: Optional[Dict[str, str]] = None,
         fs: Optional[Union[AbstractFileSystem, str]] = None,
     ) -> LoadedDocument:
-        _coordinator.clear()
+        _clear_page_offsets()
         if not isinstance(filepath, str):
             filepath = str(filepath)
         # Resolve the filesystem object the same way the vendor does.
@@ -215,7 +212,7 @@ class PageTrackingPdfLoader(PdfLoader):
             # Only set the coordinator *after* LoadedDocument is fully built so
             # that a failure in get_document_metadata() does not leak stale
             # offsets into the subsequent fallback run.
-            _coordinator.set(offsets)
+            _set_page_offsets(offsets)
             _logger.debug(
                 "PageTrackingPdfLoader: %d page(s) detected for %s",
                 len(offsets),
@@ -223,13 +220,13 @@ class PageTrackingPdfLoader(PdfLoader):
             )
             return doc
         except ImportError:
-            _coordinator.clear()
+            _clear_page_offsets()
             _logger.debug(
                 "PageTrackingPdfLoader: pypdf not available; falling back to vendor loader. "
                 "All chunks will be assigned to page 1."
             )
         except Exception as exc:
-            _coordinator.clear()
+            _clear_page_offsets()
             _logger.warning(
                 "PageTrackingPdfLoader: single-pass load failed (%s); "
                 "falling back to vendor loader without page tracking.",
@@ -260,7 +257,7 @@ class PageAwareFixedSizeSplitter(FixedSizeSplitter):
     """
 
     async def run(self, text: str) -> TextChunks:  # type: ignore[override]
-        page_offsets = _coordinator.get()
+        page_offsets = _get_page_offsets()
 
         # Replicate the vendor FixedSizeSplitter algorithm so we have access to
         # the exact ``start`` / ``end`` character positions of each chunk.

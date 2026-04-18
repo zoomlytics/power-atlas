@@ -606,9 +606,13 @@ The repo has now completed a first concrete runtime-state reduction pass:
   lane is complete; the remaining pipeline-contract private cache/backing
   state has now been narrowed from multiple field-level mutable globals to a
   single cached state object plus explicit snapshot/raw-config getters and
-  narrow test override helpers. The remaining work is the rest of the
-  mutable-global inventory outside that module plus any further ownership
-  cleanup warranted around the remaining single cached state.
+  narrow test override helpers. The next runtime-state cleanup slice also
+  removed the process-wide page-tracking coordinator singleton from
+  `demo/io/page_tracking.py` in favor of task-local `ContextVar` storage, so
+  loader/splitter page offsets no longer ride on mutable process-global state.
+  The remaining work is the rest of the mutable-global inventory outside
+  those modules plus any further ownership cleanup warranted around the
+  remaining single cached state.
   ingest and independent `ingest-pdf` execution
   to bundle settings, pipeline snapshot state, and per-request runtime metadata.
 
