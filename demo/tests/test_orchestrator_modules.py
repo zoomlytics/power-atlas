@@ -4425,6 +4425,25 @@ def test_run_retrieval_and_qa_request_context_uses_request_scope(tmp_path: Path)
     assert result["retriever_index_name"] == request_context.pipeline_contract.chunk_embedding_index_name
 
 
+def test_run_claim_participation_request_context_uses_request_scope(tmp_path: Path):
+    """The RequestContext claim participation helper must forward run and source scope directly."""
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.claim_participation import run_claim_participation_request_context
+
+    request_context = _request_context_from_config(
+        _dry_run_config(tmp_path),
+        command="claim-participation",
+        run_id="context-participation-run",
+        source_uri="file:///context/claim-source.pdf",
+    )
+
+    result = run_claim_participation_request_context(request_context)
+
+    assert result["status"] == "dry_run"
+    assert result["run_id"] == "context-participation-run"
+    assert result["source_uri"] == "file:///context/claim-source.pdf"
+
+
 def test_resolve_ask_scope_run_id_flag_overrides_env_var(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ):
@@ -6573,22 +6592,22 @@ def test_benchmark_failure_in_orchestrated_run_writes_manifest(tmp_path: Path):
             pdf_filename="test.pdf",
         ),
     ), patch(
-        "demo.run_demo.run_pdf_ingest",
+        "demo.run_demo._run_pdf_ingest_request_context",
         return_value={"status": "dry_run"},
     ), patch(
-        "demo.run_demo.run_claim_and_mention_extraction",
+        "demo.run_demo._run_claim_extraction_request_context",
         return_value={"status": "dry_run"},
     ), patch(
-        "demo.run_demo.run_claim_participation",
+        "demo.run_demo._run_claim_participation_request_context",
         return_value={"status": "dry_run"},
     ), patch(
-        "demo.run_demo.run_entity_resolution",
+        "demo.run_demo._run_entity_resolution_request_context",
         return_value={"status": "dry_run"},
     ), patch(
-        "demo.run_demo.run_retrieval_and_qa",
+        "demo.run_demo._run_retrieval_request_context",
         return_value={"status": "dry_run"},
     ), patch(
-        "demo.run_demo.run_structured_ingest",
+        "demo.run_demo._run_structured_ingest_request_context",
         return_value={"status": "dry_run"},
     ):
         manifest_path = _run_orchestrated(config)
@@ -6649,22 +6668,22 @@ def test_orchestrated_run_warns_when_alignment_version_missing(tmp_path: Path):
                 pdf_filename="test.pdf",
             ),
         ), patch(
-            "demo.run_demo.run_pdf_ingest",
+            "demo.run_demo._run_pdf_ingest_request_context",
             return_value={"status": "dry_run"},
         ), patch(
-            "demo.run_demo.run_claim_and_mention_extraction",
+            "demo.run_demo._run_claim_extraction_request_context",
             return_value={"status": "dry_run"},
         ), patch(
-            "demo.run_demo.run_claim_participation",
+            "demo.run_demo._run_claim_participation_request_context",
             return_value={"status": "dry_run"},
         ), patch(
-            "demo.run_demo.run_entity_resolution",
+            "demo.run_demo._run_entity_resolution_request_context",
             return_value=hybrid_stage_without_version,
         ), patch(
-            "demo.run_demo.run_retrieval_and_qa",
+            "demo.run_demo._run_retrieval_request_context",
             return_value={"status": "dry_run"},
         ), patch(
-            "demo.run_demo.run_structured_ingest",
+            "demo.run_demo._run_structured_ingest_request_context",
             return_value={"status": "dry_run"},
         ):
             _run_orchestrated(config)
@@ -6718,22 +6737,22 @@ def test_orchestrated_run_emits_exactly_one_alignment_version_warning(tmp_path: 
                 pdf_filename="test.pdf",
             ),
         ), patch(
-            "demo.run_demo.run_pdf_ingest",
+            "demo.run_demo._run_pdf_ingest_request_context",
             return_value={"status": "dry_run"},
         ), patch(
-            "demo.run_demo.run_claim_and_mention_extraction",
+            "demo.run_demo._run_claim_extraction_request_context",
             return_value={"status": "dry_run"},
         ), patch(
-            "demo.run_demo.run_claim_participation",
+            "demo.run_demo._run_claim_participation_request_context",
             return_value={"status": "dry_run"},
         ), patch(
-            "demo.run_demo.run_entity_resolution",
+            "demo.run_demo._run_entity_resolution_request_context",
             return_value=hybrid_stage_without_version,
         ), patch(
-            "demo.run_demo.run_retrieval_and_qa",
+            "demo.run_demo._run_retrieval_request_context",
             return_value={"status": "dry_run"},
         ), patch(
-            "demo.run_demo.run_structured_ingest",
+            "demo.run_demo._run_structured_ingest_request_context",
             return_value={"status": "dry_run"},
         ):
             _run_orchestrated(config)
@@ -6830,22 +6849,22 @@ def test_e2e_orchestrated_exactly_one_alignment_version_warning(tmp_path: Path):
                 pdf_filename="test.pdf",
             ),
         ), patch(
-            "demo.run_demo.run_pdf_ingest",
+            "demo.run_demo._run_pdf_ingest_request_context",
             return_value={"status": "dry_run"},
         ), patch(
-            "demo.run_demo.run_claim_and_mention_extraction",
+            "demo.run_demo._run_claim_extraction_request_context",
             return_value={"status": "dry_run"},
         ), patch(
-            "demo.run_demo.run_claim_participation",
+            "demo.run_demo._run_claim_participation_request_context",
             return_value={"status": "dry_run"},
         ), patch(
-            "demo.run_demo.run_entity_resolution",
+            "demo.run_demo._run_entity_resolution_request_context",
             return_value=hybrid_stage_without_version,
         ), patch(
-            "demo.run_demo.run_retrieval_and_qa",
+            "demo.run_demo._run_retrieval_request_context",
             return_value={"status": "dry_run"},
         ), patch(
-            "demo.run_demo.run_structured_ingest",
+            "demo.run_demo._run_structured_ingest_request_context",
             return_value={"status": "dry_run"},
         ):
             # run_retrieval_benchmark is intentionally NOT mocked.
@@ -6918,22 +6937,22 @@ def test_run_orchestrated_surfaces_stage_warnings(
             pdf_filename="test.pdf",
         ),
     ), patch(
-        "demo.run_demo.run_pdf_ingest",
+        "demo.run_demo._run_pdf_ingest_request_context",
         return_value=stage_with_warning,
     ), patch(
-        "demo.run_demo.run_claim_and_mention_extraction",
+        "demo.run_demo._run_claim_extraction_request_context",
         return_value={"status": "dry_run"},
     ), patch(
-        "demo.run_demo.run_claim_participation",
+        "demo.run_demo._run_claim_participation_request_context",
         return_value={"status": "dry_run"},
     ), patch(
-        "demo.run_demo.run_entity_resolution",
+        "demo.run_demo._run_entity_resolution_request_context",
         return_value={"status": "dry_run", "alignment_version": "v1"},
     ), patch(
-        "demo.run_demo.run_retrieval_and_qa",
+        "demo.run_demo._run_retrieval_request_context",
         return_value={"status": "dry_run"},
     ), patch(
-        "demo.run_demo.run_structured_ingest",
+        "demo.run_demo._run_structured_ingest_request_context",
         return_value={"status": "dry_run"},
     ), patch(
         "demo.run_demo.run_retrieval_benchmark",

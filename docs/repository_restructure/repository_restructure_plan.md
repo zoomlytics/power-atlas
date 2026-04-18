@@ -617,9 +617,17 @@ The repo has now completed a first concrete runtime-state reduction pass:
   retrieval_and_qa.py` now also rebuilds its selected retrieval query on demand
   for the active dry-run/live execution paths and manifest contract recording,
   while keeping the historical exported query constants only as compatibility
-  snapshots for the heavy query-contract test surface. The remaining work is
-  the rest of the mutable-global inventory outside those modules plus any
-  further ownership cleanup warranted around the remaining single cached state.
+  snapshots for the heavy query-contract test surface. `demo/stages/
+  claim_participation.py` now also has a RequestContext entrypoint, and the
+  orchestrated `demo/run_demo.py` ingest path now routes both claim
+  participation and its retrieval passes through request-context helpers rather
+  than dropping back to legacy Config-only stage calls mid-pipeline.
+  `demo/run_demo.py` also no longer forces `refresh_pipeline_contract()` at
+  module import time; pipeline reloads now occur only through explicit test-
+  owned refresh calls or the normal bootstrap/snapshot path. The remaining
+  work is the rest of the mutable-global inventory outside those modules plus
+  any further ownership cleanup warranted around the remaining single cached
+  state.
   ingest and independent `ingest-pdf` execution
   to bundle settings, pipeline snapshot state, and per-request runtime metadata.
 

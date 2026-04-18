@@ -22,8 +22,6 @@ from power_atlas.run_scope_queries import fetch_latest_unstructured_run_id
 
 import power_atlas.contracts.pipeline as pipeline_contracts
 
-pipeline_contracts.refresh_pipeline_contract()
-
 from power_atlas.contracts import (  # noqa: E402
     ARTIFACTS_DIR,
     Config,
@@ -46,6 +44,7 @@ from demo.stages import (  # noqa: E402
 )
 from demo.stages.retrieval_and_qa import _format_scope_label  # noqa: E402
 from demo.stages.claim_extraction import run_claim_and_mention_extraction_request_context  # noqa: E402
+from demo.stages.claim_participation import run_claim_participation_request_context  # noqa: E402
 from demo.stages.entity_resolution import run_entity_resolution_request_context  # noqa: E402
 from demo.stages.pdf_ingest import run_pdf_ingest_request_context  # noqa: E402
 from demo.stages.structured_ingest import run_structured_ingest_request_context  # noqa: E402
@@ -708,6 +707,10 @@ def _run_claim_extraction_request_context(request_context: RequestContext) -> di
     return run_claim_and_mention_extraction_request_context(request_context)
 
 
+def _run_claim_participation_request_context(request_context: RequestContext) -> dict[str, Any]:
+    return run_claim_participation_request_context(request_context)
+
+
 def _run_entity_resolution_request_context(
     request_context: RequestContext,
     *,
@@ -751,6 +754,21 @@ def _run_structured_ingest_request_context(
     )
 
 
+def _run_retrieval_request_context(
+    request_context: RequestContext,
+    *,
+    question: str | None = None,
+    cluster_aware: bool = False,
+    expand_graph: bool = False,
+) -> dict[str, Any]:
+    return run_retrieval_and_qa_request_context(
+        request_context,
+        question=question,
+        cluster_aware=cluster_aware,
+        expand_graph=expand_graph,
+    )
+
+
 def _run_orchestrated_request_context(request_context: RequestContext) -> Path:
     """Run the full demo batch sequence with an unstructured-first posture.
 
@@ -780,7 +798,6 @@ def _run_orchestrated_request_context(request_context: RequestContext) -> Path:
     started_at = _now_iso()
     structured_run_id = make_run_id("structured_ingest")
     unstructured_run_id = make_run_id("unstructured_ingest")
-    pipeline_contract = _pipeline_contract_view_from_request_context(request_context)
 
     dataset_root = resolve_dataset_root(config.dataset_name)
 
@@ -807,10 +824,12 @@ def _run_orchestrated_request_context(request_context: RequestContext) -> Path:
     # Link ExtractedClaim subject/object slots to EntityMention nodes in the same
     # chunk/run via deterministic text matching (raw_exact → casefold_exact →
     # normalized_exact).  Runs after extraction so all nodes are already in the graph.
-    claim_participation_stage = run_claim_participation(
-        config,
-        run_id=unstructured_run_id,
-        source_uri=pdf_source_uri,
+    claim_participation_stage = _run_claim_participation_request_context(
+        replace(
+            request_context,
+            run_id=unstructured_run_id,
+            source_uri=pdf_source_uri,
+        )
     )
     # Cluster extracted mentions against each other; no CanonicalEntity lookup required.
     # Use a mode-specific artifact subdirectory so the hybrid pass does not overwrite
@@ -828,11 +847,12 @@ def _run_orchestrated_request_context(request_context: RequestContext) -> Path:
         dataset_id=dataset_root.dataset_id,
     )
     # Demonstrate that meaningful Q&A is available before any structured ingest.
-    retrieval_unstructured_stage = run_retrieval_and_qa(
-        config,
-        run_id=unstructured_run_id,
-        source_uri=pdf_source_uri,
-        index_name=pipeline_contract["index_name"],
+    retrieval_unstructured_stage = _run_retrieval_request_context(
+        replace(
+            request_context,
+            run_id=unstructured_run_id,
+            source_uri=pdf_source_uri,
+        ),
         question=getattr(config, "question", None),
     )
 
@@ -857,11 +877,12 @@ def _run_orchestrated_request_context(request_context: RequestContext) -> Path:
         dataset_id=dataset_root.dataset_id,
     )
     # Final Q&A after structured enrichment shows the additive benefit.
-    retrieval_stage = run_retrieval_and_qa(
-        config,
-        run_id=unstructured_run_id,
-        source_uri=pdf_source_uri,
-        index_name=pipeline_contract["index_name"],
+    retrieval_stage = _run_retrieval_request_context(
+        replace(
+            request_context,
+            run_id=unstructured_run_id,
+            source_uri=pdf_source_uri,
+        ),
         question=getattr(config, "question", None),
     )
 

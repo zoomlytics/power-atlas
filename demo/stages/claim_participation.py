@@ -83,6 +83,7 @@ from typing import Any
 import neo4j
 
 from power_atlas.bootstrap import create_neo4j_driver
+from power_atlas.context import RequestContext
 from power_atlas.claim_participation_writes import write_claim_participation_edges
 from power_atlas.text_utils import normalize_mention_text
 
@@ -836,6 +837,7 @@ __all__ = [
     "build_participation_edges_with_metrics",
     "write_participation_edges",
     "run_claim_participation",
+    "run_claim_participation_request_context",
 ]
 
 
@@ -992,4 +994,13 @@ def run_claim_participation(
     }
     summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
     return summary
+
+
+def run_claim_participation_request_context(request_context: RequestContext) -> dict[str, Any]:
+    """Run claim participation using request-scoped context as the primary input."""
+    return run_claim_participation(
+        request_context.config,
+        run_id=request_context.run_id,
+        source_uri=request_context.source_uri,
+    )
 
