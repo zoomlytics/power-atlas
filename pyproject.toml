@@ -31,3 +31,6 @@ dev = [
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["power_atlas*"]
+
+[tool.pytest.ini_options]
+pythonpath = [".", "src"]
