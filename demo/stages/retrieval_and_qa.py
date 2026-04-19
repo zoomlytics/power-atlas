@@ -13,7 +13,7 @@ from neo4j_graphrag.generation import GraphRAG
 from neo4j_graphrag.message_history import InMemoryMessageHistory, MessageHistory
 
 from power_atlas.bootstrap import require_openai_api_key
-from power_atlas.bootstrap.clients import build_embedder, build_llm as build_openai_llm, create_neo4j_driver
+from power_atlas.bootstrap.clients import build_embedder, build_llm as build_openai_llm
 from power_atlas.context import RequestContext
 from power_atlas.contracts import (
     ALIGNMENT_VERSION,
@@ -23,7 +23,12 @@ from power_atlas.contracts import (
     resolve_dataset_root,
     resolve_early_return_rule,
 )
-from power_atlas.contracts.pipeline import PipelineContractSnapshot, is_pipeline_contract_snapshot
+from power_atlas.contracts.pipeline import (
+    PipelineContractSnapshot,
+    get_pipeline_contract_snapshot,
+    is_pipeline_contract_snapshot,
+)
+from power_atlas.retrieval_runtime import run_with_retrieval_session
 from power_atlas.settings import Neo4jSettings
 from neo4j_graphrag.retrievers import VectorCypherRetriever
 from neo4j_graphrag.types import LLMMessage, RetrieverResultItem
@@ -54,8 +59,13 @@ def _resolve_pipeline_contract(
     config_pipeline_contract = getattr(config, "pipeline_contract", None)
     if is_pipeline_contract_snapshot(config_pipeline_contract):
         return config_pipeline_contract
-    raise ValueError(
-        "retrieval helpers require a pipeline contract from RequestContext/AppContext-derived config or an explicit pipeline_contract argument"
+    return get_pipeline_contract_snapshot()
+
+
+def _require_stage_openai_api_key(error_message: str) -> None:
+    require_openai_api_key(
+        error_message,
+        environ={"OPENAI_API_KEY": os.getenv("OPENAI_API_KEY", "")},
     )
 
 # ---------------------------------------------------------------------------
@@ -1911,7 +1921,7 @@ def run_retrieval_and_qa(
     # effective_expand_graph records whether any form of graph expansion is active so
     # manifests accurately describe the retrieval context used.
     effective_expand_graph = expand_graph or cluster_aware
-    retrieval_query_contract = _select_runtime_retrieval_query(
+    retrieval_query_contract = _select_retrieval_query(
         expand_graph=expand_graph, cluster_aware=cluster_aware, all_runs=all_runs
     )
     citation_object_example: dict[str, object] = {
@@ -2074,7 +2084,7 @@ def run_retrieval_and_qa(
             "Pass --run-id, --latest, or use --all-runs to query across all data."
         )
 
-    retrieval_query = _select_runtime_retrieval_query(
+    retrieval_query = _select_retrieval_query(
         expand_graph=expand_graph, cluster_aware=cluster_aware, all_runs=all_runs
     )
 
@@ -2110,7 +2120,7 @@ def run_retrieval_and_qa(
     citation_warnings_list: list[str] = []
     hits: list[dict[str, object]] = []
 
-    require_openai_api_key(
+    _require_stage_openai_api_key(
         "OPENAI_API_KEY environment variable is required for live retrieval."
     )
 
@@ -2123,25 +2133,8 @@ def run_retrieval_and_qa(
     if missing_cfg:
         raise ValueError(f"Live retrieval requires config attributes: {', '.join(missing_cfg)}")
 
-    with create_neo4j_driver(config) as driver:
-        # Build GraphRAG with the Power Atlas citation-enforcing prompt template and
-        # capability-aware LLM for grounded, citation-enforced output.
-        # Aligned with vendor pattern from vendor-resources/examples/customize/answer/custom_prompt.py
-        # and vendor-resources/examples/question_answering/graphrag_with_neo4j_message_history.py.
-        _, rag = _build_retriever_and_rag(
-            driver,
-            index_name=resolved_index_name,
-            retrieval_query=retrieval_query,
-            qa_model=effective_qa_model,
-            neo4j_database=neo4j_database,
-            pipeline_contract=resolved_pipeline_contract,
-        )
-
-        # Run the GraphRAG search with optional message history for interactive mode.
-        # message_history provides conversational context ONLY — it is never a
-        # source of answer evidence.  All evidence must come from the retrieved
-        # chunks returned by the VectorCypherRetriever for this turn.
-        # retriever_config passes query_params for run-scoped Cypher filtering.
+    def _run_single_shot_session(*, driver: object, retriever: object, rag: GraphRAG) -> tuple[str, list[dict[str, object]], list[str], list[str]]:
+        del driver, retriever
         rag_result = rag.search(
             query_text=question,
             retriever_config={"top_k": top_k, "query_params": query_params},
@@ -2150,18 +2143,13 @@ def run_retrieval_and_qa(
         )
 
         answer_text: str = rag_result.answer if rag_result else ""
-
-        # Collect retrieval hits from the rag result context for manifest recording.
+        session_warnings: list[str] = []
+        session_citation_warnings: list[str] = []
+        session_hits: list[dict[str, object]] = []
         if rag_result and rag_result.retriever_result:
             for item in rag_result.retriever_result.items:
                 meta = item.metadata or {}
                 citation_obj = meta.get("citation_object") or {}
-                # ── Stage 1: retrieval-time OPERATIONAL warnings ─────────────────
-                # Missing optional fields (page, start_char, end_char) are surfaced
-                # to warnings_list only.  They are NOT added to citation_warnings_list
-                # because missing optional fields do not degrade citation enforcement.
-                # evidence_level is only degraded by critical issues (empty chunk text
-                # or uncited answer segments); see RFC #159 citation contract.
                 missing_fields = [f for f in _CITATION_OPTIONAL_FIELDS if citation_obj.get(f) is None]
                 if missing_fields:
                     _logger.info(
@@ -2170,18 +2158,27 @@ def run_retrieval_and_qa(
                         ", ".join(missing_fields),
                     )
                     chunk_warning = f"Chunk {citation_obj.get('chunk_id')!r} missing optional citation fields: {', '.join(missing_fields)}"
-                    # Operational warning: top-level only, NOT a citation-quality issue.
-                    warnings_list.append(chunk_warning)
-                # ── Stage 2: retrieval-time CITATION-QUALITY warnings ────────────
-                # Empty/whitespace-only chunk text is a citation-quality issue: the
-                # cited chunk carries no usable evidence.  Added to both surfaces so
-                # the invariant (citation_warnings ⊆ warnings) is maintained.
+                    session_warnings.append(chunk_warning)
                 if meta.get("empty_chunk_text"):
                     chunk_id_val = citation_obj.get("chunk_id")
                     empty_text_warning = f"Chunk {chunk_id_val!r} has empty or whitespace-only text."
-                    warnings_list.append(empty_text_warning)           # superset
-                    citation_warnings_list.append(empty_text_warning)  # citation-quality subset
-                hits.append({"content": item.content, "metadata": meta})
+                    session_warnings.append(empty_text_warning)
+                    session_citation_warnings.append(empty_text_warning)
+                session_hits.append({"content": item.content, "metadata": meta})
+        return answer_text, session_hits, session_warnings, session_citation_warnings
+
+    answer_text, hits, session_warnings, session_citation_warnings = run_with_retrieval_session(
+        config,
+        index_name=resolved_index_name,
+        retrieval_query=retrieval_query,
+        qa_model=effective_qa_model,
+        neo4j_database=neo4j_database,
+        pipeline_contract=resolved_pipeline_contract,
+        build_retriever_and_rag=_build_retriever_and_rag,
+        run_session=_run_single_shot_session,
+    )
+    warnings_list.extend(session_warnings)
+    citation_warnings_list.extend(session_citation_warnings)
 
     # ── Stage 3: postprocessing — may add MORE citation-quality warnings ─────
     # Pass the retrieval-time citation warnings into _postprocess_answer() so the
@@ -2361,7 +2358,7 @@ def run_interactive_qa(
             "Pass run_id, or set all_runs=True to query across all data."
         )
 
-    require_openai_api_key(
+    _require_stage_openai_api_key(
         "OPENAI_API_KEY environment variable is required for live retrieval."
     )
 
@@ -2380,7 +2377,7 @@ def run_interactive_qa(
         else _pipeline_contract_value("CHUNK_EMBEDDING_INDEX_NAME", resolved_pipeline_contract)
     )
     effective_qa_model = getattr(config, "openai_model", None) or "gpt-5.4"
-    retrieval_query = _select_runtime_retrieval_query(
+    retrieval_query = _select_retrieval_query(
         expand_graph=expand_graph, cluster_aware=cluster_aware, all_runs=all_runs
     )
     query_params = _build_query_params(
@@ -2396,15 +2393,8 @@ def run_interactive_qa(
 
     # Build driver, retriever, LLM, and GraphRAG once and reuse across all REPL turns
     # to avoid per-turn connection overhead and Neo4j driver churn.
-    with create_neo4j_driver(config) as driver:
-        _, rag = _build_retriever_and_rag(
-            driver,
-            index_name=resolved_index_name,
-            retrieval_query=retrieval_query,
-            qa_model=effective_qa_model,
-            neo4j_database=neo4j_database,
-            pipeline_contract=resolved_pipeline_contract,
-        )
+    def _run_interactive_session(*, driver: object, retriever: object, rag: GraphRAG) -> None:
+        del driver, retriever
         try:
             while True:
                 try:
@@ -2420,21 +2410,15 @@ def run_interactive_qa(
                     query_text=question,
                     retriever_config={"top_k": top_k, "query_params": query_params},
                     return_context=True,
-                    # history provides conversational context only — never answer evidence.
-                    # All evidence for this turn comes exclusively from the retriever above.
                     message_history=history,
                 )
                 answer = rag_result.answer if rag_result else ""
-                # Build repair hits from retriever result items (empty list when no
-                # retriever result is available — _postprocess_answer handles this).
                 _repair_hits: list[dict[str, object]] = []
                 if rag_result and rag_result.retriever_result:
                     _repair_hits = [
                         {"metadata": item.metadata or {}}
                         for item in rag_result.retriever_result.items
                     ]
-                # Unified postprocessing: repair, fallback, warnings, and citation quality
-                # via the shared helper so this path stays aligned with run_retrieval_and_qa.
                 pp = _postprocess_answer(answer, _repair_hits, all_runs=all_runs)
                 print(f"\nAnswer:\n{pp['display_answer']}\n")
                 if pp["citation_fallback_applied"]:
@@ -2442,17 +2426,11 @@ def run_interactive_qa(
                         "WARNING: Not all answer sentences or bullets are cited - evidence quality may be degraded."
                     )
                 if debug:
-                    # Build the typed inspection view from the postprocess result so
-                    # that debug rendering consumes the shared model rather than reading
-                    # _AnswerPostprocessResult fields directly.
                     debug_view = _build_retrieval_debug_view(
                         pp,
                         malformed_diagnostics_count=_count_malformed_diagnostics(_repair_hits),
                     )
                     print(_format_postprocess_debug_summary(debug_view))
-                # Store only the refusal prefix (not the full uncited output) in history
-                # so that subsequent turns are not conditioned on under-cited content.
-                # The full fallback text is still printed to the user above.
                 history.add_messages(
                     [
                         LLMMessage(role="user", content=question),
@@ -2461,6 +2439,17 @@ def run_interactive_qa(
                 )
         except KeyboardInterrupt:
             print()
+
+    run_with_retrieval_session(
+        config,
+        index_name=resolved_index_name,
+        retrieval_query=retrieval_query,
+        qa_model=effective_qa_model,
+        neo4j_database=neo4j_database,
+        pipeline_contract=resolved_pipeline_contract,
+        build_retriever_and_rag=_build_retriever_and_rag,
+        run_session=_run_interactive_session,
+    )
 
 
 def run_interactive_qa_request_context(
