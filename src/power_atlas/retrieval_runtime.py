@@ -18,6 +18,14 @@ class RetrievalSearchResult:
     citation_warnings: list[str]
 
 
+@dataclass(frozen=True)
+class InteractiveRetrievalTurnResult:
+    display_answer: str
+    history_answer: str
+    citation_fallback_applied: bool
+    debug_summary: str | None
+
+
 def build_live_retrieval_result(
     *,
     base: dict[str, object],
@@ -147,6 +155,51 @@ def execute_retrieval_search(
     )
 
 
+def run_interactive_retrieval_turn(
+    rag: Any,
+    *,
+    question: str,
+    top_k: int,
+    query_params: dict[str, object],
+    message_history: Any,
+    citation_optional_fields: tuple[str, ...],
+    logger: logging.Logger,
+    all_runs: bool,
+    debug: bool,
+    postprocess_answer: Callable[..., dict[str, object]],
+    build_retrieval_debug_view: Callable[..., dict[str, object]],
+    format_postprocess_debug_summary: Callable[[dict[str, object]], str],
+    count_malformed_diagnostics: Callable[[list[dict[str, object]]], int],
+) -> InteractiveRetrievalTurnResult:
+    search_result = execute_retrieval_search(
+        rag,
+        question=question,
+        top_k=top_k,
+        query_params=query_params,
+        message_history=message_history,
+        citation_optional_fields=citation_optional_fields,
+        logger=logger,
+    )
+    pp = postprocess_answer(
+        search_result.answer_text,
+        search_result.hits,
+        all_runs=all_runs,
+    )
+    debug_summary: str | None = None
+    if debug:
+        debug_view = build_retrieval_debug_view(
+            pp,
+            malformed_diagnostics_count=count_malformed_diagnostics(search_result.hits),
+        )
+        debug_summary = format_postprocess_debug_summary(debug_view)
+    return InteractiveRetrievalTurnResult(
+        display_answer=pp["display_answer"],
+        history_answer=pp["history_answer"],
+        citation_fallback_applied=pp["citation_fallback_applied"],
+        debug_summary=debug_summary,
+    )
+
+
 def run_with_retrieval_session(
     config: object,
     *,
@@ -171,8 +224,10 @@ def run_with_retrieval_session(
 
 
 __all__ = [
+    "InteractiveRetrievalTurnResult",
     "RetrievalSearchResult",
     "build_live_retrieval_result",
     "execute_retrieval_search",
+    "run_interactive_retrieval_turn",
     "run_with_retrieval_session",
 ]

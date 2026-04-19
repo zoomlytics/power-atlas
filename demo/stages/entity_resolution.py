@@ -237,6 +237,7 @@ from power_atlas.entity_resolution_queries import (
     fetch_entity_mentions,
     fetch_member_of_coverage,
 )
+from power_atlas.entity_resolution_writes import write_alignment_results as _write_alignment_results_live
 from power_atlas.text_utils import normalize_mention_text
 
 # Bump this constant whenever the resolution strategies or scoring logic change
@@ -1351,29 +1352,13 @@ def _write_alignment_results(
     strings so that blank values are not persisted as a distinct provenance.
     Existing cluster nodes and ``MEMBER_OF`` edges are never modified.
     """
-    if not alignment_rows:
-        return
-    driver.execute_query(
-        """
-        UNWIND $rows AS row
-        MATCH (cluster:ResolvedEntityCluster {cluster_id: row.cluster_id})
-        MATCH (canonical:CanonicalEntity {entity_id: row.canonical_entity_id, run_id: row.canonical_run_id})
-        MERGE (cluster)-[r:ALIGNED_WITH {
-            run_id:            $run_id,
-            alignment_version: $alignment_version
-        }]->(canonical)
-        SET r.alignment_method = row.alignment_method,
-            r.alignment_score  = row.alignment_score,
-            r.alignment_status = row.alignment_status,
-            r.source_uri       = coalesce(row.source_uri, $source_uri)
-        """,
-        parameters_={
-            "rows": alignment_rows,
-            "run_id": run_id,
-            "source_uri": source_uri or None,
-            "alignment_version": _ALIGNMENT_VERSION,
-        },
-        database_=neo4j_database,
+    _write_alignment_results_live(
+        driver,
+        run_id=run_id,
+        source_uri=source_uri,
+        alignment_rows=alignment_rows,
+        neo4j_database=neo4j_database,
+        alignment_version=_ALIGNMENT_VERSION,
     )
 
 

@@ -29,8 +29,10 @@ from power_atlas.contracts.pipeline import (
     is_pipeline_contract_snapshot,
 )
 from power_atlas.retrieval_runtime import (
+    InteractiveRetrievalTurnResult,
     build_live_retrieval_result,
     execute_retrieval_search,
+    run_interactive_retrieval_turn,
     run_with_retrieval_session,
 )
 from power_atlas.settings import Neo4jSettings
@@ -2340,7 +2342,7 @@ def run_interactive_qa(
                     continue
                 if question.lower() in ("exit", "quit"):
                     break
-                search_result = execute_retrieval_search(
+                turn_result: InteractiveRetrievalTurnResult = run_interactive_retrieval_turn(
                     rag,
                     question=question,
                     top_k=top_k,
@@ -2348,27 +2350,24 @@ def run_interactive_qa(
                     message_history=history,
                     citation_optional_fields=_CITATION_OPTIONAL_FIELDS,
                     logger=_logger,
-                )
-                pp = _postprocess_answer(
-                    search_result.answer_text,
-                    search_result.hits,
                     all_runs=all_runs,
+                    debug=debug,
+                    postprocess_answer=_postprocess_answer,
+                    build_retrieval_debug_view=_build_retrieval_debug_view,
+                    format_postprocess_debug_summary=_format_postprocess_debug_summary,
+                    count_malformed_diagnostics=_count_malformed_diagnostics,
                 )
-                print(f"\nAnswer:\n{pp['display_answer']}\n")
-                if pp["citation_fallback_applied"]:
+                print(f"\nAnswer:\n{turn_result.display_answer}\n")
+                if turn_result.citation_fallback_applied:
                     print(
                         "WARNING: Not all answer sentences or bullets are cited - evidence quality may be degraded."
                     )
-                if debug:
-                    debug_view = _build_retrieval_debug_view(
-                        pp,
-                        malformed_diagnostics_count=_count_malformed_diagnostics(search_result.hits),
-                    )
-                    print(_format_postprocess_debug_summary(debug_view))
+                if turn_result.debug_summary is not None:
+                    print(turn_result.debug_summary)
                 history.add_messages(
                     [
                         LLMMessage(role="user", content=question),
-                        LLMMessage(role="assistant", content=pp["history_answer"]),
+                        LLMMessage(role="assistant", content=turn_result.history_answer),
                     ]
                 )
         except KeyboardInterrupt:
