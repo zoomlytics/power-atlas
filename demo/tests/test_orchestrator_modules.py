@@ -4573,6 +4573,51 @@ def test_run_claim_participation_request_context_uses_request_scope(tmp_path: Pa
     assert result["source_uri"] == "file:///context/claim-source.pdf"
 
 
+def test_run_graph_health_diagnostics_request_context_uses_request_scope(tmp_path: Path):
+    """The RequestContext graph-health helper must forward run scope directly."""
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.graph_health import run_graph_health_diagnostics_request_context
+
+    request_context = _request_context_from_config(
+        _dry_run_config(tmp_path),
+        command="graph-health",
+        run_id="context-graph-health-run",
+    )
+
+    result = run_graph_health_diagnostics_request_context(
+        request_context,
+        alignment_version="v1.0",
+    )
+
+    assert result["status"] == "dry_run"
+    assert result["run_id"] == "context-graph-health-run"
+    assert result["alignment_version"] == "v1.0"
+
+
+def test_run_retrieval_benchmark_request_context_uses_request_scope(tmp_path: Path):
+    """The RequestContext retrieval-benchmark helper must forward run scope and default dataset scope."""
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_benchmark import run_retrieval_benchmark_request_context
+
+    config_data = {**_dry_run_config(tmp_path).__dict__, "dataset_name": "demo_dataset_v1"}
+    config = Config(**config_data)
+    request_context = _request_context_from_config(
+        config,
+        command="retrieval-benchmark",
+        run_id="context-benchmark-run",
+    )
+
+    result = run_retrieval_benchmark_request_context(
+        request_context,
+        alignment_version="v1.0",
+    )
+
+    assert result["status"] == "dry_run"
+    assert result["run_id"] == "context-benchmark-run"
+    assert result["dataset_id"] == "demo_dataset_v1"
+    assert result["alignment_version"] == "v1.0"
+
+
 def test_resolve_ask_scope_run_id_flag_overrides_env_var(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ):

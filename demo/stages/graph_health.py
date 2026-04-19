@@ -48,6 +48,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from power_atlas.context import RequestContext
 from power_atlas.graph_health_queries import fetch_graph_health_query_rows
 from demo.stages.entity_resolution import build_entity_type_cypher_case as _build_entity_type_cypher_case
 
@@ -57,6 +58,7 @@ __all__ = [
     "GraphHealthArtifact",
     "build_graph_health_artifact",
     "run_graph_health_diagnostics",
+    "run_graph_health_diagnostics_request_context",
 ]
 
 # ---------------------------------------------------------------------------
@@ -692,3 +694,20 @@ def run_graph_health_diagnostics(
         "artifact": artifact.to_dict(),
         "warnings": collected_warnings,
     }
+
+
+def run_graph_health_diagnostics_request_context(
+    request_context: RequestContext,
+    *,
+    alignment_version: str | None = None,
+    output_dir: Path | None = None,
+    suppress_alignment_version_warning: bool = False,
+) -> dict[str, Any]:
+    """Run graph-health diagnostics using request-scoped context as the primary input."""
+    return run_graph_health_diagnostics(
+        request_context.config,
+        run_id=request_context.run_id,
+        alignment_version=alignment_version,
+        output_dir=output_dir,
+        suppress_alignment_version_warning=suppress_alignment_version_warning,
+    )

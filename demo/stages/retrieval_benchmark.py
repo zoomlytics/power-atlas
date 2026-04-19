@@ -80,6 +80,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from power_atlas.context import RequestContext
 from power_atlas.retrieval_benchmark_queries import fetch_retrieval_benchmark_query_rows
 _logger = logging.getLogger(__name__)
 
@@ -91,6 +92,7 @@ __all__ = [
     "build_benchmark_case_result",
     "build_benchmark_artifact",
     "run_retrieval_benchmark",
+    "run_retrieval_benchmark_request_context",
     "_Q_CATALOG_EXISTENCE_CHECK",
 ]
 
@@ -1287,3 +1289,28 @@ def run_retrieval_benchmark(
         "artifact": artifact.to_dict(),
         "warnings": collected_warnings,
     }
+
+
+def run_retrieval_benchmark_request_context(
+    request_context: RequestContext,
+    *,
+    dataset_id: str | None = None,
+    alignment_version: str | None = None,
+    output_dir: Path | None = None,
+    benchmark_cases: list[BenchmarkCaseDefinition] | None = None,
+    suppress_alignment_version_warning: bool = False,
+) -> dict[str, Any]:
+    """Run the retrieval benchmark using request-scoped context as the primary input."""
+    return run_retrieval_benchmark(
+        request_context.config,
+        run_id=request_context.run_id,
+        dataset_id=(
+            dataset_id
+            if dataset_id is not None
+            else getattr(request_context.config, "dataset_name", None)
+        ),
+        alignment_version=alignment_version,
+        output_dir=output_dir,
+        benchmark_cases=benchmark_cases,
+        suppress_alignment_version_warning=suppress_alignment_version_warning,
+    )
