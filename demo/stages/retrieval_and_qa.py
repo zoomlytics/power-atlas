@@ -28,7 +28,7 @@ from power_atlas.contracts.pipeline import (
     get_pipeline_contract_snapshot,
     is_pipeline_contract_snapshot,
 )
-from power_atlas.retrieval_runtime import run_with_retrieval_session
+from power_atlas.retrieval_runtime import execute_retrieval_search, run_with_retrieval_session
 from power_atlas.settings import Neo4jSettings
 from neo4j_graphrag.retrievers import VectorCypherRetriever
 from neo4j_graphrag.types import LLMMessage, RetrieverResultItem
@@ -2135,37 +2135,21 @@ def run_retrieval_and_qa(
 
     def _run_single_shot_session(*, driver: object, retriever: object, rag: GraphRAG) -> tuple[str, list[dict[str, object]], list[str], list[str]]:
         del driver, retriever
-        rag_result = rag.search(
-            query_text=question,
-            retriever_config={"top_k": top_k, "query_params": query_params},
-            return_context=True,
-            message_history=message_history,  # type: ignore[arg-type]
+        search_result = execute_retrieval_search(
+            rag,
+            question=question,
+            top_k=top_k,
+            query_params=query_params,
+            message_history=message_history,
+            citation_optional_fields=_CITATION_OPTIONAL_FIELDS,
+            logger=_logger,
         )
-
-        answer_text: str = rag_result.answer if rag_result else ""
-        session_warnings: list[str] = []
-        session_citation_warnings: list[str] = []
-        session_hits: list[dict[str, object]] = []
-        if rag_result and rag_result.retriever_result:
-            for item in rag_result.retriever_result.items:
-                meta = item.metadata or {}
-                citation_obj = meta.get("citation_object") or {}
-                missing_fields = [f for f in _CITATION_OPTIONAL_FIELDS if citation_obj.get(f) is None]
-                if missing_fields:
-                    _logger.info(
-                        "Chunk %r missing optional citation fields: %s",
-                        citation_obj.get("chunk_id"),
-                        ", ".join(missing_fields),
-                    )
-                    chunk_warning = f"Chunk {citation_obj.get('chunk_id')!r} missing optional citation fields: {', '.join(missing_fields)}"
-                    session_warnings.append(chunk_warning)
-                if meta.get("empty_chunk_text"):
-                    chunk_id_val = citation_obj.get("chunk_id")
-                    empty_text_warning = f"Chunk {chunk_id_val!r} has empty or whitespace-only text."
-                    session_warnings.append(empty_text_warning)
-                    session_citation_warnings.append(empty_text_warning)
-                session_hits.append({"content": item.content, "metadata": meta})
-        return answer_text, session_hits, session_warnings, session_citation_warnings
+        return (
+            search_result.answer_text,
+            search_result.hits,
+            search_result.warnings,
+            search_result.citation_warnings,
+        )
 
     answer_text, hits, session_warnings, session_citation_warnings = run_with_retrieval_session(
         config,
@@ -2406,20 +2390,20 @@ def run_interactive_qa(
                     continue
                 if question.lower() in ("exit", "quit"):
                     break
-                rag_result = rag.search(
-                    query_text=question,
-                    retriever_config={"top_k": top_k, "query_params": query_params},
-                    return_context=True,
+                search_result = execute_retrieval_search(
+                    rag,
+                    question=question,
+                    top_k=top_k,
+                    query_params=query_params,
                     message_history=history,
+                    citation_optional_fields=_CITATION_OPTIONAL_FIELDS,
+                    logger=_logger,
                 )
-                answer = rag_result.answer if rag_result else ""
-                _repair_hits: list[dict[str, object]] = []
-                if rag_result and rag_result.retriever_result:
-                    _repair_hits = [
-                        {"metadata": item.metadata or {}}
-                        for item in rag_result.retriever_result.items
-                    ]
-                pp = _postprocess_answer(answer, _repair_hits, all_runs=all_runs)
+                pp = _postprocess_answer(
+                    search_result.answer_text,
+                    search_result.hits,
+                    all_runs=all_runs,
+                )
                 print(f"\nAnswer:\n{pp['display_answer']}\n")
                 if pp["citation_fallback_applied"]:
                     print(
@@ -2428,7 +2412,7 @@ def run_interactive_qa(
                 if debug:
                     debug_view = _build_retrieval_debug_view(
                         pp,
-                        malformed_diagnostics_count=_count_malformed_diagnostics(_repair_hits),
+                        malformed_diagnostics_count=_count_malformed_diagnostics(search_result.hits),
                     )
                     print(_format_postprocess_debug_summary(debug_view))
                 history.add_messages(
