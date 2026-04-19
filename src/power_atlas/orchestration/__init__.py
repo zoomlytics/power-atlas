@@ -52,6 +52,14 @@ from power_atlas.orchestration.independent_stage_runners import (
     run_independent_structured_ingest_stage,
 )
 from power_atlas.orchestration.orchestrated_runner import run_orchestrated_request_context
+from power_atlas.orchestration.legacy_adapters import (
+    lint_and_clean_structured_csvs_legacy,
+    run_claim_and_mention_extraction_legacy,
+    run_entity_resolution_legacy,
+    run_pdf_ingest_legacy,
+    run_retrieval_and_qa_legacy,
+    run_structured_ingest_legacy,
+)
 
 __all__ = [
     "CONFIG_COMMANDS",
@@ -75,6 +83,7 @@ __all__ = [
     "execute_lint_structured_command",
     "execute_reset_command",
     "format_dataset_label",
+    "lint_and_clean_structured_csvs_legacy",
     "prepare_ask_request_context",
     "reset_instructions_text",
     "resolve_ask_request_context",
@@ -84,11 +93,16 @@ __all__ = [
     "resolve_latest_dataset_id",
     "resolve_latest_run_scope",
     "run_orchestrated_request_context",
+    "run_claim_and_mention_extraction_legacy",
+    "run_entity_resolution_legacy",
     "run_independent_ask_stage",
     "run_independent_claim_extraction_stage",
     "run_independent_entity_resolution_stage",
     "run_independent_pdf_ingest_stage",
     "run_independent_structured_ingest_stage",
+    "run_pdf_ingest_legacy",
+    "run_retrieval_and_qa_legacy",
+    "run_structured_ingest_legacy",
     "scope_request_context",
     "validate_explicit_run_id_dataset_selection",
     "warn_env_run_id_dataset_mismatch",

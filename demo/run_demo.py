@@ -58,6 +58,14 @@ from power_atlas.orchestration.independent_stage_runners import (
 from power_atlas.orchestration.orchestrated_runner import (
     run_orchestrated_request_context as _run_orchestrated_request_context_impl,
 )
+from power_atlas.orchestration.legacy_adapters import (
+    lint_and_clean_structured_csvs_legacy as _lint_and_clean_structured_csvs_impl,
+    run_claim_and_mention_extraction_legacy as _run_claim_and_mention_extraction_impl,
+    run_entity_resolution_legacy as _run_entity_resolution_impl,
+    run_pdf_ingest_legacy as _run_pdf_ingest_impl,
+    run_retrieval_and_qa_legacy as _run_retrieval_and_qa_impl,
+    run_structured_ingest_legacy as _run_structured_ingest_impl,
+)
 from power_atlas.run_scope_queries import fetch_dataset_id_for_run
 from power_atlas.run_scope_queries import fetch_latest_unstructured_run_id
 
@@ -915,31 +923,31 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 # Backwards-compatible aliases for legacy tests and scripts.
 def _lint_and_clean_structured_csvs(run_id: str, output_dir: Path) -> dict[str, Any]:
-    dataset_root = resolve_dataset_root()
-    return lint_and_clean_structured_csvs(
-        run_id=run_id,
-        output_dir=output_dir,
-        fixtures_dir=dataset_root.root,
-        dataset_id=dataset_root.dataset_id,
+    return _lint_and_clean_structured_csvs_impl(
+        run_id,
+        output_dir,
+        resolve_dataset_root=resolve_dataset_root,
+        lint_and_clean_structured_csvs=lint_and_clean_structured_csvs,
     )
 
 
 def _run_structured_ingest(config: Config, run_id: str) -> dict[str, Any]:
-    dataset_root = resolve_dataset_root(config.dataset_name)
-    return _run_structured_ingest_request_context(
-        _request_context_from_config(config, command="ingest-structured", run_id=run_id),
-        fixtures_dir=dataset_root.root,
-        dataset_id=dataset_root.dataset_id,
+    return _run_structured_ingest_impl(
+        config,
+        run_id,
+        resolve_dataset_root=resolve_dataset_root,
+        request_context_from_config=_request_context_from_config,
+        run_structured_ingest_request_context=_run_structured_ingest_request_context,
     )
 
 
 def _run_pdf_ingest(config: Config, run_id: str | None = None) -> dict[str, Any]:
-    dataset_root = resolve_dataset_root(config.dataset_name)
-    return _run_pdf_ingest_request_context(
-        _request_context_from_config(config, command="ingest-pdf", run_id=run_id),
-        fixtures_dir=dataset_root.root,
-        pdf_filename=dataset_root.pdf_filename,
-        dataset_id=dataset_root.dataset_id,
+    return _run_pdf_ingest_impl(
+        config,
+        run_id,
+        resolve_dataset_root=resolve_dataset_root,
+        request_context_from_config=_request_context_from_config,
+        run_pdf_ingest_request_context=_run_pdf_ingest_request_context,
     )
 
 
@@ -949,13 +957,12 @@ def _run_claim_and_mention_extraction(
     run_id: str,
     source_uri: str | None,
 ) -> dict[str, Any]:
-    return _run_claim_extraction_request_context(
-        _request_context_from_config(
-            config,
-            command="extract-claims",
-            run_id=run_id,
-            source_uri=source_uri,
-        )
+    return _run_claim_and_mention_extraction_impl(
+        config,
+        run_id=run_id,
+        source_uri=source_uri,
+        request_context_from_config=_request_context_from_config,
+        run_claim_extraction_request_context=_run_claim_extraction_request_context,
     )
 
 
@@ -968,16 +975,15 @@ def _run_entity_resolution(
     artifact_subdir: str = "entity_resolution",
     dataset_id: str | None = None,
 ) -> dict[str, Any]:
-    return _run_entity_resolution_request_context(
-        _request_context_from_config(
-            config,
-            command="resolve-entities",
-            run_id=run_id,
-            source_uri=source_uri,
-        ),
+    return _run_entity_resolution_impl(
+        config,
+        run_id=run_id,
+        source_uri=source_uri,
         resolution_mode=resolution_mode,
         artifact_subdir=artifact_subdir,
         dataset_id=dataset_id,
+        request_context_from_config=_request_context_from_config,
+        run_entity_resolution_request_context=_run_entity_resolution_request_context,
     )
 
 
@@ -991,17 +997,16 @@ def _run_retrieval_and_qa(
     expand_graph: bool = False,
     all_runs: bool = False,
 ) -> dict[str, Any]:
-    return _run_retrieval_request_context(
-        _request_context_from_config(
-            config,
-            command="ask",
-            run_id=run_id,
-            all_runs=all_runs,
-            source_uri=source_uri,
-        ),
+    return _run_retrieval_and_qa_impl(
+        config,
+        run_id=run_id,
+        source_uri=source_uri,
         question=question,
         cluster_aware=cluster_aware,
         expand_graph=expand_graph,
+        all_runs=all_runs,
+        request_context_from_config=_request_context_from_config,
+        run_retrieval_request_context=_run_retrieval_request_context,
     )
 
 
