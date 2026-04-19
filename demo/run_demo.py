@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import replace
+from dataclasses import dataclass, replace
 import logging
 import os
 import sys
@@ -47,6 +47,28 @@ from demo.stages.retrieval_benchmark import run_retrieval_benchmark  # noqa: E40
 from demo.stages.pdf_ingest import sha256_file  # noqa: E402, F401 - re-exported for callers and tests
 
 _logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class _IndependentStageResources:
+    dataset_id: str | None
+    fixture_dir: Path | None
+    pdf_filename: str | None
+    pdf_source_uri: str | None
+
+
+@dataclass(frozen=True)
+class _IndependentStageOptions:
+    ask_all_runs: bool
+    cluster_aware: bool
+    expand_graph: bool
+
+
+@dataclass(frozen=True)
+class _IndependentStageSpec:
+    stage_name: str
+    run_scope_key: str
+    runner: Callable[[RequestContext, str, _IndependentStageResources, _IndependentStageOptions], dict[str, Any]]
 
 
 def _pipeline_contract_view_from_request_context(request_context: RequestContext) -> dict[str, Any]:
@@ -744,6 +766,115 @@ def _run_retrieval_request_context(
     )
 
 
+def _run_independent_structured_ingest_stage(
+    request_context: RequestContext,
+    stage_run_id: str,
+    resources: _IndependentStageResources,
+    options: _IndependentStageOptions,
+) -> dict[str, Any]:
+    del options
+    return _run_structured_ingest_request_context(
+        replace(request_context, run_id=stage_run_id),
+        fixtures_dir=resources.fixture_dir,
+        dataset_id=resources.dataset_id,
+    )
+
+
+def _run_independent_pdf_ingest_stage(
+    request_context: RequestContext,
+    stage_run_id: str,
+    resources: _IndependentStageResources,
+    options: _IndependentStageOptions,
+) -> dict[str, Any]:
+    del options
+    return _run_pdf_ingest_request_context(
+        replace(request_context, run_id=stage_run_id),
+        fixtures_dir=resources.fixture_dir,
+        pdf_filename=resources.pdf_filename,
+        dataset_id=resources.dataset_id,
+    )
+
+
+def _run_independent_claim_extraction_stage(
+    request_context: RequestContext,
+    stage_run_id: str,
+    resources: _IndependentStageResources,
+    options: _IndependentStageOptions,
+) -> dict[str, Any]:
+    del options
+    return _run_claim_extraction_request_context(
+        replace(
+            request_context,
+            run_id=stage_run_id,
+            source_uri=resources.pdf_source_uri,
+        )
+    )
+
+
+def _run_independent_entity_resolution_stage(
+    request_context: RequestContext,
+    stage_run_id: str,
+    resources: _IndependentStageResources,
+    options: _IndependentStageOptions,
+) -> dict[str, Any]:
+    del options
+    return _run_entity_resolution_request_context(
+        replace(
+            request_context,
+            run_id=stage_run_id,
+            source_uri=resources.pdf_source_uri,
+        ),
+        dataset_id=resources.dataset_id,
+    )
+
+
+def _run_independent_ask_stage(
+    request_context: RequestContext,
+    stage_run_id: str,
+    resources: _IndependentStageResources,
+    options: _IndependentStageOptions,
+) -> dict[str, Any]:
+    del resources
+    return _run_ask_request_context(
+        replace(
+            request_context,
+            run_id=stage_run_id if not options.ask_all_runs else None,
+        ),
+        cluster_aware=options.cluster_aware,
+        expand_graph=options.expand_graph,
+    )
+
+
+def _independent_stage_specs() -> dict[str, _IndependentStageSpec]:
+    return {
+        "ingest-structured": _IndependentStageSpec(
+            stage_name="structured_ingest",
+            run_scope_key="structured_ingest_run_id",
+            runner=_run_independent_structured_ingest_stage,
+        ),
+        "ingest-pdf": _IndependentStageSpec(
+            stage_name="pdf_ingest",
+            run_scope_key="unstructured_ingest_run_id",
+            runner=_run_independent_pdf_ingest_stage,
+        ),
+        "extract-claims": _IndependentStageSpec(
+            stage_name="claim_and_mention_extraction",
+            run_scope_key="unstructured_ingest_run_id",
+            runner=_run_independent_claim_extraction_stage,
+        ),
+        "resolve-entities": _IndependentStageSpec(
+            stage_name="entity_resolution",
+            run_scope_key="unstructured_ingest_run_id",
+            runner=_run_independent_entity_resolution_stage,
+        ),
+        "ask": _IndependentStageSpec(
+            stage_name="retrieval_and_qa",
+            run_scope_key="unstructured_ingest_run_id",
+            runner=_run_independent_ask_stage,
+        ),
+    }
+
+
 def _run_orchestrated_request_context(request_context: RequestContext) -> Path:
     """Run the full demo batch sequence with an unstructured-first posture.
 
@@ -990,71 +1121,23 @@ def _run_independent_stage(
         _pdf_filename = None
         _pdf_source_uri = None
 
-    stage_runners: dict[str, tuple[str, str, Callable[[Config, str], dict[str, Any]]]] = {
-        "ingest-structured": (
-            "structured_ingest",
-            "structured_ingest_run_id",
-            lambda cfg, stage_run_id: _run_structured_ingest_request_context(
-                replace(request_context, run_id=stage_run_id),
-                fixtures_dir=_fixture_dir,
-                dataset_id=dataset_root.dataset_id,
-            ),
-        ),
-        "ingest-pdf": (
-            "pdf_ingest",
-            "unstructured_ingest_run_id",
-            lambda cfg, stage_run_id: _run_pdf_ingest_request_context(
-                replace(request_context, run_id=stage_run_id),
-                fixtures_dir=_fixture_dir,
-                pdf_filename=_pdf_filename,
-                dataset_id=dataset_root.dataset_id,
-            ),
-        ),
-        "extract-claims": (
-            "claim_and_mention_extraction",
-            "unstructured_ingest_run_id",
-            lambda cfg, stage_run_id: _run_claim_extraction_request_context(
-                replace(
-                    request_context,
-                    run_id=stage_run_id,
-                    # Independent-stage default: use the active dataset's PDF URI.
-                    # This is intentional — the dataset fixture is the stable source for all
-                    # independent runs.  In the orchestrated batch path, source_uri is
-                    # derived from the prior pdf_ingest stage output instead.
-                    source_uri=_pdf_source_uri,
-                )
-            ),
-        ),
-        "resolve-entities": (
-            "entity_resolution",
-            "unstructured_ingest_run_id",
-            lambda cfg, stage_run_id: _run_entity_resolution_request_context(
-                replace(
-                    request_context,
-                    run_id=stage_run_id,
-                    # Independent-stage default: use the active dataset's PDF URI.
-                    # See note above for extract-claims.
-                    source_uri=_pdf_source_uri,
-                ),
-                dataset_id=dataset_root.dataset_id,
-            ),
-        ),
-        "ask": (
-            "retrieval_and_qa",
-            "unstructured_ingest_run_id",
-            lambda cfg, stage_run_id: _run_ask_request_context(
-                replace(
-                    request_context,
-                    run_id=stage_run_id if not _ask_all_runs else None,
-                ),
-                cluster_aware=cluster_aware,
-                expand_graph=expand_graph,
-            ),
-        ),
-    }
-    if command not in stage_runners:
+    resources = _IndependentStageResources(
+        dataset_id=dataset_root.dataset_id if dataset_root is not None else None,
+        fixture_dir=_fixture_dir,
+        pdf_filename=_pdf_filename,
+        pdf_source_uri=_pdf_source_uri,
+    )
+    options = _IndependentStageOptions(
+        ask_all_runs=_ask_all_runs,
+        cluster_aware=cluster_aware,
+        expand_graph=expand_graph,
+    )
+    stage_specs = _independent_stage_specs()
+    if command not in stage_specs:
         raise ValueError(f"Unsupported independent command: {command}")
-    stage_name, run_scope_key, stage_runner = stage_runners[command]
+    stage_spec = stage_specs[command]
+    stage_name = stage_spec.stage_name
+    run_scope_key = stage_spec.run_scope_key
     run_scope = run_scope_key.removesuffix("_run_id")
     if command in ("extract-claims", "resolve-entities"):
         env_run_id = _current_env_unstructured_run_id()
@@ -1082,7 +1165,7 @@ def _run_independent_stage(
     else:
         stage_run_id = make_run_id(run_scope)
     started_at = _now_iso()
-    stage_output = stage_runner(config, stage_run_id)
+    stage_output = stage_spec.runner(request_context, stage_run_id, resources, options)
     finished_at = _now_iso()
     # In all-runs mode the ask run is not associated with any specific ingest run, so
     # run_scopes.unstructured_ingest_run_id must be null rather than a fake sentinel.
