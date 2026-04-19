@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-import asyncio
 import json
 from typing import Any
 
 from power_atlas.bootstrap import require_openai_api_key
-from power_atlas.bootstrap.clients import build_llm as build_openai_llm, create_neo4j_driver
+from power_atlas.bootstrap.clients import build_llm as build_openai_llm
 from power_atlas.context import RequestContext
 from power_atlas.contracts.pipeline import PipelineContractSnapshot, is_pipeline_contract_snapshot
 from power_atlas.contracts.prompts import PROMPT_IDS
+from power_atlas.claim_extraction_runtime import run_claim_extraction_live
 
 
 def _resolve_pipeline_contract(
@@ -117,35 +117,22 @@ def run_claim_and_mention_extraction(
         build_participation_edges,
     )
 
-    driver = create_neo4j_driver(config)
-    edge_rows: list[dict] = []
-    with driver:
-        graph, text_chunks, lexical_config = asyncio.run(
-            _async_read_chunks_and_extract(
-                driver,
-                run_id=run_id,
-                source_uri=source_uri,
-                neo4j_database=config.neo4j_database,
-                model_name=config.openai_model,
-                pipeline_contract=resolved_pipeline_contract,
-            )
-        )
-        claim_rows, mention_rows, warnings = prepare_extracted_rows(
-            graph=graph,
-            text_chunks=text_chunks,
-            run_id=run_id,
-            source_uri=source_uri,
-            lexical_graph_config=lexical_config,
-        )
-        edge_rows = build_participation_edges(claim_rows, mention_rows)
-        write_all_extraction_data(
-            driver,
-            neo4j_database=config.neo4j_database,
-            lexical_graph_config=lexical_config,
-            claim_rows=claim_rows,
-            mention_rows=mention_rows,
-            edge_rows=edge_rows,
-        )
+    live_result = run_claim_extraction_live(
+        config,
+        run_id=run_id,
+        source_uri=source_uri,
+        model_name=config.openai_model,
+        pipeline_contract=resolved_pipeline_contract,
+        read_chunks_and_extract=_async_read_chunks_and_extract,
+        prepare_rows=prepare_extracted_rows,
+        build_edges=build_participation_edges,
+        write_rows=write_all_extraction_data,
+    )
+    text_chunks = live_result.text_chunks
+    claim_rows = live_result.claim_rows
+    mention_rows = live_result.mention_rows
+    edge_rows = live_result.edge_rows
+    warnings = live_result.warnings
 
     all_extracted_rows = claim_rows + mention_rows
     unique_chunk_ids = {chunk_id for row in all_extracted_rows for chunk_id in row["chunk_ids"]}
