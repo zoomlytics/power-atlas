@@ -30,6 +30,9 @@ from power_atlas.contracts.pipeline import (
 )
 from power_atlas.retrieval_runtime import (
     InteractiveRetrievalTurnResult,
+    build_dry_run_retrieval_result,
+    build_retrieval_base_result,
+    build_retrieval_skipped_result,
     build_live_retrieval_result,
     execute_retrieval_search,
     run_interactive_retrieval_turn,
@@ -1953,83 +1956,23 @@ def run_retrieval_and_qa(
     # Build shared base dict; only status/retrievers/qa and live-specific fields differ.
     # Use citation_run_id/citation_source_uri (which include fallbacks) so stage metadata is
     # always consistent with the provenance fields in citation_object_example.
-    # citation_quality provides a structured per-answer QA signal bundle that manifests and
-    # downstream consumers can query without inspecting individual warning strings.
-    # raw_answer_all_cited reflects whether the raw LLM output (before any repair or fallback)
-    # was fully cited; all_cited reflects the final delivered answer after repair+fallback.
-    _default_citation_quality: dict[str, object] = {
-        "all_cited": False,
-        "raw_answer_all_cited": False,
-        "evidence_level": "no_answer",
-        "warning_count": 0,
-        "citation_warnings": [],
-    }
-    base: dict[str, object] = {
-        "run_id": citation_run_id,
-        "source_uri": citation_source_uri,
-        "top_k": top_k,
-        "retriever_type": "VectorCypherRetriever",
-        "retriever_index_name": resolved_index_name,
-        "question": question,
-        "qa_model": effective_qa_model,
-        "qa_prompt_version": qa_prompt_version,
-        "answer": "",
-        "raw_answer": "",
-        "citation_fallback_applied": False,
-        # all_answers_cited reflects the FINAL delivered answer citation state (after any
-        # repair or fallback).  See raw_answer_all_cited for the raw LLM output state.
-        "all_answers_cited": False,
-        # raw_answer_all_cited reflects whether the original LLM output (raw_answer) was
-        # fully cited before any repair or fallback was applied.  False when the LLM
-        # omitted citation tokens on some segments; True when all segments were already cited.
-        "raw_answer_all_cited": False,
-        # citation_repair_attempted is True when the preconditions for repair evaluation
-        # were met (all_runs=True, non-empty answer, hits available, answer not already
-        # cited) and repair logic was entered.
-        "citation_repair_attempted": False,
-        # citation_repair_applied is True when the all-runs repair heuristic appended a
-        # retrieved citation token to one or more uncited answer segments.
-        "citation_repair_applied": False,
-        # citation_repair_strategy names the repair algorithm used, or None when no repair
-        # was applied.  Currently the only strategy is "append_first_retrieved_token".
-        "citation_repair_strategy": None,
-        # citation_repair_source_chunk_id is the chunk_id of the retrieved context chunk
-        # whose citation token was appended during repair, or None when no repair was applied.
-        "citation_repair_source_chunk_id": None,
-        "citation_quality": _default_citation_quality,
-        "expand_graph": effective_expand_graph,
-        "cluster_aware": cluster_aware,
-        "retrieval_scope": retrieval_scope,
-        "citation_token_example": citation_token_example,
-        "citation_object_example": citation_object_example,
-        # citation_example is retained for backward compatibility with existing manifest consumers
-        "citation_example": citation_object_example,
-        "retrieval_query_contract": retrieval_query_contract.strip(),
-        "interactive_mode": interactive,
-        "message_history_enabled": message_history is not None,
-        # retrieval_path_summary is populated with the formatted path diagnostics after
-        # retrieval completes; the empty-string default is used for dry-run and
-        # no-question paths where no retrieval actually ran.
-        "retrieval_path_summary": "",
-        # malformed_diagnostics_count counts hits whose retrieval_path_diagnostics
-        # payload failed any structural check during formatting.  Zero in base (no
-        # retrieval ran yet); overridden with the actual count in the live result.
-        "malformed_diagnostics_count": 0,
-        # debug_view provides the typed inspection surface populated from the
-        # postprocessing result.  Defaults to all-zero values in early-return paths
-        # where no retrieval or postprocessing ran; overridden in the live result.
-        "debug_view": {
-            "raw_answer_all_cited": False,
-            "all_cited": False,
-            "citation_repair_attempted": False,
-            "citation_repair_applied": False,
-            "citation_fallback_applied": False,
-            "evidence_level": "no_answer",
-            "warning_count": 0,
-            "citation_warnings": [],
-            "malformed_diagnostics_count": 0,
-        },
-    }
+    base: dict[str, object] = build_retrieval_base_result(
+        citation_run_id=citation_run_id,
+        citation_source_uri=citation_source_uri,
+        top_k=top_k,
+        resolved_index_name=resolved_index_name,
+        question=question,
+        effective_qa_model=effective_qa_model,
+        qa_prompt_version=qa_prompt_version,
+        effective_expand_graph=effective_expand_graph,
+        cluster_aware=cluster_aware,
+        retrieval_scope=retrieval_scope,
+        citation_token_example=citation_token_example,
+        citation_object_example=citation_object_example,
+        retrieval_query_contract=retrieval_query_contract,
+        interactive=interactive,
+        message_history_enabled=message_history is not None,
+    )
     # Resolve which (if any) early-return rule applies.
     # EARLY_RETURN_PRECEDENCE is the single authoritative ordering source; the
     # resolver evaluates conditions in that order so that mixed inputs
@@ -2044,33 +1987,17 @@ def run_retrieval_and_qa(
     if _early_rule is not None:
         if _early_rule.name == "dry_run":
             # §5.1 — dry_run early return.
-            dry_run_retrievers: list[str] = ["VectorCypherRetriever"]
-            if cluster_aware:
-                dry_run_retrievers += ["graph expansion", "cluster traversal"]
-            elif expand_graph:
-                dry_run_retrievers.append("graph expansion")
-            dry_run_qa_label = "GraphRAG all-runs citations" if all_runs else "GraphRAG run-scoped citations"
-            return {
-                **base,
-                "status": "dry_run",
-                "retrievers": dry_run_retrievers,
-                "qa": dry_run_qa_label,
-            }
+            return build_dry_run_retrieval_result(
+                base=base,
+                expand_graph=expand_graph,
+                cluster_aware=cluster_aware,
+                all_runs=all_runs,
+            )
         elif _early_rule.name == "retrieval_skipped":
             # §5.2 — retrieval_skipped early return.
             warning_msg = "No question provided; skipping vector retrieval."
             _logger.warning(warning_msg)
-            # Retrieval (and optional graph expansion) did not run; report no retrievers.
-            return {
-                **base,
-                "status": "live",
-                "retrievers": [],
-                "qa": "GraphRAG run-scoped citations",
-                "hits": 0,
-                "retrieval_results": [],
-                "warnings": [warning_msg],
-                "retrieval_skipped": True,
-            }
+            return build_retrieval_skipped_result(base=base, warning_msg=warning_msg)
         else:
             # Guard against future rules added to EARLY_RETURN_PRECEDENCE without
             # a corresponding branch here.  resolve_early_return_rule() already

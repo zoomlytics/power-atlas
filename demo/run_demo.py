@@ -23,6 +23,7 @@ from power_atlas.orchestration.context_builder import (
     build_request_context_from_overrides as _build_request_context_from_overrides,
     build_runtime_config_from_overrides as _build_runtime_config_from_overrides,
 )
+from power_atlas.orchestration.cli_dispatch import dispatch_cli_command
 from power_atlas.orchestration.demo_planner import (
     IndependentStageOptions as _IndependentStageOptions,
     IndependentStageResources as _IndependentStageResources,
@@ -1246,115 +1247,26 @@ run_independent_demo = _run_independent_stage
 
 def main() -> None:
     args = parse_args()
-    if args.command == "lint-structured":
-        request_context = _build_request_context_from_args(args, dry_run=True)
-        config = request_context.config
-        dataset_root = resolve_dataset_root(config.dataset_name)
-        run_id = make_run_id("structured_lint")
-        lint_result = lint_and_clean_structured_csvs(
-            run_id=run_id,
-            output_dir=config.output_dir,
-            fixtures_dir=dataset_root.root,
-            dataset_id=dataset_root.dataset_id,
+    try:
+        dispatch_cli_command(
+            args,
+            emit=print,
+            build_request_context_from_args=_build_request_context_from_args,
+            lint_and_clean_structured_csvs=lint_and_clean_structured_csvs,
+            make_run_id=make_run_id,
+            resolve_dataset_root=resolve_dataset_root,
+            run_demo=run_demo,
+            prepare_ask_request_context=_prepare_ask_request_context,
+            run_interactive_qa_request_context=run_interactive_qa_request_context,
+            run_independent_stage=_run_independent_stage,
+            format_scope_label=_format_scope_label,
+            create_driver=create_neo4j_driver,
+            load_reset_runner=lambda: __import__("demo.reset_demo_db", fromlist=["run_reset"]).run_reset,
         )
-        print(f"Structured lint report written to: {lint_result['lint_report_path']}")
-        return
-    config_commands = {"ingest", "ingest-structured", "ingest-pdf", "extract-claims", "resolve-entities", "ask"}
-    if args.command in config_commands:
-        request_context = _build_request_context_from_args(args)
-        try:
-            if args.command == "ingest":
-                manifest_path = run_demo(request_context)
-                print(f"Demo manifest written to: {manifest_path}")
-            elif args.command == "ask" and getattr(args, "interactive", False):
-                # Interactive mode: start a REPL session; no manifest is written.
-                if request_context.config.dry_run:
-                    raise SystemExit(
-                        "Interactive 'ask' is not supported in dry-run mode. "
-                        "Re-run the command with --live to enable live Neo4j/OpenAI calls."
-                    )
-                request_context = _prepare_ask_request_context(args, request_context)
-                print(
-                    f"Using retrieval scope: {_format_scope_label(request_context.run_id, request_context.all_runs)}"
-                )
-                run_interactive_qa_request_context(
-                    request_context,
-                    cluster_aware=getattr(args, "cluster_aware", False),
-                    expand_graph=getattr(args, "expand_graph", False),
-                    debug=getattr(args, "debug", False),
-                )
-            elif args.command == "ask":
-                # Non-interactive ask: resolve scope, print it, then run and write manifest.
-                request_context = _prepare_ask_request_context(args, request_context)
-                print(
-                    f"Using retrieval scope: {_format_scope_label(request_context.run_id, request_context.all_runs)}"
-                )
-                manifest_path = _run_independent_stage(
-                    request_context,
-                    args.command,
-                    resolved_run_id=request_context.run_id,
-                    all_runs=request_context.all_runs,
-                    cluster_aware=getattr(args, "cluster_aware", False),
-                    expand_graph=getattr(args, "expand_graph", False),
-                )
-                print(f"Independent run manifest written to: {manifest_path}")
-            else:
-                manifest_path = _run_independent_stage(request_context, args.command)
-                print(f"Independent run manifest written to: {manifest_path}")
-        except SystemExit:
-            raise
-        except ValueError as exc:
-            raise SystemExit(str(exc)) from exc
-        return
-    if args.command == "reset":
-        if not getattr(args, "confirm", False):
-            print(
-                "To reset the demo graph, run:\n"
-                "  python demo/reset_demo_db.py --confirm\n"
-                "Or pass --confirm to this command:\n"
-                "  python demo/run_demo.py --live reset --confirm\n"
-                "See demo/reset_demo_db.py for full usage."
-            )
-            return
-        if getattr(args, "dry_run", True):
-            raise SystemExit(
-                "reset --confirm requires --live; re-run with:\n"
-                "  python demo/run_demo.py --live reset --confirm"
-            )
-        if not args.neo4j_password or args.neo4j_password == "CHANGE_ME_BEFORE_USE":
-            raise SystemExit(
-                "Set NEO4J_PASSWORD or pass --neo4j-password when running reset --confirm"
-            )
-        from demo.reset_demo_db import run_reset
-
-        request_context = _build_request_context_from_args(args)
-        config = request_context.config
-        driver = create_neo4j_driver(config)
-        with driver:
-            report = run_reset(
-                driver=driver,
-                database=config.neo4j_database,
-                output_dir=config.output_dir,
-                pipeline_contract=request_context.pipeline_contract,
-            )
-        print(
-            f"Demo graph reset complete: "
-            f"database={report['target_database']} "
-            f"nodes_deleted={report['deleted_nodes']} "
-            f"relationships_deleted={report['deleted_relationships']} "
-            f"indexes_dropped={report['indexes_dropped']}"
-        )
-        if report.get("warnings"):
-            for w in report["warnings"]:
-                # Intentional passthrough: these are human-readable strings returned
-                # by run_reset() (e.g. idempotent no-op notices).  They are not
-                # ownership/benchmark warnings and deliberately go to stdout so they
-                # appear inline with the reset completion summary printed above.
-                print(f"  warning: {w}")
-        if report.get("report_path"):
-            print(f"Reset report written to: {report['report_path']}")
-        return
-    print(f"Stub: '{args.command}' command scaffold is ready.")
+    except SystemExit:
+        raise
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
 
 
 if __name__ == "__main__":

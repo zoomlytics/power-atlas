@@ -26,6 +26,120 @@ class InteractiveRetrievalTurnResult:
     debug_summary: str | None
 
 
+def _build_retriever_labels(*, expand_graph: bool, cluster_aware: bool) -> list[str]:
+    retrievers: list[str] = ["VectorCypherRetriever"]
+    if cluster_aware:
+        retrievers += ["graph expansion", "cluster traversal"]
+    elif expand_graph:
+        retrievers.append("graph expansion")
+    return retrievers
+
+
+def _build_qa_scope_label(*, all_runs: bool) -> str:
+    return "GraphRAG all-runs citations" if all_runs else "GraphRAG run-scoped citations"
+
+
+def build_retrieval_base_result(
+    *,
+    citation_run_id: str,
+    citation_source_uri: str,
+    top_k: int,
+    resolved_index_name: str,
+    question: str | None,
+    effective_qa_model: str,
+    qa_prompt_version: str,
+    effective_expand_graph: bool,
+    cluster_aware: bool,
+    retrieval_scope: dict[str, object],
+    citation_token_example: str,
+    citation_object_example: dict[str, object],
+    retrieval_query_contract: str,
+    interactive: bool,
+    message_history_enabled: bool,
+) -> dict[str, object]:
+    default_citation_quality: dict[str, object] = {
+        "all_cited": False,
+        "raw_answer_all_cited": False,
+        "evidence_level": "no_answer",
+        "warning_count": 0,
+        "citation_warnings": [],
+    }
+    return {
+        "run_id": citation_run_id,
+        "source_uri": citation_source_uri,
+        "top_k": top_k,
+        "retriever_type": "VectorCypherRetriever",
+        "retriever_index_name": resolved_index_name,
+        "question": question,
+        "qa_model": effective_qa_model,
+        "qa_prompt_version": qa_prompt_version,
+        "answer": "",
+        "raw_answer": "",
+        "citation_fallback_applied": False,
+        "all_answers_cited": False,
+        "raw_answer_all_cited": False,
+        "citation_repair_attempted": False,
+        "citation_repair_applied": False,
+        "citation_repair_strategy": None,
+        "citation_repair_source_chunk_id": None,
+        "citation_quality": default_citation_quality,
+        "expand_graph": effective_expand_graph,
+        "cluster_aware": cluster_aware,
+        "retrieval_scope": retrieval_scope,
+        "citation_token_example": citation_token_example,
+        "citation_object_example": citation_object_example,
+        "citation_example": citation_object_example,
+        "retrieval_query_contract": retrieval_query_contract.strip(),
+        "interactive_mode": interactive,
+        "message_history_enabled": message_history_enabled,
+        "retrieval_path_summary": "",
+        "malformed_diagnostics_count": 0,
+        "debug_view": {
+            "raw_answer_all_cited": False,
+            "all_cited": False,
+            "citation_repair_attempted": False,
+            "citation_repair_applied": False,
+            "citation_fallback_applied": False,
+            "evidence_level": "no_answer",
+            "warning_count": 0,
+            "citation_warnings": [],
+            "malformed_diagnostics_count": 0,
+        },
+    }
+
+
+def build_dry_run_retrieval_result(
+    *,
+    base: dict[str, object],
+    expand_graph: bool,
+    cluster_aware: bool,
+    all_runs: bool,
+) -> dict[str, object]:
+    return {
+        **base,
+        "status": "dry_run",
+        "retrievers": _build_retriever_labels(expand_graph=expand_graph, cluster_aware=cluster_aware),
+        "qa": _build_qa_scope_label(all_runs=all_runs),
+    }
+
+
+def build_retrieval_skipped_result(
+    *,
+    base: dict[str, object],
+    warning_msg: str,
+) -> dict[str, object]:
+    return {
+        **base,
+        "status": "live",
+        "retrievers": [],
+        "qa": _build_qa_scope_label(all_runs=False),
+        "hits": 0,
+        "retrieval_results": [],
+        "warnings": [warning_msg],
+        "retrieval_skipped": True,
+    }
+
+
 def build_live_retrieval_result(
     *,
     base: dict[str, object],
@@ -79,19 +193,12 @@ def build_live_retrieval_result(
         if first_meta.get("citation_object"):
             actual_citation_object = first_meta["citation_object"]
 
-    live_retrievers: list[str] = ["VectorCypherRetriever"]
-    if cluster_aware:
-        live_retrievers += ["graph expansion", "cluster traversal"]
-    elif expand_graph:
-        live_retrievers.append("graph expansion")
-
-    qa_scope_label = "GraphRAG all-runs citations" if all_runs else "GraphRAG run-scoped citations"
     malformed_count = count_malformed_diagnostics(hits)
     return {
         **base,
         "status": "live",
-        "retrievers": live_retrievers,
-        "qa": qa_scope_label,
+        "retrievers": _build_retriever_labels(expand_graph=expand_graph, cluster_aware=cluster_aware),
+        "qa": _build_qa_scope_label(all_runs=all_runs),
         "hits": len(hits),
         "retrieval_results": hits,
         "warnings": warnings_list,
@@ -226,6 +333,9 @@ def run_with_retrieval_session(
 __all__ = [
     "InteractiveRetrievalTurnResult",
     "RetrievalSearchResult",
+    "build_dry_run_retrieval_result",
+    "build_retrieval_base_result",
+    "build_retrieval_skipped_result",
     "build_live_retrieval_result",
     "execute_retrieval_search",
     "run_interactive_retrieval_turn",
