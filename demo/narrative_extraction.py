@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import asyncio
 import json
 import os
 from dataclasses import dataclass
@@ -12,7 +11,6 @@ from typing import Any, Iterable
 
 from power_atlas.bootstrap import build_app_context
 from power_atlas.bootstrap import build_settings
-from power_atlas.bootstrap import create_neo4j_driver
 from power_atlas.bootstrap import require_openai_api_key
 from power_atlas.bootstrap.clients import build_llm as build_openai_llm
 from power_atlas.contracts import (
@@ -22,6 +20,7 @@ from power_atlas.contracts import (
     claim_extraction_schema,
     write_manifest,
 )
+from power_atlas.narrative_extraction_runtime import run_narrative_extraction_live
 from demo.extraction_utils import prepare_extracted_rows, write_extracted_rows
 from demo.io import RunScopedNeo4jChunkReader
 from neo4j_graphrag.experimental.components.entity_relation_extractor import (
@@ -236,28 +235,17 @@ def run_narrative_extraction(config: ExtractionConfig) -> dict[str, Any]:
         "OPENAI_API_KEY environment variable is required for narrative extraction."
     )
 
-    with create_neo4j_driver(config) as driver:
-        graph, text_chunks = asyncio.run(
-            _read_chunks_and_extract(
-                driver,
-                config=config,
-                lexical_graph_config=lexical_config,
-            )
-        )
-        claim_rows, mention_rows, warnings = prepare_extracted_rows(
-            graph=graph,
-            text_chunks=text_chunks,
-            run_id=config.run_id,
-            source_uri=config.source_uri,
-            lexical_graph_config=lexical_config,
-        )
-        write_extracted_rows(
-            driver,
-            neo4j_database=config.neo4j_database,
-            lexical_graph_config=lexical_config,
-            claim_rows=claim_rows,
-            mention_rows=mention_rows,
-        )
+    live_result = run_narrative_extraction_live(
+        config,
+        lexical_graph_config=lexical_config,
+        read_chunks_and_extract=_read_chunks_and_extract,
+        prepare_rows=prepare_extracted_rows,
+        write_rows=write_extracted_rows,
+    )
+    text_chunks = live_result.text_chunks
+    claim_rows = live_result.claim_rows
+    mention_rows = live_result.mention_rows
+    warnings = live_result.warnings
 
     summary = _build_summary(
         run_id=config.run_id,
