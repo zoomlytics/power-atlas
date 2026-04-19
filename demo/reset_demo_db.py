@@ -307,6 +307,17 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def _build_settings_from_args(args: argparse.Namespace):
+    return build_settings(
+        {
+            "NEO4J_URI": args.neo4j_uri,
+            "NEO4J_USERNAME": args.neo4j_username,
+            "NEO4J_PASSWORD": args.neo4j_password,
+            "NEO4J_DATABASE": args.neo4j_database,
+        }
+    )
+
+
 def main() -> None:
     args = parse_args()
     if not args.confirm:
@@ -314,8 +325,9 @@ def main() -> None:
     if not args.neo4j_password:
         raise SystemExit("NEO4J_PASSWORD environment variable or --neo4j-password must be set")
 
-    app_context = build_app_context(settings=build_settings())
-    driver = create_neo4j_driver(args)
+    settings = _build_settings_from_args(args)
+    app_context = build_app_context(settings=settings)
+    driver = create_neo4j_driver(settings)
     with driver:
         report = run_reset(
             driver=driver,
