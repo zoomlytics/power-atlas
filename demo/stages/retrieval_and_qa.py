@@ -28,6 +28,23 @@ from power_atlas.contracts.pipeline import (
     get_pipeline_contract_snapshot,
     is_pipeline_contract_snapshot,
 )
+from power_atlas.retrieval_postprocessing import (
+    _AnswerPostprocessResult,
+    _CitationQualityBundle,
+    _POSTPROCESS_FIELD_MAP,
+    _PostprocessPublicFields,
+    _RetrievalDebugView,
+    apply_citation_repair as _apply_citation_repair_impl,
+    build_citation_fallback as _build_citation_fallback_impl,
+    build_retrieval_debug_view as _build_retrieval_debug_view_impl,
+    check_all_answers_cited as _check_all_answers_cited_impl,
+    first_citation_token_from_hits as _first_citation_token_from_hits_impl,
+    format_postprocess_debug_summary as _format_postprocess_debug_summary_impl,
+    postprocess_answer as _postprocess_answer_impl,
+    project_postprocess_to_public as _project_postprocess_to_public_impl,
+    repair_uncited_answer as _repair_uncited_answer_impl,
+    split_into_segments as _split_into_segments_impl,
+)
 from power_atlas.retrieval_runtime import (
     InteractiveRetrievalTurnResult,
     build_dry_run_retrieval_result,
@@ -435,17 +452,8 @@ def _format_scope_label(run_id: str | None, all_runs: bool) -> str:
 
 
 def _first_citation_token_from_hits(hits: list[dict[str, object]]) -> str | None:
-    """Return the first non-empty citation token from a list of retrieval hit dicts.
-
-    Each *hit* is expected to have a ``"metadata"`` key containing a dict with an
-    optional ``"citation_token"`` entry (as produced by :func:`_chunk_citation_formatter`).
-    Returns ``None`` when no hit carries a non-empty citation token.
-    """
-    for hit in hits:
-        token = (hit.get("metadata") or {}).get("citation_token")  # type: ignore[union-attr]
-        if token:
-            return str(token)
-    return None
+    """Return the first non-empty citation token from a list of retrieval hit dicts."""
+    return _first_citation_token_from_hits_impl(hits)
 
 
 def _build_query_params(
@@ -490,265 +498,31 @@ def _apply_citation_repair(
     all_runs: bool,
     raw_answer_all_cited: bool,
 ) -> tuple[str, bool, bool, str | None, str | None]:
-    """Attempt to repair uncited answer segments using retrieved citation tokens.
-
-    Shared by both ``run_retrieval_and_qa`` and ``run_interactive_qa`` so that
-    the repair heuristic stays in one place and the two entry points remain aligned.
-
-    Repair is only attempted when *all_runs* is True, hits are available, the
-    answer is non-empty, and the raw answer was not already fully cited.  When
-    any precondition is not met this function returns *answer_text* unchanged
-    with ``attempted=False`` and ``applied=False``.  When preconditions are met
-    but no usable citation token can be found in the hits, ``attempted=True``
-    and ``applied=False`` are returned.
-
-    Parameters
-    ----------
-    answer_text:
-        Raw LLM answer text before any repair.
-    hits:
-        Retrieved chunk hit dicts (each with a ``"metadata"`` key) as produced by
-        the retrieval loop in both entry points.
-    all_runs:
-        Repair is only active in all-runs mode because that mode lacks a single
-        authoritative run_id citation token; the LLM sometimes omits trailing
-        tokens in this context.
-    raw_answer_all_cited:
-        Whether the raw answer was already fully cited.  Passed in to avoid
-        recomputing inside the helper.
-
-    Returns
-    -------
-    tuple[str, bool, bool, str | None, str | None]
-        ``(repaired_answer, attempted, applied, strategy, source_chunk_id)`` where:
-
-        - *repaired_answer*: The answer after repair (or *answer_text* unchanged).
-        - *attempted*: ``True`` when the preconditions for repair were met (i.e.
-          ``all_runs=True``, hits non-empty, answer non-empty, answer not already
-          fully cited) and repair logic was entered.  ``False`` when any
-          precondition was not satisfied and repair was never evaluated.
-        - *applied*: ``True`` when the repaired answer text differs from the
-          original *answer_text* (i.e. the answer was actually modified by repair).
-          ``False`` when no repair ran or when repair produced no change.
-        - *strategy*: The repair strategy name (currently
-          ``"append_first_retrieved_token"``), or ``None`` when *applied* is
-          ``False``.
-        - *source_chunk_id*: The ``chunk_id`` of the first retrieved chunk whose
-          citation token was used for repair, or ``None`` when *applied* is
-          ``False`` **or when the winning hit had no ``chunk_id`` to
-          propagate** (empty/missing ``chunk_id`` in hit metadata).
-    """
-    if not (all_runs and hits and answer_text.strip() and not raw_answer_all_cited):
-        return answer_text, False, False, None, None
-    first_token = _first_citation_token_from_hits(hits)
-    if not first_token:
-        # Preconditions were met and repair was attempted, but no citation token
-        # was available in the retrieved hits to use for repair.
-        return answer_text, True, False, None, None
-    source_chunk_id: str | None = None
-    for hit in hits:
-        metadata = hit.get("metadata") or {}
-        token = metadata.get("citation_token")
-        if token and str(token) == first_token:
-            chunk_id_raw = metadata.get("chunk_id")
-            # Treat empty string the same as None: no chunk_id provenance to record.
-            source_chunk_id = str(chunk_id_raw) if chunk_id_raw else None
-            break
-    repaired = _repair_uncited_answer(answer_text, first_token)
-    # applied is True only when repair actually modified the answer text.
-    # This makes citation_repair_applied unambiguous: it means "the final
-    # answer text was changed by repair", not merely "repair logic executed".
-    if repaired == answer_text:
-        return answer_text, True, False, None, None
-    return repaired, True, True, "append_first_retrieved_token", source_chunk_id
-
-
-def _build_citation_fallback(answer: str) -> tuple[str, str, bool]:
-    """Compute citation-fallback display and history answers for a single LLM response.
-
-    Both ``run_retrieval_and_qa`` and ``run_interactive_qa`` share this helper so
-    that fallback-format changes (prefix text, separator, etc.) are applied in one place.
-
-    Args:
-        answer: Raw LLM answer text (may or may not contain citation tokens).
-
-    Returns:
-        A three-tuple ``(display_answer, history_answer, is_uncited)`` where:
-        - *display_answer*: Message to show the user.  When uncited, this is the
-          fallback prefix followed by the original answer text so the content is
-          visible but clearly labeled; otherwise it equals *answer* unchanged.
-        - *history_answer*: Sanitized message for conversation history.  When
-          uncited, only the bare refusal prefix is stored so subsequent turns are
-          not conditioned on under-cited content; otherwise it equals *answer*.
-        - *is_uncited*: ``True`` when the answer lacks required citation tokens.
-    """
-    is_uncited = bool(answer and not _check_all_answers_cited(answer))
-    display_answer = f"{_CITATION_FALLBACK_PREFIX}: {answer}" if is_uncited else answer
-    history_answer = _CITATION_FALLBACK_PREFIX if is_uncited else answer
-    return display_answer, history_answer, is_uncited
-
-
-class _CitationQualityBundle(TypedDict):
-    """Structured citation-quality summary nested inside :class:`_AnswerPostprocessResult`."""
-
-    all_cited: bool
-    raw_answer_all_cited: bool
-    evidence_level: Literal["no_answer", "full", "degraded"]
-    warning_count: int
-    citation_warnings: list[str]
-
-
-class _AnswerPostprocessResult(TypedDict):
-    """Structured result returned by :func:`_postprocess_answer`.
-
-    All keys are always present regardless of which postprocessing path was
-    taken.  Callers can index into the dict without ``# type: ignore``
-    annotations.
-    """
-
-    raw_answer: str
-    raw_answer_all_cited: bool
-    repaired_answer: str
-    citation_repair_attempted: bool
-    citation_repair_applied: bool
-    citation_repair_strategy: str | None
-    citation_repair_source_chunk_id: str | None
-    display_answer: str
-    history_answer: str
-    citation_fallback_applied: bool
-    all_cited: bool
-    evidence_level: Literal["no_answer", "full", "degraded"]
-    citation_warnings: list[str]
-    warning_count: int
-    citation_quality: _CitationQualityBundle
-
-
-#: Single authoritative mapping from :class:`_AnswerPostprocessResult` internal field
-#: names to their corresponding public ``run_retrieval_and_qa()`` result-dict keys.
-#:
-#: This constant is the single source of truth for the projection layer.
-#: :func:`_project_postprocess_to_public` builds the returned dict from it, and the
-#: test suite imports it directly so the same mapping drives both the runtime and the
-#: contract assertions — eliminating any possibility of the two drifting apart.
-#:
-#: Renames:
-#:   - ``display_answer``  → ``answer``           (public name is shorter)
-#:   - ``all_cited``       → ``all_answers_cited`` (public name is explicit)
-#:
-#: All other entries are identity mappings (internal key == public key).
-#:
-#: Wrapped in :func:`types.MappingProxyType` to prevent accidental mutation at
-#: runtime (the mapping is a true constant, not a mutable configuration object).
-_POSTPROCESS_FIELD_MAP: Mapping[str, str] = types.MappingProxyType({
-    "display_answer": "answer",
-    "raw_answer": "raw_answer",
-    "citation_fallback_applied": "citation_fallback_applied",
-    "all_cited": "all_answers_cited",
-    "raw_answer_all_cited": "raw_answer_all_cited",
-    "citation_repair_attempted": "citation_repair_attempted",
-    "citation_repair_applied": "citation_repair_applied",
-    "citation_repair_strategy": "citation_repair_strategy",
-    "citation_repair_source_chunk_id": "citation_repair_source_chunk_id",
-    "citation_quality": "citation_quality",
-})
-if len(set(_POSTPROCESS_FIELD_MAP.values())) != len(_POSTPROCESS_FIELD_MAP):
-    raise ValueError(
-        "_POSTPROCESS_FIELD_MAP contains duplicate public-key values; "
-        "each internal key must map to a distinct public key"
+    """Attempt to repair uncited answer segments using retrieved citation tokens."""
+    return _apply_citation_repair_impl(
+        answer_text,
+        hits,
+        all_runs=all_runs,
+        raw_answer_all_cited=raw_answer_all_cited,
+        get_first_citation_token=_first_citation_token_from_hits,
+        repair_answer=_repair_uncited_answer,
     )
 
 
-class _PostprocessPublicFields(TypedDict):
-    """Public API fields produced by projecting an :class:`_AnswerPostprocessResult`.
-
-    This TypedDict is the return type of :func:`_project_postprocess_to_public`
-    and codifies the exact translation layer between the internal postprocessing
-    contract and the ``run_retrieval_and_qa()`` result surface.  Keeping the
-    mapping typed means the compiler and tests can both catch renames that only
-    update one side.
-
-    The authoritative field mapping is :data:`_POSTPROCESS_FIELD_MAP`.
-    """
-
-    answer: str
-    raw_answer: str
-    citation_fallback_applied: bool
-    all_answers_cited: bool
-    raw_answer_all_cited: bool
-    citation_repair_attempted: bool
-    citation_repair_applied: bool
-    citation_repair_strategy: str | None
-    citation_repair_source_chunk_id: str | None
-    citation_quality: _CitationQualityBundle
+def _build_citation_fallback(answer: str) -> tuple[str, str, bool]:
+    """Compute citation-fallback display and history answers for a single LLM response."""
+    return _build_citation_fallback_impl(
+        answer,
+        check_citations=_check_all_answers_cited,
+        fallback_prefix=_CITATION_FALLBACK_PREFIX,
+    )
 
 
 def _project_postprocess_to_public(
     pp: _AnswerPostprocessResult,
 ) -> _PostprocessPublicFields:
-    """Map an :class:`_AnswerPostprocessResult` to the public result surface.
-
-    This adapter translates every internal postprocessing field to its
-    corresponding public ``run_retrieval_and_qa()`` key using
-    :data:`_POSTPROCESS_FIELD_MAP` as the single source of truth.  All callers
-    that assemble the public result dict should use this function rather than
-    spelling out the field mapping inline.
-
-    Parameters
-    ----------
-    pp:
-        Structured result from :func:`_postprocess_answer`.
-
-    Returns
-    -------
-    _PostprocessPublicFields
-        Typed dict with the public-facing postprocessing fields populated from
-        *pp* according to :data:`_POSTPROCESS_FIELD_MAP`.
-    """
-    return cast(
-        _PostprocessPublicFields,
-        {
-            public_key: pp[internal_key]  # type: ignore[literal-required]
-            for internal_key, public_key in _POSTPROCESS_FIELD_MAP.items()
-        },
-    )
-
-
-class _RetrievalDebugView(TypedDict):
-    """Typed inspection model shared across retrieval/QA surfaces.
-
-    This structure centralises all fields required for the supported
-    inspection-oriented surface so that both :func:`run_interactive_qa`
-    (interactive path, rendered on stdout when *debug=True*) and
-    :func:`run_retrieval_and_qa` (single-shot path, returned as the
-    ``debug_view`` key) produce views from the same data shape.  Consuming
-    :func:`_format_postprocess_debug_summary` exclusively from this type
-    prevents the inspection surface from drifting relative to the underlying
-    postprocessing contract.
-
-    ``debug_view`` is a **supported inspection-oriented surface**: it is always
-    present in all result shapes and its key set is enforced by contract tests.
-    For postprocessed ``status="live"`` results, these fields are populated with
-    the full postprocessing state; for early-return payloads (e.g. dry-run or
-    retrieval-skipped paths) the same keys are present but carry default or
-    zero-valued data.  It is suitable for diagnostics, tooling, and evaluation.
-    Callers should prefer top-level fields and ``citation_quality`` for ordinary
-    application logic; ``debug_view`` consolidates the same state for
-    convenience without carrying additional hidden data.
-
-    Fields are populated by :func:`_build_retrieval_debug_view` from an
-    :class:`_AnswerPostprocessResult` plus any supplementary runtime data (e.g.
-    *malformed_diagnostics_count* derived from the hit list).
-    """
-
-    raw_answer_all_cited: bool
-    all_cited: bool
-    citation_repair_attempted: bool
-    citation_repair_applied: bool
-    citation_fallback_applied: bool
-    evidence_level: Literal["no_answer", "full", "degraded"]
-    warning_count: int
-    citation_warnings: list[str]
-    malformed_diagnostics_count: int
+    """Map an :class:`_AnswerPostprocessResult` to the public result surface."""
+    return _project_postprocess_to_public_impl(pp)
 
 
 def _build_retrieval_debug_view(
@@ -756,41 +530,11 @@ def _build_retrieval_debug_view(
     *,
     malformed_diagnostics_count: int = 0,
 ) -> _RetrievalDebugView:
-    """Build a :class:`_RetrievalDebugView` from a postprocessing result.
-
-    This is the single factory used by both retrieval entry points to construct
-    the typed inspection model.  All inspection rendering should consume the
-    returned view rather than reading ``_AnswerPostprocessResult`` fields
-    directly, so the two cannot drift apart silently.
-
-    Parameters
-    ----------
-    pp:
-        Postprocessing result returned by :func:`_postprocess_answer`.
-    malformed_diagnostics_count:
-        Number of hits that contain structurally malformed
-        ``retrieval_path_diagnostics`` payloads, as returned by
-        :func:`_count_malformed_diagnostics`.  Defaults to ``0`` when not
-        provided (e.g. when the hit list is empty or diagnostics were not
-        collected).
-
-    Returns
-    -------
-    _RetrievalDebugView
-        Typed inspection view populated from *pp* and the supplementary
-        runtime data.
-    """
-    return {
-        "raw_answer_all_cited": pp["raw_answer_all_cited"],
-        "all_cited": pp["all_cited"],
-        "citation_repair_attempted": pp["citation_repair_attempted"],
-        "citation_repair_applied": pp["citation_repair_applied"],
-        "citation_fallback_applied": pp["citation_fallback_applied"],
-        "evidence_level": pp["evidence_level"],
-        "warning_count": pp["warning_count"],
-        "citation_warnings": pp["citation_warnings"],
-        "malformed_diagnostics_count": malformed_diagnostics_count,
-    }
+    """Build a :class:`_RetrievalDebugView` from a postprocessing result."""
+    return _build_retrieval_debug_view_impl(
+        pp,
+        malformed_diagnostics_count=malformed_diagnostics_count,
+    )
 
 
 def _postprocess_answer(
@@ -800,278 +544,35 @@ def _postprocess_answer(
     all_runs: bool,
     existing_citation_warnings: list[str] | None = None,
 ) -> _AnswerPostprocessResult:
-    """Unified answer postprocessing lifecycle shared by both retrieval entry points.
-
-    Centralises the full postprocessing contract so that
-    :func:`run_retrieval_and_qa` and :func:`run_interactive_qa` cannot drift
-    silently:
-
-    1. Preserve *raw_answer* and compute *raw_answer_all_cited*.
-    2. Attempt citation repair via :func:`_apply_citation_repair`.
-    3. Apply the citation fallback via :func:`_build_citation_fallback`.
-    4. Derive *all_cited* for the final delivered answer.
-    5. Collect citation warnings (including the uncited-answer warning when
-       applicable) and log the canonical warning message once.
-    6. Derive *evidence_level* from *all_cited* and the combined warning list.
-    7. Build the structured *citation_quality* bundle.
-
-    Parameters
-    ----------
-    answer_text:
-        Raw LLM answer text to postprocess.
-    hits:
-        Retrieved chunk hit dicts (each with a ``"metadata"`` key) as produced
-        by the retrieval loop in both entry points.
-    all_runs:
-        When ``True``, citation repair is attempted via the all-runs heuristic.
-    existing_citation_warnings:
-        Citation-quality warnings already collected before postprocessing (e.g.
-        empty-chunk-text warnings from the retrieval loop).  The returned
-        ``citation_warnings`` list always begins with all elements of this list
-        (in the same order), followed by any new warnings added during
-        postprocessing.  The caller's list is never mutated.  May be ``None`` or
-        empty.
-
-    Returns
-    -------
-    _AnswerPostprocessResult
-        A structured result with the following keys:
-
-        - ``raw_answer`` — original LLM output before any repair or fallback.
-        - ``raw_answer_all_cited`` — whether the raw answer was fully cited.
-        - ``repaired_answer`` — answer text after citation repair (equals
-          *raw_answer* when no repair was applied).
-        - ``citation_repair_attempted`` — ``True`` when the preconditions for
-          repair were met and repair logic was entered, regardless of whether
-          repair ultimately changed the answer.  ``False`` when repair was not
-          evaluated at all (e.g. not in all-runs mode, answer already cited,
-          no hits available).
-        - ``citation_repair_applied`` — ``True`` when repair actually modified
-          the answer text (i.e. the repaired answer differs from the raw answer).
-          ``False`` when repair was not attempted, was not needed, or produced no
-          change.  This field reflects whether the *answer text changed*, not
-          merely whether repair logic was invoked.
-        - ``citation_repair_strategy`` — repair algorithm name when
-          ``citation_repair_applied`` is ``True``, otherwise ``None``.
-        - ``citation_repair_source_chunk_id`` — ``chunk_id`` of the retrieved
-          chunk used for repair when ``citation_repair_applied`` is ``True``
-          **and** the winning hit exposed a non-empty ``chunk_id``; ``None``
-          when ``citation_repair_applied`` is ``False`` or when the winning hit
-          had no ``chunk_id`` to propagate.
-        - ``display_answer`` — final answer for display/return (includes the
-          fallback prefix when not fully cited).
-        - ``history_answer`` — sanitised answer for conversation history (bare
-          refusal prefix when not fully cited).
-        - ``citation_fallback_applied`` — ``True`` when the fallback prefix was
-          applied.
-        - ``all_cited`` — whether the *final delivered* answer is fully cited.
-        - ``evidence_level`` — ``"no_answer"``, ``"full"``, or ``"degraded"``.
-        - ``citation_warnings`` — combined list of citation-quality warnings
-          (existing + any new ones added here).
-        - ``warning_count`` — ``len(citation_warnings)``.
-        - ``citation_quality`` — structured citation quality bundle dict.
-    """
-    raw_answer = answer_text
-    raw_answer_all_cited = _check_all_answers_cited(raw_answer) if raw_answer.strip() else False
-
-    repaired, citation_repair_attempted, citation_repair_applied, citation_repair_strategy, citation_repair_source_chunk_id = (
-        _apply_citation_repair(
-            answer_text,
-            hits,
-            all_runs=all_runs,
-            raw_answer_all_cited=raw_answer_all_cited,
+        """Unified answer postprocessing lifecycle shared by both retrieval entry points."""
+        return _postprocess_answer_impl(
+                answer_text,
+                hits,
+                all_runs=all_runs,
+                existing_citation_warnings=existing_citation_warnings,
+                check_citations=_check_all_answers_cited,
+                apply_repair=_apply_citation_repair,
+                build_fallback=_build_citation_fallback,
+                logger=_logger,
         )
-    )
-
-    repaired_stripped = repaired.strip()
-    display_answer, history_answer, citation_fallback_applied = _build_citation_fallback(
-        repaired_stripped
-    )
-    # Derive all_cited directly from the repaired answer text so citation
-    # completeness semantics are independent of fallback behavior.
-    all_cited = bool(repaired_stripped) and _check_all_answers_cited(repaired_stripped)
-
-    citation_warnings: list[str] = list(existing_citation_warnings or [])
-    if repaired_stripped and not all_cited:
-        uncited_warning = "Not all answer sentences or bullets end with a citation token."
-        _logger.warning(uncited_warning)
-        citation_warnings.append(uncited_warning)
-
-    # evidence_level encodes the overall quality of the retrieved evidence:
-    #   "no_answer"  – no answer was generated (empty answer text)
-    #   "full"       – every answer sentence/bullet ends with a citation token AND
-    #                  no critical citation-quality warnings exist.
-    #   "degraded"   – any answer sentence/bullet is missing a citation token, OR a
-    #                  critical citation-quality warning exists (e.g. empty chunk text).
-    evidence_level = (
-        "no_answer"
-        if not repaired_stripped
-        else ("degraded" if (not all_cited or citation_warnings) else "full")
-    )
-
-    citation_quality: _CitationQualityBundle = {
-        "all_cited": all_cited,
-        "raw_answer_all_cited": raw_answer_all_cited,
-        "evidence_level": evidence_level,
-        "warning_count": len(citation_warnings),
-        "citation_warnings": citation_warnings,
-    }
-
-    return {
-        "raw_answer": raw_answer,
-        "raw_answer_all_cited": raw_answer_all_cited,
-        "repaired_answer": repaired,
-        "citation_repair_attempted": citation_repair_attempted,
-        "citation_repair_applied": citation_repair_applied,
-        "citation_repair_strategy": citation_repair_strategy,
-        "citation_repair_source_chunk_id": citation_repair_source_chunk_id,
-        "display_answer": display_answer,
-        "history_answer": history_answer,
-        "citation_fallback_applied": citation_fallback_applied,
-        "all_cited": all_cited,
-        "evidence_level": evidence_level,
-        "citation_warnings": citation_warnings,
-        "warning_count": len(citation_warnings),
-        "citation_quality": citation_quality,
-    }
 
 
 def _split_into_segments(answer: str) -> list[str]:
-    """Split answer text into citation-checkable segments (sentences and bullets).
-
-    Performs a two-level split:
-
-    1. **Newline split**: each line is treated separately.
-    2. **Sentence split within paragraphs**: non-bullet lines are further split at
-       sentence boundaries (``[.!?]`` followed by whitespace and optional opening
-       punctuation, then an uppercase letter) so that multi-sentence paragraphs are
-       validated sentence-by-sentence rather than only checking whether the paragraph
-       line ends with a citation.
-
-    Bullet lines (starting with ``-``, ``*``, ``•``, or a digit followed by ``.`` and
-    whitespace) are treated as atomic units: the whole bullet, including any sentence
-    structure within it, is checked as a single citation segment.
-
-    Citation tokens (``[CITATION|…]``) are intentionally kept attached to the sentence
-    they support.  The negative lookahead ``(?!CITATION\\|)`` in ``_SENTENCE_SPLIT_RE``
-    prevents a split directly before ``[CITATION|``, so ``"sentence. [CITATION|…]"``
-    is never severed.  The lookbehind ``(?<=[.!?])`` also prevents splits between a
-    citation token's closing ``]`` and the text that follows it.
-
-    However, non-citation brackets (e.g. ``[Note]``, ``[1]``) DO trigger a split when
-    they appear after sentence-ending punctuation, because ``\\[(?!CITATION\\|)`` in the
-    lookahead matches any ``[`` not followed by ``CITATION|``.  This ensures that a
-    line like ``"Claim A. [Note] Claim B. [CITATION|…]"`` is split into
-    ``"Claim A."`` (no trailing citation → rejected) and
-    ``"[Note] Claim B. [CITATION|…]"`` (has trailing citation → accepted).
-
-    **Known limitation**: title abbreviations before proper nouns (e.g. ``"Dr. Smith"``,
-    ``"Mr. Jones"``) will be split at the period.  This is an accepted heuristic
-    trade-off in a controlled, low-temperature LLM output environment.
-
-    Returns a list of non-empty stripped segments.
-    """
-    segments = []
-    for line in answer.strip().splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        if _BULLET_PREFIX_RE.match(line):
-            # Bullet lines are treated as a single citation unit.
-            segments.append(line)
-        else:
-            # Split paragraph lines on sentence boundaries.
-            parts = _SENTENCE_SPLIT_RE.split(line)
-            segments.extend(p.strip() for p in parts if p.strip())
-    return segments
+    """Split answer text into citation-checkable segments (sentences and bullets)."""
+    return _split_into_segments_impl(answer)
 
 
 def _check_all_answers_cited(answer: str) -> bool:
-    """Return True if every answer sentence or bullet ends with a citation token.
-
-    The Power Atlas prompt instructs the LLM to place a ``[CITATION|...]`` token at the
-    end of each sentence or bullet.  This function enforces that contract at the
-    **sentence and bullet level** using ``_split_into_segments``:
-
-    - The answer is split on newlines first.
-    - Bullet lines (starting with ``-``, ``*``, ``•``, or a digit followed by ``.``)
-      are treated as atomic units; one citation at the end of the bullet is sufficient.
-    - Non-bullet paragraph lines are further split into individual sentences at
-      ``[.!?]`` boundaries followed by an uppercase letter.  Each sentence must
-      independently end with at least one citation token, catching uncited sentences
-      embedded mid-line (e.g. ``"A. B. [CITATION]"`` → ``"A."`` fails because it
-      does not itself end with a citation token).
-
-    Using a regex anchored at end-of-segment (rather than just checking
-    ``endswith("]")``) ensures that a ``]`` from unrelated bracketed text (e.g.
-    Markdown links or other annotation tokens) does not produce false positives.
-    One or more consecutive tokens are allowed to support multi-source claims.
-
-    This is a heuristic; it errs toward False (under-cited) rather than producing
-    false positives.
-    """
-    segments = _split_into_segments(answer)
-    if not segments:
-        return False
-    for segment in segments:
-        if not _TRAILING_CITATION_RE.search(segment):
-            return False
-    return True
+    """Return True if every answer sentence or bullet ends with a citation token."""
+    return _check_all_answers_cited_impl(
+        answer,
+        split_segments=_split_into_segments,
+    )
 
 
 def _repair_uncited_answer(answer: str, first_citation_token: str) -> str:
-    """Repair uncited answer segments by appending a citation token from retrieved context.
-
-    Used in widened-scope (all-runs) retrieval to avoid the generic citation fallback
-    when the LLM fails to attach a trailing citation token to some segments despite
-    valid evidence being retrieved.  Only called when at least one retrieved chunk
-    provides a usable citation token.
-
-    Processing mirrors :func:`_check_all_answers_cited`:
-
-    - Bullet lines (starting with ``-``, ``*``, ``•``, or a digit followed by ``.)``
-      are treated as atomic units and have *first_citation_token* appended when uncited.
-    - Paragraph lines are split into sentences by :data:`_SENTENCE_SPLIT_RE`; each
-      uncited sentence receives *first_citation_token*.  Sentences that already carry a
-      trailing token are left unchanged.
-
-    The *first_citation_token* is the citation token from the first hit with a non-empty
-    token value.  Applying the same token to all uncited segments is a pragmatic
-    heuristic: it ensures citation compliance without requiring a per-sentence
-    similarity lookup.  The ``raw_answer`` field in the result preserves the original
-    LLM output for transparency regardless of any repair applied here.
-
-    Returns:
-        The repaired answer string, or *answer* unchanged when *answer* or
-        *first_citation_token* is empty.
-    """
-    if not answer or not first_citation_token:
-        return answer
-    result_lines: list[str] = []
-    for line in answer.strip().splitlines():
-        stripped = line.strip()
-        if not stripped:
-            result_lines.append(line)
-            continue
-        if _BULLET_PREFIX_RE.match(stripped):
-            # Bullet: single citation unit — append token when not already cited.
-            if _TRAILING_CITATION_RE.search(stripped):
-                result_lines.append(line)
-            else:
-                result_lines.append(f"{line} {first_citation_token}")
-        else:
-            # Paragraph: process sentence-by-sentence.
-            parts = [p.strip() for p in _SENTENCE_SPLIT_RE.split(stripped) if p.strip()]
-            if all(_TRAILING_CITATION_RE.search(p) for p in parts):
-                # All sentences in this line are already cited; keep original.
-                result_lines.append(line)
-            else:
-                repaired: list[str] = [
-                    p if _TRAILING_CITATION_RE.search(p) else f"{p} {first_citation_token}"
-                    for p in parts
-                ]
-                result_lines.append(" ".join(repaired))
-    return "\n".join(result_lines)
+    """Repair uncited answer segments by appending a citation token from retrieved context."""
+    return _repair_uncited_answer_impl(answer, first_citation_token)
 
 
 def _encode_citation_value(value: object) -> str:
@@ -2119,39 +1620,8 @@ def run_retrieval_and_qa(
 
 
 def _format_postprocess_debug_summary(view: _RetrievalDebugView) -> str:
-    """Format a compact postprocessing debug summary line from a retrieval debug view.
-
-    Intended for opt-in debug output in :func:`run_interactive_qa` when
-    *debug=True*.  All values are read from the shared :class:`_RetrievalDebugView`
-    contract so the debug surface cannot drift from the underlying postprocessing
-    semantics.  Callers must first build the view via
-    :func:`_build_retrieval_debug_view`.
-
-    Parameters
-    ----------
-    view:
-        Typed inspection view built by :func:`_build_retrieval_debug_view`.
-
-    Returns
-    -------
-    str
-        A human-readable single-line summary (plus an optional second line for
-        warning details when ``warning_count > 0``).
-    """
-    parts = [
-        f"raw_cited={view['raw_answer_all_cited']}",
-        f"final_cited={view['all_cited']}",
-        f"repair_applied={view['citation_repair_applied']}",
-        f"fallback_applied={view['citation_fallback_applied']}",
-        f"evidence={view['evidence_level']}",
-        f"warnings={view['warning_count']}",
-        f"malformed_diagnostics={view['malformed_diagnostics_count']}",
-    ]
-    summary = "[debug] " + " | ".join(parts)
-    if view["citation_warnings"]:
-        warning_details = "; ".join(view["citation_warnings"])
-        summary += f"\n[debug] warning_details: {warning_details}"
-    return summary
+    """Format a compact postprocessing debug summary line from a retrieval debug view."""
+    return _format_postprocess_debug_summary_impl(view)
 
 
 def run_interactive_qa(
