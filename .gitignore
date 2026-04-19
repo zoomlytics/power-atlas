@@ -45,6 +45,9 @@ dist/
 *.bak
 *.tmp
 
+# Repository restructure verification artifacts
+/artifacts/repository_restructure/phase1/
+
 # Pipeline run artifacts
 /pipelines/runs/*
 !/pipelines/runs/.gitkeep

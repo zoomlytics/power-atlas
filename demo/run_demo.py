@@ -34,13 +34,6 @@ from power_atlas.contracts import (  # noqa: E402
 )
 from demo.stages import (  # noqa: E402
     lint_and_clean_structured_csvs,
-    run_claim_and_mention_extraction,
-    run_claim_participation,
-    run_entity_resolution,
-    run_interactive_qa,
-    run_pdf_ingest,
-    run_retrieval_and_qa,
-    run_structured_ingest,
 )
 from demo.stages.retrieval_and_qa import _format_scope_label  # noqa: E402
 from demo.stages.claim_extraction import run_claim_and_mention_extraction_request_context  # noqa: E402
@@ -1153,9 +1146,68 @@ def _run_pdf_ingest(config: Config, run_id: str | None = None) -> dict[str, Any]
     )
 
 
-_run_claim_and_mention_extraction = run_claim_and_mention_extraction
-_run_entity_resolution = run_entity_resolution
-_run_retrieval_and_qa = run_retrieval_and_qa
+def _run_claim_and_mention_extraction(
+    config: Config,
+    *,
+    run_id: str,
+    source_uri: str | None,
+) -> dict[str, Any]:
+    return _run_claim_extraction_request_context(
+        _request_context_from_config(
+            config,
+            command="extract-claims",
+            run_id=run_id,
+            source_uri=source_uri,
+        )
+    )
+
+
+def _run_entity_resolution(
+    config: Config,
+    *,
+    run_id: str,
+    source_uri: str | None = None,
+    resolution_mode: str | None = None,
+    artifact_subdir: str = "entity_resolution",
+    dataset_id: str | None = None,
+) -> dict[str, Any]:
+    return _run_entity_resolution_request_context(
+        _request_context_from_config(
+            config,
+            command="resolve-entities",
+            run_id=run_id,
+            source_uri=source_uri,
+        ),
+        resolution_mode=resolution_mode,
+        artifact_subdir=artifact_subdir,
+        dataset_id=dataset_id,
+    )
+
+
+def _run_retrieval_and_qa(
+    config: Config,
+    *,
+    run_id: str | None = None,
+    source_uri: str | None = None,
+    question: str | None = None,
+    cluster_aware: bool = False,
+    expand_graph: bool = False,
+    all_runs: bool = False,
+) -> dict[str, Any]:
+    return _run_retrieval_request_context(
+        _request_context_from_config(
+            config,
+            command="ask",
+            run_id=run_id,
+            all_runs=all_runs,
+            source_uri=source_uri,
+        ),
+        question=question,
+        cluster_aware=cluster_aware,
+        expand_graph=expand_graph,
+    )
+
+
 run_independent_demo = _run_independent_stage
 
 
