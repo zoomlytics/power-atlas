@@ -67,6 +67,7 @@ from typing import Any
 import neo4j
 
 from power_atlas.bootstrap import build_app_context, build_settings, create_neo4j_driver
+from power_atlas.orchestration.context_builder import build_settings_from_overrides
 from power_atlas.contracts import ARTIFACTS_DIR
 from power_atlas.contracts.pipeline import PipelineContractSnapshot
 from demo.cypher_utils import validate_cypher_identifier as _validate_cypher_identifier
@@ -308,13 +309,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def _build_settings_from_args(args: argparse.Namespace):
-    return build_settings(
-        {
-            "NEO4J_URI": args.neo4j_uri,
-            "NEO4J_USERNAME": args.neo4j_username,
-            "NEO4J_PASSWORD": args.neo4j_password,
-            "NEO4J_DATABASE": args.neo4j_database,
-        }
+    return build_settings_from_overrides(
+        neo4j_uri=args.neo4j_uri,
+        neo4j_username=args.neo4j_username,
+        neo4j_password=args.neo4j_password,
+        neo4j_database=args.neo4j_database,
     )
 
 

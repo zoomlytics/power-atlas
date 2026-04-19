@@ -12,14 +12,16 @@ from typing import Any, Callable
 
 from power_atlas.bootstrap import create_neo4j_driver
 from power_atlas.bootstrap import dataset_env_selection
-from power_atlas.bootstrap import build_app_context as _build_app_context
-from power_atlas.bootstrap import build_request_context as _build_request_context
-from power_atlas.bootstrap import build_runtime_config as _build_runtime_config
 from power_atlas.bootstrap import build_settings as _build_package_settings
 from power_atlas.context import RequestContext
 from power_atlas.orchestration.artifact_routing import (
     write_batch_manifest_artifacts,
     write_stage_manifest_artifacts,
+)
+from power_atlas.orchestration.context_builder import (
+    build_request_context_from_config as _build_request_context_from_config,
+    build_request_context_from_overrides as _build_request_context_from_overrides,
+    build_runtime_config_from_overrides as _build_runtime_config_from_overrides,
 )
 from power_atlas.run_scope_queries import fetch_dataset_id_for_run
 from power_atlas.run_scope_queries import fetch_latest_unstructured_run_id
@@ -200,26 +202,21 @@ def _add_common_args(parser: argparse.ArgumentParser) -> None:
 
 
 def _build_config_from_args(args: argparse.Namespace) -> Config:
-    package_settings = _build_package_settings(
-        {
-            "NEO4J_URI": args.neo4j_uri,
-            "NEO4J_USERNAME": args.neo4j_username,
-            "NEO4J_PASSWORD": args.neo4j_password,
-            "NEO4J_DATABASE": args.neo4j_database,
-            "OPENAI_MODEL": args.openai_model,
-            "POWER_ATLAS_OUTPUT_DIR": str(args.output_dir),
-            "POWER_ATLAS_DATASET": getattr(args, "dataset", None) or "",
-        }
-    )
-    if not args.dry_run and package_settings.neo4j.password in ("", "CHANGE_ME_BEFORE_USE"):
-        raise SystemExit("Set NEO4J_PASSWORD or pass --neo4j-password when using --live")
-    return _build_runtime_config(
-        package_settings,
-        dry_run=args.dry_run,
+    config = _build_runtime_config_from_overrides(
+        neo4j_uri=args.neo4j_uri,
+        neo4j_username=args.neo4j_username,
+        neo4j_password=args.neo4j_password,
+        neo4j_database=args.neo4j_database,
+        openai_model=args.openai_model,
         output_dir=args.output_dir,
+        dataset_name=getattr(args, "dataset", None) or "",
+        dry_run=args.dry_run,
         question=getattr(args, "question", None),
         resolution_mode=getattr(args, "resolution_mode", None) or "unstructured_only",
     )
+    if not args.dry_run and config.neo4j_password in ("", "CHANGE_ME_BEFORE_USE"):
+        raise SystemExit("Set NEO4J_PASSWORD or pass --neo4j-password when using --live")
+    return config
 
 
 def _build_request_context_from_args(
@@ -230,23 +227,16 @@ def _build_request_context_from_args(
     all_runs: bool = False,
     source_uri: str | None = None,
 ):
-    package_settings = _build_package_settings(
-        {
-            "NEO4J_URI": args.neo4j_uri,
-            "NEO4J_USERNAME": args.neo4j_username,
-            "NEO4J_PASSWORD": args.neo4j_password,
-            "NEO4J_DATABASE": args.neo4j_database,
-            "OPENAI_MODEL": args.openai_model,
-            "POWER_ATLAS_OUTPUT_DIR": str(args.output_dir),
-            "POWER_ATLAS_DATASET": getattr(args, "dataset", None) or "",
-        }
-    )
-    app_context = _build_app_context(settings=package_settings)
-    return _build_request_context(
-        app_context,
+    return _build_request_context_from_overrides(
+        neo4j_uri=args.neo4j_uri,
+        neo4j_username=args.neo4j_username,
+        neo4j_password=args.neo4j_password,
+        neo4j_database=args.neo4j_database,
+        openai_model=args.openai_model,
+        output_dir=args.output_dir,
+        dataset_name=getattr(args, "dataset", None) or "",
         command=getattr(args, "command", None),
         dry_run=args.dry_run if dry_run is None else dry_run,
-        output_dir=args.output_dir,
         question=getattr(args, "question", None),
         resolution_mode=getattr(args, "resolution_mode", None) or "unstructured_only",
         run_id=run_id,
@@ -263,35 +253,9 @@ def _request_context_from_config(
     all_runs: bool = False,
     source_uri: str | None = None,
 ) -> RequestContext:
-    default_settings = _build_package_settings()
-    package_settings = _build_package_settings(
-        {
-            "NEO4J_URI": getattr(config, "neo4j_uri", default_settings.neo4j.uri),
-            "NEO4J_USERNAME": getattr(config, "neo4j_username", default_settings.neo4j.username),
-            "NEO4J_PASSWORD": getattr(config, "neo4j_password", default_settings.neo4j.password),
-            "NEO4J_DATABASE": getattr(config, "neo4j_database", default_settings.neo4j.database),
-            "OPENAI_MODEL": getattr(config, "openai_model", default_settings.openai_model),
-            "POWER_ATLAS_OUTPUT_DIR": str(getattr(config, "output_dir", default_settings.output_dir)),
-            "POWER_ATLAS_DATASET": getattr(config, "dataset_name", None) or "",
-        }
-    )
-    app_context = _build_app_context(settings=package_settings)
-    config_pipeline_contract = getattr(config, "pipeline_contract", None)
-    if config_pipeline_contract is not None:
-        app_context = replace(
-            app_context,
-            pipeline_contract=config_pipeline_contract,
-            pipeline_contract_config_data=dict(
-                getattr(config, "pipeline_contract_config_data", app_context.pipeline_contract_config_data)
-            ),
-        )
-    return _build_request_context(
-        app_context,
+    return _build_request_context_from_config(
+        config,
         command=command,
-        dry_run=getattr(config, "dry_run", True),
-        output_dir=getattr(config, "output_dir", default_settings.output_dir),
-        question=getattr(config, "question", None),
-        resolution_mode=getattr(config, "resolution_mode", "unstructured_only"),
         run_id=run_id,
         all_runs=all_runs,
         source_uri=source_uri,

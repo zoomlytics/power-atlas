@@ -21,6 +21,7 @@ from power_atlas.contracts import (
     write_manifest,
 )
 from power_atlas.narrative_extraction_runtime import run_narrative_extraction_live
+from power_atlas.orchestration.context_builder import build_settings_from_overrides
 from demo.extraction_utils import prepare_extracted_rows, write_extracted_rows
 from demo.io import RunScopedNeo4jChunkReader
 from neo4j_graphrag.experimental.components.entity_relation_extractor import (
@@ -160,15 +161,12 @@ def _default_cli_settings():
 
 
 def _build_cli_config(args: argparse.Namespace) -> ExtractionConfig:
-    settings = build_settings(
-        {
-            **os.environ,
-            "NEO4J_URI": args.neo4j_uri,
-            "NEO4J_USERNAME": args.neo4j_username,
-            "NEO4J_PASSWORD": args.neo4j_password,
-            "NEO4J_DATABASE": args.neo4j_database,
-            "OPENAI_MODEL": args.model_name,
-        }
+    settings = build_settings_from_overrides(
+        neo4j_uri=args.neo4j_uri,
+        neo4j_username=args.neo4j_username,
+        neo4j_password=args.neo4j_password,
+        neo4j_database=args.neo4j_database,
+        openai_model=args.model_name,
     )
     return ExtractionConfig(
         run_id=args.run_id,
