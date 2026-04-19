@@ -237,7 +237,11 @@ from power_atlas.entity_resolution_queries import (
     fetch_entity_mentions,
     fetch_member_of_coverage,
 )
-from power_atlas.entity_resolution_writes import write_alignment_results as _write_alignment_results_live
+from power_atlas.entity_resolution_writes import (
+    write_alignment_results as _write_alignment_results_live,
+    write_cluster_memberships as _write_cluster_memberships_live,
+    write_resolved_mentions as _write_resolved_mentions_live,
+)
 from power_atlas.text_utils import normalize_mention_text
 
 # Bump this constant whenever the resolution strategies or scoring logic change
@@ -1143,26 +1147,13 @@ def _write_resolution_results(
     ``status``.  The ``source_uri`` on the edge is taken from the per-mention
     value propagated from the EntityMention node in the DB.
     """
-    if resolved_rows:
-        driver.execute_query(
-            """
-            UNWIND $rows AS row
-            MATCH (mention:EntityMention {mention_id: row.mention_id, run_id: $run_id})
-            MATCH (canonical:CanonicalEntity {entity_id: row.canonical_entity_id, run_id: row.canonical_run_id})
-            MERGE (mention)-[r:RESOLVES_TO]->(canonical)
-            SET r.run_id = $run_id,
-                r.source_uri = coalesce(nullif(mention.source_uri, ''), $source_uri),
-                r.resolution_method = row.resolution_method,
-                r.resolution_confidence = row.resolution_confidence,
-                r.candidate_ids = row.candidate_ids
-            """,
-            parameters_={
-                "rows": resolved_rows,
-                "run_id": run_id,
-                "source_uri": source_uri or None,
-            },
-            database_=neo4j_database,
-        )
+    _write_resolved_mentions(
+        driver,
+        run_id=run_id,
+        source_uri=source_uri,
+        resolved_rows=resolved_rows,
+        neo4j_database=neo4j_database,
+    )
 
     if unresolved_rows:
         created_at = datetime.now(UTC).isoformat()
@@ -1209,62 +1200,48 @@ def _write_resolution_results(
                 # "review_required" — borderline fuzzy match (ratio < _FUZZY_REVIEW_THRESHOLD)
                 "status": _membership_status(method, score),
             })
-        driver.execute_query(
-            """
-            UNWIND $rows AS row
-            MERGE (cluster:ResolvedEntityCluster {cluster_id: row.cluster_id})
-            ON CREATE SET
-                cluster.canonical_name  = row.canonical_name,
-                cluster.normalized_text = row.normalized_text,
-                cluster.entity_type     = row.entity_type,
-                cluster.run_id          = $run_id,
-                cluster.resolver_version = $resolver_version,
-                cluster.created_at = $created_at
-            WITH row, cluster
-            MATCH (mention:EntityMention {mention_id: row.mention_id, run_id: $run_id})
-            MERGE (mention)-[r:MEMBER_OF]->(cluster)
-            SET r.score            = row.score,
-                r.method           = row.method,
-                r.resolver_version = $resolver_version,
-                r.run_id           = $run_id,
-                r.status           = row.status,
-                r.source_uri       = row.source_uri
-            """,
-            parameters_={
-                "rows": cluster_rows,
-                "run_id": run_id,
-                "resolver_version": _CLUSTER_VERSION,
-                "created_at": created_at,
-            },
-            database_=neo4j_database,
+        _write_cluster_memberships(
+            driver,
+            run_id=run_id,
+            cluster_rows=cluster_rows,
+            neo4j_database=neo4j_database,
+            created_at=created_at,
         )
-        # Write explicit CANDIDATE_MATCH edges for memberships that require
-        # human review before being relied upon ("candidate" = abbreviation,
-        # "review_required" = borderline fuzzy).  These edges are written
-        # in addition to MEMBER_OF edges so downstream consumers can use them
-        # as a review queue without disturbing the cluster membership graph.
-        candidate_rows = [r for r in cluster_rows if r["status"] in ("candidate", "review_required")]
-        if candidate_rows:
-            driver.execute_query(
-                """
-                UNWIND $rows AS row
-                MATCH (mention:EntityMention {mention_id: row.mention_id, run_id: $run_id})
-                MATCH (cluster:ResolvedEntityCluster {cluster_id: row.cluster_id})
-                MERGE (mention)-[r:CANDIDATE_MATCH]->(cluster)
-                SET r.score            = row.score,
-                    r.method           = row.method,
-                    r.resolver_version = $resolver_version,
-                    r.run_id           = $run_id,
-                    r.status           = row.status,
-                    r.source_uri       = row.source_uri
-                """,
-                parameters_={
-                    "rows": candidate_rows,
-                    "run_id": run_id,
-                    "resolver_version": _CLUSTER_VERSION,
-                },
-                database_=neo4j_database,
-            )
+
+
+def _write_cluster_memberships(
+    driver: "neo4j.Driver",  # type: ignore[name-defined]  # noqa: F821
+    *,
+    run_id: str,
+    cluster_rows: list[dict[str, Any]],
+    neo4j_database: str,
+    created_at: str,
+) -> None:
+    _write_cluster_memberships_live(
+        driver,
+        run_id=run_id,
+        cluster_rows=cluster_rows,
+        neo4j_database=neo4j_database,
+        resolver_version=_CLUSTER_VERSION,
+        created_at=created_at,
+    )
+
+
+def _write_resolved_mentions(
+    driver: "neo4j.Driver",  # type: ignore[name-defined]  # noqa: F821
+    *,
+    run_id: str,
+    source_uri: str | None,
+    resolved_rows: list[dict[str, Any]],
+    neo4j_database: str,
+) -> None:
+    _write_resolved_mentions_live(
+        driver,
+        run_id=run_id,
+        source_uri=source_uri,
+        resolved_rows=resolved_rows,
+        neo4j_database=neo4j_database,
+    )
 
 
 
