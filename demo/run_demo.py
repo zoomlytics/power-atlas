@@ -47,6 +47,8 @@ from demo.stages.retrieval_benchmark import run_retrieval_benchmark  # noqa: E40
 from demo.stages.pdf_ingest import sha256_file  # noqa: E402, F401 - re-exported for callers and tests
 
 _logger = logging.getLogger(__name__)
+_KEEP_REQUEST_CONTEXT_VALUE = object()
+_DRY_RUN_NO_SCOPE_RUN_ID = "dry_run_no_scope"
 
 
 @dataclass(frozen=True)
@@ -85,6 +87,89 @@ def _pipeline_contract_view_from_request_context(request_context: RequestContext
 
 def _now_iso() -> str:
     return datetime.now(UTC).isoformat()
+
+
+def _scoped_request_context(
+    request_context: RequestContext,
+    *,
+    run_id: str | None,
+    source_uri: object = _KEEP_REQUEST_CONTEXT_VALUE,
+) -> RequestContext:
+    updates: dict[str, object | None] = {"run_id": run_id}
+    if source_uri is not _KEEP_REQUEST_CONTEXT_VALUE:
+        updates["source_uri"] = source_uri
+    return replace(request_context, **updates)
+
+
+def _extract_pdf_source_uri(stage_output: dict[str, Any] | object) -> str | None:
+    if not isinstance(stage_output, dict):
+        return None
+    provenance = stage_output.get("provenance")
+    if isinstance(provenance, dict):
+        source_uri = provenance.get("source_uri")
+        if isinstance(source_uri, str) and source_uri:
+            return source_uri
+    documents = stage_output.get("documents")
+    if isinstance(documents, list) and documents:
+        first_document = documents[0]
+        if isinstance(first_document, str) and first_document:
+            return first_document
+    return None
+
+
+def _resolve_independent_stage_run_id(
+    command: str,
+    request_context: RequestContext,
+    *,
+    run_scope: str,
+    ask_all_runs: bool,
+) -> str:
+    if command in ("extract-claims", "resolve-entities"):
+        env_run_id = _current_env_unstructured_run_id()
+        if not env_run_id:
+            raise ValueError(
+                "UNSTRUCTURED_RUN_ID is not set. When running "
+                f"'{command}' independently, set this to the run_id from a prior "
+                "'ingest' or 'ingest-pdf' command whose unstructured data you want to process "
+                "(for example, a value like 'unstructured_ingest-20260304T224739123456Z-1a2b3c4d')."
+            )
+        return env_run_id
+    if command == "ask":
+        if ask_all_runs:
+            return make_run_id("ask")
+        if request_context.run_id is not None:
+            return request_context.run_id
+        return _DRY_RUN_NO_SCOPE_RUN_ID
+    return make_run_id(run_scope)
+
+
+def _write_independent_stage_manifest(
+    *,
+    config: Config,
+    stage_name: str,
+    stage_run_id: str,
+    run_scope_key: str,
+    scope_run_id: str | None,
+    dataset_id: str | None,
+    stage_output: dict[str, Any],
+    started_at: str,
+    finished_at: str,
+) -> Path:
+    manifest = build_stage_manifest(
+        config=config,
+        stage_name=stage_name,
+        stage_run_id=stage_run_id,
+        run_scope_key=run_scope_key,
+        scope_run_id=scope_run_id,
+        dataset_id=dataset_id,
+        stage_output=stage_output,
+        started_at=started_at,
+        finished_at=finished_at,
+    )
+    manifest_path = config.output_dir / "runs" / stage_run_id / stage_name / "manifest.json"
+    write_manifest(manifest_path, manifest)
+    write_manifest_md(manifest_path, manifest)
+    return manifest_path
 
 
 def _add_common_args(parser: argparse.ArgumentParser) -> None:
@@ -906,66 +991,50 @@ def _run_orchestrated_request_context(request_context: RequestContext) -> Path:
     unstructured_run_id = make_run_id("unstructured_ingest")
 
     dataset_root = resolve_dataset_root(config.dataset_name)
+    structured_request_context = _scoped_request_context(request_context, run_id=structured_run_id)
+    unstructured_request_context = _scoped_request_context(request_context, run_id=unstructured_run_id)
 
     # ── Phase 1: Unstructured-only pass ──────────────────────────────────────
     # Ingest the PDF and build the lexical graph first.
     pdf_stage = _run_pdf_ingest_request_context(
-        replace(request_context, run_id=unstructured_run_id),
+        unstructured_request_context,
         fixtures_dir=dataset_root.root,
         pdf_filename=dataset_root.pdf_filename,
         dataset_id=dataset_root.dataset_id,
     )
-    pdf_source_uri = pdf_stage.get("provenance", {}).get("source_uri") if isinstance(pdf_stage, dict) else None
-    if not pdf_source_uri and isinstance(pdf_stage, dict):
-        documents = pdf_stage.get("documents") if isinstance(pdf_stage.get("documents"), list) else []
-        pdf_source_uri = documents[0] if documents else None
-
-    claim_stage = _run_claim_extraction_request_context(
-        replace(
-            request_context,
-            run_id=unstructured_run_id,
-            source_uri=pdf_source_uri,
-        )
+    pdf_source_uri = _extract_pdf_source_uri(pdf_stage)
+    scoped_unstructured_request_context = _scoped_request_context(
+        request_context,
+        run_id=unstructured_run_id,
+        source_uri=pdf_source_uri,
     )
+
+    claim_stage = _run_claim_extraction_request_context(scoped_unstructured_request_context)
     # Link ExtractedClaim subject/object slots to EntityMention nodes in the same
     # chunk/run via deterministic text matching (raw_exact → casefold_exact →
     # normalized_exact).  Runs after extraction so all nodes are already in the graph.
-    claim_participation_stage = _run_claim_participation_request_context(
-        replace(
-            request_context,
-            run_id=unstructured_run_id,
-            source_uri=pdf_source_uri,
-        )
-    )
+    claim_participation_stage = _run_claim_participation_request_context(scoped_unstructured_request_context)
     # Cluster extracted mentions against each other; no CanonicalEntity lookup required.
     # Use a mode-specific artifact subdirectory so the hybrid pass does not overwrite
     # the unstructured-only artifacts when both passes share the same run_id.
     # Pass dataset_id explicitly (preferred explicit-scope pattern) rather than relying
     # on the ambient value set by set_dataset_id() earlier in orchestration.
     entity_resolution_unstructured_stage = _run_entity_resolution_request_context(
-        replace(
-            request_context,
-            run_id=unstructured_run_id,
-            source_uri=pdf_source_uri,
-        ),
+        scoped_unstructured_request_context,
         resolution_mode="unstructured_only",
         artifact_subdir="entity_resolution_unstructured_only",
         dataset_id=dataset_root.dataset_id,
     )
     # Demonstrate that meaningful Q&A is available before any structured ingest.
     retrieval_unstructured_stage = _run_retrieval_request_context(
-        replace(
-            request_context,
-            run_id=unstructured_run_id,
-            source_uri=pdf_source_uri,
-        ),
+        scoped_unstructured_request_context,
         question=getattr(config, "question", None),
     )
 
     # ── Phase 2: Structured enrichment pass ──────────────────────────────────
     # Structured ingest is deferred to demonstrate it is optional enrichment.
     structured_stage = _run_structured_ingest_request_context(
-        replace(request_context, run_id=structured_run_id),
+        structured_request_context,
         fixtures_dir=dataset_root.root,
         dataset_id=dataset_root.dataset_id,
     )
@@ -973,22 +1042,14 @@ def _run_orchestrated_request_context(request_context: RequestContext) -> Path:
     # edges to CanonicalEntity nodes; gracefully degrades when no matches exist.
     # Use a separate artifact subdirectory to preserve the unstructured-only artifacts.
     entity_resolution_hybrid_stage = _run_entity_resolution_request_context(
-        replace(
-            request_context,
-            run_id=unstructured_run_id,
-            source_uri=pdf_source_uri,
-        ),
+        scoped_unstructured_request_context,
         resolution_mode="hybrid",
         artifact_subdir="entity_resolution_hybrid",
         dataset_id=dataset_root.dataset_id,
     )
     # Final Q&A after structured enrichment shows the additive benefit.
     retrieval_stage = _run_retrieval_request_context(
-        replace(
-            request_context,
-            run_id=unstructured_run_id,
-            source_uri=pdf_source_uri,
-        ),
+        scoped_unstructured_request_context,
         question=getattr(config, "question", None),
     )
 
@@ -1139,31 +1200,12 @@ def _run_independent_stage(
     stage_name = stage_spec.stage_name
     run_scope_key = stage_spec.run_scope_key
     run_scope = run_scope_key.removesuffix("_run_id")
-    if command in ("extract-claims", "resolve-entities"):
-        env_run_id = _current_env_unstructured_run_id()
-        if not env_run_id:
-            raise ValueError(
-                "UNSTRUCTURED_RUN_ID is not set. When running "
-                f"'{command}' independently, set this to the run_id from a prior "
-                "'ingest' or 'ingest-pdf' command whose unstructured data you want to process "
-                "(for example, a value like 'unstructured_ingest-20260304T224739123456Z-1a2b3c4d')."
-            )
-        stage_run_id = env_run_id
-    elif command == "ask":
-        # Scope for ask has already been resolved by _resolve_ask_scope in main().
-        # resolved_run_id may be None when all_runs=True or in dry-run without a scope.
-        if _ask_all_runs:
-            # Whole-database retrieval is not scoped to any ingest run, so we generate
-            # a unique artifact id for this ask execution rather than using the sentinel
-            # "all_runs" string, which is not a real ingest run id.
-            stage_run_id = make_run_id("ask")
-        elif request_context.run_id is not None:
-            stage_run_id = request_context.run_id
-        else:
-            # dry-run without a specific run scope; use a placeholder to keep the path valid.
-            stage_run_id = "dry_run_no_scope"
-    else:
-        stage_run_id = make_run_id(run_scope)
+    stage_run_id = _resolve_independent_stage_run_id(
+        command,
+        request_context,
+        run_scope=run_scope,
+        ask_all_runs=_ask_all_runs,
+    )
     started_at = _now_iso()
     stage_output = stage_spec.runner(request_context, stage_run_id, resources, options)
     finished_at = _now_iso()
@@ -1171,7 +1213,11 @@ def _run_independent_stage(
     # run_scopes.unstructured_ingest_run_id must be null rather than a fake sentinel.
     # Retrieval scope details are captured in retrieval_scope within the stage output.
     # For all other commands, scope_run_id == stage_run_id (default behaviour).
-    manifest = build_stage_manifest(
+    # Write the manifest into a stage-scoped directory: runs/<run_id>/<stage_name>/manifest.json
+    # Using a stage-name subdirectory prevents manifests from different stages that share the
+    # same run_id (e.g. extract-claims, resolve-entities, ask all use UNSTRUCTURED_RUN_ID) from
+    # overwriting each other.  write_manifest() calls mkdir internally so no explicit mkdir needed.
+    return _write_independent_stage_manifest(
         config=config,
         stage_name=stage_name,
         stage_run_id=stage_run_id,
@@ -1182,14 +1228,6 @@ def _run_independent_stage(
         started_at=started_at,
         finished_at=finished_at,
     )
-    # Write the manifest into a stage-scoped directory: runs/<run_id>/<stage_name>/manifest.json
-    # Using a stage-name subdirectory prevents manifests from different stages that share the
-    # same run_id (e.g. extract-claims, resolve-entities, ask all use UNSTRUCTURED_RUN_ID) from
-    # overwriting each other.  write_manifest() calls mkdir internally so no explicit mkdir needed.
-    manifest_path = config.output_dir / "runs" / stage_run_id / stage_name / "manifest.json"
-    write_manifest(manifest_path, manifest)
-    write_manifest_md(manifest_path, manifest)
-    return manifest_path
 
 
 def run_demo(config_or_request_context: RequestContext | Config) -> Path:
