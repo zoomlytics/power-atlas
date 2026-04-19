@@ -17,6 +17,10 @@ from power_atlas.bootstrap import build_request_context as _build_request_contex
 from power_atlas.bootstrap import build_runtime_config as _build_runtime_config
 from power_atlas.bootstrap import build_settings as _build_package_settings
 from power_atlas.context import RequestContext
+from power_atlas.orchestration.artifact_routing import (
+    write_batch_manifest_artifacts,
+    write_stage_manifest_artifacts,
+)
 from power_atlas.run_scope_queries import fetch_dataset_id_for_run
 from power_atlas.run_scope_queries import fetch_latest_unstructured_run_id
 
@@ -29,8 +33,6 @@ from power_atlas.contracts import (  # noqa: E402
     build_stage_manifest,
     make_run_id,
     resolve_dataset_root,
-    write_manifest,
-    write_manifest_md,
 )
 from demo.stages import (  # noqa: E402
     lint_and_clean_structured_csvs,
@@ -154,10 +156,12 @@ def _write_independent_stage_manifest(
         started_at=started_at,
         finished_at=finished_at,
     )
-    manifest_path = config.output_dir / "runs" / stage_run_id / stage_name / "manifest.json"
-    write_manifest(manifest_path, manifest)
-    write_manifest_md(manifest_path, manifest)
-    return manifest_path
+    return write_stage_manifest_artifacts(
+        config.output_dir,
+        run_id=stage_run_id,
+        stage_name=stage_name,
+        manifest=manifest,
+    )
 
 
 def _add_common_args(parser: argparse.ArgumentParser) -> None:
@@ -1122,10 +1126,7 @@ def _run_orchestrated_request_context(request_context: RequestContext) -> Path:
         finished_at=finished_at,
     )
 
-    manifest_path = config.output_dir / "manifest.json"
-    write_manifest(manifest_path, manifest)
-    write_manifest_md(manifest_path, manifest)
-    return manifest_path
+    return write_batch_manifest_artifacts(config.output_dir, manifest=manifest)
 
 
 def _run_orchestrated(request_context_or_config: RequestContext | Config) -> Path:
