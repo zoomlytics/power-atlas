@@ -43,6 +43,14 @@ from power_atlas.orchestration.demo_planner import (
     emit_stage_warnings,
     scope_request_context,
 )
+from power_atlas.orchestration.independent_stage_runners import (
+    build_independent_stage_specs,
+    run_independent_ask_stage,
+    run_independent_claim_extraction_stage,
+    run_independent_entity_resolution_stage,
+    run_independent_pdf_ingest_stage,
+    run_independent_structured_ingest_stage,
+)
 
 __all__ = [
     "CONFIG_COMMANDS",
@@ -55,6 +63,7 @@ __all__ = [
     "build_request_context_from_overrides",
     "build_runtime_config_from_overrides",
     "build_settings_from_overrides",
+    "build_independent_stage_specs",
     "build_independent_stage_plan",
     "build_orchestrated_run_plan",
     "compute_batch_manifest_path",
@@ -73,6 +82,11 @@ __all__ = [
     "resolve_dry_run_ask_scope",
     "resolve_latest_dataset_id",
     "resolve_latest_run_scope",
+    "run_independent_ask_stage",
+    "run_independent_claim_extraction_stage",
+    "run_independent_entity_resolution_stage",
+    "run_independent_pdf_ingest_stage",
+    "run_independent_structured_ingest_stage",
     "scope_request_context",
     "validate_explicit_run_id_dataset_selection",
     "warn_env_run_id_dataset_mismatch",

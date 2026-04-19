@@ -47,6 +47,14 @@ from power_atlas.orchestration.ask_scope import (
     warn_explicit_run_id_dataset_mismatch as _warn_explicit_run_id_dataset_mismatch_impl,
     warn_if_env_run_id_bypasses_dataset_selection as _warn_if_env_run_id_bypasses_dataset_selection_impl,
 )
+from power_atlas.orchestration.independent_stage_runners import (
+    build_independent_stage_specs as _build_independent_stage_specs_impl,
+    run_independent_ask_stage as _run_independent_ask_stage_impl,
+    run_independent_claim_extraction_stage as _run_independent_claim_extraction_stage_impl,
+    run_independent_entity_resolution_stage as _run_independent_entity_resolution_stage_impl,
+    run_independent_pdf_ingest_stage as _run_independent_pdf_ingest_stage_impl,
+    run_independent_structured_ingest_stage as _run_independent_structured_ingest_stage_impl,
+)
 from power_atlas.run_scope_queries import fetch_dataset_id_for_run
 from power_atlas.run_scope_queries import fetch_latest_unstructured_run_id
 
@@ -730,11 +738,12 @@ def _run_independent_structured_ingest_stage(
     resources: _IndependentStageResources,
     options: _IndependentStageOptions,
 ) -> dict[str, Any]:
-    del options
-    return _run_structured_ingest_request_context(
-        replace(request_context, run_id=stage_run_id),
-        fixtures_dir=resources.fixture_dir,
-        dataset_id=resources.dataset_id,
+    return _run_independent_structured_ingest_stage_impl(
+        request_context,
+        stage_run_id,
+        resources,
+        options,
+        run_structured_ingest_request_context=_run_structured_ingest_request_context,
     )
 
 
@@ -744,12 +753,12 @@ def _run_independent_pdf_ingest_stage(
     resources: _IndependentStageResources,
     options: _IndependentStageOptions,
 ) -> dict[str, Any]:
-    del options
-    return _run_pdf_ingest_request_context(
-        replace(request_context, run_id=stage_run_id),
-        fixtures_dir=resources.fixture_dir,
-        pdf_filename=resources.pdf_filename,
-        dataset_id=resources.dataset_id,
+    return _run_independent_pdf_ingest_stage_impl(
+        request_context,
+        stage_run_id,
+        resources,
+        options,
+        run_pdf_ingest_request_context=_run_pdf_ingest_request_context,
     )
 
 
@@ -759,13 +768,12 @@ def _run_independent_claim_extraction_stage(
     resources: _IndependentStageResources,
     options: _IndependentStageOptions,
 ) -> dict[str, Any]:
-    del options
-    return _run_claim_extraction_request_context(
-        replace(
-            request_context,
-            run_id=stage_run_id,
-            source_uri=resources.pdf_source_uri,
-        )
+    return _run_independent_claim_extraction_stage_impl(
+        request_context,
+        stage_run_id,
+        resources,
+        options,
+        run_claim_extraction_request_context=_run_claim_extraction_request_context,
     )
 
 
@@ -775,14 +783,12 @@ def _run_independent_entity_resolution_stage(
     resources: _IndependentStageResources,
     options: _IndependentStageOptions,
 ) -> dict[str, Any]:
-    del options
-    return _run_entity_resolution_request_context(
-        replace(
-            request_context,
-            run_id=stage_run_id,
-            source_uri=resources.pdf_source_uri,
-        ),
-        dataset_id=resources.dataset_id,
+    return _run_independent_entity_resolution_stage_impl(
+        request_context,
+        stage_run_id,
+        resources,
+        options,
+        run_entity_resolution_request_context=_run_entity_resolution_request_context,
     )
 
 
@@ -792,45 +798,23 @@ def _run_independent_ask_stage(
     resources: _IndependentStageResources,
     options: _IndependentStageOptions,
 ) -> dict[str, Any]:
-    del resources
-    return _run_ask_request_context(
-        replace(
-            request_context,
-            run_id=stage_run_id if not options.ask_all_runs else None,
-        ),
-        cluster_aware=options.cluster_aware,
-        expand_graph=options.expand_graph,
+    return _run_independent_ask_stage_impl(
+        request_context,
+        stage_run_id,
+        resources,
+        options,
+        run_ask_request_context=_run_ask_request_context,
     )
 
 
 def _independent_stage_specs() -> dict[str, _IndependentStageSpec]:
-    return {
-        "ingest-structured": _IndependentStageSpec(
-            stage_name="structured_ingest",
-            run_scope_key="structured_ingest_run_id",
-            runner=_run_independent_structured_ingest_stage,
-        ),
-        "ingest-pdf": _IndependentStageSpec(
-            stage_name="pdf_ingest",
-            run_scope_key="unstructured_ingest_run_id",
-            runner=_run_independent_pdf_ingest_stage,
-        ),
-        "extract-claims": _IndependentStageSpec(
-            stage_name="claim_and_mention_extraction",
-            run_scope_key="unstructured_ingest_run_id",
-            runner=_run_independent_claim_extraction_stage,
-        ),
-        "resolve-entities": _IndependentStageSpec(
-            stage_name="entity_resolution",
-            run_scope_key="unstructured_ingest_run_id",
-            runner=_run_independent_entity_resolution_stage,
-        ),
-        "ask": _IndependentStageSpec(
-            stage_name="retrieval_and_qa",
-            run_scope_key="unstructured_ingest_run_id",
-            runner=_run_independent_ask_stage,
-        ),
-    }
+    return _build_independent_stage_specs_impl(
+        run_independent_structured_ingest_stage=_run_independent_structured_ingest_stage,
+        run_independent_pdf_ingest_stage=_run_independent_pdf_ingest_stage,
+        run_independent_claim_extraction_stage=_run_independent_claim_extraction_stage,
+        run_independent_entity_resolution_stage=_run_independent_entity_resolution_stage,
+        run_independent_ask_stage=_run_independent_ask_stage,
+    )
 
 
 def _run_orchestrated_request_context(request_context: RequestContext) -> Path:
