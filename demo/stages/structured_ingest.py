@@ -7,7 +7,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from power_atlas.bootstrap import create_neo4j_driver
 from power_atlas.context import RequestContext
 from power_atlas.contracts import (
     CSV_FIRST_DATA_ROW,
@@ -19,6 +18,7 @@ from power_atlas.contracts import (
     COMMON_PREDICATE_LABELS,
     resolve_dataset_root,
 )
+from power_atlas.structured_ingest_runtime import run_structured_ingest_live
 from power_atlas.structured_ingest_writes import write_structured_ingest_graph
 
 
@@ -367,20 +367,18 @@ def run_structured_ingest(config: Any, run_id: str, *, fixtures_dir: Path | None
             "validation_warnings_path": str(validation_warnings_path),
             "validation_warning_count": len(validation_warnings),
         }
-    driver = create_neo4j_driver(config)
-    with driver:
-        with driver.session(database=config.neo4j_database) as session:
-            write_structured_ingest_graph(
-                session,
-                run_id=run_id,
-                source_uri=source_uri,
-                dataset_id=effective_dataset_id,
-                ingested_at=ingested_at,
-                entities_rows=entities_rows,
-                facts_rows=facts_rows,
-                relationship_rows=relationship_rows,
-                claims_rows=claims_rows,
-            )
+    run_structured_ingest_live(
+        config,
+        run_id=run_id,
+        source_uri=source_uri,
+        dataset_id=effective_dataset_id,
+        ingested_at=ingested_at,
+        entities_rows=entities_rows,
+        facts_rows=facts_rows,
+        relationship_rows=relationship_rows,
+        claims_rows=claims_rows,
+        write_graph=write_structured_ingest_graph,
+    )
 
     return {
         "status": "live",
