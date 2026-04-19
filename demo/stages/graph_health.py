@@ -48,9 +48,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-import neo4j
-
-from power_atlas.bootstrap import create_neo4j_driver
+from power_atlas.graph_health_queries import fetch_graph_health_query_rows
 from demo.stages.entity_resolution import build_entity_type_cypher_case as _build_entity_type_cypher_case
 
 _logger = logging.getLogger(__name__)
@@ -619,47 +617,36 @@ def run_graph_health_diagnostics(
         }
         return summary
 
-    params: dict[str, Any] = {
-        "run_id": run_id,
-        "alignment_version": alignment_version,
-    }
-
-    with create_neo4j_driver(config) as driver:
-        def _query(cypher: str) -> list[dict[str, Any]]:
-            records, _, _ = driver.execute_query(
-                cypher,
-                parameters_=params,
-                database_=config.neo4j_database,
-                routing_=neo4j.RoutingControl.READ,
-            )
-            return _records_to_dicts(records)
-
-        _logger.info("graph_health: running participation role distribution query")
-        role_dist = _query(_Q_PARTICIPATION_ROLE_DIST)
-
-        _logger.info("graph_health: running claim edge coverage query")
-        edge_coverage = _query(_Q_CLAIM_EDGE_COVERAGE)
-
-        _logger.info("graph_health: running match method distribution query")
-        match_method_dist = _query(_Q_MATCH_METHOD_DIST)
-
-        _logger.info("graph_health: running mention clustering query")
-        mention_clustering = _query(_Q_MENTION_CLUSTERING)
-
-        _logger.info("graph_health: running cluster size distribution query")
-        cluster_size_dist = _query(_Q_CLUSTER_SIZE_DIST)
-
-        _logger.info("graph_health: running cluster type fragmentation query")
-        cluster_type_frag = _query(_get_cluster_type_fragmentation_query())
-
-        _logger.info("graph_health: running alignment coverage query")
-        alignment_coverage = _query(_Q_ALIGNMENT_COVERAGE)
-
-        _logger.info("graph_health: running per-canonical alignment query")
-        per_canonical = _query(_Q_PER_CANONICAL_ALIGNMENT)
-
-        _logger.info("graph_health: running canonical chain health query")
-        chain_health = _query(_Q_CANONICAL_CHAIN_HEALTH)
+    query_rows = fetch_graph_health_query_rows(
+        config,
+        run_id=run_id,
+        alignment_version=alignment_version,
+        query_specs=[
+            ("role_dist", "participation role distribution", _Q_PARTICIPATION_ROLE_DIST),
+            ("edge_coverage", "claim edge coverage", _Q_CLAIM_EDGE_COVERAGE),
+            ("match_method_dist", "match method distribution", _Q_MATCH_METHOD_DIST),
+            ("mention_clustering", "mention clustering", _Q_MENTION_CLUSTERING),
+            ("cluster_size_dist", "cluster size distribution", _Q_CLUSTER_SIZE_DIST),
+            (
+                "cluster_type_frag",
+                "cluster type fragmentation",
+                _get_cluster_type_fragmentation_query(),
+            ),
+            ("alignment_coverage", "alignment coverage", _Q_ALIGNMENT_COVERAGE),
+            ("per_canonical", "per-canonical alignment", _Q_PER_CANONICAL_ALIGNMENT),
+            ("chain_health", "canonical chain health", _Q_CANONICAL_CHAIN_HEALTH),
+        ],
+        logger=_logger,
+    )
+    role_dist = query_rows["role_dist"]
+    edge_coverage = query_rows["edge_coverage"]
+    match_method_dist = query_rows["match_method_dist"]
+    mention_clustering = query_rows["mention_clustering"]
+    cluster_size_dist = query_rows["cluster_size_dist"]
+    cluster_type_frag = query_rows["cluster_type_frag"]
+    alignment_coverage = query_rows["alignment_coverage"]
+    per_canonical = query_rows["per_canonical"]
+    chain_health = query_rows["chain_health"]
 
     artifact = build_graph_health_artifact(
         run_id=run_id,
