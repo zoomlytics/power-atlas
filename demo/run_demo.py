@@ -73,18 +73,6 @@ class _IndependentStageSpec:
     runner: Callable[[RequestContext, str, _IndependentStageResources, _IndependentStageOptions], dict[str, Any]]
 
 
-def _pipeline_contract_view_from_request_context(request_context: RequestContext) -> dict[str, Any]:
-    pipeline_contract = request_context.pipeline_contract
-    return {
-        "index_name": pipeline_contract.chunk_embedding_index_name,
-        "chunk_label": pipeline_contract.chunk_embedding_label,
-        "embedding_property": pipeline_contract.chunk_embedding_property,
-        "embedding_dimensions": pipeline_contract.chunk_embedding_dimensions,
-        "embedder_model": pipeline_contract.embedder_model_name,
-        "chunk_stride": pipeline_contract.chunk_fallback_stride,
-    }
-
-
 def _now_iso() -> str:
     return datetime.now(UTC).isoformat()
 
@@ -1164,7 +1152,6 @@ def _run_independent_stage(
         request_context = replace(request_context, source_uri=_resolve_ask_source_uri(request_context))
     config = request_context.config
     config.output_dir.mkdir(parents=True, exist_ok=True)
-    pipeline_contract = _pipeline_contract_view_from_request_context(request_context)
     # all_runs is only relevant for the ask command.
     _ask_all_runs = request_context.all_runs and command == "ask"
 
