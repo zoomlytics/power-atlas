@@ -3,13 +3,14 @@ from __future__ import annotations
 import logging
 
 from power_atlas.bootstrap import create_neo4j_driver
-from power_atlas.contracts import Config
+from power_atlas.settings import Neo4jSettings
 
 _DATASET_ID_SAMPLE_LIMIT = 10
 
 
 def fetch_latest_unstructured_run_id(
-    config: Config,
+    neo4j_settings: Neo4jSettings,
+    neo4j_database: str,
     dataset_id: str | None = None,
     *,
     logger: logging.Logger,
@@ -39,8 +40,8 @@ def fetch_latest_unstructured_run_id(
     ingested. The resolved run_id is always returned so callers can proceed;
     the warning is informational only.
     """
-    with create_neo4j_driver(config) as driver:
-        with driver.session(database=config.neo4j_database) as session:
+    with create_neo4j_driver(neo4j_settings) as driver:
+        with driver.session(database=neo4j_database) as session:
             if dataset_id is not None:
                 result = session.run(
                     "MATCH (c:Chunk) WHERE c.run_id STARTS WITH 'unstructured_ingest' "
@@ -83,7 +84,8 @@ def fetch_latest_unstructured_run_id(
 
 
 def fetch_dataset_id_for_run(
-    config: Config,
+    neo4j_settings: Neo4jSettings,
+    neo4j_database: str,
     run_id: str,
     *,
     logger: logging.Logger,
@@ -114,8 +116,8 @@ def fetch_dataset_id_for_run(
     Returns None if no Chunk nodes with a non-null dataset_id exist for the run.
     Only call this in live mode; it opens a real Neo4j connection.
     """
-    with create_neo4j_driver(config) as driver:
-        with driver.session(database=config.neo4j_database) as session:
+    with create_neo4j_driver(neo4j_settings) as driver:
+        with driver.session(database=neo4j_database) as session:
             result = session.run(
                 "MATCH (c:Chunk) "
                 "WHERE c.run_id = $run_id AND c.dataset_id IS NOT NULL "
