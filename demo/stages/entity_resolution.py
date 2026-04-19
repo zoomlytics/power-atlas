@@ -231,6 +231,12 @@ from power_atlas.bootstrap import create_neo4j_driver
 from power_atlas.context import RequestContext
 from power_atlas.contracts import resolve_dataset_root
 from power_atlas.contracts.resolution import ALIGNMENT_VERSION as _ALIGNMENT_VERSION
+from power_atlas.entity_resolution_queries import (
+    fetch_alignment_coverage,
+    fetch_canonical_entities,
+    fetch_entity_mentions,
+    fetch_member_of_coverage,
+)
 from power_atlas.text_utils import normalize_mention_text
 
 # Bump this constant whenever the resolution strategies or scoring logic change
@@ -1540,28 +1546,12 @@ def run_entity_resolution(
     driver = create_neo4j_driver(config)
     with driver:
         # 1. Read EntityMention nodes for this run_id.
-        mention_result, _, _ = driver.execute_query(
-            """
-            MATCH (mention:EntityMention {run_id: $run_id})
-            RETURN mention.mention_id AS mention_id,
-                   mention.name AS name,
-                   mention.entity_type AS entity_type,
-                   mention.source_uri AS source_uri
-            ORDER BY mention.mention_id
-            """,
-            parameters_={"run_id": run_id},
-            database_=config.neo4j_database,
-            routing_=neo4j.RoutingControl.READ,
+        mentions = fetch_entity_mentions(
+            driver,
+            run_id=run_id,
+            source_uri_fallback=source_uri,
+            neo4j_database=config.neo4j_database,
         )
-        mentions = [
-            {
-                "mention_id": record["mention_id"],
-                "name": record["name"] or "",
-                "entity_type": record["entity_type"],
-                "source_uri": record["source_uri"] if record["source_uri"] not in (None, "") else source_uri,
-            }
-            for record in mention_result
-        ]
 
         resolved_rows: list[dict[str, Any]] = []
         unresolved_rows: list[dict[str, Any]] = []
@@ -1589,30 +1579,11 @@ def run_entity_resolution(
             # This is additive — clusters with no canonical match remain unchanged.
             # Scope the lookup to dataset_id so that shared QIDs from other datasets
             # do not leak into this run's alignment (cross-dataset isolation).
-            canonical_result, _, _ = driver.execute_query(
-                """
-                MATCH (canonical:CanonicalEntity)
-                WHERE canonical.dataset_id = $dataset_id
-                RETURN canonical.entity_id AS entity_id,
-                       canonical.run_id AS run_id,
-                       canonical.name AS name,
-                       canonical.aliases AS aliases
-                ORDER BY canonical.entity_id
-                """,
-                parameters_={"dataset_id": effective_dataset_id},
-                database_=config.neo4j_database,
-                routing_=neo4j.RoutingControl.READ,
+            canonical_nodes = fetch_canonical_entities(
+                driver,
+                dataset_id=effective_dataset_id,
+                neo4j_database=config.neo4j_database,
             )
-            canonical_nodes = [
-                {
-                    "entity_id": record["entity_id"],
-                    "run_id": record["run_id"],
-                    "name": record["name"] or "",
-                    "aliases": record["aliases"],
-                }
-                for record in canonical_result
-                if record["entity_id"] and record["run_id"]
-            ]
             if not canonical_nodes:
                 _stage_warnings.append(
                     f"CanonicalEntity lookup returned zero rows for dataset_id={effective_dataset_id!r} "
@@ -1651,30 +1622,11 @@ def run_entity_resolution(
             # 2b. structured_anchor (default): resolve against CanonicalEntity nodes.
             # Scope the lookup to dataset_id so that shared QIDs from other datasets
             # do not leak into this run's resolution (cross-dataset isolation).
-            canonical_result, _, _ = driver.execute_query(
-                """
-                MATCH (canonical:CanonicalEntity)
-                WHERE canonical.dataset_id = $dataset_id
-                RETURN canonical.entity_id AS entity_id,
-                       canonical.run_id AS run_id,
-                       canonical.name AS name,
-                       canonical.aliases AS aliases
-                ORDER BY canonical.entity_id
-                """,
-                parameters_={"dataset_id": effective_dataset_id},
-                database_=config.neo4j_database,
-                routing_=neo4j.RoutingControl.READ,
+            canonical_nodes = fetch_canonical_entities(
+                driver,
+                dataset_id=effective_dataset_id,
+                neo4j_database=config.neo4j_database,
             )
-            canonical_nodes = [
-                {
-                    "entity_id": record["entity_id"],
-                    "run_id": record["run_id"],
-                    "name": record["name"] or "",
-                    "aliases": record["aliases"],
-                }
-                for record in canonical_result
-                if record["entity_id"] and record["run_id"]
-            ]
             if not canonical_nodes:
                 _stage_warnings.append(
                     f"CanonicalEntity lookup returned zero rows for dataset_id={effective_dataset_id!r} "
@@ -1722,93 +1674,30 @@ def run_entity_resolution(
         #     than in-memory row counts.  This catches write errors or partial
         #     failures that in-memory counts would silently mask.
         if resolution_mode in (_RESOLUTION_MODE_UNSTRUCTURED_ONLY, _RESOLUTION_MODE_HYBRID):
-            count_result, _, _ = driver.execute_query(
-                """
-                MATCH (m:EntityMention {run_id: $run_id})
-                OPTIONAL MATCH (m)-[:MEMBER_OF]->(c:ResolvedEntityCluster {run_id: $run_id})
-                RETURN count(DISTINCT CASE WHEN c IS NOT NULL THEN m END) AS mentions_clustered,
-                       count(DISTINCT CASE WHEN c IS NULL THEN m END)     AS mentions_unclustered
-                """,
-                parameters_={"run_id": run_id},
-                database_=config.neo4j_database,
-                routing_=neo4j.RoutingControl.WRITE,
+            graph_coverage = fetch_member_of_coverage(
+                driver,
+                run_id=run_id,
+                neo4j_database=config.neo4j_database,
             )
-            if count_result:
-                _graph_mentions_clustered = int(count_result[0]["mentions_clustered"])
-                _graph_mentions_unclustered = int(count_result[0]["mentions_unclustered"])
+            _graph_mentions_clustered = graph_coverage.mentions_clustered
+            _graph_mentions_unclustered = graph_coverage.mentions_unclustered
 
         # 3d. In hybrid mode, query the graph for post-write ALIGNED_WITH coverage.
         #     Using driver.execute_query() for consistency with all other queries.
         if resolution_mode == _RESOLUTION_MODE_HYBRID:
             # Count total run-scoped clusters so that clusters_pending_alignment is
             # consistent with the graph (not a mix of in-memory and graph values).
-            total_clusters_q, _, _ = driver.execute_query(
-                """
-                MATCH (c:ResolvedEntityCluster {run_id: $run_id})
-                RETURN count(c) AS total_clusters
-                """,
-                parameters_={"run_id": run_id},
-                database_=config.neo4j_database,
-                routing_=neo4j.RoutingControl.WRITE,
+            alignment_coverage = fetch_alignment_coverage(
+                driver,
+                run_id=run_id,
+                alignment_version=_ALIGNMENT_VERSION,
+                neo4j_database=config.neo4j_database,
             )
-            if total_clusters_q:
-                _graph_total_clusters = int(total_clusters_q[0]["total_clusters"] or 0)
-            # Count aligned clusters and distinct canonical entities.
-            # Filter by alignment_version to stay consistent with the write path
-            # (MERGE scopes edges by run_id + alignment_version) and with
-            # cluster-aware retrieval queries that also filter by alignment_version.
-            aligned_q, _, _ = driver.execute_query(
-                """
-                MATCH (c:ResolvedEntityCluster {run_id: $run_id})
-                      -[:ALIGNED_WITH {run_id: $run_id, alignment_version: $alignment_version}]->
-                      (ce:CanonicalEntity)
-                RETURN count(DISTINCT c)  AS aligned_clusters,
-                       count(DISTINCT ce) AS distinct_canonical_entities_aligned
-                """,
-                parameters_={"run_id": run_id, "alignment_version": _ALIGNMENT_VERSION},
-                database_=config.neo4j_database,
-                routing_=neo4j.RoutingControl.WRITE,
-            )
-            if aligned_q:
-                _graph_aligned_clusters = int(aligned_q[0]["aligned_clusters"] or 0)
-                _graph_distinct_canonical_entities = int(
-                    aligned_q[0]["distinct_canonical_entities_aligned"] or 0
-                )
-            # Count ALIGNED_WITH edges grouped by alignment_method to build
-            # the breakdown.  Grouped by method so we count edges not clusters.
-            breakdown_q, _, _ = driver.execute_query(
-                """
-                MATCH (:ResolvedEntityCluster {run_id: $run_id})
-                      -[r:ALIGNED_WITH {run_id: $run_id, alignment_version: $alignment_version}]->
-                      (:CanonicalEntity)
-                RETURN r.alignment_method AS alignment_method,
-                       count(r)           AS method_count
-                """,
-                parameters_={"run_id": run_id, "alignment_version": _ALIGNMENT_VERSION},
-                database_=config.neo4j_database,
-                routing_=neo4j.RoutingControl.WRITE,
-            )
-            for record in breakdown_q:
-                method = record.get("alignment_method") or "unknown"
-                count = int(record.get("method_count") or 0)
-                _graph_alignment_breakdown[method] = (
-                    _graph_alignment_breakdown.get(method, 0) + count
-                )
-            mentions_in_q, _, _ = driver.execute_query(
-                """
-                MATCH (m:EntityMention {run_id: $run_id})
-                      -[:MEMBER_OF]->
-                      (c:ResolvedEntityCluster {run_id: $run_id})
-                      -[:ALIGNED_WITH {run_id: $run_id, alignment_version: $alignment_version}]->
-                      (:CanonicalEntity)
-                RETURN count(DISTINCT m) AS mentions_in_aligned
-                """,
-                parameters_={"run_id": run_id, "alignment_version": _ALIGNMENT_VERSION},
-                database_=config.neo4j_database,
-                routing_=neo4j.RoutingControl.WRITE,
-            )
-            if mentions_in_q:
-                _graph_mentions_in_aligned = int(mentions_in_q[0]["mentions_in_aligned"] or 0)
+            _graph_total_clusters = alignment_coverage.total_clusters
+            _graph_aligned_clusters = alignment_coverage.aligned_clusters
+            _graph_distinct_canonical_entities = alignment_coverage.distinct_canonical_entities_aligned
+            _graph_mentions_in_aligned = alignment_coverage.mentions_in_aligned
+            _graph_alignment_breakdown = alignment_coverage.alignment_breakdown
 
     # 4. Write artifacts.
     unresolved_list = [
