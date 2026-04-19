@@ -28,7 +28,11 @@ from power_atlas.contracts.pipeline import (
     get_pipeline_contract_snapshot,
     is_pipeline_contract_snapshot,
 )
-from power_atlas.retrieval_runtime import execute_retrieval_search, run_with_retrieval_session
+from power_atlas.retrieval_runtime import (
+    build_live_retrieval_result,
+    execute_retrieval_search,
+    run_with_retrieval_session,
+)
 from power_atlas.settings import Neo4jSettings
 from neo4j_graphrag.retrievers import VectorCypherRetriever
 from neo4j_graphrag.types import LLMMessage, RetrieverResultItem
@@ -2164,79 +2168,25 @@ def run_retrieval_and_qa(
     warnings_list.extend(session_warnings)
     citation_warnings_list.extend(session_citation_warnings)
 
-    # ── Stage 3: postprocessing — may add MORE citation-quality warnings ─────
-    # Pass the retrieval-time citation warnings into _postprocess_answer() so the
-    # helper can derive an updated list of citation warnings (e.g. by appending
-    # an uncited-answer warning) without mutating the input list.
-    # The helper guarantees that the returned citation_warnings list is a new list
-    # whose initial elements are exactly existing_citation_warnings, in the same order.
-    # evidence quality bundle — computed via the shared helper so single-shot and
-    # interactive paths cannot drift silently.
-    _n_retrieval_citation_warnings = len(citation_warnings_list)
-    pp = _postprocess_answer(
-        answer_text,
-        hits,
+    return build_live_retrieval_result(
+        base=base,
+        answer_text=answer_text,
+        hits=hits,
+        warnings=warnings_list,
+        citation_warnings=citation_warnings_list,
         all_runs=all_runs,
-        existing_citation_warnings=citation_warnings_list,
+        expand_graph=expand_graph,
+        cluster_aware=cluster_aware,
+        citation_token_example=citation_token_example,
+        citation_object_example=citation_object_example,
+        fallback_preview_max_len=_FALLBACK_PREVIEW_MAX_LEN,
+        logger=_logger,
+        postprocess_answer=_postprocess_answer,
+        project_postprocess_to_public=_project_postprocess_to_public,
+        format_retrieval_path_summary=_format_retrieval_path_summary,
+        count_malformed_diagnostics=_count_malformed_diagnostics,
+        build_retrieval_debug_view=_build_retrieval_debug_view,
     )
-
-    # ── Stage 4: propagate postprocessing-added citation warnings upward ─────
-    # pp["citation_warnings"] starts with all retrieval-time citation warnings,
-    # so slicing at _n_retrieval_citation_warnings yields only the warnings that
-    # _postprocess_answer() added (e.g. the uncited-answer warning).  Each is
-    # appended to warnings_list so the superset invariant is maintained.
-    for w in pp["citation_warnings"][_n_retrieval_citation_warnings:]:
-        warnings_list.append(w)
-    if pp["citation_fallback_applied"]:
-        display = pp["display_answer"]
-        fallback_preview = (
-            display[:_FALLBACK_PREVIEW_MAX_LEN] + "..."
-            if len(display) > _FALLBACK_PREVIEW_MAX_LEN
-            else display
-        )
-        _logger.warning(
-            "Answer replaced with citation fallback (length=%d, preview=%r)",
-            len(display),
-            fallback_preview,
-        )
-
-    # Use first hit's citation data as example when hits are available so the manifest
-    # reflects actual retrieved provenance rather than placeholder values.
-    actual_citation_token = citation_token_example
-    actual_citation_object = citation_object_example
-    if hits:
-        first_meta = hits[0].get("metadata") or {}
-        if first_meta.get("citation_token"):
-            actual_citation_token = first_meta["citation_token"]
-        if first_meta.get("citation_object"):
-            actual_citation_object = first_meta["citation_object"]
-
-    live_retrievers: list[str] = ["VectorCypherRetriever"]
-    if cluster_aware:
-        live_retrievers += ["graph expansion", "cluster traversal"]
-    elif expand_graph:
-        live_retrievers.append("graph expansion")
-    qa_scope_label = "GraphRAG all-runs citations" if all_runs else "GraphRAG run-scoped citations"
-    _malformed_count = _count_malformed_diagnostics(hits)
-    return {
-        **base,
-        "status": "live",
-        "retrievers": live_retrievers,
-        "qa": qa_scope_label,
-        "hits": len(hits),
-        "retrieval_results": hits,
-        "warnings": warnings_list,
-        "citation_token_example": actual_citation_token,
-        "citation_object_example": actual_citation_object,
-        "citation_example": actual_citation_object,
-        **_project_postprocess_to_public(pp),
-        "retrieval_path_summary": _format_retrieval_path_summary(hits),
-        "malformed_diagnostics_count": _malformed_count,
-        # Build the typed inspection view from the postprocess result and the malformed
-        # count so the single-shot path surfaces the same inspection model as the
-        # interactive path, preventing silent drift between the two.
-        "debug_view": _build_retrieval_debug_view(pp, malformed_diagnostics_count=_malformed_count),
-    }
 
 
 def _format_postprocess_debug_summary(view: _RetrievalDebugView) -> str:

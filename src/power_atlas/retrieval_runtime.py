@@ -18,6 +18,85 @@ class RetrievalSearchResult:
     citation_warnings: list[str]
 
 
+def build_live_retrieval_result(
+    *,
+    base: dict[str, object],
+    answer_text: str,
+    hits: list[dict[str, object]],
+    warnings: list[str],
+    citation_warnings: list[str],
+    all_runs: bool,
+    expand_graph: bool,
+    cluster_aware: bool,
+    citation_token_example: str,
+    citation_object_example: dict[str, object],
+    fallback_preview_max_len: int,
+    logger: logging.Logger,
+    postprocess_answer: Callable[..., dict[str, object]],
+    project_postprocess_to_public: Callable[[dict[str, object]], dict[str, object]],
+    format_retrieval_path_summary: Callable[[list[dict[str, object]]], str],
+    count_malformed_diagnostics: Callable[[list[dict[str, object]]], int],
+    build_retrieval_debug_view: Callable[..., dict[str, object]],
+) -> dict[str, object]:
+    warnings_list = list(warnings)
+    citation_warnings_list = list(citation_warnings)
+    n_retrieval_citation_warnings = len(citation_warnings_list)
+    pp = postprocess_answer(
+        answer_text,
+        hits,
+        all_runs=all_runs,
+        existing_citation_warnings=citation_warnings_list,
+    )
+    for warning in pp["citation_warnings"][n_retrieval_citation_warnings:]:
+        warnings_list.append(warning)
+    if pp["citation_fallback_applied"]:
+        display = pp["display_answer"]
+        fallback_preview = (
+            display[:fallback_preview_max_len] + "..."
+            if len(display) > fallback_preview_max_len
+            else display
+        )
+        logger.warning(
+            "Answer replaced with citation fallback (length=%d, preview=%r)",
+            len(display),
+            fallback_preview,
+        )
+
+    actual_citation_token = citation_token_example
+    actual_citation_object = citation_object_example
+    if hits:
+        first_meta = hits[0].get("metadata") or {}
+        if first_meta.get("citation_token"):
+            actual_citation_token = first_meta["citation_token"]
+        if first_meta.get("citation_object"):
+            actual_citation_object = first_meta["citation_object"]
+
+    live_retrievers: list[str] = ["VectorCypherRetriever"]
+    if cluster_aware:
+        live_retrievers += ["graph expansion", "cluster traversal"]
+    elif expand_graph:
+        live_retrievers.append("graph expansion")
+
+    qa_scope_label = "GraphRAG all-runs citations" if all_runs else "GraphRAG run-scoped citations"
+    malformed_count = count_malformed_diagnostics(hits)
+    return {
+        **base,
+        "status": "live",
+        "retrievers": live_retrievers,
+        "qa": qa_scope_label,
+        "hits": len(hits),
+        "retrieval_results": hits,
+        "warnings": warnings_list,
+        "citation_token_example": actual_citation_token,
+        "citation_object_example": actual_citation_object,
+        "citation_example": actual_citation_object,
+        **project_postprocess_to_public(pp),
+        "retrieval_path_summary": format_retrieval_path_summary(hits),
+        "malformed_diagnostics_count": malformed_count,
+        "debug_view": build_retrieval_debug_view(pp, malformed_diagnostics_count=malformed_count),
+    }
+
+
 def execute_retrieval_search(
     rag: Any,
     *,
@@ -91,4 +170,9 @@ def run_with_retrieval_session(
         return run_session(driver=driver, retriever=retriever, rag=rag)
 
 
-__all__ = ["RetrievalSearchResult", "execute_retrieval_search", "run_with_retrieval_session"]
+__all__ = [
+    "RetrievalSearchResult",
+    "build_live_retrieval_result",
+    "execute_retrieval_search",
+    "run_with_retrieval_session",
+]
