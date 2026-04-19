@@ -80,9 +80,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-import neo4j
-
-from power_atlas.bootstrap import create_neo4j_driver
+from power_atlas.retrieval_benchmark_queries import fetch_retrieval_benchmark_query_rows
 _logger = logging.getLogger(__name__)
 
 __all__ = [
@@ -1180,90 +1178,94 @@ def run_retrieval_benchmark(
         "dataset_id": dataset_id,
         "alignment_version": alignment_version,
     }
+    case_results: list[BenchmarkCaseResult] = []
+    pairwise_results: list[PairwiseCaseResult] = []
 
-    with create_neo4j_driver(config) as driver:
-
-        def _query(cypher: str, extra: dict[str, Any] | None = None) -> list[dict[str, Any]]:
-            p = {**params, **(extra or {})}
-            records, _, _ = driver.execute_query(
-                cypher,
-                parameters_=p,
-                database_=config.neo4j_database,
-                routing_=neo4j.RoutingControl.READ,
+    for case_def in cases:
+        if not case_def.entity_names:
+            raise ValueError(
+                f"retrieval_benchmark: case {case_def.case_id!r} has empty entity_names"
             )
-            return _records_to_dicts(records)
+        entity_name = case_def.entity_names[0]
 
-        case_results: list[BenchmarkCaseResult] = []
-        pairwise_results: list[PairwiseCaseResult] = []
-
-        for case_def in cases:
-            if not case_def.entity_names:
-                raise ValueError(
-                    f"retrieval_benchmark: case {case_def.case_id!r} has empty entity_names"
-                )
-            entity_name = case_def.entity_names[0]
-
-            if case_def.case_type == "pairwise_entity":
-                if len(case_def.entity_names) < 2:
-                    _logger.warning(
-                        "retrieval_benchmark: pairwise case %r has fewer than 2 entity names; skipping",
-                        case_def.case_id,
-                    )
-                    continue
-                entity_a = case_def.entity_names[0]
-                entity_b = case_def.entity_names[1]
-                _logger.info(
-                    "retrieval_benchmark: running pairwise case %r (%r ↔ %r)",
+        if case_def.case_type == "pairwise_entity":
+            if len(case_def.entity_names) < 2:
+                _logger.warning(
+                    "retrieval_benchmark: pairwise case %r has fewer than 2 entity names; skipping",
                     case_def.case_id,
-                    entity_a,
-                    entity_b,
                 )
-                pairwise_rows = _query(
-                    _Q_PAIRWISE_CANONICAL,
-                    {"entity_a": entity_a, "entity_b": entity_b},
-                )
-                pairwise_results.append(
-                    PairwiseCaseResult(
-                        case_id=case_def.case_id,
-                        entity_names=list(case_def.entity_names),
-                        description=case_def.description,
-                        expected_shape=case_def.expected_shape,
-                        failure_modes=list(case_def.failure_modes),
-                        pairwise_rows=pairwise_rows,
-                        pairwise_claim_count=_count_distinct_claims(pairwise_rows),
+                continue
+            entity_a = case_def.entity_names[0]
+            entity_b = case_def.entity_names[1]
+            _logger.info(
+                "retrieval_benchmark: running pairwise case %r (%r ↔ %r)",
+                case_def.case_id,
+                entity_a,
+                entity_b,
+            )
+            query_rows = fetch_retrieval_benchmark_query_rows(
+                config,
+                base_params=params,
+                query_specs=[
+                    (
+                        "pairwise_rows",
+                        f"pairwise case {case_def.case_id}",
+                        _Q_PAIRWISE_CANONICAL,
+                        {"entity_a": entity_a, "entity_b": entity_b},
                     )
+                ],
+                logger=_logger,
+            )
+            pairwise_rows = query_rows["pairwise_rows"]
+            pairwise_results.append(
+                PairwiseCaseResult(
+                    case_id=case_def.case_id,
+                    entity_names=list(case_def.entity_names),
+                    description=case_def.description,
+                    expected_shape=case_def.expected_shape,
+                    failure_modes=list(case_def.failure_modes),
+                    pairwise_rows=pairwise_rows,
+                    pairwise_claim_count=_count_distinct_claims(pairwise_rows),
                 )
-            else:
-                _logger.info(
-                    "retrieval_benchmark: running case %r (entity=%r)",
-                    case_def.case_id,
-                    entity_name,
+            )
+        else:
+            _logger.info(
+                "retrieval_benchmark: running case %r (entity=%r)",
+                case_def.case_id,
+                entity_name,
+            )
+            query_rows = fetch_retrieval_benchmark_query_rows(
+                config,
+                base_params=params,
+                query_specs=[
+                    ("canonical_rows", "canonical single", _Q_CANONICAL_SINGLE, {"entity_name": entity_name}),
+                    ("cluster_rows", "cluster-name single", _Q_CLUSTER_NAME_SINGLE, {"entity_name": entity_name}),
+                    ("lower_layer_rows", "lower-layer chain", _Q_LOWER_LAYER_CHAIN, {"entity_name": entity_name}),
+                    (
+                        "fragmentation_check_rows",
+                        "fragmentation check",
+                        _Q_FRAGMENTATION_CHECK,
+                        {"entity_name": entity_name},
+                    ),
+                    (
+                        "catalog_check_rows",
+                        "catalog existence check",
+                        _Q_CATALOG_EXISTENCE_CHECK,
+                        {"entity_name": entity_name},
+                    ),
+                ],
+                logger=_logger,
+            )
+            case_results.append(
+                build_benchmark_case_result(
+                    case_def=case_def,
+                    canonical_rows=query_rows["canonical_rows"],
+                    cluster_rows=query_rows["cluster_rows"],
+                    lower_layer_rows=query_rows["lower_layer_rows"],
+                    fragmentation_check_rows=query_rows["fragmentation_check_rows"],
+                    catalog_check_rows=query_rows["catalog_check_rows"],
                 )
-                canonical_rows = _query(
-                    _Q_CANONICAL_SINGLE, {"entity_name": entity_name}
-                )
-                cluster_rows = _query(
-                    _Q_CLUSTER_NAME_SINGLE, {"entity_name": entity_name}
-                )
-                lower_layer_rows = _query(
-                    _Q_LOWER_LAYER_CHAIN, {"entity_name": entity_name}
-                )
-                fragmentation_check_rows = _query(
-                    _Q_FRAGMENTATION_CHECK, {"entity_name": entity_name}
-                )
-                catalog_check_rows = _query(
-                    _Q_CATALOG_EXISTENCE_CHECK, {"entity_name": entity_name}
-                )
-                case_results.append(
-                    build_benchmark_case_result(
-                        case_def=case_def,
-                        canonical_rows=canonical_rows,
-                        cluster_rows=cluster_rows,
-                        lower_layer_rows=lower_layer_rows,
-                        fragmentation_check_rows=fragmentation_check_rows,
-                        catalog_check_rows=catalog_check_rows,
-                    )
-                )
+            )
 
     artifact = build_benchmark_artifact(
         run_id=run_id,
