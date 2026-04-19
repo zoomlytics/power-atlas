@@ -227,7 +227,6 @@ from urllib.parse import quote as _pct_encode
 
 import neo4j
 
-from power_atlas.bootstrap import create_neo4j_driver
 from power_atlas.context import RequestContext
 from power_atlas.contracts import resolve_dataset_root
 from power_atlas.contracts.resolution import ALIGNMENT_VERSION as _ALIGNMENT_VERSION
@@ -237,6 +236,7 @@ from power_atlas.entity_resolution_queries import (
     fetch_entity_mentions,
     fetch_member_of_coverage,
 )
+from power_atlas.entity_resolution_runtime import run_entity_resolution_live
 from power_atlas.entity_resolution_writes import (
     write_alignment_results as _write_alignment_results_live,
     write_cluster_memberships as _write_cluster_memberships_live,
@@ -1491,175 +1491,38 @@ def run_entity_resolution(
         unresolved_path.write_text(json.dumps([], indent=2), encoding="utf-8")
         return summary
 
-    # Initialised here so they are always defined when building the summary below,
-    # regardless of resolution_mode.  Set to graph-queried values inside the
-    # driver context for unstructured-first modes.
-    _graph_mentions_clustered: int = 0
-    _graph_mentions_unclustered: int = 0
-    # Hybrid-only alignment metrics — computed from post-write graph queries.
-    _graph_total_clusters: int = 0
-    _graph_aligned_clusters: int = 0
-    _graph_distinct_canonical_entities: int = 0
-    _graph_mentions_in_aligned: int = 0
-    _graph_alignment_breakdown: dict[str, int] = {}
-    # Warnings accumulated inside the driver block and surfaced in the summary.
-    _stage_warnings: list[str] = []
+    live_result = run_entity_resolution_live(
+        config,
+        run_id=run_id,
+        source_uri=source_uri,
+        resolution_mode=resolution_mode,
+        effective_dataset_id=effective_dataset_id,
+        alignment_version=_ALIGNMENT_VERSION,
+        fetch_mentions=fetch_entity_mentions,
+        cluster_mentions=_cluster_mentions_unstructured_only,
+        fetch_canonicals=fetch_canonical_entities,
+        build_lookup_tables=_build_lookup_tables,
+        make_cluster_id=_make_cluster_id,
+        align_clusters_to_canonical=_align_clusters_to_canonical,
+        resolve_mention=_resolve_mention,
+        write_resolution_results=_write_resolution_results,
+        write_alignment_results=_write_alignment_results,
+        fetch_member_of_coverage=fetch_member_of_coverage,
+        fetch_alignment_coverage=fetch_alignment_coverage,
+    )
 
-    driver = create_neo4j_driver(config)
-    with driver:
-        # 1. Read EntityMention nodes for this run_id.
-        mentions = fetch_entity_mentions(
-            driver,
-            run_id=run_id,
-            source_uri_fallback=source_uri,
-            neo4j_database=config.neo4j_database,
-        )
-
-        resolved_rows: list[dict[str, Any]] = []
-        unresolved_rows: list[dict[str, Any]] = []
-        resolution_breakdown: dict[str, int] = {}
-        alignment_rows: list[dict[str, Any]] = []
-
-        if resolution_mode == _RESOLUTION_MODE_UNSTRUCTURED_ONLY:
-            # 2a. unstructured_only: cluster mentions against each other.
-            #     No CanonicalEntity lookup is performed.
-            cluster_rows_result = _cluster_mentions_unstructured_only(mentions)
-            for row in cluster_rows_result:
-                method = row["resolution_method"]
-                resolution_breakdown[method] = resolution_breakdown.get(method, 0) + 1
-                unresolved_rows.append(row)
-        elif resolution_mode == _RESOLUTION_MODE_HYBRID:
-            # 2c. hybrid: cluster mentions first (identical to unstructured_only),
-            #     then optionally align resulting clusters to CanonicalEntity nodes.
-            cluster_rows_result = _cluster_mentions_unstructured_only(mentions)
-            for row in cluster_rows_result:
-                method = row["resolution_method"]
-                resolution_breakdown[method] = resolution_breakdown.get(method, 0) + 1
-                unresolved_rows.append(row)
-
-            # Enrichment step: align clusters to canonical entities where possible.
-            # This is additive — clusters with no canonical match remain unchanged.
-            # Scope the lookup to dataset_id so that shared QIDs from other datasets
-            # do not leak into this run's alignment (cross-dataset isolation).
-            canonical_nodes = fetch_canonical_entities(
-                driver,
-                dataset_id=effective_dataset_id,
-                neo4j_database=config.neo4j_database,
-            )
-            if not canonical_nodes:
-                _stage_warnings.append(
-                    f"CanonicalEntity lookup returned zero rows for dataset_id={effective_dataset_id!r} "
-                    f"(hybrid alignment skipped); check that structured ingest has run for this dataset "
-                    f"and that CanonicalEntity nodes carry a matching dataset_id property.  "
-                    f"If CanonicalEntity nodes already exist but have dataset_id=null (legacy graph), "
-                    f"run the in-place repair Cypher or re-ingest from the structured fixture — "
-                    f"see docs/architecture/legacy-dataset-id-migration-v0.1.md."
-                )
-            if canonical_nodes:
-                _, by_label, by_alias = _build_lookup_tables(canonical_nodes)
-                # Build unique cluster dicts keyed by the scoped cluster_id
-                # produced by _make_cluster_id (which incorporates run_id,
-                # entity_type, and normalized_text). Multiple mention rows
-                # can map to the same cluster_id (including mentions from
-                # different source documents — source_uri is NOT part of
-                # cluster identity). We deduplicate by cluster_id in a single
-                # O(n) pass, then sort only the unique entries (O(u log u),
-                # u ≤ n).
-                cluster_entries_by_id: dict[str, tuple[tuple[str, str], dict[str, Any]]] = {}
-                for row in unresolved_rows:
-                    cid = _make_cluster_id(run_id, row.get("entity_type"), row["normalized_text"])
-                    if cid not in cluster_entries_by_id:
-                        sort_key = (row.get("entity_type") or "", row["normalized_text"])
-                        cluster_entries_by_id[cid] = (sort_key, {
-                            "cluster_id": cid,
-                            "normalized_text": row["normalized_text"],
-                        })
-                unique_clusters: list[dict[str, Any]] = [
-                    c for _, c in sorted(cluster_entries_by_id.values(), key=lambda t: t[0])
-                ]
-                alignment_rows = _align_clusters_to_canonical(
-                    unique_clusters, by_label, by_alias
-                )
-        else:
-            # 2b. structured_anchor (default): resolve against CanonicalEntity nodes.
-            # Scope the lookup to dataset_id so that shared QIDs from other datasets
-            # do not leak into this run's resolution (cross-dataset isolation).
-            canonical_nodes = fetch_canonical_entities(
-                driver,
-                dataset_id=effective_dataset_id,
-                neo4j_database=config.neo4j_database,
-            )
-            if not canonical_nodes:
-                _stage_warnings.append(
-                    f"CanonicalEntity lookup returned zero rows for dataset_id={effective_dataset_id!r} "
-                    f"(all mentions will be unresolved); check that structured ingest has run for this "
-                    f"dataset and that CanonicalEntity nodes carry a matching dataset_id property.  "
-                    f"If CanonicalEntity nodes already exist but have dataset_id=null (legacy graph), "
-                    f"run the in-place repair Cypher or re-ingest from the structured fixture — "
-                    f"see docs/architecture/legacy-dataset-id-migration-v0.1.md."
-                )
-
-            by_qid, by_label, by_alias = _build_lookup_tables(canonical_nodes)
-
-            for mention in mentions:
-                result_rec = _resolve_mention(mention, by_qid, by_label, by_alias)
-                method = result_rec["resolution_method"]
-                resolution_breakdown[method] = resolution_breakdown.get(method, 0) + 1
-
-                if result_rec["resolved"]:
-                    resolved_rows.append(result_rec)
-                else:
-                    unresolved_rows.append(result_rec)
-
-        # 3. Write RESOLVES_TO edges and ResolvedEntityCluster nodes.
-        _write_resolution_results(
-            driver,
-            run_id=run_id,
-            source_uri=source_uri,
-            resolved_rows=resolved_rows,
-            unresolved_rows=unresolved_rows,
-            neo4j_database=config.neo4j_database,
-        )
-
-        # 3b. In hybrid mode, write ALIGNED_WITH enrichment edges.
-        if resolution_mode == _RESOLUTION_MODE_HYBRID:
-            _write_alignment_results(
-                driver,
-                run_id=run_id,
-                source_uri=source_uri,
-                alignment_rows=alignment_rows,
-                neo4j_database=config.neo4j_database,
-            )
-
-        # 3c. Query the graph for actual MEMBER_OF coverage after all writes so
-        #     mentions_clustered/mentions_unclustered reflect persisted state rather
-        #     than in-memory row counts.  This catches write errors or partial
-        #     failures that in-memory counts would silently mask.
-        if resolution_mode in (_RESOLUTION_MODE_UNSTRUCTURED_ONLY, _RESOLUTION_MODE_HYBRID):
-            graph_coverage = fetch_member_of_coverage(
-                driver,
-                run_id=run_id,
-                neo4j_database=config.neo4j_database,
-            )
-            _graph_mentions_clustered = graph_coverage.mentions_clustered
-            _graph_mentions_unclustered = graph_coverage.mentions_unclustered
-
-        # 3d. In hybrid mode, query the graph for post-write ALIGNED_WITH coverage.
-        #     Using driver.execute_query() for consistency with all other queries.
-        if resolution_mode == _RESOLUTION_MODE_HYBRID:
-            # Count total run-scoped clusters so that clusters_pending_alignment is
-            # consistent with the graph (not a mix of in-memory and graph values).
-            alignment_coverage = fetch_alignment_coverage(
-                driver,
-                run_id=run_id,
-                alignment_version=_ALIGNMENT_VERSION,
-                neo4j_database=config.neo4j_database,
-            )
-            _graph_total_clusters = alignment_coverage.total_clusters
-            _graph_aligned_clusters = alignment_coverage.aligned_clusters
-            _graph_distinct_canonical_entities = alignment_coverage.distinct_canonical_entities_aligned
-            _graph_mentions_in_aligned = alignment_coverage.mentions_in_aligned
-            _graph_alignment_breakdown = alignment_coverage.alignment_breakdown
+    mentions = live_result.mentions
+    resolved_rows = live_result.resolved_rows
+    unresolved_rows = live_result.unresolved_rows
+    resolution_breakdown = live_result.resolution_breakdown
+    _graph_mentions_clustered = live_result.graph_mentions_clustered
+    _graph_mentions_unclustered = live_result.graph_mentions_unclustered
+    _graph_total_clusters = live_result.graph_total_clusters
+    _graph_aligned_clusters = live_result.graph_aligned_clusters
+    _graph_distinct_canonical_entities = live_result.graph_distinct_canonical_entities
+    _graph_mentions_in_aligned = live_result.graph_mentions_in_aligned
+    _graph_alignment_breakdown = live_result.graph_alignment_breakdown
+    _stage_warnings = live_result.warnings
 
     # 4. Write artifacts.
     unresolved_list = [

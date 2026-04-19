@@ -82,7 +82,7 @@ from typing import Any
 
 import neo4j
 
-from power_atlas.bootstrap import create_neo4j_driver
+from power_atlas.claim_participation_runtime import run_claim_participation_live
 from power_atlas.context import RequestContext
 from power_atlas.claim_participation_writes import write_claim_participation_edges
 from power_atlas.text_utils import normalize_mention_text
@@ -913,68 +913,17 @@ def run_claim_participation(
         summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
         return summary
 
-    driver = create_neo4j_driver(config)
-    with driver:
-        # 1. Read ExtractedClaim rows for this run.
-        claim_result, _, _ = driver.execute_query(
-            """
-            MATCH (claim:ExtractedClaim {run_id: $run_id})
-            OPTIONAL MATCH (claim)-[supported_by:SUPPORTED_BY]->()
-            RETURN claim.claim_id AS claim_id,
-                   claim.subject   AS subject,
-                   claim.object    AS object,
-                   claim.source_uri AS source_uri,
-                   collect(DISTINCT supported_by.chunk_id) AS chunk_ids
-            ORDER BY claim.claim_id
-            """,
-            parameters_={"run_id": run_id},
-            database_=config.neo4j_database,
-            routing_=neo4j.RoutingControl.READ,
-        )
-        claim_rows = [
-            {
-                "claim_id": r["claim_id"],
-                "chunk_ids": [cid for cid in (r["chunk_ids"] or []) if cid is not None],
-                "run_id": run_id,
-                "source_uri": r["source_uri"] if r["source_uri"] not in (None, "") else source_uri,
-                "properties": {
-                    k: v
-                    for k, v in (("subject", r["subject"]), ("object", r["object"]))
-                    if v is not None
-                },
-            }
-            for r in claim_result
-        ]
-
-        # 2. Read EntityMention rows for this run.
-        mention_result, _, _ = driver.execute_query(
-            """
-            MATCH (mention:EntityMention {run_id: $run_id})
-            OPTIONAL MATCH (mention)-[mentioned_in:MENTIONED_IN]->()
-            RETURN mention.mention_id AS mention_id,
-                   mention.name       AS name,
-                   mention.source_uri AS source_uri,
-                   collect(DISTINCT mentioned_in.chunk_id) AS chunk_ids
-            ORDER BY mention.mention_id
-            """,
-            parameters_={"run_id": run_id},
-            database_=config.neo4j_database,
-            routing_=neo4j.RoutingControl.READ,
-        )
-        mention_rows = [
-            {
-                "mention_id": r["mention_id"],
-                "chunk_ids": [cid for cid in (r["chunk_ids"] or []) if cid is not None],
-                "run_id": run_id,
-                "source_uri": r["source_uri"] if r["source_uri"] not in (None, "") else source_uri,
-                "properties": {"name": r["name"] or ""},
-            }
-            for r in mention_result
-        ]
-
-        # 3. Build and persist participation edges.
-        edge_rows, match_metrics = build_participation_edges_with_metrics(claim_rows, mention_rows)
-        write_participation_edges(driver, neo4j_database=config.neo4j_database, edge_rows=edge_rows)
+    live_result = run_claim_participation_live(
+        config,
+        run_id=run_id,
+        source_uri=source_uri,
+        build_edges_with_metrics=build_participation_edges_with_metrics,
+        write_edges=write_participation_edges,
+    )
+    claim_rows = live_result.claim_rows
+    mention_rows = live_result.mention_rows
+    edge_rows = live_result.edge_rows
+    match_metrics = live_result.match_metrics
 
     subject_edges = sum(1 for e in edge_rows if e["role"] == ROLE_SUBJECT)
     object_edges = sum(1 for e in edge_rows if e["role"] == ROLE_OBJECT)
