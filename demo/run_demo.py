@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import dataclass, replace
+from dataclasses import replace
 import logging
 import os
 import sys
 import traceback
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from power_atlas.bootstrap import create_neo4j_driver
 from power_atlas.bootstrap import dataset_env_selection
@@ -22,6 +22,15 @@ from power_atlas.orchestration.context_builder import (
     build_request_context_from_config as _build_request_context_from_config,
     build_request_context_from_overrides as _build_request_context_from_overrides,
     build_runtime_config_from_overrides as _build_runtime_config_from_overrides,
+)
+from power_atlas.orchestration.demo_planner import (
+    IndependentStageOptions as _IndependentStageOptions,
+    IndependentStageResources as _IndependentStageResources,
+    IndependentStageSpec as _IndependentStageSpec,
+    build_independent_stage_plan,
+    build_orchestrated_run_plan,
+    emit_stage_warnings,
+    scope_request_context as _scope_request_context,
 )
 from power_atlas.run_scope_queries import fetch_dataset_id_for_run
 from power_atlas.run_scope_queries import fetch_latest_unstructured_run_id
@@ -55,28 +64,6 @@ _KEEP_REQUEST_CONTEXT_VALUE = object()
 _DRY_RUN_NO_SCOPE_RUN_ID = "dry_run_no_scope"
 
 
-@dataclass(frozen=True)
-class _IndependentStageResources:
-    dataset_id: str | None
-    fixture_dir: Path | None
-    pdf_filename: str | None
-    pdf_source_uri: str | None
-
-
-@dataclass(frozen=True)
-class _IndependentStageOptions:
-    ask_all_runs: bool
-    cluster_aware: bool
-    expand_graph: bool
-
-
-@dataclass(frozen=True)
-class _IndependentStageSpec:
-    stage_name: str
-    run_scope_key: str
-    runner: Callable[[RequestContext, str, _IndependentStageResources, _IndependentStageOptions], dict[str, Any]]
-
-
 def _now_iso() -> str:
     return datetime.now(UTC).isoformat()
 
@@ -87,10 +74,12 @@ def _scoped_request_context(
     run_id: str | None,
     source_uri: object = _KEEP_REQUEST_CONTEXT_VALUE,
 ) -> RequestContext:
-    updates: dict[str, object | None] = {"run_id": run_id}
-    if source_uri is not _KEEP_REQUEST_CONTEXT_VALUE:
-        updates["source_uri"] = source_uri
-    return replace(request_context, **updates)
+    return _scope_request_context(
+        request_context,
+        run_id=run_id,
+        source_uri=source_uri,
+        keep_source_uri_value=_KEEP_REQUEST_CONTEXT_VALUE,
+    )
 
 
 def _extract_pdf_source_uri(stage_output: dict[str, Any] | object) -> str | None:
@@ -942,26 +931,29 @@ def _run_orchestrated_request_context(request_context: RequestContext) -> Path:
     """
     config = request_context.config
     config.output_dir.mkdir(parents=True, exist_ok=True)
-    started_at = _now_iso()
-    structured_run_id = make_run_id("structured_ingest")
-    unstructured_run_id = make_run_id("unstructured_ingest")
-
     dataset_root = resolve_dataset_root(config.dataset_name)
-    structured_request_context = _scoped_request_context(request_context, run_id=structured_run_id)
-    unstructured_request_context = _scoped_request_context(request_context, run_id=unstructured_run_id)
+    plan = build_orchestrated_run_plan(
+        request_context,
+        dataset_id=dataset_root.dataset_id,
+        fixture_dir=dataset_root.root,
+        pdf_filename=dataset_root.pdf_filename,
+        started_at=_now_iso(),
+        structured_run_id=make_run_id("structured_ingest"),
+        unstructured_run_id=make_run_id("unstructured_ingest"),
+    )
 
     # ── Phase 1: Unstructured-only pass ──────────────────────────────────────
     # Ingest the PDF and build the lexical graph first.
     pdf_stage = _run_pdf_ingest_request_context(
-        unstructured_request_context,
-        fixtures_dir=dataset_root.root,
-        pdf_filename=dataset_root.pdf_filename,
-        dataset_id=dataset_root.dataset_id,
+        plan.unstructured_request_context,
+        fixtures_dir=plan.fixture_dir,
+        pdf_filename=plan.pdf_filename,
+        dataset_id=plan.dataset_id,
     )
     pdf_source_uri = _extract_pdf_source_uri(pdf_stage)
     scoped_unstructured_request_context = _scoped_request_context(
-        request_context,
-        run_id=unstructured_run_id,
+        plan.request_context,
+        run_id=plan.unstructured_run_id,
         source_uri=pdf_source_uri,
     )
 
@@ -979,20 +971,20 @@ def _run_orchestrated_request_context(request_context: RequestContext) -> Path:
         scoped_unstructured_request_context,
         resolution_mode="unstructured_only",
         artifact_subdir="entity_resolution_unstructured_only",
-        dataset_id=dataset_root.dataset_id,
+        dataset_id=plan.dataset_id,
     )
     # Demonstrate that meaningful Q&A is available before any structured ingest.
     retrieval_unstructured_stage = _run_retrieval_request_context(
         scoped_unstructured_request_context,
-        question=getattr(config, "question", None),
+        question=plan.question,
     )
 
     # ── Phase 2: Structured enrichment pass ──────────────────────────────────
     # Structured ingest is deferred to demonstrate it is optional enrichment.
     structured_stage = _run_structured_ingest_request_context(
-        structured_request_context,
-        fixtures_dir=dataset_root.root,
-        dataset_id=dataset_root.dataset_id,
+        plan.structured_request_context,
+        fixtures_dir=plan.fixture_dir,
+        dataset_id=plan.dataset_id,
     )
     # Hybrid alignment enriches existing ResolvedEntityCluster nodes with ALIGNED_WITH
     # edges to CanonicalEntity nodes; gracefully degrades when no matches exist.
@@ -1001,12 +993,12 @@ def _run_orchestrated_request_context(request_context: RequestContext) -> Path:
         scoped_unstructured_request_context,
         resolution_mode="hybrid",
         artifact_subdir="entity_resolution_hybrid",
-        dataset_id=dataset_root.dataset_id,
+        dataset_id=plan.dataset_id,
     )
     # Final Q&A after structured enrichment shows the additive benefit.
     retrieval_stage = _run_retrieval_request_context(
         scoped_unstructured_request_context,
-        question=getattr(config, "question", None),
+        question=plan.question,
     )
 
     # Post-hybrid retrieval benchmark: validates canonical traversal quality after
@@ -1034,8 +1026,8 @@ def _run_orchestrated_request_context(request_context: RequestContext) -> Path:
     try:
         benchmark_stage = run_retrieval_benchmark(
             config,
-            run_id=unstructured_run_id,
-            dataset_id=dataset_root.dataset_id,
+            run_id=plan.unstructured_run_id,
+            dataset_id=plan.dataset_id,
             alignment_version=_hybrid_alignment_version,
             output_dir=config.output_dir,
             # Deduplication: the orchestrator already emitted a warning above when
@@ -1053,29 +1045,25 @@ def _run_orchestrated_request_context(request_context: RequestContext) -> Path:
             "traceback": _tb,
         }
 
-    finished_at = _now_iso()
-
-    # Stage warnings must be surfaced at orchestration boundaries so operators see
-    # non-fatal issues without manually inspecting nested stage artifacts.
-    for _stage_name, _stage_result in [
-        ("pdf_ingest", pdf_stage),
-        ("claim_and_mention_extraction", claim_stage),
-        ("claim_participation", claim_participation_stage),
-        ("entity_resolution_unstructured_only", entity_resolution_unstructured_stage),
-        ("retrieval_and_qa_unstructured_only", retrieval_unstructured_stage),
-        ("structured_ingest", structured_stage),
-        ("entity_resolution_hybrid", entity_resolution_hybrid_stage),
-        ("retrieval_and_qa", retrieval_stage),
-        ("retrieval_benchmark", benchmark_stage),
-    ]:
-        if isinstance(_stage_result, dict):
-            for _warning in _stage_result.get("warnings") or []:
-                _logger.warning("Stage %r warning: %s", _stage_name, _warning)
+    emit_stage_warnings(
+        _logger,
+        [
+            ("pdf_ingest", pdf_stage),
+            ("claim_and_mention_extraction", claim_stage),
+            ("claim_participation", claim_participation_stage),
+            ("entity_resolution_unstructured_only", entity_resolution_unstructured_stage),
+            ("retrieval_and_qa_unstructured_only", retrieval_unstructured_stage),
+            ("structured_ingest", structured_stage),
+            ("entity_resolution_hybrid", entity_resolution_hybrid_stage),
+            ("retrieval_and_qa", retrieval_stage),
+            ("retrieval_benchmark", benchmark_stage),
+        ],
+    )
 
     manifest = build_batch_manifest(
         config=config,
-        structured_run_id=structured_run_id,
-        unstructured_run_id=unstructured_run_id,
+        structured_run_id=plan.structured_run_id,
+        unstructured_run_id=plan.unstructured_run_id,
         structured_stage=structured_stage,
         pdf_stage=pdf_stage,
         claim_stage=claim_stage,
@@ -1085,9 +1073,9 @@ def _run_orchestrated_request_context(request_context: RequestContext) -> Path:
         entity_resolution_hybrid_stage=entity_resolution_hybrid_stage,
         retrieval_stage=retrieval_stage,
         retrieval_benchmark_stage=benchmark_stage,
-        dataset_id=dataset_root.dataset_id,
-        started_at=started_at,
-        finished_at=finished_at,
+        dataset_id=plan.dataset_id,
+        started_at=plan.started_at,
+        finished_at=_now_iso(),
     )
 
     return write_batch_manifest_artifacts(config.output_dir, manifest=manifest)
@@ -1108,58 +1096,30 @@ def _run_independent_stage(
     expand_graph: bool = False,
 ) -> Path:
     request_context = _ensure_request_context(config_or_request_context, command=command)
-    request_context = replace(
-        request_context,
-        run_id=resolved_run_id if resolved_run_id is not None else request_context.run_id,
-        all_runs=all_runs or request_context.all_runs,
-    )
-    if command == "ask" and request_context.source_uri is None and not request_context.all_runs:
+    if command == "ask" and request_context.source_uri is None and not (all_runs or request_context.all_runs):
         request_context = replace(request_context, source_uri=_resolve_ask_source_uri(request_context))
     config = request_context.config
     config.output_dir.mkdir(parents=True, exist_ok=True)
-    # all_runs is only relevant for the ask command.
-    _ask_all_runs = request_context.all_runs and command == "ask"
-
-    # Resolve the active dataset root for commands that need fixture paths.
-    # For `ask --all-runs`, no dataset-specific fixture path is required, so we
-    # skip resolution to avoid raising on a multi-dataset repo.
-    if not _ask_all_runs:
-        dataset_root = resolve_dataset_root(config.dataset_name)
-        _fixture_dir: Path | None = dataset_root.root
-        _pdf_filename: str | None = dataset_root.pdf_filename
-        _pdf_source_uri: str | None = str((_fixture_dir / "unstructured" / _pdf_filename).resolve().as_uri())
-    else:
-        dataset_root = None
-        _fixture_dir = None
-        _pdf_filename = None
-        _pdf_source_uri = None
-
-    resources = _IndependentStageResources(
-        dataset_id=dataset_root.dataset_id if dataset_root is not None else None,
-        fixture_dir=_fixture_dir,
-        pdf_filename=_pdf_filename,
-        pdf_source_uri=_pdf_source_uri,
-    )
-    options = _IndependentStageOptions(
-        ask_all_runs=_ask_all_runs,
+    ask_all_runs = (all_runs or request_context.all_runs) and command == "ask"
+    dataset_root = None if ask_all_runs else resolve_dataset_root(config.dataset_name)
+    plan = build_independent_stage_plan(
+        request_context,
+        command=command,
+        resolved_run_id=resolved_run_id,
+        all_runs=all_runs,
         cluster_aware=cluster_aware,
         expand_graph=expand_graph,
-    )
-    stage_specs = _independent_stage_specs()
-    if command not in stage_specs:
-        raise ValueError(f"Unsupported independent command: {command}")
-    stage_spec = stage_specs[command]
-    stage_name = stage_spec.stage_name
-    run_scope_key = stage_spec.run_scope_key
-    run_scope = run_scope_key.removesuffix("_run_id")
-    stage_run_id = _resolve_independent_stage_run_id(
-        command,
-        request_context,
-        run_scope=run_scope,
-        ask_all_runs=_ask_all_runs,
+        dataset_root=dataset_root,
+        stage_specs=_independent_stage_specs(),
+        resolve_stage_run_id=_resolve_independent_stage_run_id,
     )
     started_at = _now_iso()
-    stage_output = stage_spec.runner(request_context, stage_run_id, resources, options)
+    stage_output = plan.stage_spec.runner(
+        plan.request_context,
+        plan.stage_run_id,
+        plan.resources,
+        plan.options,
+    )
     finished_at = _now_iso()
     # In all-runs mode the ask run is not associated with any specific ingest run, so
     # run_scopes.unstructured_ingest_run_id must be null rather than a fake sentinel.
@@ -1171,11 +1131,11 @@ def _run_independent_stage(
     # overwriting each other.  write_manifest() calls mkdir internally so no explicit mkdir needed.
     return _write_independent_stage_manifest(
         config=config,
-        stage_name=stage_name,
-        stage_run_id=stage_run_id,
-        run_scope_key=run_scope_key,
-        scope_run_id=None if _ask_all_runs else stage_run_id,
-        dataset_id=dataset_root.dataset_id if dataset_root is not None else None,
+        stage_name=plan.stage_spec.stage_name,
+        stage_run_id=plan.stage_run_id,
+        run_scope_key=plan.stage_spec.run_scope_key,
+        scope_run_id=None if plan.options.ask_all_runs else plan.stage_run_id,
+        dataset_id=plan.dataset_id,
         stage_output=stage_output,
         started_at=started_at,
         finished_at=finished_at,
