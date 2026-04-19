@@ -51,6 +51,7 @@ from power_atlas.orchestration.independent_stage_runners import (
     run_independent_pdf_ingest_stage,
     run_independent_structured_ingest_stage,
 )
+from power_atlas.orchestration.orchestrated_runner import run_orchestrated_request_context
 
 __all__ = [
     "CONFIG_COMMANDS",
@@ -82,6 +83,7 @@ __all__ = [
     "resolve_dry_run_ask_scope",
     "resolve_latest_dataset_id",
     "resolve_latest_run_scope",
+    "run_orchestrated_request_context",
     "run_independent_ask_stage",
     "run_independent_claim_extraction_stage",
     "run_independent_entity_resolution_stage",

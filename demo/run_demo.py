@@ -55,6 +55,9 @@ from power_atlas.orchestration.independent_stage_runners import (
     run_independent_pdf_ingest_stage as _run_independent_pdf_ingest_stage_impl,
     run_independent_structured_ingest_stage as _run_independent_structured_ingest_stage_impl,
 )
+from power_atlas.orchestration.orchestrated_runner import (
+    run_orchestrated_request_context as _run_orchestrated_request_context_impl,
+)
 from power_atlas.run_scope_queries import fetch_dataset_id_for_run
 from power_atlas.run_scope_queries import fetch_latest_unstructured_run_id
 
@@ -818,179 +821,28 @@ def _independent_stage_specs() -> dict[str, _IndependentStageSpec]:
 
 
 def _run_orchestrated_request_context(request_context: RequestContext) -> Path:
-    """Run the full demo batch sequence with an unstructured-first posture.
-
-    Sequence:
-
-    **Phase 1 — Unstructured-only pass** (demonstrates meaningful Q&A without structured ingest):
-
-    1. PDF ingest → lexical graph
-    2. Claim and mention extraction
-    3. Entity resolution in ``unstructured_only`` mode — clusters mentions against each
-       other without any structured canonical entity lookup
-    4. Q&A — shows that useful retrieval and citation-grounded answers are available
-       *before* any structured data is loaded
-
-    **Phase 2 — Structured enrichment pass** (structured ingest is additive):
-
-    5. Structured ingest — writes :CanonicalEntity nodes and structured claims as optional
-       verification/enrichment; this step is intentionally deferred to demonstrate that
-       unstructured data stands on its own
-    6. Entity resolution in ``hybrid`` mode — enriches existing :ResolvedEntityCluster
-       nodes with :ALIGNED_WITH edges to matching :CanonicalEntity nodes where available;
-       gracefully degrades if no matches exist
-    7. Final Q&A — demonstrates enriched retrieval after structured alignment
-    """
-    config = request_context.config
-    config.output_dir.mkdir(parents=True, exist_ok=True)
-    dataset_root = resolve_dataset_root(config.dataset_name)
-    plan = build_orchestrated_run_plan(
+    """Run the full demo batch sequence with an unstructured-first posture."""
+    return _run_orchestrated_request_context_impl(
         request_context,
-        dataset_id=dataset_root.dataset_id,
-        fixture_dir=dataset_root.root,
-        pdf_filename=dataset_root.pdf_filename,
-        started_at=_now_iso(),
-        structured_run_id=make_run_id("structured_ingest"),
-        unstructured_run_id=make_run_id("unstructured_ingest"),
+        resolve_dataset_root=resolve_dataset_root,
+        build_orchestrated_run_plan=build_orchestrated_run_plan,
+        make_run_id=make_run_id,
+        now_iso=_now_iso,
+        run_pdf_ingest_request_context=_run_pdf_ingest_request_context,
+        extract_pdf_source_uri=_extract_pdf_source_uri,
+        scope_request_context=_scoped_request_context,
+        run_claim_extraction_request_context=_run_claim_extraction_request_context,
+        run_claim_participation_request_context=_run_claim_participation_request_context,
+        run_entity_resolution_request_context=_run_entity_resolution_request_context,
+        run_retrieval_request_context=_run_retrieval_request_context,
+        run_structured_ingest_request_context=_run_structured_ingest_request_context,
+        run_retrieval_benchmark=run_retrieval_benchmark,
+        emit_stage_warnings=emit_stage_warnings,
+        build_batch_manifest=build_batch_manifest,
+        write_batch_manifest_artifacts=write_batch_manifest_artifacts,
+        logger=_logger,
+        format_traceback=traceback.format_exc,
     )
-
-    # ── Phase 1: Unstructured-only pass ──────────────────────────────────────
-    # Ingest the PDF and build the lexical graph first.
-    pdf_stage = _run_pdf_ingest_request_context(
-        plan.unstructured_request_context,
-        fixtures_dir=plan.fixture_dir,
-        pdf_filename=plan.pdf_filename,
-        dataset_id=plan.dataset_id,
-    )
-    pdf_source_uri = _extract_pdf_source_uri(pdf_stage)
-    scoped_unstructured_request_context = _scoped_request_context(
-        plan.request_context,
-        run_id=plan.unstructured_run_id,
-        source_uri=pdf_source_uri,
-    )
-
-    claim_stage = _run_claim_extraction_request_context(scoped_unstructured_request_context)
-    # Link ExtractedClaim subject/object slots to EntityMention nodes in the same
-    # chunk/run via deterministic text matching (raw_exact → casefold_exact →
-    # normalized_exact).  Runs after extraction so all nodes are already in the graph.
-    claim_participation_stage = _run_claim_participation_request_context(scoped_unstructured_request_context)
-    # Cluster extracted mentions against each other; no CanonicalEntity lookup required.
-    # Use a mode-specific artifact subdirectory so the hybrid pass does not overwrite
-    # the unstructured-only artifacts when both passes share the same run_id.
-    # Pass dataset_id explicitly (preferred explicit-scope pattern) rather than relying
-    # on the ambient value set by set_dataset_id() earlier in orchestration.
-    entity_resolution_unstructured_stage = _run_entity_resolution_request_context(
-        scoped_unstructured_request_context,
-        resolution_mode="unstructured_only",
-        artifact_subdir="entity_resolution_unstructured_only",
-        dataset_id=plan.dataset_id,
-    )
-    # Demonstrate that meaningful Q&A is available before any structured ingest.
-    retrieval_unstructured_stage = _run_retrieval_request_context(
-        scoped_unstructured_request_context,
-        question=plan.question,
-    )
-
-    # ── Phase 2: Structured enrichment pass ──────────────────────────────────
-    # Structured ingest is deferred to demonstrate it is optional enrichment.
-    structured_stage = _run_structured_ingest_request_context(
-        plan.structured_request_context,
-        fixtures_dir=plan.fixture_dir,
-        dataset_id=plan.dataset_id,
-    )
-    # Hybrid alignment enriches existing ResolvedEntityCluster nodes with ALIGNED_WITH
-    # edges to CanonicalEntity nodes; gracefully degrades when no matches exist.
-    # Use a separate artifact subdirectory to preserve the unstructured-only artifacts.
-    entity_resolution_hybrid_stage = _run_entity_resolution_request_context(
-        scoped_unstructured_request_context,
-        resolution_mode="hybrid",
-        artifact_subdir="entity_resolution_hybrid",
-        dataset_id=plan.dataset_id,
-    )
-    # Final Q&A after structured enrichment shows the additive benefit.
-    retrieval_stage = _run_retrieval_request_context(
-        scoped_unstructured_request_context,
-        question=plan.question,
-    )
-
-    # Post-hybrid retrieval benchmark: validates canonical traversal quality after
-    # the full pipeline (including hybrid alignment).  Runs automatically as part of
-    # every orchestrated `ingest` to produce a benchmark artifact and regression
-    # readout without requiring a separate manual invocation.  The artifact is written
-    # to <output_dir>/runs/<unstructured_run_id>/retrieval_benchmark/retrieval_benchmark.json.
-    # In dry-run mode a stub artifact is produced (no live Neo4j calls are made).
-    # alignment_version is taken from the hybrid stage output so the benchmark
-    # queries scope to the exact ALIGNED_WITH edge version that was just written,
-    # preventing cross-version aggregation when alignment is re-run on the same run_id.
-    _hybrid_alignment_version: str | None = (
-        entity_resolution_hybrid_stage.get("alignment_version")
-        if isinstance(entity_resolution_hybrid_stage, dict)
-        else None
-    )
-    if _hybrid_alignment_version is None:
-        _logger.warning(
-            "Orchestrated retrieval benchmark: alignment_version was not forwarded from the "
-            "hybrid entity resolution stage (got None). The benchmark will aggregate across "
-            "ALL alignment versions in the database rather than scoping to the current "
-            "alignment cohort. If this is unexpected, check that the hybrid stage completed "
-            "successfully and returned an 'alignment_version' key."
-        )
-    try:
-        benchmark_stage = run_retrieval_benchmark(
-            config,
-            run_id=plan.unstructured_run_id,
-            dataset_id=plan.dataset_id,
-            alignment_version=_hybrid_alignment_version,
-            output_dir=config.output_dir,
-            # Deduplication: the orchestrator already emitted a warning above when
-            # alignment_version is None, so suppress the duplicate from the stage.
-            suppress_alignment_version_warning=_hybrid_alignment_version is None,
-        )
-    except Exception as _benchmark_exc:  # noqa: BLE001
-        _tb = traceback.format_exc()
-        _logger.error(
-            "retrieval_benchmark failed; manifest will be written with error status. %s", _tb
-        )
-        benchmark_stage = {
-            "status": "error",
-            "error": str(_benchmark_exc),
-            "traceback": _tb,
-        }
-
-    emit_stage_warnings(
-        _logger,
-        [
-            ("pdf_ingest", pdf_stage),
-            ("claim_and_mention_extraction", claim_stage),
-            ("claim_participation", claim_participation_stage),
-            ("entity_resolution_unstructured_only", entity_resolution_unstructured_stage),
-            ("retrieval_and_qa_unstructured_only", retrieval_unstructured_stage),
-            ("structured_ingest", structured_stage),
-            ("entity_resolution_hybrid", entity_resolution_hybrid_stage),
-            ("retrieval_and_qa", retrieval_stage),
-            ("retrieval_benchmark", benchmark_stage),
-        ],
-    )
-
-    manifest = build_batch_manifest(
-        config=config,
-        structured_run_id=plan.structured_run_id,
-        unstructured_run_id=plan.unstructured_run_id,
-        structured_stage=structured_stage,
-        pdf_stage=pdf_stage,
-        claim_stage=claim_stage,
-        claim_participation_stage=claim_participation_stage,
-        entity_resolution_unstructured_stage=entity_resolution_unstructured_stage,
-        retrieval_unstructured_stage=retrieval_unstructured_stage,
-        entity_resolution_hybrid_stage=entity_resolution_hybrid_stage,
-        retrieval_stage=retrieval_stage,
-        retrieval_benchmark_stage=benchmark_stage,
-        dataset_id=plan.dataset_id,
-        started_at=plan.started_at,
-        finished_at=_now_iso(),
-    )
-
-    return write_batch_manifest_artifacts(config.output_dir, manifest=manifest)
 
 
 def _run_orchestrated(request_context_or_config: RequestContext | Config) -> Path:
