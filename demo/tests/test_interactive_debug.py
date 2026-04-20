@@ -107,6 +107,7 @@ def test_run_interactive_qa_request_context_forwards_pipeline_contract() -> None
 
     assert captured["config"] is request_context.config
     assert captured["pipeline_contract"] is request_context.pipeline_contract
+    assert captured["neo4j_settings"] is request_context.settings.neo4j
 
 
 # ---------------------------------------------------------------------------

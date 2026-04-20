@@ -85,14 +85,28 @@ def _resolve_pipeline_contract(
     config_pipeline_contract = getattr(config, "pipeline_contract", None)
     if is_pipeline_contract_snapshot(config_pipeline_contract):
         return config_pipeline_contract
+    if getattr(config, "settings", None) is not None:
+        raise ValueError(
+            "Retrieval stage requires an explicit pipeline contract or "
+            "config.pipeline_contract for settings-backed runtime config"
+        )
     return get_pipeline_contract_snapshot()
 
 
-def _neo4j_settings_from_config(config: object) -> Neo4jSettings:
+def _neo4j_settings_from_config(
+    config: object,
+    neo4j_settings: Neo4jSettings | None = None,
+) -> Neo4jSettings:
+    if neo4j_settings is not None:
+        return neo4j_settings
     config_settings = getattr(config, "settings", None)
     settings_neo4j = getattr(config_settings, "neo4j", None)
     if isinstance(settings_neo4j, Neo4jSettings):
         return settings_neo4j
+    if config_settings is not None:
+        raise ValueError(
+            "Live retrieval requires config.settings.neo4j for settings-backed runtime config"
+        )
 
     neo4j_uri = getattr(config, "neo4j_uri", None)
     neo4j_username = getattr(config, "neo4j_username", None)
@@ -1371,6 +1385,7 @@ def run_retrieval_and_qa_request_context(
         interactive=interactive,
         all_runs=request_context.all_runs,
         pipeline_contract=request_context.pipeline_contract,
+        neo4j_settings=request_context.settings.neo4j,
     )
 
 
@@ -1388,6 +1403,7 @@ def run_retrieval_and_qa(
     interactive: bool = False,
     all_runs: bool = False,
     pipeline_contract: PipelineContractSnapshot | None = None,
+    neo4j_settings: Neo4jSettings | None = None,
 ) -> dict[str, object]:
     """Run retrieval and GraphRAG Q&A for a single question or interactive session.
 
@@ -1437,6 +1453,9 @@ def run_retrieval_and_qa(
     pipeline_contract:
         Optional explicit pipeline contract snapshot. RequestContext-driven calls
         should always provide this rather than relying on config/global fallback.
+    neo4j_settings:
+        Optional explicit Neo4j settings. RequestContext-driven calls should
+        provide this so live retrieval does not depend on config-shape fallback.
     """
     resolved_pipeline_contract = _resolve_pipeline_contract(config, pipeline_contract)
     resolved_index_name = (
@@ -1602,8 +1621,8 @@ def run_retrieval_and_qa(
         "OPENAI_API_KEY environment variable is required for live retrieval."
     )
 
-    neo4j_settings = _neo4j_settings_from_config(config)
-    neo4j_database = neo4j_settings.database
+    resolved_neo4j_settings = _neo4j_settings_from_config(config, neo4j_settings)
+    neo4j_database = resolved_neo4j_settings.database
 
     def _run_single_shot_session(*, driver: object, retriever: object, rag: GraphRAG) -> tuple[str, list[dict[str, object]], list[str], list[str]]:
         del driver, retriever
@@ -1624,7 +1643,7 @@ def run_retrieval_and_qa(
         )
 
     answer_text, hits, session_warnings, session_citation_warnings = run_with_retrieval_session(
-        neo4j_settings,
+        resolved_neo4j_settings,
         index_name=resolved_index_name,
         retrieval_query=retrieval_query,
         qa_model=effective_qa_model,
@@ -1674,6 +1693,7 @@ def run_interactive_qa(
     all_runs: bool = False,
     debug: bool = False,
     pipeline_contract: PipelineContractSnapshot | None = None,
+    neo4j_settings: Neo4jSettings | None = None,
 ) -> None:
     """Run a REPL-style interactive Q&A session.
 
@@ -1724,6 +1744,9 @@ def run_interactive_qa(
     pipeline_contract:
         Optional explicit pipeline contract snapshot. RequestContext-driven calls
         should always provide this rather than relying on config/global fallback.
+    neo4j_settings:
+        Optional explicit Neo4j settings. RequestContext-driven calls should
+        provide this so live retrieval does not depend on config-shape fallback.
     """
     resolved_pipeline_contract = _resolve_pipeline_contract(config, pipeline_contract)
     # Validate and resolve session-level config once before opening any connections.
@@ -1803,14 +1826,14 @@ def run_interactive_qa(
         except KeyboardInterrupt:
             print()
 
-    neo4j_settings = _neo4j_settings_from_config(config)
+    resolved_neo4j_settings = _neo4j_settings_from_config(config, neo4j_settings)
 
     run_with_retrieval_session(
-        neo4j_settings,
+        resolved_neo4j_settings,
         index_name=resolved_index_name,
         retrieval_query=retrieval_query,
         qa_model=effective_qa_model,
-        neo4j_database=neo4j_settings.database,
+        neo4j_database=resolved_neo4j_settings.database,
         pipeline_contract=resolved_pipeline_contract,
         build_retriever_and_rag=_build_retriever_and_rag,
         run_session=_run_interactive_session,
@@ -1839,6 +1862,7 @@ def run_interactive_qa_request_context(
         all_runs=request_context.all_runs if all_runs is None else all_runs,
         debug=debug,
         pipeline_contract=request_context.pipeline_contract,
+        neo4j_settings=request_context.settings.neo4j,
     )
 
 

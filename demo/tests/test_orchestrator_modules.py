@@ -4442,6 +4442,7 @@ def test_run_retrieval_and_qa_request_context_forwards_pipeline_contract(tmp_pat
 
     assert captured["config"] is request_context.config
     assert captured["pipeline_contract"] is request_context.pipeline_contract
+    assert captured["neo4j_settings"] is request_context.settings.neo4j
 
 
 def test_run_claim_participation_request_context_uses_request_scope(tmp_path: Path):
