@@ -25,6 +25,37 @@ from demo.narrative_extraction import (  # noqa: E402
     prepare_extracted_rows,
     run_narrative_extraction,
 )
+from power_atlas.settings import AppSettings, Neo4jSettings  # noqa: E402
+
+
+def _make_config(
+    *,
+    run_id: str,
+    output_root: Path,
+    source_uri: str | None = None,
+    dry_run: bool = False,
+    uri: str = "neo4j://localhost:7687",
+    username: str = "neo4j",
+    password: str = "testtesttest",
+    database: str = "neo4j",
+    model_name: str = "gpt-4o-mini",
+) -> ExtractionConfig:
+    return ExtractionConfig(
+        run_id=run_id,
+        source_uri=source_uri,
+        settings=AppSettings(
+            neo4j=Neo4jSettings(
+                uri=uri,
+                username=username,
+                password=password,
+                database=database,
+            ),
+            openai_model=model_name,
+            output_dir=output_root,
+        ),
+        output_root=output_root,
+        dry_run=dry_run,
+    )
 
 
 def _build_fake_graph(chunk_id: str) -> Neo4jGraph:
@@ -84,15 +115,10 @@ def test_prepare_extracted_rows_builds_provenance_and_edges():
 
 def test_run_narrative_extraction_dry_run_writes_artifacts(tmp_path: Path):
     output_root = tmp_path / "runs"
-    config = ExtractionConfig(
+    config = _make_config(
         run_id="run-123",
-        source_uri=None,
-        neo4j_uri="neo4j://localhost:7687",
-        neo4j_username="neo4j",
-        neo4j_password="testtesttest",
-        neo4j_database="neo4j",
-        model_name="gpt-4o-mini",
         output_root=output_root,
+        source_uri=None,
         dry_run=True,
     )
 
@@ -109,7 +135,7 @@ def test_run_narrative_extraction_dry_run_writes_artifacts(tmp_path: Path):
     assert summary["status"] == "dry_run"
     assert stored_summary["prompt_version"] == PROMPT_VERSION
     assert stored_manifest["run_id"] == config.run_id
-    assert stored_manifest["config"]["openai_model"] == config.model_name
+    assert stored_manifest["config"]["openai_model"] == config.settings.openai_model
     assert stored_manifest["stages"]["narrative_extraction"]["run_id"] == config.run_id
     assert stored_manifest["run_scopes"]["unstructured_ingest_run_id"] == config.run_id
     assert stored_manifest["run_scopes"]["batch_mode"] == "single_independent_run"
@@ -163,15 +189,10 @@ def test_run_narrative_extraction_live_path_uses_run_scoped_reader_and_writer(tm
             "demo.narrative_extraction.write_extracted_rows",
             side_effect=_fake_write_extracted_rows,
         ), mock.patch("power_atlas.bootstrap.clients.neo4j.GraphDatabase.driver"):
-        config = ExtractionConfig(
+        config = _make_config(
             run_id="run-live",
-            source_uri="file:///doc.pdf",
-            neo4j_uri="neo4j://localhost:7687",
-            neo4j_username="neo4j",
-            neo4j_password="testtesttest",
-            neo4j_database="neo4j",
-            model_name="gpt-4o-mini",
             output_root=tmp_path,
+            source_uri="file:///doc.pdf",
             dry_run=False,
         )
         with mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
@@ -186,15 +207,11 @@ def test_run_narrative_extraction_live_path_uses_run_scoped_reader_and_writer(tm
 
 
 def test_run_narrative_extraction_rejects_default_password_for_live(tmp_path: Path):
-    config = ExtractionConfig(
+    config = _make_config(
         run_id="run-live",
-        source_uri=None,
-        neo4j_uri="neo4j://localhost:7687",
-        neo4j_username="neo4j",
-        neo4j_password=DEFAULT_NEO4J_PASSWORD,
-        neo4j_database="neo4j",
-        model_name="gpt-4o-mini",
         output_root=tmp_path,
+        source_uri=None,
+        password=DEFAULT_NEO4J_PASSWORD,
         dry_run=False,
     )
 
@@ -212,11 +229,11 @@ def test_parse_args_uses_package_settings_defaults(monkeypatch: pytest.MonkeyPat
     config = _parse_args(["--run-id", "parser-run"])
 
     assert config.run_id == "parser-run"
-    assert config.neo4j_uri == "bolt://parser.test:7687"
-    assert config.neo4j_username == "parser-user"
-    assert config.neo4j_password == "parser-secret"
-    assert config.neo4j_database == "parser-db"
-    assert config.model_name == "parser-model"
+    assert config.settings.neo4j.uri == "bolt://parser.test:7687"
+    assert config.settings.neo4j.username == "parser-user"
+    assert config.settings.neo4j.password == "parser-secret"
+    assert config.settings.neo4j.database == "parser-db"
+    assert config.settings.openai_model == "parser-model"
 
 
 def test_parse_args_preserves_narrative_default_model(monkeypatch: pytest.MonkeyPatch):
@@ -224,7 +241,7 @@ def test_parse_args_preserves_narrative_default_model(monkeypatch: pytest.Monkey
 
     config = _parse_args(["--run-id", "parser-run"])
 
-    assert config.model_name == "gpt-4o-mini"
+    assert config.settings.openai_model == "gpt-4o-mini"
 
 
 def test_write_extracted_rows_validates_cypher_identifiers():

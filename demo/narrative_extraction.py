@@ -22,7 +22,7 @@ from power_atlas.contracts import (
 )
 from power_atlas.narrative_extraction_runtime import run_narrative_extraction_live
 from power_atlas.orchestration.context_builder import build_settings_from_overrides
-from power_atlas.settings import Neo4jSettings
+from power_atlas.settings import AppSettings
 from demo.extraction_utils import prepare_extracted_rows, write_extracted_rows
 from demo.io import RunScopedNeo4jChunkReader
 from neo4j_graphrag.experimental.components.entity_relation_extractor import (
@@ -45,11 +45,7 @@ DEFAULT_NEO4J_PASSWORD = "CHANGE_ME_BEFORE_USE"
 class ExtractionConfig:
     run_id: str
     source_uri: str | None
-    neo4j_uri: str
-    neo4j_username: str
-    neo4j_password: str
-    neo4j_database: str
-    model_name: str
+    settings: AppSettings
     output_root: Path
     dry_run: bool = False
 
@@ -116,8 +112,8 @@ def _update_manifest(
 ) -> None:
     manifest_config = SimpleNamespace(
         dry_run=config.dry_run,
-        neo4j_database=config.neo4j_database,
-        openai_model=config.model_name,
+        neo4j_database=config.settings.neo4j.database,
+        openai_model=config.settings.openai_model,
     )
     manifest = build_stage_manifest(
         config=manifest_config,
@@ -164,15 +160,6 @@ def _default_cli_settings():
     return build_settings(environ)
 
 
-def _neo4j_settings_from_config(config: ExtractionConfig) -> Neo4jSettings:
-    return Neo4jSettings(
-        uri=config.neo4j_uri,
-        username=config.neo4j_username,
-        password=config.neo4j_password,
-        database=config.neo4j_database,
-    )
-
-
 def _build_cli_config(args: argparse.Namespace) -> ExtractionConfig:
     settings = build_settings_from_overrides(
         neo4j_uri=args.neo4j_uri,
@@ -184,11 +171,7 @@ def _build_cli_config(args: argparse.Namespace) -> ExtractionConfig:
     return ExtractionConfig(
         run_id=args.run_id,
         source_uri=args.source_uri,
-        neo4j_uri=settings.neo4j.uri,
-        neo4j_username=settings.neo4j.username,
-        neo4j_password=settings.neo4j.password,
-        neo4j_database=settings.neo4j.database,
-        model_name=settings.openai_model,
+        settings=settings,
         output_root=args.output_root,
         dry_run=args.dry_run,
     )
@@ -214,7 +197,7 @@ def run_narrative_extraction(config: ExtractionConfig) -> dict[str, Any]:
             "status": "dry_run",
             "run_id": config.run_id,
             "source_uri": config.source_uri,
-            "extractor_model": config.model_name,
+            "extractor_model": config.settings.openai_model,
             "prompt_version": PROMPT_VERSION,
             "extracted_at": extracted_at,
             "chunks_processed": 0,
@@ -236,7 +219,7 @@ def run_narrative_extraction(config: ExtractionConfig) -> dict[str, Any]:
         )
         return summary
 
-    if config.neo4j_password in ("", DEFAULT_NEO4J_PASSWORD):
+    if config.settings.neo4j.password in ("", DEFAULT_NEO4J_PASSWORD):
         raise ValueError(
             "NEO4J_PASSWORD must be set (not empty and not CHANGE_ME_BEFORE_USE) for live narrative extraction. "
             "Use --neo4j-password or the NEO4J_PASSWORD environment variable."
@@ -246,13 +229,12 @@ def run_narrative_extraction(config: ExtractionConfig) -> dict[str, Any]:
         "OPENAI_API_KEY environment variable is required for narrative extraction."
     )
 
-    neo4j_settings = _neo4j_settings_from_config(config)
     live_result = run_narrative_extraction_live(
-        neo4j_settings,
+        config.settings.neo4j,
         run_id=config.run_id,
         source_uri=config.source_uri,
-        neo4j_database=config.neo4j_database,
-        model_name=config.model_name,
+        neo4j_database=config.settings.neo4j.database,
+        model_name=config.settings.openai_model,
         lexical_graph_config=lexical_config,
         read_chunks_and_extract=_read_chunks_and_extract,
         prepare_rows=prepare_extracted_rows,
@@ -266,7 +248,7 @@ def run_narrative_extraction(config: ExtractionConfig) -> dict[str, Any]:
     summary = _build_summary(
         run_id=config.run_id,
         source_uri=config.source_uri,
-        model_name=config.model_name,
+        model_name=config.settings.openai_model,
         prompt_version=PROMPT_VERSION,
         extracted_at=extracted_at,
         chunk_count=len(text_chunks),
