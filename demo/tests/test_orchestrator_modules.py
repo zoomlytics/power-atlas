@@ -1178,7 +1178,8 @@ def test_retrieval_and_qa_live_path_no_question_returns_empty_hits(tmp_path: Pat
     a Neo4j driver or instantiating an embedder.  retrievers must be empty (nothing ran),
     retrieval_skipped must be True, and the skip warning must appear in warnings.
     Importantly, the skip path must work even with invalid/empty Neo4j credentials."""
-    from demo.stages import run_retrieval_and_qa
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context
 
     # Use empty Neo4j credentials to prove the skip path doesn't touch them.
     live_config = _make_config(
@@ -1191,8 +1192,15 @@ def test_retrieval_and_qa_live_path_no_question_returns_empty_hits(tmp_path: Pat
         openai_model="gpt-4o-mini",
     )
 
+    request_context = _request_context_from_config(
+        live_config,
+        command="ask",
+        run_id="live-run-3",
+        source_uri=None,
+    )
+
     # No driver or embedder patches needed — the function must return before touching them.
-    result = run_retrieval_and_qa(live_config, run_id="live-run-3", source_uri=None, question=None)
+    result = run_retrieval_and_qa_request_context(request_context, question=None)
 
     assert result["status"] == "live"
     assert result["hits"] == 0
@@ -1207,7 +1215,8 @@ def test_retrieval_and_qa_live_path_no_question_returns_empty_hits(tmp_path: Pat
 
 def test_retrieval_and_qa_live_path_requires_run_id(tmp_path: Path):
     """Live path must raise ValueError when run_id is omitted to prevent silent cross-run retrieval."""
-    from demo.stages import run_retrieval_and_qa
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context
 
     live_config = _make_config(
         dry_run=False,
@@ -1215,15 +1224,23 @@ def test_retrieval_and_qa_live_path_requires_run_id(tmp_path: Path):
         openai_model="gpt-4o-mini",
     )
 
+    request_context = _request_context_from_config(
+        live_config,
+        command="ask",
+        run_id=None,
+        source_uri=None,
+    )
+
     with pytest.raises(ValueError, match="run_id is required"):
-        run_retrieval_and_qa(live_config, run_id=None, source_uri=None, question="Test?")
+        run_retrieval_and_qa_request_context(request_context, question="Test?")
 
 
 def test_retrieval_and_qa_live_path_requires_openai_api_key(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     """Live path must raise ValueError when OPENAI_API_KEY is missing (after the question=None skip path)."""
     import os
 
-    from demo.stages import run_retrieval_and_qa
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context
 
     monkeypatch.delitem(os.environ, "OPENAI_API_KEY", raising=False)
 
@@ -1233,8 +1250,15 @@ def test_retrieval_and_qa_live_path_requires_openai_api_key(tmp_path: Path, monk
         openai_model="gpt-4o-mini",
     )
 
+    request_context = _request_context_from_config(
+        live_config,
+        command="ask",
+        run_id="live-run-key",
+        source_uri=None,
+    )
+
     with pytest.raises(ValueError, match="OPENAI_API_KEY"):
-        run_retrieval_and_qa(live_config, run_id="live-run-key", source_uri=None, question="Test?")
+        run_retrieval_and_qa_request_context(request_context, question="Test?")
 
 
 def test_retrieval_and_qa_live_path_warns_on_missing_citation_fields(tmp_path: Path):
@@ -2596,7 +2620,8 @@ def test_run_interactive_qa_shows_fallback_message_when_uncited(
 ):
     """run_interactive_qa must print the structured fallback message (including the original
     uncited answer text) when the LLM returns a response without proper citation tokens."""
-    from demo.stages.retrieval_and_qa import run_interactive_qa, _CITATION_FALLBACK_PREFIX
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_interactive_qa_request_context, _CITATION_FALLBACK_PREFIX
 
     uncited_answer = "This claim has no citation and is not grounded."
 
@@ -2619,6 +2644,12 @@ def test_run_interactive_qa_shows_fallback_message_when_uncited(
         output_dir=tmp_path,
         openai_model="gpt-4o-mini",
     )
+    request_context = _request_context_from_config(
+        live_config,
+        command="ask",
+        run_id="interactive-run-fallback",
+        source_uri=None,
+    )
 
     inputs = iter(["What happened?"])
 
@@ -2635,7 +2666,7 @@ def test_run_interactive_qa_shows_fallback_message_when_uncited(
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(
         os.environ, {"OPENAI_API_KEY": "test-key"}
     ), mock.patch("builtins.input", _fake_input):
-        run_interactive_qa(live_config, run_id="interactive-run-fallback")
+        run_interactive_qa_request_context(request_context)
 
     captured = capsys.readouterr()
     # The fallback prefix must appear in the printed answer
@@ -2649,7 +2680,8 @@ def test_run_interactive_qa_does_not_show_fallback_when_fully_cited(
 ):
     """run_interactive_qa must print the answer as-is (no fallback prefix) when every
     answer sentence ends with a citation token."""
-    from demo.stages.retrieval_and_qa import run_interactive_qa, _CITATION_FALLBACK_PREFIX
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_interactive_qa_request_context, _CITATION_FALLBACK_PREFIX
 
     cited_answer = (
         "All claims are supported. [CITATION|chunk_id=c1|run_id=r1|"
@@ -2675,6 +2707,12 @@ def test_run_interactive_qa_does_not_show_fallback_when_fully_cited(
         output_dir=tmp_path,
         openai_model="gpt-4o-mini",
     )
+    request_context = _request_context_from_config(
+        live_config,
+        command="ask",
+        run_id="interactive-run-no-fallback",
+        source_uri=None,
+    )
 
     inputs = iter(["What happened?"])
 
@@ -2691,7 +2729,7 @@ def test_run_interactive_qa_does_not_show_fallback_when_fully_cited(
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(
         os.environ, {"OPENAI_API_KEY": "test-key"}
     ), mock.patch("builtins.input", _fake_input):
-        run_interactive_qa(live_config, run_id="interactive-run-no-fallback")
+        run_interactive_qa_request_context(request_context)
 
     captured = capsys.readouterr()
     # No fallback prefix for fully cited answers
@@ -4659,13 +4697,21 @@ def test_run_interactive_qa_all_runs_prints_scope(
     tmp_path: Path, capsys: pytest.CaptureFixture
 ):
     """run_interactive_qa with all_runs=True must print 'all runs in database' scope message."""
-    from demo.stages.retrieval_and_qa import run_interactive_qa
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_interactive_qa_request_context
 
     live_config = _make_config(
         dry_run=False,
         output_dir=tmp_path,
         password="secret",
         openai_model="gpt-4o-mini",
+    )
+    request_context = _request_context_from_config(
+        live_config,
+        command="ask",
+        run_id=None,
+        all_runs=True,
+        source_uri=None,
     )
 
     class _FakeRetriever:
@@ -4686,7 +4732,7 @@ def test_run_interactive_qa_all_runs_prints_scope(
     ), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}), mock.patch(
         "builtins.input", side_effect=EOFError
     ):
-        run_interactive_qa(live_config, run_id=None, all_runs=True)
+        run_interactive_qa_request_context(request_context)
 
     output = capsys.readouterr().out
     assert "all runs in database" in output
@@ -4696,13 +4742,21 @@ def test_run_interactive_qa_run_scoped_prints_scope(
     tmp_path: Path, capsys: pytest.CaptureFixture
 ):
     """run_interactive_qa must print the run_id scope message at session start."""
-    from demo.stages.retrieval_and_qa import run_interactive_qa
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_interactive_qa_request_context
 
     live_config = _make_config(
         dry_run=False,
         output_dir=tmp_path,
         password="secret",
         openai_model="gpt-4o-mini",
+    )
+    request_context = _request_context_from_config(
+        live_config,
+        command="ask",
+        run_id="interactive-scope-run",
+        all_runs=False,
+        source_uri=None,
     )
 
     class _FakeRetriever:
@@ -4723,7 +4777,7 @@ def test_run_interactive_qa_run_scoped_prints_scope(
     ), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}), mock.patch(
         "builtins.input", side_effect=EOFError
     ):
-        run_interactive_qa(live_config, run_id="interactive-scope-run")
+        run_interactive_qa_request_context(request_context)
 
     output = capsys.readouterr().out
     assert "Using retrieval scope: run=interactive-scope-run" in output
@@ -4731,7 +4785,8 @@ def test_run_interactive_qa_run_scoped_prints_scope(
 
 def test_run_interactive_qa_requires_run_id_when_not_all_runs(tmp_path: Path):
     """run_interactive_qa must raise ValueError when run_id is None and all_runs is False."""
-    from demo.stages.retrieval_and_qa import run_interactive_qa
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_interactive_qa_request_context
 
     live_config = _make_config(
         dry_run=False,
@@ -4739,9 +4794,16 @@ def test_run_interactive_qa_requires_run_id_when_not_all_runs(tmp_path: Path):
         password="secret",
         openai_model="gpt-4o-mini",
     )
+    request_context = _request_context_from_config(
+        live_config,
+        command="ask",
+        run_id=None,
+        all_runs=False,
+        source_uri=None,
+    )
     with mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
         with pytest.raises(ValueError, match="run_id is required"):
-            run_interactive_qa(live_config, run_id=None, all_runs=False)
+            run_interactive_qa_request_context(request_context)
 
 
 def test_run_retrieval_and_qa_all_runs_uses_unscoped_retrieval_query_contract(tmp_path: Path):
