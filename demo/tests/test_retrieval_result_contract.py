@@ -206,12 +206,18 @@ Structure
 from __future__ import annotations
 
 import os
-import types
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from power_atlas.contracts import RETRIEVAL_METADATA_SURFACE_POLICY
+from power_atlas.contracts import Config as _RuntimeConfig
+from power_atlas.contracts.pipeline import (
+    get_pipeline_contract_config_data,
+    get_pipeline_contract_snapshot,
+)
+from power_atlas.settings import AppSettings, Neo4jSettings
 from demo.stages.retrieval_and_qa import (
     _CITATION_FALLBACK_PREFIX,
     _POSTPROCESS_FIELD_MAP,
@@ -230,22 +236,46 @@ from power_atlas.contracts import (
 # Shared fixtures
 # ---------------------------------------------------------------------------
 
+
+def _make_config(
+    *,
+    dry_run: bool,
+    output_dir: Path | None = None,
+    uri: str = "bolt://localhost:7687",
+    username: str = "neo4j",
+    password: str = "password",
+    database: str | None = None,
+    openai_model: str = "gpt-4o-mini",
+) -> _RuntimeConfig:
+    resolved_output_dir = output_dir or Path("artifacts")
+    return _RuntimeConfig(
+        dry_run=dry_run,
+        output_dir=resolved_output_dir,
+        settings=AppSettings(
+            neo4j=Neo4jSettings(
+                uri=uri,
+                username=username,
+                password=password,
+                database=database,
+            ),
+            openai_model=openai_model,
+            output_dir=resolved_output_dir,
+        ),
+        pipeline_contract=get_pipeline_contract_snapshot(),
+        pipeline_contract_config_data=get_pipeline_contract_config_data(),
+    )
+
 #: Minimal config that satisfies all live-retrieval field validations without
 #: making real Neo4j or OpenAI connections.
-_LIVE_CONFIG = types.SimpleNamespace(
-    neo4j_uri="bolt://localhost:7687",
-    neo4j_username="neo4j",
-    neo4j_password="password",
-    neo4j_database=None,
-    openai_model="gpt-4o-mini",
-    dry_run=False,
-)
+_LIVE_CONFIG = _make_config(dry_run=False)
 
-#: Minimal config for dry-run early-return tests.  Neo4j credentials are
-#: intentionally absent to prove the dry-run path never touches them.
-_DRY_RUN_CONFIG = types.SimpleNamespace(
-    openai_model="gpt-4o-mini",
+#: Minimal config for dry-run early-return tests. Invalid placeholder settings
+#: prove the dry-run path never touches live infrastructure.
+_DRY_RUN_CONFIG = _make_config(
     dry_run=True,
+    uri="",
+    username="",
+    password="",
 )
 
 
@@ -2047,13 +2077,11 @@ class TestRunRetrievalAndQaEarlyReturnContract:
 
         Uses invalid Neo4j credentials to prove the skip path never opens a driver.
         """
-        cfg = types.SimpleNamespace(
+        cfg = _make_config(
             dry_run=False,
-            openai_model="gpt-4o-mini",
-            neo4j_uri="",
-            neo4j_username="",
-            neo4j_password="",
-            neo4j_database=None,
+            uri="",
+            username="",
+            password="",
         )
         return run_retrieval_and_qa(cfg, run_id="skip-run-1", source_uri=None, question=None, **kwargs)
 
