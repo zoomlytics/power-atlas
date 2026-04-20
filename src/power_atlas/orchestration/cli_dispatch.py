@@ -122,11 +122,11 @@ def execute_reset_command(
     request_context = build_request_context_from_args(args)
     config = request_context.config
     run_reset = load_reset_runner()
-    driver = create_driver(config)
+    driver = create_driver(request_context.settings)
     with driver:
         report = run_reset(
             driver=driver,
-            database=config.neo4j_database,
+            database=request_context.settings.neo4j.database,
             output_dir=config.output_dir,
             pipeline_contract=request_context.pipeline_contract,
         )

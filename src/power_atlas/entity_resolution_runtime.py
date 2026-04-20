@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from power_atlas.bootstrap import create_neo4j_driver
+from power_atlas.settings import Neo4jSettings
 
 
 @dataclass(frozen=True)
@@ -24,13 +25,14 @@ class EntityResolutionLiveResult:
 
 
 def run_entity_resolution_live(
-    config: Any,
+    neo4j_settings: Neo4jSettings,
     *,
     run_id: str,
     source_uri: str | None,
     resolution_mode: str,
     effective_dataset_id: str,
     alignment_version: str,
+    neo4j_database: str | None,
     fetch_mentions: Callable[..., list[dict[str, Any]]],
     cluster_mentions: Callable[[list[dict[str, Any]]], list[dict[str, Any]]],
     fetch_canonicals: Callable[..., list[dict[str, Any]]],
@@ -52,12 +54,12 @@ def run_entity_resolution_live(
     graph_alignment_breakdown: dict[str, int] = {}
     stage_warnings: list[str] = []
 
-    with create_neo4j_driver(config) as driver:
+    with create_neo4j_driver(neo4j_settings) as driver:
         mentions = fetch_mentions(
             driver,
             run_id=run_id,
             source_uri_fallback=source_uri,
-            neo4j_database=config.neo4j_database,
+            neo4j_database=neo4j_database,
         )
 
         resolved_rows: list[dict[str, Any]] = []
@@ -81,7 +83,7 @@ def run_entity_resolution_live(
             canonical_nodes = fetch_canonicals(
                 driver,
                 dataset_id=effective_dataset_id,
-                neo4j_database=config.neo4j_database,
+                neo4j_database=neo4j_database,
             )
             if not canonical_nodes:
                 stage_warnings.append(
@@ -115,7 +117,7 @@ def run_entity_resolution_live(
             canonical_nodes = fetch_canonicals(
                 driver,
                 dataset_id=effective_dataset_id,
-                neo4j_database=config.neo4j_database,
+                neo4j_database=neo4j_database,
             )
             if not canonical_nodes:
                 stage_warnings.append(
@@ -145,7 +147,7 @@ def run_entity_resolution_live(
             source_uri=source_uri,
             resolved_rows=resolved_rows,
             unresolved_rows=unresolved_rows,
-            neo4j_database=config.neo4j_database,
+            neo4j_database=neo4j_database,
         )
 
         if resolution_mode == "hybrid":
@@ -154,14 +156,14 @@ def run_entity_resolution_live(
                 run_id=run_id,
                 source_uri=source_uri,
                 alignment_rows=alignment_rows,
-                neo4j_database=config.neo4j_database,
+                neo4j_database=neo4j_database,
             )
 
         if resolution_mode in ("unstructured_only", "hybrid"):
             graph_coverage = fetch_member_of_coverage(
                 driver,
                 run_id=run_id,
-                neo4j_database=config.neo4j_database,
+                neo4j_database=neo4j_database,
             )
             graph_mentions_clustered = graph_coverage.mentions_clustered
             graph_mentions_unclustered = graph_coverage.mentions_unclustered
@@ -171,7 +173,7 @@ def run_entity_resolution_live(
                 driver,
                 run_id=run_id,
                 alignment_version=alignment_version,
-                neo4j_database=config.neo4j_database,
+                neo4j_database=neo4j_database,
             )
             graph_total_clusters = alignment_coverage.total_clusters
             graph_aligned_clusters = alignment_coverage.aligned_clusters

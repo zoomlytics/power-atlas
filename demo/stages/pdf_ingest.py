@@ -17,6 +17,7 @@ from power_atlas.contracts import (
 )
 from power_atlas.contracts.pipeline import PipelineContractSnapshot, is_pipeline_contract_snapshot
 from power_atlas.pdf_ingest_runtime import run_pdf_ingest_live
+from power_atlas.settings import Neo4jSettings
 from demo.cypher_utils import validate_cypher_identifier as _validate_cypher_identifier
 from demo.stages.pipeline_contract_compat import get_stage_pipeline_contract_value
 from power_atlas.contracts import make_run_id
@@ -94,6 +95,32 @@ def _resolve_pdf_dataset(
     effective_dataset_id = dataset_id if isinstance(dataset_id, str) and dataset_id else derived_dataset_id
     effective_pdf_filename = pdf_filename or derived_pdf_filename
     return fixtures_dir, effective_dataset_id, effective_pdf_filename
+
+
+def _neo4j_settings_from_config(config: object) -> Neo4jSettings:
+    neo4j_uri = getattr(config, "neo4j_uri", None)
+    neo4j_username = getattr(config, "neo4j_username", None)
+    neo4j_password = getattr(config, "neo4j_password", None)
+    neo4j_database = getattr(config, "neo4j_database", None)
+
+    missing_cfg = [
+        key
+        for key, value in (
+            ("neo4j_uri", neo4j_uri),
+            ("neo4j_username", neo4j_username),
+            ("neo4j_password", neo4j_password),
+        )
+        if not value
+    ]
+    if missing_cfg:
+        raise ValueError(f"Live PDF ingest requires config attributes: {', '.join(missing_cfg)}")
+
+    return Neo4jSettings(
+        uri=str(neo4j_uri),
+        username=str(neo4j_username),
+        password=str(neo4j_password),
+        database=str(neo4j_database) if neo4j_database else Neo4jSettings.database,
+    )
 
 
 def sha256_file(path: Path, *, chunk_size: int = 1024 * 1024) -> str:
@@ -295,11 +322,14 @@ def run_pdf_ingest(
     _validate_cypher_identifier(effective_chunk_label, "label")
     _validate_cypher_identifier(effective_embedding_property, "property")
 
+    neo4j_settings = _neo4j_settings_from_config(config)
+
     live_result = run_pdf_ingest_live(
-        config,
+        neo4j_settings,
         stage_run_id=stage_run_id,
         pdf_file_path=pdf_file_path,
         pdf_source_uri=pdf_source_uri,
+        openai_model=config.openai_model,
         effective_dataset_id=effective_dataset_id,
         effective_index_name=effective_index_name,
         effective_chunk_label=effective_chunk_label,

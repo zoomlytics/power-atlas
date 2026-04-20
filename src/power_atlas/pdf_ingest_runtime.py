@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from power_atlas.bootstrap import create_neo4j_driver, temporary_environment
+from power_atlas.settings import Neo4jSettings
 
 
 @dataclass(frozen=True)
@@ -17,11 +18,12 @@ class PdfIngestLiveResult:
 
 
 def run_pdf_ingest_live(
-    config: Any,
+    neo4j_settings: Neo4jSettings,
     *,
     stage_run_id: str,
     pdf_file_path: str,
     pdf_source_uri: str,
+    openai_model: str,
     effective_dataset_id: str,
     effective_index_name: str,
     effective_chunk_label: str,
@@ -36,17 +38,17 @@ def run_pdf_ingest_live(
     summary_counts = {"documents": 0, "pages": 0, "chunks": 0}
     extraction_warnings: list[Any] = []
     env_updates = {
-        "NEO4J_URI": config.neo4j_uri,
-        "NEO4J_USERNAME": config.neo4j_username,
-        "NEO4J_PASSWORD": config.neo4j_password,
-        "NEO4J_DATABASE": config.neo4j_database,
-        "OPENAI_MODEL": config.openai_model,
+        "NEO4J_URI": neo4j_settings.uri,
+        "NEO4J_USERNAME": neo4j_settings.username,
+        "NEO4J_PASSWORD": neo4j_settings.password,
+        "NEO4J_DATABASE": neo4j_settings.database,
+        "OPENAI_MODEL": openai_model,
     }
 
     with temporary_environment(env_updates):
-        with create_neo4j_driver(config) as driver:
+        with create_neo4j_driver(neo4j_settings) as driver:
             index_creation_strategy = "cypher"
-            with driver.session(database=config.neo4j_database) as session:
+            with driver.session(database=neo4j_settings.database) as session:
                 session.run(
                     f"""
                     CREATE VECTOR INDEX `{effective_index_name}` IF NOT EXISTS
@@ -59,7 +61,7 @@ def run_pdf_ingest_live(
                     dimensions=effective_embedding_dimensions,
                 ).consume()
 
-            with driver.session(database=config.neo4j_database) as session:
+            with driver.session(database=neo4j_settings.database) as session:
                 index_check_result = session.run(
                     "SHOW INDEXES YIELD name WHERE name = $index_name RETURN count(*) AS contract_index_count",
                     index_name=effective_index_name,
@@ -94,7 +96,7 @@ def run_pdf_ingest_live(
                         extraction_warnings = maybe_warnings
                         break
 
-            with driver.session(database=config.neo4j_database) as session:
+            with driver.session(database=neo4j_settings.database) as session:
                 session.run(
                     """
                     MATCH (d:Document)

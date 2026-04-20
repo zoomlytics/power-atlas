@@ -7,6 +7,7 @@ from typing import Any
 import neo4j
 
 from power_atlas.bootstrap import create_neo4j_driver
+from power_atlas.settings import Neo4jSettings
 
 
 @dataclass(frozen=True)
@@ -18,14 +19,15 @@ class ClaimParticipationLiveResult:
 
 
 def run_claim_participation_live(
-    config: Any,
+    neo4j_settings: Neo4jSettings,
     *,
     run_id: str,
     source_uri: str | None,
+    neo4j_database: str | None,
     build_edges_with_metrics: Callable[..., tuple[list[dict[str, Any]], Any]],
     write_edges: Callable[..., None],
 ) -> ClaimParticipationLiveResult:
-    with create_neo4j_driver(config) as driver:
+    with create_neo4j_driver(neo4j_settings) as driver:
         claim_result, _, _ = driver.execute_query(
             """
             MATCH (claim:ExtractedClaim {run_id: $run_id})
@@ -38,7 +40,7 @@ def run_claim_participation_live(
             ORDER BY claim.claim_id
             """,
             parameters_={"run_id": run_id},
-            database_=config.neo4j_database,
+            database_=neo4j_database,
             routing_=neo4j.RoutingControl.READ,
         )
         claim_rows = [
@@ -67,7 +69,7 @@ def run_claim_participation_live(
             ORDER BY mention.mention_id
             """,
             parameters_={"run_id": run_id},
-            database_=config.neo4j_database,
+            database_=neo4j_database,
             routing_=neo4j.RoutingControl.READ,
         )
         mention_rows = [
@@ -82,7 +84,7 @@ def run_claim_participation_live(
         ]
 
         edge_rows, match_metrics = build_edges_with_metrics(claim_rows, mention_rows)
-        write_edges(driver, neo4j_database=config.neo4j_database, edge_rows=edge_rows)
+    write_edges(driver, neo4j_database=neo4j_database, edge_rows=edge_rows)
 
     return ClaimParticipationLiveResult(
         claim_rows=claim_rows,

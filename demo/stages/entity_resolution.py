@@ -222,7 +222,7 @@ import re
 from datetime import UTC, datetime
 from difflib import SequenceMatcher
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from urllib.parse import quote as _pct_encode
 
 import neo4j
@@ -242,6 +242,7 @@ from power_atlas.entity_resolution_writes import (
     write_cluster_memberships as _write_cluster_memberships_live,
     write_resolved_mentions as _write_resolved_mentions_live,
 )
+from power_atlas.settings import Neo4jSettings
 from power_atlas.text_utils import normalize_mention_text
 
 # Bump this constant whenever the resolution strategies or scoring logic change
@@ -326,6 +327,32 @@ _ENTITY_TYPE_SYNONYMS: dict[str, str] = {
 # sentinel_label_warnings.  Do NOT change this value without also updating any
 # consumers of entity_type_report summaries/artifacts that rely on this sentinel.
 _ENTITY_TYPE_NULL_SENTINEL = "__null__"
+
+
+def _neo4j_settings_from_config(config: object) -> Neo4jSettings:
+    neo4j_uri = getattr(config, "neo4j_uri", None)
+    neo4j_username = getattr(config, "neo4j_username", None)
+    neo4j_password = getattr(config, "neo4j_password", None)
+    neo4j_database = getattr(config, "neo4j_database", None)
+
+    missing_cfg = [
+        key
+        for key, value in (
+            ("neo4j_uri", neo4j_uri),
+            ("neo4j_username", neo4j_username),
+            ("neo4j_password", neo4j_password),
+        )
+        if not value
+    ]
+    if missing_cfg:
+        raise ValueError(f"Live entity resolution requires config attributes: {', '.join(missing_cfg)}")
+
+    return Neo4jSettings(
+        uri=cast(str, neo4j_uri),
+        username=cast(str, neo4j_username),
+        password=cast(str, neo4j_password),
+        database=cast(str, neo4j_database) if neo4j_database else Neo4jSettings.database,
+    )
 
 
 def _resolve_effective_dataset_id(config: Any, dataset_id: str | None) -> str:
@@ -1491,13 +1518,16 @@ def run_entity_resolution(
         unresolved_path.write_text(json.dumps([], indent=2), encoding="utf-8")
         return summary
 
+    neo4j_settings = _neo4j_settings_from_config(config)
+
     live_result = run_entity_resolution_live(
-        config,
+        neo4j_settings,
         run_id=run_id,
         source_uri=source_uri,
         resolution_mode=resolution_mode,
         effective_dataset_id=effective_dataset_id,
         alignment_version=_ALIGNMENT_VERSION,
+        neo4j_database=config.neo4j_database,
         fetch_mentions=fetch_entity_mentions,
         cluster_mentions=_cluster_mentions_unstructured_only,
         fetch_canonicals=fetch_canonical_entities,
