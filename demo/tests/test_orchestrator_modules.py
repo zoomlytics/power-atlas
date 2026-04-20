@@ -38,27 +38,6 @@ from power_atlas.settings import AppSettings, Neo4jSettings
 
 
 def Config(*args, **kwargs):
-    if "settings" not in kwargs and any(
-        key in kwargs
-        for key in (
-            "neo4j_uri",
-            "neo4j_username",
-            "neo4j_password",
-            "neo4j_database",
-            "openai_model",
-        )
-    ):
-        kwargs["settings"] = AppSettings(
-            neo4j=Neo4jSettings(
-                uri=kwargs.pop("neo4j_uri"),
-                username=kwargs.pop("neo4j_username"),
-                password=kwargs.pop("neo4j_password"),
-                database=kwargs.pop("neo4j_database"),
-            ),
-            openai_model=kwargs.pop("openai_model"),
-            output_dir=kwargs.get("output_dir", Path("artifacts")),
-            dataset_name=kwargs.get("dataset_name"),
-        )
     kwargs.setdefault("pipeline_contract", get_pipeline_contract_snapshot())
     kwargs.setdefault("pipeline_contract_config_data", get_pipeline_contract_config_data())
     return _RuntimeConfig(*args, **kwargs)
@@ -2772,13 +2751,9 @@ def test_retrieval_and_qa_live_path_passes_message_history_to_graphrag(tmp_path:
         def search(self, **kwargs):
             return _make_fake_retriever_result([])
 
-    live_config = Config(
+    live_config = _make_config(
         dry_run=False,
         output_dir=tmp_path,
-        neo4j_uri="bolt://example.invalid",
-        neo4j_username="neo4j",
-        neo4j_password="not-used",
-        neo4j_database="neo4j",
         openai_model="gpt-4o-mini",
     )
 
@@ -3168,13 +3143,9 @@ def test_retrieval_and_qa_live_path_citation_fallback_applied_false_when_cited(t
         def search(self, **kwargs):
             return _make_fake_retriever_result([])
 
-    live_config = Config(
+    live_config = _make_config(
         dry_run=False,
         output_dir=tmp_path,
-        neo4j_uri="bolt://example.invalid",
-        neo4j_username="neo4j",
-        neo4j_password="not-used",
-        neo4j_database="neo4j",
         openai_model="gpt-4o-mini",
     )
 
@@ -3223,13 +3194,9 @@ def test_run_interactive_qa_stores_refusal_prefix_in_history(
             # Capture the history state after this turn completes via add_messages side-effect
             return _make_fake_rag_result([], answer=uncited_answer)
 
-    live_config = Config(
+    live_config = _make_config(
         dry_run=False,
         output_dir=tmp_path,
-        neo4j_uri="bolt://example.invalid",
-        neo4j_username="neo4j",
-        neo4j_password="not-used",
-        neo4j_database="neo4j",
         openai_model="gpt-4o-mini",
     )
 
@@ -3284,13 +3251,9 @@ def test_retrieval_and_qa_live_path_citation_quality_full_when_all_cited(tmp_pat
         def search(self, **kwargs):
             return _make_fake_retriever_result([])
 
-    live_config = Config(
+    live_config = _make_config(
         dry_run=False,
         output_dir=tmp_path,
-        neo4j_uri="bolt://example.invalid",
-        neo4j_username="neo4j",
-        neo4j_password="not-used",
-        neo4j_database="neo4j",
         openai_model="gpt-4o-mini",
     )
 
@@ -3327,13 +3290,9 @@ def test_retrieval_and_qa_live_path_citation_quality_degraded_when_uncited(tmp_p
         def search(self, **kwargs):
             return _make_fake_retriever_result([])
 
-    live_config = Config(
+    live_config = _make_config(
         dry_run=False,
         output_dir=tmp_path,
-        neo4j_uri="bolt://example.invalid",
-        neo4j_username="neo4j",
-        neo4j_password="not-used",
-        neo4j_database="neo4j",
         openai_model="gpt-4o-mini",
     )
 
@@ -3368,13 +3327,9 @@ def test_retrieval_and_qa_live_path_citation_quality_no_answer_when_empty(tmp_pa
         def search(self, **kwargs):
             return _make_fake_retriever_result([])
 
-    live_config = Config(
+    live_config = _make_config(
         dry_run=False,
         output_dir=tmp_path,
-        neo4j_uri="bolt://example.invalid",
-        neo4j_username="neo4j",
-        neo4j_password="not-used",
-        neo4j_database="neo4j",
         openai_model="gpt-4o-mini",
     )
 
@@ -3573,13 +3528,9 @@ def test_retrieval_and_qa_live_path_citation_quality_full_when_only_optional_fie
         def search(self, **kwargs):
             return _make_fake_retriever_result([fake_item])
 
-    live_config = Config(
+    live_config = _make_config(
         dry_run=False,
         output_dir=tmp_path,
-        neo4j_uri="bolt://example.invalid",
-        neo4j_username="neo4j",
-        neo4j_password="not-used",
-        neo4j_database="neo4j",
         openai_model="gpt-4o-mini",
     )
 
@@ -3714,13 +3665,9 @@ def test_retrieval_and_qa_live_path_warns_on_empty_chunk_text(tmp_path: Path):
         def search(self, **kwargs):
             return _make_fake_retriever_result([fake_item])
 
-    live_config = Config(
+    live_config = _make_config(
         dry_run=False,
         output_dir=tmp_path,
-        neo4j_uri="bolt://example.invalid",
-        neo4j_username="neo4j",
-        neo4j_password="not-used",
-        neo4j_database="neo4j",
         openai_model="gpt-4o-mini",
     )
 
@@ -4080,13 +4027,10 @@ def test_retrieval_and_qa_live_all_runs_uncited_answer_fallback_when_no_hits(tmp
         def search(self, **kwargs):
             return _make_fake_retriever_result([])  # No retrieved chunks
 
-    live_config = Config(
+    live_config = _make_config(
         dry_run=False,
         output_dir=tmp_path,
-        neo4j_uri="bolt://example.invalid",
-        neo4j_username="neo4j",
-        neo4j_password="secret",
-        neo4j_database="neo4j",
+        password="secret",
         openai_model="gpt-4o-mini",
     )
 
@@ -4174,13 +4118,10 @@ def test_retrieval_and_qa_live_all_runs_fully_cited_answer_no_repair_needed(tmp_
                 ]
             )
 
-    live_config = Config(
+    live_config = _make_config(
         dry_run=False,
         output_dir=tmp_path,
-        neo4j_uri="bolt://example.invalid",
-        neo4j_username="neo4j",
-        neo4j_password="secret",
-        neo4j_database="neo4j",
+        password="secret",
         openai_model="gpt-4o-mini",
     )
 
@@ -4355,13 +4296,10 @@ def test_retrieval_and_qa_live_path_citation_quality_includes_raw_answer_all_cit
                 ]
             )
 
-    live_config = Config(
+    live_config = _make_config(
         dry_run=False,
         output_dir=tmp_path,
-        neo4j_uri="bolt://example.invalid",
-        neo4j_username="neo4j",
-        neo4j_password="secret",
-        neo4j_database="neo4j",
+        password="secret",
         openai_model="gpt-4o-mini",
     )
 
@@ -4682,13 +4620,10 @@ def test_run_interactive_qa_all_runs_prints_scope(
     """run_interactive_qa with all_runs=True must print 'all runs in database' scope message."""
     from demo.stages.retrieval_and_qa import run_interactive_qa
 
-    live_config = Config(
+    live_config = _make_config(
         dry_run=False,
         output_dir=tmp_path,
-        neo4j_uri="bolt://example.invalid",
-        neo4j_username="neo4j",
-        neo4j_password="secret",
-        neo4j_database="neo4j",
+        password="secret",
         openai_model="gpt-4o-mini",
     )
 
@@ -4722,13 +4657,10 @@ def test_run_interactive_qa_run_scoped_prints_scope(
     """run_interactive_qa must print the run_id scope message at session start."""
     from demo.stages.retrieval_and_qa import run_interactive_qa
 
-    live_config = Config(
+    live_config = _make_config(
         dry_run=False,
         output_dir=tmp_path,
-        neo4j_uri="bolt://example.invalid",
-        neo4j_username="neo4j",
-        neo4j_password="secret",
-        neo4j_database="neo4j",
+        password="secret",
         openai_model="gpt-4o-mini",
     )
 
@@ -4760,13 +4692,10 @@ def test_run_interactive_qa_requires_run_id_when_not_all_runs(tmp_path: Path):
     """run_interactive_qa must raise ValueError when run_id is None and all_runs is False."""
     from demo.stages.retrieval_and_qa import run_interactive_qa
 
-    live_config = Config(
+    live_config = _make_config(
         dry_run=False,
         output_dir=tmp_path,
-        neo4j_uri="bolt://example.invalid",
-        neo4j_username="neo4j",
-        neo4j_password="secret",
-        neo4j_database="neo4j",
+        password="secret",
         openai_model="gpt-4o-mini",
     )
     with mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
@@ -5339,13 +5268,9 @@ def test_retrieval_and_qa_expand_graph_surfaces_claim_details_in_metadata(tmp_pa
         def search(self, **kwargs):
             return _make_fake_retriever_result([item])
 
-    live_config = Config(
+    live_config = _make_config(
         dry_run=False,
         output_dir=tmp_path,
-        neo4j_uri="bolt://example.invalid",
-        neo4j_username="neo4j",
-        neo4j_password="not-used",
-        neo4j_database="neo4j",
         openai_model="gpt-4o-mini",
     )
 
@@ -5537,13 +5462,10 @@ def test_all_runs_retrieve_preserves_per_hit_run_id_in_metadata(tmp_path: Path):
         def search(self, **kwargs):
             return _make_fake_retriever_result([item_a, item_b])
 
-    live_config = Config(
+    live_config = _make_config(
         dry_run=False,
         output_dir=tmp_path,
-        neo4j_uri="bolt://example.invalid",
-        neo4j_username="neo4j",
-        neo4j_password="secret",
-        neo4j_database="neo4j",
+        password="secret",
         openai_model="gpt-4o-mini",
     )
 
@@ -6666,14 +6588,9 @@ def test_benchmark_failure_in_orchestrated_run_writes_manifest(tmp_path: Path):
 
     from demo.run_demo import _run_orchestrated
 
-    config = Config(
+    config = _make_config(
         dry_run=True,
         output_dir=tmp_path,
-        neo4j_uri="bolt://example.invalid",
-        neo4j_username="neo4j",
-        neo4j_password="not-used",
-        neo4j_database="neo4j",
-        openai_model="test-model",
     )
 
     def _raise_benchmark(*args, **kwargs):
@@ -6738,14 +6655,9 @@ def test_orchestrated_run_warns_when_alignment_version_missing(tmp_path: Path):
 
     from demo.run_demo import _run_orchestrated
 
-    config = Config(
+    config = _make_config(
         dry_run=True,
         output_dir=tmp_path,
-        neo4j_uri="bolt://example.invalid",
-        neo4j_username="neo4j",
-        neo4j_password="not-used",
-        neo4j_database="neo4j",
-        openai_model="test-model",
     )
 
     # Hybrid stage returns a dict WITHOUT alignment_version — simulates missing key.
@@ -6803,14 +6715,9 @@ def test_orchestrated_run_emits_exactly_one_alignment_version_warning(tmp_path: 
 
     from demo.run_demo import _run_orchestrated
 
-    config = Config(
+    config = _make_config(
         dry_run=True,
         output_dir=tmp_path,
-        neo4j_uri="bolt://example.invalid",
-        neo4j_username="neo4j",
-        neo4j_password="not-used",
-        neo4j_database="neo4j",
-        openai_model="test-model",
     )
 
     # Hybrid stage returns a dict WITHOUT alignment_version — simulates missing key.
@@ -6902,14 +6809,9 @@ def test_e2e_orchestrated_exactly_one_alignment_version_warning(tmp_path: Path):
 
     from demo.run_demo import _run_orchestrated
 
-    config = Config(
+    config = _make_config(
         dry_run=True,
         output_dir=tmp_path,
-        neo4j_uri="bolt://example.invalid",
-        neo4j_username="neo4j",
-        neo4j_password="not-used",
-        neo4j_database="neo4j",
-        openai_model="test-model",
     )
 
     # Hybrid stage returns a dict WITHOUT alignment_version —
@@ -7011,14 +6913,9 @@ def test_run_orchestrated_surfaces_stage_warnings(
 
     from demo.run_demo import _run_orchestrated
 
-    config = Config(
+    config = _make_config(
         dry_run=True,
         output_dir=tmp_path,
-        neo4j_uri="bolt://example.invalid",
-        neo4j_username="neo4j",
-        neo4j_password="not-used",
-        neo4j_database="neo4j",
-        openai_model="test-model",
     )
 
     # One stage returns a warning; all others return minimal dicts.
