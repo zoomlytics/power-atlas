@@ -4420,6 +4420,30 @@ def test_run_retrieval_and_qa_request_context_uses_request_scope(tmp_path: Path)
     assert result["retriever_index_name"] == request_context.pipeline_contract.chunk_embedding_index_name
 
 
+def test_run_retrieval_and_qa_request_context_forwards_pipeline_contract(tmp_path: Path):
+    from demo.run_demo import _request_context_from_config
+    from demo.stages import retrieval_and_qa as retrieval_module
+
+    request_context = _request_context_from_config(
+        _dry_run_config(tmp_path),
+        command="ask",
+        run_id="context-qa-run",
+        source_uri="file:///context/doc.pdf",
+    )
+    captured: dict[str, object] = {}
+
+    def _fake_run_retrieval_and_qa(config, **kwargs):
+        captured["config"] = config
+        captured.update(kwargs)
+        return {"status": "dry_run"}
+
+    with mock.patch.object(retrieval_module, "run_retrieval_and_qa", side_effect=_fake_run_retrieval_and_qa):
+        retrieval_module.run_retrieval_and_qa_request_context(request_context)
+
+    assert captured["config"] is request_context.config
+    assert captured["pipeline_contract"] is request_context.pipeline_contract
+
+
 def test_run_claim_participation_request_context_uses_request_scope(tmp_path: Path):
     """The RequestContext claim participation helper must forward run and source scope directly."""
     from demo.run_demo import _request_context_from_config

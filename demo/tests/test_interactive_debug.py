@@ -38,8 +38,10 @@ from demo.stages.retrieval_and_qa import (
     _build_retrieval_debug_view,
     _format_postprocess_debug_summary,
     _postprocess_answer,
+    run_interactive_qa_request_context,
     run_interactive_qa,
 )
+from power_atlas.bootstrap import build_app_context, build_request_context
 from power_atlas.contracts import Config as _RuntimeConfig
 from power_atlas.contracts.pipeline import (
     get_pipeline_contract_config_data,
@@ -82,6 +84,29 @@ _TOKEN = (
 
 #: A single retrieval hit carrying _TOKEN.
 _HIT: dict[str, object] = {"metadata": {"citation_token": _TOKEN, "chunk_id": "c1"}}
+
+
+def test_run_interactive_qa_request_context_forwards_pipeline_contract() -> None:
+    app_context = build_app_context(settings=_LIVE_CONFIG.settings)
+    request_context = build_request_context(
+        app_context,
+        command="ask",
+        dry_run=False,
+        output_dir=_LIVE_CONFIG.output_dir,
+        run_id="interactive-run-1",
+        source_uri="file:///interactive/doc.pdf",
+    )
+    captured: dict[str, object] = {}
+
+    def _fake_run_interactive_qa(config, **kwargs):
+        captured["config"] = config
+        captured.update(kwargs)
+
+    with patch("demo.stages.retrieval_and_qa.run_interactive_qa", side_effect=_fake_run_interactive_qa):
+        run_interactive_qa_request_context(request_context)
+
+    assert captured["config"] is request_context.config
+    assert captured["pipeline_contract"] is request_context.pipeline_contract
 
 
 # ---------------------------------------------------------------------------

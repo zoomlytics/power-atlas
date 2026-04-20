@@ -1370,6 +1370,7 @@ def run_retrieval_and_qa_request_context(
         message_history=message_history,
         interactive=interactive,
         all_runs=request_context.all_runs,
+        pipeline_contract=request_context.pipeline_contract,
     )
 
 
@@ -1386,8 +1387,8 @@ def run_retrieval_and_qa(
     message_history: MessageHistory | list[dict[str, str]] | None = None,
     interactive: bool = False,
     all_runs: bool = False,
+    pipeline_contract: PipelineContractSnapshot | None = None,
 ) -> dict[str, object]:
-    resolved_pipeline_contract = _resolve_pipeline_contract(config, None)
     """Run retrieval and GraphRAG Q&A for a single question or interactive session.
 
     Parameters
@@ -1433,7 +1434,11 @@ def run_retrieval_and_qa(
         When True, retrieval queries all Chunk nodes regardless of run_id.
         Citations may span multiple runs/files; *run_id* is ignored.  In this
         mode each citation still carries its own ``run_id`` provenance field.
+    pipeline_contract:
+        Optional explicit pipeline contract snapshot. RequestContext-driven calls
+        should always provide this rather than relying on config/global fallback.
     """
+    resolved_pipeline_contract = _resolve_pipeline_contract(config, pipeline_contract)
     resolved_index_name = (
         index_name
         if index_name is not None
@@ -1668,8 +1673,8 @@ def run_interactive_qa(
     cluster_aware: bool = False,
     all_runs: bool = False,
     debug: bool = False,
+    pipeline_contract: PipelineContractSnapshot | None = None,
 ) -> None:
-    resolved_pipeline_contract = _resolve_pipeline_contract(config, None)
     """Run a REPL-style interactive Q&A session.
 
     Reads questions from stdin and prints citation-grounded answers until the user
@@ -1716,7 +1721,11 @@ def run_interactive_qa(
         citation quality metadata sourced from the shared postprocessing contract
         (raw/final citation state, repair/fallback applied, evidence level, warning
         count).  Default is False so normal interactive output is unaffected.
+    pipeline_contract:
+        Optional explicit pipeline contract snapshot. RequestContext-driven calls
+        should always provide this rather than relying on config/global fallback.
     """
+    resolved_pipeline_contract = _resolve_pipeline_contract(config, pipeline_contract)
     # Validate and resolve session-level config once before opening any connections.
     if not all_runs and run_id is None:
         raise ValueError(
