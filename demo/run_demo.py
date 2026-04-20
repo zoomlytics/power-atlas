@@ -245,6 +245,11 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def _neo4j_settings_from_config(config: Config) -> Neo4jSettings:
+    config_settings = getattr(config, "settings", None)
+    settings_neo4j = getattr(config_settings, "neo4j", None)
+    if isinstance(settings_neo4j, Neo4jSettings):
+        return settings_neo4j
+
     return Neo4jSettings(
         uri=config.neo4j_uri,
         username=config.neo4j_username,
@@ -256,18 +261,20 @@ def _neo4j_settings_from_config(config: Config) -> Neo4jSettings:
 def _fetch_latest_unstructured_run_id(
     config: Config, dataset_id: str | None = None
 ) -> str | None:
+    neo4j_settings = _neo4j_settings_from_config(config)
     return fetch_latest_unstructured_run_id(
-        _neo4j_settings_from_config(config),
-        config.neo4j_database,
+        neo4j_settings,
+        neo4j_settings.database,
         dataset_id=dataset_id,
         logger=_logger,
     )
 
 
 def _fetch_dataset_id_for_run(config: Config, run_id: str) -> str | None:
+    neo4j_settings = _neo4j_settings_from_config(config)
     return fetch_dataset_id_for_run(
-        _neo4j_settings_from_config(config),
-        config.neo4j_database,
+        neo4j_settings,
+        neo4j_settings.database,
         run_id,
         logger=_logger,
     )

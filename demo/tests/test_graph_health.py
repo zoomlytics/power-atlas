@@ -7,6 +7,13 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, call, patch
 
+from power_atlas.contracts import Config
+from power_atlas.contracts.pipeline import (
+    get_pipeline_contract_config_data,
+    get_pipeline_contract_snapshot,
+)
+from power_atlas.settings import AppSettings, Neo4jSettings
+
 from demo.stages.graph_health import (
     GraphHealthArtifact,
     _CANONICAL_CHAIN_HEALTH_LIMIT,
@@ -91,6 +98,25 @@ def _minimal_artifact(**overrides: Any) -> GraphHealthArtifact:
     )
     defaults.update(overrides)
     return build_graph_health_artifact(**defaults)
+
+
+def _config(tmp_path: Path, *, dry_run: bool, password: str) -> Config:
+    return Config(
+        dry_run=dry_run,
+        output_dir=tmp_path,
+        settings=AppSettings(
+            neo4j=Neo4jSettings(
+                uri="bolt://localhost:7687",
+                username="neo4j",
+                password=password,
+                database="neo4j",
+            ),
+            openai_model="gpt-4o-mini",
+            output_dir=tmp_path,
+        ),
+        pipeline_contract=get_pipeline_contract_snapshot(),
+        pipeline_contract_config_data=get_pipeline_contract_config_data(),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -299,15 +325,8 @@ class TestBuildGraphHealthArtifact(unittest.TestCase):
 
 
 class TestRunGraphHealthDiagnosticsDryRun(unittest.TestCase):
-    def _config(self, tmp_path: Path) -> MagicMock:
-        cfg = MagicMock()
-        cfg.dry_run = True
-        cfg.output_dir = tmp_path
-        cfg.neo4j_uri = "bolt://localhost:7687"
-        cfg.neo4j_username = "neo4j"
-        cfg.neo4j_password = "test"
-        cfg.neo4j_database = "neo4j"
-        return cfg
+    def _config(self, tmp_path: Path) -> Config:
+        return _config(tmp_path, dry_run=True, password="test")
 
     def test_dry_run_returns_status_dry_run(self) -> None:
         import tempfile
@@ -505,15 +524,8 @@ def _make_mock_driver(rows_by_query_index: list[list[dict[str, Any]]]) -> MagicM
 
 
 class TestRunGraphHealthDiagnosticsLive(unittest.TestCase):
-    def _config(self, tmp_path: Path) -> MagicMock:
-        cfg = MagicMock()
-        cfg.dry_run = False
-        cfg.output_dir = tmp_path
-        cfg.neo4j_uri = "bolt://localhost:7687"
-        cfg.neo4j_username = "neo4j"
-        cfg.neo4j_password = "secret"
-        cfg.neo4j_database = "neo4j"
-        return cfg
+    def _config(self, tmp_path: Path) -> Config:
+        return _config(tmp_path, dry_run=False, password="secret")
 
     def _make_rows(self) -> list[list[dict[str, Any]]]:
         """Return the 9 successive query result lists expected by the stage."""

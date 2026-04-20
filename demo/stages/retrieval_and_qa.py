@@ -89,6 +89,11 @@ def _resolve_pipeline_contract(
 
 
 def _neo4j_settings_from_config(config: object) -> Neo4jSettings:
+    config_settings = getattr(config, "settings", None)
+    settings_neo4j = getattr(config_settings, "neo4j", None)
+    if isinstance(settings_neo4j, Neo4jSettings):
+        return settings_neo4j
+
     neo4j_uri = getattr(config, "neo4j_uri", None)
     neo4j_username = getattr(config, "neo4j_username", None)
     neo4j_password = getattr(config, "neo4j_password", None)
@@ -1722,15 +1727,6 @@ def run_interactive_qa(
     _require_stage_openai_api_key(
         "OPENAI_API_KEY environment variable is required for live retrieval."
     )
-
-    neo4j_uri = getattr(config, "neo4j_uri", None)
-    neo4j_username = getattr(config, "neo4j_username", None)
-    neo4j_password = getattr(config, "neo4j_password", None)
-    neo4j_database = getattr(config, "neo4j_database", None)
-
-    missing_cfg = [k for k, v in (("neo4j_uri", neo4j_uri), ("neo4j_username", neo4j_username), ("neo4j_password", neo4j_password)) if not v]
-    if missing_cfg:
-        raise ValueError(f"Live retrieval requires config attributes: {', '.join(missing_cfg)}")
 
     resolved_index_name = (
         index_name

@@ -57,6 +57,11 @@ _logger = logging.getLogger(__name__)
 
 
 def _neo4j_settings_from_config(config) -> Neo4jSettings:
+    config_settings = getattr(config, "settings", None)
+    settings_neo4j = getattr(config_settings, "neo4j", None)
+    if isinstance(settings_neo4j, Neo4jSettings):
+        return settings_neo4j
+
     return Neo4jSettings(
         uri=config.neo4j_uri,
         username=config.neo4j_username,
@@ -629,9 +634,11 @@ def run_graph_health_diagnostics(
         }
         return summary
 
+    neo4j_settings = _neo4j_settings_from_config(config)
+
     query_rows = fetch_graph_health_query_rows(
-        _neo4j_settings_from_config(config),
-        config.neo4j_database,
+        neo4j_settings,
+        neo4j_settings.database,
         run_id=run_id,
         alignment_version=alignment_version,
         query_specs=[
