@@ -126,9 +126,20 @@ def test_run_narrative_extraction_live_path_uses_run_scoped_reader_and_writer(tm
 
     captured_calls = {"read": 0, "write_claims": 0, "write_mentions": 0}
 
-    async def _fake_read_chunks_and_extract(driver, *, config, lexical_graph_config):
+    async def _fake_read_chunks_and_extract(
+        driver,
+        *,
+        run_id,
+        source_uri,
+        neo4j_database,
+        model_name,
+        lexical_graph_config,
+    ):
         captured_calls["read"] += 1
-        assert config.run_id == "run-live"
+        assert run_id == "run-live"
+        assert source_uri == "file:///doc.pdf"
+        assert neo4j_database == "neo4j"
+        assert model_name == "gpt-4o-mini"
         assert lexical_graph_config == lexical_config
         return fake_graph, fake_chunks.chunks
 

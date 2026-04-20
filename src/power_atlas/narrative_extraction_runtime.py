@@ -8,6 +8,7 @@ from typing import Any
 from neo4j_graphrag.experimental.components.types import LexicalGraphConfig, Neo4jGraph, TextChunk
 
 from power_atlas.bootstrap import create_neo4j_driver
+from power_atlas.settings import Neo4jSettings
 
 
 @dataclass(frozen=True)
@@ -21,30 +22,43 @@ class NarrativeExtractionLiveResult:
 async def _run_read_chunks_and_extract(
     driver: Any,
     *,
-    config: Any,
+    run_id: str,
+    source_uri: str | None,
+    neo4j_database: str | None,
+    model_name: str,
     lexical_graph_config: LexicalGraphConfig,
     read_chunks_and_extract: Callable[..., Any],
 ) -> tuple[Neo4jGraph, list[TextChunk]]:
     return await read_chunks_and_extract(
         driver,
-        config=config,
+        run_id=run_id,
+        source_uri=source_uri,
+        neo4j_database=neo4j_database,
+        model_name=model_name,
         lexical_graph_config=lexical_graph_config,
     )
 
 
 def run_narrative_extraction_live(
-    config: Any,
+    neo4j_settings: Neo4jSettings,
     *,
+    run_id: str,
+    source_uri: str | None,
+    neo4j_database: str | None,
+    model_name: str,
     lexical_graph_config: LexicalGraphConfig,
     read_chunks_and_extract: Callable[..., Any],
     prepare_rows: Callable[..., tuple[list[dict[str, Any]], list[dict[str, Any]], list[str]]],
     write_rows: Callable[..., None],
 ) -> NarrativeExtractionLiveResult:
-    with create_neo4j_driver(config) as driver:
+    with create_neo4j_driver(neo4j_settings) as driver:
         graph, text_chunks = asyncio.run(
             _run_read_chunks_and_extract(
                 driver,
-                config=config,
+                run_id=run_id,
+                source_uri=source_uri,
+                neo4j_database=neo4j_database,
+                model_name=model_name,
                 lexical_graph_config=lexical_graph_config,
                 read_chunks_and_extract=read_chunks_and_extract,
             )
@@ -52,13 +66,13 @@ def run_narrative_extraction_live(
         claim_rows, mention_rows, warnings = prepare_rows(
             graph=graph,
             text_chunks=text_chunks,
-            run_id=config.run_id,
-            source_uri=config.source_uri,
+            run_id=run_id,
+            source_uri=source_uri,
             lexical_graph_config=lexical_graph_config,
         )
         write_rows(
             driver,
-            neo4j_database=config.neo4j_database,
+            neo4j_database=neo4j_database,
             lexical_graph_config=lexical_graph_config,
             claim_rows=claim_rows,
             mention_rows=mention_rows,

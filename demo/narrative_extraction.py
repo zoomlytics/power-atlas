@@ -22,6 +22,7 @@ from power_atlas.contracts import (
 )
 from power_atlas.narrative_extraction_runtime import run_narrative_extraction_live
 from power_atlas.orchestration.context_builder import build_settings_from_overrides
+from power_atlas.settings import Neo4jSettings
 from demo.extraction_utils import prepare_extracted_rows, write_extracted_rows
 from demo.io import RunScopedNeo4jChunkReader
 from neo4j_graphrag.experimental.components.entity_relation_extractor import (
@@ -65,18 +66,21 @@ def _extraction_schema() -> GraphSchema:
 async def _read_chunks_and_extract(
     driver: neo4j.Driver,
     *,
-    config: ExtractionConfig,
+    run_id: str,
+    source_uri: str | None,
+    neo4j_database: str | None,
+    model_name: str,
     lexical_graph_config: LexicalGraphConfig,
 ) -> tuple[Neo4jGraph, list[TextChunk]]:
     chunk_reader = RunScopedNeo4jChunkReader(
         driver,
-        run_id=config.run_id,
-        source_uri=config.source_uri,
+        run_id=run_id,
+        source_uri=source_uri,
         fetch_embeddings=False,
-        neo4j_database=config.neo4j_database,
+        neo4j_database=neo4j_database,
     )
     text_chunks: TextChunks = await chunk_reader.run(lexical_graph_config=lexical_graph_config)
-    llm = build_openai_llm(config.model_name)
+    llm = build_openai_llm(model_name)
     extractor = LLMEntityRelationExtractor(
         llm=llm,
         create_lexical_graph=False,
@@ -160,6 +164,15 @@ def _default_cli_settings():
     return build_settings(environ)
 
 
+def _neo4j_settings_from_config(config: ExtractionConfig) -> Neo4jSettings:
+    return Neo4jSettings(
+        uri=config.neo4j_uri,
+        username=config.neo4j_username,
+        password=config.neo4j_password,
+        database=config.neo4j_database,
+    )
+
+
 def _build_cli_config(args: argparse.Namespace) -> ExtractionConfig:
     settings = build_settings_from_overrides(
         neo4j_uri=args.neo4j_uri,
@@ -233,8 +246,13 @@ def run_narrative_extraction(config: ExtractionConfig) -> dict[str, Any]:
         "OPENAI_API_KEY environment variable is required for narrative extraction."
     )
 
+    neo4j_settings = _neo4j_settings_from_config(config)
     live_result = run_narrative_extraction_live(
-        config,
+        neo4j_settings,
+        run_id=config.run_id,
+        source_uri=config.source_uri,
+        neo4j_database=config.neo4j_database,
+        model_name=config.model_name,
         lexical_graph_config=lexical_config,
         read_chunks_and_extract=_read_chunks_and_extract,
         prepare_rows=prepare_extracted_rows,
