@@ -20,27 +20,6 @@ from power_atlas.settings import AppSettings, Neo4jSettings
 
 
 def Config(*args, **kwargs):
-    if "settings" not in kwargs and any(
-        key in kwargs
-        for key in (
-            "neo4j_uri",
-            "neo4j_username",
-            "neo4j_password",
-            "neo4j_database",
-            "openai_model",
-        )
-    ):
-        kwargs["settings"] = AppSettings(
-            neo4j=Neo4jSettings(
-                uri=kwargs.pop("neo4j_uri"),
-                username=kwargs.pop("neo4j_username"),
-                password=kwargs.pop("neo4j_password"),
-                database=kwargs.pop("neo4j_database"),
-            ),
-            openai_model=kwargs.pop("openai_model"),
-            output_dir=kwargs.get("output_dir", Path("artifacts")),
-            dataset_name=kwargs.get("dataset_name"),
-        )
     kwargs.setdefault("pipeline_contract", get_pipeline_contract_snapshot())
     kwargs.setdefault("pipeline_contract_config_data", get_pipeline_contract_config_data())
     return _RuntimeConfig(*args, **kwargs)
@@ -102,25 +81,6 @@ def _wrap_module_config(module):
     runtime_config = module.Config
 
     def _config_with_pipeline_defaults(*args, **kwargs):
-        if "settings" not in kwargs and any(
-            key in kwargs
-            for key in (
-                "neo4j_uri",
-                "neo4j_username",
-                "neo4j_password",
-                "neo4j_database",
-                "openai_model",
-            )
-        ):
-            kwargs["settings"] = _make_settings(
-                kwargs.get("output_dir", Path("artifacts")),
-                uri=kwargs.pop("neo4j_uri"),
-                username=kwargs.pop("neo4j_username"),
-                password=kwargs.pop("neo4j_password"),
-                database=kwargs.pop("neo4j_database"),
-                openai_model=kwargs.pop("openai_model"),
-                dataset_name=kwargs.get("dataset_name"),
-            )
         kwargs.setdefault("pipeline_contract", get_pipeline_contract_snapshot())
         kwargs.setdefault(
             "pipeline_contract_config_data",
@@ -990,30 +950,14 @@ class TestResolvedEntityCluster(unittest.TestCase):
 
     def test_dry_run_summary_includes_clusters_created(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            config = Config(
-                dry_run=True,
-                output_dir=Path(tmpdir),
-                neo4j_uri="bolt://example.invalid",
-                neo4j_username="neo4j",
-                neo4j_password="not-used",
-                neo4j_database="neo4j",
-                openai_model="test-model",
-            )
+            config = _make_config(dry_run=True, output_dir=Path(tmpdir))
             result = run_entity_resolution(config, run_id="test-cluster-001", source_uri=None)
             self.assertIn("clusters_created", result)
             self.assertEqual(result["clusters_created"], 0)
 
     def test_dry_run_summary_includes_cluster_version(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            config = Config(
-                dry_run=True,
-                output_dir=Path(tmpdir),
-                neo4j_uri="bolt://example.invalid",
-                neo4j_username="neo4j",
-                neo4j_password="not-used",
-                neo4j_database="neo4j",
-                openai_model="test-model",
-            )
+            config = _make_config(dry_run=True, output_dir=Path(tmpdir))
             result = run_entity_resolution(config, run_id="test-cluster-002", source_uri=None)
             self.assertIn("cluster_version", result)
             self.assertEqual(result["cluster_version"], _CLUSTER_VERSION)
@@ -1033,14 +977,10 @@ class TestResolvedEntityCluster(unittest.TestCase):
     def test_live_clusters_created_equals_unique_normalized_texts(self):
         """Two mentions with the same normalized text map to ONE cluster."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            config = Config(
+            config = _make_config(
                 dry_run=False,
                 output_dir=Path(tmpdir),
-                neo4j_uri="bolt://example.invalid",
-                neo4j_username="neo4j",
-                neo4j_password="secret",
-                neo4j_database="neo4j",
-                openai_model="test-model",
+                password="secret",
             )
             mentions = [
                 {"mention_id": "m1", "name": "Mystery Corp", "entity_type": None},
@@ -1058,14 +998,10 @@ class TestResolvedEntityCluster(unittest.TestCase):
 
     def test_live_clusters_created_is_zero_when_all_resolved(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            config = Config(
+            config = _make_config(
                 dry_run=False,
                 output_dir=Path(tmpdir),
-                neo4j_uri="bolt://example.invalid",
-                neo4j_username="neo4j",
-                neo4j_password="secret",
-                neo4j_database="neo4j",
-                openai_model="test-model",
+                password="secret",
             )
             mentions = [{"mention_id": "m1", "name": "Q42", "entity_type": "person"}]
             canonicals = [{"entity_id": "Q42", "run_id": "run-s1", "name": "Douglas Adams", "aliases": None, "dataset_id": "demo_dataset_v1"}]
@@ -1079,14 +1015,10 @@ class TestResolvedEntityCluster(unittest.TestCase):
 
     def test_live_summary_carries_cluster_version(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            config = Config(
+            config = _make_config(
                 dry_run=False,
                 output_dir=Path(tmpdir),
-                neo4j_uri="bolt://example.invalid",
-                neo4j_username="neo4j",
-                neo4j_password="secret",
-                neo4j_database="neo4j",
-                openai_model="test-model",
+                password="secret",
             )
             driver = self._make_driver([], [])
 
@@ -1102,14 +1034,10 @@ class TestResolvedEntityCluster(unittest.TestCase):
 
     def test_live_unresolved_artifact_includes_cluster_id(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            config = Config(
+            config = _make_config(
                 dry_run=False,
                 output_dir=Path(tmpdir),
-                neo4j_uri="bolt://example.invalid",
-                neo4j_username="neo4j",
-                neo4j_password="secret",
-                neo4j_database="neo4j",
-                openai_model="test-model",
+                password="secret",
             )
             mentions = [{"mention_id": "m1", "name": "Widget Inc", "entity_type": None}]
             driver = self._make_driver(mentions, [])
@@ -1130,14 +1058,10 @@ class TestResolvedEntityCluster(unittest.TestCase):
     def test_live_member_of_edge_written_for_unresolved(self):
         """Verify the MEMBER_OF Cypher is invoked for unresolved mentions."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            config = Config(
+            config = _make_config(
                 dry_run=False,
                 output_dir=Path(tmpdir),
-                neo4j_uri="bolt://example.invalid",
-                neo4j_username="neo4j",
-                neo4j_password="secret",
-                neo4j_database="neo4j",
-                openai_model="test-model",
+                password="secret",
             )
             mentions = [{"mention_id": "m1", "name": "Nobody Known", "entity_type": None}]
             driver = self._make_driver(mentions, [])
@@ -1156,14 +1080,10 @@ class TestResolvedEntityCluster(unittest.TestCase):
     def test_live_resolved_entity_cluster_node_merged(self):
         """Verify ResolvedEntityCluster label appears in the Cypher for unresolved mentions."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            config = Config(
+            config = _make_config(
                 dry_run=False,
                 output_dir=Path(tmpdir),
-                neo4j_uri="bolt://example.invalid",
-                neo4j_username="neo4j",
-                neo4j_password="secret",
-                neo4j_database="neo4j",
-                openai_model="test-model",
+                password="secret",
             )
             mentions = [{"mention_id": "m1", "name": "Widget Co", "entity_type": None}]
             driver = self._make_driver(mentions, [])
@@ -1185,14 +1105,10 @@ class TestResolvedEntityCluster(unittest.TestCase):
     def test_unresolved_artifact_includes_entity_type(self):
         """Unresolved artifact rows expose entity_type for downstream consumers."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            config = Config(
+            config = _make_config(
                 dry_run=False,
                 output_dir=Path(tmpdir),
-                neo4j_uri="bolt://example.invalid",
-                neo4j_username="neo4j",
-                neo4j_password="secret",
-                neo4j_database="neo4j",
-                openai_model="test-model",
+                password="secret",
             )
             mentions = [{"mention_id": "m1", "name": "Acme Corp", "entity_type": "ORG"}]
             driver = _make_neo4j_test_driver(mentions, [])
@@ -1229,14 +1145,10 @@ class TestResolvedEntityCluster(unittest.TestCase):
         """Mentions from different sources within the same run_id produce the SAME cluster_id
         in the unresolved artifact — source_uri is provenance on edges, not cluster identity."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            config = Config(
+            config = _make_config(
                 dry_run=False,
                 output_dir=Path(tmpdir),
-                neo4j_uri="bolt://example.invalid",
-                neo4j_username="neo4j",
-                neo4j_password="secret",
-                neo4j_database="neo4j",
-                openai_model="test-model",
+                password="secret",
             )
             # Two mentions with identical text and entity_type, but different source_uri
             # stored on the EntityMention node in the DB.
@@ -1275,14 +1187,10 @@ class TestResolvedEntityCluster(unittest.TestCase):
         tracking is preserved without forcing source-partitioned cluster identity.
         """
         with tempfile.TemporaryDirectory() as tmpdir:
-            config = Config(
+            config = _make_config(
                 dry_run=False,
                 output_dir=Path(tmpdir),
-                neo4j_uri="bolt://example.invalid",
-                neo4j_username="neo4j",
-                neo4j_password="secret",
-                neo4j_database="neo4j",
-                openai_model="test-model",
+                password="secret",
             )
             mentions = [
                 {"mention_id": "m1", "name": "IBM", "entity_type": "ORG", "source_uri": "https://example.com/doc1.pdf"},
@@ -1378,14 +1286,10 @@ class TestResolvedEntityCluster(unittest.TestCase):
     def test_clusters_created_counts_unique_entity_type_and_text_pairs(self):
         """clusters_created treats same text with different entity types as separate clusters."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            config = Config(
+            config = _make_config(
                 dry_run=False,
                 output_dir=Path(tmpdir),
-                neo4j_uri="bolt://example.invalid",
-                neo4j_username="neo4j",
-                neo4j_password="secret",
-                neo4j_database="neo4j",
-                openai_model="test-model",
+                password="secret",
             )
             # "IBM" appears as both ORG and PRODUCT — should create 2 distinct clusters.
             mentions = [
@@ -1405,14 +1309,10 @@ class TestResolvedEntityCluster(unittest.TestCase):
     def test_clusters_created_none_and_empty_entity_type_counted_as_one(self):
         """None and empty-string entity_type must be treated as the same cluster scope."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            config = Config(
+            config = _make_config(
                 dry_run=False,
                 output_dir=Path(tmpdir),
-                neo4j_uri="bolt://example.invalid",
-                neo4j_username="neo4j",
-                neo4j_password="secret",
-                neo4j_database="neo4j",
-                openai_model="test-model",
+                password="secret",
             )
             # Both mentions have the same normalized text; one has entity_type=None,
             # the other has entity_type="".  They must map to the same cluster_id
@@ -1434,14 +1334,10 @@ class TestResolvedEntityCluster(unittest.TestCase):
     def test_cross_run_clusters_created_are_isolated(self):
         """Two separate runs with the same mentions produce independent clusters."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            config = Config(
+            config = _make_config(
                 dry_run=False,
                 output_dir=Path(tmpdir),
-                neo4j_uri="bolt://example.invalid",
-                neo4j_username="neo4j",
-                neo4j_password="secret",
-                neo4j_database="neo4j",
-                openai_model="test-model",
+                password="secret",
             )
             mentions = [{"mention_id": "m1", "name": "Acme Corp", "entity_type": "ORG"}]
 
@@ -2299,14 +2195,9 @@ class TestClusterMentionsUnstructuredOnly(unittest.TestCase):
 
     def test_dry_run_mode_in_summary(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            config = Config(
+            config = _make_config(
                 dry_run=True,
                 output_dir=Path(tmpdir),
-                neo4j_uri="bolt://example.invalid",
-                neo4j_username="neo4j",
-                neo4j_password="not-used",
-                neo4j_database="neo4j",
-                openai_model="test-model",
                 resolution_mode=_RESOLUTION_MODE_UNSTRUCTURED_ONLY,
             )
             result = run_entity_resolution(config, run_id="test-uo-dry", source_uri=None)
@@ -2384,14 +2275,9 @@ class TestClusterMentionsUnstructuredOnly(unittest.TestCase):
     def test_dry_run_includes_mentions_clustered_zero(self):
         """dry_run summary must include mentions_clustered and mentions_unclustered (both 0)."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            config = Config(
+            config = _make_config(
                 dry_run=True,
                 output_dir=Path(tmpdir),
-                neo4j_uri="bolt://example.invalid",
-                neo4j_username="neo4j",
-                neo4j_password="not-used",
-                neo4j_database="neo4j",
-                openai_model="test-model",
                 resolution_mode=_RESOLUTION_MODE_UNSTRUCTURED_ONLY,
             )
             result = run_entity_resolution(config, run_id="run-uo-dry-clustered", source_uri=None)
@@ -2446,14 +2332,9 @@ class TestClusterMentionsUnstructuredOnly(unittest.TestCase):
     def test_explicit_arg_overrides_config_mode(self):
         """resolution_mode kwarg overrides config.resolution_mode."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            config = Config(
+            config = _make_config(
                 dry_run=True,
                 output_dir=Path(tmpdir),
-                neo4j_uri="bolt://example.invalid",
-                neo4j_username="neo4j",
-                neo4j_password="not-used",
-                neo4j_database="neo4j",
-                openai_model="test-model",
                 resolution_mode="structured_anchor",
             )
             result = run_entity_resolution(
@@ -2466,15 +2347,7 @@ class TestClusterMentionsUnstructuredOnly(unittest.TestCase):
 
     def test_invalid_resolution_mode_raises(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            config = Config(
-                dry_run=True,
-                output_dir=Path(tmpdir),
-                neo4j_uri="bolt://example.invalid",
-                neo4j_username="neo4j",
-                neo4j_password="not-used",
-                neo4j_database="neo4j",
-                openai_model="test-model",
-            )
+            config = _make_config(dry_run=True, output_dir=Path(tmpdir))
             with self.assertRaises(ValueError) as ctx:
                 run_entity_resolution(
                     config,
@@ -3107,14 +2980,9 @@ class TestRunEntityResolutionHybrid(unittest.TestCase):
     def test_explicit_arg_overrides_config_mode(self):
         """resolution_mode kwarg overrides config.resolution_mode."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            config = Config(
+            config = _make_config(
                 dry_run=True,
                 output_dir=Path(tmpdir),
-                neo4j_uri="bolt://example.invalid",
-                neo4j_username="neo4j",
-                neo4j_password="not-used",
-                neo4j_database="neo4j",
-                openai_model="test-model",
                 resolution_mode="structured_anchor",
             )
             result = run_entity_resolution(
@@ -4065,26 +3933,18 @@ class TestLegacyNullDatasetIdBehavior(unittest.TestCase):
     _RUN_ID = "structured-run-v1"
 
     def _live_config_hybrid(self, tmp_path: Path) -> Config:
-        return Config(
+        return _make_config(
             dry_run=False,
             output_dir=tmp_path,
-            neo4j_uri="bolt://example.invalid",
-            neo4j_username="neo4j",
-            neo4j_password="secret",
-            neo4j_database="neo4j",
-            openai_model="test-model",
+            password="secret",
             resolution_mode=_RESOLUTION_MODE_HYBRID,
         )
 
     def _live_config_structured_anchor(self, tmp_path: Path) -> Config:
-        return Config(
+        return _make_config(
             dry_run=False,
             output_dir=tmp_path,
-            neo4j_uri="bolt://example.invalid",
-            neo4j_username="neo4j",
-            neo4j_password="secret",
-            neo4j_database="neo4j",
-            openai_model="test-model",
+            password="secret",
         )
 
     # ------------------------------------------------------------------
