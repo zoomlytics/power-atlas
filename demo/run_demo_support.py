@@ -4,12 +4,14 @@ import argparse
 import sys
 from pathlib import Path
 
+from power_atlas.bootstrap import build_app_context as _build_app_context
+from power_atlas.bootstrap import build_request_context as _build_request_context
+from power_atlas.bootstrap import build_runtime_config as _build_runtime_config
 from power_atlas.bootstrap import build_settings as _build_package_settings
 from power_atlas.context import RequestContext
 from power_atlas.orchestration.context_builder import (
     build_request_context_from_config as _build_request_context_from_config,
-    build_request_context_from_overrides as _build_request_context_from_overrides,
-    build_runtime_config_from_overrides as _build_runtime_config_from_overrides,
+    build_settings_from_overrides as _build_settings_from_overrides,
 )
 
 from power_atlas.contracts import ARTIFACTS_DIR, Config
@@ -51,7 +53,7 @@ def add_common_args(parser: argparse.ArgumentParser) -> None:
 
 
 def build_config_from_args(args: argparse.Namespace) -> Config:
-    config = _build_runtime_config_from_overrides(
+    settings = _build_settings_from_overrides(
         neo4j_uri=args.neo4j_uri,
         neo4j_username=args.neo4j_username,
         neo4j_password=args.neo4j_password,
@@ -59,7 +61,11 @@ def build_config_from_args(args: argparse.Namespace) -> Config:
         openai_model=args.openai_model,
         output_dir=args.output_dir,
         dataset_name=getattr(args, "dataset", None) or "",
+    )
+    config = _build_runtime_config(
+        settings,
         dry_run=args.dry_run,
+        output_dir=args.output_dir,
         question=getattr(args, "question", None),
         resolution_mode=getattr(args, "resolution_mode", None) or "unstructured_only",
     )
@@ -76,7 +82,7 @@ def build_request_context_from_args(
     all_runs: bool = False,
     source_uri: str | None = None,
 ) -> RequestContext:
-    return _build_request_context_from_overrides(
+    settings = _build_settings_from_overrides(
         neo4j_uri=args.neo4j_uri,
         neo4j_username=args.neo4j_username,
         neo4j_password=args.neo4j_password,
@@ -84,8 +90,13 @@ def build_request_context_from_args(
         openai_model=args.openai_model,
         output_dir=args.output_dir,
         dataset_name=getattr(args, "dataset", None) or "",
+    )
+    app_context = _build_app_context(settings=settings)
+    return _build_request_context(
+        app_context,
         command=getattr(args, "command", None),
         dry_run=args.dry_run if dry_run is None else dry_run,
+        output_dir=args.output_dir,
         question=getattr(args, "question", None),
         resolution_mode=getattr(args, "resolution_mode", None) or "unstructured_only",
         run_id=run_id,

@@ -36,77 +36,6 @@ def build_settings_from_overrides(
     return build_settings(environ)
 
 
-def build_runtime_config_from_overrides(
-    *,
-    neo4j_uri: str,
-    neo4j_username: str,
-    neo4j_password: str,
-    neo4j_database: str,
-    openai_model: str | None,
-    output_dir: Path,
-    dataset_name: str | None,
-    dry_run: bool,
-    question: str | None = None,
-    resolution_mode: str = "unstructured_only",
-) -> Config:
-    settings = build_settings_from_overrides(
-        neo4j_uri=neo4j_uri,
-        neo4j_username=neo4j_username,
-        neo4j_password=neo4j_password,
-        neo4j_database=neo4j_database,
-        openai_model=openai_model,
-        output_dir=output_dir,
-        dataset_name=dataset_name,
-    )
-    return build_runtime_config(
-        settings,
-        dry_run=dry_run,
-        output_dir=output_dir,
-        question=question,
-        resolution_mode=resolution_mode,
-    )
-
-
-def build_request_context_from_overrides(
-    *,
-    neo4j_uri: str,
-    neo4j_username: str,
-    neo4j_password: str,
-    neo4j_database: str,
-    openai_model: str | None,
-    output_dir: Path,
-    dataset_name: str | None,
-    command: str | None,
-    dry_run: bool,
-    question: str | None = None,
-    resolution_mode: str = "unstructured_only",
-    run_id: str | None = None,
-    all_runs: bool = False,
-    source_uri: str | None = None,
-) -> RequestContext:
-    settings = build_settings_from_overrides(
-        neo4j_uri=neo4j_uri,
-        neo4j_username=neo4j_username,
-        neo4j_password=neo4j_password,
-        neo4j_database=neo4j_database,
-        openai_model=openai_model,
-        output_dir=output_dir,
-        dataset_name=dataset_name,
-    )
-    app_context = build_app_context(settings=settings)
-    return build_request_context(
-        app_context,
-        command=command,
-        dry_run=dry_run,
-        output_dir=output_dir,
-        question=question,
-        resolution_mode=resolution_mode,
-        run_id=run_id,
-        all_runs=all_runs,
-        source_uri=source_uri,
-    )
-
-
 def build_request_context_from_config(
     config: Config,
     *,
@@ -115,49 +44,34 @@ def build_request_context_from_config(
     all_runs: bool = False,
     source_uri: str | None = None,
 ) -> RequestContext:
-    default_settings = build_settings()
-    config_settings = getattr(config, "settings", None)
-    request_context = build_request_context_from_overrides(
-        neo4j_uri=getattr(config_settings, "neo4j", default_settings.neo4j).uri,
-        neo4j_username=getattr(config_settings, "neo4j", default_settings.neo4j).username,
-        neo4j_password=getattr(config_settings, "neo4j", default_settings.neo4j).password,
-        neo4j_database=getattr(config_settings, "neo4j", default_settings.neo4j).database,
-        openai_model=getattr(config_settings, "openai_model", default_settings.openai_model),
-        output_dir=getattr(config, "output_dir", default_settings.output_dir),
-        dataset_name=getattr(config, "dataset_name", None) or "",
-        command=command,
-        dry_run=getattr(config, "dry_run", True),
-        question=getattr(config, "question", None),
-        resolution_mode=getattr(config, "resolution_mode", "unstructured_only"),
-        run_id=run_id,
-        all_runs=all_runs,
-        source_uri=source_uri,
-    )
+    app_context = build_app_context(settings=config.settings)
     config_pipeline_contract = getattr(config, "pipeline_contract", None)
-    if config_pipeline_contract is None:
-        return request_context
-    return replace(
-        request_context,
-        app=replace(
-            request_context.app,
-            settings=(
-                config_settings if config_settings is not None else request_context.app.settings
-            ),
+    if config_pipeline_contract is not None:
+        app_context = replace(
+            app_context,
             pipeline_contract=config_pipeline_contract,
             pipeline_contract_config_data=dict(
                 getattr(
                     config,
                     "pipeline_contract_config_data",
-                    request_context.app.pipeline_contract_config_data,
+                    app_context.pipeline_contract_config_data,
                 )
             ),
-        ),
+        )
+    return build_request_context(
+        app_context,
+        command=command,
+        dry_run=config.dry_run,
+        output_dir=config.output_dir,
+        question=config.question,
+        resolution_mode=config.resolution_mode,
+        run_id=run_id,
+        all_runs=all_runs,
+        source_uri=source_uri,
     )
 
 
 __all__ = [
     "build_request_context_from_config",
-    "build_request_context_from_overrides",
-    "build_runtime_config_from_overrides",
     "build_settings_from_overrides",
 ]

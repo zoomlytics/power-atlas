@@ -36,10 +36,32 @@ def _load_module(path: Path, module_name: str):
                 get_pipeline_contract_config_data,
                 get_pipeline_contract_snapshot,
             )
+            from power_atlas.settings import AppSettings, Neo4jSettings
 
             runtime_config = module.Config
 
             def _config_with_pipeline_defaults(*args, **kwargs):
+                if "settings" not in kwargs and any(
+                    key in kwargs
+                    for key in (
+                        "neo4j_uri",
+                        "neo4j_username",
+                        "neo4j_password",
+                        "neo4j_database",
+                        "openai_model",
+                    )
+                ):
+                    kwargs["settings"] = AppSettings(
+                        neo4j=Neo4jSettings(
+                            uri=kwargs.pop("neo4j_uri"),
+                            username=kwargs.pop("neo4j_username"),
+                            password=kwargs.pop("neo4j_password"),
+                            database=kwargs.pop("neo4j_database"),
+                        ),
+                        openai_model=kwargs.pop("openai_model"),
+                        output_dir=kwargs.get("output_dir", Path("artifacts")),
+                        dataset_name=kwargs.get("dataset_name"),
+                    )
                 kwargs.setdefault("pipeline_contract", get_pipeline_contract_snapshot())
                 kwargs.setdefault(
                     "pipeline_contract_config_data",
@@ -2447,18 +2469,16 @@ class WorkflowTests(unittest.TestCase):
         resolve_dataset_root raises ValueError for an unknown dataset name."""
         module = _load_module(RUN_DEMO_PATH, "run_resolve_ask_scope_value_error_test")
 
-        config = type(
-            "Config",
-            (),
-            {
-                "dry_run": False,
-                "neo4j_uri": "bolt://localhost:7687",
-                "neo4j_username": "neo4j",
-                "neo4j_password": "test",
-                "neo4j_database": "neo4j",
-                "dataset_name": "nonexistent_dataset_typo",
-            },
-        )()
+        config = module.Config(
+            dry_run=False,
+            output_dir=DEMO_DIR / "artifacts",
+            neo4j_uri="bolt://localhost:7687",
+            neo4j_username="neo4j",
+            neo4j_password="test",
+            neo4j_database="neo4j",
+            openai_model="gpt-4o-mini",
+            dataset_name="nonexistent_dataset_typo",
+        )
         args = type(
             "Args",
             (),
@@ -2504,14 +2524,16 @@ class WorkflowTests(unittest.TestCase):
     def test_resolve_ask_scope_warning_names_power_atlas_dataset_env(self):
         module = _load_module(RUN_DEMO_PATH, "run_resolve_ask_scope_power_atlas_dataset_test")
 
-        config = type(
-            "Config",
-            (),
-            {
-                "dry_run": True,
-                "dataset_name": None,
-            },
-        )()
+        config = module.Config(
+            dry_run=True,
+            output_dir=DEMO_DIR / "artifacts",
+            neo4j_uri="bolt://localhost:7687",
+            neo4j_username="neo4j",
+            neo4j_password="not-used",
+            neo4j_database="neo4j",
+            openai_model="gpt-4o-mini",
+            dataset_name=None,
+        )
         args = type(
             "Args",
             (),

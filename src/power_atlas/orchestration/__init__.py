@@ -6,8 +6,6 @@ from power_atlas.orchestration.artifact_routing import (
 )
 from power_atlas.orchestration.context_builder import (
     build_request_context_from_config,
-    build_request_context_from_overrides,
-    build_runtime_config_from_overrides,
     build_settings_from_overrides,
 )
 from power_atlas.orchestration.cli_dispatch import (
@@ -69,8 +67,6 @@ __all__ = [
     "IndependentStageSpec",
     "OrchestratedRunPlan",
     "build_request_context_from_config",
-    "build_request_context_from_overrides",
-    "build_runtime_config_from_overrides",
     "build_settings_from_overrides",
     "build_independent_stage_specs",
     "build_independent_stage_plan",

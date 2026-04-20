@@ -34,9 +34,31 @@ from power_atlas.contracts.pipeline import (
     get_pipeline_contract_config_data,
     get_pipeline_contract_snapshot,
 )
+from power_atlas.settings import AppSettings, Neo4jSettings
 
 
 def Config(*args, **kwargs):
+    if "settings" not in kwargs and any(
+        key in kwargs
+        for key in (
+            "neo4j_uri",
+            "neo4j_username",
+            "neo4j_password",
+            "neo4j_database",
+            "openai_model",
+        )
+    ):
+        kwargs["settings"] = AppSettings(
+            neo4j=Neo4jSettings(
+                uri=kwargs.pop("neo4j_uri"),
+                username=kwargs.pop("neo4j_username"),
+                password=kwargs.pop("neo4j_password"),
+                database=kwargs.pop("neo4j_database"),
+            ),
+            openai_model=kwargs.pop("openai_model"),
+            output_dir=kwargs.get("output_dir", Path("artifacts")),
+            dataset_name=kwargs.get("dataset_name"),
+        )
     kwargs.setdefault("pipeline_contract", get_pipeline_contract_snapshot())
     kwargs.setdefault("pipeline_contract_config_data", get_pipeline_contract_config_data())
     return _RuntimeConfig(*args, **kwargs)

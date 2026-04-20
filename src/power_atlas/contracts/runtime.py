@@ -7,7 +7,7 @@ from typing import Any
 from uuid import uuid4
 
 from power_atlas.contracts.pipeline import PipelineContractSnapshot
-from power_atlas.settings import AppSettings, Neo4jSettings
+from power_atlas.settings import AppSettings
 
 
 @dataclass(frozen=True)
@@ -28,39 +28,12 @@ class Config:
         output_dir: Path,
         pipeline_contract: PipelineContractSnapshot,
         pipeline_contract_config_data: dict[str, Any],
-        settings: AppSettings | None = None,
-        neo4j_uri: str | None = None,
-        neo4j_username: str | None = None,
-        neo4j_password: str | None = None,
-        neo4j_database: str | None = None,
-        openai_model: str | None = None,
+        settings: AppSettings,
         question: str | None = None,
         resolution_mode: str = "unstructured_only",
         dataset_name: str | None = None,
     ) -> None:
         resolved_settings = settings
-        if resolved_settings is None:
-            if None in (
-                neo4j_uri,
-                neo4j_username,
-                neo4j_password,
-                neo4j_database,
-                openai_model,
-            ):
-                raise TypeError(
-                    "Config requires settings or explicit neo4j/openai runtime values"
-                )
-            resolved_settings = AppSettings(
-                neo4j=Neo4jSettings(
-                    uri=neo4j_uri,
-                    username=neo4j_username,
-                    password=neo4j_password,
-                    database=neo4j_database,
-                ),
-                openai_model=openai_model,
-                output_dir=output_dir,
-                dataset_name=dataset_name,
-            )
         resolved_dataset_name = (
             resolved_settings.dataset_name if dataset_name is None else dataset_name
         )
