@@ -46,10 +46,81 @@ def Config(*args, **kwargs):
     return _RuntimeConfig(*args, **kwargs)
 
 
+def _make_settings(
+    output_dir: Path,
+    *,
+    uri: str = "bolt://example.invalid",
+    username: str = "neo4j",
+    password: str = "not-used",
+    database: str = "neo4j",
+    openai_model: str = "test-model",
+    dataset_name: str | None = None,
+) -> AppSettings:
+    return AppSettings(
+        neo4j=Neo4jSettings(
+            uri=uri,
+            username=username,
+            password=password,
+            database=database,
+        ),
+        openai_model=openai_model,
+        output_dir=output_dir,
+        dataset_name=dataset_name,
+    )
+
+
+def _make_config(
+    *,
+    dry_run: bool,
+    output_dir: Path,
+    uri: str = "bolt://example.invalid",
+    username: str = "neo4j",
+    password: str = "not-used",
+    database: str = "neo4j",
+    openai_model: str = "test-model",
+    dataset_name: str | None = None,
+    **kwargs,
+) -> Config:
+    return Config(
+        dry_run=dry_run,
+        output_dir=output_dir,
+        dataset_name=dataset_name,
+        settings=_make_settings(
+            output_dir,
+            uri=uri,
+            username=username,
+            password=password,
+            database=database,
+            openai_model=openai_model,
+            dataset_name=dataset_name,
+        ),
+        **kwargs,
+    )
+
+
 def _wrap_module_config(module):
     runtime_config = module.Config
 
     def _config_with_pipeline_defaults(*args, **kwargs):
+        if "settings" not in kwargs and any(
+            key in kwargs
+            for key in (
+                "neo4j_uri",
+                "neo4j_username",
+                "neo4j_password",
+                "neo4j_database",
+                "openai_model",
+            )
+        ):
+            kwargs["settings"] = _make_settings(
+                kwargs.get("output_dir", Path("artifacts")),
+                uri=kwargs.pop("neo4j_uri"),
+                username=kwargs.pop("neo4j_username"),
+                password=kwargs.pop("neo4j_password"),
+                database=kwargs.pop("neo4j_database"),
+                openai_model=kwargs.pop("openai_model"),
+                dataset_name=kwargs.get("dataset_name"),
+            )
         kwargs.setdefault("pipeline_contract", get_pipeline_contract_snapshot())
         kwargs.setdefault(
             "pipeline_contract_config_data",
@@ -82,28 +153,11 @@ from demo.stages.entity_resolution import (
 
 
 def _dry_run_config(tmp_path: Path) -> Config:
-    return Config(
-        dry_run=True,
-        output_dir=tmp_path,
-        neo4j_uri="bolt://example.invalid",
-        neo4j_username="neo4j",
-        neo4j_password="not-used",
-        neo4j_database="neo4j",
-        openai_model="test-model",
-    )
+    return _make_config(dry_run=True, output_dir=tmp_path)
 
 
 def _live_config(tmp_path: Path) -> Config:
-    return Config(
-        dry_run=False,
-        output_dir=tmp_path,
-        neo4j_uri="bolt://example.invalid",
-        neo4j_username="neo4j",
-        neo4j_password="secret",
-        neo4j_database="neo4j",
-        openai_model="test-model",
-    )
-
+    return _make_config(dry_run=False, output_dir=tmp_path, password="secret")
 
 def _make_neo4j_test_driver(
     mentions: list[dict[str, Any]],
@@ -2259,14 +2313,10 @@ class TestClusterMentionsUnstructuredOnly(unittest.TestCase):
     """Tests for run_entity_resolution with resolution_mode='unstructured_only'."""
 
     def _live_config(self, tmp_path: Path) -> Config:
-        return Config(
+        return _make_config(
             dry_run=False,
             output_dir=tmp_path,
-            neo4j_uri="bolt://example.invalid",
-            neo4j_username="neo4j",
-            neo4j_password="secret",
-            neo4j_database="neo4j",
-            openai_model="test-model",
+            password="secret",
             resolution_mode=_RESOLUTION_MODE_UNSTRUCTURED_ONLY,
         )
 
@@ -2736,26 +2786,17 @@ class TestRunEntityResolutionHybrid(unittest.TestCase):
     """Tests for run_entity_resolution with resolution_mode='hybrid'."""
 
     def _live_config(self, tmp_path: Path) -> Config:
-        return Config(
+        return _make_config(
             dry_run=False,
             output_dir=tmp_path,
-            neo4j_uri="bolt://example.invalid",
-            neo4j_username="neo4j",
-            neo4j_password="secret",
-            neo4j_database="neo4j",
-            openai_model="test-model",
+            password="secret",
             resolution_mode=_RESOLUTION_MODE_HYBRID,
         )
 
     def _dry_config(self, tmp_path: Path) -> Config:
-        return Config(
+        return _make_config(
             dry_run=True,
             output_dir=tmp_path,
-            neo4j_uri="bolt://example.invalid",
-            neo4j_username="neo4j",
-            neo4j_password="not-used",
-            neo4j_database="neo4j",
-            openai_model="test-model",
             resolution_mode=_RESOLUTION_MODE_HYBRID,
         )
 
@@ -3451,15 +3492,7 @@ class TestArtifactSubdirValidation(unittest.TestCase):
     """Tests for artifact_subdir path safety in run_entity_resolution."""
 
     def _config(self, tmp_path: Path) -> Config:
-        return Config(
-            dry_run=True,
-            output_dir=tmp_path,
-            neo4j_uri="bolt://example.invalid",
-            neo4j_username="neo4j",
-            neo4j_password="not-used",
-            neo4j_database="neo4j",
-            openai_model="test-model",
-        )
+        return _make_config(dry_run=True, output_dir=tmp_path)
 
     def test_valid_simple_subdir_writes_artifacts(self):
         """A simple relative subdir name is accepted and artifacts are written there."""
@@ -3616,14 +3649,10 @@ class TestHybridAlignmentCrossDatasetIsolation(unittest.TestCase):
     _SHARED_NAME = "Mercado Libre"
 
     def _live_config(self, tmp_path: Path) -> Config:
-        return Config(
+        return _make_config(
             dry_run=False,
             output_dir=tmp_path,
-            neo4j_uri="bolt://example.invalid",
-            neo4j_username="neo4j",
-            neo4j_password="secret",
-            neo4j_database="neo4j",
-            openai_model="test-model",
+            password="secret",
             resolution_mode=_RESOLUTION_MODE_HYBRID,
         )
 
@@ -3835,14 +3864,10 @@ class TestStructuredAnchorCrossDatasetIsolation(unittest.TestCase):
     _SHARED_NAME = "Mercado Libre"
 
     def _live_config(self, tmp_path: Path) -> Config:
-        return Config(
+        return _make_config(
             dry_run=False,
             output_dir=tmp_path,
-            neo4j_uri="bolt://example.invalid",
-            neo4j_username="neo4j",
-            neo4j_password="secret",
-            neo4j_database="neo4j",
-            openai_model="test-model",
+            password="secret",
             resolution_mode="structured_anchor",
         )
 

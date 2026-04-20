@@ -63,17 +63,60 @@ def Config(*args, **kwargs):
     kwargs.setdefault("pipeline_contract_config_data", get_pipeline_contract_config_data())
     return _RuntimeConfig(*args, **kwargs)
 
+def _make_settings(
+    output_dir: Path,
+    *,
+    uri: str = "bolt://example.invalid",
+    username: str = "neo4j",
+    password: str = "not-used",
+    database: str = "neo4j",
+    openai_model: str = "test-model",
+    dataset_name: str | None = None,
+) -> AppSettings:
+    return AppSettings(
+        neo4j=Neo4jSettings(
+            uri=uri,
+            username=username,
+            password=password,
+            database=database,
+        ),
+        openai_model=openai_model,
+        output_dir=output_dir,
+        dataset_name=dataset_name,
+    )
+
+
+def _make_config(
+    *,
+    dry_run: bool,
+    output_dir: Path,
+    uri: str = "bolt://example.invalid",
+    username: str = "neo4j",
+    password: str = "not-used",
+    database: str = "neo4j",
+    openai_model: str = "test-model",
+    dataset_name: str | None = None,
+    **kwargs,
+) -> Config:
+    return Config(
+        dry_run=dry_run,
+        output_dir=output_dir,
+        dataset_name=dataset_name,
+        settings=_make_settings(
+            output_dir,
+            uri=uri,
+            username=username,
+            password=password,
+            database=database,
+            openai_model=openai_model,
+            dataset_name=dataset_name,
+        ),
+        **kwargs,
+    )
+
 
 def _dry_run_config(tmp_path: Path) -> Config:
-    return Config(
-        dry_run=True,
-        output_dir=tmp_path,
-        neo4j_uri="bolt://example.invalid",
-        neo4j_username="neo4j",
-        neo4j_password="not-used",
-        neo4j_database="neo4j",
-        openai_model="test-model",
-    )
+    return _make_config(dry_run=True, output_dir=tmp_path)
 
 
 def test_make_run_id_uses_scope_prefix():
@@ -5802,13 +5845,10 @@ def test_format_claim_details_all_empty_claim_text_returns_empty_string():
 
 def _live_config(tmp_path: Path, dataset_name: str | None = None) -> Config:
     """Build a minimal live (non-dry-run) Config for testing scope resolution."""
-    return Config(
+    return _make_config(
         dry_run=False,
         output_dir=tmp_path,
-        neo4j_uri="bolt://example.invalid",
-        neo4j_username="neo4j",
-        neo4j_password="secret",
-        neo4j_database="neo4j",
+        password="secret",
         openai_model="gpt-4o-mini",
         dataset_name=dataset_name,
     )
