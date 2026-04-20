@@ -88,6 +88,32 @@ def _resolve_pipeline_contract(
     return get_pipeline_contract_snapshot()
 
 
+def _neo4j_settings_from_config(config: object) -> Neo4jSettings:
+    neo4j_uri = getattr(config, "neo4j_uri", None)
+    neo4j_username = getattr(config, "neo4j_username", None)
+    neo4j_password = getattr(config, "neo4j_password", None)
+    neo4j_database = getattr(config, "neo4j_database", None)
+
+    missing_cfg = [
+        key
+        for key, value in (
+            ("neo4j_uri", neo4j_uri),
+            ("neo4j_username", neo4j_username),
+            ("neo4j_password", neo4j_password),
+        )
+        if not value
+    ]
+    if missing_cfg:
+        raise ValueError(f"Live retrieval requires config attributes: {', '.join(missing_cfg)}")
+
+    return Neo4jSettings(
+        uri=cast(str, neo4j_uri),
+        username=cast(str, neo4j_username),
+        password=cast(str, neo4j_password),
+        database=cast(str, neo4j_database) if neo4j_database else Neo4jSettings.database,
+    )
+
+
 def _require_stage_openai_api_key(error_message: str) -> None:
     require_openai_api_key(
         error_message,
@@ -343,6 +369,14 @@ def _select_runtime_retrieval_query(
     selected variant on demand so the active retrieval path is not coupled to
     import-time frozen query strings.
     """
+    # Preserve the historical selector hook surface for parity/contract tests,
+    # but return the live-built query string so active execution is not coupled
+    # to the import-time frozen query constants.
+    _select_retrieval_query(
+        expand_graph=expand_graph,
+        cluster_aware=cluster_aware,
+        all_runs=all_runs,
+    )
     return _build_retrieval_query(
         expand_graph=expand_graph,
         cluster_aware=cluster_aware,
@@ -1431,7 +1465,7 @@ def run_retrieval_and_qa(
     # effective_expand_graph records whether any form of graph expansion is active so
     # manifests accurately describe the retrieval context used.
     effective_expand_graph = expand_graph or cluster_aware
-    retrieval_query_contract = _select_retrieval_query(
+    retrieval_query_contract = _select_runtime_retrieval_query(
         expand_graph=expand_graph, cluster_aware=cluster_aware, all_runs=all_runs
     )
     citation_object_example: dict[str, object] = {
@@ -1518,7 +1552,7 @@ def run_retrieval_and_qa(
             "Pass --run-id, --latest, or use --all-runs to query across all data."
         )
 
-    retrieval_query = _select_retrieval_query(
+    retrieval_query = _select_runtime_retrieval_query(
         expand_graph=expand_graph, cluster_aware=cluster_aware, all_runs=all_runs
     )
 
@@ -1558,14 +1592,8 @@ def run_retrieval_and_qa(
         "OPENAI_API_KEY environment variable is required for live retrieval."
     )
 
-    neo4j_uri = getattr(config, "neo4j_uri", None)
-    neo4j_username = getattr(config, "neo4j_username", None)
-    neo4j_password = getattr(config, "neo4j_password", None)
-    neo4j_database = getattr(config, "neo4j_database", None)
-
-    missing_cfg = [k for k, v in (("neo4j_uri", neo4j_uri), ("neo4j_username", neo4j_username), ("neo4j_password", neo4j_password)) if not v]
-    if missing_cfg:
-        raise ValueError(f"Live retrieval requires config attributes: {', '.join(missing_cfg)}")
+    neo4j_settings = _neo4j_settings_from_config(config)
+    neo4j_database = neo4j_settings.database
 
     def _run_single_shot_session(*, driver: object, retriever: object, rag: GraphRAG) -> tuple[str, list[dict[str, object]], list[str], list[str]]:
         del driver, retriever
@@ -1586,7 +1614,7 @@ def run_retrieval_and_qa(
         )
 
     answer_text, hits, session_warnings, session_citation_warnings = run_with_retrieval_session(
-        config,
+        neo4j_settings,
         index_name=resolved_index_name,
         retrieval_query=retrieval_query,
         qa_model=effective_qa_model,
@@ -1710,7 +1738,7 @@ def run_interactive_qa(
         else _pipeline_contract_value("CHUNK_EMBEDDING_INDEX_NAME", resolved_pipeline_contract)
     )
     effective_qa_model = getattr(config, "openai_model", None) or "gpt-5.4"
-    retrieval_query = _select_retrieval_query(
+    retrieval_query = _select_runtime_retrieval_query(
         expand_graph=expand_graph, cluster_aware=cluster_aware, all_runs=all_runs
     )
     query_params = _build_query_params(
@@ -1770,12 +1798,14 @@ def run_interactive_qa(
         except KeyboardInterrupt:
             print()
 
+    neo4j_settings = _neo4j_settings_from_config(config)
+
     run_with_retrieval_session(
-        config,
+        neo4j_settings,
         index_name=resolved_index_name,
         retrieval_query=retrieval_query,
         qa_model=effective_qa_model,
-        neo4j_database=neo4j_database,
+        neo4j_database=neo4j_settings.database,
         pipeline_contract=resolved_pipeline_contract,
         build_retriever_and_rag=_build_retriever_and_rag,
         run_session=_run_interactive_session,

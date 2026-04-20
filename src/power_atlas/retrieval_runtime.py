@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Any, TypeVar
 
 from power_atlas.bootstrap import create_neo4j_driver
+from power_atlas.settings import Neo4jSettings
 
 SessionResultT = TypeVar("SessionResultT")
 
@@ -308,7 +309,7 @@ def run_interactive_retrieval_turn(
 
 
 def run_with_retrieval_session(
-    config: object,
+    neo4j_settings: Neo4jSettings,
     *,
     index_name: str,
     retrieval_query: str,
@@ -318,7 +319,7 @@ def run_with_retrieval_session(
     build_retriever_and_rag: Callable[..., tuple[Any, Any]],
     run_session: Callable[..., SessionResultT],
 ) -> SessionResultT:
-    with create_neo4j_driver(config) as driver:
+    with create_neo4j_driver(neo4j_settings) as driver:
         retriever, rag = build_retriever_and_rag(
             driver,
             index_name=index_name,
