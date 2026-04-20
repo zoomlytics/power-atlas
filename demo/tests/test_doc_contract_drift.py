@@ -52,7 +52,6 @@ from __future__ import annotations
 
 import json
 import re
-import types
 from pathlib import Path
 from typing import Any
 
@@ -60,6 +59,12 @@ import pytest
 import yaml
 
 from demo.stages.retrieval_and_qa import _CITATION_FALLBACK_PREFIX, run_retrieval_and_qa
+from power_atlas.contracts import Config as _RuntimeConfig
+from power_atlas.contracts.pipeline import (
+    get_pipeline_contract_config_data,
+    get_pipeline_contract_snapshot,
+)
+from power_atlas.settings import AppSettings, Neo4jSettings
 from demo.tests.test_retrieval_result_contract import (
     _CITED_ANSWER,
     _DRY_RUN_CONFIG,
@@ -89,6 +94,26 @@ _CONTRACT_DOC_PATH: Path = (
 #: ``test_retrieval_result_contract.py`` mirror these scenarios via Python
 #: constants and integrity checks rather than loading this YAML directly.
 _FIXTURE_PATH: Path = Path(__file__).parent / "contract_fixtures" / "retrieval_citation_scenarios.yaml"
+
+
+def _make_live_short_circuit_config() -> _RuntimeConfig:
+    output_dir = Path("artifacts")
+    return _RuntimeConfig(
+        dry_run=False,
+        output_dir=output_dir,
+        settings=AppSettings(
+            neo4j=Neo4jSettings(
+                uri="",
+                username="",
+                password="",
+                database=None,
+            ),
+            openai_model="gpt-4o-mini",
+            output_dir=output_dir,
+        ),
+        pipeline_contract=get_pipeline_contract_snapshot(),
+        pipeline_contract_config_data=get_pipeline_contract_config_data(),
+    )
 
 
 def _load_contract_scenarios() -> dict[str, Any]:
@@ -243,14 +268,7 @@ def _run_early_return_scenario(scenario: dict[str, Any]) -> dict[str, Any]:
     # Retrieval-skipped path: live config with empty Neo4j credentials so the
     # function short-circuits before opening a driver when question is None.
     return run_retrieval_and_qa(
-        types.SimpleNamespace(
-            dry_run=False,
-            openai_model="gpt-4o-mini",
-            neo4j_uri="",
-            neo4j_username="",
-            neo4j_password="",
-            neo4j_database=None,
-        ),
+        _make_live_short_circuit_config(),
         run_id=run_id,
         source_uri=None,
         question=scenario["question"],
