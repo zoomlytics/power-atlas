@@ -3792,10 +3792,12 @@ def test_parse_args_ask_no_scope_flag_defaults_to_false():
 
 def test_run_retrieval_and_qa_all_runs_dry_run(tmp_path: Path):
     """all_runs=True must be accepted in dry-run mode; retrieval_scope must reflect all_runs."""
-    from demo.stages import run_retrieval_and_qa
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context
 
     config = _dry_run_config(tmp_path)
-    result = run_retrieval_and_qa(config, run_id=None, source_uri=None, all_runs=True)
+    request_context = _request_context_from_config(config, command="ask", run_id=None, all_runs=True)
+    result = run_retrieval_and_qa_request_context(request_context)
     assert result["status"] == "dry_run"
     scope = result["retrieval_scope"]
     assert scope["all_runs"] is True
@@ -3806,10 +3808,17 @@ def test_run_retrieval_and_qa_all_runs_dry_run(tmp_path: Path):
 
 def test_run_retrieval_and_qa_all_runs_scope_in_result(tmp_path: Path):
     """retrieval_scope must record all_runs=True and scope_widened=True."""
-    from demo.stages import run_retrieval_and_qa
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context
 
     config = _dry_run_config(tmp_path)
-    result = run_retrieval_and_qa(config, run_id="some-run", source_uri=None, all_runs=True)
+    request_context = _request_context_from_config(
+        config,
+        command="ask",
+        run_id="some-run",
+        all_runs=True,
+    )
+    result = run_retrieval_and_qa_request_context(request_context)
     # run_id is ignored in all_runs mode
     assert result["retrieval_scope"]["all_runs"] is True
     assert result["retrieval_scope"]["scope_widened"] is True
@@ -3817,10 +3826,17 @@ def test_run_retrieval_and_qa_all_runs_scope_in_result(tmp_path: Path):
 
 def test_run_retrieval_and_qa_run_scoped_scope_in_result(tmp_path: Path):
     """retrieval_scope must record all_runs=False and scope_widened=False for run-scoped mode."""
-    from demo.stages import run_retrieval_and_qa
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context
 
     config = _dry_run_config(tmp_path)
-    result = run_retrieval_and_qa(config, run_id="qa-run-scope", source_uri=None, all_runs=False)
+    request_context = _request_context_from_config(
+        config,
+        command="ask",
+        run_id="qa-run-scope",
+        all_runs=False,
+    )
+    result = run_retrieval_and_qa_request_context(request_context)
     assert result["retrieval_scope"]["all_runs"] is False
     assert result["retrieval_scope"]["scope_widened"] is False
     assert result["retrieval_scope"]["run_id"] == "qa-run-scope"
@@ -4730,10 +4746,12 @@ def test_run_interactive_qa_requires_run_id_when_not_all_runs(tmp_path: Path):
 
 def test_run_retrieval_and_qa_all_runs_uses_unscoped_retrieval_query_contract(tmp_path: Path):
     """retrieval_query_contract in the result must not contain '$run_id' when all_runs=True."""
-    from demo.stages import run_retrieval_and_qa
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context
 
     config = _dry_run_config(tmp_path)
-    result = run_retrieval_and_qa(config, run_id=None, source_uri=None, all_runs=True)
+    request_context = _request_context_from_config(config, command="ask", run_id=None, all_runs=True)
+    result = run_retrieval_and_qa_request_context(request_context)
     contract = result.get("retrieval_query_contract", "")
     assert "$run_id" not in contract, (
         f"all_runs=True retrieval_query_contract must not filter by $run_id, got:\n{contract}"
@@ -4742,10 +4760,17 @@ def test_run_retrieval_and_qa_all_runs_uses_unscoped_retrieval_query_contract(tm
 
 def test_run_retrieval_and_qa_run_scoped_uses_run_id_in_query_contract(tmp_path: Path):
     """retrieval_query_contract must contain '$run_id' for run-scoped (non-all_runs) mode."""
-    from demo.stages import run_retrieval_and_qa
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context
 
     config = _dry_run_config(tmp_path)
-    result = run_retrieval_and_qa(config, run_id="qa-run-contract", source_uri=None, all_runs=False)
+    request_context = _request_context_from_config(
+        config,
+        command="ask",
+        run_id="qa-run-contract",
+        all_runs=False,
+    )
+    result = run_retrieval_and_qa_request_context(request_context)
     contract = result.get("retrieval_query_contract", "")
     assert "$run_id" in contract, (
         f"run-scoped retrieval_query_contract must filter by $run_id, got:\n{contract}"

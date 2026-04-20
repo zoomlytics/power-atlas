@@ -42,6 +42,7 @@ from power_atlas.contracts.pipeline import (
     get_pipeline_contract_snapshot,
 )
 from power_atlas.settings import AppSettings, Neo4jSettings
+from power_atlas.orchestration.context_builder import build_request_context_from_config
 from demo.stages.retrieval_and_qa import (
     _CITATION_FALLBACK_PREFIX,
     _build_query_params,
@@ -49,8 +50,8 @@ from demo.stages.retrieval_and_qa import (
     _postprocess_answer,
     _resolve_pipeline_contract,
     _select_retrieval_query,
-    run_interactive_qa,
-    run_retrieval_and_qa,
+    run_interactive_qa_request_context,
+    run_retrieval_and_qa_request_context,
 )
 
 # ---------------------------------------------------------------------------
@@ -150,7 +151,7 @@ def test_neo4j_settings_from_config_keeps_legacy_raw_attribute_fallback() -> Non
 
 def _capture_single_shot_select_query(extra_flags: dict[str, object]) -> dict[str, object]:
     """Return the kwargs passed to ``_select_retrieval_query`` by the live path of
-    ``run_retrieval_and_qa``.
+    ``run_retrieval_and_qa_request_context``.
 
     Uses an empty-string question (non-``None`` so the early-return resolver does
     not short-circuit before the setup helpers are reached) with ``all_runs=True``
@@ -166,12 +167,24 @@ def _capture_single_shot_select_query(extra_flags: dict[str, object]) -> dict[st
         return orig(**kwargs)  # type: ignore[arg-type]
 
     flags: dict[str, object] = {"all_runs": True, **extra_flags}
+    request_context = build_request_context_from_config(
+        _LIVE_CONFIG,
+        command="ask",
+        run_id=None if flags.get("all_runs") else "r1",
+        all_runs=bool(flags.get("all_runs")),
+        source_uri=flags.get("source_uri"),
+    )
     with (
         patch("demo.stages.retrieval_and_qa._select_retrieval_query", side_effect=spy),
         patch("demo.stages.retrieval_and_qa.os.getenv", return_value=""),
     ):
         try:
-            run_retrieval_and_qa(_LIVE_CONFIG, question="", **flags)
+            run_retrieval_and_qa_request_context(
+                request_context,
+                question="",
+                expand_graph=bool(flags.get("expand_graph", False)),
+                cluster_aware=bool(flags.get("cluster_aware", False)),
+            )
         except ValueError as exc:
             assert "OPENAI_API_KEY" in str(exc), (
                 f"Expected OPENAI_API_KEY guard ValueError; got: {exc!r}"
@@ -187,7 +200,7 @@ def _capture_single_shot_select_query(extra_flags: dict[str, object]) -> dict[st
 
 
 def _capture_interactive_select_query(extra_flags: dict[str, object]) -> dict[str, object]:
-    """Return the kwargs passed to ``_select_retrieval_query`` by ``run_interactive_qa``.
+    """Return the kwargs passed to ``_select_retrieval_query`` by ``run_interactive_qa_request_context``.
 
     Mocks OPENAI_API_KEY, the Neo4j driver, ``_build_retriever_and_rag``, and
     ``input()`` so the function exits immediately after the helper calls without
@@ -201,6 +214,13 @@ def _capture_interactive_select_query(extra_flags: dict[str, object]) -> dict[st
         return orig(**kwargs)  # type: ignore[arg-type]
 
     flags: dict[str, object] = {"all_runs": True, **extra_flags}
+    request_context = build_request_context_from_config(
+        _LIVE_CONFIG,
+        command="ask",
+        run_id=None if flags.get("all_runs") else "r1",
+        all_runs=bool(flags.get("all_runs")),
+        source_uri=flags.get("source_uri"),
+    )
     with (
         patch.dict(os.environ, {"OPENAI_API_KEY": "fake-key"}),
         patch("demo.stages.retrieval_and_qa._select_retrieval_query", side_effect=spy),
@@ -210,7 +230,11 @@ def _capture_interactive_select_query(extra_flags: dict[str, object]) -> dict[st
         patch("builtins.print"),
     ):
         mock_build.return_value = (MagicMock(), MagicMock())
-        run_interactive_qa(_LIVE_CONFIG, **flags)
+        run_interactive_qa_request_context(
+            request_context,
+            expand_graph=bool(flags.get("expand_graph", False)),
+            cluster_aware=bool(flags.get("cluster_aware", False)),
+        )
 
     assert captured, "Expected at least one _select_retrieval_query call"
     return captured[0]
@@ -218,7 +242,7 @@ def _capture_interactive_select_query(extra_flags: dict[str, object]) -> dict[st
 
 def _capture_single_shot_build_query_params(extra_flags: dict[str, object]) -> dict[str, object]:
     """Return the kwargs passed to ``_build_query_params`` by the live path of
-    ``run_retrieval_and_qa``.
+    ``run_retrieval_and_qa_request_context``.
 
     Uses an empty-string question (non-``None`` so the early-return resolver does
     not short-circuit before the setup helpers are reached).  ``os.getenv`` is
@@ -237,12 +261,24 @@ def _capture_single_shot_build_query_params(extra_flags: dict[str, object]) -> d
     flags: dict[str, object] = (
         {"run_id": "r1", **extra_flags} if not extra_flags.get("all_runs") else dict(extra_flags)
     )
+    request_context = build_request_context_from_config(
+        _LIVE_CONFIG,
+        command="ask",
+        run_id=flags.get("run_id"),
+        all_runs=bool(flags.get("all_runs", False)),
+        source_uri=flags.get("source_uri"),
+    )
     with (
         patch("demo.stages.retrieval_and_qa._build_query_params", side_effect=spy),
         patch("demo.stages.retrieval_and_qa.os.getenv", return_value=""),
     ):
         try:
-            run_retrieval_and_qa(_LIVE_CONFIG, question="", **flags)
+            run_retrieval_and_qa_request_context(
+                request_context,
+                question="",
+                expand_graph=bool(flags.get("expand_graph", False)),
+                cluster_aware=bool(flags.get("cluster_aware", False)),
+            )
         except ValueError as exc:
             assert "OPENAI_API_KEY" in str(exc), (
                 f"Expected OPENAI_API_KEY guard ValueError; got: {exc!r}"
@@ -253,7 +289,7 @@ def _capture_single_shot_build_query_params(extra_flags: dict[str, object]) -> d
 
 
 def _capture_interactive_build_query_params(extra_flags: dict[str, object]) -> dict[str, object]:
-    """Return the kwargs passed to ``_build_query_params`` by ``run_interactive_qa``.
+    """Return the kwargs passed to ``_build_query_params`` by ``run_interactive_qa_request_context``.
 
     Same mocking strategy as :func:`_capture_interactive_select_query`.
     """
@@ -269,6 +305,13 @@ def _capture_interactive_build_query_params(extra_flags: dict[str, object]) -> d
     flags: dict[str, object] = (
         {"run_id": "r1", **extra_flags} if not extra_flags.get("all_runs") else dict(extra_flags)
     )
+    request_context = build_request_context_from_config(
+        _LIVE_CONFIG,
+        command="ask",
+        run_id=flags.get("run_id"),
+        all_runs=bool(flags.get("all_runs", False)),
+        source_uri=flags.get("source_uri"),
+    )
     with (
         patch.dict(os.environ, {"OPENAI_API_KEY": "fake-key"}),
         patch("demo.stages.retrieval_and_qa._build_query_params", side_effect=spy),
@@ -278,7 +321,11 @@ def _capture_interactive_build_query_params(extra_flags: dict[str, object]) -> d
         patch("builtins.print"),
     ):
         mock_build.return_value = (MagicMock(), MagicMock())
-        run_interactive_qa(_LIVE_CONFIG, **flags)
+        run_interactive_qa_request_context(
+            request_context,
+            expand_graph=bool(flags.get("expand_graph", False)),
+            cluster_aware=bool(flags.get("cluster_aware", False)),
+        )
 
     assert captured, "Expected at least one _build_query_params call"
     return captured[0]
