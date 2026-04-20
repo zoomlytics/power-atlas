@@ -865,14 +865,9 @@ class TestRunEntityResolutionOrchestratorIntegration(unittest.TestCase):
             sys.modules.pop("_run_demo_test", None)
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            config = module.Config(
+            config = _make_config(
                 dry_run=True,
                 output_dir=Path(tmpdir),
-                neo4j_uri="bolt://example.invalid",
-                neo4j_username="neo4j",
-                neo4j_password="not-used",
-                neo4j_database="neo4j",
-                openai_model="test-model",
                 dataset_name="demo_dataset_v1",
             )
             env_backup = os.environ.get("UNSTRUCTURED_RUN_ID")
@@ -907,14 +902,9 @@ class TestRunEntityResolutionOrchestratorIntegration(unittest.TestCase):
             sys.modules.pop("_run_demo_test2", None)
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            config = module.Config(
+            config = _make_config(
                 dry_run=True,
                 output_dir=Path(tmpdir),
-                neo4j_uri="bolt://example.invalid",
-                neo4j_username="neo4j",
-                neo4j_password="not-used",
-                neo4j_database="neo4j",
-                openai_model="test-model",
                 dataset_name="demo_dataset_v1",
             )
             env_backup = os.environ.get("UNSTRUCTURED_RUN_ID")
@@ -935,15 +925,7 @@ class TestBatchManifestEntityResolution(unittest.TestCase):
         from power_atlas.contracts.manifest import build_batch_manifest
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            config = Config(
-                dry_run=True,
-                output_dir=Path(tmpdir),
-                neo4j_uri="bolt://example.invalid",
-                neo4j_username="neo4j",
-                neo4j_password="not-used",
-                neo4j_database="neo4j",
-                openai_model="test-model",
-            )
+            config = _make_config(dry_run=True, output_dir=Path(tmpdir))
             manifest = build_batch_manifest(
                 config=config,
                 structured_run_id="structured-1",
@@ -962,15 +944,7 @@ class TestBatchManifestEntityResolution(unittest.TestCase):
         from power_atlas.contracts.manifest import build_batch_manifest
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            config = Config(
-                dry_run=True,
-                output_dir=Path(tmpdir),
-                neo4j_uri="bolt://example.invalid",
-                neo4j_username="neo4j",
-                neo4j_password="not-used",
-                neo4j_database="neo4j",
-                openai_model="test-model",
-            )
+            config = _make_config(dry_run=True, output_dir=Path(tmpdir))
             manifest = build_batch_manifest(
                 config=config,
                 structured_run_id="structured-1",

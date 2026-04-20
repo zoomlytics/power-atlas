@@ -696,13 +696,9 @@ def test_claim_extraction_live_path_uses_create_lexical_graph_false(tmp_path: Pa
             "edge_rows": list(edge_rows),
         }
 
-    config = Config(
+    config = _make_config(
         dry_run=False,
         output_dir=tmp_path,
-        neo4j_uri="bolt://example.invalid",
-        neo4j_username="neo4j",
-        neo4j_password="not-used",
-        neo4j_database="neo4j",
         openai_model="gpt-4o-mini",
     )
 
@@ -808,13 +804,9 @@ def test_claim_extraction_live_writes_participation_edges_when_mention_matches(t
             "edge_rows": list(edge_rows),
         }
 
-    config = Config(
+    config = _make_config(
         dry_run=False,
         output_dir=tmp_path,
-        neo4j_uri="bolt://example.invalid",
-        neo4j_username="neo4j",
-        neo4j_password="not-used",
-        neo4j_database="neo4j",
         openai_model="gpt-4o-mini",
     )
 
@@ -1033,13 +1025,9 @@ def test_retrieval_and_qa_live_path_uses_vector_cypher_retriever(tmp_path: Path)
             captured_search.update(kwargs)
             return _make_fake_retriever_result([])
 
-    live_config = Config(
+    live_config = _make_config(
         dry_run=False,
         output_dir=tmp_path,
-        neo4j_uri="bolt://example.invalid",
-        neo4j_username="neo4j",
-        neo4j_password="not-used",
-        neo4j_database="neo4j",
         openai_model="gpt-4o-mini",
     )
 
@@ -1097,13 +1085,9 @@ def test_retrieval_and_qa_live_path_uses_explicit_pipeline_contract(tmp_path: Pa
         def search(self, **kwargs):
             return _make_fake_retriever_result([])
 
-    live_config = Config(
+    live_config = _make_config(
         dry_run=False,
         output_dir=tmp_path,
-        neo4j_uri="bolt://example.invalid",
-        neo4j_username="neo4j",
-        neo4j_password="not-used",
-        neo4j_database="neo4j",
         openai_model="gpt-4o-mini",
     )
 
@@ -1179,13 +1163,9 @@ def test_retrieval_and_qa_live_path_formats_citation_tokens(tmp_path: Path):
         def search(self, **kwargs):
             return _make_fake_retriever_result([fake_item])
 
-    live_config = Config(
+    live_config = _make_config(
         dry_run=False,
         output_dir=tmp_path,
-        neo4j_uri="bolt://example.invalid",
-        neo4j_username="neo4j",
-        neo4j_password="not-used",
-        neo4j_database="neo4j",
         openai_model="gpt-4o-mini",
     )
 
@@ -1222,13 +1202,13 @@ def test_retrieval_and_qa_live_path_no_question_returns_empty_hits(tmp_path: Pat
     from demo.stages import run_retrieval_and_qa
 
     # Use empty Neo4j credentials to prove the skip path doesn't touch them.
-    live_config = Config(
+    live_config = _make_config(
         dry_run=False,
         output_dir=tmp_path,
-        neo4j_uri="",
-        neo4j_username="",
-        neo4j_password="",
-        neo4j_database="",
+        uri="",
+        username="",
+        password="",
+        database="",
         openai_model="gpt-4o-mini",
     )
 
@@ -1250,13 +1230,9 @@ def test_retrieval_and_qa_live_path_requires_run_id(tmp_path: Path):
     """Live path must raise ValueError when run_id is omitted to prevent silent cross-run retrieval."""
     from demo.stages import run_retrieval_and_qa
 
-    live_config = Config(
+    live_config = _make_config(
         dry_run=False,
         output_dir=tmp_path,
-        neo4j_uri="bolt://example.invalid",
-        neo4j_username="neo4j",
-        neo4j_password="not-used",
-        neo4j_database="neo4j",
         openai_model="gpt-4o-mini",
     )
 
@@ -1272,13 +1248,9 @@ def test_retrieval_and_qa_live_path_requires_openai_api_key(tmp_path: Path, monk
 
     monkeypatch.delitem(os.environ, "OPENAI_API_KEY", raising=False)
 
-    live_config = Config(
+    live_config = _make_config(
         dry_run=False,
         output_dir=tmp_path,
-        neo4j_uri="bolt://example.invalid",
-        neo4j_username="neo4j",
-        neo4j_password="not-used",
-        neo4j_database="neo4j",
         openai_model="gpt-4o-mini",
     )
 
@@ -1326,13 +1298,9 @@ def test_retrieval_and_qa_live_path_warns_on_missing_citation_fields(tmp_path: P
         def search(self, **kwargs):
             return _make_fake_retriever_result([fake_item])
 
-    live_config = Config(
+    live_config = _make_config(
         dry_run=False,
         output_dir=tmp_path,
-        neo4j_uri="bolt://example.invalid",
-        neo4j_username="neo4j",
-        neo4j_password="not-used",
-        neo4j_database="neo4j",
         openai_model="gpt-4o-mini",
     )
 
@@ -1370,13 +1338,9 @@ def test_retrieval_and_qa_live_path_run_scoped_by_default(tmp_path: Path):
             captured_params.update(kwargs.get("query_params", {}))
             return _make_fake_retriever_result([])
 
-    live_config = Config(
+    live_config = _make_config(
         dry_run=False,
         output_dir=tmp_path,
-        neo4j_uri="bolt://example.invalid",
-        neo4j_username="neo4j",
-        neo4j_password="not-used",
-        neo4j_database="neo4j",
         openai_model="gpt-4o-mini",
     )
 
@@ -1412,13 +1376,9 @@ def test_retrieval_and_qa_live_path_uses_expanded_query_when_expand_graph(tmp_pa
         def search(self, **kwargs):
             return _make_fake_retriever_result([])
 
-    live_config = Config(
+    live_config = _make_config(
         dry_run=False,
         output_dir=tmp_path,
-        neo4j_uri="bolt://example.invalid",
-        neo4j_username="neo4j",
-        neo4j_password="not-used",
-        neo4j_database="neo4j",
         openai_model="gpt-4o-mini",
     )
 
@@ -1474,13 +1434,9 @@ def test_retrieval_and_qa_live_path_uses_cluster_query_when_cluster_aware(tmp_pa
         def search(self, **kwargs):
             return _make_fake_retriever_result([])
 
-    live_config = Config(
+    live_config = _make_config(
         dry_run=False,
         output_dir=tmp_path,
-        neo4j_uri="bolt://example.invalid",
-        neo4j_username="neo4j",
-        neo4j_password="not-used",
-        neo4j_database="neo4j",
         openai_model="gpt-4o-mini",
     )
 
@@ -1519,13 +1475,9 @@ def test_retrieval_and_qa_live_path_cluster_aware_all_runs_uses_all_runs_query(t
         def search(self, **kwargs):
             return _make_fake_retriever_result([])
 
-    live_config = Config(
+    live_config = _make_config(
         dry_run=False,
         output_dir=tmp_path,
-        neo4j_uri="bolt://example.invalid",
-        neo4j_username="neo4j",
-        neo4j_password="not-used",
-        neo4j_database="neo4j",
         openai_model="gpt-4o-mini",
     )
 
