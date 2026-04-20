@@ -82,7 +82,18 @@ from typing import Any
 
 from power_atlas.context import RequestContext
 from power_atlas.retrieval_benchmark_queries import fetch_retrieval_benchmark_query_rows
+from power_atlas.settings import Neo4jSettings
+
 _logger = logging.getLogger(__name__)
+
+
+def _neo4j_settings_from_config(config) -> Neo4jSettings:
+    return Neo4jSettings(
+        uri=config.neo4j_uri,
+        username=config.neo4j_username,
+        password=config.neo4j_password,
+        database=config.neo4j_database,
+    )
 
 __all__ = [
     "BENCHMARK_CASES",
@@ -1206,7 +1217,8 @@ def run_retrieval_benchmark(
                 entity_b,
             )
             query_rows = fetch_retrieval_benchmark_query_rows(
-                config,
+                _neo4j_settings_from_config(config),
+                config.neo4j_database,
                 base_params=params,
                 query_specs=[
                     (
@@ -1237,7 +1249,8 @@ def run_retrieval_benchmark(
                 entity_name,
             )
             query_rows = fetch_retrieval_benchmark_query_rows(
-                config,
+                _neo4j_settings_from_config(config),
+                config.neo4j_database,
                 base_params=params,
                 query_specs=[
                     ("canonical_rows", "canonical single", _Q_CANONICAL_SINGLE, {"entity_name": entity_name}),

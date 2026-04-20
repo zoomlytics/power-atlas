@@ -50,9 +50,19 @@ from typing import Any
 
 from power_atlas.context import RequestContext
 from power_atlas.graph_health_queries import fetch_graph_health_query_rows
+from power_atlas.settings import Neo4jSettings
 from demo.stages.entity_resolution import build_entity_type_cypher_case as _build_entity_type_cypher_case
 
 _logger = logging.getLogger(__name__)
+
+
+def _neo4j_settings_from_config(config) -> Neo4jSettings:
+    return Neo4jSettings(
+        uri=config.neo4j_uri,
+        username=config.neo4j_username,
+        password=config.neo4j_password,
+        database=config.neo4j_database,
+    )
 
 __all__ = [
     "GraphHealthArtifact",
@@ -620,7 +630,8 @@ def run_graph_health_diagnostics(
         return summary
 
     query_rows = fetch_graph_health_query_rows(
-        config,
+        _neo4j_settings_from_config(config),
+        config.neo4j_database,
         run_id=run_id,
         alignment_version=alignment_version,
         query_specs=[
