@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, cast
 
 from power_atlas.bootstrap import require_openai_api_key
 from power_atlas.bootstrap.clients import build_llm as build_openai_llm
@@ -9,6 +9,7 @@ from power_atlas.context import RequestContext
 from power_atlas.contracts.pipeline import PipelineContractSnapshot, is_pipeline_contract_snapshot
 from power_atlas.contracts.prompts import PROMPT_IDS
 from power_atlas.claim_extraction_runtime import run_claim_extraction_live
+from power_atlas.settings import Neo4jSettings
 
 
 def _resolve_pipeline_contract(
@@ -22,6 +23,32 @@ def _resolve_pipeline_contract(
         return config_pipeline_contract
     raise ValueError(
         "claim extraction requires a pipeline contract from RequestContext/AppContext-derived config or an explicit pipeline_contract argument"
+    )
+
+
+def _neo4j_settings_from_config(config: object) -> Neo4jSettings:
+    neo4j_uri = getattr(config, "neo4j_uri", None)
+    neo4j_username = getattr(config, "neo4j_username", None)
+    neo4j_password = getattr(config, "neo4j_password", None)
+    neo4j_database = getattr(config, "neo4j_database", None)
+
+    missing_cfg = [
+        key
+        for key, value in (
+            ("neo4j_uri", neo4j_uri),
+            ("neo4j_username", neo4j_username),
+            ("neo4j_password", neo4j_password),
+        )
+        if not value
+    ]
+    if missing_cfg:
+        raise ValueError(f"Live claim extraction requires config attributes: {', '.join(missing_cfg)}")
+
+    return Neo4jSettings(
+        uri=cast(str, neo4j_uri),
+        username=cast(str, neo4j_username),
+        password=cast(str, neo4j_password),
+        database=cast(str, neo4j_database) if neo4j_database else Neo4jSettings.database,
     )
 
 
@@ -116,12 +143,14 @@ def run_claim_and_mention_extraction(
         ROLE_SUBJECT,
         build_participation_edges,
     )
+    neo4j_settings = _neo4j_settings_from_config(config)
 
     live_result = run_claim_extraction_live(
-        config,
+        neo4j_settings,
         run_id=run_id,
         source_uri=source_uri,
         model_name=config.openai_model,
+        neo4j_database=config.neo4j_database,
         pipeline_contract=resolved_pipeline_contract,
         read_chunks_and_extract=_async_read_chunks_and_extract,
         prepare_rows=prepare_extracted_rows,
