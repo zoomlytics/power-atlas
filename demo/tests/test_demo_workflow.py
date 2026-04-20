@@ -16,6 +16,11 @@ from pathlib import Path
 import yaml
 
 from power_atlas.contracts import PROMPT_IDS
+from power_atlas.contracts.pipeline import (
+    get_pipeline_contract_config_data,
+    get_pipeline_contract_snapshot,
+)
+from power_atlas.settings import AppSettings, Neo4jSettings
 
 
 DEMO_DIR = Path(__file__).resolve().parents[1]
@@ -32,36 +37,9 @@ def _load_module(path: Path, module_name: str):
         sys.modules[module_name] = module
         spec.loader.exec_module(module)
         if hasattr(module, "Config"):
-            from power_atlas.contracts.pipeline import (
-                get_pipeline_contract_config_data,
-                get_pipeline_contract_snapshot,
-            )
-            from power_atlas.settings import AppSettings, Neo4jSettings
-
             runtime_config = module.Config
 
             def _config_with_pipeline_defaults(*args, **kwargs):
-                if "settings" not in kwargs and any(
-                    key in kwargs
-                    for key in (
-                        "neo4j_uri",
-                        "neo4j_username",
-                        "neo4j_password",
-                        "neo4j_database",
-                        "openai_model",
-                    )
-                ):
-                    kwargs["settings"] = AppSettings(
-                        neo4j=Neo4jSettings(
-                            uri=kwargs.pop("neo4j_uri"),
-                            username=kwargs.pop("neo4j_username"),
-                            password=kwargs.pop("neo4j_password"),
-                            database=kwargs.pop("neo4j_database"),
-                        ),
-                        openai_model=kwargs.pop("openai_model"),
-                        output_dir=kwargs.get("output_dir", Path("artifacts")),
-                        dataset_name=kwargs.get("dataset_name"),
-                    )
                 kwargs.setdefault("pipeline_contract", get_pipeline_contract_snapshot())
                 kwargs.setdefault(
                     "pipeline_contract_config_data",
@@ -73,6 +51,59 @@ def _load_module(path: Path, module_name: str):
     finally:
         sys.modules.pop(module_name, None)
     return module
+
+
+def _make_module_settings(
+    output_dir: Path,
+    *,
+    uri: str = "neo4j://localhost:7687",
+    username: str = "neo4j",
+    password: str = "testtesttest",
+    database: str = "neo4j",
+    openai_model: str = "gpt-4o-mini",
+    dataset_name: str | None = None,
+) -> AppSettings:
+    return AppSettings(
+        neo4j=Neo4jSettings(
+            uri=uri,
+            username=username,
+            password=password,
+            database=database,
+        ),
+        openai_model=openai_model,
+        output_dir=output_dir,
+        dataset_name=dataset_name,
+    )
+
+
+def _make_module_config(
+    module,
+    *,
+    dry_run: bool,
+    output_dir: Path,
+    uri: str = "neo4j://localhost:7687",
+    username: str = "neo4j",
+    password: str = "testtesttest",
+    database: str = "neo4j",
+    openai_model: str = "gpt-4o-mini",
+    dataset_name: str | None = None,
+    **kwargs,
+):
+    return module.Config(
+        dry_run=dry_run,
+        output_dir=output_dir,
+        dataset_name=dataset_name,
+        settings=_make_module_settings(
+            output_dir,
+            uri=uri,
+            username=username,
+            password=password,
+            database=database,
+            openai_model=openai_model,
+            dataset_name=dataset_name,
+        ),
+        **kwargs,
+    )
 
 
 _RUN_DEMO_PIPELINE_PRIVATE_FIELDS = {
@@ -326,14 +357,10 @@ class WorkflowTests(unittest.TestCase):
         module = _load_module(RUN_DEMO_PATH, "run_test")
         with tempfile.TemporaryDirectory() as tmpdir:
             manifest_path = module.run_demo(
-                module.Config(
+                _make_module_config(
+                    module,
                     dry_run=True,
                     output_dir=Path(tmpdir),
-                    neo4j_uri="neo4j://localhost:7687",
-                    neo4j_username="neo4j",
-                    neo4j_password="testtesttest",
-                    neo4j_database="neo4j",
-                    openai_model="gpt-4o-mini",
                 )
             )
 
@@ -422,14 +449,10 @@ class WorkflowTests(unittest.TestCase):
                 side_effect=_fake_run_entity_resolution_request_context,
             ):
                 module.run_demo(
-                    module.Config(
+                    _make_module_config(
+                        module,
                         dry_run=True,
                         output_dir=Path(tmpdir),
-                        neo4j_uri="neo4j://localhost:7687",
-                        neo4j_username="neo4j",
-                        neo4j_password="testtesttest",
-                        neo4j_database="neo4j",
-                        openai_model="gpt-4o-mini",
                         dataset_name="demo_dataset_v1",
                     )
                 )
@@ -537,14 +560,10 @@ class WorkflowTests(unittest.TestCase):
     def test_structured_ingest_dry_run_emits_clean_run_artifacts(self):
         module = _load_module(RUN_DEMO_PATH, "run_structured_clean_test")
         with tempfile.TemporaryDirectory() as tmpdir:
-            config = module.Config(
+            config = _make_module_config(
+                module,
                 dry_run=True,
                 output_dir=Path(tmpdir),
-                neo4j_uri="neo4j://localhost:7687",
-                neo4j_username="neo4j",
-                neo4j_password="testtesttest",
-                neo4j_database="neo4j",
-                openai_model="gpt-4o-mini",
             )
             manifest_path = module.run_independent_demo(config, "ingest-structured")
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -565,14 +584,10 @@ class WorkflowTests(unittest.TestCase):
     def test_structured_ingest_non_dry_run_writes_claim_first_graph_and_artifacts(self):
         module = _load_module(RUN_DEMO_PATH, "run_structured_live_test")
         with tempfile.TemporaryDirectory() as tmpdir:
-            config = module.Config(
+            config = _make_module_config(
+                module,
                 dry_run=False,
                 output_dir=Path(tmpdir),
-                neo4j_uri="neo4j://localhost:7687",
-                neo4j_username="neo4j",
-                neo4j_password="testtesttest",
-                neo4j_database="neo4j",
-                openai_model="gpt-4o-mini",
             )
             calls: dict[str, object] = {}
 
@@ -793,14 +808,10 @@ class WorkflowTests(unittest.TestCase):
 
     def test_run_pdf_ingest_non_dry_run_executes_config_pipeline_and_provenance_flow(self):
         module = _load_module(RUN_DEMO_PATH, "run_non_dry_test")
-        config = module.Config(
+        config = _make_module_config(
+            module,
             dry_run=False,
             output_dir=DEMO_DIR / "artifacts",
-            neo4j_uri="neo4j://localhost:7687",
-            neo4j_username="neo4j",
-            neo4j_password="testtesttest",
-            neo4j_database="neo4j",
-            openai_model="gpt-4o-mini",
         )
         calls: dict[str, object] = {}
 
@@ -929,14 +940,10 @@ class WorkflowTests(unittest.TestCase):
 
     def test_pdf_ingest_query_payload_prefers_specific_markers(self):
         module = _load_module(RUN_DEMO_PATH, "run_marker_test")
-        config = module.Config(
+        config = _make_module_config(
+            module,
             dry_run=False,
             output_dir=DEMO_DIR / "artifacts",
-            neo4j_uri="neo4j://localhost:7687",
-            neo4j_username="neo4j",
-            neo4j_password="testtesttest",
-            neo4j_database="neo4j",
-            openai_model="gpt-4o-mini",
         )
         calls: dict[str, object] = {}
         injected_modules = self._build_pdf_ingest_test_modules(
@@ -961,14 +968,10 @@ class WorkflowTests(unittest.TestCase):
     def test_run_pdf_ingest_dry_run_writes_summary_and_fingerprint(self):
         module = _load_module(RUN_DEMO_PATH, "run_pdf_dry_summary_test")
         with tempfile.TemporaryDirectory() as tmpdir:
-            config = module.Config(
+            config = _make_module_config(
+                module,
                 dry_run=True,
                 output_dir=Path(tmpdir),
-                neo4j_uri="neo4j://localhost:7687",
-                neo4j_username="neo4j",
-                neo4j_password="testtesttest",
-                neo4j_database="neo4j",
-                openai_model="gpt-4o-mini",
             )
             result = module._run_pdf_ingest(config, run_id="unstructured_ingest-test")
             expected_fingerprint = module.sha256_file(
@@ -998,14 +1001,10 @@ class WorkflowTests(unittest.TestCase):
 
     def test_run_pdf_ingest_non_dry_run_normalizes_non_json_pipeline_result(self):
         module = _load_module(RUN_DEMO_PATH, "run_result_fallback_test")
-        config = module.Config(
+        config = _make_module_config(
+            module,
             dry_run=False,
             output_dir=DEMO_DIR / "artifacts",
-            neo4j_uri="neo4j://localhost:7687",
-            neo4j_username="neo4j",
-            neo4j_password="testtesttest",
-            neo4j_database="neo4j",
-            openai_model="gpt-4o-mini",
         )
 
         injected_modules = self._build_pdf_ingest_test_modules(
@@ -1027,14 +1026,10 @@ class WorkflowTests(unittest.TestCase):
 
     def test_run_pdf_ingest_non_dry_run_always_uses_cypher_index_creation(self):
         module = _load_module(RUN_DEMO_PATH, "run_non_dry_cypher_index_test")
-        config = module.Config(
+        config = _make_module_config(
+            module,
             dry_run=False,
             output_dir=DEMO_DIR / "artifacts",
-            neo4j_uri="neo4j://localhost:7687",
-            neo4j_username="neo4j",
-            neo4j_password="testtesttest",
-            neo4j_database="neo4j",
-            openai_model="gpt-4o-mini",
         )
         calls: dict[str, object] = {}
 
@@ -1078,14 +1073,10 @@ class WorkflowTests(unittest.TestCase):
                     for original_attr_name, original_value in original_identifiers.items():
                         _set_run_demo_pipeline_private(module, original_attr_name, original_value)
                     _set_run_demo_pipeline_private(module, attr_name, value)
-                    config = module.Config(
+                    config = _make_module_config(
+                        module,
                         dry_run=False,
                         output_dir=DEMO_DIR / "artifacts",
-                        neo4j_uri="neo4j://localhost:7687",
-                        neo4j_username="neo4j",
-                        neo4j_password="testtesttest",
-                        neo4j_database="neo4j",
-                        openai_model="gpt-4o-mini",
                     )
                     with self.assertRaisesRegex(ValueError, expected):
                         module._run_pdf_ingest(config, run_id="unstructured_ingest-test")
@@ -1097,14 +1088,10 @@ class WorkflowTests(unittest.TestCase):
     def test_run_pdf_ingest_raises_when_contract_index_not_found_after_creation(self):
         """Post-creation validation raises a clear contract violation when the index is absent."""
         module = _load_module(RUN_DEMO_PATH, "run_non_dry_index_contract_test")
-        config = module.Config(
+        config = _make_module_config(
+            module,
             dry_run=False,
             output_dir=DEMO_DIR / "artifacts",
-            neo4j_uri="neo4j://localhost:7687",
-            neo4j_username="neo4j",
-            neo4j_password="testtesttest",
-            neo4j_database="neo4j",
-            openai_model="gpt-4o-mini",
         )
         calls: dict[str, object] = {}
 
@@ -1124,14 +1111,10 @@ class WorkflowTests(unittest.TestCase):
 
     def test_run_pdf_ingest_non_dry_run_raises_when_no_run_scoped_documents_or_chunks(self):
         module = _load_module(RUN_DEMO_PATH, "run_non_dry_missing_nodes_test")
-        config = module.Config(
+        config = _make_module_config(
+            module,
             dry_run=False,
             output_dir=DEMO_DIR / "artifacts",
-            neo4j_uri="neo4j://localhost:7687",
-            neo4j_username="neo4j",
-            neo4j_password="testtesttest",
-            neo4j_database="neo4j",
-            openai_model="gpt-4o-mini",
         )
 
         injected_modules = self._build_pdf_ingest_test_modules(
@@ -1151,14 +1134,10 @@ class WorkflowTests(unittest.TestCase):
 
     def test_run_pdf_ingest_non_dry_run_requires_openai_api_key(self):
         module = _load_module(RUN_DEMO_PATH, "run_non_dry_requires_openai_key_test")
-        config = module.Config(
+        config = _make_module_config(
+            module,
             dry_run=False,
             output_dir=DEMO_DIR / "artifacts",
-            neo4j_uri="neo4j://localhost:7687",
-            neo4j_username="neo4j",
-            neo4j_password="testtesttest",
-            neo4j_database="neo4j",
-            openai_model="gpt-4o-mini",
         )
         had_openai_api_key = "OPENAI_API_KEY" in os.environ
         original_openai_api_key = os.environ.get("OPENAI_API_KEY")
@@ -1176,14 +1155,10 @@ class WorkflowTests(unittest.TestCase):
     def test_independent_ingest_commands_write_stage_manifests(self):
         module = _load_module(RUN_DEMO_PATH, "run_independent_test")
         with tempfile.TemporaryDirectory() as tmpdir:
-            config = module.Config(
+            config = _make_module_config(
+                module,
                 dry_run=True,
                 output_dir=Path(tmpdir),
-                neo4j_uri="neo4j://localhost:7687",
-                neo4j_username="neo4j",
-                neo4j_password="testtesttest",
-                neo4j_database="neo4j",
-                openai_model="gpt-4o-mini",
             )
             structured_manifest_path = module.run_independent_demo(config, "ingest-structured")
             pdf_manifest_path = module.run_independent_demo(config, "ingest-pdf")
@@ -1280,14 +1255,10 @@ class WorkflowTests(unittest.TestCase):
                 chunk_embedding_index_name="dynamic_contract_index"
             )
 
-            config = module.Config(
+            config = _make_module_config(
+                module,
                 dry_run=True,
                 output_dir=DEMO_DIR / "artifacts",
-                neo4j_uri="neo4j://localhost:7687",
-                neo4j_username="neo4j",
-                neo4j_password="testtesttest",
-                neo4j_database="neo4j",
-                openai_model="gpt-4o-mini",
             )
 
             self.assertEqual(
@@ -1805,14 +1776,10 @@ class WorkflowTests(unittest.TestCase):
         """
         module = _load_module(RUN_DEMO_PATH, "run_ask_all_runs_regression_test")
         with tempfile.TemporaryDirectory() as tmpdir:
-            config = module.Config(
+            config = _make_module_config(
+                module,
                 dry_run=True,
                 output_dir=Path(tmpdir),
-                neo4j_uri="neo4j://localhost:7687",
-                neo4j_username="neo4j",
-                neo4j_password="testtesttest",
-                neo4j_database="neo4j",
-                openai_model="gpt-4o-mini",
             )
             manifest_path = module.run_independent_demo(config, "ask", all_runs=True)
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -1895,14 +1862,10 @@ class WorkflowTests(unittest.TestCase):
             os.environ["UNSTRUCTURED_RUN_ID"] = "context-claim-run-001"
             os.environ["FIXTURE_DATASET"] = "demo_dataset_v1"
             with tempfile.TemporaryDirectory() as tmpdir:
-                config = module.Config(
+                config = _make_module_config(
+                    module,
                     dry_run=True,
                     output_dir=Path(tmpdir),
-                    neo4j_uri="neo4j://localhost:7687",
-                    neo4j_username="neo4j",
-                    neo4j_password="testtesttest",
-                    neo4j_database="neo4j",
-                    openai_model="gpt-4o-mini",
                 )
                 manifest_path = module.run_independent_demo(config, "extract-claims")
                 manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -1932,14 +1895,10 @@ class WorkflowTests(unittest.TestCase):
         """
         module = _load_module(RUN_DEMO_PATH, "run_ask_cluster_aware_test")
         with tempfile.TemporaryDirectory() as tmpdir:
-            config = module.Config(
+            config = _make_module_config(
+                module,
                 dry_run=True,
                 output_dir=Path(tmpdir),
-                neo4j_uri="neo4j://localhost:7687",
-                neo4j_username="neo4j",
-                neo4j_password="testtesttest",
-                neo4j_database="neo4j",
-                openai_model="gpt-4o-mini",
             )
             manifest_path = module.run_independent_demo(config, "ask", cluster_aware=True)
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -1957,14 +1916,10 @@ class WorkflowTests(unittest.TestCase):
         """Non-interactive ask --expand-graph must write a manifest with expand_graph=true."""
         module = _load_module(RUN_DEMO_PATH, "run_ask_expand_graph_test")
         with tempfile.TemporaryDirectory() as tmpdir:
-            config = module.Config(
+            config = _make_module_config(
+                module,
                 dry_run=True,
                 output_dir=Path(tmpdir),
-                neo4j_uri="neo4j://localhost:7687",
-                neo4j_username="neo4j",
-                neo4j_password="testtesttest",
-                neo4j_database="neo4j",
-                openai_model="gpt-4o-mini",
             )
             manifest_path = module.run_independent_demo(config, "ask", expand_graph=True)
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -1986,14 +1941,10 @@ class WorkflowTests(unittest.TestCase):
         """
         module = _load_module(RUN_DEMO_PATH, "run_ask_plain_retrieval_test")
         with tempfile.TemporaryDirectory() as tmpdir:
-            config = module.Config(
+            config = _make_module_config(
+                module,
                 dry_run=True,
                 output_dir=Path(tmpdir),
-                neo4j_uri="neo4j://localhost:7687",
-                neo4j_username="neo4j",
-                neo4j_password="testtesttest",
-                neo4j_database="neo4j",
-                openai_model="gpt-4o-mini",
             )
             manifest_path = module.run_independent_demo(config, "ask")
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -2469,14 +2420,12 @@ class WorkflowTests(unittest.TestCase):
         resolve_dataset_root raises ValueError for an unknown dataset name."""
         module = _load_module(RUN_DEMO_PATH, "run_resolve_ask_scope_value_error_test")
 
-        config = module.Config(
+        config = _make_module_config(
+            module,
             dry_run=False,
             output_dir=DEMO_DIR / "artifacts",
-            neo4j_uri="bolt://localhost:7687",
-            neo4j_username="neo4j",
-            neo4j_password="test",
-            neo4j_database="neo4j",
-            openai_model="gpt-4o-mini",
+            uri="bolt://localhost:7687",
+            password="test",
             dataset_name="nonexistent_dataset_typo",
         )
         args = type(
@@ -2524,15 +2473,12 @@ class WorkflowTests(unittest.TestCase):
     def test_resolve_ask_scope_warning_names_power_atlas_dataset_env(self):
         module = _load_module(RUN_DEMO_PATH, "run_resolve_ask_scope_power_atlas_dataset_test")
 
-        config = module.Config(
+        config = _make_module_config(
+            module,
             dry_run=True,
             output_dir=DEMO_DIR / "artifacts",
-            neo4j_uri="bolt://localhost:7687",
-            neo4j_username="neo4j",
-            neo4j_password="not-used",
-            neo4j_database="neo4j",
-            openai_model="gpt-4o-mini",
-            dataset_name=None,
+            uri="bolt://localhost:7687",
+            password="not-used",
         )
         args = type(
             "Args",
