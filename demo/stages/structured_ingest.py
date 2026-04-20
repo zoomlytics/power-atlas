@@ -5,7 +5,7 @@ import json
 import re
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from power_atlas.context import RequestContext
 from power_atlas.contracts import (
@@ -18,6 +18,7 @@ from power_atlas.contracts import (
     COMMON_PREDICATE_LABELS,
     resolve_dataset_root,
 )
+from power_atlas.settings import Neo4jSettings
 from power_atlas.structured_ingest_runtime import run_structured_ingest_live
 from power_atlas.structured_ingest_writes import write_structured_ingest_graph
 
@@ -29,6 +30,32 @@ def load_csv_rows(path: Path) -> list[dict[str, str]]:
 
 def _timestamp() -> str:
     return datetime.now(UTC).isoformat()
+
+
+def _neo4j_settings_from_config(config: object) -> Neo4jSettings:
+    neo4j_uri = getattr(config, "neo4j_uri", None)
+    neo4j_username = getattr(config, "neo4j_username", None)
+    neo4j_password = getattr(config, "neo4j_password", None)
+    neo4j_database = getattr(config, "neo4j_database", None)
+
+    missing_cfg = [
+        key
+        for key, value in (
+            ("neo4j_uri", neo4j_uri),
+            ("neo4j_username", neo4j_username),
+            ("neo4j_password", neo4j_password),
+        )
+        if not value
+    ]
+    if missing_cfg:
+        raise ValueError(f"Live structured ingest requires config attributes: {', '.join(missing_cfg)}")
+
+    return Neo4jSettings(
+        uri=cast(str, neo4j_uri),
+        username=cast(str, neo4j_username),
+        password=cast(str, neo4j_password),
+        database=cast(str, neo4j_database) if neo4j_database else Neo4jSettings.database,
+    )
 
 
 def _dataset_id_from_fixtures_root(fixtures_root: Path) -> str:
@@ -367,12 +394,14 @@ def run_structured_ingest(config: Any, run_id: str, *, fixtures_dir: Path | None
             "validation_warnings_path": str(validation_warnings_path),
             "validation_warning_count": len(validation_warnings),
         }
+    neo4j_settings = _neo4j_settings_from_config(config)
     run_structured_ingest_live(
-        config,
+        neo4j_settings,
         run_id=run_id,
         source_uri=source_uri,
         dataset_id=effective_dataset_id,
         ingested_at=ingested_at,
+        neo4j_database=config.neo4j_database,
         entities_rows=entities_rows,
         facts_rows=facts_rows,
         relationship_rows=relationship_rows,
