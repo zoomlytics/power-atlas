@@ -123,6 +123,13 @@ def test_build_runtime_config_from_settings() -> None:
 
     assert config.dry_run is False
     assert config.output_dir == Path("build/power-atlas")
+    assert config.settings == settings
+    assert "settings" in config.__dict__
+    assert "neo4j_uri" not in config.__dict__
+    assert "neo4j_username" not in config.__dict__
+    assert "neo4j_password" not in config.__dict__
+    assert "neo4j_database" not in config.__dict__
+    assert "openai_model" not in config.__dict__
     assert config.neo4j_uri == "bolt://example.test:7687"
     assert config.neo4j_username == "atlas"
     assert config.neo4j_password == "secret"

@@ -116,12 +116,13 @@ def build_request_context_from_config(
     source_uri: str | None = None,
 ) -> RequestContext:
     default_settings = build_settings()
+    config_settings = getattr(config, "settings", None)
     request_context = build_request_context_from_overrides(
-        neo4j_uri=getattr(config, "neo4j_uri", default_settings.neo4j.uri),
-        neo4j_username=getattr(config, "neo4j_username", default_settings.neo4j.username),
-        neo4j_password=getattr(config, "neo4j_password", default_settings.neo4j.password),
-        neo4j_database=getattr(config, "neo4j_database", default_settings.neo4j.database),
-        openai_model=getattr(config, "openai_model", default_settings.openai_model),
+        neo4j_uri=getattr(config_settings, "neo4j", default_settings.neo4j).uri,
+        neo4j_username=getattr(config_settings, "neo4j", default_settings.neo4j).username,
+        neo4j_password=getattr(config_settings, "neo4j", default_settings.neo4j).password,
+        neo4j_database=getattr(config_settings, "neo4j", default_settings.neo4j).database,
+        openai_model=getattr(config_settings, "openai_model", default_settings.openai_model),
         output_dir=getattr(config, "output_dir", default_settings.output_dir),
         dataset_name=getattr(config, "dataset_name", None) or "",
         command=command,
@@ -139,6 +140,9 @@ def build_request_context_from_config(
         request_context,
         app=replace(
             request_context.app,
+            settings=(
+                config_settings if config_settings is not None else request_context.app.settings
+            ),
             pipeline_contract=config_pipeline_contract,
             pipeline_contract_config_data=dict(
                 getattr(

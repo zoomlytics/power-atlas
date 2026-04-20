@@ -91,11 +91,7 @@ def build_runtime_config(
     return Config(
         dry_run=dry_run,
         output_dir=settings.output_dir if output_dir is None else output_dir,
-        neo4j_uri=settings.neo4j.uri,
-        neo4j_username=settings.neo4j.username,
-        neo4j_password=settings.neo4j.password,
-        neo4j_database=settings.neo4j.database,
-        openai_model=settings.openai_model,
+        settings=settings,
         question=question,
         resolution_mode=resolution_mode,
         dataset_name=settings.dataset_name,
