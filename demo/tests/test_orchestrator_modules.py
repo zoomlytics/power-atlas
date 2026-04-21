@@ -711,6 +711,21 @@ def test_entity_resolution_request_context_uses_request_scope(tmp_path: Path):
     assert summary["status"] == "dry_run"
 
 
+def test_entity_resolution_config_first_adapter_warns_deprecated(tmp_path: Path):
+    from demo.stages.entity_resolution import run_entity_resolution
+
+    config = _dry_run_config(tmp_path)
+
+    with pytest.warns(DeprecationWarning, match="run_entity_resolution is deprecated"):
+        summary = run_entity_resolution(
+            config,
+            run_id="deprecated-entity-run",
+            source_uri=None,
+        )
+
+    assert summary["status"] == "dry_run"
+
+
 def test_claim_extraction_live_path_uses_create_lexical_graph_false(tmp_path: Path):
     """Verify that _async_read_chunks_and_extract instantiates LLMEntityRelationExtractor
     with create_lexical_graph=False, keeping extraction non-destructive:

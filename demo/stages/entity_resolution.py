@@ -219,6 +219,7 @@ from __future__ import annotations
 
 import json
 import re
+import warnings
 from datetime import UTC, datetime
 from difflib import SequenceMatcher
 from pathlib import Path
@@ -329,7 +330,28 @@ _ENTITY_TYPE_SYNONYMS: dict[str, str] = {
 _ENTITY_TYPE_NULL_SENTINEL = "__null__"
 
 
-def _neo4j_settings_from_config(config: object) -> Neo4jSettings:
+def _warn_config_first_adapter(adapter_name: str, canonical_name: str) -> None:
+    warnings.warn(
+        (
+            f"{adapter_name} is deprecated and will be removed in a future migration step. "
+            f"Use {canonical_name} with a RequestContext instead."
+        ),
+        DeprecationWarning,
+        stacklevel=2,
+    )
+
+
+def _neo4j_settings_from_config(
+    config: object,
+    neo4j_settings: Neo4jSettings | None = None,
+) -> Neo4jSettings:
+    if neo4j_settings is not None:
+        return neo4j_settings
+    config_settings = getattr(config, "settings", None)
+    settings_neo4j = getattr(config_settings, "neo4j", None)
+    if isinstance(settings_neo4j, Neo4jSettings):
+        return settings_neo4j
+
     neo4j_uri = getattr(config, "neo4j_uri", None)
     neo4j_username = getattr(config, "neo4j_username", None)
     neo4j_password = getattr(config, "neo4j_password", None)
@@ -355,11 +377,16 @@ def _neo4j_settings_from_config(config: object) -> Neo4jSettings:
     )
 
 
-def _resolve_effective_dataset_id(config: Any, dataset_id: str | None) -> str:
+def _resolve_effective_dataset_id(
+    config: Any,
+    dataset_id: str | None,
+    *,
+    dataset_name: str | None = None,
+) -> str:
     if isinstance(dataset_id, str) and dataset_id:
         return dataset_id
 
-    configured_dataset_name = getattr(config, "dataset_name", None)
+    configured_dataset_name = dataset_name or getattr(config, "dataset_name", None)
     if isinstance(configured_dataset_name, str) and configured_dataset_name:
         return resolve_dataset_root(configured_dataset_name).dataset_id
 
@@ -1366,7 +1393,7 @@ def _write_alignment_results(
     )
 
 
-def run_entity_resolution(
+def _run_entity_resolution_impl(
     config: Any,
     *,
     run_id: str,
@@ -1374,6 +1401,8 @@ def run_entity_resolution(
     resolution_mode: str | None = None,
     artifact_subdir: str = "entity_resolution",
     dataset_id: str | None = None,
+    neo4j_settings: Neo4jSettings | None = None,
+    dataset_name: str | None = None,
 ) -> dict[str, Any]:
     """Resolve or cluster :EntityMention nodes scoped to *run_id*.
 
@@ -1444,7 +1473,11 @@ def run_entity_resolution(
     # Resolve the effective dataset_id for scoping CanonicalEntity lookups.
     # Explicit parameter takes precedence; otherwise use config.dataset_name when
     # available and finally the historical demo default dataset for compatibility.
-    effective_dataset_id: str = _resolve_effective_dataset_id(config, dataset_id)
+    effective_dataset_id: str = _resolve_effective_dataset_id(
+        config,
+        dataset_id,
+        dataset_name=dataset_name,
+    )
 
     resolved_at = datetime.now(UTC).isoformat()
 
@@ -1518,16 +1551,16 @@ def run_entity_resolution(
         unresolved_path.write_text(json.dumps([], indent=2), encoding="utf-8")
         return summary
 
-    neo4j_settings = _neo4j_settings_from_config(config)
+    resolved_neo4j_settings = _neo4j_settings_from_config(config, neo4j_settings)
 
     live_result = run_entity_resolution_live(
-        neo4j_settings,
+        resolved_neo4j_settings,
         run_id=run_id,
         source_uri=source_uri,
         resolution_mode=resolution_mode,
         effective_dataset_id=effective_dataset_id,
         alignment_version=_ALIGNMENT_VERSION,
-        neo4j_database=config.neo4j_database,
+        neo4j_database=resolved_neo4j_settings.database,
         fetch_mentions=fetch_entity_mentions,
         cluster_mentions=_cluster_mentions_unstructured_only,
         fetch_canonicals=fetch_canonical_entities,
@@ -1631,6 +1664,35 @@ def run_entity_resolution(
     return summary
 
 
+def run_entity_resolution(
+    config: Any,
+    *,
+    run_id: str,
+    source_uri: str | None,
+    resolution_mode: str | None = None,
+    artifact_subdir: str = "entity_resolution",
+    dataset_id: str | None = None,
+    neo4j_settings: Neo4jSettings | None = None,
+) -> dict[str, Any]:
+    _warn_config_first_adapter(
+        "run_entity_resolution",
+        "run_entity_resolution_request_context",
+    )
+    return _run_entity_resolution_impl(
+        config,
+        run_id=run_id,
+        source_uri=source_uri,
+        resolution_mode=resolution_mode,
+        artifact_subdir=artifact_subdir,
+        dataset_id=dataset_id,
+        neo4j_settings=neo4j_settings,
+        dataset_name=(
+            getattr(getattr(config, "settings", None), "dataset_name", None)
+            or getattr(config, "dataset_name", None)
+        ),
+    )
+
+
 def run_entity_resolution_request_context(
     request_context: RequestContext,
     *,
@@ -1639,13 +1701,19 @@ def run_entity_resolution_request_context(
     dataset_id: str | None = None,
 ) -> dict[str, Any]:
     """Run entity resolution using request-scoped context as the primary input."""
-    return run_entity_resolution(
+    effective_resolution_mode = resolution_mode
+    if effective_resolution_mode is None:
+        effective_resolution_mode = getattr(request_context.config, "resolution_mode", None)
+
+    return _run_entity_resolution_impl(
         request_context.config,
         run_id=request_context.run_id,
         source_uri=request_context.source_uri,
-        resolution_mode=resolution_mode,
+        resolution_mode=effective_resolution_mode,
         artifact_subdir=artifact_subdir,
         dataset_id=dataset_id,
+        neo4j_settings=request_context.settings.neo4j,
+        dataset_name=request_context.settings.dataset_name,
     )
 
 
