@@ -838,27 +838,38 @@ def test_claim_extraction_live_writes_participation_edges_when_mention_matches(t
 
 
 def test_retrieval_and_qa_question_recorded_in_manifest(tmp_path: Path):
-    from demo.stages import run_retrieval_and_qa
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context
 
     config = _dry_run_config(tmp_path)
-    result = run_retrieval_and_qa(config, run_id="qa-run-2", source_uri=None, question="What happened?")
+    request_context = _request_context_from_config(config, command="ask", run_id="qa-run-2", source_uri=None)
+    result = run_retrieval_and_qa_request_context(request_context, question="What happened?")
     assert result["question"] == "What happened?"
 
 
 def test_retrieval_and_qa_question_none_when_not_provided(tmp_path: Path):
-    from demo.stages import run_retrieval_and_qa
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context
 
     config = _dry_run_config(tmp_path)
-    result = run_retrieval_and_qa(config, run_id="qa-run-3", source_uri=None)
+    request_context = _request_context_from_config(config, command="ask", run_id="qa-run-3", source_uri=None)
+    result = run_retrieval_and_qa_request_context(request_context)
     assert result["question"] is None
 
 
 def test_retrieval_and_qa_dry_run_includes_retriever_type_and_scope(tmp_path: Path):
     """Retriever type and retrieval scope metadata must always appear in stage output."""
-    from demo.stages import run_retrieval_and_qa
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context
 
     config = _dry_run_config(tmp_path)
-    result = run_retrieval_and_qa(config, run_id="qa-run-4", source_uri="file:///doc.pdf")
+    request_context = _request_context_from_config(
+        config,
+        command="ask",
+        run_id="qa-run-4",
+        source_uri="file:///doc.pdf",
+    )
+    result = run_retrieval_and_qa_request_context(request_context)
     assert result["retriever_type"] == "VectorCypherRetriever"
     assert "retrieval_scope" in result
     scope = result["retrieval_scope"]
@@ -870,27 +881,48 @@ def test_retrieval_and_qa_dry_run_includes_retriever_type_and_scope(tmp_path: Pa
 def test_retrieval_and_qa_dry_run_retrieval_scope_source_uri_none_when_not_provided(tmp_path: Path):
     """retrieval_scope.source_uri must be None when source_uri is not provided.
     retrieval_scope.run_id must reflect the raw run_id argument (None when omitted)."""
-    from demo.stages import run_retrieval_and_qa
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context
 
     config = _dry_run_config(tmp_path)
-    result = run_retrieval_and_qa(config, run_id="qa-run-5", source_uri=None)
+    request_context = _request_context_from_config(config, command="ask", run_id="qa-run-5", source_uri=None)
+    result = run_retrieval_and_qa_request_context(request_context)
     assert result["retrieval_scope"]["source_uri"] is None
     # scope must record the actual run_id, not the citation-example placeholder
     assert result["retrieval_scope"]["run_id"] == "qa-run-5"
 
     # When run_id is omitted (dry-run only), retrieval_scope.run_id must be None
-    result_no_run_id = run_retrieval_and_qa(config, run_id=None, source_uri=None)
+    request_context_no_run_id = _request_context_from_config(
+        config,
+        command="ask",
+        run_id=None,
+        source_uri=None,
+    )
+    result_no_run_id = run_retrieval_and_qa_request_context(request_context_no_run_id)
     assert result_no_run_id["retrieval_scope"]["run_id"] is None
 
 
 def test_retrieval_and_qa_dry_run_expand_graph_flag_recorded(tmp_path: Path):
     """expand_graph flag must be preserved in the returned stage output, and the
     retrievers list must reflect whether graph expansion was requested."""
-    from demo.stages import run_retrieval_and_qa
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context
 
     config = _dry_run_config(tmp_path)
-    result_no_expand = run_retrieval_and_qa(config, run_id="qa-run-6", source_uri=None, expand_graph=False)
-    result_expand = run_retrieval_and_qa(config, run_id="qa-run-7", source_uri=None, expand_graph=True)
+    request_context_no_expand = _request_context_from_config(
+        config,
+        command="ask",
+        run_id="qa-run-6",
+        source_uri=None,
+    )
+    request_context_expand = _request_context_from_config(
+        config,
+        command="ask",
+        run_id="qa-run-7",
+        source_uri=None,
+    )
+    result_no_expand = run_retrieval_and_qa_request_context(request_context_no_expand, expand_graph=False)
+    result_expand = run_retrieval_and_qa_request_context(request_context_expand, expand_graph=True)
     assert result_no_expand["expand_graph"] is False
     assert result_expand["expand_graph"] is True
     # retrievers list must only include "graph expansion" when expand_graph=True
@@ -1413,11 +1445,24 @@ def test_retrieval_and_qa_dry_run_cluster_aware_flag_recorded(tmp_path: Path):
     """cluster_aware flag must be preserved in the returned stage output and the
     retrievers list must include 'cluster traversal' when cluster_aware=True.
     expand_graph must be True when cluster_aware=True (cluster_aware implies expansion)."""
-    from demo.stages import run_retrieval_and_qa
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context
 
     config = _dry_run_config(tmp_path)
-    result_no_cluster = run_retrieval_and_qa(config, run_id="qa-run-ca-1", source_uri=None, cluster_aware=False)
-    result_cluster = run_retrieval_and_qa(config, run_id="qa-run-ca-2", source_uri=None, cluster_aware=True)
+    request_context_no_cluster = _request_context_from_config(
+        config,
+        command="ask",
+        run_id="qa-run-ca-1",
+        source_uri=None,
+    )
+    request_context_cluster = _request_context_from_config(
+        config,
+        command="ask",
+        run_id="qa-run-ca-2",
+        source_uri=None,
+    )
+    result_no_cluster = run_retrieval_and_qa_request_context(request_context_no_cluster, cluster_aware=False)
+    result_cluster = run_retrieval_and_qa_request_context(request_context_cluster, cluster_aware=True)
     assert result_no_cluster["cluster_aware"] is False
     assert result_cluster["cluster_aware"] is True
     # retrievers list must include "cluster traversal" only when cluster_aware=True
@@ -1682,11 +1727,18 @@ def test_chunk_citation_formatter_no_cluster_context_when_fields_empty():
 def test_retrieval_and_qa_cluster_aware_retrieval_query_contract_recorded(tmp_path: Path):
     """The retrieval_query_contract in the result must use the cluster-aware query when
     cluster_aware=True, so manifests accurately document which retrieval strategy was used."""
-    from demo.stages import run_retrieval_and_qa
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context
     from demo.stages.retrieval_and_qa import _RETRIEVAL_QUERY_WITH_CLUSTER
 
     config = _dry_run_config(tmp_path)
-    result = run_retrieval_and_qa(config, run_id="qa-run-ca-3", source_uri=None, cluster_aware=True)
+    request_context = _request_context_from_config(
+        config,
+        command="ask",
+        run_id="qa-run-ca-3",
+        source_uri=None,
+    )
+    result = run_retrieval_and_qa_request_context(request_context, cluster_aware=True)
     assert result["retrieval_query_contract"] == _RETRIEVAL_QUERY_WITH_CLUSTER.strip()
 
 
@@ -2449,21 +2501,35 @@ def test_split_into_segments_non_citation_bracket_triggers_split():
 
 def test_retrieval_and_qa_dry_run_includes_interactive_mode_flag(tmp_path: Path):
     """Dry-run result must record interactive_mode and message_history_enabled flags."""
-    from demo.stages import run_retrieval_and_qa
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context
 
     config = _dry_run_config(tmp_path)
-    result = run_retrieval_and_qa(config, run_id="qa-run-im", source_uri=None, interactive=True)
+    request_context_interactive = _request_context_from_config(
+        config,
+        command="ask",
+        run_id="qa-run-im",
+        source_uri=None,
+    )
+    result = run_retrieval_and_qa_request_context(request_context_interactive, interactive=True)
     assert result["interactive_mode"] is True
     assert result["message_history_enabled"] is False
 
-    result_no_interactive = run_retrieval_and_qa(config, run_id="qa-run-ni", source_uri=None)
+    request_context_noninteractive = _request_context_from_config(
+        config,
+        command="ask",
+        run_id="qa-run-ni",
+        source_uri=None,
+    )
+    result_no_interactive = run_retrieval_and_qa_request_context(request_context_noninteractive)
     assert result_no_interactive["interactive_mode"] is False
 
 
 def test_retrieval_and_qa_live_path_records_answer_and_all_answers_cited(tmp_path: Path):
     """Live path must return an 'answer' key and set all_answers_cited=True when
     the generated answer contains citation tokens in every sentence."""
-    from demo.stages import run_retrieval_and_qa
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context
 
     cited_answer = (
         "Evidence was found. [CITATION|chunk_id=c1|run_id=live-run-cited|"
@@ -2482,18 +2548,19 @@ def test_retrieval_and_qa_live_path_records_answer_and_all_answers_cited(tmp_pat
         output_dir=tmp_path,
         openai_model="gpt-4o-mini",
     )
+    request_context = _request_context_from_config(
+        live_config,
+        command="ask",
+        run_id="live-run-cited",
+        source_uri=None,
+    )
 
     with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
     ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class(answer=cited_answer)), mock.patch(
         "demo.stages.retrieval_and_qa.build_openai_llm"
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
-        result = run_retrieval_and_qa(
-            live_config,
-            run_id="live-run-cited",
-            source_uri=None,
-            question="What happened?",
-        )
+        result = run_retrieval_and_qa_request_context(request_context, question="What happened?")
 
     assert result["answer"] == cited_answer
     assert result["all_answers_cited"] is True
