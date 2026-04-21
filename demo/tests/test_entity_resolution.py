@@ -109,6 +109,7 @@ from demo.stages.entity_resolution import (
     _resolve_mention,
     _split_aliases,
     run_entity_resolution,
+    run_entity_resolution_request_context,
 )
 
 
@@ -118,6 +119,31 @@ def _dry_run_config(tmp_path: Path) -> Config:
 
 def _live_config(tmp_path: Path) -> Config:
     return _make_config(dry_run=False, output_dir=tmp_path, password="secret")
+
+
+def _run_entity_resolution_via_request_context(
+    config: Config,
+    *,
+    run_id: str,
+    source_uri: str | None,
+    resolution_mode: str | None = None,
+    artifact_subdir: str = "entity_resolution",
+    dataset_id: str | None = None,
+) -> dict[str, Any]:
+    from demo.run_demo import _request_context_from_config
+
+    request_context = _request_context_from_config(
+        config,
+        command="resolve-entities",
+        run_id=run_id,
+        source_uri=source_uri,
+    )
+    return run_entity_resolution_request_context(
+        request_context,
+        resolution_mode=resolution_mode,
+        artifact_subdir=artifact_subdir,
+        dataset_id=dataset_id,
+    )
 
 def _make_neo4j_test_driver(
     mentions: list[dict[str, Any]],
@@ -625,7 +651,11 @@ class TestRunEntityResolutionDryRun(unittest.TestCase):
     def test_dry_run_returns_summary_with_zeros(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             config = _dry_run_config(Path(tmpdir))
-            result = run_entity_resolution(config, run_id="test-run-001", source_uri=None)
+            result = _run_entity_resolution_via_request_context(
+                config,
+                run_id="test-run-001",
+                source_uri=None,
+            )
             self.assertEqual(result["status"], "dry_run")
             self.assertEqual(result["run_id"], "test-run-001")
             self.assertEqual(result["mentions_total"], 0)
@@ -636,7 +666,11 @@ class TestRunEntityResolutionDryRun(unittest.TestCase):
     def test_dry_run_writes_summary_artifact(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             config = _dry_run_config(Path(tmpdir))
-            run_entity_resolution(config, run_id="test-run-002", source_uri="file:///test.pdf")
+            _run_entity_resolution_via_request_context(
+                config,
+                run_id="test-run-002",
+                source_uri="file:///test.pdf",
+            )
             summary_path = Path(tmpdir) / "runs" / "test-run-002" / "entity_resolution" / "entity_resolution_summary.json"
             self.assertTrue(summary_path.exists())
             summary = json.loads(summary_path.read_text(encoding="utf-8"))
@@ -646,7 +680,11 @@ class TestRunEntityResolutionDryRun(unittest.TestCase):
     def test_dry_run_writes_empty_unresolved_artifact(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             config = _dry_run_config(Path(tmpdir))
-            run_entity_resolution(config, run_id="test-run-003", source_uri=None)
+            _run_entity_resolution_via_request_context(
+                config,
+                run_id="test-run-003",
+                source_uri=None,
+            )
             unresolved_path = (
                 Path(tmpdir) / "runs" / "test-run-003" / "entity_resolution" / "unresolved_mentions.json"
             )
@@ -657,9 +695,27 @@ class TestRunEntityResolutionDryRun(unittest.TestCase):
     def test_dry_run_carries_resolver_version(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             config = _dry_run_config(Path(tmpdir))
-            result = run_entity_resolution(config, run_id="test-run-004", source_uri=None)
+            result = _run_entity_resolution_via_request_context(
+                config,
+                run_id="test-run-004",
+                source_uri=None,
+            )
             self.assertIn("resolver_version", result)
             self.assertTrue(result["resolver_version"])
+
+    def test_config_first_adapter_warns_deprecated(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = _dry_run_config(Path(tmpdir))
+            with self.assertWarnsRegex(
+                DeprecationWarning,
+                "run_entity_resolution is deprecated",
+            ):
+                result = run_entity_resolution(
+                    config,
+                    run_id="test-run-deprecated",
+                    source_uri=None,
+                )
+            self.assertEqual(result["status"], "dry_run")
 
 
 class TestRunEntityResolutionLive(unittest.TestCase):
@@ -681,7 +737,12 @@ class TestRunEntityResolutionLive(unittest.TestCase):
             driver = self._make_driver(mentions, canonicals)
 
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                result = run_entity_resolution(config, run_id="run-live-001", source_uri="file:///doc.pdf", resolution_mode="structured_anchor")
+                result = _run_entity_resolution_via_request_context(
+                    config,
+                    run_id="run-live-001",
+                    source_uri="file:///doc.pdf",
+                    resolution_mode="structured_anchor",
+                )
 
             self.assertEqual(result["status"], "live")
             self.assertEqual(result["mentions_total"], 1)
@@ -697,7 +758,12 @@ class TestRunEntityResolutionLive(unittest.TestCase):
             driver = self._make_driver(mentions, canonicals)
 
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                result = run_entity_resolution(config, run_id="run-live-002", source_uri=None, resolution_mode="structured_anchor")
+                result = _run_entity_resolution_via_request_context(
+                    config,
+                    run_id="run-live-002",
+                    source_uri=None,
+                    resolution_mode="structured_anchor",
+                )
 
             self.assertEqual(result["resolved"], 1)
             self.assertEqual(result["resolution_breakdown"].get("label_exact"), 1)
@@ -710,7 +776,12 @@ class TestRunEntityResolutionLive(unittest.TestCase):
             driver = self._make_driver(mentions, canonicals)
 
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                result = run_entity_resolution(config, run_id="run-live-003", source_uri=None, resolution_mode="structured_anchor")
+                result = _run_entity_resolution_via_request_context(
+                    config,
+                    run_id="run-live-003",
+                    source_uri=None,
+                    resolution_mode="structured_anchor",
+                )
 
             self.assertEqual(result["resolved"], 1)
             self.assertEqual(result["resolution_breakdown"].get("alias_exact"), 1)
@@ -725,7 +796,7 @@ class TestRunEntityResolutionLive(unittest.TestCase):
             driver = self._make_driver(mentions, canonicals)
 
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                result = run_entity_resolution(
+                result = _run_entity_resolution_via_request_context(
                     config,
                     run_id="run-live-config-dataset-001",
                     source_uri=None,
@@ -743,7 +814,11 @@ class TestRunEntityResolutionLive(unittest.TestCase):
             driver = self._make_driver(mentions, canonicals)
 
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                result = run_entity_resolution(config, run_id="run-live-004", source_uri=None)
+                result = _run_entity_resolution_via_request_context(
+                    config,
+                    run_id="run-live-004",
+                    source_uri=None,
+                )
 
             self.assertEqual(result["resolved"], 0)
             self.assertEqual(result["unresolved"], 1)
@@ -757,7 +832,11 @@ class TestRunEntityResolutionLive(unittest.TestCase):
             driver = self._make_driver(mentions, canonicals)
 
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                run_entity_resolution(config, run_id="run-live-005", source_uri=None)
+                _run_entity_resolution_via_request_context(
+                    config,
+                    run_id="run-live-005",
+                    source_uri=None,
+                )
 
             unresolved_path = (
                 Path(tmpdir) / "runs" / "run-live-005" / "entity_resolution" / "unresolved_mentions.json"
@@ -779,7 +858,12 @@ class TestRunEntityResolutionLive(unittest.TestCase):
             driver = self._make_driver(mentions, canonicals)
 
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                run_entity_resolution(config, run_id="run-live-006", source_uri="file:///a.pdf", resolution_mode="structured_anchor")
+                _run_entity_resolution_via_request_context(
+                    config,
+                    run_id="run-live-006",
+                    source_uri="file:///a.pdf",
+                    resolution_mode="structured_anchor",
+                )
 
             summary_path = (
                 Path(tmpdir) / "runs" / "run-live-006" / "entity_resolution" / "entity_resolution_summary.json"
@@ -2200,7 +2284,11 @@ class TestClusterMentionsUnstructuredOnly(unittest.TestCase):
                 output_dir=Path(tmpdir),
                 resolution_mode=_RESOLUTION_MODE_UNSTRUCTURED_ONLY,
             )
-            result = run_entity_resolution(config, run_id="test-uo-dry", source_uri=None)
+            result = _run_entity_resolution_via_request_context(
+                config,
+                run_id="test-uo-dry",
+                source_uri=None,
+            )
             self.assertEqual(result["resolution_mode"], _RESOLUTION_MODE_UNSTRUCTURED_ONLY)
 
     def test_live_no_canonical_lookup(self):
@@ -2211,7 +2299,11 @@ class TestClusterMentionsUnstructuredOnly(unittest.TestCase):
             driver = self._make_driver(mentions)
 
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                run_entity_resolution(config, run_id="run-uo-001", source_uri=None)
+                _run_entity_resolution_via_request_context(
+                    config,
+                    run_id="run-uo-001",
+                    source_uri=None,
+                )
 
             all_calls = [str(c) for c in driver.execute_query.call_args_list]
             self.assertFalse(
@@ -2230,7 +2322,11 @@ class TestClusterMentionsUnstructuredOnly(unittest.TestCase):
             driver = self._make_driver(mentions)
 
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                result = run_entity_resolution(config, run_id="run-uo-002", source_uri=None)
+                result = _run_entity_resolution_via_request_context(
+                    config,
+                    run_id="run-uo-002",
+                    source_uri=None,
+                )
 
             self.assertEqual(result["resolved"], 0)
             self.assertEqual(result["unresolved"], 2)
@@ -2248,7 +2344,11 @@ class TestClusterMentionsUnstructuredOnly(unittest.TestCase):
             driver = self._make_driver(mentions)
 
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                result = run_entity_resolution(config, run_id="run-uo-clustered-001", source_uri=None)
+                result = _run_entity_resolution_via_request_context(
+                    config,
+                    run_id="run-uo-clustered-001",
+                    source_uri=None,
+                )
 
             self.assertEqual(result["mentions_clustered"], result["mentions_total"])
             self.assertEqual(result["mentions_unclustered"], 0)
@@ -2265,7 +2365,11 @@ class TestClusterMentionsUnstructuredOnly(unittest.TestCase):
             driver = self._make_driver(mentions)
 
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                result = run_entity_resolution(config, run_id="run-uo-invariant-001", source_uri=None)
+                result = _run_entity_resolution_via_request_context(
+                    config,
+                    run_id="run-uo-invariant-001",
+                    source_uri=None,
+                )
 
             self.assertEqual(
                 result["mentions_clustered"] + result["mentions_unclustered"],
@@ -2280,7 +2384,11 @@ class TestClusterMentionsUnstructuredOnly(unittest.TestCase):
                 output_dir=Path(tmpdir),
                 resolution_mode=_RESOLUTION_MODE_UNSTRUCTURED_ONLY,
             )
-            result = run_entity_resolution(config, run_id="run-uo-dry-clustered", source_uri=None)
+            result = _run_entity_resolution_via_request_context(
+                config,
+                run_id="run-uo-dry-clustered",
+                source_uri=None,
+            )
             self.assertIn("mentions_clustered", result)
             self.assertIn("mentions_unclustered", result)
             self.assertEqual(result["mentions_clustered"], 0)
@@ -2297,7 +2405,11 @@ class TestClusterMentionsUnstructuredOnly(unittest.TestCase):
             driver = self._make_driver(mentions)
 
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                result = run_entity_resolution(config, run_id="run-uo-003", source_uri=None)
+                result = _run_entity_resolution_via_request_context(
+                    config,
+                    run_id="run-uo-003",
+                    source_uri=None,
+                )
 
             self.assertEqual(result["clusters_created"], 1)
 
@@ -2307,7 +2419,11 @@ class TestClusterMentionsUnstructuredOnly(unittest.TestCase):
             driver = self._make_driver([])
 
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                result = run_entity_resolution(config, run_id="run-uo-004", source_uri=None)
+                result = _run_entity_resolution_via_request_context(
+                    config,
+                    run_id="run-uo-004",
+                    source_uri=None,
+                )
 
             self.assertEqual(result["resolution_mode"], _RESOLUTION_MODE_UNSTRUCTURED_ONLY)
 
@@ -2322,7 +2438,11 @@ class TestClusterMentionsUnstructuredOnly(unittest.TestCase):
             driver = self._make_driver(mentions)
 
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                result = run_entity_resolution(config, run_id="run-uo-005", source_uri=None)
+                result = _run_entity_resolution_via_request_context(
+                    config,
+                    run_id="run-uo-005",
+                    source_uri=None,
+                )
 
             breakdown = result["resolution_breakdown"]
             self.assertNotIn("qid_exact", breakdown)
@@ -2337,7 +2457,7 @@ class TestClusterMentionsUnstructuredOnly(unittest.TestCase):
                 output_dir=Path(tmpdir),
                 resolution_mode="structured_anchor",
             )
-            result = run_entity_resolution(
+            result = _run_entity_resolution_via_request_context(
                 config,
                 run_id="run-uo-override",
                 source_uri=None,
@@ -2349,7 +2469,7 @@ class TestClusterMentionsUnstructuredOnly(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             config = _make_config(dry_run=True, output_dir=Path(tmpdir))
             with self.assertRaises(ValueError) as ctx:
-                run_entity_resolution(
+                _run_entity_resolution_via_request_context(
                     config,
                     run_id="run-uo-bad-mode",
                     source_uri=None,
@@ -2661,35 +2781,55 @@ class TestRunEntityResolutionHybrid(unittest.TestCase):
     def test_dry_run_returns_hybrid_mode(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             config = self._dry_config(Path(tmpdir))
-            result = run_entity_resolution(config, run_id="hybrid-dry-001", source_uri=None)
+            result = _run_entity_resolution_via_request_context(
+                config,
+                run_id="hybrid-dry-001",
+                source_uri=None,
+            )
             self.assertEqual(result["status"], "dry_run")
             self.assertEqual(result["resolution_mode"], _RESOLUTION_MODE_HYBRID)
 
     def test_dry_run_includes_alignment_version(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             config = self._dry_config(Path(tmpdir))
-            result = run_entity_resolution(config, run_id="hybrid-dry-002", source_uri=None)
+            result = _run_entity_resolution_via_request_context(
+                config,
+                run_id="hybrid-dry-002",
+                source_uri=None,
+            )
             self.assertIn("alignment_version", result)
             self.assertEqual(result["alignment_version"], _ALIGNMENT_VERSION)
 
     def test_dry_run_includes_aligned_clusters_zero(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             config = self._dry_config(Path(tmpdir))
-            result = run_entity_resolution(config, run_id="hybrid-dry-003", source_uri=None)
+            result = _run_entity_resolution_via_request_context(
+                config,
+                run_id="hybrid-dry-003",
+                source_uri=None,
+            )
             self.assertIn("aligned_clusters", result)
             self.assertEqual(result["aligned_clusters"], 0)
 
     def test_dry_run_includes_alignment_breakdown_empty(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             config = self._dry_config(Path(tmpdir))
-            result = run_entity_resolution(config, run_id="hybrid-dry-004", source_uri=None)
+            result = _run_entity_resolution_via_request_context(
+                config,
+                run_id="hybrid-dry-004",
+                source_uri=None,
+            )
             self.assertIn("alignment_breakdown", result)
             self.assertEqual(result["alignment_breakdown"], {})
 
     def test_dry_run_resolver_method(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             config = self._dry_config(Path(tmpdir))
-            result = run_entity_resolution(config, run_id="hybrid-dry-005", source_uri=None)
+            result = _run_entity_resolution_via_request_context(
+                config,
+                run_id="hybrid-dry-005",
+                source_uri=None,
+            )
             self.assertEqual(
                 result["resolver_method"],
                 "unstructured_clustering_with_canonical_alignment",
@@ -2708,7 +2848,11 @@ class TestRunEntityResolutionHybrid(unittest.TestCase):
             ]
             driver = self._make_driver(mentions, [])
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                result = run_entity_resolution(config, run_id="hybrid-live-001", source_uri=None)
+                result = _run_entity_resolution_via_request_context(
+                    config,
+                    run_id="hybrid-live-001",
+                    source_uri=None,
+                )
             self.assertEqual(result["resolved"], 0)
             self.assertEqual(result["unresolved"], 2)
             self.assertEqual(result["mentions_total"], 2)
@@ -2719,7 +2863,11 @@ class TestRunEntityResolutionHybrid(unittest.TestCase):
             mentions = [{"mention_id": "m1", "name": "Widget Corp", "entity_type": None}]
             driver = self._make_driver(mentions, [])
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                run_entity_resolution(config, run_id="hybrid-live-002", source_uri=None)
+                _run_entity_resolution_via_request_context(
+                    config,
+                    run_id="hybrid-live-002",
+                    source_uri=None,
+                )
             all_calls = [str(c) for c in driver.execute_query.call_args_list]
             self.assertTrue(any("MEMBER_OF" in c for c in all_calls))
 
@@ -2729,7 +2877,11 @@ class TestRunEntityResolutionHybrid(unittest.TestCase):
             mentions = [{"mention_id": "m1", "name": "Alice", "entity_type": "person"}]
             driver = self._make_driver(mentions, [])
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                result = run_entity_resolution(config, run_id="hybrid-live-003", source_uri=None)
+                result = _run_entity_resolution_via_request_context(
+                    config,
+                    run_id="hybrid-live-003",
+                    source_uri=None,
+                )
             self.assertEqual(result["aligned_clusters"], 0)
             # No ALIGNED_WITH *write* (MERGE) should happen when there are no canonical nodes.
             # Post-write read queries do contain ALIGNED_WITH in their text, so we check
@@ -2751,7 +2903,11 @@ class TestRunEntityResolutionHybrid(unittest.TestCase):
             canonicals = [{"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": None, "dataset_id": "demo_dataset_v1"}]
             driver = self._make_driver(mentions, canonicals)
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                result = run_entity_resolution(config, run_id="hybrid-live-004", source_uri=None)
+                result = _run_entity_resolution_via_request_context(
+                    config,
+                    run_id="hybrid-live-004",
+                    source_uri=None,
+                )
             self.assertEqual(result["aligned_clusters"], 1)
             all_calls = [str(c) for c in driver.execute_query.call_args_list]
             self.assertTrue(any("ALIGNED_WITH" in c for c in all_calls))
@@ -2765,7 +2921,7 @@ class TestRunEntityResolutionHybrid(unittest.TestCase):
             driver = self._make_driver(mentions, canonicals)
             source_uri = "file:///test-doc.pdf"
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                result = run_entity_resolution(
+                result = _run_entity_resolution_via_request_context(
                     config, run_id="hybrid-live-004b", source_uri=source_uri
                 )
             self.assertEqual(result["aligned_clusters"], 1)
@@ -2786,7 +2942,11 @@ class TestRunEntityResolutionHybrid(unittest.TestCase):
             canonicals = [{"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": "Ali|Alicia", "dataset_id": "demo_dataset_v1"}]
             driver = self._make_driver(mentions, canonicals)
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                result = run_entity_resolution(config, run_id="hybrid-live-005", source_uri=None)
+                result = _run_entity_resolution_via_request_context(
+                    config,
+                    run_id="hybrid-live-005",
+                    source_uri=None,
+                )
             self.assertEqual(result["aligned_clusters"], 1)
             self.assertEqual(result["alignment_breakdown"].get("alias_exact"), 1)
 
@@ -2803,7 +2963,11 @@ class TestRunEntityResolutionHybrid(unittest.TestCase):
             ]
             driver = self._make_driver(mentions, canonicals)
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                result = run_entity_resolution(config, run_id="hybrid-live-006", source_uri=None)
+                result = _run_entity_resolution_via_request_context(
+                    config,
+                    run_id="hybrid-live-006",
+                    source_uri=None,
+                )
             self.assertEqual(result["aligned_clusters"], 2)
             self.assertEqual(result["alignment_breakdown"].get("label_exact"), 1)
             self.assertEqual(result["alignment_breakdown"].get("alias_exact"), 1)
@@ -2821,7 +2985,11 @@ class TestRunEntityResolutionHybrid(unittest.TestCase):
             ]
             driver = self._make_driver(mentions, canonicals)
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                result = run_entity_resolution(config, run_id="hybrid-live-007", source_uri=None)
+                result = _run_entity_resolution_via_request_context(
+                    config,
+                    run_id="hybrid-live-007",
+                    source_uri=None,
+                )
             # One cluster aligned, one unaligned — both clusters still in unresolved
             self.assertEqual(result["unresolved"], 2)
             self.assertEqual(result["clusters_created"], 2)
@@ -2837,7 +3005,11 @@ class TestRunEntityResolutionHybrid(unittest.TestCase):
             ]
             driver = self._make_driver(mentions, [])
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                result = run_entity_resolution(config, run_id="hybrid-live-mc-001", source_uri=None)
+                result = _run_entity_resolution_via_request_context(
+                    config,
+                    run_id="hybrid-live-mc-001",
+                    source_uri=None,
+                )
             self.assertEqual(result["mentions_clustered"], result["mentions_total"])
             self.assertEqual(result["mentions_unclustered"], 0)
 
@@ -2851,7 +3023,11 @@ class TestRunEntityResolutionHybrid(unittest.TestCase):
             ]
             driver = self._make_driver(mentions, [])
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                result = run_entity_resolution(config, run_id="hybrid-live-invariant-001", source_uri=None)
+                result = _run_entity_resolution_via_request_context(
+                    config,
+                    run_id="hybrid-live-invariant-001",
+                    source_uri=None,
+                )
             self.assertEqual(
                 result["mentions_clustered"] + result["mentions_unclustered"],
                 result["mentions_total"],
@@ -2871,7 +3047,11 @@ class TestRunEntityResolutionHybrid(unittest.TestCase):
             ]
             driver = self._make_driver(mentions, canonicals)
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                result = run_entity_resolution(config, run_id="hybrid-live-dce-001", source_uri=None)
+                result = _run_entity_resolution_via_request_context(
+                    config,
+                    run_id="hybrid-live-dce-001",
+                    source_uri=None,
+                )
             # Both clusters align to the same canonical entity Q1,
             # so distinct_canonical_entities_aligned == 1 regardless of cluster count.
             self.assertGreaterEqual(result["aligned_clusters"], 1)
@@ -2891,7 +3071,11 @@ class TestRunEntityResolutionHybrid(unittest.TestCase):
             ]
             driver = self._make_driver(mentions, canonicals)
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                result = run_entity_resolution(config, run_id="hybrid-live-dce-002", source_uri=None)
+                result = _run_entity_resolution_via_request_context(
+                    config,
+                    run_id="hybrid-live-dce-002",
+                    source_uri=None,
+                )
             self.assertEqual(result["distinct_canonical_entities_aligned"], 2)
 
     def test_live_mentions_in_aligned_clusters(self):
@@ -2910,7 +3094,11 @@ class TestRunEntityResolutionHybrid(unittest.TestCase):
             ]
             driver = self._make_driver(mentions, canonicals)
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                result = run_entity_resolution(config, run_id="hybrid-live-miac-001", source_uri=None)
+                result = _run_entity_resolution_via_request_context(
+                    config,
+                    run_id="hybrid-live-miac-001",
+                    source_uri=None,
+                )
             # 2 mentions are in the "alice" cluster which aligns to Q1
             self.assertEqual(result["mentions_in_aligned_clusters"], 2)
             # "Unknown" is in an unaligned cluster
@@ -2930,7 +3118,11 @@ class TestRunEntityResolutionHybrid(unittest.TestCase):
             ]
             driver = self._make_driver(mentions, canonicals)
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                result = run_entity_resolution(config, run_id="hybrid-live-cpa-001", source_uri=None)
+                result = _run_entity_resolution_via_request_context(
+                    config,
+                    run_id="hybrid-live-cpa-001",
+                    source_uri=None,
+                )
             self.assertEqual(result["clusters_pending_alignment"], 0)
             self.assertEqual(result["aligned_clusters"], result["clusters_created"])
 
@@ -3340,7 +3532,7 @@ class TestArtifactSubdirValidation(unittest.TestCase):
         """A simple relative subdir name is accepted and artifacts are written there."""
         with tempfile.TemporaryDirectory() as tmpdir:
             config = self._config(Path(tmpdir))
-            run_entity_resolution(
+            _run_entity_resolution_via_request_context(
                 config,
                 run_id="run-subdir-001",
                 source_uri=None,
@@ -3359,7 +3551,7 @@ class TestArtifactSubdirValidation(unittest.TestCase):
         """A nested relative subdir path such as 'a/b' is accepted."""
         with tempfile.TemporaryDirectory() as tmpdir:
             config = self._config(Path(tmpdir))
-            run_entity_resolution(
+            _run_entity_resolution_via_request_context(
                 config,
                 run_id="run-subdir-002",
                 source_uri=None,
@@ -3392,7 +3584,7 @@ class TestArtifactSubdirValidation(unittest.TestCase):
             # artifact_subdir refers to the symlink; resolution should detect that the
             # resolved path is outside the run root and reject it.
             with self.assertRaises(ValueError):
-                run_entity_resolution(
+                _run_entity_resolution_via_request_context(
                     config,
                     run_id=run_id,
                     source_uri=None,
@@ -3404,7 +3596,7 @@ class TestArtifactSubdirValidation(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             config = self._config(Path(tmpdir))
             with self.assertRaises(ValueError):
-                run_entity_resolution(
+                _run_entity_resolution_via_request_context(
                     config,
                     run_id="run-subdir-003",
                     source_uri=None,
@@ -3416,7 +3608,7 @@ class TestArtifactSubdirValidation(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             config = self._config(Path(tmpdir))
             with self.assertRaises(ValueError):
-                run_entity_resolution(
+                _run_entity_resolution_via_request_context(
                     config,
                     run_id="run-subdir-004",
                     source_uri=None,
@@ -3428,7 +3620,7 @@ class TestArtifactSubdirValidation(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             config = self._config(Path(tmpdir))
             with self.assertRaises(ValueError):
-                run_entity_resolution(
+                _run_entity_resolution_via_request_context(
                     config,
                     run_id="run-subdir-005",
                     source_uri=None,
@@ -3440,7 +3632,7 @@ class TestArtifactSubdirValidation(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             config = self._config(Path(tmpdir))
             with self.assertRaises(ValueError):
-                run_entity_resolution(
+                _run_entity_resolution_via_request_context(
                     config,
                     run_id="run-subdir-006",
                     source_uri=None,
@@ -3452,7 +3644,7 @@ class TestArtifactSubdirValidation(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             config = self._config(Path(tmpdir))
             with self.assertRaises(ValueError):
-                run_entity_resolution(
+                _run_entity_resolution_via_request_context(
                     config,
                     run_id="run-subdir-007",
                     source_uri=None,
@@ -3463,7 +3655,11 @@ class TestArtifactSubdirValidation(unittest.TestCase):
         """The default artifact_subdir="entity_resolution" is preserved."""
         with tempfile.TemporaryDirectory() as tmpdir:
             config = self._config(Path(tmpdir))
-            run_entity_resolution(config, run_id="run-subdir-008", source_uri=None)
+            _run_entity_resolution_via_request_context(
+                config,
+                run_id="run-subdir-008",
+                source_uri=None,
+            )
             expected = (
                 Path(tmpdir)
                 / "runs"
