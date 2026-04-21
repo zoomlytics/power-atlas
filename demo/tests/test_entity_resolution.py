@@ -881,7 +881,11 @@ class TestRunEntityResolutionLive(unittest.TestCase):
             driver = self._make_driver([], [])
 
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                result = run_entity_resolution(config, run_id="run-live-007", source_uri=None)
+                result = _run_entity_resolution_via_request_context(
+                    config,
+                    run_id="run-live-007",
+                    source_uri=None,
+                )
 
             self.assertEqual(result["mentions_total"], 0)
             self.assertEqual(result["resolved"], 0)
@@ -1035,14 +1039,22 @@ class TestResolvedEntityCluster(unittest.TestCase):
     def test_dry_run_summary_includes_clusters_created(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             config = _make_config(dry_run=True, output_dir=Path(tmpdir))
-            result = run_entity_resolution(config, run_id="test-cluster-001", source_uri=None)
+            result = _run_entity_resolution_via_request_context(
+                config,
+                run_id="test-cluster-001",
+                source_uri=None,
+            )
             self.assertIn("clusters_created", result)
             self.assertEqual(result["clusters_created"], 0)
 
     def test_dry_run_summary_includes_cluster_version(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             config = _make_config(dry_run=True, output_dir=Path(tmpdir))
-            result = run_entity_resolution(config, run_id="test-cluster-002", source_uri=None)
+            result = _run_entity_resolution_via_request_context(
+                config,
+                run_id="test-cluster-002",
+                source_uri=None,
+            )
             self.assertIn("cluster_version", result)
             self.assertEqual(result["cluster_version"], _CLUSTER_VERSION)
 
@@ -1074,7 +1086,11 @@ class TestResolvedEntityCluster(unittest.TestCase):
             driver = self._make_driver(mentions, [])
 
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                result = run_entity_resolution(config, run_id="run-cluster-001", source_uri=None)
+                result = _run_entity_resolution_via_request_context(
+                    config,
+                    run_id="run-cluster-001",
+                    source_uri=None,
+                )
 
             # "mystery corp" (normalized) → 1 cluster; "other entity" → 1 cluster
             self.assertEqual(result["unresolved"], 3)
@@ -1092,7 +1108,12 @@ class TestResolvedEntityCluster(unittest.TestCase):
             driver = self._make_driver(mentions, canonicals)
 
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                result = run_entity_resolution(config, run_id="run-cluster-002", source_uri=None, resolution_mode="structured_anchor")
+                result = _run_entity_resolution_via_request_context(
+                    config,
+                    run_id="run-cluster-002",
+                    source_uri=None,
+                    resolution_mode="structured_anchor",
+                )
 
             self.assertEqual(result["resolved"], 1)
             self.assertEqual(result["clusters_created"], 0)
@@ -1107,7 +1128,11 @@ class TestResolvedEntityCluster(unittest.TestCase):
             driver = self._make_driver([], [])
 
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                result = run_entity_resolution(config, run_id="run-cluster-003", source_uri=None)
+                result = _run_entity_resolution_via_request_context(
+                    config,
+                    run_id="run-cluster-003",
+                    source_uri=None,
+                )
 
             self.assertIn("cluster_version", result)
             self.assertEqual(result["cluster_version"], _CLUSTER_VERSION)
@@ -1127,7 +1152,11 @@ class TestResolvedEntityCluster(unittest.TestCase):
             driver = self._make_driver(mentions, [])
 
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                run_entity_resolution(config, run_id="run-cluster-004", source_uri=None)
+                _run_entity_resolution_via_request_context(
+                    config,
+                    run_id="run-cluster-004",
+                    source_uri=None,
+                )
 
             unresolved = self._load_unresolved_json(Path(tmpdir), "run-cluster-004")
             self.assertEqual(len(unresolved), 1)
@@ -1151,7 +1180,11 @@ class TestResolvedEntityCluster(unittest.TestCase):
             driver = self._make_driver(mentions, [])
 
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                run_entity_resolution(config, run_id="run-cluster-005", source_uri=None)
+                _run_entity_resolution_via_request_context(
+                    config,
+                    run_id="run-cluster-005",
+                    source_uri=None,
+                )
 
             # At least one call should contain MEMBER_OF
             all_calls = driver.execute_query.call_args_list
@@ -1173,7 +1206,11 @@ class TestResolvedEntityCluster(unittest.TestCase):
             driver = self._make_driver(mentions, [])
 
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                run_entity_resolution(config, run_id="run-cluster-006", source_uri=None)
+                _run_entity_resolution_via_request_context(
+                    config,
+                    run_id="run-cluster-006",
+                    source_uri=None,
+                )
 
             all_calls = driver.execute_query.call_args_list
             cypher_calls = [str(c) for c in all_calls]
@@ -1198,7 +1235,11 @@ class TestResolvedEntityCluster(unittest.TestCase):
             driver = _make_neo4j_test_driver(mentions, [])
 
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                run_entity_resolution(config, run_id="run-scope-001", source_uri=None)
+                _run_entity_resolution_via_request_context(
+                    config,
+                    run_id="run-scope-001",
+                    source_uri=None,
+                )
 
             unresolved_path = (
                 Path(tmpdir) / "runs" / "run-scope-001" / "entity_resolution" / "unresolved_mentions.json"
@@ -1243,8 +1284,10 @@ class TestResolvedEntityCluster(unittest.TestCase):
             driver = _make_neo4j_test_driver(mentions, [])
 
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                result = run_entity_resolution(
-                    config, run_id="run-src-scope-001", source_uri=None,
+                result = _run_entity_resolution_via_request_context(
+                    config,
+                    run_id="run-src-scope-001",
+                    source_uri=None,
                     resolution_mode="unstructured_only",
                 )
 
@@ -1283,8 +1326,10 @@ class TestResolvedEntityCluster(unittest.TestCase):
             driver = _make_neo4j_test_driver(mentions, [])
 
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                run_entity_resolution(
-                    config, run_id="run-provenance-001", source_uri=None,
+                _run_entity_resolution_via_request_context(
+                    config,
+                    run_id="run-provenance-001",
+                    source_uri=None,
                     resolution_mode="unstructured_only",
                 )
 
@@ -1383,8 +1428,10 @@ class TestResolvedEntityCluster(unittest.TestCase):
             driver = _make_neo4j_test_driver(mentions, [])
 
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                result = run_entity_resolution(
-                    config, run_id="run-scope-002", source_uri=None,
+                result = _run_entity_resolution_via_request_context(
+                    config,
+                    run_id="run-scope-002",
+                    source_uri=None,
                     resolution_mode="unstructured_only",
                 )
 
@@ -1408,8 +1455,10 @@ class TestResolvedEntityCluster(unittest.TestCase):
             driver = _make_neo4j_test_driver(mentions, [])
 
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                result = run_entity_resolution(
-                    config, run_id="run-scope-003", source_uri=None,
+                result = _run_entity_resolution_via_request_context(
+                    config,
+                    run_id="run-scope-003",
+                    source_uri=None,
                     resolution_mode="unstructured_only",
                 )
 
@@ -1426,13 +1475,17 @@ class TestResolvedEntityCluster(unittest.TestCase):
             mentions = [{"mention_id": "m1", "name": "Acme Corp", "entity_type": "ORG"}]
 
             with patch("neo4j.GraphDatabase.driver", return_value=_make_neo4j_test_driver(mentions, [])):
-                result_run1 = run_entity_resolution(
-                    config, run_id="run-iso-001", source_uri=None,
+                result_run1 = _run_entity_resolution_via_request_context(
+                    config,
+                    run_id="run-iso-001",
+                    source_uri=None,
                     resolution_mode="unstructured_only",
                 )
             with patch("neo4j.GraphDatabase.driver", return_value=_make_neo4j_test_driver(mentions, [])):
-                result_run2 = run_entity_resolution(
-                    config, run_id="run-iso-002", source_uri=None,
+                result_run2 = _run_entity_resolution_via_request_context(
+                    config,
+                    run_id="run-iso-002",
+                    source_uri=None,
                     resolution_mode="unstructured_only",
                 )
 
@@ -1779,7 +1832,11 @@ class TestEntityTypeDriftReport(unittest.TestCase):
         """dry_run summary must include an entity_type_report key."""
         with tempfile.TemporaryDirectory() as tmpdir:
             config = _dry_run_config(Path(tmpdir))
-            result = run_entity_resolution(config, run_id="drift-dry-001", source_uri=None)
+            result = _run_entity_resolution_via_request_context(
+                config,
+                run_id="drift-dry-001",
+                source_uri=None,
+            )
             self.assertIn("entity_type_report", result)
             rpt = result["entity_type_report"]
             self.assertIn("raw_counts", rpt)
@@ -1800,7 +1857,7 @@ class TestEntityTypeDriftReport(unittest.TestCase):
             canonicals: list[dict] = []
             driver = _make_neo4j_test_driver(mentions, canonicals)
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                result = run_entity_resolution(
+                result = _run_entity_resolution_via_request_context(
                     config,
                     run_id="drift-live-001",
                     source_uri=None,
@@ -1835,7 +1892,7 @@ class TestEntityTypeDriftReport(unittest.TestCase):
             canonicals: list[dict] = []
             driver = _make_neo4j_test_driver(mentions, canonicals)
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                result = run_entity_resolution(
+                result = _run_entity_resolution_via_request_context(
                     config,
                     run_id="drift-sentinel-001",
                     source_uri=None,
@@ -2501,7 +2558,11 @@ class TestClusterMentionsUnstructuredOnly(unittest.TestCase):
             driver = self._make_driver(mentions)
 
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                run_entity_resolution(config, run_id="run-status-001", source_uri=None)
+                _run_entity_resolution_via_request_context(
+                    config,
+                    run_id="run-status-001",
+                    source_uri=None,
+                )
 
             rows = self._get_member_of_rows(driver)
             self.assertTrue(rows, "Expected MEMBER_OF rows in Cypher call")
@@ -2534,7 +2595,11 @@ class TestClusterMentionsUnstructuredOnly(unittest.TestCase):
             driver = self._make_driver(mentions)
 
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                run_entity_resolution(config, run_id="run-status-002", source_uri=None)
+                _run_entity_resolution_via_request_context(
+                    config,
+                    run_id="run-status-002",
+                    source_uri=None,
+                )
 
             rows = self._get_member_of_rows(driver)
             self.assertTrue(rows, "Expected MEMBER_OF rows in Cypher call")
@@ -2564,7 +2629,11 @@ class TestClusterMentionsUnstructuredOnly(unittest.TestCase):
             driver = self._make_driver(mentions)
 
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                run_entity_resolution(config, run_id="run-status-003", source_uri=None)
+                _run_entity_resolution_via_request_context(
+                    config,
+                    run_id="run-status-003",
+                    source_uri=None,
+                )
 
             rows = self._get_member_of_rows(driver)
             self.assertTrue(rows, "Expected MEMBER_OF rows in Cypher call")
@@ -2594,7 +2663,11 @@ class TestClusterMentionsUnstructuredOnly(unittest.TestCase):
             driver = self._make_driver(mentions)
 
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                run_entity_resolution(config, run_id="run-status-005", source_uri=None)
+                _run_entity_resolution_via_request_context(
+                    config,
+                    run_id="run-status-005",
+                    source_uri=None,
+                )
 
             rows = self._get_member_of_rows(driver)
             self.assertTrue(rows, "Expected MEMBER_OF rows in Cypher call")
@@ -2628,7 +2701,11 @@ class TestClusterMentionsUnstructuredOnly(unittest.TestCase):
             driver = self._make_driver(mentions)
 
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                run_entity_resolution(config, run_id="run-cand-001", source_uri=None)
+                _run_entity_resolution_via_request_context(
+                    config,
+                    run_id="run-cand-001",
+                    source_uri=None,
+                )
 
             candidate_rows = self._get_candidate_match_rows(driver)
             self.assertTrue(candidate_rows, "Expected CANDIDATE_MATCH rows for abbreviation memberships")
@@ -2651,7 +2728,11 @@ class TestClusterMentionsUnstructuredOnly(unittest.TestCase):
             driver = self._make_driver(mentions)
 
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                run_entity_resolution(config, run_id="run-cand-002", source_uri=None)
+                _run_entity_resolution_via_request_context(
+                    config,
+                    run_id="run-cand-002",
+                    source_uri=None,
+                )
 
             candidate_rows = self._get_candidate_match_rows(driver)
             self.assertTrue(candidate_rows, "Expected CANDIDATE_MATCH rows for borderline fuzzy memberships")
@@ -2671,7 +2752,11 @@ class TestClusterMentionsUnstructuredOnly(unittest.TestCase):
             driver = self._make_driver(mentions)
 
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                run_entity_resolution(config, run_id="run-cand-003", source_uri=None)
+                _run_entity_resolution_via_request_context(
+                    config,
+                    run_id="run-cand-003",
+                    source_uri=None,
+                )
 
             candidate_rows = self._get_candidate_match_rows(driver)
             self.assertEqual(
@@ -3130,7 +3215,11 @@ class TestRunEntityResolutionHybrid(unittest.TestCase):
         """dry_run summary must include all new clustering/alignment metric fields."""
         with tempfile.TemporaryDirectory() as tmpdir:
             config = self._dry_config(Path(tmpdir))
-            result = run_entity_resolution(config, run_id="hybrid-dry-metrics", source_uri=None)
+            result = _run_entity_resolution_via_request_context(
+                config,
+                run_id="hybrid-dry-metrics",
+                source_uri=None,
+            )
             for field in (
                 "mentions_clustered",
                 "mentions_unclustered",
@@ -3146,7 +3235,11 @@ class TestRunEntityResolutionHybrid(unittest.TestCase):
             config = self._live_config(Path(tmpdir))
             driver = self._make_driver([], [])
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                result = run_entity_resolution(config, run_id="hybrid-live-008", source_uri=None)
+                result = _run_entity_resolution_via_request_context(
+                    config,
+                    run_id="hybrid-live-008",
+                    source_uri=None,
+                )
             self.assertEqual(result["resolution_mode"], _RESOLUTION_MODE_HYBRID)
 
     def test_live_resolver_method_in_summary(self):
@@ -3154,7 +3247,11 @@ class TestRunEntityResolutionHybrid(unittest.TestCase):
             config = self._live_config(Path(tmpdir))
             driver = self._make_driver([], [])
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                result = run_entity_resolution(config, run_id="hybrid-live-009", source_uri=None)
+                result = _run_entity_resolution_via_request_context(
+                    config,
+                    run_id="hybrid-live-009",
+                    source_uri=None,
+                )
             self.assertEqual(
                 result["resolver_method"],
                 "unstructured_clustering_with_canonical_alignment",
@@ -3165,7 +3262,11 @@ class TestRunEntityResolutionHybrid(unittest.TestCase):
             config = self._live_config(Path(tmpdir))
             driver = self._make_driver([], [])
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                result = run_entity_resolution(config, run_id="hybrid-live-010", source_uri=None)
+                result = _run_entity_resolution_via_request_context(
+                    config,
+                    run_id="hybrid-live-010",
+                    source_uri=None,
+                )
             self.assertIn("alignment_version", result)
             self.assertEqual(result["alignment_version"], _ALIGNMENT_VERSION)
 
@@ -3177,7 +3278,7 @@ class TestRunEntityResolutionHybrid(unittest.TestCase):
                 output_dir=Path(tmpdir),
                 resolution_mode="structured_anchor",
             )
-            result = run_entity_resolution(
+            result = _run_entity_resolution_via_request_context(
                 config,
                 run_id="hybrid-override",
                 source_uri=None,
@@ -3193,7 +3294,11 @@ class TestRunEntityResolutionHybrid(unittest.TestCase):
             canonicals = [{"entity_id": "Q1", "run_id": "run-s1", "name": "Alice", "aliases": None, "dataset_id": "demo_dataset_v1"}]
             driver = self._make_driver(mentions, canonicals)
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                run_entity_resolution(config, run_id="hybrid-live-011", source_uri=None)
+                _run_entity_resolution_via_request_context(
+                    config,
+                    run_id="hybrid-live-011",
+                    source_uri=None,
+                )
             all_calls = [str(c) for c in driver.execute_query.call_args_list]
             self.assertFalse(
                 any("RESOLVES_TO" in c for c in all_calls),
@@ -3257,8 +3362,10 @@ class TestManifestGraphConsistency(unittest.TestCase):
             mentions = self._make_mentions(n)
             driver = _make_neo4j_test_driver(mentions, [])
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                result = run_entity_resolution(
-                    config, run_id="consistency-uo-scale-001", source_uri=None
+                result = _run_entity_resolution_via_request_context(
+                    config,
+                    run_id="consistency-uo-scale-001",
+                    source_uri=None,
                 )
         # All mentions must be clustered.
         self.assertEqual(
@@ -3291,8 +3398,10 @@ class TestManifestGraphConsistency(unittest.TestCase):
             mentions = self._make_mentions(n)
             driver = _make_neo4j_test_driver(mentions, [])
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                result = run_entity_resolution(
-                    config, run_id="consistency-uo-clusters-001", source_uri=None
+                result = _run_entity_resolution_via_request_context(
+                    config,
+                    run_id="consistency-uo-clusters-001",
+                    source_uri=None,
                 )
         self.assertLessEqual(
             result["clusters_created"],
@@ -3313,8 +3422,10 @@ class TestManifestGraphConsistency(unittest.TestCase):
             mentions = self._make_mentions(n)
             driver = _make_neo4j_test_driver(mentions, [])
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                result = run_entity_resolution(
-                    config, run_id="consistency-hybrid-cluster-001", source_uri=None
+                result = _run_entity_resolution_via_request_context(
+                    config,
+                    run_id="consistency-hybrid-cluster-001",
+                    source_uri=None,
                 )
         self.assertEqual(
             result["mentions_clustered"],
@@ -3348,8 +3459,10 @@ class TestManifestGraphConsistency(unittest.TestCase):
             canonicals = self._make_canonicals(mentions, n_aligned)
             driver = _make_neo4j_test_driver(mentions, canonicals)
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                result = run_entity_resolution(
-                    config, run_id="consistency-hybrid-align-001", source_uri=None
+                result = _run_entity_resolution_via_request_context(
+                    config,
+                    run_id="consistency-hybrid-align-001",
+                    source_uri=None,
                 )
                 aligned_query_calls = []
                 for (_args, kwargs) in driver.execute_query.call_args_list:
@@ -3395,8 +3508,10 @@ class TestManifestGraphConsistency(unittest.TestCase):
             canonicals = self._make_canonicals(mentions, n_aligned)
             driver = _make_neo4j_test_driver(mentions, canonicals)
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                result = run_entity_resolution(
-                    config, run_id="consistency-hybrid-bounds-001", source_uri=None
+                result = _run_entity_resolution_via_request_context(
+                    config,
+                    run_id="consistency-hybrid-bounds-001",
+                    source_uri=None,
                 )
         self.assertLessEqual(
             result["aligned_clusters"],
@@ -3421,8 +3536,10 @@ class TestManifestGraphConsistency(unittest.TestCase):
             canonicals = self._make_canonicals(mentions, n_aligned)
             driver = _make_neo4j_test_driver(mentions, canonicals)
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                result = run_entity_resolution(
-                    config, run_id="consistency-hybrid-partition-001", source_uri=None
+                result = _run_entity_resolution_via_request_context(
+                    config,
+                    run_id="consistency-hybrid-partition-001",
+                    source_uri=None,
                 )
         self.assertEqual(
             result["aligned_clusters"] + result["clusters_pending_alignment"],
@@ -3462,8 +3579,10 @@ class TestManifestGraphConsistency(unittest.TestCase):
             canonicals = self._make_canonicals(mentions, n_canonical)
             driver = _make_neo4j_test_driver(mentions, canonicals)
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                result = run_entity_resolution(
-                    config, run_id="consistency-hybrid-live-scale-001", source_uri=None
+                result = _run_entity_resolution_via_request_context(
+                    config,
+                    run_id="consistency-hybrid-live-scale-001",
+                    source_uri=None,
                 )
 
         # ---- Extraction counts ----
@@ -3746,7 +3865,7 @@ class TestHybridAlignmentCrossDatasetIsolation(unittest.TestCase):
             ]
             driver = self._make_cross_dataset_driver(mentions, all_canonicals, self._V2_DATASET)
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                result = run_entity_resolution(
+                result = _run_entity_resolution_via_request_context(
                     config,
                     run_id="cross-ds-hybrid-001",
                     source_uri=None,
@@ -3811,7 +3930,7 @@ class TestHybridAlignmentCrossDatasetIsolation(unittest.TestCase):
             ]
             driver = self._make_cross_dataset_driver(mentions, all_canonicals, self._V2_DATASET)
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                run_entity_resolution(
+                _run_entity_resolution_via_request_context(
                     config,
                     run_id="cross-ds-hybrid-002",
                     source_uri=None,
@@ -3864,7 +3983,7 @@ class TestHybridAlignmentCrossDatasetIsolation(unittest.TestCase):
             ]
             driver = self._make_cross_dataset_driver(mentions, all_canonicals, self._V2_DATASET)
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                result = run_entity_resolution(
+                result = _run_entity_resolution_via_request_context(
                     config,
                     run_id="cross-ds-hybrid-003",
                     source_uri=None,
@@ -3964,7 +4083,7 @@ class TestStructuredAnchorCrossDatasetIsolation(unittest.TestCase):
             ]
             driver = self._make_cross_dataset_driver(mentions, all_canonicals, self._V2_DATASET)
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                result = run_entity_resolution(
+                result = _run_entity_resolution_via_request_context(
                     config,
                     run_id="cross-ds-sa-001",
                     source_uri=None,
@@ -4029,7 +4148,7 @@ class TestStructuredAnchorCrossDatasetIsolation(unittest.TestCase):
             ]
             driver = self._make_cross_dataset_driver(mentions, all_canonicals, self._V2_DATASET)
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                run_entity_resolution(
+                _run_entity_resolution_via_request_context(
                     config,
                     run_id="cross-ds-sa-002",
                     source_uri=None,
@@ -4082,7 +4201,7 @@ class TestStructuredAnchorCrossDatasetIsolation(unittest.TestCase):
             ]
             driver = self._make_cross_dataset_driver(mentions, all_canonicals, self._V2_DATASET)
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                result = run_entity_resolution(
+                result = _run_entity_resolution_via_request_context(
                     config,
                     run_id="cross-ds-sa-003",
                     source_uri=None,
@@ -4185,7 +4304,7 @@ class TestLegacyNullDatasetIdBehavior(unittest.TestCase):
             config = self._live_config_hybrid(Path(tmpdir))
             driver = _make_neo4j_test_driver([self._mention()], [self._legacy_canonical()])
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                result = run_entity_resolution(
+                result = _run_entity_resolution_via_request_context(
                     config,
                     run_id="legacy-hybrid-001",
                     source_uri=None,
@@ -4208,7 +4327,7 @@ class TestLegacyNullDatasetIdBehavior(unittest.TestCase):
             config = self._live_config_hybrid(Path(tmpdir))
             driver = _make_neo4j_test_driver([self._mention()], [self._legacy_canonical()])
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                result = run_entity_resolution(
+                result = _run_entity_resolution_via_request_context(
                     config,
                     run_id="legacy-hybrid-002",
                     source_uri=None,
@@ -4241,7 +4360,7 @@ class TestLegacyNullDatasetIdBehavior(unittest.TestCase):
             # --- Before repair: legacy node has dataset_id=None ---
             driver_before = _make_neo4j_test_driver(mentions, [self._legacy_canonical()])
             with patch("neo4j.GraphDatabase.driver", return_value=driver_before):
-                result_before = run_entity_resolution(
+                result_before = _run_entity_resolution_via_request_context(
                     config,
                     run_id="legacy-repair-before",
                     source_uri=None,
@@ -4254,7 +4373,7 @@ class TestLegacyNullDatasetIdBehavior(unittest.TestCase):
             # --- After repair: same node now has dataset_id stamped ---
             driver_after = _make_neo4j_test_driver(mentions, [self._stamped_canonical()])
             with patch("neo4j.GraphDatabase.driver", return_value=driver_after):
-                result_after = run_entity_resolution(
+                result_after = _run_entity_resolution_via_request_context(
                     config,
                     run_id="legacy-repair-after",
                     source_uri=None,
@@ -4282,7 +4401,7 @@ class TestLegacyNullDatasetIdBehavior(unittest.TestCase):
             config = self._live_config_structured_anchor(Path(tmpdir))
             driver = _make_neo4j_test_driver([self._mention()], [self._legacy_canonical()])
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                result = run_entity_resolution(
+                result = _run_entity_resolution_via_request_context(
                     config,
                     run_id="legacy-sa-001",
                     source_uri=None,
@@ -4302,7 +4421,7 @@ class TestLegacyNullDatasetIdBehavior(unittest.TestCase):
             config = self._live_config_structured_anchor(Path(tmpdir))
             driver = _make_neo4j_test_driver([self._mention()], [self._legacy_canonical()])
             with patch("neo4j.GraphDatabase.driver", return_value=driver):
-                result = run_entity_resolution(
+                result = _run_entity_resolution_via_request_context(
                     config,
                     run_id="legacy-sa-002",
                     source_uri=None,
@@ -4324,7 +4443,7 @@ class TestLegacyNullDatasetIdBehavior(unittest.TestCase):
             config = self._live_config_structured_anchor(Path(tmpdir))
             driver_before = _make_neo4j_test_driver(mentions, [self._legacy_canonical()])
             with patch("neo4j.GraphDatabase.driver", return_value=driver_before):
-                result_before = run_entity_resolution(
+                result_before = _run_entity_resolution_via_request_context(
                     config,
                     run_id="legacy-sa-repair-before",
                     source_uri=None,
@@ -4336,7 +4455,7 @@ class TestLegacyNullDatasetIdBehavior(unittest.TestCase):
             config = self._live_config_structured_anchor(Path(tmpdir))
             driver_after = _make_neo4j_test_driver(mentions, [self._stamped_canonical()])
             with patch("neo4j.GraphDatabase.driver", return_value=driver_after):
-                result_after = run_entity_resolution(
+                result_after = _run_entity_resolution_via_request_context(
                     config,
                     run_id="legacy-sa-repair-after",
                     source_uri=None,
