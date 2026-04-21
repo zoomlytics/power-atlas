@@ -403,27 +403,59 @@ def test_structured_ingest_request_context_uses_request_scope(tmp_path: Path):
 
 
 def test_pdf_ingest_rejects_dot_pdf_filename(tmp_path: Path):
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.pdf_ingest import run_pdf_ingest_request_context
+
     config = _dry_run_config(tmp_path)
+    request_context = _request_context_from_config(
+        config,
+        command="ingest-pdf",
+        run_id="test-unstructured",
+    )
     with pytest.raises(ValueError, match="pdf_filename"):
-        run_pdf_ingest(config, run_id="test-unstructured", pdf_filename=".")
+        run_pdf_ingest_request_context(request_context, pdf_filename=".")
 
 
 def test_pdf_ingest_rejects_dotdot_pdf_filename(tmp_path: Path):
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.pdf_ingest import run_pdf_ingest_request_context
+
     config = _dry_run_config(tmp_path)
+    request_context = _request_context_from_config(
+        config,
+        command="ingest-pdf",
+        run_id="test-unstructured",
+    )
     with pytest.raises(ValueError, match="pdf_filename"):
-        run_pdf_ingest(config, run_id="test-unstructured", pdf_filename="..")
+        run_pdf_ingest_request_context(request_context, pdf_filename="..")
 
 
 def test_pdf_ingest_rejects_traversal_pdf_filename(tmp_path: Path):
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.pdf_ingest import run_pdf_ingest_request_context
+
     config = _dry_run_config(tmp_path)
+    request_context = _request_context_from_config(
+        config,
+        command="ingest-pdf",
+        run_id="test-unstructured",
+    )
     with pytest.raises(ValueError, match="pdf_filename"):
-        run_pdf_ingest(config, run_id="test-unstructured", pdf_filename="../../secret.pdf")
+        run_pdf_ingest_request_context(request_context, pdf_filename="../../secret.pdf")
 
 
 def test_pdf_ingest_rejects_non_pdf_suffix(tmp_path: Path):
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.pdf_ingest import run_pdf_ingest_request_context
+
     config = _dry_run_config(tmp_path)
+    request_context = _request_context_from_config(
+        config,
+        command="ingest-pdf",
+        run_id="test-unstructured",
+    )
     with pytest.raises(ValueError, match="pdf_filename"):
-        run_pdf_ingest(config, run_id="test-unstructured", pdf_filename="document.txt")
+        run_pdf_ingest_request_context(request_context, pdf_filename="document.txt")
 
 
 def test_claim_extraction_dry_run_uses_prompt_registry(tmp_path: Path):
