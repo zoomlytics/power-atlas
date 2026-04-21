@@ -1016,7 +1016,8 @@ def test_retrieval_and_qa_live_path_uses_vector_cypher_retriever(tmp_path: Path)
     """Live path must instantiate VectorCypherRetriever with the correct index and call search
     with run_id in query_params for run-scoped retrieval. OpenAIEmbeddings must use the
     contract's embedder model name."""
-    from demo.stages import run_retrieval_and_qa
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context
     from demo.stages.retrieval_and_qa import _chunk_citation_formatter
 
     captured_init: dict = {}
@@ -1041,6 +1042,12 @@ def test_retrieval_and_qa_live_path_uses_vector_cypher_retriever(tmp_path: Path)
         output_dir=tmp_path,
         openai_model="gpt-4o-mini",
     )
+    request_context = _request_context_from_config(
+        live_config,
+        command="ask",
+        run_id="live-run-1",
+        source_uri="file:///doc.pdf",
+    )
 
     # GraphRAG is patched via the shared helper to bypass Pydantic retriever
     # validation while still delegating search() to the fake retriever so
@@ -1052,10 +1059,8 @@ def test_retrieval_and_qa_live_path_uses_vector_cypher_retriever(tmp_path: Path)
     ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _StubGraphRAG), mock.patch(
         "demo.stages.retrieval_and_qa.build_openai_llm"
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
-        result = run_retrieval_and_qa(
-            live_config,
-            run_id="live-run-1",
-            source_uri="file:///doc.pdf",
+        result = run_retrieval_and_qa_request_context(
+            request_context,
             top_k=3,
             question="What happened?",
         )
@@ -1078,7 +1083,8 @@ def test_retrieval_and_qa_live_path_uses_vector_cypher_retriever(tmp_path: Path)
 
 
 def test_retrieval_and_qa_live_path_uses_explicit_pipeline_contract(tmp_path: Path):
-    from demo.stages import run_retrieval_and_qa
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context
     from demo.stages.retrieval_and_qa import _chunk_citation_formatter
     from power_atlas.contracts.pipeline import PipelineContractSnapshot
 
@@ -1112,17 +1118,21 @@ def test_retrieval_and_qa_live_path_uses_explicit_pipeline_contract(tmp_path: Pa
     )
 
     _StubGraphRAG = _make_stub_graphrag_class()
+    live_config = Config(**{**live_config.__dict__, "pipeline_contract": explicit_pipeline_contract})
+    request_context = _request_context_from_config(
+        live_config,
+        command="ask",
+        run_id="live-run-explicit",
+        source_uri="file:///doc.pdf",
+    )
 
     with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAIEmbeddings", _FakeEmbedder
     ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _StubGraphRAG), mock.patch(
         "demo.stages.retrieval_and_qa.build_openai_llm"
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
-        live_config = Config(**{**live_config.__dict__, "pipeline_contract": explicit_pipeline_contract})
-        result = run_retrieval_and_qa(
-            live_config,
-            run_id="live-run-explicit",
-            source_uri="file:///doc.pdf",
+        result = run_retrieval_and_qa_request_context(
+            request_context,
             top_k=3,
             question="What happened?",
         )
@@ -1137,7 +1147,8 @@ def test_retrieval_and_qa_live_path_uses_explicit_pipeline_contract(tmp_path: Pa
 def test_retrieval_and_qa_live_path_formats_citation_tokens(tmp_path: Path):
     """Live path must produce citation tokens from retrieved Chunk records and update
     citation_token_example / citation_object_example with actual first-hit provenance."""
-    from demo.stages import run_retrieval_and_qa
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context
 
     fake_meta = {
         "chunk_id": "chunk-abc",
@@ -1179,16 +1190,20 @@ def test_retrieval_and_qa_live_path_formats_citation_tokens(tmp_path: Path):
         output_dir=tmp_path,
         openai_model="gpt-4o-mini",
     )
+    request_context = _request_context_from_config(
+        live_config,
+        command="ask",
+        run_id="live-run-2",
+        source_uri="file:///doc.pdf",
+    )
 
     with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
     ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class()), mock.patch(
         "demo.stages.retrieval_and_qa.build_openai_llm"
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
-        result = run_retrieval_and_qa(
-            live_config,
-            run_id="live-run-2",
-            source_uri="file:///doc.pdf",
+        result = run_retrieval_and_qa_request_context(
+            request_context,
             top_k=5,
             question="What is chain of custody?",
         )
@@ -4025,7 +4040,8 @@ def test_run_retrieval_and_qa_run_scoped_scope_in_result(tmp_path: Path):
 
 def test_run_retrieval_and_qa_live_requires_run_id_when_not_all_runs(tmp_path: Path):
     """Live mode must still raise ValueError when run_id is None and all_runs is False."""
-    from demo.stages import run_retrieval_and_qa
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context
 
     live_config = _make_config(
         dry_run=False,
@@ -4033,14 +4049,22 @@ def test_run_retrieval_and_qa_live_requires_run_id_when_not_all_runs(tmp_path: P
         password="secret",
         openai_model="gpt-4o-mini",
     )
+    request_context = _request_context_from_config(
+        live_config,
+        command="ask",
+        run_id=None,
+        source_uri=None,
+        all_runs=False,
+    )
     with mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
         with pytest.raises(ValueError, match="run_id is required"):
-            run_retrieval_and_qa(live_config, run_id=None, source_uri=None, question="Test?", all_runs=False)
+            run_retrieval_and_qa_request_context(request_context, question="Test?")
 
 
 def test_run_retrieval_and_qa_live_all_runs_uses_unscoped_query(tmp_path: Path):
     """Live all_runs=True must pass query_params without 'run_id' to the retriever."""
-    from demo.stages import run_retrieval_and_qa
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context
 
     captured_params: dict[str, object] = {}
 
@@ -4059,6 +4083,13 @@ def test_run_retrieval_and_qa_live_all_runs_uses_unscoped_query(tmp_path: Path):
         password="secret",
         openai_model="gpt-4o-mini",
     )
+    request_context = _request_context_from_config(
+        live_config,
+        command="ask",
+        run_id=None,
+        source_uri=None,
+        all_runs=True,
+    )
 
     with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
@@ -4069,13 +4100,7 @@ def test_run_retrieval_and_qa_live_all_runs_uses_unscoped_query(tmp_path: Path):
     ), mock.patch(
         "neo4j.GraphDatabase.driver"
     ), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
-        run_retrieval_and_qa(
-            live_config,
-            run_id=None,
-            source_uri=None,
-            question="What happened?",
-            all_runs=True,
-        )
+        run_retrieval_and_qa_request_context(request_context, question="What happened?")
 
     # all_runs mode must NOT include run_id in query_params
     assert "run_id" not in captured_params, (
@@ -4094,7 +4119,8 @@ def test_retrieval_and_qa_live_all_runs_uncited_answer_repaired_when_hits_presen
     tokens rather than applying the generic fallback, when at least one hit with a
     citation token is available.  Result must report all_answers_cited=True,
     citation_fallback_applied=False, and evidence_level='full'."""
-    from demo.stages import run_retrieval_and_qa
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context
     from demo.stages.retrieval_and_qa import _build_citation_token
 
     uncited_answer = "Power Atlas retrieval spans multiple runs. Evidence found in database."
@@ -4149,6 +4175,13 @@ def test_retrieval_and_qa_live_all_runs_uncited_answer_repaired_when_hits_presen
         password="secret",
         openai_model="gpt-4o-mini",
     )
+    request_context = _request_context_from_config(
+        live_config,
+        command="ask",
+        run_id=None,
+        source_uri=None,
+        all_runs=True,
+    )
 
     with mock.patch(
         "demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetrieverWithHit
@@ -4162,13 +4195,7 @@ def test_retrieval_and_qa_live_all_runs_uncited_answer_repaired_when_hits_presen
     ), mock.patch(
         "neo4j.GraphDatabase.driver"
     ), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
-        result = run_retrieval_and_qa(
-            live_config,
-            run_id=None,
-            source_uri=None,
-            question="What happened?",
-            all_runs=True,
-        )
+        result = run_retrieval_and_qa_request_context(request_context, question="What happened?")
 
     assert result["all_answers_cited"] is True, (
         "all-runs mode must repair uncited segments using retrieved citation tokens; "
@@ -4213,7 +4240,8 @@ def test_retrieval_and_qa_live_all_runs_uncited_answer_repaired_when_hits_presen
 def test_retrieval_and_qa_live_all_runs_uncited_answer_fallback_when_no_hits(tmp_path: Path):
     """In all_runs mode, the citation fallback must still apply when no hits are retrieved
     (truly insufficient evidence).  No repair is possible without retrieved citation tokens."""
-    from demo.stages import run_retrieval_and_qa
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context
 
     uncited_answer = "Answer without any citation tokens."
 
@@ -4230,6 +4258,13 @@ def test_retrieval_and_qa_live_all_runs_uncited_answer_fallback_when_no_hits(tmp
         password="secret",
         openai_model="gpt-4o-mini",
     )
+    request_context = _request_context_from_config(
+        live_config,
+        command="ask",
+        run_id=None,
+        source_uri=None,
+        all_runs=True,
+    )
 
     with mock.patch(
         "demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetrieverNoHits
@@ -4243,13 +4278,7 @@ def test_retrieval_and_qa_live_all_runs_uncited_answer_fallback_when_no_hits(tmp
     ), mock.patch(
         "neo4j.GraphDatabase.driver"
     ), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
-        result = run_retrieval_and_qa(
-            live_config,
-            run_id=None,
-            source_uri=None,
-            question="What happened?",
-            all_runs=True,
-        )
+        result = run_retrieval_and_qa_request_context(request_context, question="What happened?")
 
     assert result["citation_fallback_applied"] is True, (
         "citation fallback must apply in all-runs mode when no hits were retrieved; "
@@ -4275,7 +4304,8 @@ def test_retrieval_and_qa_live_all_runs_uncited_answer_fallback_when_no_hits(tmp
 def test_retrieval_and_qa_live_all_runs_fully_cited_answer_no_repair_needed(tmp_path: Path):
     """In all_runs mode, a fully-cited LLM answer must pass through unchanged (no repair
     needed).  all_answers_cited=True, citation_fallback_applied=False, evidence_level='full'."""
-    from demo.stages import run_retrieval_and_qa
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context
     from demo.stages.retrieval_and_qa import _build_citation_token
 
     real_token = _build_citation_token(
@@ -4321,6 +4351,13 @@ def test_retrieval_and_qa_live_all_runs_fully_cited_answer_no_repair_needed(tmp_
         password="secret",
         openai_model="gpt-4o-mini",
     )
+    request_context = _request_context_from_config(
+        live_config,
+        command="ask",
+        run_id=None,
+        source_uri=None,
+        all_runs=True,
+    )
 
     with mock.patch(
         "demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetrieverCited
@@ -4334,13 +4371,7 @@ def test_retrieval_and_qa_live_all_runs_fully_cited_answer_no_repair_needed(tmp_
     ), mock.patch(
         "neo4j.GraphDatabase.driver"
     ), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
-        result = run_retrieval_and_qa(
-            live_config,
-            run_id=None,
-            source_uri=None,
-            question="What happened?",
-            all_runs=True,
-        )
+        result = run_retrieval_and_qa_request_context(request_context, question="What happened?")
 
     assert result["all_answers_cited"] is True
     assert result["citation_fallback_applied"] is False
@@ -4407,10 +4438,18 @@ def test_repair_uncited_answer_appends_token_to_each_uncited_segment():
 def test_retrieval_and_qa_dry_run_includes_citation_repair_fields(tmp_path: Path):
     """Dry-run result must include citation_repair_applied, citation_repair_strategy, and
     citation_repair_source_chunk_id with their default values (False/None/None)."""
-    from demo.stages import run_retrieval_and_qa
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context
 
     config = _dry_run_config(tmp_path)
-    result = run_retrieval_and_qa(config, run_id=None, source_uri=None, all_runs=True)
+    request_context = _request_context_from_config(
+        config,
+        command="ask",
+        run_id=None,
+        source_uri=None,
+        all_runs=True,
+    )
+    result = run_retrieval_and_qa_request_context(request_context)
 
     assert "citation_repair_applied" in result, (
         "dry-run result must include citation_repair_applied key"
@@ -4425,10 +4464,17 @@ def test_retrieval_and_qa_dry_run_includes_citation_repair_fields(tmp_path: Path
 def test_retrieval_and_qa_dry_run_includes_raw_answer_all_cited(tmp_path: Path):
     """Dry-run result must include raw_answer_all_cited (False by default) at both the
     top level and inside citation_quality."""
-    from demo.stages import run_retrieval_and_qa
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context
 
     config = _dry_run_config(tmp_path)
-    result = run_retrieval_and_qa(config, run_id=None, source_uri=None)
+    request_context = _request_context_from_config(
+        config,
+        command="ask",
+        run_id=None,
+        source_uri=None,
+    )
+    result = run_retrieval_and_qa_request_context(request_context)
 
     assert "raw_answer_all_cited" in result, (
         "dry-run result must include raw_answer_all_cited key"
@@ -4445,7 +4491,8 @@ def test_retrieval_and_qa_live_path_citation_quality_includes_raw_answer_all_cit
 ):
     """Live path citation_quality must include raw_answer_all_cited when the answer is
     fully cited (True), in addition to all_cited."""
-    from demo.stages import run_retrieval_and_qa
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context
     from demo.stages.retrieval_and_qa import _build_citation_token
 
     real_token = _build_citation_token(
@@ -4499,6 +4546,12 @@ def test_retrieval_and_qa_live_path_citation_quality_includes_raw_answer_all_cit
         password="secret",
         openai_model="gpt-4o-mini",
     )
+    request_context = _request_context_from_config(
+        live_config,
+        command="ask",
+        run_id="qa-cq-run",
+        source_uri=None,
+    )
 
     with mock.patch(
         "demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetrieverCQ
@@ -4512,12 +4565,7 @@ def test_retrieval_and_qa_live_path_citation_quality_includes_raw_answer_all_cit
     ), mock.patch(
         "neo4j.GraphDatabase.driver"
     ), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
-        result = run_retrieval_and_qa(
-            live_config,
-            run_id="qa-cq-run",
-            source_uri=None,
-            question="What supports the claim?",
-        )
+        result = run_retrieval_and_qa_request_context(request_context, question="What supports the claim?")
 
     cq = result["citation_quality"]
     assert "raw_answer_all_cited" in cq, (
@@ -4532,10 +4580,18 @@ def test_retrieval_and_qa_live_path_citation_quality_includes_raw_answer_all_cit
 
 def test_retrieval_and_qa_dry_run_all_runs_qa_label(tmp_path: Path):
     """Dry-run result must use 'GraphRAG all-runs citations' label for qa when all_runs=True."""
-    from demo.stages import run_retrieval_and_qa
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context
 
     config = _dry_run_config(tmp_path)
-    result = run_retrieval_and_qa(config, run_id=None, source_uri=None, all_runs=True)
+    request_context = _request_context_from_config(
+        config,
+        command="ask",
+        run_id=None,
+        source_uri=None,
+        all_runs=True,
+    )
+    result = run_retrieval_and_qa_request_context(request_context)
     assert result["qa"] == "GraphRAG all-runs citations", (
         f"all_runs=True dry-run must use all-runs qa label; got {result['qa']!r}"
     )
@@ -4543,10 +4599,18 @@ def test_retrieval_and_qa_dry_run_all_runs_qa_label(tmp_path: Path):
 
 def test_retrieval_and_qa_dry_run_run_scoped_qa_label(tmp_path: Path):
     """Dry-run result must use 'GraphRAG run-scoped citations' label for qa when all_runs=False."""
-    from demo.stages import run_retrieval_and_qa
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context
 
     config = _dry_run_config(tmp_path)
-    result = run_retrieval_and_qa(config, run_id="test-run", source_uri=None, all_runs=False)
+    request_context = _request_context_from_config(
+        config,
+        command="ask",
+        run_id="test-run",
+        source_uri=None,
+        all_runs=False,
+    )
+    result = run_retrieval_and_qa_request_context(request_context)
     assert result["qa"] == "GraphRAG run-scoped citations", (
         f"all_runs=False dry-run must use run-scoped qa label; got {result['qa']!r}"
     )
@@ -5682,7 +5746,8 @@ def test_all_runs_retrieve_preserves_per_hit_run_id_in_metadata(tmp_path: Path):
     Cross-run retrieval is only meaningful if each hit remains traceable to its source
     run — a hit without a run_id in metadata cannot be attributed to a specific ingest.
     """
-    from demo.stages import run_retrieval_and_qa
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context
     from demo.stages.retrieval_and_qa import _chunk_citation_formatter
 
     run_a_record = _make_fake_neo4j_record(
@@ -5723,6 +5788,13 @@ def test_all_runs_retrieve_preserves_per_hit_run_id_in_metadata(tmp_path: Path):
         password="secret",
         openai_model="gpt-4o-mini",
     )
+    request_context = _request_context_from_config(
+        live_config,
+        command="ask",
+        run_id=None,
+        source_uri=None,
+        all_runs=True,
+    )
 
     with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
@@ -5731,13 +5803,7 @@ def test_all_runs_retrieve_preserves_per_hit_run_id_in_metadata(tmp_path: Path):
     ), mock.patch(
         "demo.stages.retrieval_and_qa.build_openai_llm"
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
-        result = run_retrieval_and_qa(
-            live_config,
-            run_id=None,
-            source_uri=None,
-            question="What happened?",
-            all_runs=True,
-        )
+        result = run_retrieval_and_qa_request_context(request_context, question="What happened?")
 
     assert result["hits"] == 2
     run_ids_in_metadata = [
