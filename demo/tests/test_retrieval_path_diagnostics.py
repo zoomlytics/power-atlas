@@ -15,8 +15,17 @@ These tests verify:
 """
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
+from power_atlas.contracts import Config as _RuntimeConfig
+from power_atlas.contracts.pipeline import (
+    get_pipeline_contract_config_data,
+    get_pipeline_contract_snapshot,
+)
+from power_atlas.settings import AppSettings, Neo4jSettings
+from power_atlas.orchestration.context_builder import build_request_context_from_config
 from demo.stages.retrieval_and_qa import (
     _build_retrieval_path_diagnostics,
     _count_malformed_diagnostics,
@@ -24,6 +33,7 @@ from demo.stages.retrieval_and_qa import (
     _format_claim_details,
     _format_retrieval_path_summary,
     _normalize_claim_roles,
+    run_retrieval_and_qa_request_context,
 )
 
 
@@ -889,29 +899,54 @@ class TestRunRetrievalAndQaIncludesRetrievalPathSummary:
     """run_retrieval_and_qa result dicts must always contain retrieval_path_summary."""
 
     def _make_dry_run_config(self):
-        class DryRunConfig:
-            dry_run = True
-            openai_model = "gpt-4o"
-
-        return DryRunConfig()
+        return _RuntimeConfig(
+            dry_run=True,
+            output_dir=Path("artifacts"),
+            settings=AppSettings(
+                neo4j=Neo4jSettings(
+                    uri="",
+                    username="",
+                    password="",
+                    database=None,
+                ),
+                openai_model="gpt-4o",
+                output_dir=Path("artifacts"),
+            ),
+            pipeline_contract=get_pipeline_contract_snapshot(),
+            pipeline_contract_config_data=get_pipeline_contract_config_data(),
+        )
 
     def _make_live_config(self):
-        class LiveConfig:
-            dry_run = False
-            openai_model = "gpt-4o"
-            neo4j_uri = "bolt://localhost:7687"
-            neo4j_username = "neo4j"
-            neo4j_password = "password"
-            neo4j_database = None
+        return _RuntimeConfig(
+            dry_run=False,
+            output_dir=Path("artifacts"),
+            settings=AppSettings(
+                neo4j=Neo4jSettings(
+                    uri="bolt://localhost:7687",
+                    username="neo4j",
+                    password="password",
+                    database=None,
+                ),
+                openai_model="gpt-4o",
+                output_dir=Path("artifacts"),
+            ),
+            pipeline_contract=get_pipeline_contract_snapshot(),
+            pipeline_contract_config_data=get_pipeline_contract_config_data(),
+        )
 
-        return LiveConfig()
+    @staticmethod
+    def _run_request_context(config: object, **kwargs) -> dict[str, object]:
+        request_context = build_request_context_from_config(
+            config,
+            command="ask",
+            run_id="test_run",
+            source_uri=None,
+        )
+        return run_retrieval_and_qa_request_context(request_context, **kwargs)
 
     def test_dry_run_result_has_retrieval_path_summary(self) -> None:
-        from demo.stages.retrieval_and_qa import run_retrieval_and_qa
-
-        result = run_retrieval_and_qa(
+        result = self._run_request_context(
             self._make_dry_run_config(),
-            run_id="test_run",
             question="Who founded MercadoLibre?",
         )
         assert "retrieval_path_summary" in result
@@ -919,22 +954,16 @@ class TestRunRetrievalAndQaIncludesRetrievalPathSummary:
 
     def test_dry_run_result_has_malformed_diagnostics_count_zero(self) -> None:
         """Dry-run result must include malformed_diagnostics_count == 0 (no retrieval ran)."""
-        from demo.stages.retrieval_and_qa import run_retrieval_and_qa
-
-        result = run_retrieval_and_qa(
+        result = self._run_request_context(
             self._make_dry_run_config(),
-            run_id="test_run",
             question="Who founded MercadoLibre?",
         )
         assert "malformed_diagnostics_count" in result
         assert result["malformed_diagnostics_count"] == 0
 
     def test_dry_run_with_expand_graph_has_retrieval_path_summary(self) -> None:
-        from demo.stages.retrieval_and_qa import run_retrieval_and_qa
-
-        result = run_retrieval_and_qa(
+        result = self._run_request_context(
             self._make_dry_run_config(),
-            run_id="test_run",
             question="Who founded MercadoLibre?",
             expand_graph=True,
         )
@@ -943,11 +972,8 @@ class TestRunRetrievalAndQaIncludesRetrievalPathSummary:
 
     def test_dry_run_with_expand_graph_has_malformed_diagnostics_count_zero(self) -> None:
         """Dry-run (expand_graph) result must include malformed_diagnostics_count == 0."""
-        from demo.stages.retrieval_and_qa import run_retrieval_and_qa
-
-        result = run_retrieval_and_qa(
+        result = self._run_request_context(
             self._make_dry_run_config(),
-            run_id="test_run",
             question="Who founded MercadoLibre?",
             expand_graph=True,
         )
@@ -955,11 +981,8 @@ class TestRunRetrievalAndQaIncludesRetrievalPathSummary:
         assert result["malformed_diagnostics_count"] == 0
 
     def test_dry_run_with_cluster_aware_has_retrieval_path_summary(self) -> None:
-        from demo.stages.retrieval_and_qa import run_retrieval_and_qa
-
-        result = run_retrieval_and_qa(
+        result = self._run_request_context(
             self._make_dry_run_config(),
-            run_id="test_run",
             question="Who founded MercadoLibre?",
             cluster_aware=True,
         )
@@ -968,11 +991,8 @@ class TestRunRetrievalAndQaIncludesRetrievalPathSummary:
 
     def test_dry_run_with_cluster_aware_has_malformed_diagnostics_count_zero(self) -> None:
         """Dry-run (cluster_aware) result must include malformed_diagnostics_count == 0."""
-        from demo.stages.retrieval_and_qa import run_retrieval_and_qa
-
-        result = run_retrieval_and_qa(
+        result = self._run_request_context(
             self._make_dry_run_config(),
-            run_id="test_run",
             question="Who founded MercadoLibre?",
             cluster_aware=True,
         )
@@ -983,14 +1003,9 @@ class TestRunRetrievalAndQaIncludesRetrievalPathSummary:
         """Live early-return when question=None must include retrieval_path_summary == ''."""
         import os
         import unittest.mock as mock
-        from demo.stages.retrieval_and_qa import run_retrieval_and_qa
 
         with mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
-            result = run_retrieval_and_qa(
-                self._make_live_config(),
-                run_id="test_run",
-                question=None,
-            )
+            result = self._run_request_context(self._make_live_config(), question=None)
         assert "retrieval_path_summary" in result
         assert result["retrieval_path_summary"] == ""
 
@@ -998,14 +1013,9 @@ class TestRunRetrievalAndQaIncludesRetrievalPathSummary:
         """Live early-return when question=None must include malformed_diagnostics_count == 0."""
         import os
         import unittest.mock as mock
-        from demo.stages.retrieval_and_qa import run_retrieval_and_qa
 
         with mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
-            result = run_retrieval_and_qa(
-                self._make_live_config(),
-                run_id="test_run",
-                question=None,
-            )
+            result = self._run_request_context(self._make_live_config(), question=None)
         assert "malformed_diagnostics_count" in result
         assert result["malformed_diagnostics_count"] == 0
 

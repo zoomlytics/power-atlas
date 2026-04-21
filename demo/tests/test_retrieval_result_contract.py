@@ -218,13 +218,14 @@ from power_atlas.contracts.pipeline import (
     get_pipeline_contract_snapshot,
 )
 from power_atlas.settings import AppSettings, Neo4jSettings
+from power_atlas.orchestration.context_builder import build_request_context_from_config
 from demo.stages.retrieval_and_qa import (
     _CITATION_FALLBACK_PREFIX,
     _POSTPROCESS_FIELD_MAP,
     _PostprocessPublicFields,
     _postprocess_answer,
     _project_postprocess_to_public,
-    run_retrieval_and_qa,
+    run_retrieval_and_qa_request_context,
 )
 from power_atlas.contracts import (
     EARLY_RETURN_PRECEDENCE,
@@ -544,6 +545,22 @@ def _make_rag_result(answer: str, items_metadata: list[dict[str, object]]) -> Ma
     return mock_result
 
 
+def _build_request_context(
+    config: _RuntimeConfig,
+    *,
+    run_id: str | None,
+    source_uri: str | None = None,
+    all_runs: bool = False,
+) -> object:
+    return build_request_context_from_config(
+        config,
+        command="ask",
+        run_id=run_id,
+        source_uri=source_uri,
+        all_runs=all_runs,
+    )
+
+
 def _run_with_mocked_retrieval(
     answer: str,
     items_metadata: list[dict[str, object]],
@@ -578,10 +595,14 @@ def _run_with_mocked_retrieval(
         patch("demo.stages.retrieval_and_qa._build_retriever_and_rag") as mock_build,
     ):
         mock_build.return_value = (MagicMock(), mock_rag)
-        return run_retrieval_and_qa(
+        request_context = _build_request_context(
             _LIVE_CONFIG,
-            all_runs=all_runs,
             run_id=run_id,
+            source_uri=None,
+            all_runs=all_runs,
+        )
+        return run_retrieval_and_qa_request_context(
+            request_context,
             question=question,
         )
 
@@ -2012,9 +2033,14 @@ class TestRunRetrievalAndQaDocumentedScenarios:
             ),
         ):
             mock_build.return_value = (MagicMock(), mock_rag)
-            result = run_retrieval_and_qa(
+            request_context = _build_request_context(
                 _LIVE_CONFIG,
+                run_id=None,
+                source_uri=None,
                 all_runs=True,
+            )
+            result = run_retrieval_and_qa_request_context(
+                request_context,
                 question="What is the claim?",
             )
 
@@ -2069,7 +2095,14 @@ class TestRunRetrievalAndQaEarlyReturnContract:
     @staticmethod
     def _dry_run_result(**kwargs) -> dict[str, object]:
         """Return a dry-run result.  Extra keyword args are forwarded to ``run_retrieval_and_qa``."""
-        return run_retrieval_and_qa(_DRY_RUN_CONFIG, run_id="dr-run-1", source_uri=None, **kwargs)
+        all_runs = kwargs.pop("all_runs", False)
+        request_context = _build_request_context(
+            _DRY_RUN_CONFIG,
+            run_id="dr-run-1",
+            source_uri=None,
+            all_runs=all_runs,
+        )
+        return run_retrieval_and_qa_request_context(request_context, **kwargs)
 
     @staticmethod
     def _skip_result(**kwargs) -> dict[str, object]:
@@ -2077,13 +2110,20 @@ class TestRunRetrievalAndQaEarlyReturnContract:
 
         Uses invalid Neo4j credentials to prove the skip path never opens a driver.
         """
+        all_runs = kwargs.pop("all_runs", False)
         cfg = _make_config(
             dry_run=False,
             uri="",
             username="",
             password="",
         )
-        return run_retrieval_and_qa(cfg, run_id="skip-run-1", source_uri=None, question=None, **kwargs)
+        request_context = _build_request_context(
+            cfg,
+            run_id="skip-run-1",
+            source_uri=None,
+            all_runs=all_runs,
+        )
+        return run_retrieval_and_qa_request_context(request_context, question=None, **kwargs)
 
     # ------------------------------------------------------------------
     # §5.1  dry_run key-set contract
@@ -2862,8 +2902,17 @@ class TestEarlyReturnRulePayloadCorrespondence:
     @staticmethod
     def _dry_run_result(**kwargs) -> dict[str, object]:
         """Return a dry-run result with ``question=None`` (canonical trigger for §5.1)."""
-        return run_retrieval_and_qa(
-            _DRY_RUN_CONFIG, run_id="dr-corr-1", source_uri=None, question=None, **kwargs
+        all_runs = kwargs.pop("all_runs", False)
+        request_context = _build_request_context(
+            _DRY_RUN_CONFIG,
+            run_id="dr-corr-1",
+            source_uri=None,
+            all_runs=all_runs,
+        )
+        return run_retrieval_and_qa_request_context(
+            request_context,
+            question=None,
+            **kwargs,
         )
 
     @staticmethod

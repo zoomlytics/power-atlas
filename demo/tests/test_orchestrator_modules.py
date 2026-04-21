@@ -4760,17 +4760,56 @@ def test_run_retrieval_and_qa_request_context_forwards_pipeline_contract(tmp_pat
     )
     captured: dict[str, object] = {}
 
-    def _fake_run_retrieval_and_qa(config, **kwargs):
+    def _fake_run_retrieval_and_qa_impl(config, **kwargs):
         captured["config"] = config
         captured.update(kwargs)
         return {"status": "dry_run"}
 
-    with mock.patch.object(retrieval_module, "run_retrieval_and_qa", side_effect=_fake_run_retrieval_and_qa):
+    with mock.patch.object(
+        retrieval_module,
+        "_run_retrieval_and_qa_impl",
+        side_effect=_fake_run_retrieval_and_qa_impl,
+    ):
         retrieval_module.run_retrieval_and_qa_request_context(request_context)
 
     assert captured["config"] is request_context.config
     assert captured["pipeline_contract"] is request_context.pipeline_contract
     assert captured["neo4j_settings"] is request_context.settings.neo4j
+
+
+def test_run_retrieval_and_qa_config_first_adapter_warns_deprecated(tmp_path: Path):
+    from demo.stages import retrieval_and_qa as retrieval_module
+
+    config = _dry_run_config(tmp_path)
+
+    with pytest.warns(DeprecationWarning, match="run_retrieval_and_qa is deprecated"):
+        result = retrieval_module.run_retrieval_and_qa(
+            config,
+            run_id="deprecated-qa-run",
+            source_uri=None,
+        )
+
+    assert result["status"] == "dry_run"
+
+
+def test_run_interactive_qa_config_first_adapter_warns_deprecated(tmp_path: Path):
+    from demo.stages import retrieval_and_qa as retrieval_module
+
+    config = _make_config(
+        dry_run=False,
+        output_dir=tmp_path,
+        openai_model="gpt-4o-mini",
+    )
+
+    with mock.patch.object(retrieval_module, "_run_interactive_qa_impl", return_value=None) as mock_impl:
+        with pytest.warns(DeprecationWarning, match="run_interactive_qa is deprecated"):
+            retrieval_module.run_interactive_qa(
+                config,
+                run_id="deprecated-interactive-run",
+                source_uri=None,
+            )
+
+    mock_impl.assert_called_once()
 
 
 def test_run_claim_participation_request_context_uses_request_scope(tmp_path: Path):

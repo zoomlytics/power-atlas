@@ -4,6 +4,7 @@ import logging
 import os
 import re
 import types
+import warnings
 from collections.abc import Mapping
 from typing import Literal, TypedDict, cast
 
@@ -489,6 +490,17 @@ _CITATION_FALLBACK_PREFIX = "Insufficient citations detected"
 # Maximum number of characters of the final answer text included in the
 # "Answer replaced with citation fallback" diagnostic log message.
 _FALLBACK_PREVIEW_MAX_LEN = 200
+
+
+def _warn_config_first_adapter(adapter_name: str, canonical_name: str) -> None:
+    warnings.warn(
+        (
+            f"{adapter_name} is deprecated and will be removed in a future migration step. "
+            f"Use {canonical_name} with a RequestContext instead."
+        ),
+        DeprecationWarning,
+        stacklevel=2,
+    )
 
 
 def _format_scope_label(run_id: str | None, all_runs: bool) -> str:
@@ -1372,7 +1384,7 @@ def run_retrieval_and_qa_request_context(
     interactive: bool = False,
 ) -> dict[str, object]:
     """Run single-turn retrieval using request-scoped context as the primary input."""
-    return run_retrieval_and_qa(
+    return _run_retrieval_and_qa_impl(
         request_context.config,
         run_id=request_context.run_id,
         source_uri=request_context.source_uri,
@@ -1389,7 +1401,7 @@ def run_retrieval_and_qa_request_context(
     )
 
 
-def run_retrieval_and_qa(
+def _run_retrieval_and_qa_impl(
     config: object,
     *,
     run_id: str | None = None,
@@ -1676,12 +1688,54 @@ def run_retrieval_and_qa(
     )
 
 
+def run_retrieval_and_qa(
+    config: object,
+    *,
+    run_id: str | None = None,
+    source_uri: str | None = None,
+    top_k: int = _DEFAULT_TOP_K,
+    index_name: str | None = None,
+    question: str | None = None,
+    expand_graph: bool = False,
+    cluster_aware: bool = False,
+    message_history: MessageHistory | list[dict[str, str]] | None = None,
+    interactive: bool = False,
+    all_runs: bool = False,
+    pipeline_contract: PipelineContractSnapshot | None = None,
+    neo4j_settings: Neo4jSettings | None = None,
+) -> dict[str, object]:
+    """Deprecated config-first retrieval adapter.
+
+    Prefer :func:`run_retrieval_and_qa_request_context`, which is the canonical
+    package-aligned execution boundary.
+    """
+    _warn_config_first_adapter(
+        "run_retrieval_and_qa",
+        "run_retrieval_and_qa_request_context",
+    )
+    return _run_retrieval_and_qa_impl(
+        config,
+        run_id=run_id,
+        source_uri=source_uri,
+        top_k=top_k,
+        index_name=index_name,
+        question=question,
+        expand_graph=expand_graph,
+        cluster_aware=cluster_aware,
+        message_history=message_history,
+        interactive=interactive,
+        all_runs=all_runs,
+        pipeline_contract=pipeline_contract,
+        neo4j_settings=neo4j_settings,
+    )
+
+
 def _format_postprocess_debug_summary(view: _RetrievalDebugView) -> str:
     """Format a compact postprocessing debug summary line from a retrieval debug view."""
     return _format_postprocess_debug_summary_impl(view)
 
 
-def run_interactive_qa(
+def _run_interactive_qa_impl(
     config: object,
     *,
     run_id: str | None = None,
@@ -1851,7 +1905,7 @@ def run_interactive_qa_request_context(
     debug: bool = False,
 ) -> None:
     """Run interactive retrieval using request-scoped context as the primary input."""
-    return run_interactive_qa(
+    return _run_interactive_qa_impl(
         request_context.config,
         run_id=request_context.run_id,
         source_uri=request_context.source_uri,
@@ -1863,6 +1917,44 @@ def run_interactive_qa_request_context(
         debug=debug,
         pipeline_contract=request_context.pipeline_contract,
         neo4j_settings=request_context.settings.neo4j,
+    )
+
+
+def run_interactive_qa(
+    config: object,
+    *,
+    run_id: str | None = None,
+    source_uri: str | None = None,
+    top_k: int = _DEFAULT_TOP_K,
+    index_name: str | None = None,
+    expand_graph: bool = False,
+    cluster_aware: bool = False,
+    all_runs: bool = False,
+    debug: bool = False,
+    pipeline_contract: PipelineContractSnapshot | None = None,
+    neo4j_settings: Neo4jSettings | None = None,
+) -> None:
+    """Deprecated config-first interactive retrieval adapter.
+
+    Prefer :func:`run_interactive_qa_request_context`, which is the canonical
+    package-aligned execution boundary.
+    """
+    _warn_config_first_adapter(
+        "run_interactive_qa",
+        "run_interactive_qa_request_context",
+    )
+    return _run_interactive_qa_impl(
+        config,
+        run_id=run_id,
+        source_uri=source_uri,
+        top_k=top_k,
+        index_name=index_name,
+        expand_graph=expand_graph,
+        cluster_aware=cluster_aware,
+        all_runs=all_runs,
+        debug=debug,
+        pipeline_contract=pipeline_contract,
+        neo4j_settings=neo4j_settings,
     )
 
 

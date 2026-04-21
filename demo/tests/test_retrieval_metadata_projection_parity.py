@@ -80,8 +80,9 @@ from power_atlas.contracts.pipeline import (
     get_pipeline_contract_config_data,
     get_pipeline_contract_snapshot,
 )
+from power_atlas.orchestration.context_builder import build_request_context_from_config
 from power_atlas.settings import AppSettings, Neo4jSettings
-from demo.stages.retrieval_and_qa import run_retrieval_and_qa
+from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context
 
 
 # ---------------------------------------------------------------------------
@@ -155,6 +156,22 @@ _LIVE_ITEM_METADATA: dict[str, object] = {
 }
 
 
+def _build_request_context(
+    config: _RuntimeConfig,
+    *,
+    run_id: str | None,
+    source_uri: str | None = None,
+    all_runs: bool = False,
+) -> object:
+    return build_request_context_from_config(
+        config,
+        command="ask",
+        run_id=run_id,
+        source_uri=source_uri,
+        all_runs=all_runs,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Result-shape factories
 # ---------------------------------------------------------------------------
@@ -181,17 +198,24 @@ def _make_live_result() -> dict[str, object]:
         patch("demo.stages.retrieval_and_qa._build_retriever_and_rag") as mock_build,
     ):
         mock_build.return_value = (MagicMock(), mock_rag)
-        return run_retrieval_and_qa(
+        request_context = _build_request_context(
             _LIVE_CONFIG,
+            run_id=None,
+            source_uri=None,
             all_runs=True,
-            question="What is the claim?",
         )
+        return run_retrieval_and_qa_request_context(request_context, question="What is the claim?")
 
 
 @functools.cache
 def _make_dry_run_result() -> dict[str, object]:
     """Return a dry-run early-return result from ``run_retrieval_and_qa()``."""
-    return run_retrieval_and_qa(_DRY_RUN_CONFIG, run_id="dr-parity-1", source_uri=None)
+    request_context = _build_request_context(
+        _DRY_RUN_CONFIG,
+        run_id="dr-parity-1",
+        source_uri=None,
+    )
+    return run_retrieval_and_qa_request_context(request_context)
 
 
 @functools.cache
@@ -207,7 +231,12 @@ def _make_retrieval_skipped_result() -> dict[str, object]:
         username="",
         password="",
     )
-    return run_retrieval_and_qa(cfg, run_id="skip-parity-1", source_uri=None, question=None)
+    request_context = _build_request_context(
+        cfg,
+        run_id="skip-parity-1",
+        source_uri=None,
+    )
+    return run_retrieval_and_qa_request_context(request_context, question=None)
 
 
 # ---------------------------------------------------------------------------

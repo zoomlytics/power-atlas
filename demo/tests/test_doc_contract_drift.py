@@ -58,7 +58,8 @@ from typing import Any
 import pytest
 import yaml
 
-from demo.stages.retrieval_and_qa import _CITATION_FALLBACK_PREFIX, run_retrieval_and_qa
+from demo.stages.retrieval_and_qa import _CITATION_FALLBACK_PREFIX, run_retrieval_and_qa_request_context
+from power_atlas.orchestration.context_builder import build_request_context_from_config
 from power_atlas.contracts import Config as _RuntimeConfig
 from power_atlas.contracts.pipeline import (
     get_pipeline_contract_config_data,
@@ -263,16 +264,23 @@ def _run_early_return_scenario(scenario: dict[str, Any]) -> dict[str, Any]:
     """
     run_id = scenario["run_id"]
     if scenario["dry_run"]:
-        return run_retrieval_and_qa(_DRY_RUN_CONFIG, run_id=run_id, source_uri=None)
+        request_context = build_request_context_from_config(
+            _DRY_RUN_CONFIG,
+            command="ask",
+            run_id=run_id,
+            source_uri=None,
+        )
+        return run_retrieval_and_qa_request_context(request_context)
 
     # Retrieval-skipped path: live config with empty Neo4j credentials so the
     # function short-circuits before opening a driver when question is None.
-    return run_retrieval_and_qa(
+    request_context = build_request_context_from_config(
         _make_live_short_circuit_config(),
+        command="ask",
         run_id=run_id,
         source_uri=None,
-        question=scenario["question"],
     )
+    return run_retrieval_and_qa_request_context(request_context, question=scenario["question"])
 
 
 # ---------------------------------------------------------------------------
