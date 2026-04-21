@@ -4,6 +4,7 @@ import asyncio
 import hashlib
 import json
 import logging
+import warnings
 from pathlib import Path
 from typing import Any
 
@@ -34,6 +35,17 @@ _PIPELINE_CONTRACT_EXPORTS = {
     "CHUNK_FALLBACK_STRIDE": "chunk_fallback_stride",
     "EMBEDDER_MODEL_NAME": "embedder_model_name",
 }
+
+
+def _warn_config_first_adapter(adapter_name: str, canonical_name: str) -> None:
+    warnings.warn(
+        (
+            f"{adapter_name} is deprecated and will be removed in a future migration step. "
+            f"Use {canonical_name} with a RequestContext instead."
+        ),
+        DeprecationWarning,
+        stacklevel=2,
+    )
 
 
 def _pipeline_contract_value(
@@ -80,13 +92,14 @@ def _dataset_metadata_from_fixtures_root(fixtures_root: Path) -> tuple[str, str]
 
 
 def _resolve_pdf_dataset(
-    config: Any,
+    *,
+    dataset_name: str | None,
     fixtures_dir: Path | None,
     dataset_id: str | None,
     pdf_filename: str | None,
 ) -> tuple[Path, str, str]:
     if fixtures_dir is None:
-        dataset_root: DatasetRoot = resolve_dataset_root(getattr(config, "dataset_name", None))
+        dataset_root: DatasetRoot = resolve_dataset_root(dataset_name)
         effective_dataset_id = dataset_id if isinstance(dataset_id, str) and dataset_id else dataset_root.dataset_id
         effective_pdf_filename = pdf_filename or dataset_root.pdf_filename
         return dataset_root.root, effective_dataset_id, effective_pdf_filename
@@ -97,7 +110,17 @@ def _resolve_pdf_dataset(
     return fixtures_dir, effective_dataset_id, effective_pdf_filename
 
 
-def _neo4j_settings_from_config(config: object) -> Neo4jSettings:
+def _neo4j_settings_from_config(
+    config: object,
+    neo4j_settings: Neo4jSettings | None = None,
+) -> Neo4jSettings:
+    if neo4j_settings is not None:
+        return neo4j_settings
+    config_settings = getattr(config, "settings", None)
+    settings_neo4j = getattr(config_settings, "neo4j", None)
+    if isinstance(settings_neo4j, Neo4jSettings):
+        return settings_neo4j
+
     neo4j_uri = getattr(config, "neo4j_uri", None)
     neo4j_username = getattr(config, "neo4j_username", None)
     neo4j_password = getattr(config, "neo4j_password", None)
@@ -199,7 +222,7 @@ async def _run_pipeline_with_cleanup(pipeline: Any, run_params: dict[str, Any]) 
                         )
 
 
-def run_pdf_ingest(
+def _run_pdf_ingest_impl(
     config: Any,
     run_id: str | None = None,
     *,
@@ -212,8 +235,18 @@ def run_pdf_ingest(
     embedding_dimensions: int | None = None,
     embedder_model: str | None = None,
     chunk_stride: int | None = None,
+    pipeline_contract: PipelineContractSnapshot | None = None,
+    neo4j_settings: Neo4jSettings | None = None,
+    dataset_name: str | None = None,
 ) -> dict[str, Any]:
-    resolved_pipeline_contract = _resolve_pipeline_contract(config, None)
+    resolved_pipeline_contract = _resolve_pipeline_contract(config, pipeline_contract)
+    if dataset_name is None:
+        config_settings = getattr(config, "settings", None)
+        settings_dataset_name = getattr(config_settings, "dataset_name", None)
+        if isinstance(settings_dataset_name, str) and settings_dataset_name:
+            dataset_name = settings_dataset_name
+        else:
+            dataset_name = getattr(config, "dataset_name", None)
     _pdf_filename = pdf_filename or _DEFAULT_PDF_FILENAME
     if (
         _pdf_filename in (".", "..")
@@ -224,10 +257,10 @@ def run_pdf_ingest(
             f"pdf_filename must be a plain .pdf basename without path separators, got {_pdf_filename!r}"
         )
     fixtures_root, effective_dataset_id, _pdf_filename = _resolve_pdf_dataset(
-        config,
-        fixtures_dir,
-        dataset_id,
-        _pdf_filename,
+        dataset_name=dataset_name,
+        fixtures_dir=fixtures_dir,
+        dataset_id=dataset_id,
+        pdf_filename=_pdf_filename,
     )
     pdf_base_dir = (fixtures_root / "unstructured").resolve()
     pdf_path = (pdf_base_dir / _pdf_filename).resolve()
@@ -322,10 +355,10 @@ def run_pdf_ingest(
     _validate_cypher_identifier(effective_chunk_label, "label")
     _validate_cypher_identifier(effective_embedding_property, "property")
 
-    neo4j_settings = _neo4j_settings_from_config(config)
+    resolved_neo4j_settings = _neo4j_settings_from_config(config, neo4j_settings)
 
     live_result = run_pdf_ingest_live(
-        neo4j_settings,
+        resolved_neo4j_settings,
         stage_run_id=stage_run_id,
         pdf_file_path=pdf_file_path,
         pdf_source_uri=pdf_source_uri,
@@ -400,6 +433,52 @@ def run_pdf_ingest(
     }
 
 
+def run_pdf_ingest(
+    config: Any,
+    run_id: str | None = None,
+    *,
+    fixtures_dir: Path | None = None,
+    pdf_filename: str | None = None,
+    dataset_id: str | None = None,
+    index_name: str | None = None,
+    chunk_label: str | None = None,
+    embedding_property: str | None = None,
+    embedding_dimensions: int | None = None,
+    embedder_model: str | None = None,
+    chunk_stride: int | None = None,
+    pipeline_contract: PipelineContractSnapshot | None = None,
+    neo4j_settings: Neo4jSettings | None = None,
+) -> dict[str, Any]:
+    """Deprecated config-first PDF ingest adapter.
+
+    Prefer :func:`run_pdf_ingest_request_context`, which is the canonical
+    package-aligned execution boundary.
+    """
+    _warn_config_first_adapter(
+        "run_pdf_ingest",
+        "run_pdf_ingest_request_context",
+    )
+    return _run_pdf_ingest_impl(
+        config,
+        run_id,
+        fixtures_dir=fixtures_dir,
+        pdf_filename=pdf_filename,
+        dataset_id=dataset_id,
+        index_name=index_name,
+        chunk_label=chunk_label,
+        embedding_property=embedding_property,
+        embedding_dimensions=embedding_dimensions,
+        embedder_model=embedder_model,
+        chunk_stride=chunk_stride,
+        pipeline_contract=pipeline_contract,
+        neo4j_settings=neo4j_settings,
+        dataset_name=(
+            getattr(getattr(config, "settings", None), "dataset_name", None)
+            or getattr(config, "dataset_name", None)
+        ),
+    )
+
+
 def run_pdf_ingest_request_context(
     request_context: RequestContext,
     *,
@@ -415,7 +494,7 @@ def run_pdf_ingest_request_context(
 ) -> dict[str, Any]:
     """Run PDF ingest using request-scoped context as the primary input."""
     pipeline_contract = request_context.pipeline_contract
-    return run_pdf_ingest(
+    return _run_pdf_ingest_impl(
         request_context.config,
         request_context.run_id,
         fixtures_dir=fixtures_dir,
@@ -433,6 +512,9 @@ def run_pdf_ingest_request_context(
         chunk_stride=(
             chunk_stride if chunk_stride is not None else pipeline_contract.chunk_fallback_stride
         ),
+        pipeline_contract=pipeline_contract,
+        neo4j_settings=request_context.settings.neo4j,
+        dataset_name=request_context.settings.dataset_name,
     )
 
 

@@ -243,14 +243,18 @@ def test_structured_lint_reports_and_raises_on_invalid_data(tmp_path: Path):
 
 
 def test_pdf_ingest_dry_run_uses_contract(tmp_path: Path):
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.pdf_ingest import run_pdf_ingest_request_context
+
     config = _dry_run_config(tmp_path)
     pipeline_contract = get_pipeline_contract_snapshot()
     fixtures_dir = resolve_dataset_root("demo_dataset_v1").root
-    summary = run_pdf_ingest(
+    request_context = _request_context_from_config(
         config,
+        command="ingest-pdf",
         run_id="test-unstructured",
-        fixtures_dir=fixtures_dir,
     )
+    summary = run_pdf_ingest_request_context(request_context, fixtures_dir=fixtures_dir)
     assert summary["vector_index"]["index_name"] == pipeline_contract.chunk_embedding_index_name
     assert summary["vector_index"]["label"] == pipeline_contract.chunk_embedding_label
     assert summary["vector_index"]["embedding_property"] == pipeline_contract.chunk_embedding_property
@@ -262,6 +266,7 @@ def test_pdf_ingest_dry_run_uses_contract(tmp_path: Path):
 
 def test_pdf_ingest_reads_live_pipeline_contract_snapshot(tmp_path: Path):
     import demo.stages.pdf_ingest as pdf_ingest_module
+    from demo.run_demo import _request_context_from_config
     import power_atlas.contracts.pipeline as pipeline_module
 
     fixtures_dir = resolve_dataset_root("demo_dataset_v1").root
@@ -271,10 +276,14 @@ def test_pdf_ingest_reads_live_pipeline_contract_snapshot(tmp_path: Path):
             chunk_embedding_index_name="dynamic_pdf_index"
         )
         config = _dry_run_config(tmp_path)
-
-        summary = pdf_ingest_module.run_pdf_ingest(
+        request_context = _request_context_from_config(
             config,
+            command="ingest-pdf",
             run_id="dynamic-pdf-run",
+        )
+
+        summary = pdf_ingest_module.run_pdf_ingest_request_context(
+            request_context,
             fixtures_dir=fixtures_dir,
         )
 
@@ -294,6 +303,7 @@ def test_pdf_ingest_reads_live_pipeline_contract_snapshot(tmp_path: Path):
 
 def test_pdf_ingest_accepts_explicit_pipeline_contract(tmp_path: Path):
     import demo.stages.pdf_ingest as pdf_ingest_module
+    from demo.run_demo import _request_context_from_config
     from power_atlas.contracts.pipeline import PipelineContractSnapshot
 
     config = Config(
@@ -310,10 +320,14 @@ def test_pdf_ingest_accepts_explicit_pipeline_contract(tmp_path: Path):
         }
     )
     fixtures_dir = resolve_dataset_root("demo_dataset_v1").root
-
-    summary = pdf_ingest_module.run_pdf_ingest(
+    request_context = _request_context_from_config(
         config,
+        command="ingest-pdf",
         run_id="explicit-pdf-run",
+    )
+
+    summary = pdf_ingest_module.run_pdf_ingest_request_context(
+        request_context,
         fixtures_dir=fixtures_dir,
     )
 
@@ -346,6 +360,22 @@ def test_pdf_ingest_request_context_uses_request_scope(tmp_path: Path):
     assert summary["status"] == "dry_run"
     assert ingest_summary["run_id"] == "context-pdf-run"
     assert summary["vector_index"]["index_name"] == request_context.pipeline_contract.chunk_embedding_index_name
+
+
+def test_pdf_ingest_config_first_adapter_warns_deprecated(tmp_path: Path):
+    import demo.stages.pdf_ingest as pdf_ingest_module
+
+    config = _dry_run_config(tmp_path)
+    fixtures_dir = resolve_dataset_root("demo_dataset_v1").root
+
+    with pytest.warns(DeprecationWarning, match="run_pdf_ingest is deprecated"):
+        summary = pdf_ingest_module.run_pdf_ingest(
+            config,
+            run_id="deprecated-pdf-run",
+            fixtures_dir=fixtures_dir,
+        )
+
+    assert summary["status"] == "dry_run"
 
 
 def test_structured_ingest_request_context_uses_request_scope(tmp_path: Path):
