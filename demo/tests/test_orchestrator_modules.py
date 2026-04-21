@@ -419,10 +419,17 @@ def test_claim_extraction_dry_run_includes_count_fields(tmp_path: Path):
 
 
 def test_retrieval_and_qa_dry_run_includes_metadata_fields(tmp_path: Path):
-    from demo.stages import run_retrieval_and_qa
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context
 
     config = _dry_run_config(tmp_path)
-    result = run_retrieval_and_qa(config, run_id="qa-run-1", source_uri="file:///example/doc.pdf", top_k=5)
+    request_context = _request_context_from_config(
+        config,
+        command="ask",
+        run_id="qa-run-1",
+        source_uri="file:///example/doc.pdf",
+    )
+    result = run_retrieval_and_qa_request_context(request_context, top_k=5)
     assert result["run_id"] == "qa-run-1"
     assert result["top_k"] == 5
     assert "retriever_index_name" in result
@@ -459,6 +466,7 @@ def test_retrieval_and_qa_dry_run_includes_metadata_fields(tmp_path: Path):
 
 def test_retrieval_and_qa_reads_live_pipeline_contract_snapshot(tmp_path: Path):
     import demo.stages.retrieval_and_qa as retrieval_module
+    from demo.run_demo import _request_context_from_config
     import power_atlas.contracts.pipeline as pipeline_module
 
     original_state = pipeline_module._get_pipeline_contract_state_for_test()
@@ -467,12 +475,14 @@ def test_retrieval_and_qa_reads_live_pipeline_contract_snapshot(tmp_path: Path):
             chunk_embedding_index_name="dynamic_retrieval_index"
         )
         config = _dry_run_config(tmp_path)
-
-        result = retrieval_module.run_retrieval_and_qa(
+        request_context = _request_context_from_config(
             config,
+            command="ask",
             run_id="qa-dynamic-run",
             source_uri="file:///example/doc.pdf",
         )
+
+        result = retrieval_module.run_retrieval_and_qa_request_context(request_context)
 
         assert not hasattr(retrieval_module, "CHUNK_EMBEDDING_INDEX_NAME")
         assert result["retriever_index_name"] == "dynamic_retrieval_index"
@@ -490,6 +500,7 @@ def test_retrieval_and_qa_reads_live_pipeline_contract_snapshot(tmp_path: Path):
 
 def test_retrieval_and_qa_accepts_explicit_pipeline_contract(tmp_path: Path):
     import demo.stages.retrieval_and_qa as retrieval_module
+    from demo.run_demo import _request_context_from_config
     from power_atlas.contracts.pipeline import PipelineContractSnapshot
 
     config = Config(
@@ -506,40 +517,53 @@ def test_retrieval_and_qa_accepts_explicit_pipeline_contract(tmp_path: Path):
         }
     )
 
-    result = retrieval_module.run_retrieval_and_qa(
+    request_context = _request_context_from_config(
         config,
+        command="ask",
         run_id="qa-explicit-run",
         source_uri="file:///example/doc.pdf",
     )
+
+    result = retrieval_module.run_retrieval_and_qa_request_context(request_context)
 
     assert result["retriever_index_name"] == "explicit_retrieval_index"
 
 
 def test_retrieval_and_qa_runtime_query_contract_uses_live_builder(tmp_path: Path):
     import demo.stages.retrieval_and_qa as retrieval_module
+    from demo.run_demo import _request_context_from_config
 
     config = _dry_run_config(tmp_path)
+    request_context = _request_context_from_config(
+        config,
+        command="ask",
+        run_id="qa-live-builder-run",
+        source_uri=None,
+    )
 
     with mock.patch.object(
         retrieval_module,
         "_build_retrieval_query",
         return_value="\nRETURN 'live_builder_query' AS retrieval_query\n",
     ):
-        result = retrieval_module.run_retrieval_and_qa(
-            config,
-            run_id="qa-live-builder-run",
-            expand_graph=True,
-        )
+        result = retrieval_module.run_retrieval_and_qa_request_context(request_context, expand_graph=True)
 
     assert result["retrieval_query_contract"] == "RETURN 'live_builder_query' AS retrieval_query"
 
 
 def test_retrieval_and_qa_run_id_appears_in_batch_manifest(tmp_path: Path):
-    from demo.stages import run_retrieval_and_qa
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context
 
     config = _dry_run_config(tmp_path)
     # Batch pipeline uses unstructured_run_id so citation examples map to stored Chunk nodes
-    retrieval_stage = run_retrieval_and_qa(config, run_id="unstructured-2", source_uri=None)
+    request_context = _request_context_from_config(
+        config,
+        command="ask",
+        run_id="unstructured-2",
+        source_uri=None,
+    )
+    retrieval_stage = run_retrieval_and_qa_request_context(request_context)
     manifest = build_batch_manifest(
         config=config,
         structured_run_id="structured-1",
@@ -1381,7 +1405,8 @@ def test_retrieval_and_qa_live_path_warns_on_missing_citation_fields(tmp_path: P
 
 def test_retrieval_and_qa_live_path_run_scoped_by_default(tmp_path: Path):
     """Retrieval scope must be run_id-scoped by default; source_uri=None means no source filtering."""
-    from demo.stages import run_retrieval_and_qa
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context
 
     captured_params: dict = {}
 
@@ -1398,18 +1423,19 @@ def test_retrieval_and_qa_live_path_run_scoped_by_default(tmp_path: Path):
         output_dir=tmp_path,
         openai_model="gpt-4o-mini",
     )
+    request_context = _request_context_from_config(
+        live_config,
+        command="ask",
+        run_id="scoped-run",
+        source_uri=None,
+    )
 
     with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
     ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class()), mock.patch(
         "demo.stages.retrieval_and_qa.build_openai_llm"
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
-        run_retrieval_and_qa(
-            live_config,
-            run_id="scoped-run",
-            source_uri=None,
-            question="Test question",
-        )
+        run_retrieval_and_qa_request_context(request_context, question="Test question")
 
     # run_id must always be in query params (run-scoped by default)
     assert captured_params["run_id"] == "scoped-run"
@@ -1419,7 +1445,8 @@ def test_retrieval_and_qa_live_path_run_scoped_by_default(tmp_path: Path):
 
 def test_retrieval_and_qa_live_path_uses_expanded_query_when_expand_graph(tmp_path: Path):
     """When expand_graph=True, the retriever must be initialised with the expansion query."""
-    from demo.stages import run_retrieval_and_qa
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context
     from demo.stages.retrieval_and_qa import _RETRIEVAL_QUERY_WITH_EXPANSION
 
     captured_init: dict = {}
@@ -1436,19 +1463,19 @@ def test_retrieval_and_qa_live_path_uses_expanded_query_when_expand_graph(tmp_pa
         output_dir=tmp_path,
         openai_model="gpt-4o-mini",
     )
+    request_context = _request_context_from_config(
+        live_config,
+        command="ask",
+        run_id="expand-run",
+        source_uri=None,
+    )
 
     with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
     ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class()), mock.patch(
         "demo.stages.retrieval_and_qa.build_openai_llm"
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
-        result = run_retrieval_and_qa(
-            live_config,
-            run_id="expand-run",
-            source_uri=None,
-            question="Test",
-            expand_graph=True,
-        )
+        result = run_retrieval_and_qa_request_context(request_context, question="Test", expand_graph=True)
 
     assert captured_init["retrieval_query"] == _RETRIEVAL_QUERY_WITH_EXPANSION
     assert result["expand_graph"] is True
@@ -1490,7 +1517,8 @@ def test_retrieval_and_qa_dry_run_cluster_aware_flag_recorded(tmp_path: Path):
 
 def test_retrieval_and_qa_live_path_uses_cluster_query_when_cluster_aware(tmp_path: Path):
     """When cluster_aware=True, the retriever must be initialised with the cluster-aware query."""
-    from demo.stages import run_retrieval_and_qa
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context
     from demo.stages.retrieval_and_qa import _RETRIEVAL_QUERY_WITH_CLUSTER
 
     captured_init: dict = {}
@@ -1507,19 +1535,19 @@ def test_retrieval_and_qa_live_path_uses_cluster_query_when_cluster_aware(tmp_pa
         output_dir=tmp_path,
         openai_model="gpt-4o-mini",
     )
+    request_context = _request_context_from_config(
+        live_config,
+        command="ask",
+        run_id="cluster-run",
+        source_uri=None,
+    )
 
     with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
     ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class()), mock.patch(
         "demo.stages.retrieval_and_qa.build_openai_llm"
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
-        result = run_retrieval_and_qa(
-            live_config,
-            run_id="cluster-run",
-            source_uri=None,
-            question="Test cluster",
-            cluster_aware=True,
-        )
+        result = run_retrieval_and_qa_request_context(request_context, question="Test cluster", cluster_aware=True)
 
     assert captured_init["retrieval_query"] == _RETRIEVAL_QUERY_WITH_CLUSTER
     assert result["cluster_aware"] is True
@@ -1531,7 +1559,8 @@ def test_retrieval_and_qa_live_path_uses_cluster_query_when_cluster_aware(tmp_pa
 
 def test_retrieval_and_qa_live_path_cluster_aware_all_runs_uses_all_runs_query(tmp_path: Path):
     """When cluster_aware=True and all_runs=True, the all-runs cluster query must be used."""
-    from demo.stages import run_retrieval_and_qa
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context
     from demo.stages.retrieval_and_qa import _RETRIEVAL_QUERY_WITH_CLUSTER_ALL_RUNS
 
     captured_init: dict = {}
@@ -1548,19 +1577,23 @@ def test_retrieval_and_qa_live_path_cluster_aware_all_runs_uses_all_runs_query(t
         output_dir=tmp_path,
         openai_model="gpt-4o-mini",
     )
+    request_context = _request_context_from_config(
+        live_config,
+        command="ask",
+        run_id=None,
+        source_uri=None,
+        all_runs=True,
+    )
 
     with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
     ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class()), mock.patch(
         "demo.stages.retrieval_and_qa.build_openai_llm"
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
-        result = run_retrieval_and_qa(
-            live_config,
-            run_id=None,
-            source_uri=None,
+        result = run_retrieval_and_qa_request_context(
+            request_context,
             question="Test cluster all runs",
             cluster_aware=True,
-            all_runs=True,
         )
 
     assert captured_init["retrieval_query"] == _RETRIEVAL_QUERY_WITH_CLUSTER_ALL_RUNS
@@ -1760,7 +1793,8 @@ def test_retrieval_and_qa_cluster_aware_retrieval_query_contract_recorded(tmp_pa
 def test_retrieval_and_qa_cluster_aware_passes_alignment_version_in_query_params(tmp_path: Path):
     """When cluster_aware=True, alignment_version must be included in the query params passed to
     the retriever so that ALIGNED_WITH edge filtering in the Cypher query is version-scoped."""
-    from demo.stages import run_retrieval_and_qa
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context
 
     captured_params: dict = {}
 
@@ -1777,16 +1811,20 @@ def test_retrieval_and_qa_cluster_aware_passes_alignment_version_in_query_params
         output_dir=tmp_path,
         openai_model="gpt-4o-mini",
     )
+    request_context = _request_context_from_config(
+        live_config,
+        command="ask",
+        run_id="cluster-av-run",
+        source_uri=None,
+    )
 
     with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
     ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class()), mock.patch(
         "demo.stages.retrieval_and_qa.build_openai_llm"
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
-        run_retrieval_and_qa(
-            live_config,
-            run_id="cluster-av-run",
-            source_uri=None,
+        run_retrieval_and_qa_request_context(
+            request_context,
             question="Test alignment version?",
             cluster_aware=True,
         )
@@ -1800,7 +1838,8 @@ def test_retrieval_and_qa_cluster_aware_passes_alignment_version_in_query_params
 def test_retrieval_and_qa_cluster_aware_query_params_omit_alignment_version_when_not_cluster_aware(tmp_path: Path):
     """alignment_version must NOT appear in query params when cluster_aware=False, because the
     non-cluster queries do not use ALIGNED_WITH edges and the param would be unexpected noise."""
-    from demo.stages import run_retrieval_and_qa
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context
 
     captured_params: dict = {}
 
@@ -1817,16 +1856,20 @@ def test_retrieval_and_qa_cluster_aware_query_params_omit_alignment_version_when
         output_dir=tmp_path,
         openai_model="gpt-4o-mini",
     )
+    request_context = _request_context_from_config(
+        live_config,
+        command="ask",
+        run_id="no-cluster-run",
+        source_uri=None,
+    )
 
     with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
     ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class()), mock.patch(
         "demo.stages.retrieval_and_qa.build_openai_llm"
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
-        run_retrieval_and_qa(
-            live_config,
-            run_id="no-cluster-run",
-            source_uri=None,
+        run_retrieval_and_qa_request_context(
+            request_context,
             question="Test non-cluster?",
             cluster_aware=False,
         )
@@ -1840,7 +1883,8 @@ def test_retrieval_and_qa_cluster_aware_live_path_surfaces_member_of_traversal(t
     """Live cluster-aware retrieval must surface cluster_memberships (MEMBER_OF traversal) in
     retrieval_results metadata, verifying that indirect mention→cluster expansion reaches the
     result layer so downstream consumers can inspect the traversal path."""
-    from demo.stages import run_retrieval_and_qa
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context
     from demo.stages.retrieval_and_qa import _chunk_citation_formatter
 
     cluster_membership_data = [
@@ -1881,19 +1925,19 @@ def test_retrieval_and_qa_cluster_aware_live_path_surfaces_member_of_traversal(t
         output_dir=tmp_path,
         openai_model="gpt-4o-mini",
     )
+    request_context = _request_context_from_config(
+        live_config,
+        command="ask",
+        run_id="cluster-live-run",
+        source_uri=None,
+    )
 
     with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
     ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class()), mock.patch(
         "demo.stages.retrieval_and_qa.build_openai_llm"
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
-        result = run_retrieval_and_qa(
-            live_config,
-            run_id="cluster-live-run",
-            source_uri=None,
-            question="Who was involved?",
-            cluster_aware=True,
-        )
+        result = run_retrieval_and_qa_request_context(request_context, question="Who was involved?", cluster_aware=True)
 
     assert result["status"] == "live"
     assert result["hits"] == 1
@@ -1920,7 +1964,8 @@ def test_retrieval_and_qa_cluster_aware_live_path_surfaces_aligned_with_traversa
     """Live cluster-aware retrieval must surface cluster_canonical_alignments (ALIGNED_WITH
     traversal via cluster node) in retrieval_results metadata.  This verifies that the indirect
     path mention→MEMBER_OF→cluster→ALIGNED_WITH→canonical actually reaches the result layer."""
-    from demo.stages import run_retrieval_and_qa
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context
     from demo.stages.retrieval_and_qa import _chunk_citation_formatter
 
     cluster_canonical_alignment_data = [
@@ -1967,16 +2012,20 @@ def test_retrieval_and_qa_cluster_aware_live_path_surfaces_aligned_with_traversa
         output_dir=tmp_path,
         openai_model="gpt-4o-mini",
     )
+    request_context = _request_context_from_config(
+        live_config,
+        command="ask",
+        run_id="aligned-live-run",
+        source_uri=None,
+    )
 
     with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
     ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class()), mock.patch(
         "demo.stages.retrieval_and_qa.build_openai_llm"
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
-        result = run_retrieval_and_qa(
-            live_config,
-            run_id="aligned-live-run",
-            source_uri=None,
+        result = run_retrieval_and_qa_request_context(
+            request_context,
             question="Who is the canonical entity?",
             cluster_aware=True,
         )
@@ -2007,7 +2056,8 @@ def test_retrieval_and_qa_cluster_aware_hybrid_traversal_both_member_of_and_alig
     ResolvedEntityCluster (via MEMBER_OF) which is itself aligned to a CanonicalEntity
     (via ALIGNED_WITH).  Both cluster_memberships and cluster_canonical_alignments must
     appear in the retrieval result, confirming the complete indirect expansion path."""
-    from demo.stages import run_retrieval_and_qa
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context
     from demo.stages.retrieval_and_qa import _chunk_citation_formatter
 
     membership_data = [
@@ -2055,16 +2105,20 @@ def test_retrieval_and_qa_cluster_aware_hybrid_traversal_both_member_of_and_alig
         output_dir=tmp_path,
         openai_model="gpt-4o-mini",
     )
+    request_context = _request_context_from_config(
+        live_config,
+        command="ask",
+        run_id="hybrid-run",
+        source_uri=None,
+    )
 
     with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
     ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class()), mock.patch(
         "demo.stages.retrieval_and_qa.build_openai_llm"
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
-        result = run_retrieval_and_qa(
-            live_config,
-            run_id="hybrid-run",
-            source_uri=None,
+        result = run_retrieval_and_qa_request_context(
+            request_context,
             question="What did Acme Corp sign?",
             cluster_aware=True,
         )
@@ -2872,7 +2926,8 @@ def test_retrieval_and_qa_live_path_fallback_answer_contains_original_text(tmp_p
 def test_retrieval_and_qa_live_path_passes_message_history_to_graphrag(tmp_path: Path):
     """When message_history is provided, it must be forwarded to GraphRAG.search() and
     message_history_enabled must be True in the result."""
-    from demo.stages import run_retrieval_and_qa
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context
     from neo4j_graphrag.message_history import InMemoryMessageHistory
 
     captured_rag_search_args: dict = {}
@@ -2889,6 +2944,12 @@ def test_retrieval_and_qa_live_path_passes_message_history_to_graphrag(tmp_path:
         output_dir=tmp_path,
         openai_model="gpt-4o-mini",
     )
+    request_context = _request_context_from_config(
+        live_config,
+        command="ask",
+        run_id="live-run-hist",
+        source_uri=None,
+    )
 
     history = InMemoryMessageHistory()
 
@@ -2897,10 +2958,8 @@ def test_retrieval_and_qa_live_path_passes_message_history_to_graphrag(tmp_path:
     ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class(capture=captured_rag_search_args)), mock.patch(
         "demo.stages.retrieval_and_qa.build_openai_llm"
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
-        result = run_retrieval_and_qa(
-            live_config,
-            run_id="live-run-hist",
-            source_uri=None,
+        result = run_retrieval_and_qa_request_context(
+            request_context,
             question="Follow-up question?",
             message_history=history,
             interactive=True,
@@ -2913,7 +2972,8 @@ def test_retrieval_and_qa_live_path_passes_message_history_to_graphrag(tmp_path:
 
 def test_retrieval_and_qa_live_path_uses_openai_llm_with_model_from_config(tmp_path: Path):
     """Live path must create an LLM with the model from config via build_openai_llm."""
-    from demo.stages import run_retrieval_and_qa
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context
 
     captured_llm_calls: list = []
 
@@ -2937,25 +2997,27 @@ def test_retrieval_and_qa_live_path_uses_openai_llm_with_model_from_config(tmp_p
         output_dir=tmp_path,
         openai_model="gpt-4o",
     )
+    request_context = _request_context_from_config(
+        live_config,
+        command="ask",
+        run_id="live-run-llm",
+        source_uri=None,
+    )
 
     with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
     ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class()), mock.patch(
         "demo.stages.retrieval_and_qa.build_openai_llm", _fake_build_openai_llm
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
-        run_retrieval_and_qa(
-            live_config,
-            run_id="live-run-llm",
-            source_uri=None,
-            question="Test question",
-        )
+        run_retrieval_and_qa_request_context(request_context, question="Test question")
 
     assert captured_llm_calls == ["gpt-4o"]
 
 
 def test_retrieval_and_qa_live_path_uses_power_atlas_prompt_template(tmp_path: Path):
     """Live path must pass the Power Atlas citation-enforcing prompt template to GraphRAG."""
-    from demo.stages import run_retrieval_and_qa
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context
 
     captured_prompt: dict = {}
 
@@ -2971,18 +3033,19 @@ def test_retrieval_and_qa_live_path_uses_power_atlas_prompt_template(tmp_path: P
         output_dir=tmp_path,
         openai_model="gpt-4o-mini",
     )
+    request_context = _request_context_from_config(
+        live_config,
+        command="ask",
+        run_id="live-run-prompt",
+        source_uri=None,
+    )
 
     with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
     ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class(capture=captured_prompt)), mock.patch(
         "demo.stages.retrieval_and_qa.build_openai_llm"
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
-        run_retrieval_and_qa(
-            live_config,
-            run_id="live-run-prompt",
-            source_uri=None,
-            question="Test question",
-        )
+        run_retrieval_and_qa_request_context(request_context, question="Test question")
 
     assert captured_prompt["prompt_template"] is POWER_ATLAS_RAG_TEMPLATE
 
@@ -3680,7 +3743,8 @@ def test_retrieval_and_qa_live_path_citation_quality_full_when_only_optional_fie
     Per citation contract #159, page/start_char/end_char are optional; their absence
     must not degrade evidence_level.  The missing-field notice must appear in
     result['warnings'] but NOT in citation_quality['citation_warnings']."""
-    from demo.stages import run_retrieval_and_qa
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context
 
     # A fully cited answer (every line ends with a citation token)
     cited_answer = (
@@ -3729,18 +3793,19 @@ def test_retrieval_and_qa_live_path_citation_quality_full_when_only_optional_fie
         output_dir=tmp_path,
         openai_model="gpt-4o-mini",
     )
+    request_context = _request_context_from_config(
+        live_config,
+        command="ask",
+        run_id="live-cq-chunk",
+        source_uri=None,
+    )
 
     with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
     ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class(answer=cited_answer)), mock.patch(
         "demo.stages.retrieval_and_qa.build_openai_llm"
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
-        result = run_retrieval_and_qa(
-            live_config,
-            run_id="live-cq-chunk",
-            source_uri=None,
-            question="What happened?",
-        )
+        result = run_retrieval_and_qa_request_context(request_context, question="What happened?")
 
     cq = result["citation_quality"]
     # all_cited is True and evidence_level must be 'full': optional fields (page,
@@ -3816,7 +3881,8 @@ def test_retrieval_and_qa_live_path_warns_on_empty_chunk_text(tmp_path: Path):
     """Live path must emit a warning into warnings and citation_warnings when a
     retrieved chunk has empty or whitespace-only text, and evidence_level must be
     'degraded' even when the answer is otherwise fully cited."""
-    from demo.stages import run_retrieval_and_qa
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context
 
     cited_answer = (
         "Evidence was found. [CITATION|chunk_id=chunk-empty|run_id=live-empty-text|"
@@ -3866,18 +3932,19 @@ def test_retrieval_and_qa_live_path_warns_on_empty_chunk_text(tmp_path: Path):
         output_dir=tmp_path,
         openai_model="gpt-4o-mini",
     )
+    request_context = _request_context_from_config(
+        live_config,
+        command="ask",
+        run_id="live-empty-text",
+        source_uri=None,
+    )
 
     with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
     ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class(answer=cited_answer)), mock.patch(
         "demo.stages.retrieval_and_qa.build_openai_llm"
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
-        result = run_retrieval_and_qa(
-            live_config,
-            run_id="live-empty-text",
-            source_uri=None,
-            question="What happened?",
-        )
+        result = run_retrieval_and_qa_request_context(request_context, question="What happened?")
 
     # Empty chunk text warning must appear in warnings and citation_warnings.
     assert any("chunk-empty" in w and "empty" in w.lower() for w in result["warnings"]), (
@@ -5553,7 +5620,8 @@ def test_retrieval_and_qa_expand_graph_surfaces_claim_details_in_metadata(tmp_pa
     """Expand-graph retrieval must surface claim_details (with subject/object mention data)
     in retrieval_results metadata, confirming that participation edges are included in the
     retrieved context layer so downstream consumers can inspect role assignments."""
-    from demo.stages import run_retrieval_and_qa
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context
     from demo.stages.retrieval_and_qa import _chunk_citation_formatter
 
     claim_details_data = [
@@ -5592,16 +5660,20 @@ def test_retrieval_and_qa_expand_graph_surfaces_claim_details_in_metadata(tmp_pa
         output_dir=tmp_path,
         openai_model="gpt-4o-mini",
     )
+    request_context = _request_context_from_config(
+        live_config,
+        command="ask",
+        run_id="expand-run",
+        source_uri=None,
+    )
 
     with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
     ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class()), mock.patch(
         "demo.stages.retrieval_and_qa.build_openai_llm"
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
-        result = run_retrieval_and_qa(
-            live_config,
-            run_id="expand-run",
-            source_uri=None,
+        result = run_retrieval_and_qa_request_context(
+            request_context,
             question="Who founded MercadoLibre?",
             expand_graph=True,
         )
