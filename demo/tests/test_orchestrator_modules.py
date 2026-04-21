@@ -2962,7 +2962,8 @@ def test_run_interactive_qa_prints_citation_warning_when_uncited(
 ):
     """run_interactive_qa must print a visible citation warning to stdout when the
     answer contains lines without citation tokens (degraded evidence quality)."""
-    from demo.stages.retrieval_and_qa import run_interactive_qa
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_interactive_qa_request_context
 
     uncited_answer = "This claim has no citation and is not grounded."
 
@@ -2987,6 +2988,12 @@ def test_run_interactive_qa_prints_citation_warning_when_uncited(
         output_dir=tmp_path,
         openai_model="gpt-4o-mini",
     )
+    request_context = _request_context_from_config(
+        live_config,
+        command="ask",
+        run_id="interactive-run-uncited",
+        source_uri=None,
+    )
 
     # Simulate one question then EOF so the REPL exits cleanly.
     inputs = iter(["What happened?"])
@@ -3004,7 +3011,7 @@ def test_run_interactive_qa_prints_citation_warning_when_uncited(
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(
         os.environ, {"OPENAI_API_KEY": "test-key"}
     ), mock.patch("builtins.input", _fake_input):
-        run_interactive_qa(live_config, run_id="interactive-run-uncited")
+        run_interactive_qa_request_context(request_context)
 
     captured = capsys.readouterr()
     assert "WARNING" in captured.out
@@ -3016,7 +3023,8 @@ def test_run_interactive_qa_no_warning_when_fully_cited(
     tmp_path: Path, capsys: pytest.CaptureFixture
 ):
     """run_interactive_qa must NOT print a citation warning when every answer line is cited."""
-    from demo.stages.retrieval_and_qa import run_interactive_qa
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_interactive_qa_request_context
 
     cited_answer = "All claims are supported. [CITATION|chunk_id=c1|run_id=r1|source_uri=file:///doc.pdf|chunk_index=0|page=1|start_char=0|end_char=10]"
 
@@ -3039,6 +3047,12 @@ def test_run_interactive_qa_no_warning_when_fully_cited(
         output_dir=tmp_path,
         openai_model="gpt-4o-mini",
     )
+    request_context = _request_context_from_config(
+        live_config,
+        command="ask",
+        run_id="interactive-run-cited",
+        source_uri=None,
+    )
 
     inputs = iter(["What happened?"])
 
@@ -3055,7 +3069,7 @@ def test_run_interactive_qa_no_warning_when_fully_cited(
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(
         os.environ, {"OPENAI_API_KEY": "test-key"}
     ), mock.patch("builtins.input", _fake_input):
-        run_interactive_qa(live_config, run_id="interactive-run-cited")
+        run_interactive_qa_request_context(request_context)
 
     captured = capsys.readouterr()
     assert "WARNING" not in captured.out and "degraded" not in captured.out.lower()
@@ -3069,10 +3083,12 @@ def test_run_interactive_qa_no_warning_when_fully_cited(
 def test_retrieval_and_qa_dry_run_includes_citation_quality(tmp_path: Path):
     """Dry-run result must include a citation_quality dict with the required keys and
     default 'no_answer' evidence_level since no answer is generated during dry-run."""
-    from demo.stages import run_retrieval_and_qa
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context
 
     config = _dry_run_config(tmp_path)
-    result = run_retrieval_and_qa(config, run_id="qa-dry", source_uri=None)
+    request_context = _request_context_from_config(config, command="ask", run_id="qa-dry", source_uri=None)
+    result = run_retrieval_and_qa_request_context(request_context)
 
     assert "citation_quality" in result
     cq = result["citation_quality"]
@@ -3088,10 +3104,17 @@ def test_retrieval_and_qa_dry_run_includes_citation_quality(tmp_path: Path):
 def test_retrieval_and_qa_dry_run_includes_raw_answer(tmp_path: Path):
     """Dry-run result must include a raw_answer key (defaulting to '') so the
     result schema is stable across all return paths."""
-    from demo.stages import run_retrieval_and_qa
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context
 
     config = _dry_run_config(tmp_path)
-    result = run_retrieval_and_qa(config, run_id="qa-dry-raw", source_uri=None)
+    request_context = _request_context_from_config(
+        config,
+        command="ask",
+        run_id="qa-dry-raw",
+        source_uri=None,
+    )
+    result = run_retrieval_and_qa_request_context(request_context)
 
     assert "raw_answer" in result
     assert result["raw_answer"] == ""
@@ -3099,16 +3122,23 @@ def test_retrieval_and_qa_dry_run_includes_raw_answer(tmp_path: Path):
 
 def test_retrieval_and_qa_live_no_question_includes_raw_answer(tmp_path: Path):
     """Live early-return when question=None must include raw_answer in result."""
-    from demo.stages import run_retrieval_and_qa
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context
 
     live_config = _make_config(
         dry_run=False,
         output_dir=tmp_path,
         openai_model="gpt-4o-mini",
     )
+    request_context = _request_context_from_config(
+        live_config,
+        command="ask",
+        run_id="live-no-q",
+        source_uri=None,
+    )
 
     with mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
-        result = run_retrieval_and_qa(live_config, run_id="live-no-q", source_uri=None, question=None)
+        result = run_retrieval_and_qa_request_context(request_context, question=None)
 
     assert "raw_answer" in result
     assert result["raw_answer"] == ""
@@ -3117,10 +3147,17 @@ def test_retrieval_and_qa_live_no_question_includes_raw_answer(tmp_path: Path):
 def test_retrieval_and_qa_dry_run_includes_citation_fallback_applied(tmp_path: Path):
     """Dry-run result must include citation_fallback_applied (False) so the result
     schema is stable across all return paths."""
-    from demo.stages import run_retrieval_and_qa
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context
 
     config = _dry_run_config(tmp_path)
-    result = run_retrieval_and_qa(config, run_id="qa-dry-flag", source_uri=None)
+    request_context = _request_context_from_config(
+        config,
+        command="ask",
+        run_id="qa-dry-flag",
+        source_uri=None,
+    )
+    result = run_retrieval_and_qa_request_context(request_context)
 
     assert "citation_fallback_applied" in result
     assert result["citation_fallback_applied"] is False
@@ -3128,16 +3165,23 @@ def test_retrieval_and_qa_dry_run_includes_citation_fallback_applied(tmp_path: P
 
 def test_retrieval_and_qa_live_no_question_includes_citation_fallback_applied(tmp_path: Path):
     """Live early-return when question=None must include citation_fallback_applied (False)."""
-    from demo.stages import run_retrieval_and_qa
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context
 
     live_config = _make_config(
         dry_run=False,
         output_dir=tmp_path,
         openai_model="gpt-4o-mini",
     )
+    request_context = _request_context_from_config(
+        live_config,
+        command="ask",
+        run_id="live-no-q-flag",
+        source_uri=None,
+    )
 
     with mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
-        result = run_retrieval_and_qa(live_config, run_id="live-no-q-flag", source_uri=None, question=None)
+        result = run_retrieval_and_qa_request_context(request_context, question=None)
 
     assert "citation_fallback_applied" in result
     assert result["citation_fallback_applied"] is False
@@ -3230,7 +3274,8 @@ def test_run_interactive_qa_stores_refusal_prefix_in_history(
     """run_interactive_qa must store only the sanitized refusal prefix (not the full
     fallback text embedding the uncited output) in conversation history so subsequent
     turns are not conditioned on under-cited content."""
-    from demo.stages.retrieval_and_qa import run_interactive_qa, _CITATION_FALLBACK_PREFIX
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_interactive_qa_request_context, _CITATION_FALLBACK_PREFIX
     from neo4j_graphrag.message_history import InMemoryMessageHistory
 
     uncited_answer = "This claim has no citation and is not grounded."
@@ -3256,6 +3301,12 @@ def test_run_interactive_qa_stores_refusal_prefix_in_history(
         output_dir=tmp_path,
         openai_model="gpt-4o-mini",
     )
+    request_context = _request_context_from_config(
+        live_config,
+        command="ask",
+        run_id="interactive-history-fallback",
+        source_uri=None,
+    )
 
     inputs = iter(["What happened?"])
 
@@ -3280,7 +3331,7 @@ def test_run_interactive_qa_stores_refusal_prefix_in_history(
     ), mock.patch("builtins.input", _fake_input), mock.patch.object(
         InMemoryMessageHistory, "add_messages", _capturing_add_messages
     ):
-        run_interactive_qa(live_config, run_id="interactive-history-fallback")
+        run_interactive_qa_request_context(request_context)
 
     # The assistant message in history must be only the sanitized refusal prefix —
     # NOT the full fallback (which embeds the uncited output) and NOT the raw uncited answer.
@@ -3379,7 +3430,8 @@ def test_retrieval_and_qa_live_path_citation_quality_degraded_when_uncited(tmp_p
 def test_retrieval_and_qa_live_path_citation_quality_no_answer_when_empty(tmp_path: Path):
     """Live path must set citation_quality.evidence_level='no_answer' when the LLM
     returns an empty answer string."""
-    from demo.stages import run_retrieval_and_qa
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context
 
     class _FakeRetriever:
         def __init__(self, **kwargs):
@@ -3393,18 +3445,19 @@ def test_retrieval_and_qa_live_path_citation_quality_no_answer_when_empty(tmp_pa
         output_dir=tmp_path,
         openai_model="gpt-4o-mini",
     )
+    request_context = _request_context_from_config(
+        live_config,
+        command="ask",
+        run_id="live-cq-empty",
+        source_uri=None,
+    )
 
     with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
     ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class(answer="")), mock.patch(
         "demo.stages.retrieval_and_qa.build_openai_llm"
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
-        result = run_retrieval_and_qa(
-            live_config,
-            run_id="live-cq-empty",
-            source_uri=None,
-            question="What happened?",
-        )
+        result = run_retrieval_and_qa_request_context(request_context, question="What happened?")
 
     cq = result["citation_quality"]
     assert cq["all_cited"] is False

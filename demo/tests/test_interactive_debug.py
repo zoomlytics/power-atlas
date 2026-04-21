@@ -42,6 +42,7 @@ from demo.stages.retrieval_and_qa import (
     run_interactive_qa,
 )
 from power_atlas.bootstrap import build_app_context, build_request_context
+from power_atlas.orchestration.context_builder import build_request_context_from_config
 from power_atlas.contracts import Config as _RuntimeConfig
 from power_atlas.contracts.pipeline import (
     get_pipeline_contract_config_data,
@@ -378,6 +379,12 @@ class TestRunInteractiveQaDebugFlag:
         mock_rag.search.return_value = mock_rag_result
 
         captured, _capture_print = self._make_capture()
+        request_context = build_request_context_from_config(
+            _LIVE_CONFIG,
+            command="ask",
+            run_id=None if all_runs else "interactive-debug-run",
+            all_runs=all_runs,
+        )
 
         with (
             patch("demo.stages.retrieval_and_qa.neo4j") as mock_neo4j,
@@ -393,11 +400,7 @@ class TestRunInteractiveQaDebugFlag:
                 mock_neo4j.GraphDatabase.driver.return_value
             )
             mock_neo4j.GraphDatabase.driver.return_value.__exit__ = MagicMock(return_value=False)
-            run_interactive_qa(
-                _LIVE_CONFIG,
-                all_runs=all_runs,
-                debug=debug,
-            )
+            run_interactive_qa_request_context(request_context, debug=debug)
 
         return captured.getvalue()
 
@@ -427,6 +430,12 @@ class TestRunInteractiveQaDebugFlag:
         mock_rag.search.return_value = mock_rag_result
 
         captured, _capture_print = self._make_capture()
+        request_context = build_request_context_from_config(
+            _LIVE_CONFIG,
+            command="ask",
+            run_id=None,
+            all_runs=True,
+        )
 
         with (
             patch("demo.stages.retrieval_and_qa.neo4j") as mock_neo4j,
@@ -442,7 +451,7 @@ class TestRunInteractiveQaDebugFlag:
             driver_mock.__enter__.return_value = driver_mock
             driver_mock.__exit__.return_value = False
             # No debug= passed — should default to False.
-            run_interactive_qa(_LIVE_CONFIG, all_runs=True)
+            run_interactive_qa_request_context(request_context)
 
         assert "[debug]" not in captured.getvalue()
 
@@ -505,6 +514,12 @@ class TestRunInteractiveQaDebugFlag:
         mock_rag.search.return_value = mock_rag_result
 
         captured, _capture_print = self._make_capture()
+        request_context = build_request_context_from_config(
+            _LIVE_CONFIG,
+            command="ask",
+            run_id=None,
+            all_runs=True,
+        )
 
         with (
             patch("demo.stages.retrieval_and_qa.neo4j") as mock_neo4j,
@@ -524,7 +539,7 @@ class TestRunInteractiveQaDebugFlag:
                 mock_neo4j.GraphDatabase.driver.return_value
             )
             mock_neo4j.GraphDatabase.driver.return_value.__exit__ = MagicMock(return_value=False)
-            run_interactive_qa(_LIVE_CONFIG, all_runs=True, debug=True)
+            run_interactive_qa_request_context(request_context, debug=True)
 
         output = captured.getvalue()
         # Verify the debug line reflects the controlled pp values, not recomputed ones.
@@ -547,6 +562,12 @@ class TestRunInteractiveQaDebugFlag:
         mock_rag.search.return_value = mock_rag_result
 
         captured, _capture_print = self._make_capture()
+        request_context = build_request_context_from_config(
+            _LIVE_CONFIG,
+            command="ask",
+            run_id=None,
+            all_runs=True,
+        )
 
         with (
             patch("demo.stages.retrieval_and_qa.neo4j") as mock_neo4j,
@@ -566,7 +587,7 @@ class TestRunInteractiveQaDebugFlag:
                 mock_neo4j.GraphDatabase.driver.return_value
             )
             mock_neo4j.GraphDatabase.driver.return_value.__exit__ = MagicMock(return_value=False)
-            run_interactive_qa(_LIVE_CONFIG, all_runs=True, debug=True)
+            run_interactive_qa_request_context(request_context, debug=True)
 
         output = captured.getvalue()
         assert "malformed_diagnostics=1" in output
@@ -580,6 +601,12 @@ class TestRunInteractiveQaDebugFlag:
         mock_rag.search.return_value = mock_rag_result
 
         captured, _capture_print = self._make_capture()
+        request_context = build_request_context_from_config(
+            _LIVE_CONFIG,
+            command="ask",
+            run_id=None,
+            all_runs=True,
+        )
 
         with (
             patch("demo.stages.retrieval_and_qa.neo4j") as mock_neo4j,
@@ -595,7 +622,7 @@ class TestRunInteractiveQaDebugFlag:
                 mock_neo4j.GraphDatabase.driver.return_value
             )
             mock_neo4j.GraphDatabase.driver.return_value.__exit__ = MagicMock(return_value=False)
-            run_interactive_qa(_LIVE_CONFIG, all_runs=True, debug=True)
+            run_interactive_qa_request_context(request_context, debug=True)
 
         output = captured.getvalue()
         assert "[debug]" in output
@@ -610,6 +637,12 @@ class TestRunInteractiveQaDebugFlag:
         mock_rag.search.return_value = mock_rag_result
 
         captured, _capture_print = self._make_capture()
+        request_context = build_request_context_from_config(
+            _LIVE_CONFIG,
+            command="ask",
+            run_id=None,
+            all_runs=True,
+        )
 
         with (
             patch("demo.stages.retrieval_and_qa.neo4j") as mock_neo4j,
@@ -625,7 +658,7 @@ class TestRunInteractiveQaDebugFlag:
                 mock_neo4j.GraphDatabase.driver.return_value
             )
             mock_neo4j.GraphDatabase.driver.return_value.__exit__ = MagicMock(return_value=False)
-            run_interactive_qa(_LIVE_CONFIG, all_runs=True, debug=True)
+            run_interactive_qa_request_context(request_context, debug=True)
 
         output = captured.getvalue()
         assert "[debug]" in output
