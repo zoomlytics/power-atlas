@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import warnings
 from typing import Any, cast
 
 from power_atlas.bootstrap import require_openai_api_key
@@ -10,6 +11,17 @@ from power_atlas.contracts.pipeline import PipelineContractSnapshot, is_pipeline
 from power_atlas.contracts.prompts import PROMPT_IDS
 from power_atlas.claim_extraction_runtime import run_claim_extraction_live
 from power_atlas.settings import Neo4jSettings
+
+
+def _warn_config_first_adapter(adapter_name: str, canonical_name: str) -> None:
+    warnings.warn(
+        (
+            f"{adapter_name} is deprecated and will be removed in a future migration step. "
+            f"Use {canonical_name} with a RequestContext instead."
+        ),
+        DeprecationWarning,
+        stacklevel=2,
+    )
 
 
 def _resolve_pipeline_contract(
@@ -26,7 +38,17 @@ def _resolve_pipeline_contract(
     )
 
 
-def _neo4j_settings_from_config(config: object) -> Neo4jSettings:
+def _neo4j_settings_from_config(
+    config: object,
+    neo4j_settings: Neo4jSettings | None = None,
+) -> Neo4jSettings:
+    if neo4j_settings is not None:
+        return neo4j_settings
+    config_settings = getattr(config, "settings", None)
+    settings_neo4j = getattr(config_settings, "neo4j", None)
+    if isinstance(settings_neo4j, Neo4jSettings):
+        return settings_neo4j
+
     neo4j_uri = getattr(config, "neo4j_uri", None)
     neo4j_username = getattr(config, "neo4j_username", None)
     neo4j_password = getattr(config, "neo4j_password", None)
@@ -99,13 +121,15 @@ async def _async_read_chunks_and_extract(
     return graph, text_chunks.chunks, lexical_config
 
 
-def run_claim_and_mention_extraction(
+def _run_claim_and_mention_extraction_impl(
     config: Any,
     *,
     run_id: str,
     source_uri: str | None,
+    pipeline_contract: PipelineContractSnapshot | None = None,
+    neo4j_settings: Neo4jSettings | None = None,
 ) -> dict[str, Any]:
-    resolved_pipeline_contract = _resolve_pipeline_contract(config, None)
+    resolved_pipeline_contract = _resolve_pipeline_contract(config, pipeline_contract)
     run_root = config.output_dir / "runs" / run_id
     extraction_dir = run_root / "claim_extraction"
     extraction_dir.mkdir(parents=True, exist_ok=True)
@@ -143,14 +167,14 @@ def run_claim_and_mention_extraction(
         ROLE_SUBJECT,
         build_participation_edges,
     )
-    neo4j_settings = _neo4j_settings_from_config(config)
+    resolved_neo4j_settings = _neo4j_settings_from_config(config, neo4j_settings)
 
     live_result = run_claim_extraction_live(
-        neo4j_settings,
+        resolved_neo4j_settings,
         run_id=run_id,
         source_uri=source_uri,
         model_name=config.openai_model,
-        neo4j_database=config.neo4j_database,
+        neo4j_database=resolved_neo4j_settings.database,
         pipeline_contract=resolved_pipeline_contract,
         read_chunks_and_extract=_async_read_chunks_and_extract,
         prepare_rows=prepare_extracted_rows,
@@ -190,12 +214,36 @@ def run_claim_and_mention_extraction(
     return summary
 
 
+def run_claim_and_mention_extraction(
+    config: Any,
+    *,
+    run_id: str,
+    source_uri: str | None,
+    pipeline_contract: PipelineContractSnapshot | None = None,
+    neo4j_settings: Neo4jSettings | None = None,
+) -> dict[str, Any]:
+    """Deprecated config-first claim extraction adapter."""
+    _warn_config_first_adapter(
+        "run_claim_and_mention_extraction",
+        "run_claim_and_mention_extraction_request_context",
+    )
+    return _run_claim_and_mention_extraction_impl(
+        config,
+        run_id=run_id,
+        source_uri=source_uri,
+        pipeline_contract=pipeline_contract,
+        neo4j_settings=neo4j_settings,
+    )
+
+
 def run_claim_and_mention_extraction_request_context(request_context: RequestContext) -> dict[str, Any]:
     """Run claim extraction using request-scoped context as the primary input."""
-    return run_claim_and_mention_extraction(
+    return _run_claim_and_mention_extraction_impl(
         request_context.config,
         run_id=request_context.run_id,
         source_uri=request_context.source_uri,
+        pipeline_contract=request_context.pipeline_contract,
+        neo4j_settings=request_context.settings.neo4j,
     )
 
 

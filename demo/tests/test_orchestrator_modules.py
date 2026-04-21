@@ -427,19 +427,33 @@ def test_pdf_ingest_rejects_non_pdf_suffix(tmp_path: Path):
 
 
 def test_claim_extraction_dry_run_uses_prompt_registry(tmp_path: Path):
-    from demo.stages import run_claim_and_mention_extraction
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.claim_extraction import run_claim_and_mention_extraction_request_context
 
     config = _dry_run_config(tmp_path)
-    summary = run_claim_and_mention_extraction(config, run_id="claim-run", source_uri=None)
+    request_context = _request_context_from_config(
+        config,
+        command="extract-claims",
+        run_id="claim-run",
+        source_uri=None,
+    )
+    summary = run_claim_and_mention_extraction_request_context(request_context)
     assert summary["prompt_version"] == PROMPT_IDS["claim_extraction"]
     assert summary["status"] == "dry_run"
 
 
 def test_claim_extraction_dry_run_includes_count_fields(tmp_path: Path):
-    from demo.stages import run_claim_and_mention_extraction
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.claim_extraction import run_claim_and_mention_extraction_request_context
 
     config = _dry_run_config(tmp_path)
-    summary = run_claim_and_mention_extraction(config, run_id="claim-run", source_uri=None)
+    request_context = _request_context_from_config(
+        config,
+        command="extract-claims",
+        run_id="claim-run",
+        source_uri=None,
+    )
+    summary = run_claim_and_mention_extraction_request_context(request_context)
     assert "chunks_processed" in summary
     assert "extracted_claim_count" in summary
     assert "entity_mention_count" in summary
@@ -610,19 +624,33 @@ def test_retrieval_and_qa_run_id_appears_in_batch_manifest(tmp_path: Path):
 
 
 def test_claim_extraction_dry_run_includes_chunks_with_extractions(tmp_path: Path):
-    from demo.stages import run_claim_and_mention_extraction
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.claim_extraction import run_claim_and_mention_extraction_request_context
 
     config = _dry_run_config(tmp_path)
-    summary = run_claim_and_mention_extraction(config, run_id="claim-run", source_uri=None)
+    request_context = _request_context_from_config(
+        config,
+        command="extract-claims",
+        run_id="claim-run",
+        source_uri=None,
+    )
+    summary = run_claim_and_mention_extraction_request_context(request_context)
     assert "chunks_with_extractions" in summary
     assert summary["chunks_with_extractions"] == 0
 
 
 def test_claim_extraction_dry_run_includes_participation_edge_counts(tmp_path: Path):
-    from demo.stages import run_claim_and_mention_extraction
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.claim_extraction import run_claim_and_mention_extraction_request_context
 
     config = _dry_run_config(tmp_path)
-    summary = run_claim_and_mention_extraction(config, run_id="claim-run-dry", source_uri=None)
+    request_context = _request_context_from_config(
+        config,
+        command="extract-claims",
+        run_id="claim-run-dry",
+        source_uri=None,
+    )
+    summary = run_claim_and_mention_extraction_request_context(request_context)
     assert summary["subject_edges"] == 0
     assert summary["object_edges"] == 0
 
@@ -643,6 +671,24 @@ def test_claim_extraction_request_context_uses_request_scope(tmp_path: Path):
 
     assert summary["run_id"] == "context-claim-run"
     assert summary["source_uri"] == "file:///context/claim.pdf"
+    assert summary["status"] == "dry_run"
+
+
+def test_claim_extraction_config_first_adapter_warns_deprecated(tmp_path: Path):
+    from demo.stages.claim_extraction import run_claim_and_mention_extraction
+
+    config = _dry_run_config(tmp_path)
+
+    with pytest.warns(
+        DeprecationWarning,
+        match="run_claim_and_mention_extraction is deprecated",
+    ):
+        summary = run_claim_and_mention_extraction(
+            config,
+            run_id="claim-run-deprecated",
+            source_uri=None,
+        )
+
     assert summary["status"] == "dry_run"
 
 
@@ -670,7 +716,8 @@ def test_claim_extraction_live_path_uses_create_lexical_graph_false(tmp_path: Pa
     with create_lexical_graph=False, keeping extraction non-destructive:
     ingest owns lexical graph creation; extraction only adds derived outputs
     (ExtractedClaim, EntityMention) linked to existing chunks via run_id/chunk_id."""
-    from demo.stages import run_claim_and_mention_extraction
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.claim_extraction import run_claim_and_mention_extraction_request_context
 
     chunk_id = "chunk-live-1"
     fake_graph = Neo4jGraph(
@@ -734,6 +781,12 @@ def test_claim_extraction_live_path_uses_create_lexical_graph_false(tmp_path: Pa
         output_dir=tmp_path,
         openai_model="gpt-4o-mini",
     )
+    request_context = _request_context_from_config(
+        config,
+        command="extract-claims",
+        run_id="live-run",
+        source_uri="file:///doc.pdf",
+    )
 
     with mock.patch(
         "neo4j_graphrag.experimental.components.entity_relation_extractor.LLMEntityRelationExtractor",
@@ -748,7 +801,7 @@ def test_claim_extraction_live_path_uses_create_lexical_graph_false(tmp_path: Pa
         "demo.extraction_utils.write_all_extraction_data",
         side_effect=_fake_write_all_extraction_data,
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
-        summary = run_claim_and_mention_extraction(config, run_id="live-run", source_uri="file:///doc.pdf")
+        summary = run_claim_and_mention_extraction_request_context(request_context)
 
     # Core assertion: the extractor must be built with create_lexical_graph=False
     assert extractor_init_kwargs.get("create_lexical_graph") is False
@@ -777,7 +830,8 @@ def test_claim_extraction_live_path_uses_create_lexical_graph_false(tmp_path: Pa
 
 def test_claim_extraction_live_writes_participation_edges_when_mention_matches(tmp_path: Path):
     """Participation edges must be written inline when claim slot text matches a mention name."""
-    from demo.stages import run_claim_and_mention_extraction
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.claim_extraction import run_claim_and_mention_extraction_request_context
 
     chunk_id = "chunk-match-1"
     # Claim subject matches the mention name exactly.
@@ -842,6 +896,12 @@ def test_claim_extraction_live_writes_participation_edges_when_mention_matches(t
         output_dir=tmp_path,
         openai_model="gpt-4o-mini",
     )
+    request_context = _request_context_from_config(
+        config,
+        command="extract-claims",
+        run_id="match-run",
+        source_uri="file:///doc.pdf",
+    )
 
     with mock.patch(
         "neo4j_graphrag.experimental.components.entity_relation_extractor.LLMEntityRelationExtractor",
@@ -856,7 +916,7 @@ def test_claim_extraction_live_writes_participation_edges_when_mention_matches(t
         "demo.extraction_utils.write_all_extraction_data",
         side_effect=_fake_write_all_extraction_data,
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
-        summary = run_claim_and_mention_extraction(config, run_id="match-run", source_uri="file:///doc.pdf")
+        summary = run_claim_and_mention_extraction_request_context(request_context)
 
     # write_all_extraction_data must have been called.
     assert captured_write_all["call_kwargs"] is not None, "write_all_extraction_data was never called"
