@@ -146,74 +146,145 @@ def _run_pdf_ingest_via_independent_stage(module, config, *, run_id: str):
     )
 
 
-def test_run_pdf_ingest_remains_request_context_shim():
-    module = _load_module(RUN_DEMO_PATH, "run_pdf_shim_contract_test")
-    config = _make_module_config(module, dry_run=True, output_dir=DEMO_DIR / "artifacts")
-
-    with mock.patch.object(module, "_run_pdf_ingest_impl", return_value={"status": "shim"}) as impl:
-        result = module._run_pdf_ingest(config, run_id="shim-run")
-
-    assert result == {"status": "shim"}
-    impl.assert_called_once()
-    assert impl.call_args.args == (config, "shim-run")
-    assert impl.call_args.kwargs["resolve_dataset_root"] is module.resolve_dataset_root
-    assert impl.call_args.kwargs["request_context_from_config"] is module._request_context_from_config
-    assert (
-        impl.call_args.kwargs["run_pdf_ingest_request_context"]
-        is module._run_pdf_ingest_request_context
+def test_run_independent_pdf_ingest_stage_scopes_request_context():
+    module = _load_module(RUN_DEMO_PATH, "run_pdf_independent_contract_test")
+    config = _make_module_config(
+        module,
+        dry_run=True,
+        output_dir=DEMO_DIR / "artifacts",
+        dataset_name="demo_dataset_v1",
+    )
+    request_context = module._request_context_from_config(
+        config,
+        command="ingest-pdf",
+        run_id="outer-pdf-run",
+    )
+    dataset_root = module.resolve_dataset_root(config.dataset_name)
+    resources = module._IndependentStageResources(
+        dataset_id=dataset_root.dataset_id,
+        fixture_dir=dataset_root.root,
+        pdf_filename=dataset_root.pdf_filename,
+        pdf_source_uri=dataset_root.pdf_path.resolve().as_uri(),
+    )
+    options = module._IndependentStageOptions(
+        ask_all_runs=False,
+        cluster_aware=False,
+        expand_graph=False,
     )
 
+    with mock.patch.object(module, "_run_pdf_ingest_request_context", return_value={"status": "shim"}) as runner:
+        result = module._run_independent_pdf_ingest_stage(
+            request_context,
+            "scoped-pdf-run",
+            resources,
+            options,
+        )
 
-def test_run_claim_extraction_remains_request_context_shim():
-    module = _load_module(RUN_DEMO_PATH, "run_claim_shim_contract_test")
-    config = _make_module_config(module, dry_run=True, output_dir=DEMO_DIR / "artifacts")
+    assert result == {"status": "shim"}
+    runner.assert_called_once()
+    scoped_context = runner.call_args.args[0]
+    assert scoped_context.run_id == "scoped-pdf-run"
+    assert request_context.run_id == "outer-pdf-run"
+    assert runner.call_args.kwargs["fixtures_dir"] == dataset_root.root
+    assert runner.call_args.kwargs["pdf_filename"] == dataset_root.pdf_filename
+    assert runner.call_args.kwargs["dataset_id"] == dataset_root.dataset_id
+
+
+def test_run_independent_claim_extraction_stage_scopes_request_context():
+    module = _load_module(RUN_DEMO_PATH, "run_claim_independent_contract_test")
+    config = _make_module_config(
+        module,
+        dry_run=True,
+        output_dir=DEMO_DIR / "artifacts",
+        dataset_name="demo_dataset_v1",
+    )
+    request_context = module._request_context_from_config(
+        config,
+        command="extract-claims",
+        run_id="outer-claim-run",
+        source_uri=None,
+    )
+    dataset_root = module.resolve_dataset_root(config.dataset_name)
+    resources = module._IndependentStageResources(
+        dataset_id=dataset_root.dataset_id,
+        fixture_dir=dataset_root.root,
+        pdf_filename=dataset_root.pdf_filename,
+        pdf_source_uri=dataset_root.pdf_path.resolve().as_uri(),
+    )
+    options = module._IndependentStageOptions(
+        ask_all_runs=False,
+        cluster_aware=False,
+        expand_graph=False,
+    )
 
     with mock.patch.object(
         module,
-        "_run_claim_and_mention_extraction_impl",
+        "_run_claim_extraction_request_context",
         return_value={"status": "shim"},
-    ) as impl:
-        result = module._run_claim_and_mention_extraction(
-            config,
-            run_id="shim-claim-run",
-            source_uri="file:///shim.pdf",
+    ) as runner:
+        result = module._run_independent_claim_extraction_stage(
+            request_context,
+            "scoped-claim-run",
+            resources,
+            options,
         )
 
     assert result == {"status": "shim"}
-    impl.assert_called_once_with(
+    runner.assert_called_once()
+    scoped_context = runner.call_args.args[0]
+    assert scoped_context.run_id == "scoped-claim-run"
+    assert scoped_context.source_uri == dataset_root.pdf_path.resolve().as_uri()
+    assert request_context.run_id == "outer-claim-run"
+    assert request_context.source_uri is None
+
+
+def test_run_independent_entity_resolution_stage_scopes_request_context():
+    module = _load_module(RUN_DEMO_PATH, "run_entity_independent_contract_test")
+    config = _make_module_config(
+        module,
+        dry_run=True,
+        output_dir=DEMO_DIR / "artifacts",
+        dataset_name="demo_dataset_v1",
+    )
+    request_context = module._request_context_from_config(
         config,
-        run_id="shim-claim-run",
-        source_uri="file:///shim.pdf",
-        request_context_from_config=module._request_context_from_config,
-        run_claim_extraction_request_context=module._run_claim_extraction_request_context,
+        command="resolve-entities",
+        run_id="outer-entity-run",
+        source_uri=None,
+    )
+    dataset_root = module.resolve_dataset_root(config.dataset_name)
+    resources = module._IndependentStageResources(
+        dataset_id=dataset_root.dataset_id,
+        fixture_dir=dataset_root.root,
+        pdf_filename=dataset_root.pdf_filename,
+        pdf_source_uri=dataset_root.pdf_path.resolve().as_uri(),
+    )
+    options = module._IndependentStageOptions(
+        ask_all_runs=False,
+        cluster_aware=False,
+        expand_graph=False,
     )
 
-
-def test_run_entity_resolution_remains_request_context_shim():
-    module = _load_module(RUN_DEMO_PATH, "run_entity_shim_contract_test")
-    config = _make_module_config(module, dry_run=True, output_dir=DEMO_DIR / "artifacts")
-
-    with mock.patch.object(module, "_run_entity_resolution_impl", return_value={"status": "shim"}) as impl:
-        result = module._run_entity_resolution(
-            config,
-            run_id="shim-entity-run",
-            source_uri="file:///shim.pdf",
-            resolution_mode="hybrid",
-            artifact_subdir="entity_resolution",
-            dataset_id="demo_dataset_v1",
+    with mock.patch.object(
+        module,
+        "_run_entity_resolution_request_context",
+        return_value={"status": "shim"},
+    ) as runner:
+        result = module._run_independent_entity_resolution_stage(
+            request_context,
+            "scoped-entity-run",
+            resources,
+            options,
         )
 
     assert result == {"status": "shim"}
-    impl.assert_called_once_with(
-        config,
-        run_id="shim-entity-run",
-        source_uri="file:///shim.pdf",
-        resolution_mode="hybrid",
-        artifact_subdir="entity_resolution",
-        dataset_id="demo_dataset_v1",
-        request_context_from_config=module._request_context_from_config,
-        run_entity_resolution_request_context=module._run_entity_resolution_request_context,
-    )
+    runner.assert_called_once()
+    scoped_context = runner.call_args.args[0]
+    assert scoped_context.run_id == "scoped-entity-run"
+    assert scoped_context.source_uri == dataset_root.pdf_path.resolve().as_uri()
+    assert request_context.run_id == "outer-entity-run"
+    assert request_context.source_uri is None
+    assert runner.call_args.kwargs["dataset_id"] == dataset_root.dataset_id
 
 
 def _set_run_demo_pipeline_private(module, public_name: str, value):
