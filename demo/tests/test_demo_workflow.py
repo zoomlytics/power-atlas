@@ -120,6 +120,32 @@ def _run_demo_pipeline_snapshot(module):
     return module.pipeline_contracts.get_pipeline_contract_snapshot()
 
 
+def _run_pdf_ingest_via_independent_stage(module, config, *, run_id: str):
+    request_context = module._request_context_from_config(
+        config,
+        command="ingest-pdf",
+        run_id=run_id,
+    )
+    dataset_root = module.resolve_dataset_root(config.dataset_name)
+    resources = module._IndependentStageResources(
+        dataset_id=dataset_root.dataset_id,
+        fixture_dir=dataset_root.root,
+        pdf_filename=dataset_root.pdf_filename,
+        pdf_source_uri=(dataset_root.pdf_path.resolve().as_uri()),
+    )
+    options = module._IndependentStageOptions(
+        ask_all_runs=False,
+        cluster_aware=False,
+        expand_graph=False,
+    )
+    return module._run_independent_pdf_ingest_stage(
+        request_context,
+        run_id,
+        resources,
+        options,
+    )
+
+
 def test_run_pdf_ingest_remains_request_context_shim():
     module = _load_module(RUN_DEMO_PATH, "run_pdf_shim_contract_test")
     config = _make_module_config(module, dry_run=True, output_dir=DEMO_DIR / "artifacts")
@@ -911,7 +937,11 @@ class WorkflowTests(unittest.TestCase):
             )
         }
         with self._with_injected_pdf_ingest_modules(injected_modules):
-            result = module._run_pdf_ingest(config, run_id="unstructured_ingest-test")
+            result = _run_pdf_ingest_via_independent_stage(
+                module,
+                config,
+                run_id="unstructured_ingest-test",
+            )
 
         self.assertEqual(result["status"], "live")
         summary_path = Path(result["ingest_summary_path"])
@@ -1028,7 +1058,11 @@ class WorkflowTests(unittest.TestCase):
             },
         )
         with self._with_injected_pdf_ingest_modules(injected_modules):
-            module._run_pdf_ingest(config, run_id="unstructured_ingest-test")
+            _run_pdf_ingest_via_independent_stage(
+                module,
+                config,
+                run_id="unstructured_ingest-test",
+            )
 
         self.assertIn("matched_markers", calls)
         # The missing_page_count marker should match the query containing it, not page_count.
@@ -1043,7 +1077,11 @@ class WorkflowTests(unittest.TestCase):
                 dry_run=True,
                 output_dir=Path(tmpdir),
             )
-            result = module._run_pdf_ingest(config, run_id="unstructured_ingest-test")
+            result = _run_pdf_ingest_via_independent_stage(
+                module,
+                config,
+                run_id="unstructured_ingest-test",
+            )
             expected_fingerprint = module.sha256_file(
                 DEMO_DIR / "fixtures" / "unstructured" / "chain_of_custody.pdf"
             )
@@ -1089,7 +1127,11 @@ class WorkflowTests(unittest.TestCase):
             pipeline_result=lambda _params: object(),
         )
         with self._with_injected_pdf_ingest_modules(injected_modules):
-            result = module._run_pdf_ingest(config, run_id="unstructured_ingest-test")
+            result = _run_pdf_ingest_via_independent_stage(
+                module,
+                config,
+                run_id="unstructured_ingest-test",
+            )
 
         self.assertEqual(result["pipeline_result"]["type"], "object")
         self.assertIn("object object", result["pipeline_result"]["summary"])
@@ -1114,7 +1156,11 @@ class WorkflowTests(unittest.TestCase):
             },
         )
         with self._with_injected_pdf_ingest_modules(injected_modules):
-            result = module._run_pdf_ingest(config, run_id="unstructured_ingest-test")
+            result = _run_pdf_ingest_via_independent_stage(
+                module,
+                config,
+                run_id="unstructured_ingest-test",
+            )
 
         self.assertEqual(result["vector_index"]["creation_strategy"], "cypher")
         self.assertNotIn("vector_index_fallback_reason", result)
@@ -1149,7 +1195,11 @@ class WorkflowTests(unittest.TestCase):
                         output_dir=DEMO_DIR / "artifacts",
                     )
                     with self.assertRaisesRegex(ValueError, expected):
-                        module._run_pdf_ingest(config, run_id="unstructured_ingest-test")
+                        _run_pdf_ingest_via_independent_stage(
+                            module,
+                            config,
+                            run_id="unstructured_ingest-test",
+                        )
                 self.assertFalse(calls.get("queries"))
         finally:
             for attr_name, original_value in original_identifiers.items():
@@ -1177,7 +1227,11 @@ class WorkflowTests(unittest.TestCase):
                 ValueError,
                 "Vector index contract violation",
             ):
-                module._run_pdf_ingest(config, run_id="unstructured_ingest-test")
+                _run_pdf_ingest_via_independent_stage(
+                    module,
+                    config,
+                    run_id="unstructured_ingest-test",
+                )
 
     def test_run_pdf_ingest_non_dry_run_raises_when_no_run_scoped_documents_or_chunks(self):
         module = _load_module(RUN_DEMO_PATH, "run_non_dry_missing_nodes_test")
@@ -1200,7 +1254,11 @@ class WorkflowTests(unittest.TestCase):
                 ValueError,
                 "expected at least one Document and Chunk for this run",
             ):
-                module._run_pdf_ingest(config, run_id="unstructured_ingest-test")
+                _run_pdf_ingest_via_independent_stage(
+                    module,
+                    config,
+                    run_id="unstructured_ingest-test",
+                )
 
     def test_run_pdf_ingest_non_dry_run_requires_openai_api_key(self):
         module = _load_module(RUN_DEMO_PATH, "run_non_dry_requires_openai_key_test")
@@ -1214,7 +1272,11 @@ class WorkflowTests(unittest.TestCase):
         try:
             os.environ.pop("OPENAI_API_KEY", None)
             with self.assertRaises(ValueError) as raised:
-                module._run_pdf_ingest(config, run_id="unstructured_ingest-test")
+                _run_pdf_ingest_via_independent_stage(
+                    module,
+                    config,
+                    run_id="unstructured_ingest-test",
+                )
             self.assertEqual(str(raised.exception), "Set OPENAI_API_KEY when using --live ingest-pdf")
         finally:
             if had_openai_api_key:
@@ -1336,7 +1398,11 @@ class WorkflowTests(unittest.TestCase):
                 "dynamic_contract_index",
             )
 
-            summary = module._run_pdf_ingest(config, run_id="dynamic-contract-run")
+            summary = _run_pdf_ingest_via_independent_stage(
+                module,
+                config,
+                run_id="dynamic-contract-run",
+            )
 
             self.assertEqual(summary["vector_index"]["index_name"], "dynamic_contract_index")
         finally:
