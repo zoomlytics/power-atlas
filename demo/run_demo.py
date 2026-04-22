@@ -757,6 +757,12 @@ def _run_structured_ingest(config: Config, run_id: str) -> dict[str, Any]:
 
 
 def _run_pdf_ingest(config: Config, run_id: str | None = None) -> dict[str, Any]:
+    """Transitional orchestrator shim for PDF ingest.
+
+    Keep this wrapper private and route through the RequestContext-based stage
+    boundary. New callers should prefer request-scoped orchestration helpers
+    over invoking this config-first compatibility seam directly.
+    """
     return _run_pdf_ingest_impl(
         config,
         run_id,
@@ -772,6 +778,12 @@ def _run_claim_and_mention_extraction(
     run_id: str,
     source_uri: str | None,
 ) -> dict[str, Any]:
+    """Transitional orchestrator shim for claim extraction.
+
+    This remains only to bridge older orchestrator call sites into the
+    RequestContext execution lane. Prefer request-scoped orchestration and the
+    stage RequestContext entrypoint for any new usage.
+    """
     return _run_claim_and_mention_extraction_impl(
         config,
         run_id=run_id,
@@ -790,6 +802,12 @@ def _run_entity_resolution(
     artifact_subdir: str = "entity_resolution",
     dataset_id: str | None = None,
 ) -> dict[str, Any]:
+    """Transitional orchestrator shim for entity resolution.
+
+    This wrapper exists to preserve the orchestrator-facing API while the demo
+    flow completes its move to RequestContext-first execution. Keep behavioral
+    coverage and new call sites on the RequestContext path.
+    """
     return _run_entity_resolution_impl(
         config,
         run_id=run_id,

@@ -120,6 +120,76 @@ def _run_demo_pipeline_snapshot(module):
     return module.pipeline_contracts.get_pipeline_contract_snapshot()
 
 
+def test_run_pdf_ingest_remains_request_context_shim():
+    module = _load_module(RUN_DEMO_PATH, "run_pdf_shim_contract_test")
+    config = _make_module_config(module, dry_run=True, output_dir=DEMO_DIR / "artifacts")
+
+    with mock.patch.object(module, "_run_pdf_ingest_impl", return_value={"status": "shim"}) as impl:
+        result = module._run_pdf_ingest(config, run_id="shim-run")
+
+    assert result == {"status": "shim"}
+    impl.assert_called_once()
+    assert impl.call_args.args == (config, "shim-run")
+    assert impl.call_args.kwargs["resolve_dataset_root"] is module.resolve_dataset_root
+    assert impl.call_args.kwargs["request_context_from_config"] is module._request_context_from_config
+    assert (
+        impl.call_args.kwargs["run_pdf_ingest_request_context"]
+        is module._run_pdf_ingest_request_context
+    )
+
+
+def test_run_claim_extraction_remains_request_context_shim():
+    module = _load_module(RUN_DEMO_PATH, "run_claim_shim_contract_test")
+    config = _make_module_config(module, dry_run=True, output_dir=DEMO_DIR / "artifacts")
+
+    with mock.patch.object(
+        module,
+        "_run_claim_and_mention_extraction_impl",
+        return_value={"status": "shim"},
+    ) as impl:
+        result = module._run_claim_and_mention_extraction(
+            config,
+            run_id="shim-claim-run",
+            source_uri="file:///shim.pdf",
+        )
+
+    assert result == {"status": "shim"}
+    impl.assert_called_once_with(
+        config,
+        run_id="shim-claim-run",
+        source_uri="file:///shim.pdf",
+        request_context_from_config=module._request_context_from_config,
+        run_claim_extraction_request_context=module._run_claim_extraction_request_context,
+    )
+
+
+def test_run_entity_resolution_remains_request_context_shim():
+    module = _load_module(RUN_DEMO_PATH, "run_entity_shim_contract_test")
+    config = _make_module_config(module, dry_run=True, output_dir=DEMO_DIR / "artifacts")
+
+    with mock.patch.object(module, "_run_entity_resolution_impl", return_value={"status": "shim"}) as impl:
+        result = module._run_entity_resolution(
+            config,
+            run_id="shim-entity-run",
+            source_uri="file:///shim.pdf",
+            resolution_mode="hybrid",
+            artifact_subdir="entity_resolution",
+            dataset_id="demo_dataset_v1",
+        )
+
+    assert result == {"status": "shim"}
+    impl.assert_called_once_with(
+        config,
+        run_id="shim-entity-run",
+        source_uri="file:///shim.pdf",
+        resolution_mode="hybrid",
+        artifact_subdir="entity_resolution",
+        dataset_id="demo_dataset_v1",
+        request_context_from_config=module._request_context_from_config,
+        run_entity_resolution_request_context=module._run_entity_resolution_request_context,
+    )
+
+
 def _set_run_demo_pipeline_private(module, public_name: str, value):
     module.pipeline_contracts._set_pipeline_contract_state_for_test(
         **{_RUN_DEMO_PIPELINE_PRIVATE_FIELDS[public_name]: value}
