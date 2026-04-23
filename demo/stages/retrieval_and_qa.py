@@ -25,7 +25,6 @@ from power_atlas.contracts import (
 )
 from power_atlas.contracts.pipeline import (
     PipelineContractSnapshot,
-    get_pipeline_contract_snapshot,
     is_pipeline_contract_snapshot,
 )
 from power_atlas.retrieval_postprocessing import (
@@ -85,12 +84,10 @@ def _resolve_pipeline_contract(
     config_pipeline_contract = getattr(config, "pipeline_contract", None)
     if is_pipeline_contract_snapshot(config_pipeline_contract):
         return config_pipeline_contract
-    if getattr(config, "settings", None) is not None:
-        raise ValueError(
-            "Retrieval stage requires an explicit pipeline contract or "
-            "config.pipeline_contract for settings-backed runtime config"
-        )
-    return get_pipeline_contract_snapshot()
+    raise ValueError(
+        "Retrieval stage requires an explicit pipeline contract or "
+        "config.pipeline_contract from RequestContext/AppContext-derived config"
+    )
 
 
 def _neo4j_settings_from_config(

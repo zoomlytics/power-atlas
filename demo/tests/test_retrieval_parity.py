@@ -119,6 +119,13 @@ def test_resolve_pipeline_contract_rejects_settings_backed_config_without_contra
         _resolve_pipeline_contract(config, None)
 
 
+def test_resolve_pipeline_contract_rejects_legacy_config_without_contract() -> None:
+    config = SimpleNamespace()
+
+    with pytest.raises(ValueError, match="explicit pipeline contract"):
+        _resolve_pipeline_contract(config, None)
+
+
 def test_neo4j_settings_from_config_rejects_settings_backed_config_without_neo4j() -> None:
     config = SimpleNamespace(settings=SimpleNamespace(neo4j=None))
 
