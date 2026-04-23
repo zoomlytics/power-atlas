@@ -523,14 +523,13 @@ _run_independent_ask_stage = _make_independent_stage_runner(
 )
 
 
-def _independent_stage_specs() -> dict[str, _IndependentStageSpec]:
-    return _build_independent_stage_specs_impl(
-        run_independent_structured_ingest_stage=_run_independent_structured_ingest_stage,
-        run_independent_pdf_ingest_stage=_run_independent_pdf_ingest_stage,
-        run_independent_claim_extraction_stage=_run_independent_claim_extraction_stage,
-        run_independent_entity_resolution_stage=_run_independent_entity_resolution_stage,
-        run_independent_ask_stage=_run_independent_ask_stage,
-    )
+_INDEPENDENT_STAGE_SPECS: dict[str, _IndependentStageSpec] = _build_independent_stage_specs_impl(
+    run_independent_structured_ingest_stage=_run_independent_structured_ingest_stage,
+    run_independent_pdf_ingest_stage=_run_independent_pdf_ingest_stage,
+    run_independent_claim_extraction_stage=_run_independent_claim_extraction_stage,
+    run_independent_entity_resolution_stage=_run_independent_entity_resolution_stage,
+    run_independent_ask_stage=_run_independent_ask_stage,
+)
 
 
 def _run_orchestrated_request_context(request_context: RequestContext) -> Path:
@@ -587,7 +586,7 @@ def _run_independent_stage(
         cluster_aware=cluster_aware,
         expand_graph=expand_graph,
         dataset_root=dataset_root,
-        stage_specs=_independent_stage_specs(),
+        stage_specs=_INDEPENDENT_STAGE_SPECS,
         resolve_stage_run_id=_resolve_independent_stage_run_id,
     )
     started_at = _now_iso()
