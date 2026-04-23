@@ -690,6 +690,37 @@ def test_claim_extraction_request_context_uses_request_scope(tmp_path: Path):
     assert summary["status"] == "dry_run"
 
 
+def test_claim_extraction_rejects_settings_backed_config_without_neo4j() -> None:
+    from demo.stages.claim_extraction import _neo4j_settings_from_config
+
+    config = type(
+        "ConfigWithoutNeo4jSettings",
+        (),
+        {"settings": type("Settings", (), {"neo4j": None})()},
+    )()
+
+    with pytest.raises(ValueError, match="config.settings.neo4j"):
+        _neo4j_settings_from_config(config)
+
+
+def test_claim_extraction_rejects_legacy_raw_neo4j_attributes() -> None:
+    from demo.stages.claim_extraction import _neo4j_settings_from_config
+
+    config = type(
+        "LegacyClaimExtractionConfig",
+        (),
+        {
+            "neo4j_uri": "bolt://legacy.test:7687",
+            "neo4j_username": "legacy-user",
+            "neo4j_password": "legacy-secret",
+            "neo4j_database": "legacy-db",
+        },
+    )()
+
+    with pytest.raises(ValueError, match="config.settings.neo4j"):
+        _neo4j_settings_from_config(config)
+
+
 def test_entity_resolution_request_context_uses_request_scope(tmp_path: Path):
     """The RequestContext entity-resolution helper must forward run and source scope directly."""
     from demo.run_demo import _request_context_from_config
