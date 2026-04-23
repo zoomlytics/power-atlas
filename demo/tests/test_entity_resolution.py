@@ -19,6 +19,9 @@ from power_atlas.contracts.pipeline import (
 from power_atlas.settings import AppSettings, Neo4jSettings
 
 
+_DEFAULT_DATASET_NAME = "demo_dataset_v1"
+
+
 def Config(*args, **kwargs):
     kwargs.setdefault("pipeline_contract", get_pipeline_contract_snapshot())
     kwargs.setdefault("pipeline_contract_config_data", get_pipeline_contract_config_data())
@@ -33,7 +36,7 @@ def _make_settings(
     password: str = "not-used",
     database: str = "neo4j",
     openai_model: str = "test-model",
-    dataset_name: str | None = None,
+    dataset_name: str | None = _DEFAULT_DATASET_NAME,
 ) -> AppSettings:
     return AppSettings(
         neo4j=Neo4jSettings(
@@ -57,7 +60,7 @@ def _make_config(
     password: str = "not-used",
     database: str = "neo4j",
     openai_model: str = "test-model",
-    dataset_name: str | None = None,
+    dataset_name: str | None = _DEFAULT_DATASET_NAME,
     **kwargs,
 ) -> Config:
     return Config(
@@ -729,6 +732,21 @@ class TestEntityResolutionSettingsOwnership(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "config.settings.neo4j"):
             _neo4j_settings_from_config(config)
+
+    def test_rejects_missing_dataset_scope(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = _make_config(
+                dry_run=True,
+                output_dir=Path(tmpdir),
+                dataset_name=None,
+            )
+
+            with self.assertRaisesRegex(ValueError, "dataset_id or config.dataset_name"):
+                _run_entity_resolution_via_request_context(
+                    config,
+                    run_id="missing-dataset-scope",
+                    source_uri=None,
+                )
 
 class TestRunEntityResolutionLive(unittest.TestCase):
     """Tests for the live path using a mock Neo4j driver."""

@@ -95,7 +95,7 @@ def _make_config(
 
 
 def _dry_run_config(tmp_path: Path) -> Config:
-    return _make_config(dry_run=True, output_dir=tmp_path)
+    return _make_config(dry_run=True, output_dir=tmp_path, dataset_name="demo_dataset_v1")
 
 
 def test_make_run_id_uses_scope_prefix():

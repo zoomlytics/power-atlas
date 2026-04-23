@@ -281,7 +281,6 @@ _VALID_RESOLUTION_MODES = frozenset({
     _RESOLUTION_MODE_UNSTRUCTURED_ONLY,
     _RESOLUTION_MODE_HYBRID,
 })
-_DEFAULT_ENTITY_RESOLUTION_DATASET = "demo_dataset_v1"
 
 # Mapping of synonymous/variant entity-type labels to their canonical forms.
 # This table is the single authoritative source of truth for entity-type
@@ -368,11 +367,10 @@ def _resolve_effective_dataset_id(
     configured_dataset_name = dataset_name or getattr(config, "dataset_name", None)
     if isinstance(configured_dataset_name, str) and configured_dataset_name:
         return resolve_dataset_root(configured_dataset_name).dataset_id
-
-    # Compatibility fallback for direct unit-test and standalone callers that do not
-    # yet thread dataset_name through Config. This keeps the stage off mutable
-    # pipeline module state while preserving the historical demo default.
-    return resolve_dataset_root(_DEFAULT_ENTITY_RESOLUTION_DATASET).dataset_id
+    raise ValueError(
+        "Entity resolution requires an explicit dataset_id or config.dataset_name from "
+        "RequestContext/AppContext-derived config"
+    )
 
 
 def _normalize_entity_type(entity_type: str | None) -> str | None:
