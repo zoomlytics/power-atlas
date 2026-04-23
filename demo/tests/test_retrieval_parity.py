@@ -133,7 +133,7 @@ def test_neo4j_settings_from_config_rejects_settings_backed_config_without_neo4j
         _neo4j_settings_from_config(config)
 
 
-def test_neo4j_settings_from_config_keeps_legacy_raw_attribute_fallback() -> None:
+def test_neo4j_settings_from_config_rejects_legacy_raw_attribute_fallback() -> None:
     config = SimpleNamespace(
         neo4j_uri="bolt://legacy.test:7687",
         neo4j_username="legacy-user",
@@ -141,12 +141,8 @@ def test_neo4j_settings_from_config_keeps_legacy_raw_attribute_fallback() -> Non
         neo4j_database="legacy-db",
     )
 
-    resolved = _neo4j_settings_from_config(config)
-
-    assert resolved.uri == "bolt://legacy.test:7687"
-    assert resolved.username == "legacy-user"
-    assert resolved.password == "legacy-secret"
-    assert resolved.database == "legacy-db"
+    with pytest.raises(ValueError, match="config.settings.neo4j"):
+        _neo4j_settings_from_config(config)
 
 
 # ---------------------------------------------------------------------------

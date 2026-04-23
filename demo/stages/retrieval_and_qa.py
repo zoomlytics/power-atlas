@@ -100,33 +100,9 @@ def _neo4j_settings_from_config(
     settings_neo4j = getattr(config_settings, "neo4j", None)
     if isinstance(settings_neo4j, Neo4jSettings):
         return settings_neo4j
-    if config_settings is not None:
-        raise ValueError(
-            "Live retrieval requires config.settings.neo4j for settings-backed runtime config"
-        )
-
-    neo4j_uri = getattr(config, "neo4j_uri", None)
-    neo4j_username = getattr(config, "neo4j_username", None)
-    neo4j_password = getattr(config, "neo4j_password", None)
-    neo4j_database = getattr(config, "neo4j_database", None)
-
-    missing_cfg = [
-        key
-        for key, value in (
-            ("neo4j_uri", neo4j_uri),
-            ("neo4j_username", neo4j_username),
-            ("neo4j_password", neo4j_password),
-        )
-        if not value
-    ]
-    if missing_cfg:
-        raise ValueError(f"Live retrieval requires config attributes: {', '.join(missing_cfg)}")
-
-    return Neo4jSettings(
-        uri=cast(str, neo4j_uri),
-        username=cast(str, neo4j_username),
-        password=cast(str, neo4j_password),
-        database=cast(str, neo4j_database) if neo4j_database else Neo4jSettings.database,
+    raise ValueError(
+        "Live retrieval requires config.settings.neo4j or an explicit neo4j_settings "
+        "argument from RequestContext/AppContext-derived config"
     )
 
 
