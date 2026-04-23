@@ -747,6 +747,123 @@ def test_claim_extraction_rejects_legacy_raw_openai_model_attribute() -> None:
         _openai_model_from_config(config)
 
 
+def test_structured_ingest_rejects_settings_backed_config_without_neo4j() -> None:
+    from demo.stages.structured_ingest import _neo4j_settings_from_config
+
+    config = type(
+        "ConfigWithoutNeo4jSettings",
+        (),
+        {"settings": type("Settings", (), {"neo4j": None})()},
+    )()
+
+    with pytest.raises(ValueError, match="config.settings.neo4j"):
+        _neo4j_settings_from_config(config)
+
+
+def test_structured_ingest_rejects_legacy_raw_neo4j_attributes() -> None:
+    from demo.stages.structured_ingest import _neo4j_settings_from_config
+
+    config = type(
+        "LegacyStructuredIngestConfig",
+        (),
+        {
+            "neo4j_uri": "bolt://legacy.test:7687",
+            "neo4j_username": "legacy-user",
+            "neo4j_password": "legacy-secret",
+            "neo4j_database": "legacy-db",
+        },
+    )()
+
+    with pytest.raises(ValueError, match="config.settings.neo4j"):
+        _neo4j_settings_from_config(config)
+
+
+def test_claim_participation_rejects_settings_backed_config_without_neo4j() -> None:
+    from demo.stages.claim_participation import _neo4j_settings_from_config
+
+    config = type(
+        "ConfigWithoutNeo4jSettings",
+        (),
+        {"settings": type("Settings", (), {"neo4j": None})()},
+    )()
+
+    with pytest.raises(ValueError, match="config.settings.neo4j"):
+        _neo4j_settings_from_config(config)
+
+
+def test_claim_participation_rejects_legacy_raw_neo4j_attributes() -> None:
+    from demo.stages.claim_participation import _neo4j_settings_from_config
+
+    config = type(
+        "LegacyClaimParticipationConfig",
+        (),
+        {
+            "neo4j_uri": "bolt://legacy.test:7687",
+            "neo4j_username": "legacy-user",
+            "neo4j_password": "legacy-secret",
+            "neo4j_database": "legacy-db",
+        },
+    )()
+
+    with pytest.raises(ValueError, match="config.settings.neo4j"):
+        _neo4j_settings_from_config(config)
+
+
+def test_run_demo_rejects_settings_backed_config_without_neo4j() -> None:
+    from demo.run_demo import _neo4j_settings_from_config
+
+    config = type(
+        "ConfigWithoutNeo4jSettings",
+        (),
+        {"settings": type("Settings", (), {"neo4j": None})()},
+    )()
+
+    with pytest.raises(ValueError, match="config.settings.neo4j"):
+        _neo4j_settings_from_config(config)
+
+
+def test_run_demo_rejects_legacy_raw_neo4j_attributes() -> None:
+    from demo.run_demo import _neo4j_settings_from_config
+
+    config = type(
+        "LegacyRunDemoConfig",
+        (),
+        {
+            "neo4j_uri": "bolt://legacy.test:7687",
+            "neo4j_username": "legacy-user",
+            "neo4j_password": "legacy-secret",
+            "neo4j_database": "legacy-db",
+        },
+    )()
+
+    with pytest.raises(ValueError, match="config.settings.neo4j"):
+        _neo4j_settings_from_config(config)
+
+
+def test_build_config_from_args_rejects_live_sentinel_password(tmp_path: Path) -> None:
+    from demo.run_demo_support import build_config_from_args
+
+    args = type(
+        "Args",
+        (),
+        {
+            "neo4j_uri": "neo4j://localhost:7687",
+            "neo4j_username": "neo4j",
+            "neo4j_password": "CHANGE_ME_BEFORE_USE",
+            "neo4j_database": "neo4j",
+            "openai_model": "gpt-4o-mini",
+            "output_dir": tmp_path,
+            "dataset": "demo_dataset_v1",
+            "dry_run": False,
+            "question": None,
+            "resolution_mode": None,
+        },
+    )()
+
+    with pytest.raises(SystemExit, match="Set NEO4J_PASSWORD"):
+        build_config_from_args(args)
+
+
 def test_entity_resolution_request_context_uses_request_scope(tmp_path: Path):
     """The RequestContext entity-resolution helper must forward run and source scope directly."""
     from demo.run_demo import _request_context_from_config

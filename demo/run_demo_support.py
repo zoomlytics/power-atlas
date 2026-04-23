@@ -69,7 +69,7 @@ def build_config_from_args(args: argparse.Namespace) -> Config:
         question=getattr(args, "question", None),
         resolution_mode=getattr(args, "resolution_mode", None) or "unstructured_only",
     )
-    if not args.dry_run and config.neo4j_password in ("", "CHANGE_ME_BEFORE_USE"):
+    if not args.dry_run and config.settings.neo4j.password in ("", "CHANGE_ME_BEFORE_USE"):
         raise SystemExit("Set NEO4J_PASSWORD or pass --neo4j-password when using --live")
     return config
 

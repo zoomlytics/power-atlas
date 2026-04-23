@@ -239,12 +239,8 @@ def _neo4j_settings_from_config(config: Config) -> Neo4jSettings:
     settings_neo4j = getattr(config_settings, "neo4j", None)
     if isinstance(settings_neo4j, Neo4jSettings):
         return settings_neo4j
-
-    return Neo4jSettings(
-        uri=config.neo4j_uri,
-        username=config.neo4j_username,
-        password=config.neo4j_password,
-        database=config.neo4j_database,
+    raise ValueError(
+        "run_demo requires config.settings.neo4j to be configured"
     )
 
 

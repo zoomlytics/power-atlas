@@ -123,28 +123,12 @@ _SLOT_ROLE: dict[str, str] = {
 
 
 def _neo4j_settings_from_config(config: object) -> Neo4jSettings:
-    neo4j_uri = getattr(config, "neo4j_uri", None)
-    neo4j_username = getattr(config, "neo4j_username", None)
-    neo4j_password = getattr(config, "neo4j_password", None)
-    neo4j_database = getattr(config, "neo4j_database", None)
-
-    missing_cfg = [
-        key
-        for key, value in (
-            ("neo4j_uri", neo4j_uri),
-            ("neo4j_username", neo4j_username),
-            ("neo4j_password", neo4j_password),
-        )
-        if not value
-    ]
-    if missing_cfg:
-        raise ValueError(f"Live claim participation requires config attributes: {', '.join(missing_cfg)}")
-
-    return Neo4jSettings(
-        uri=cast(str, neo4j_uri),
-        username=cast(str, neo4j_username),
-        password=cast(str, neo4j_password),
-        database=cast(str, neo4j_database) if neo4j_database else Neo4jSettings.database,
+    config_settings = getattr(config, "settings", None)
+    settings_neo4j = getattr(config_settings, "neo4j", None)
+    if isinstance(settings_neo4j, Neo4jSettings):
+        return settings_neo4j
+    raise ValueError(
+        "Live claim participation requires config.settings.neo4j to be configured"
     )
 
 # Matches conjunction/list separators used to split composite slot values.
@@ -890,9 +874,8 @@ def run_claim_participation(
     Parameters
     ----------
     config:
-        :class:`~power_atlas.contracts.runtime.Config` instance with ``neo4j_uri``,
-        ``neo4j_username``, ``neo4j_password``, ``neo4j_database``,
-        ``output_dir``, and ``dry_run`` attributes.
+        :class:`~power_atlas.contracts.runtime.Config` instance with
+        ``config.settings.neo4j``, ``output_dir``, and ``dry_run``.
     run_id:
         The run whose claims and mentions should be linked.  Must match the
         ``run_id`` used during the preceding claim extraction stage.
@@ -946,7 +929,7 @@ def run_claim_participation(
         neo4j_settings,
         run_id=run_id,
         source_uri=source_uri,
-        neo4j_database=config.neo4j_database,
+        neo4j_database=neo4j_settings.database,
         build_edges_with_metrics=build_participation_edges_with_metrics,
         write_edges=write_participation_edges,
     )

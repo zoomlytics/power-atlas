@@ -33,28 +33,12 @@ def _timestamp() -> str:
 
 
 def _neo4j_settings_from_config(config: object) -> Neo4jSettings:
-    neo4j_uri = getattr(config, "neo4j_uri", None)
-    neo4j_username = getattr(config, "neo4j_username", None)
-    neo4j_password = getattr(config, "neo4j_password", None)
-    neo4j_database = getattr(config, "neo4j_database", None)
-
-    missing_cfg = [
-        key
-        for key, value in (
-            ("neo4j_uri", neo4j_uri),
-            ("neo4j_username", neo4j_username),
-            ("neo4j_password", neo4j_password),
-        )
-        if not value
-    ]
-    if missing_cfg:
-        raise ValueError(f"Live structured ingest requires config attributes: {', '.join(missing_cfg)}")
-
-    return Neo4jSettings(
-        uri=cast(str, neo4j_uri),
-        username=cast(str, neo4j_username),
-        password=cast(str, neo4j_password),
-        database=cast(str, neo4j_database) if neo4j_database else Neo4jSettings.database,
+    config_settings = getattr(config, "settings", None)
+    settings_neo4j = getattr(config_settings, "neo4j", None)
+    if isinstance(settings_neo4j, Neo4jSettings):
+        return settings_neo4j
+    raise ValueError(
+        "Live structured ingest requires config.settings.neo4j to be configured"
     )
 
 
@@ -401,7 +385,7 @@ def run_structured_ingest(config: Any, run_id: str, *, fixtures_dir: Path | None
         source_uri=source_uri,
         dataset_id=effective_dataset_id,
         ingested_at=ingested_at,
-        neo4j_database=config.neo4j_database,
+        neo4j_database=neo4j_settings.database,
         entities_rows=entities_rows,
         facts_rows=facts_rows,
         relationship_rows=relationship_rows,
