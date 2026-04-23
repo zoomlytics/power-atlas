@@ -44,6 +44,28 @@ def test_neo4j_settings_from_config_rejects_legacy_raw_attribute_fallback() -> N
         pdf_ingest._neo4j_settings_from_config(config)
 
 
+def test_openai_model_from_config_rejects_settings_backed_config_without_openai_model() -> None:
+    config = type(
+        "ConfigWithoutOpenAIModel",
+        (),
+        {"settings": type("Settings", (), {"openai_model": None})()},
+    )()
+
+    with pytest.raises(ValueError, match="config.settings.openai_model"):
+        pdf_ingest._openai_model_from_config(config)
+
+
+def test_openai_model_from_config_rejects_legacy_raw_attribute_fallback() -> None:
+    config = type(
+        "LegacyPdfIngestModelConfig",
+        (),
+        {"openai_model": "gpt-legacy"},
+    )()
+
+    with pytest.raises(ValueError, match="config.settings.openai_model"):
+        pdf_ingest._openai_model_from_config(config)
+
+
 def test_require_positive_int_accepts_positive_int():
     assert pdf_ingest._require_positive_int(5, "param") == 5
 

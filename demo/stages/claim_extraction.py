@@ -40,6 +40,22 @@ def _neo4j_settings_from_config(
     )
 
 
+def _openai_model_from_config(
+    config: object,
+    model_name: str | None = None,
+) -> str:
+    if isinstance(model_name, str) and model_name:
+        return model_name
+    config_settings = getattr(config, "settings", None)
+    settings_openai_model = getattr(config_settings, "openai_model", None)
+    if isinstance(settings_openai_model, str) and settings_openai_model:
+        return settings_openai_model
+    raise ValueError(
+        "Claim extraction requires config.settings.openai_model or an explicit "
+        "model_name argument from RequestContext/AppContext-derived config"
+    )
+
+
 async def _async_read_chunks_and_extract(
     driver: "neo4j.Driver",  # type: ignore[name-defined]  # noqa: F821
     *,
@@ -94,8 +110,10 @@ def _run_claim_and_mention_extraction_impl(
     source_uri: str | None,
     pipeline_contract: PipelineContractSnapshot | None = None,
     neo4j_settings: Neo4jSettings | None = None,
+    model_name: str | None = None,
 ) -> dict[str, Any]:
     resolved_pipeline_contract = _resolve_pipeline_contract(config, pipeline_contract)
+    resolved_model_name = _openai_model_from_config(config, model_name)
     run_root = config.output_dir / "runs" / run_id
     extraction_dir = run_root / "claim_extraction"
     extraction_dir.mkdir(parents=True, exist_ok=True)
@@ -107,7 +125,7 @@ def _run_claim_and_mention_extraction_impl(
             "status": "dry_run",
             "run_id": run_id,
             "source_uri": source_uri,
-            "extractor_model": config.openai_model,
+            "extractor_model": resolved_model_name,
             "prompt_version": prompt_version,
             "chunks_processed": 0,
             "chunks_with_extractions": 0,
@@ -139,7 +157,7 @@ def _run_claim_and_mention_extraction_impl(
         resolved_neo4j_settings,
         run_id=run_id,
         source_uri=source_uri,
-        model_name=config.openai_model,
+        model_name=resolved_model_name,
         neo4j_database=resolved_neo4j_settings.database,
         pipeline_contract=resolved_pipeline_contract,
         read_chunks_and_extract=_async_read_chunks_and_extract,
@@ -161,7 +179,7 @@ def _run_claim_and_mention_extraction_impl(
         "status": "live",
         "run_id": run_id,
         "source_uri": source_uri,
-        "extractor_model": config.openai_model,
+        "extractor_model": resolved_model_name,
         "prompt_version": prompt_version,
         # Total number of chunks read and processed as input
         "chunks_processed": len(text_chunks),
@@ -188,6 +206,7 @@ def run_claim_and_mention_extraction_request_context(request_context: RequestCon
         source_uri=request_context.source_uri,
         pipeline_contract=request_context.pipeline_contract,
         neo4j_settings=request_context.settings.neo4j,
+        model_name=request_context.settings.openai_model,
     )
 
 

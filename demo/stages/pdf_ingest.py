@@ -112,6 +112,22 @@ def _neo4j_settings_from_config(
     )
 
 
+def _openai_model_from_config(
+    config: object,
+    openai_model: str | None = None,
+) -> str:
+    if isinstance(openai_model, str) and openai_model:
+        return openai_model
+    config_settings = getattr(config, "settings", None)
+    settings_openai_model = getattr(config_settings, "openai_model", None)
+    if isinstance(settings_openai_model, str) and settings_openai_model:
+        return settings_openai_model
+    raise ValueError(
+        "PDF ingest requires config.settings.openai_model or an explicit "
+        "openai_model argument from RequestContext/AppContext-derived config"
+    )
+
+
 def sha256_file(path: Path, *, chunk_size: int = 1024 * 1024) -> str:
     hasher = hashlib.sha256()
     try:
@@ -203,9 +219,11 @@ def _run_pdf_ingest_impl(
     chunk_stride: int | None = None,
     pipeline_contract: PipelineContractSnapshot | None = None,
     neo4j_settings: Neo4jSettings | None = None,
+    openai_model: str | None = None,
     dataset_name: str | None = None,
 ) -> dict[str, Any]:
     resolved_pipeline_contract = _resolve_pipeline_contract(config, pipeline_contract)
+    resolved_openai_model = _openai_model_from_config(config, openai_model)
     if dataset_name is None:
         config_settings = getattr(config, "settings", None)
         settings_dataset_name = getattr(config_settings, "dataset_name", None)
@@ -328,7 +346,7 @@ def _run_pdf_ingest_impl(
         stage_run_id=stage_run_id,
         pdf_file_path=pdf_file_path,
         pdf_source_uri=pdf_source_uri,
-        openai_model=config.openai_model,
+        openai_model=resolved_openai_model,
         effective_dataset_id=effective_dataset_id,
         effective_index_name=effective_index_name,
         effective_chunk_label=effective_chunk_label,
@@ -434,6 +452,7 @@ def run_pdf_ingest_request_context(
         ),
         pipeline_contract=pipeline_contract,
         neo4j_settings=request_context.settings.neo4j,
+        openai_model=request_context.settings.openai_model,
         dataset_name=request_context.settings.dataset_name,
     )
 

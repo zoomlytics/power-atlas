@@ -721,6 +721,32 @@ def test_claim_extraction_rejects_legacy_raw_neo4j_attributes() -> None:
         _neo4j_settings_from_config(config)
 
 
+def test_claim_extraction_rejects_settings_backed_config_without_openai_model() -> None:
+    from demo.stages.claim_extraction import _openai_model_from_config
+
+    config = type(
+        "ConfigWithoutOpenAIModel",
+        (),
+        {"settings": type("Settings", (), {"openai_model": None})()},
+    )()
+
+    with pytest.raises(ValueError, match="config.settings.openai_model"):
+        _openai_model_from_config(config)
+
+
+def test_claim_extraction_rejects_legacy_raw_openai_model_attribute() -> None:
+    from demo.stages.claim_extraction import _openai_model_from_config
+
+    config = type(
+        "LegacyClaimExtractionModelConfig",
+        (),
+        {"openai_model": "gpt-legacy"},
+    )()
+
+    with pytest.raises(ValueError, match="config.settings.openai_model"):
+        _openai_model_from_config(config)
+
+
 def test_entity_resolution_request_context_uses_request_scope(tmp_path: Path):
     """The RequestContext entity-resolution helper must forward run and source scope directly."""
     from demo.run_demo import _request_context_from_config
