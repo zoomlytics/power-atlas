@@ -2,9 +2,10 @@
 
 This suite is the single explicit parity layer whose purpose is:
 
-    Verify that the runtime result shape produced by ``run_retrieval_and_qa()``
-    correctly projects every policy-covered field onto the canonical, mirrored,
-    and forbidden surfaces declared by
+    Verify that the runtime result shape produced by
+    ``run_retrieval_and_qa_request_context()`` correctly projects every
+    policy-covered field onto the canonical, mirrored, and forbidden surfaces
+    declared by
     :data:`~demo.contracts.RETRIEVAL_METADATA_SURFACE_POLICY`.
 
 It closes the remaining drift gap left after the field-level contract tests and
@@ -179,7 +180,7 @@ def _build_request_context(
 
 @functools.cache
 def _make_live_result() -> dict[str, object]:
-    """Return a live, fully-cited result from ``run_retrieval_and_qa()``.
+    """Return a live, fully-cited result from ``run_retrieval_and_qa_request_context()``.
 
     Uses a mocked Neo4j driver and RAG component so no real network connections
     are made.  The answer is fully cited so no warnings are emitted, keeping the
@@ -209,7 +210,7 @@ def _make_live_result() -> dict[str, object]:
 
 @functools.cache
 def _make_dry_run_result() -> dict[str, object]:
-    """Return a dry-run early-return result from ``run_retrieval_and_qa()``."""
+    """Return a dry-run early-return result from ``run_retrieval_and_qa_request_context()``."""
     request_context = _build_request_context(
         _DRY_RUN_CONFIG,
         run_id="dr-parity-1",
@@ -220,7 +221,8 @@ def _make_dry_run_result() -> dict[str, object]:
 
 @functools.cache
 def _make_retrieval_skipped_result() -> dict[str, object]:
-    """Return a retrieval-skipped early-return result from ``run_retrieval_and_qa()``.
+    """Return a retrieval-skipped early-return result from
+    ``run_retrieval_and_qa_request_context()``.
 
     Uses an invalid (empty-string) Neo4j URI to prove the retrieval-skipped path
     never opens a database connection.

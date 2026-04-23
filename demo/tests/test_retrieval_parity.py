@@ -1,9 +1,10 @@
 """Parity tests: single-shot vs interactive retrieval postprocessing behavior.
 
-These tests explicitly verify that :func:`run_retrieval_and_qa` and
-:func:`run_interactive_qa` invoke the shared helper functions with identical
-arguments for the same user-facing inputs, so future silent drift between the
-two entry points is caught at test time rather than in production.
+These tests explicitly verify that :func:`run_retrieval_and_qa_request_context`
+and :func:`run_interactive_qa_request_context` invoke the shared helper
+functions with identical arguments for the same user-facing inputs, so future
+silent drift between the two entry points is caught at test time rather than in
+production.
 
 Structure
 ---------

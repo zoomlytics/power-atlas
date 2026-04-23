@@ -2,8 +2,8 @@
 
 Reads the §4 scenario JSON examples directly from
 ``docs/architecture/retrieval-citation-result-contract-v0.1.md`` and runs the
-corresponding scenarios through ``run_retrieval_and_qa()`` to detect drift between
-the documented contract and the live implementation.
+corresponding scenarios through ``run_retrieval_and_qa_request_context()`` to
+detect drift between the documented contract and the live implementation.
 
 Each documented scenario is driven using fixture values that mirror those in
 ``test_retrieval_result_contract.py``.
@@ -428,7 +428,7 @@ def _collect_drifts(
     doc:
         The dict parsed from the doc's JSON block.
     runtime:
-        The live result dict from ``run_retrieval_and_qa()``.
+        The live result dict from ``run_retrieval_and_qa_request_context()``.
     path:
         Dot-joined path prefix for nested field names (used in messages).
     """
@@ -639,7 +639,8 @@ class TestDocContractDrift:
     For each §4.x section mapped in ``_SECTION_FIXTURES`` this class:
 
     1. Reads the JSON example directly from the contract markdown document.
-    2. Runs ``run_retrieval_and_qa()`` with the corresponding fixture inputs.
+     2. Runs ``run_retrieval_and_qa_request_context()`` with the corresponding
+         fixture inputs.
     3. Compares concrete (non-placeholder) field values between the doc example
        and the runtime result using ``_collect_drifts``.
 
@@ -717,7 +718,7 @@ class TestDocContractDrift:
         doc_scenarios: dict[str, dict[str, Any]],
     ) -> None:
         """Concrete field values in the doc example for this section must match
-        the live ``run_retrieval_and_qa()`` output.
+        the live ``run_retrieval_and_qa_request_context()`` output.
 
         A failure means the documented scenario and the runtime behaviour have
         diverged.  Inspect the drift messages to determine whether the doc or

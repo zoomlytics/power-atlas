@@ -473,7 +473,7 @@ All-runs mode (`all_runs=True`): repair preconditions were met (uncited answer, 
 
 ## 5) Early-Return Result Contracts
 
-`run_retrieval_and_qa()` has two short-circuit paths that return before `_postprocess_answer` runs.  These are called **early-return** paths.  Their result shapes differ from the live postprocessed shape documented in §2–§4 in predictable, contractual ways.
+`run_retrieval_and_qa_request_context()` has two short-circuit paths that return before `_postprocess_answer` runs. These are called **early-return** paths. Their result shapes differ from the live postprocessed shape documented in §2–§4 in predictable, contractual ways.
 
 The ordered precedence rules for these paths are captured in the machine-readable policy module `src/power_atlas/contracts/retrieval_early_return_policy.py` as `EARLY_RETURN_PRECEDENCE` — an ordered tuple of `EarlyReturnRule` entries listed from highest to lowest priority.  That module is the single in-code reference for which branch wins when multiple conditions are simultaneously true (e.g. `dry_run=True` and `question=None`).
 

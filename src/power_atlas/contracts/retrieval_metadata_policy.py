@@ -2,7 +2,7 @@
 
 This module is the single canonical in-code reference for surface ownership and
 mirroring rules for retrieval/citation metadata fields surfaced by
-``run_retrieval_and_qa()``.
+``run_retrieval_and_qa_request_context()``.
 """
 
 from __future__ import annotations

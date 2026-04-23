@@ -1,11 +1,11 @@
 """Result-level contract tests for retrieval answer postprocessing metadata.
 
 These tests assert the exact postprocessing/result semantics surfaced by
-``_postprocess_answer()`` and ``run_retrieval_and_qa()`` across the core documented
-scenarios.  They are intended to serve as executable contract documentation for those
-scenarios so that future refactors cannot silently change surfaced metadata or the
-relationships between top-level fields and nested ``citation_quality`` data without a
-test failure.
+``_postprocess_answer()`` and ``run_retrieval_and_qa_request_context()`` across
+the core documented scenarios. They are intended to serve as executable
+contract documentation for those scenarios so that future refactors cannot
+silently change surfaced metadata or the relationships between top-level fields
+and nested ``citation_quality`` data without a test failure.
 
 Structure
 ---------
@@ -40,13 +40,15 @@ Structure
     the top-level convenience fields across all scenarios.
 
 ``TestRunRetrievalAndQaResultContract``
-    Tests that call ``run_retrieval_and_qa()`` through the full live code path (with
-    Neo4j driver and RAG mocked) and assert that postprocessing metadata is correctly
-    surfaced in the returned result dict — including coherence between top-level keys
-    and the ``citation_quality`` bundle.
+    Tests that call ``run_retrieval_and_qa_request_context()`` through the full
+    live code path (with Neo4j driver and RAG mocked) and assert that
+    postprocessing metadata is correctly surfaced in the returned result dict,
+    including coherence between top-level keys and the ``citation_quality``
+    bundle.
 
 ``TestRunRetrievalAndQaPublicKeyContract``
-    Asserts the complete public output contract for ``run_retrieval_and_qa()``:
+    Asserts the complete public output contract for
+    ``run_retrieval_and_qa_request_context()``:
 
     - The live postprocessed result contains **exactly** the documented required key set
       (no extra, no missing keys), verified across multiple scenarios.
@@ -55,13 +57,15 @@ Structure
       their documented key sets.
 
 ``TestRunRetrievalAndQaPostprocessMapping``
-    Spy-based tests that verify every entry in :data:`_POSTPROCESS_FIELD_MAP` is mapped
-    to the correct public key in the ``run_retrieval_and_qa()`` result dict.  Uses
+    Spy-based tests that verify every entry in :data:`_POSTPROCESS_FIELD_MAP` is
+    mapped to the correct public key in the
+    ``run_retrieval_and_qa_request_context()`` result dict. Uses
     :data:`_POSTPROCESS_FIELD_MAP` as the authoritative mapping registry.
 
 ``TestRunRetrievalAndQaDocumentedScenarios``
-    Table-driven end-to-end tests that drive ``run_retrieval_and_qa()`` through each
-    scenario described in §4 of the canonical contract document
+    Table-driven end-to-end tests that drive
+    ``run_retrieval_and_qa_request_context()`` through each scenario described
+    in §4 of the canonical contract document
     (``docs/architecture/retrieval-citation-result-contract-v0.1.md``) and assert the
     complete set of postprocessing-related public fields, verifying that the runtime
     interface matches the documented contract:
@@ -121,7 +125,8 @@ Structure
 
 ``TestEarlyReturnRulePayloadCorrespondence``
     Policy-backed correspondence tests that verify the runtime payload returned by
-    ``run_retrieval_and_qa()`` matches the structured metadata declared in each
+        ``run_retrieval_and_qa_request_context()`` matches the structured metadata declared in each
+        ``run_retrieval_and_qa_request_context()`` matches the structured metadata declared in each
     :class:`~demo.contracts.EarlyReturnRule` entry in
     :data:`~demo.contracts.EARLY_RETURN_PRECEDENCE`.  For each current rule this
     layer checks:
@@ -363,8 +368,9 @@ def _policy_surface_key_set(surface: str) -> frozenset[str]:
 _CITATION_QUALITY_BUNDLE_KEYS: frozenset[str] = _policy_surface_key_set("citation_quality")
 
 #: Exact set of required keys in the ``debug_view`` nested dict returned by
-#: ``run_retrieval_and_qa()``.  Derived from :data:`RETRIEVAL_METADATA_SURFACE_POLICY`
-#: so the constant stays automatically in sync with the shared policy.
+#: ``run_retrieval_and_qa_request_context()``. Derived from
+#: :data:`RETRIEVAL_METADATA_SURFACE_POLICY` so the constant stays
+#: automatically in sync with the shared policy.
 _DEBUG_VIEW_REQUIRED_KEYS: frozenset[str] = _policy_surface_key_set("debug_view")
 
 #: A realistic retrieval-item metadata dict for live-path (``run_retrieval_and_qa``) tests.
@@ -386,8 +392,8 @@ _LIVE_ITEM_METADATA: dict[str, object] = {
 
 
 #: Exact set of required top-level keys in a live postprocessed result from
-#: ``run_retrieval_and_qa()``.  Any field addition, rename, or removal will
-#: cause ``TestRunRetrievalAndQaPublicKeyContract`` tests to fail.
+#: ``run_retrieval_and_qa_request_context()``. Any field addition, rename, or
+#: removal will cause ``TestRunRetrievalAndQaPublicKeyContract`` tests to fail.
 _LIVE_RESULT_REQUIRED_KEYS: frozenset[str] = frozenset({
     # --- identity / config ---
     "run_id",
@@ -1179,7 +1185,7 @@ class TestCitationQualityCoherence:
 
 
 class TestRunRetrievalAndQaResultContract:
-    """Result-dict contract tests for ``run_retrieval_and_qa()``.
+    """Result-dict contract tests for ``run_retrieval_and_qa_request_context()``.
 
     Uses mocked Neo4j driver and RAG infrastructure to drive the full live code
     path, injecting a controlled answer text and retrieval items.  Asserts that
@@ -1364,7 +1370,7 @@ _LIVE_SCENARIO_IDS: list[str] = [row[0] for row in _LIVE_SCENARIOS]
 
 
 class TestRunRetrievalAndQaPublicKeyContract:
-    """Assert the complete public output contract for ``run_retrieval_and_qa()``.
+    """Assert the complete public output contract for ``run_retrieval_and_qa_request_context()``.
 
     These tests verify:
 
@@ -1528,7 +1534,7 @@ class TestRunRetrievalAndQaPublicKeyContract:
 
 class TestRunRetrievalAndQaPostprocessMapping:
     """Verify that every entry in :data:`_POSTPROCESS_FIELD_MAP` is correctly mapped
-    to the public ``run_retrieval_and_qa()`` result dict.
+    to the public ``run_retrieval_and_qa_request_context()`` result dict.
 
     Uses a spy to capture the exact ``_postprocess_answer`` return value used
     internally, then asserts each entry in :data:`_POSTPROCESS_FIELD_MAP`
@@ -1801,9 +1807,9 @@ _DOCUMENTED_SCENARIOS: list[tuple] = [
 
 
 class TestRunRetrievalAndQaDocumentedScenarios:
-    """End-to-end tests that drive ``run_retrieval_and_qa()`` through each scenario
-    described in §4 of the canonical contract document and assert the complete set of
-    postprocessing-related public fields.
+    """End-to-end tests that drive ``run_retrieval_and_qa_request_context()``
+    through each scenario described in §4 of the canonical contract document and
+    assert the complete set of postprocessing-related public fields.
 
     This class serves as an executable copy of the contract document §4 scenario
     table: if a field value diverges from the documented expectation, the test fails
@@ -2075,7 +2081,7 @@ class TestRunRetrievalAndQaEarlyReturnContract:
     """Contract tests for the early-return (non-live) paths documented in §5 of the
     canonical contract document.
 
-    Two early-return paths exist in ``run_retrieval_and_qa()``:
+    Two early-return paths exist in ``run_retrieval_and_qa_request_context()``:
 
     1. **dry_run** (§5.1) — ``config.dry_run=True`` short-circuits before any retrieval
        or LLM call.  The result carries ``status="dry_run"`` and omits
@@ -2782,7 +2788,7 @@ class TestResolveEarlyReturnRule:
     These tests verify that the resolver correctly maps runtime inputs to the
     matching :class:`~demo.contracts.EarlyReturnRule` (or ``None``) by
     evaluating conditions in :data:`~demo.contracts.EARLY_RETURN_PRECEDENCE`
-    order.  They do not go through ``run_retrieval_and_qa()`` — they exercise
+    order.  They do not go through ``run_retrieval_and_qa_request_context()`` — they exercise
     the helper in isolation.
     """
 
@@ -2871,11 +2877,13 @@ class TestResolveEarlyReturnRule:
 
 class TestEarlyReturnRulePayloadCorrespondence:
     """Policy-backed correspondence tests: each early-return rule's declared metadata
-    must align with the actual runtime payload returned by ``run_retrieval_and_qa()``.
+    must align with the actual runtime payload returned by
+    ``run_retrieval_and_qa_request_context()``.
 
     This class is the explicit **rule ↔ payload** seam.  For each current rule in
     :data:`~demo.contracts.EARLY_RETURN_PRECEDENCE` it drives
-    ``run_retrieval_and_qa()`` with the canonical triggering inputs and asserts that:
+    ``run_retrieval_and_qa_request_context()`` with the canonical triggering
+    inputs and asserts that:
 
     - ``result["status"]`` equals ``rule.outcome_status``
     - every key in ``rule.absent_keys`` is absent from the returned payload
