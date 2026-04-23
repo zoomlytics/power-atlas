@@ -465,83 +465,13 @@ def _prepare_ask_request_context(
     )
 
 
-def _run_ask_request_context(
-    request_context: RequestContext,
-    *,
-    cluster_aware: bool = False,
-    expand_graph: bool = False,
-) -> dict[str, Any]:
-    return run_retrieval_and_qa_request_context(
-        request_context,
-        cluster_aware=cluster_aware,
-        expand_graph=expand_graph,
-    )
-
-
-def _run_claim_extraction_request_context(request_context: RequestContext) -> dict[str, Any]:
-    return run_claim_and_mention_extraction_request_context(request_context)
-
-
-def _run_claim_participation_request_context(request_context: RequestContext) -> dict[str, Any]:
-    return run_claim_participation_request_context(request_context)
-
-
-def _run_entity_resolution_request_context(
-    request_context: RequestContext,
-    *,
-    resolution_mode: str | None = None,
-    artifact_subdir: str = "entity_resolution",
-    dataset_id: str | None = None,
-) -> dict[str, Any]:
-    return run_entity_resolution_request_context(
-        request_context,
-        resolution_mode=resolution_mode,
-        artifact_subdir=artifact_subdir,
-        dataset_id=dataset_id,
-    )
-
-
-def _run_pdf_ingest_request_context(
-    request_context: RequestContext,
-    *,
-    fixtures_dir: Path | None = None,
-    pdf_filename: str | None = None,
-    dataset_id: str | None = None,
-) -> dict[str, Any]:
-    return run_pdf_ingest_request_context(
-        request_context,
-        fixtures_dir=fixtures_dir,
-        pdf_filename=pdf_filename,
-        dataset_id=dataset_id,
-    )
-
-
-def _run_structured_ingest_request_context(
-    request_context: RequestContext,
-    *,
-    fixtures_dir: Path | None = None,
-    dataset_id: str | None = None,
-) -> dict[str, Any]:
-    return run_structured_ingest_request_context(
-        request_context,
-        fixtures_dir=fixtures_dir,
-        dataset_id=dataset_id,
-    )
-
-
-def _run_retrieval_request_context(
-    request_context: RequestContext,
-    *,
-    question: str | None = None,
-    cluster_aware: bool = False,
-    expand_graph: bool = False,
-) -> dict[str, Any]:
-    return run_retrieval_and_qa_request_context(
-        request_context,
-        question=question,
-        cluster_aware=cluster_aware,
-        expand_graph=expand_graph,
-    )
+_run_ask_request_context = run_retrieval_and_qa_request_context
+_run_claim_extraction_request_context = run_claim_and_mention_extraction_request_context
+_run_claim_participation_request_context = run_claim_participation_request_context
+_run_entity_resolution_request_context = run_entity_resolution_request_context
+_run_pdf_ingest_request_context = run_pdf_ingest_request_context
+_run_structured_ingest_request_context = run_structured_ingest_request_context
+_run_retrieval_request_context = run_retrieval_and_qa_request_context
 
 
 def _run_independent_structured_ingest_stage(
