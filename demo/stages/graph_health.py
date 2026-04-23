@@ -516,8 +516,9 @@ def run_graph_health_diagnostics(
     ----------
     config:
         :class:`~power_atlas.contracts.runtime.Config` instance providing
-        ``neo4j_uri``, ``neo4j_username``, ``neo4j_password``,
-        ``neo4j_database``, ``output_dir``, and ``dry_run``.
+        ``settings.neo4j``, ``output_dir``, and ``dry_run``. Live execution
+        now requires a settings-backed Neo4j configuration rather than raw
+        ``config.neo4j_*`` compatibility attributes.
     run_id:
         Scopes all queries to a specific pipeline run.  Pass ``None`` to
         collect aggregate metrics across all runs (useful for a quick
