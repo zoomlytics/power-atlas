@@ -272,8 +272,9 @@ def _run_early_return_scenario(scenario: dict[str, Any]) -> dict[str, Any]:
         )
         return run_retrieval_and_qa_request_context(request_context)
 
-    # Retrieval-skipped path: live config with empty Neo4j credentials so the
-    # function short-circuits before opening a driver when question is None.
+    # Retrieval-skipped path: settings-backed live request context with empty
+    # Neo4j credentials so the function short-circuits before opening a driver
+    # when question is None.
     request_context = build_request_context_from_config(
         _make_live_short_circuit_config(),
         command="ask",
