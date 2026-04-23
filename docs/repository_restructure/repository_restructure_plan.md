@@ -592,7 +592,8 @@ The repo has now completed a first concrete runtime-state reduction pass:
   is already used by bootstrap helpers plus `demo/run_demo.py` argument
   handling, ask-scope resolution, orchestrated/independent execution paths,
   and a dedicated ask-specific preparation/execution lane that preserves
-  pre-resolved request metadata through the legacy wrappers; the first
+  pre-resolved request metadata directly through the RequestContext-based
+  orchestration helpers; the first
   stage-facing retrieval entrypoints now also accept `RequestContext`
   directly for both single-turn and interactive ask execution, and claim
   extraction now has a matching context-aware entrypoint used by both the
@@ -603,7 +604,8 @@ The repo has now completed a first concrete runtime-state reduction pass:
   ingest and independent `ingest-pdf` execution; `structured_ingest` now
   follows the same pattern for both the orchestrated ingest path and the
   independent `ingest-structured` path, so the main stage-entrypoint adoption
-  lane is complete; the remaining pipeline-contract private cache/backing
+  lane is complete and the interim legacy wrapper/adapter layer has been
+  removed; the remaining pipeline-contract private cache/backing
   state has now been narrowed from multiple field-level mutable globals to a
   single cached state object plus explicit snapshot/raw-config getters and
   narrow test override helpers. The next runtime-state cleanup slice also
