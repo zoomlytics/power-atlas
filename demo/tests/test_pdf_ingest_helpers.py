@@ -17,6 +17,33 @@ from demo.io.page_tracking import (
 )
 
 
+def test_neo4j_settings_from_config_rejects_settings_backed_config_without_neo4j() -> None:
+    config = type(
+        "ConfigWithoutNeo4jSettings",
+        (),
+        {"settings": type("Settings", (), {"neo4j": None})()},
+    )()
+
+    with pytest.raises(ValueError, match="config.settings.neo4j"):
+        pdf_ingest._neo4j_settings_from_config(config)
+
+
+def test_neo4j_settings_from_config_rejects_legacy_raw_attribute_fallback() -> None:
+    config = type(
+        "LegacyPdfIngestConfig",
+        (),
+        {
+            "neo4j_uri": "bolt://legacy.test:7687",
+            "neo4j_username": "legacy-user",
+            "neo4j_password": "legacy-secret",
+            "neo4j_database": "legacy-db",
+        },
+    )()
+
+    with pytest.raises(ValueError, match="config.settings.neo4j"):
+        pdf_ingest._neo4j_settings_from_config(config)
+
+
 def test_require_positive_int_accepts_positive_int():
     assert pdf_ingest._require_positive_int(5, "param") == 5
 
