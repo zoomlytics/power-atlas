@@ -123,6 +123,12 @@ This means:
 - Existing code that performs infrastructure construction outside of `bootstrap` should be treated as migration debt.
 - Dependency injection can remain lightweight and manual; a framework is not required.
 
+### Implementation checkpoint (2026-04-23)
+
+- typed settings plus `bootstrap`-owned runtime config assembly are already the active path for the main `demo/` entrypoints,
+- first-party default resolution and most live Neo4j construction now already flow through package-owned seams,
+- the remaining work under this decision is primarily orchestration thinning and adapter relocation rather than basic bootstrap adoption.
+
 ### Open Questions
 
 Whether `bootstrap` will be a small module tree or a single assembly module can be decided during implementation.
@@ -154,6 +160,12 @@ Intended semantics:
 - New code should not introduce new mutable global runtime state.
 - Existing globals should be inventoried and incrementally replaced.
 - If `RunContext` or `DatasetContext` are later introduced, they should be justified by concrete pain, not speculation.
+
+### Implementation checkpoint (2026-04-23)
+
+- `AppContext` and `RequestContext` now both exist in the package,
+- `RequestContext` is already used across the main `demo/run_demo.py` ask and ingest execution lanes plus the active stage-facing entrypoints,
+- the remaining work under this decision is the residual mutable-global inventory and any explicit disposition around the remaining cached pipeline-contract state.
 
 ### Open Questions
 
@@ -277,6 +289,12 @@ The specific library/tooling is not locked in this document, but the configurati
 - New code should avoid direct, scattered `os.environ` access outside config handling.
 - `bootstrap` should become the main entrypoint for resolved settings.
 - Existing configuration sprawl should be treated as restructuring debt.
+
+### Implementation checkpoint (2026-04-23)
+
+- typed settings are already present and active in the repo,
+- `bootstrap` is already the main entrypoint for resolved settings/default ownership across the main `demo/` entrypoints and helper flows,
+- remaining environment-touch cases are now mostly intentional local overrides or operator-visible guardrails rather than broad configuration sprawl.
 
 ### Open Questions
 

@@ -358,7 +358,7 @@ This is a safety harness, not a testing overhaul.
 
 #### Current checkpoint status
 
-Phase 2 is materially in progress as of 2026-04-16.
+Phase 2 is materially in progress as of 2026-04-23.
 
 The package foundation work that was originally planned as the entry condition for
 later migration has already landed in the repo:
@@ -392,7 +392,9 @@ Subsequent narrow slices tightened this further:
 
 - first-party live `OPENAI_API_KEY` checks now route through a shared bootstrap guard helper,
 - the `pdf_ingest` vendor bridge now uses a shared temporary-environment helper rather than hand-rolling process env mutation,
-- `run_demo` dataset-env selection now routes through bootstrap instead of reading `POWER_ATLAS_DATASET` and `FIXTURE_DATASET` directly.
+- `run_demo` dataset-env selection now routes through bootstrap instead of reading `POWER_ATLAS_DATASET` and `FIXTURE_DATASET` directly,
+- the remaining `demo/` stage and entrypoint Neo4j ownership lane has now largely converged on settings-backed inputs, with `claim_extraction`, `pdf_ingest`, `entity_resolution`, `graph_health`, `retrieval_benchmark`, `structured_ingest`, `claim_participation`, and `run_demo` all rejecting raw `config.neo4j_*` fallback in the active live paths,
+- `run_demo_support.build_config_from_args(...)` now validates the live sentinel password through `config.settings.neo4j.password` rather than a legacy compatibility accessor.
 
 At this checkpoint, the remaining first-party env-touch cases appear to be
 intentional local behavior rather than migration debt:
@@ -402,7 +404,7 @@ intentional local behavior rather than migration debt:
   missing-password guard remains operator-visible.
 
 The strongest current proof point is the latest full `make phase1-verify` run on
-2026-04-16, which passed with fully cited baseline, companion, and isolation
+2026-04-23, which passed with fully cited baseline, companion, and isolation
 asks and no citation fallback.
 
 #### Objectives
@@ -514,12 +516,20 @@ Early seam extraction has already landed additively:
   claim-participation writes, and structured-ingest writes,
 - the main stage-level ambient dataset-id fallbacks have been removed from
   `structured_ingest`, `pdf_ingest`, and `entity_resolution`, and the
-  orchestrator no longer writes dataset scope through `set_dataset_id(...)`.
+  orchestrator no longer writes dataset scope through `set_dataset_id(...)`,
+- the active `demo/` stage and entrypoint Neo4j settings-ownership lane has now
+  reached a strong local checkpoint: the remaining live stage helpers and
+  `run_demo` entrypoint helpers no longer honor raw `config.neo4j_*`
+  compatibility fallback and instead require settings-backed Neo4j ownership.
 
 That progress should not be overstated. The repo has not yet reached a true
 adapter/application/interface split for graph access, raw Cypher still appears in
 live stage modules, and interface/orchestration code is still thicker than the
 target architecture allows.
+
+The recommended next work for this phase is therefore no longer more
+stage-by-stage config tightening. It is orchestration/interface thinning,
+explicit adapter relocation, and documenting the remaining layering leaks.
 
 #### Objectives
 
@@ -587,7 +597,7 @@ The repo has now completed a first concrete runtime-state reduction pass:
 - the deprecated dataset-state compatibility surface
   (`DATASET_ID` / `get_dataset_id()` / `set_dataset_id()`) has now been
   removed from `power_atlas.contracts.pipeline` entirely rather than merely
-- narrowed to a smaller compatibility boundary,
+  narrowed to a smaller compatibility boundary,
 - an initial `AppContext` / `RequestContext` seam now exists in the package and
   is already used by bootstrap helpers plus `demo/run_demo.py` argument
   handling, ask-scope resolution, orchestrated/independent execution paths,
@@ -656,14 +666,17 @@ The repo has now completed a first concrete runtime-state reduction pass:
   instead of direct pipeline-module reads. The remaining work is the rest of
   the mutable-global inventory outside those modules plus any further
   ownership cleanup warranted around that remaining single cached state.
-  ingest and independent `ingest-pdf` execution
-  to bundle settings, pipeline snapshot state, and per-request runtime metadata.
 
 That is meaningful progress, but it does not yet satisfy the phase. The pipeline
 contract still contains mutable module-level state for config/cache concerns,
 and the remaining stateful pipeline surface still needs an explicit disposition
-rather than simple coexistence. The new context seam is intentionally narrow so
-far and has not yet been adopted across stage-level execution paths.
+rather than simple coexistence. The new context seam is no longer limited to a
+small retrieval-only foothold: it is now adopted across the main active
+stage-level execution paths and the `demo/run_demo.py` entrypoint layer.
+Remaining work is the rest of the mutable-global inventory, any further cleanup
+around the remaining single cached pipeline-contract state, and broader
+consolidation of runtime ownership/documentation rather than more isolated
+stage-helper strictness edits.
 
 #### Objectives
 
