@@ -18,6 +18,7 @@ from demo.stages.graph_health import (
     GraphHealthArtifact,
     _CANONICAL_CHAIN_HEALTH_LIMIT,
     _PER_CANONICAL_ALIGNMENT_LIMIT,
+    _neo4j_settings_from_config,
     _get_cluster_type_fragmentation_query,
     _compute_alignment_summary,
     _compute_mention_summary,
@@ -117,6 +118,17 @@ def _config(tmp_path: Path, *, dry_run: bool, password: str) -> Config:
         pipeline_contract=get_pipeline_contract_snapshot(),
         pipeline_contract_config_data=get_pipeline_contract_config_data(),
     )
+
+
+def test_neo4j_settings_from_config_rejects_settings_backed_config_without_neo4j() -> None:
+    config = type(
+        "ConfigWithoutNeo4jSettings",
+        (),
+        {"settings": type("Settings", (), {"neo4j": None})()},
+    )()
+
+    with unittest.TestCase().assertRaisesRegex(ValueError, "config.settings.neo4j"):
+        _neo4j_settings_from_config(config)
 
 
 # ---------------------------------------------------------------------------
