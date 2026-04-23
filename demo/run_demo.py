@@ -474,79 +474,53 @@ _run_structured_ingest_request_context = run_structured_ingest_request_context
 _run_retrieval_request_context = run_retrieval_and_qa_request_context
 
 
-def _run_independent_structured_ingest_stage(
-    request_context: RequestContext,
-    stage_run_id: str,
-    resources: _IndependentStageResources,
-    options: _IndependentStageOptions,
-) -> dict[str, Any]:
-    return _run_independent_structured_ingest_stage_impl(
-        request_context,
-        stage_run_id,
-        resources,
-        options,
-        run_structured_ingest_request_context=_run_structured_ingest_request_context,
-    )
+def _make_independent_stage_runner(impl, dependency_name: str, keyword_name: str):
+    def _runner(
+        request_context: RequestContext,
+        stage_run_id: str,
+        resources: _IndependentStageResources,
+        options: _IndependentStageOptions,
+    ) -> dict[str, Any]:
+        return impl(
+            request_context,
+            stage_run_id,
+            resources,
+            options,
+            **{keyword_name: globals()[dependency_name]},
+        )
+
+    return _runner
 
 
-def _run_independent_pdf_ingest_stage(
-    request_context: RequestContext,
-    stage_run_id: str,
-    resources: _IndependentStageResources,
-    options: _IndependentStageOptions,
-) -> dict[str, Any]:
-    return _run_independent_pdf_ingest_stage_impl(
-        request_context,
-        stage_run_id,
-        resources,
-        options,
-        run_pdf_ingest_request_context=_run_pdf_ingest_request_context,
-    )
+_run_independent_structured_ingest_stage = _make_independent_stage_runner(
+    _run_independent_structured_ingest_stage_impl,
+    "_run_structured_ingest_request_context",
+    "run_structured_ingest_request_context",
+)
 
+_run_independent_pdf_ingest_stage = _make_independent_stage_runner(
+    _run_independent_pdf_ingest_stage_impl,
+    "_run_pdf_ingest_request_context",
+    "run_pdf_ingest_request_context",
+)
 
-def _run_independent_claim_extraction_stage(
-    request_context: RequestContext,
-    stage_run_id: str,
-    resources: _IndependentStageResources,
-    options: _IndependentStageOptions,
-) -> dict[str, Any]:
-    return _run_independent_claim_extraction_stage_impl(
-        request_context,
-        stage_run_id,
-        resources,
-        options,
-        run_claim_extraction_request_context=_run_claim_extraction_request_context,
-    )
+_run_independent_claim_extraction_stage = _make_independent_stage_runner(
+    _run_independent_claim_extraction_stage_impl,
+    "_run_claim_extraction_request_context",
+    "run_claim_extraction_request_context",
+)
 
+_run_independent_entity_resolution_stage = _make_independent_stage_runner(
+    _run_independent_entity_resolution_stage_impl,
+    "_run_entity_resolution_request_context",
+    "run_entity_resolution_request_context",
+)
 
-def _run_independent_entity_resolution_stage(
-    request_context: RequestContext,
-    stage_run_id: str,
-    resources: _IndependentStageResources,
-    options: _IndependentStageOptions,
-) -> dict[str, Any]:
-    return _run_independent_entity_resolution_stage_impl(
-        request_context,
-        stage_run_id,
-        resources,
-        options,
-        run_entity_resolution_request_context=_run_entity_resolution_request_context,
-    )
-
-
-def _run_independent_ask_stage(
-    request_context: RequestContext,
-    stage_run_id: str,
-    resources: _IndependentStageResources,
-    options: _IndependentStageOptions,
-) -> dict[str, Any]:
-    return _run_independent_ask_stage_impl(
-        request_context,
-        stage_run_id,
-        resources,
-        options,
-        run_ask_request_context=_run_ask_request_context,
-    )
+_run_independent_ask_stage = _make_independent_stage_runner(
+    _run_independent_ask_stage_impl,
+    "_run_ask_request_context",
+    "run_ask_request_context",
+)
 
 
 def _independent_stage_specs() -> dict[str, _IndependentStageSpec]:
