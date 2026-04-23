@@ -104,6 +104,7 @@ from demo.stages.entity_resolution import (
     _fuzzy_ratio,
     _is_abbreviation,
     _make_cluster_id,
+    _neo4j_settings_from_config,
     _normalize,
     _normalize_entity_type,
     _resolve_mention,
@@ -701,6 +702,33 @@ class TestRunEntityResolutionDryRun(unittest.TestCase):
             )
             self.assertIn("resolver_version", result)
             self.assertTrue(result["resolver_version"])
+
+
+class TestEntityResolutionSettingsOwnership(unittest.TestCase):
+    def test_rejects_settings_backed_config_without_neo4j(self):
+        config = type(
+            "ConfigWithoutNeo4jSettings",
+            (),
+            {"settings": type("Settings", (), {"neo4j": None})()},
+        )()
+
+        with self.assertRaisesRegex(ValueError, "config.settings.neo4j"):
+            _neo4j_settings_from_config(config)
+
+    def test_rejects_legacy_raw_neo4j_attributes(self):
+        config = type(
+            "LegacyEntityResolutionConfig",
+            (),
+            {
+                "neo4j_uri": "bolt://legacy.test:7687",
+                "neo4j_username": "legacy-user",
+                "neo4j_password": "legacy-secret",
+                "neo4j_database": "legacy-db",
+            },
+        )()
+
+        with self.assertRaisesRegex(ValueError, "config.settings.neo4j"):
+            _neo4j_settings_from_config(config)
 
 class TestRunEntityResolutionLive(unittest.TestCase):
     """Tests for the live path using a mock Neo4j driver."""
