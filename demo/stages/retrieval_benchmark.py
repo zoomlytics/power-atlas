@@ -88,11 +88,13 @@ _logger = logging.getLogger(__name__)
 
 
 def _neo4j_settings_from_config(config) -> Neo4jSettings:
-    return Neo4jSettings(
-        uri=config.neo4j_uri,
-        username=config.neo4j_username,
-        password=config.neo4j_password,
-        database=config.neo4j_database,
+    config_settings = getattr(config, "settings", None)
+    settings_neo4j = getattr(config_settings, "neo4j", None)
+    if isinstance(settings_neo4j, Neo4jSettings):
+        return settings_neo4j
+    raise ValueError(
+        "Retrieval benchmark requires config.settings.neo4j from "
+        "RequestContext/AppContext-derived config"
     )
 
 __all__ = [
@@ -1191,6 +1193,7 @@ def run_retrieval_benchmark(
         "dataset_id": dataset_id,
         "alignment_version": alignment_version,
     }
+    resolved_neo4j_settings = _neo4j_settings_from_config(config)
     case_results: list[BenchmarkCaseResult] = []
     pairwise_results: list[PairwiseCaseResult] = []
 
@@ -1217,8 +1220,8 @@ def run_retrieval_benchmark(
                 entity_b,
             )
             query_rows = fetch_retrieval_benchmark_query_rows(
-                _neo4j_settings_from_config(config),
-                config.neo4j_database,
+                resolved_neo4j_settings,
+                resolved_neo4j_settings.database,
                 base_params=params,
                 query_specs=[
                     (
@@ -1249,8 +1252,8 @@ def run_retrieval_benchmark(
                 entity_name,
             )
             query_rows = fetch_retrieval_benchmark_query_rows(
-                _neo4j_settings_from_config(config),
-                config.neo4j_database,
+                resolved_neo4j_settings,
+                resolved_neo4j_settings.database,
                 base_params=params,
                 query_specs=[
                     ("canonical_rows", "canonical single", _Q_CANONICAL_SINGLE, {"entity_name": entity_name}),

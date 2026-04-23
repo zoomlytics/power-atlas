@@ -47,6 +47,8 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
 
+from power_atlas.settings import Neo4jSettings
+
 from demo.stages.retrieval_benchmark import (
     BENCHMARK_CASES,
     BenchmarkCaseDefinition,
@@ -57,6 +59,7 @@ from demo.stages.retrieval_benchmark import (
     _Q_CATALOG_EXISTENCE_CHECK,
     _Q_LOWER_LAYER_CHAIN,
     _Q_PAIRWISE_CANONICAL,
+    _neo4j_settings_from_config,
     _classify_fragmentation_type,
     _compute_benchmark_summary,
     _count_distinct,
@@ -229,11 +232,23 @@ def _make_config(tmp_path: Path, *, dry_run: bool = False) -> MagicMock:
     cfg = MagicMock()
     cfg.dry_run = dry_run
     cfg.output_dir = tmp_path
-    cfg.neo4j_uri = "bolt://localhost:7687"
-    cfg.neo4j_username = "neo4j"
-    cfg.neo4j_password = "secret"
-    cfg.neo4j_database = "neo4j"
+    cfg.settings = MagicMock()
+    cfg.settings.neo4j = Neo4jSettings(
+        uri="bolt://localhost:7687",
+        username="neo4j",
+        password="secret",
+        database="neo4j",
+    )
     return cfg
+
+
+def test_neo4j_settings_from_config_rejects_settings_backed_config_without_neo4j() -> None:
+    config = MagicMock()
+    config.settings = MagicMock()
+    config.settings.neo4j = None
+
+    with unittest.TestCase().assertRaisesRegex(ValueError, "config.settings.neo4j"):
+        _neo4j_settings_from_config(config)
 
 
 # ---------------------------------------------------------------------------
