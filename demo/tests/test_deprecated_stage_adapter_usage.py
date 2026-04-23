@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import ast
 import importlib
+from pathlib import Path
 
 
 REMOVED_STAGE_ADAPTERS = {
@@ -26,3 +28,27 @@ def test_removed_stage_adapters_are_no_longer_exported() -> None:
                 f"{module_name}.{adapter_name} should be deleted once the RequestContext "
                 "entrypoint owns the stage boundary."
             )
+
+
+def test_repo_does_not_use_demo_stages_proxy_imports() -> None:
+    repo_root = Path(__file__).resolve().parents[2]
+    offenders: list[str] = []
+
+    for path in sorted(repo_root.rglob("*.py")):
+        if any(part in {".venv", "vendor", "vendor-resources", "__pycache__"} for part in path.parts):
+            continue
+
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        rel_path = path.relative_to(repo_root)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.module == "demo.stages":
+                offenders.append(f"{rel_path}:{node.lineno}")
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name == "demo.stages":
+                        offenders.append(f"{rel_path}:{node.lineno}")
+
+    assert not offenders, (
+        "Import concrete stage modules directly instead of using the removed demo.stages "
+        f"proxy surface: {offenders}"
+    )

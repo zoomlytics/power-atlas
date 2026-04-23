@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from demo.stages import pdf_ingest
+import demo.stages.pdf_ingest as pdf_ingest
 from demo.io.page_tracking import (
     PageAwareFixedSizeSplitter,
     PageTrackingPdfLoader,

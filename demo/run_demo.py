@@ -72,9 +72,7 @@ from demo.run_demo_support import (  # noqa: E402
     parse_args as _parse_args_impl,
     request_context_from_config as _request_context_from_config_impl,
 )
-from demo.stages import (  # noqa: E402
-    lint_and_clean_structured_csvs,
-)
+from demo.stages.structured_ingest import lint_and_clean_structured_csvs  # noqa: E402
 from demo.stages.retrieval_and_qa import _format_scope_label  # noqa: E402
 from demo.stages.claim_extraction import run_claim_and_mention_extraction_request_context  # noqa: E402
 from demo.stages.claim_participation import run_claim_participation_request_context  # noqa: E402

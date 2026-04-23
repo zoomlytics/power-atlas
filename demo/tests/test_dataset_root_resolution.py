@@ -258,7 +258,7 @@ class TestDatasetRootResolution(unittest.TestCase):
 
     def test_lint_uses_custom_fixtures_dir(self):
         """lint_and_clean_structured_csvs respects an explicit fixtures_dir."""
-        from demo.stages import lint_and_clean_structured_csvs
+        from demo.stages.structured_ingest import lint_and_clean_structured_csvs
 
         dr = resolve_dataset_root("demo_dataset_v1")
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -278,7 +278,7 @@ class TestDatasetRootResolution(unittest.TestCase):
 
     def test_lint_uses_manifest_dataset_id_from_custom_fixtures_dir(self):
         """lint_and_clean_structured_csvs derives dataset_id from a custom dataset manifest."""
-        from demo.stages import lint_and_clean_structured_csvs
+        from demo.stages.structured_ingest import lint_and_clean_structured_csvs
 
         dr = resolve_dataset_root("demo_dataset_v1")
         with tempfile.TemporaryDirectory() as tmpdir:

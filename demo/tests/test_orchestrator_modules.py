@@ -16,7 +16,7 @@ from neo4j_graphrag.experimental.components.types import (
     TextChunks,
 )
 
-from demo.stages import lint_and_clean_structured_csvs
+from demo.stages.structured_ingest import lint_and_clean_structured_csvs
 from power_atlas.contracts import (
     Config as _RuntimeConfig,
     POWER_ATLAS_RAG_TEMPLATE,
@@ -4838,7 +4838,7 @@ def test_run_retrieval_and_qa_request_context_uses_request_scope(tmp_path: Path)
 
 def test_run_retrieval_and_qa_request_context_forwards_pipeline_contract(tmp_path: Path):
     from demo.run_demo import _request_context_from_config
-    from demo.stages import retrieval_and_qa as retrieval_module
+    import demo.stages.retrieval_and_qa as retrieval_module
 
     request_context = _request_context_from_config(
         _dry_run_config(tmp_path),
