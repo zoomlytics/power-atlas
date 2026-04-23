@@ -1137,10 +1137,10 @@ class WorkflowTests(unittest.TestCase):
         self.assertNotIn("vector_index_fallback_reason", result)
         self.assertTrue(
             any(
-                session_kwargs.get("database") == config.neo4j_database
+                session_kwargs.get("database") == config.settings.neo4j.database
                 for session_kwargs in calls["sessions"]
             ),
-            "Expected Neo4j session to be opened with database=config.neo4j_database",
+            "Expected Neo4j session to be opened with database=config.settings.neo4j.database",
         )
         self.assertEqual(
             calls["config_path"],

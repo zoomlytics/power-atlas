@@ -3210,7 +3210,7 @@ def test_ask_interactive_rejects_dry_run(tmp_path: Path, monkeypatch: pytest.Mon
 
 
 def test_retrieval_and_qa_live_path_qa_model_never_none(tmp_path: Path):
-    """The manifest's qa_model must never be None: when config.openai_model is not set,
+    """The manifest's qa_model must never be None: when settings-backed model input is unset,
     the fallback default must be recorded in the result."""
     from demo.run_demo import _request_context_from_config
     from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context
@@ -3222,7 +3222,7 @@ def test_retrieval_and_qa_live_path_qa_model_never_none(tmp_path: Path):
         def search(self, **kwargs):
             return _make_fake_retriever_result([])
 
-    # Config with openai_model explicitly None (simulating unset)
+    # Config with the settings-backed model input left effectively unset.
     no_model_config = _make_config(
         dry_run=False,
         output_dir=tmp_path,
