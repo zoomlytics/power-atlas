@@ -51,9 +51,6 @@ from power_atlas.orchestration.independent_stage_runners import (
 from power_atlas.orchestration.orchestrated_runner import (
     run_orchestrated_request_context as _run_orchestrated_request_context_impl,
 )
-from power_atlas.orchestration.legacy_adapters import (
-    lint_and_clean_structured_csvs_legacy as _lint_and_clean_structured_csvs_impl,
-)
 from power_atlas.run_scope_queries import fetch_dataset_id_for_run
 from power_atlas.run_scope_queries import fetch_latest_unstructured_run_id
 
@@ -730,15 +727,6 @@ def run_demo(config_or_request_context: RequestContext | Config) -> Path:
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return _parse_args(argv)
-
-# Backwards-compatible aliases for legacy tests and scripts.
-def _lint_and_clean_structured_csvs(run_id: str, output_dir: Path) -> dict[str, Any]:
-    return _lint_and_clean_structured_csvs_impl(
-        run_id,
-        output_dir,
-        resolve_dataset_root=resolve_dataset_root,
-        lint_and_clean_structured_csvs=lint_and_clean_structured_csvs,
-    )
 
 
 run_independent_demo = _run_independent_stage

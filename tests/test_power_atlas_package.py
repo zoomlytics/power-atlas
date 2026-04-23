@@ -70,7 +70,7 @@ def test_package_modules_import() -> None:
     assert not hasattr(pipeline_module, "CHUNK_EMBEDDING_DIMENSIONS")
     assert not hasattr(pipeline_module, "EMBEDDER_MODEL_NAME")
     assert not hasattr(pipeline_module, "CHUNK_FALLBACK_STRIDE")
-    assert hasattr(orchestration_module, "lint_and_clean_structured_csvs_legacy")
+    assert not hasattr(orchestration_module, "lint_and_clean_structured_csvs_legacy")
     assert not hasattr(orchestration_module, "run_structured_ingest_legacy")
     assert not hasattr(orchestration_module, "run_pdf_ingest_legacy")
     assert not hasattr(orchestration_module, "run_claim_and_mention_extraction_legacy")

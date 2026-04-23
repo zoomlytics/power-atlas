@@ -50,9 +50,6 @@ from power_atlas.orchestration.independent_stage_runners import (
     run_independent_structured_ingest_stage,
 )
 from power_atlas.orchestration.orchestrated_runner import run_orchestrated_request_context
-from power_atlas.orchestration.legacy_adapters import (
-    lint_and_clean_structured_csvs_legacy,
-)
 
 __all__ = [
     "CONFIG_COMMANDS",
@@ -74,7 +71,6 @@ __all__ = [
     "execute_lint_structured_command",
     "execute_reset_command",
     "format_dataset_label",
-    "lint_and_clean_structured_csvs_legacy",
     "prepare_ask_request_context",
     "reset_instructions_text",
     "resolve_ask_request_context",
