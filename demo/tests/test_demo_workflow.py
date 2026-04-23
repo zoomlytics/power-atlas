@@ -146,6 +146,36 @@ def _run_pdf_ingest_via_independent_stage(module, config, *, run_id: str):
     )
 
 
+def _independent_stage_resources(module, dataset_name: str):
+    dataset_root = module.resolve_dataset_root(dataset_name)
+    return module._IndependentStageResources(
+        dataset_id=dataset_root.dataset_id,
+        fixture_dir=dataset_root.root,
+        pdf_filename=dataset_root.pdf_filename,
+        pdf_source_uri=dataset_root.pdf_path.resolve().as_uri(),
+    )
+
+
+def _run_structured_ingest_via_independent_stage(module, config, *, run_id: str):
+    request_context = module._request_context_from_config(
+        config,
+        command="ingest-structured",
+        run_id=run_id,
+    )
+    resources = _independent_stage_resources(module, config.dataset_name)
+    options = module._IndependentStageOptions(
+        ask_all_runs=False,
+        cluster_aware=False,
+        expand_graph=False,
+    )
+    return module._run_independent_structured_ingest_stage(
+        request_context,
+        run_id,
+        resources,
+        options,
+    )
+
+
 def test_run_independent_pdf_ingest_stage_scopes_request_context():
     module = _load_module(RUN_DEMO_PATH, "run_pdf_independent_contract_test")
     config = _make_module_config(
@@ -159,13 +189,7 @@ def test_run_independent_pdf_ingest_stage_scopes_request_context():
         command="ingest-pdf",
         run_id="outer-pdf-run",
     )
-    dataset_root = module.resolve_dataset_root(config.dataset_name)
-    resources = module._IndependentStageResources(
-        dataset_id=dataset_root.dataset_id,
-        fixture_dir=dataset_root.root,
-        pdf_filename=dataset_root.pdf_filename,
-        pdf_source_uri=dataset_root.pdf_path.resolve().as_uri(),
-    )
+    resources = _independent_stage_resources(module, config.dataset_name)
     options = module._IndependentStageOptions(
         ask_all_runs=False,
         cluster_aware=False,
@@ -185,9 +209,50 @@ def test_run_independent_pdf_ingest_stage_scopes_request_context():
     scoped_context = runner.call_args.args[0]
     assert scoped_context.run_id == "scoped-pdf-run"
     assert request_context.run_id == "outer-pdf-run"
-    assert runner.call_args.kwargs["fixtures_dir"] == dataset_root.root
-    assert runner.call_args.kwargs["pdf_filename"] == dataset_root.pdf_filename
-    assert runner.call_args.kwargs["dataset_id"] == dataset_root.dataset_id
+    assert runner.call_args.kwargs["fixtures_dir"] == resources.fixture_dir
+    assert runner.call_args.kwargs["pdf_filename"] == resources.pdf_filename
+    assert runner.call_args.kwargs["dataset_id"] == resources.dataset_id
+
+
+def test_run_independent_structured_ingest_stage_scopes_request_context():
+    module = _load_module(RUN_DEMO_PATH, "run_structured_independent_contract_test")
+    config = _make_module_config(
+        module,
+        dry_run=True,
+        output_dir=DEMO_DIR / "artifacts",
+        dataset_name="demo_dataset_v1",
+    )
+    request_context = module._request_context_from_config(
+        config,
+        command="ingest-structured",
+        run_id="outer-structured-run",
+    )
+    resources = _independent_stage_resources(module, config.dataset_name)
+    options = module._IndependentStageOptions(
+        ask_all_runs=False,
+        cluster_aware=False,
+        expand_graph=False,
+    )
+
+    with mock.patch.object(
+        module,
+        "_run_structured_ingest_request_context",
+        return_value={"status": "shim"},
+    ) as runner:
+        result = module._run_independent_structured_ingest_stage(
+            request_context,
+            "scoped-structured-run",
+            resources,
+            options,
+        )
+
+    assert result == {"status": "shim"}
+    runner.assert_called_once()
+    scoped_context = runner.call_args.args[0]
+    assert scoped_context.run_id == "scoped-structured-run"
+    assert request_context.run_id == "outer-structured-run"
+    assert runner.call_args.kwargs["fixtures_dir"] == resources.fixture_dir
+    assert runner.call_args.kwargs["dataset_id"] == resources.dataset_id
 
 
 def test_run_independent_claim_extraction_stage_scopes_request_context():
@@ -204,13 +269,7 @@ def test_run_independent_claim_extraction_stage_scopes_request_context():
         run_id="outer-claim-run",
         source_uri=None,
     )
-    dataset_root = module.resolve_dataset_root(config.dataset_name)
-    resources = module._IndependentStageResources(
-        dataset_id=dataset_root.dataset_id,
-        fixture_dir=dataset_root.root,
-        pdf_filename=dataset_root.pdf_filename,
-        pdf_source_uri=dataset_root.pdf_path.resolve().as_uri(),
-    )
+    resources = _independent_stage_resources(module, config.dataset_name)
     options = module._IndependentStageOptions(
         ask_all_runs=False,
         cluster_aware=False,
@@ -233,7 +292,7 @@ def test_run_independent_claim_extraction_stage_scopes_request_context():
     runner.assert_called_once()
     scoped_context = runner.call_args.args[0]
     assert scoped_context.run_id == "scoped-claim-run"
-    assert scoped_context.source_uri == dataset_root.pdf_path.resolve().as_uri()
+    assert scoped_context.source_uri == resources.pdf_source_uri
     assert request_context.run_id == "outer-claim-run"
     assert request_context.source_uri is None
 
@@ -252,13 +311,7 @@ def test_run_independent_entity_resolution_stage_scopes_request_context():
         run_id="outer-entity-run",
         source_uri=None,
     )
-    dataset_root = module.resolve_dataset_root(config.dataset_name)
-    resources = module._IndependentStageResources(
-        dataset_id=dataset_root.dataset_id,
-        fixture_dir=dataset_root.root,
-        pdf_filename=dataset_root.pdf_filename,
-        pdf_source_uri=dataset_root.pdf_path.resolve().as_uri(),
-    )
+    resources = _independent_stage_resources(module, config.dataset_name)
     options = module._IndependentStageOptions(
         ask_all_runs=False,
         cluster_aware=False,
@@ -281,10 +334,48 @@ def test_run_independent_entity_resolution_stage_scopes_request_context():
     runner.assert_called_once()
     scoped_context = runner.call_args.args[0]
     assert scoped_context.run_id == "scoped-entity-run"
-    assert scoped_context.source_uri == dataset_root.pdf_path.resolve().as_uri()
+    assert scoped_context.source_uri == resources.pdf_source_uri
     assert request_context.run_id == "outer-entity-run"
     assert request_context.source_uri is None
-    assert runner.call_args.kwargs["dataset_id"] == dataset_root.dataset_id
+    assert runner.call_args.kwargs["dataset_id"] == resources.dataset_id
+
+
+def test_run_independent_ask_stage_scopes_request_context_and_flags():
+    module = _load_module(RUN_DEMO_PATH, "run_ask_independent_contract_test")
+    config = _make_module_config(
+        module,
+        dry_run=True,
+        output_dir=DEMO_DIR / "artifacts",
+        dataset_name="demo_dataset_v1",
+    )
+    request_context = module._request_context_from_config(
+        config,
+        command="ask",
+        run_id="outer-ask-run",
+        source_uri="file:///outer.pdf",
+    )
+    resources = _independent_stage_resources(module, config.dataset_name)
+    options = module._IndependentStageOptions(
+        ask_all_runs=False,
+        cluster_aware=True,
+        expand_graph=True,
+    )
+
+    with mock.patch.object(module, "_run_ask_request_context", return_value={"status": "shim"}) as runner:
+        result = module._run_independent_ask_stage(
+            request_context,
+            "scoped-ask-run",
+            resources,
+            options,
+        )
+
+    assert result == {"status": "shim"}
+    runner.assert_called_once()
+    scoped_context = runner.call_args.args[0]
+    assert scoped_context.run_id == "scoped-ask-run"
+    assert scoped_context.source_uri == "file:///outer.pdf"
+    assert runner.call_args.kwargs["cluster_aware"] is True
+    assert runner.call_args.kwargs["expand_graph"] is True
 
 
 def _set_run_demo_pipeline_private(module, public_name: str, value):
@@ -791,7 +882,11 @@ class WorkflowTests(unittest.TestCase):
                 "power_atlas.bootstrap.clients.neo4j.GraphDatabase.driver",
                 new=fake_neo4j.GraphDatabase.driver,
             ):
-                result = module._run_structured_ingest(config, run_id="structured_ingest-test")
+                result = _run_structured_ingest_via_independent_stage(
+                    module,
+                    config,
+                    run_id="structured_ingest-test",
+                )
 
             self.assertEqual(result["status"], "live")
             self.assertGreater(result["claims"], 0)

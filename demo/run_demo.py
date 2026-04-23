@@ -53,8 +53,6 @@ from power_atlas.orchestration.orchestrated_runner import (
 )
 from power_atlas.orchestration.legacy_adapters import (
     lint_and_clean_structured_csvs_legacy as _lint_and_clean_structured_csvs_impl,
-    run_retrieval_and_qa_legacy as _run_retrieval_and_qa_impl,
-    run_structured_ingest_legacy as _run_structured_ingest_impl,
 )
 from power_atlas.run_scope_queries import fetch_dataset_id_for_run
 from power_atlas.run_scope_queries import fetch_latest_unstructured_run_id
@@ -740,39 +738,6 @@ def _lint_and_clean_structured_csvs(run_id: str, output_dir: Path) -> dict[str, 
         output_dir,
         resolve_dataset_root=resolve_dataset_root,
         lint_and_clean_structured_csvs=lint_and_clean_structured_csvs,
-    )
-
-
-def _run_structured_ingest(config: Config, run_id: str) -> dict[str, Any]:
-    return _run_structured_ingest_impl(
-        config,
-        run_id,
-        resolve_dataset_root=resolve_dataset_root,
-        request_context_from_config=_request_context_from_config,
-        run_structured_ingest_request_context=_run_structured_ingest_request_context,
-    )
-
-
-def _run_retrieval_and_qa(
-    config: Config,
-    *,
-    run_id: str | None = None,
-    source_uri: str | None = None,
-    question: str | None = None,
-    cluster_aware: bool = False,
-    expand_graph: bool = False,
-    all_runs: bool = False,
-) -> dict[str, Any]:
-    return _run_retrieval_and_qa_impl(
-        config,
-        run_id=run_id,
-        source_uri=source_uri,
-        question=question,
-        cluster_aware=cluster_aware,
-        expand_graph=expand_graph,
-        all_runs=all_runs,
-        request_context_from_config=_request_context_from_config,
-        run_retrieval_request_context=_run_retrieval_request_context,
     )
 
 
