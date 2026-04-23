@@ -12,6 +12,7 @@ def test_package_modules_import() -> None:
     context_module = importlib.import_module("power_atlas.context")
     contracts_module = importlib.import_module("power_atlas.contracts")
     pipeline_module = importlib.import_module("power_atlas.contracts.pipeline")
+    orchestration_module = importlib.import_module("power_atlas.orchestration")
     settings_module = importlib.import_module("power_atlas.settings")
     bootstrap_module = importlib.import_module("power_atlas.bootstrap")
     llm_utils_module = importlib.import_module("power_atlas.llm_utils")
@@ -69,6 +70,12 @@ def test_package_modules_import() -> None:
     assert not hasattr(pipeline_module, "CHUNK_EMBEDDING_DIMENSIONS")
     assert not hasattr(pipeline_module, "EMBEDDER_MODEL_NAME")
     assert not hasattr(pipeline_module, "CHUNK_FALLBACK_STRIDE")
+    assert hasattr(orchestration_module, "lint_and_clean_structured_csvs_legacy")
+    assert not hasattr(orchestration_module, "run_structured_ingest_legacy")
+    assert not hasattr(orchestration_module, "run_pdf_ingest_legacy")
+    assert not hasattr(orchestration_module, "run_claim_and_mention_extraction_legacy")
+    assert not hasattr(orchestration_module, "run_entity_resolution_legacy")
+    assert not hasattr(orchestration_module, "run_retrieval_and_qa_legacy")
 
 
 def test_build_settings_from_env_mapping() -> None:
