@@ -4,7 +4,6 @@ import asyncio
 import hashlib
 import json
 import logging
-import warnings
 from pathlib import Path
 from typing import Any
 
@@ -35,19 +34,6 @@ _PIPELINE_CONTRACT_EXPORTS = {
     "CHUNK_FALLBACK_STRIDE": "chunk_fallback_stride",
     "EMBEDDER_MODEL_NAME": "embedder_model_name",
 }
-
-
-def _warn_config_first_adapter(adapter_name: str, canonical_name: str) -> None:
-    warnings.warn(
-        (
-            f"{adapter_name} is deprecated and will be removed in a future migration step. "
-            f"Use {canonical_name} with a RequestContext instead."
-        ),
-        DeprecationWarning,
-        stacklevel=2,
-    )
-
-
 def _pipeline_contract_value(
     name: str,
     pipeline_contract: PipelineContractSnapshot,
@@ -433,52 +419,6 @@ def _run_pdf_ingest_impl(
     }
 
 
-def run_pdf_ingest(
-    config: Any,
-    run_id: str | None = None,
-    *,
-    fixtures_dir: Path | None = None,
-    pdf_filename: str | None = None,
-    dataset_id: str | None = None,
-    index_name: str | None = None,
-    chunk_label: str | None = None,
-    embedding_property: str | None = None,
-    embedding_dimensions: int | None = None,
-    embedder_model: str | None = None,
-    chunk_stride: int | None = None,
-    pipeline_contract: PipelineContractSnapshot | None = None,
-    neo4j_settings: Neo4jSettings | None = None,
-) -> dict[str, Any]:
-    """Deprecated config-first PDF ingest adapter.
-
-    Prefer :func:`run_pdf_ingest_request_context`, which is the canonical
-    package-aligned execution boundary.
-    """
-    _warn_config_first_adapter(
-        "run_pdf_ingest",
-        "run_pdf_ingest_request_context",
-    )
-    return _run_pdf_ingest_impl(
-        config,
-        run_id,
-        fixtures_dir=fixtures_dir,
-        pdf_filename=pdf_filename,
-        dataset_id=dataset_id,
-        index_name=index_name,
-        chunk_label=chunk_label,
-        embedding_property=embedding_property,
-        embedding_dimensions=embedding_dimensions,
-        embedder_model=embedder_model,
-        chunk_stride=chunk_stride,
-        pipeline_contract=pipeline_contract,
-        neo4j_settings=neo4j_settings,
-        dataset_name=(
-            getattr(getattr(config, "settings", None), "dataset_name", None)
-            or getattr(config, "dataset_name", None)
-        ),
-    )
-
-
 def run_pdf_ingest_request_context(
     request_context: RequestContext,
     *,
@@ -518,4 +458,4 @@ def run_pdf_ingest_request_context(
     )
 
 
-__all__ = ["run_pdf_ingest", "run_pdf_ingest_request_context", "sha256_file"]
+__all__ = ["run_pdf_ingest_request_context", "sha256_file"]

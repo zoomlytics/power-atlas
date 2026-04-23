@@ -219,7 +219,6 @@ from __future__ import annotations
 
 import json
 import re
-import warnings
 from datetime import UTC, datetime
 from difflib import SequenceMatcher
 from pathlib import Path
@@ -560,6 +559,8 @@ def _build_entity_type_report(
 
     for mention in mentions:
         raw = mention.get("entity_type")
+        if isinstance(raw, str) and raw.strip() == _ENTITY_TYPE_NULL_SENTINEL:
+            raw_null_sentinel_seen = True
         # Normalise empty and whitespace-only strings to None so counts are
         # consistent with how _normalize_entity_type treats them: both are
         # stripped to "" and return None.
@@ -572,21 +573,16 @@ def _build_entity_type_report(
             null_or_empty_count += 1
             norm_key = _ENTITY_TYPE_NULL_SENTINEL
         else:
-            if raw.strip() == _ENTITY_TYPE_NULL_SENTINEL:
-                raw_null_sentinel_seen = True
-            canonical = _normalize_entity_type(raw)
-            # _normalize_entity_type returns None only for falsy or whitespace-only
-            # inputs.  The whitespace-only check above already normalized such raws
-            # to None, so raw here is always a non-empty non-whitespace str and
-            # canonical is guaranteed to be a str.
-            assert canonical is not None
-            if canonical != raw:
-                # raw was a mapped synonym
-                mapped_variants[raw] = canonical
-                norm_key = canonical
+            normalized = _normalize_entity_type(raw)
+            if normalized is None:
+                null_or_empty_count += 1
+                norm_key = _ENTITY_TYPE_NULL_SENTINEL
             else:
-                passthrough_labels.add(raw)
-                norm_key = raw
+                norm_key = normalized
+                if normalized != raw:
+                    mapped_variants[raw] = normalized
+                elif raw != _ENTITY_TYPE_NULL_SENTINEL:
+                    passthrough_labels.add(raw)
         normalized_counts[norm_key] = normalized_counts.get(norm_key, 0) + 1
 
     # Serialise raw_counts so None keys become the reserved sentinel "__null__"
@@ -1664,35 +1660,6 @@ def _run_entity_resolution_impl(
     return summary
 
 
-def run_entity_resolution(
-    config: Any,
-    *,
-    run_id: str,
-    source_uri: str | None,
-    resolution_mode: str | None = None,
-    artifact_subdir: str = "entity_resolution",
-    dataset_id: str | None = None,
-    neo4j_settings: Neo4jSettings | None = None,
-) -> dict[str, Any]:
-    _warn_config_first_adapter(
-        "run_entity_resolution",
-        "run_entity_resolution_request_context",
-    )
-    return _run_entity_resolution_impl(
-        config,
-        run_id=run_id,
-        source_uri=source_uri,
-        resolution_mode=resolution_mode,
-        artifact_subdir=artifact_subdir,
-        dataset_id=dataset_id,
-        neo4j_settings=neo4j_settings,
-        dataset_name=(
-            getattr(getattr(config, "settings", None), "dataset_name", None)
-            or getattr(config, "dataset_name", None)
-        ),
-    )
-
-
 def run_entity_resolution_request_context(
     request_context: RequestContext,
     *,
@@ -1719,7 +1686,6 @@ def run_entity_resolution_request_context(
 
 __all__ = [
     "build_entity_type_cypher_case",
-    "run_entity_resolution",
     "run_entity_resolution_request_context",
     "_build_entity_type_report",
     "_RESOLUTION_MODE_STRUCTURED_ANCHOR",

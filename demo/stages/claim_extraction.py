@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import warnings
 from typing import Any, cast
 
 from power_atlas.bootstrap import require_openai_api_key
@@ -11,19 +10,6 @@ from power_atlas.contracts.pipeline import PipelineContractSnapshot, is_pipeline
 from power_atlas.contracts.prompts import PROMPT_IDS
 from power_atlas.claim_extraction_runtime import run_claim_extraction_live
 from power_atlas.settings import Neo4jSettings
-
-
-def _warn_config_first_adapter(adapter_name: str, canonical_name: str) -> None:
-    warnings.warn(
-        (
-            f"{adapter_name} is deprecated and will be removed in a future migration step. "
-            f"Use {canonical_name} with a RequestContext instead."
-        ),
-        DeprecationWarning,
-        stacklevel=2,
-    )
-
-
 def _resolve_pipeline_contract(
     config: Any,
     pipeline_contract: PipelineContractSnapshot | None,
@@ -214,28 +200,6 @@ def _run_claim_and_mention_extraction_impl(
     return summary
 
 
-def run_claim_and_mention_extraction(
-    config: Any,
-    *,
-    run_id: str,
-    source_uri: str | None,
-    pipeline_contract: PipelineContractSnapshot | None = None,
-    neo4j_settings: Neo4jSettings | None = None,
-) -> dict[str, Any]:
-    """Deprecated config-first claim extraction adapter."""
-    _warn_config_first_adapter(
-        "run_claim_and_mention_extraction",
-        "run_claim_and_mention_extraction_request_context",
-    )
-    return _run_claim_and_mention_extraction_impl(
-        config,
-        run_id=run_id,
-        source_uri=source_uri,
-        pipeline_contract=pipeline_contract,
-        neo4j_settings=neo4j_settings,
-    )
-
-
 def run_claim_and_mention_extraction_request_context(request_context: RequestContext) -> dict[str, Any]:
     """Run claim extraction using request-scoped context as the primary input."""
     return _run_claim_and_mention_extraction_impl(
@@ -247,4 +211,4 @@ def run_claim_and_mention_extraction_request_context(request_context: RequestCon
     )
 
 
-__all__ = ["run_claim_and_mention_extraction", "run_claim_and_mention_extraction_request_context"]
+__all__ = ["run_claim_and_mention_extraction_request_context"]

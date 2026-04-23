@@ -108,7 +108,6 @@ from demo.stages.entity_resolution import (
     _normalize_entity_type,
     _resolve_mention,
     _split_aliases,
-    run_entity_resolution,
     run_entity_resolution_request_context,
 )
 
@@ -702,21 +701,6 @@ class TestRunEntityResolutionDryRun(unittest.TestCase):
             )
             self.assertIn("resolver_version", result)
             self.assertTrue(result["resolver_version"])
-
-    def test_config_first_adapter_warns_deprecated(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            config = _dry_run_config(Path(tmpdir))
-            with self.assertWarnsRegex(
-                DeprecationWarning,
-                "run_entity_resolution is deprecated",
-            ):
-                result = run_entity_resolution(
-                    config,
-                    run_id="test-run-deprecated",
-                    source_uri=None,
-                )
-            self.assertEqual(result["status"], "dry_run")
-
 
 class TestRunEntityResolutionLive(unittest.TestCase):
     """Tests for the live path using a mock Neo4j driver."""
@@ -1878,8 +1862,8 @@ class TestEntityTypeDriftReport(unittest.TestCase):
         """sentinel_label_warnings from entity_type_report must appear in top-level warnings.
 
         Regression test: when an upstream extractor emits the reserved sentinel
-        label '__null__' alongside absent/empty mentions, run_entity_resolution()
-        must propagate the resulting sentinel_label_warnings into the stage's
+        label '__null__' alongside absent/empty mentions, the entity-resolution
+        stage must propagate the resulting sentinel_label_warnings into the stage's
         top-level 'warnings' list so the collision is visible at orchestration
         boundaries.
         """

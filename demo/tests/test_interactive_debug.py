@@ -1,4 +1,4 @@
-"""Tests for the interactive debug output surface in :func:`run_interactive_qa`.
+"""Tests for the interactive debug output surface in :func:`run_interactive_qa_request_context`.
 
 These tests verify that:
 
@@ -22,7 +22,7 @@ Structure
     applied, warnings present, malformed diagnostics).
 
 ``TestRunInteractiveQaDebugFlag``
-    Integration tests that drive :func:`run_interactive_qa` with a fully mocked
+    Integration tests that drive :func:`run_interactive_qa_request_context` with a fully mocked
     Neo4j / LLM stack and assert whether debug lines appear in stdout depending
     on the *debug* flag.
 """
@@ -39,7 +39,6 @@ from demo.stages.retrieval_and_qa import (
     _format_postprocess_debug_summary,
     _postprocess_answer,
     run_interactive_qa_request_context,
-    run_interactive_qa,
 )
 from power_atlas.bootstrap import build_app_context, build_request_context
 from power_atlas.orchestration.context_builder import build_request_context_from_config
@@ -99,11 +98,14 @@ def test_run_interactive_qa_request_context_forwards_pipeline_contract() -> None
     )
     captured: dict[str, object] = {}
 
-    def _fake_run_interactive_qa(config, **kwargs):
+    def _fake_run_interactive_qa_impl(config, **kwargs):
         captured["config"] = config
         captured.update(kwargs)
 
-    with patch("demo.stages.retrieval_and_qa.run_interactive_qa", side_effect=_fake_run_interactive_qa):
+    with patch(
+        "demo.stages.retrieval_and_qa._run_interactive_qa_impl",
+        side_effect=_fake_run_interactive_qa_impl,
+    ):
         run_interactive_qa_request_context(request_context)
 
     assert captured["config"] is request_context.config
@@ -334,9 +336,9 @@ class TestFormatPostprocessDebugSummary:
 
 
 class TestRunInteractiveQaDebugFlag:
-    """Integration tests for the debug flag in run_interactive_qa.
+    """Integration tests for the debug flag in run_interactive_qa_request_context.
 
-    These tests drive the full run_interactive_qa code path with a mocked
+    These tests drive the full request-context interactive QA code path with a mocked
     Neo4j driver and LLM stack, then assert whether debug lines appear in
     captured stdout depending on the debug flag value.
 

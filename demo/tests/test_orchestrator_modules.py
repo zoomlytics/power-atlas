@@ -16,7 +16,7 @@ from neo4j_graphrag.experimental.components.types import (
     TextChunks,
 )
 
-from demo.stages import lint_and_clean_structured_csvs, run_pdf_ingest
+from demo.stages import lint_and_clean_structured_csvs
 from power_atlas.contracts import (
     Config as _RuntimeConfig,
     POWER_ATLAS_RAG_TEMPLATE,
@@ -362,22 +362,6 @@ def test_pdf_ingest_request_context_uses_request_scope(tmp_path: Path):
     assert summary["vector_index"]["index_name"] == request_context.pipeline_contract.chunk_embedding_index_name
 
 
-def test_pdf_ingest_config_first_adapter_warns_deprecated(tmp_path: Path):
-    import demo.stages.pdf_ingest as pdf_ingest_module
-
-    config = _dry_run_config(tmp_path)
-    fixtures_dir = resolve_dataset_root("demo_dataset_v1").root
-
-    with pytest.warns(DeprecationWarning, match="run_pdf_ingest is deprecated"):
-        summary = pdf_ingest_module.run_pdf_ingest(
-            config,
-            run_id="deprecated-pdf-run",
-            fixtures_dir=fixtures_dir,
-        )
-
-    assert summary["status"] == "dry_run"
-
-
 def test_structured_ingest_request_context_uses_request_scope(tmp_path: Path):
     """The RequestContext structured-ingest helper must forward run scope directly."""
     import json
@@ -706,24 +690,6 @@ def test_claim_extraction_request_context_uses_request_scope(tmp_path: Path):
     assert summary["status"] == "dry_run"
 
 
-def test_claim_extraction_config_first_adapter_warns_deprecated(tmp_path: Path):
-    from demo.stages.claim_extraction import run_claim_and_mention_extraction
-
-    config = _dry_run_config(tmp_path)
-
-    with pytest.warns(
-        DeprecationWarning,
-        match="run_claim_and_mention_extraction is deprecated",
-    ):
-        summary = run_claim_and_mention_extraction(
-            config,
-            run_id="claim-run-deprecated",
-            source_uri=None,
-        )
-
-    assert summary["status"] == "dry_run"
-
-
 def test_entity_resolution_request_context_uses_request_scope(tmp_path: Path):
     """The RequestContext entity-resolution helper must forward run and source scope directly."""
     from demo.run_demo import _request_context_from_config
@@ -740,21 +706,6 @@ def test_entity_resolution_request_context_uses_request_scope(tmp_path: Path):
 
     assert summary["run_id"] == "context-entity-run"
     assert summary["source_uri"] == "file:///context/entity.pdf"
-    assert summary["status"] == "dry_run"
-
-
-def test_entity_resolution_config_first_adapter_warns_deprecated(tmp_path: Path):
-    from demo.stages.entity_resolution import run_entity_resolution
-
-    config = _dry_run_config(tmp_path)
-
-    with pytest.warns(DeprecationWarning, match="run_entity_resolution is deprecated"):
-        summary = run_entity_resolution(
-            config,
-            run_id="deprecated-entity-run",
-            source_uri=None,
-        )
-
     assert summary["status"] == "dry_run"
 
 
@@ -4912,41 +4863,6 @@ def test_run_retrieval_and_qa_request_context_forwards_pipeline_contract(tmp_pat
     assert captured["config"] is request_context.config
     assert captured["pipeline_contract"] is request_context.pipeline_contract
     assert captured["neo4j_settings"] is request_context.settings.neo4j
-
-
-def test_run_retrieval_and_qa_config_first_adapter_warns_deprecated(tmp_path: Path):
-    from demo.stages import retrieval_and_qa as retrieval_module
-
-    config = _dry_run_config(tmp_path)
-
-    with pytest.warns(DeprecationWarning, match="run_retrieval_and_qa is deprecated"):
-        result = retrieval_module.run_retrieval_and_qa(
-            config,
-            run_id="deprecated-qa-run",
-            source_uri=None,
-        )
-
-    assert result["status"] == "dry_run"
-
-
-def test_run_interactive_qa_config_first_adapter_warns_deprecated(tmp_path: Path):
-    from demo.stages import retrieval_and_qa as retrieval_module
-
-    config = _make_config(
-        dry_run=False,
-        output_dir=tmp_path,
-        openai_model="gpt-4o-mini",
-    )
-
-    with mock.patch.object(retrieval_module, "_run_interactive_qa_impl", return_value=None) as mock_impl:
-        with pytest.warns(DeprecationWarning, match="run_interactive_qa is deprecated"):
-            retrieval_module.run_interactive_qa(
-                config,
-                run_id="deprecated-interactive-run",
-                source_uri=None,
-            )
-
-    mock_impl.assert_called_once()
 
 
 def test_run_claim_participation_request_context_uses_request_scope(tmp_path: Path):
