@@ -81,6 +81,12 @@ from pathlib import Path
 from typing import Any
 
 from power_atlas.context import RequestContext
+from power_atlas.retrieval_benchmark_queries import Q_CANONICAL_SINGLE as _Q_CANONICAL_SINGLE
+from power_atlas.retrieval_benchmark_queries import Q_CATALOG_EXISTENCE_CHECK as _Q_CATALOG_EXISTENCE_CHECK
+from power_atlas.retrieval_benchmark_queries import Q_LOWER_LAYER_CHAIN as _Q_LOWER_LAYER_CHAIN
+from power_atlas.retrieval_benchmark_queries import Q_PAIRWISE_CANONICAL as _Q_PAIRWISE_CANONICAL
+from power_atlas.retrieval_benchmark_queries import build_pairwise_query_specs
+from power_atlas.retrieval_benchmark_queries import build_single_entity_query_specs
 from power_atlas.retrieval_benchmark_queries import fetch_retrieval_benchmark_query_rows
 from power_atlas.settings import Neo4jSettings
 
@@ -109,11 +115,13 @@ __all__ = [
     "_Q_CATALOG_EXISTENCE_CHECK",
 ]
 
+_Q_CANONICAL_SINGLE = _Q_CANONICAL_SINGLE
+_Q_CATALOG_EXISTENCE_CHECK = _Q_CATALOG_EXISTENCE_CHECK
+_Q_LOWER_LAYER_CHAIN = _Q_LOWER_LAYER_CHAIN
+_Q_PAIRWISE_CANONICAL = _Q_PAIRWISE_CANONICAL
+
 # ---------------------------------------------------------------------------
 # Static benchmark case definitions
-# ---------------------------------------------------------------------------
-
-
 @dataclasses.dataclass(frozen=True)
 class BenchmarkCaseDefinition:
     """Static definition of a single benchmark case.
@@ -128,12 +136,12 @@ class BenchmarkCaseDefinition:
         ``"canonical_vs_cluster"``.
     entity_names:
         Entity name fragments used to drive the ``toLower(...) CONTAINS``
-        filter.  For single-entity cases this is a one-element list; for
+        filter. For single-entity cases this is a one-element list; for
         pairwise cases it contains exactly two names.
     description:
         Human-readable description of the case.
     expected_shape:
-        Short description of what a *good* result looks like for this case.
+        Short description of what a good result looks like for this case.
     failure_modes:
         List of known failure patterns to watch for.
     lower_layer_checks:
@@ -149,22 +157,12 @@ class BenchmarkCaseDefinition:
     lower_layer_checks: tuple[str, ...]
 
     def __post_init__(self) -> None:
-        # Coerce mutable lists to immutable tuples so callers can pass either.
         object.__setattr__(self, "entity_names", tuple(self.entity_names))
         object.__setattr__(self, "failure_modes", tuple(self.failure_modes))
         object.__setattr__(self, "lower_layer_checks", tuple(self.lower_layer_checks))
 
 
-#: Default benchmark cases derived from the benchmark specification.
-#: Covers the five case types specified in the issue:
-#:   single-entity, pairwise-entity, fragmented-entity, composite-claim,
-#:   and canonical-vs-cluster comparison.
-#: 9 entries: 4 single-entity, 1 pairwise-entity, 1 fragmented-entity,
-#:            1 composite-claim, 2 canonical-vs-cluster.
 BENCHMARK_CASES: list[BenchmarkCaseDefinition] = [
-    # ------------------------------------------------------------------
-    # 1. Single-entity retrieval
-    # ------------------------------------------------------------------
     BenchmarkCaseDefinition(
         case_id="mercadolibre_single",
         case_type="single_entity",
@@ -1224,14 +1222,7 @@ def run_retrieval_benchmark(
                 resolved_neo4j_settings,
                 resolved_neo4j_settings.database,
                 base_params=params,
-                query_specs=[
-                    (
-                        "pairwise_rows",
-                        f"pairwise case {case_def.case_id}",
-                        _Q_PAIRWISE_CANONICAL,
-                        {"entity_a": entity_a, "entity_b": entity_b},
-                    )
-                ],
+                query_specs=build_pairwise_query_specs(entity_a, entity_b),
                 logger=_logger,
             )
             pairwise_rows = query_rows["pairwise_rows"]
@@ -1256,23 +1247,7 @@ def run_retrieval_benchmark(
                 resolved_neo4j_settings,
                 resolved_neo4j_settings.database,
                 base_params=params,
-                query_specs=[
-                    ("canonical_rows", "canonical single", _Q_CANONICAL_SINGLE, {"entity_name": entity_name}),
-                    ("cluster_rows", "cluster-name single", _Q_CLUSTER_NAME_SINGLE, {"entity_name": entity_name}),
-                    ("lower_layer_rows", "lower-layer chain", _Q_LOWER_LAYER_CHAIN, {"entity_name": entity_name}),
-                    (
-                        "fragmentation_check_rows",
-                        "fragmentation check",
-                        _Q_FRAGMENTATION_CHECK,
-                        {"entity_name": entity_name},
-                    ),
-                    (
-                        "catalog_check_rows",
-                        "catalog existence check",
-                        _Q_CATALOG_EXISTENCE_CHECK,
-                        {"entity_name": entity_name},
-                    ),
-                ],
+                query_specs=build_single_entity_query_specs(entity_name),
                 logger=_logger,
             )
             case_results.append(
