@@ -42,6 +42,7 @@ from power_atlas.orchestration.ask_scope import (
 )
 from power_atlas.orchestration.independent_stage_runners import (
     build_independent_stage_specs as _build_independent_stage_specs_impl,
+    run_independent_stage_request_context as _run_independent_stage_request_context_impl,
     run_independent_ask_stage as _run_independent_ask_stage_impl,
     run_independent_claim_extraction_stage as _run_independent_claim_extraction_stage_impl,
     run_independent_entity_resolution_stage as _run_independent_entity_resolution_stage_impl,
@@ -572,49 +573,20 @@ def _run_independent_stage(
     expand_graph: bool = False,
 ) -> Path:
     request_context = _ensure_request_context(config_or_request_context, command=command)
-    if command == "ask" and request_context.source_uri is None and not (all_runs or request_context.all_runs):
-        request_context = replace(request_context, source_uri=_resolve_ask_source_uri(request_context))
-    config = request_context.config
-    config.output_dir.mkdir(parents=True, exist_ok=True)
-    ask_all_runs = (all_runs or request_context.all_runs) and command == "ask"
-    dataset_root = None if ask_all_runs else resolve_dataset_root(config.dataset_name)
-    plan = build_independent_stage_plan(
+    return _run_independent_stage_request_context_impl(
         request_context,
         command=command,
         resolved_run_id=resolved_run_id,
         all_runs=all_runs,
         cluster_aware=cluster_aware,
         expand_graph=expand_graph,
-        dataset_root=dataset_root,
+        resolve_ask_source_uri=_resolve_ask_source_uri,
+        resolve_dataset_root=resolve_dataset_root,
+        build_independent_stage_plan=build_independent_stage_plan,
         stage_specs=_INDEPENDENT_STAGE_SPECS,
         resolve_stage_run_id=_resolve_independent_stage_run_id,
-    )
-    started_at = _now_iso()
-    stage_output = plan.stage_spec.runner(
-        plan.request_context,
-        plan.stage_run_id,
-        plan.resources,
-        plan.options,
-    )
-    finished_at = _now_iso()
-    # In all-runs mode the ask run is not associated with any specific ingest run, so
-    # run_scopes.unstructured_ingest_run_id must be null rather than a fake sentinel.
-    # Retrieval scope details are captured in retrieval_scope within the stage output.
-    # For all other commands, scope_run_id == stage_run_id (default behaviour).
-    # Write the manifest into a stage-scoped directory: runs/<run_id>/<stage_name>/manifest.json
-    # Using a stage-name subdirectory prevents manifests from different stages that share the
-    # same run_id (e.g. extract-claims, resolve-entities, ask all use UNSTRUCTURED_RUN_ID) from
-    # overwriting each other.  write_manifest() calls mkdir internally so no explicit mkdir needed.
-    return _write_independent_stage_manifest(
-        config=config,
-        stage_name=plan.stage_spec.stage_name,
-        stage_run_id=plan.stage_run_id,
-        run_scope_key=plan.stage_spec.run_scope_key,
-        scope_run_id=None if plan.options.ask_all_runs else plan.stage_run_id,
-        dataset_id=plan.dataset_id,
-        stage_output=stage_output,
-        started_at=started_at,
-        finished_at=finished_at,
+        now_iso=_now_iso,
+        write_independent_stage_manifest=_write_independent_stage_manifest,
     )
 
 
