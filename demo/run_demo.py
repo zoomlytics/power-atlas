@@ -50,6 +50,7 @@ from power_atlas.orchestration.independent_stage_runners import (
     run_independent_entity_resolution_stage as _run_independent_entity_resolution_stage_impl,
     run_independent_pdf_ingest_stage as _run_independent_pdf_ingest_stage_impl,
     run_independent_structured_ingest_stage as _run_independent_structured_ingest_stage_impl,
+    write_independent_stage_manifest as _write_independent_stage_manifest_impl,
 )
 from power_atlas.orchestration.orchestrated_runner import (
     run_orchestrated_request_context as _run_orchestrated_request_context_impl,
@@ -140,37 +141,6 @@ def _resolve_independent_stage_run_id(
         current_env_unstructured_run_id=_current_env_unstructured_run_id,
         make_run_id=make_run_id,
         dry_run_no_scope_run_id=_DRY_RUN_NO_SCOPE_RUN_ID,
-    )
-
-
-def _write_independent_stage_manifest(
-    *,
-    config: Config,
-    stage_name: str,
-    stage_run_id: str,
-    run_scope_key: str,
-    scope_run_id: str | None,
-    dataset_id: str | None,
-    stage_output: dict[str, Any],
-    started_at: str,
-    finished_at: str,
-) -> Path:
-    manifest = build_stage_manifest(
-        config=config,
-        stage_name=stage_name,
-        stage_run_id=stage_run_id,
-        run_scope_key=run_scope_key,
-        scope_run_id=scope_run_id,
-        dataset_id=dataset_id,
-        stage_output=stage_output,
-        started_at=started_at,
-        finished_at=finished_at,
-    )
-    return write_stage_manifest_artifacts(
-        config.output_dir,
-        run_id=stage_run_id,
-        stage_name=stage_name,
-        manifest=manifest,
     )
 
 
@@ -579,7 +549,11 @@ def _run_independent_stage(
         stage_specs=_INDEPENDENT_STAGE_SPECS,
         resolve_stage_run_id=_resolve_independent_stage_run_id,
         now_iso=_now_iso,
-        write_independent_stage_manifest=_write_independent_stage_manifest,
+        write_independent_stage_manifest=lambda **kwargs: _write_independent_stage_manifest_impl(
+            **kwargs,
+            build_stage_manifest=build_stage_manifest,
+            write_stage_manifest_artifacts=write_stage_manifest_artifacts,
+        ),
     )
 
 

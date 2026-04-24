@@ -170,6 +170,39 @@ def resolve_independent_stage_run_id(
     return make_run_id(run_scope)
 
 
+def write_independent_stage_manifest(
+    *,
+    config,
+    stage_name: str,
+    stage_run_id: str,
+    run_scope_key: str,
+    scope_run_id: str | None,
+    dataset_id: str | None,
+    stage_output: dict[str, Any],
+    started_at: str,
+    finished_at: str,
+    build_stage_manifest: Callable[..., dict[str, Any]],
+    write_stage_manifest_artifacts: Callable[..., Path],
+) -> Path:
+    manifest = build_stage_manifest(
+        config=config,
+        stage_name=stage_name,
+        stage_run_id=stage_run_id,
+        run_scope_key=run_scope_key,
+        scope_run_id=scope_run_id,
+        dataset_id=dataset_id,
+        stage_output=stage_output,
+        started_at=started_at,
+        finished_at=finished_at,
+    )
+    return write_stage_manifest_artifacts(
+        config.output_dir,
+        run_id=stage_run_id,
+        stage_name=stage_name,
+        manifest=manifest,
+    )
+
+
 def run_independent_stage_request_context(
     request_context: RequestContext,
     *,
@@ -236,4 +269,5 @@ __all__ = [
     "run_independent_entity_resolution_stage",
     "run_independent_pdf_ingest_stage",
     "run_independent_structured_ingest_stage",
+    "write_independent_stage_manifest",
 ]
