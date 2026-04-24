@@ -43,6 +43,10 @@ from power_atlas.retrieval_postprocessing import (
     repair_uncited_answer as _repair_uncited_answer_impl,
     split_into_segments as _split_into_segments_impl,
 )
+from power_atlas.retrieval_request_context_adapters import (
+    run_interactive_request_context,
+    run_retrieval_request_context,
+)
 from power_atlas.retrieval_chunk_formatter import (
     build_retrieval_path_diagnostics as _build_retrieval_path_diagnostics,
     format_chunk_citation_record,
@@ -420,20 +424,16 @@ def run_retrieval_and_qa_request_context(
     interactive: bool = False,
 ) -> dict[str, object]:
     """Run single-turn retrieval using request-scoped context as the primary input."""
-    return _run_retrieval_and_qa_impl(
-        request_context.config,
-        run_id=request_context.run_id,
-        source_uri=request_context.source_uri,
+    return run_retrieval_request_context(
+        request_context,
         top_k=top_k,
-        index_name=index_name or request_context.pipeline_contract.chunk_embedding_index_name,
-        question=question if question is not None else getattr(request_context.config, "question", None),
+        index_name=index_name,
+        question=question,
         expand_graph=expand_graph,
         cluster_aware=cluster_aware,
         message_history=message_history,
         interactive=interactive,
-        all_runs=request_context.all_runs,
-        pipeline_contract=request_context.pipeline_contract,
-        neo4j_settings=request_context.settings.neo4j,
+        run_impl=_run_retrieval_and_qa_impl,
     )
 
 
@@ -811,18 +811,15 @@ def run_interactive_qa_request_context(
     debug: bool = False,
 ) -> None:
     """Run interactive retrieval using request-scoped context as the primary input."""
-    return _run_interactive_qa_impl(
-        request_context.config,
-        run_id=request_context.run_id,
-        source_uri=request_context.source_uri,
+    return run_interactive_request_context(
+        request_context,
         top_k=top_k,
-        index_name=index_name or request_context.pipeline_contract.chunk_embedding_index_name,
+        index_name=index_name,
         expand_graph=expand_graph,
         cluster_aware=cluster_aware,
-        all_runs=request_context.all_runs if all_runs is None else all_runs,
+        all_runs=all_runs,
         debug=debug,
-        pipeline_contract=request_context.pipeline_contract,
-        neo4j_settings=request_context.settings.neo4j,
+        run_impl=_run_interactive_qa_impl,
     )
 
 
