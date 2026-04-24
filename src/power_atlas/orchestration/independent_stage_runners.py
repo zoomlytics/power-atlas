@@ -12,6 +12,9 @@ from power_atlas.orchestration.demo_planner import (
 )
 
 
+DRY_RUN_NO_SCOPE_RUN_ID = "dry_run_no_scope"
+
+
 def run_independent_structured_ingest_stage(
     request_context: RequestContext,
     stage_run_id: str,
@@ -138,6 +141,35 @@ def build_independent_stage_specs(
     }
 
 
+def resolve_independent_stage_run_id(
+    command: str,
+    request_context: RequestContext,
+    *,
+    run_scope: str,
+    ask_all_runs: bool,
+    current_env_unstructured_run_id: Callable[[], str | None],
+    make_run_id: Callable[[str], str],
+    dry_run_no_scope_run_id: str = DRY_RUN_NO_SCOPE_RUN_ID,
+) -> str:
+    if command in ("extract-claims", "resolve-entities"):
+        env_run_id = current_env_unstructured_run_id()
+        if not env_run_id:
+            raise ValueError(
+                "UNSTRUCTURED_RUN_ID is not set. When running "
+                f"'{command}' independently, set this to the run_id from a prior "
+                "'ingest' or 'ingest-pdf' command whose unstructured data you want to process "
+                "(for example, a value like 'unstructured_ingest-20260304T224739123456Z-1a2b3c4d')."
+            )
+        return env_run_id
+    if command == "ask":
+        if ask_all_runs:
+            return make_run_id("ask")
+        if request_context.run_id is not None:
+            return request_context.run_id
+        return dry_run_no_scope_run_id
+    return make_run_id(run_scope)
+
+
 def run_independent_stage_request_context(
     request_context: RequestContext,
     *,
@@ -195,7 +227,9 @@ def run_independent_stage_request_context(
 
 
 __all__ = [
+    "DRY_RUN_NO_SCOPE_RUN_ID",
     "build_independent_stage_specs",
+    "resolve_independent_stage_run_id",
     "run_independent_stage_request_context",
     "run_independent_ask_stage",
     "run_independent_claim_extraction_stage",

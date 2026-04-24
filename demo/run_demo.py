@@ -41,7 +41,9 @@ from power_atlas.orchestration.ask_scope import (
     warn_if_env_run_id_bypasses_dataset_selection as _warn_if_env_run_id_bypasses_dataset_selection_impl,
 )
 from power_atlas.orchestration.independent_stage_runners import (
+    DRY_RUN_NO_SCOPE_RUN_ID as _DRY_RUN_NO_SCOPE_RUN_ID,
     build_independent_stage_specs as _build_independent_stage_specs_impl,
+    resolve_independent_stage_run_id as _resolve_independent_stage_run_id_impl,
     run_independent_stage_request_context as _run_independent_stage_request_context_impl,
     run_independent_ask_stage as _run_independent_ask_stage_impl,
     run_independent_claim_extraction_stage as _run_independent_claim_extraction_stage_impl,
@@ -87,7 +89,6 @@ from demo.stages.pdf_ingest import sha256_file  # noqa: E402, F401 - re-exported
 
 _logger = logging.getLogger(__name__)
 _KEEP_REQUEST_CONTEXT_VALUE = object()
-_DRY_RUN_NO_SCOPE_RUN_ID = "dry_run_no_scope"
 
 
 def _now_iso() -> str:
@@ -131,23 +132,15 @@ def _resolve_independent_stage_run_id(
     run_scope: str,
     ask_all_runs: bool,
 ) -> str:
-    if command in ("extract-claims", "resolve-entities"):
-        env_run_id = _current_env_unstructured_run_id()
-        if not env_run_id:
-            raise ValueError(
-                "UNSTRUCTURED_RUN_ID is not set. When running "
-                f"'{command}' independently, set this to the run_id from a prior "
-                "'ingest' or 'ingest-pdf' command whose unstructured data you want to process "
-                "(for example, a value like 'unstructured_ingest-20260304T224739123456Z-1a2b3c4d')."
-            )
-        return env_run_id
-    if command == "ask":
-        if ask_all_runs:
-            return make_run_id("ask")
-        if request_context.run_id is not None:
-            return request_context.run_id
-        return _DRY_RUN_NO_SCOPE_RUN_ID
-    return make_run_id(run_scope)
+    return _resolve_independent_stage_run_id_impl(
+        command,
+        request_context,
+        run_scope=run_scope,
+        ask_all_runs=ask_all_runs,
+        current_env_unstructured_run_id=_current_env_unstructured_run_id,
+        make_run_id=make_run_id,
+        dry_run_no_scope_run_id=_DRY_RUN_NO_SCOPE_RUN_ID,
+    )
 
 
 def _write_independent_stage_manifest(
