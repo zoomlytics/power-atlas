@@ -248,6 +248,50 @@ def build_live_retrieval_result(
     }
 
 
+def finalize_live_retrieval_result(
+    *,
+    base: dict[str, object],
+    answer_text: str,
+    hits: list[dict[str, object]],
+    session_warnings: list[str],
+    session_citation_warnings: list[str],
+    all_runs: bool,
+    expand_graph: bool,
+    cluster_aware: bool,
+    citation_token_example: str,
+    citation_object_example: dict[str, object],
+    fallback_preview_max_len: int,
+    logger: logging.Logger,
+    postprocess_answer: Callable[..., dict[str, object]],
+    project_postprocess_to_public: Callable[[dict[str, object]], dict[str, object]],
+    format_retrieval_path_summary: Callable[[list[dict[str, object]]], str],
+    count_malformed_diagnostics: Callable[[list[dict[str, object]]], int],
+    build_retrieval_debug_view: Callable[..., dict[str, object]],
+) -> dict[str, object]:
+    """Merge session warnings and finalize the public live retrieval result."""
+    warnings_list = list(session_warnings)
+    citation_warnings_list = list(session_citation_warnings)
+    return build_live_retrieval_result(
+        base=base,
+        answer_text=answer_text,
+        hits=hits,
+        warnings=warnings_list,
+        citation_warnings=citation_warnings_list,
+        all_runs=all_runs,
+        expand_graph=expand_graph,
+        cluster_aware=cluster_aware,
+        citation_token_example=citation_token_example,
+        citation_object_example=citation_object_example,
+        fallback_preview_max_len=fallback_preview_max_len,
+        logger=logger,
+        postprocess_answer=postprocess_answer,
+        project_postprocess_to_public=project_postprocess_to_public,
+        format_retrieval_path_summary=format_retrieval_path_summary,
+        count_malformed_diagnostics=count_malformed_diagnostics,
+        build_retrieval_debug_view=build_retrieval_debug_view,
+    )
+
+
 def execute_retrieval_search(
     rag: Any,
     *,
@@ -371,6 +415,7 @@ __all__ = [
     "RetrievalSearchResult",
     "build_early_return_retrieval_result",
     "build_dry_run_retrieval_result",
+    "finalize_live_retrieval_result",
     "build_retrieval_base_result",
     "build_retrieval_skipped_result",
     "build_live_retrieval_result",

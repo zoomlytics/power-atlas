@@ -74,6 +74,7 @@ from power_atlas.retrieval_runtime import (
     build_retrieval_skipped_result,
     build_live_retrieval_result,
     execute_retrieval_search,
+    finalize_live_retrieval_result,
     run_interactive_retrieval_turn,
     run_with_retrieval_session,
 )
@@ -1259,15 +1260,12 @@ def _run_retrieval_and_qa_impl(
         build_retriever_and_rag=_build_retriever_and_rag,
         run_session=_run_single_shot_session,
     )
-    warnings_list.extend(session_warnings)
-    citation_warnings_list.extend(session_citation_warnings)
-
-    return build_live_retrieval_result(
+    return finalize_live_retrieval_result(
         base=base,
         answer_text=answer_text,
         hits=hits,
-        warnings=warnings_list,
-        citation_warnings=citation_warnings_list,
+        session_warnings=session_warnings,
+        session_citation_warnings=session_citation_warnings,
         all_runs=all_runs,
         expand_graph=expand_graph,
         cluster_aware=cluster_aware,
