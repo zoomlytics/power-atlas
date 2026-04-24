@@ -7,6 +7,7 @@ from typing import Any, TypeVar
 
 from power_atlas.bootstrap import create_neo4j_driver
 from power_atlas.contracts import resolve_early_return_rule
+from power_atlas.retrieval_live_preflight import prepare_live_retrieval_preflight
 from power_atlas.settings import Neo4jSettings
 
 SessionResultT = TypeVar("SessionResultT")
@@ -410,6 +411,43 @@ def run_with_retrieval_session(
         return run_session(driver=driver, retriever=retriever, rag=rag)
 
 
+def run_live_retrieval_session(
+    *,
+    config: object,
+    neo4j_settings: Neo4jSettings | None,
+    neo4j_settings_type: type[Neo4jSettings],
+    require_openai_api_key: Callable[[], None],
+    openai_api_key: str,
+    openai_error_message: str,
+    neo4j_error_message: str,
+    index_name: str,
+    retrieval_query: str,
+    qa_model: str,
+    pipeline_contract: Any,
+    build_retriever_and_rag: Callable[..., tuple[Any, Any]],
+    run_session: Callable[..., SessionResultT],
+) -> SessionResultT:
+    resolved_neo4j_settings, neo4j_database = prepare_live_retrieval_preflight(
+        config,
+        neo4j_settings,
+        neo4j_settings_type=neo4j_settings_type,
+        require_openai_api_key=require_openai_api_key,
+        openai_api_key=openai_api_key,
+        openai_error_message=openai_error_message,
+        neo4j_error_message=neo4j_error_message,
+    )
+    return run_with_retrieval_session(
+        resolved_neo4j_settings,
+        index_name=index_name,
+        retrieval_query=retrieval_query,
+        qa_model=qa_model,
+        neo4j_database=neo4j_database,
+        pipeline_contract=pipeline_contract,
+        build_retriever_and_rag=build_retriever_and_rag,
+        run_session=run_session,
+    )
+
+
 __all__ = [
     "InteractiveRetrievalTurnResult",
     "RetrievalSearchResult",
@@ -420,6 +458,7 @@ __all__ = [
     "build_retrieval_skipped_result",
     "build_live_retrieval_result",
     "execute_retrieval_search",
+    "run_live_retrieval_session",
     "run_interactive_retrieval_turn",
     "run_with_retrieval_session",
 ]

@@ -73,7 +73,6 @@ from power_atlas.retrieval_query_builders import _RETRIEVAL_QUERY_WITH_EXPANSION
 from power_atlas.retrieval_query_builders import _RETRIEVAL_QUERY_WITH_EXPANSION_ALL_RUNS
 from power_atlas.retrieval_query_builders import _select_retrieval_query
 from power_atlas.retrieval_interactive_session import run_interactive_session_loop
-from power_atlas.retrieval_live_preflight import prepare_live_retrieval_preflight
 from power_atlas.retrieval_live_preflight import require_live_retrieval_openai_api_key
 from power_atlas.retrieval_live_preflight import resolve_live_neo4j_settings
 from power_atlas.retrieval_execution_setup import prepare_retrieval_execution_settings
@@ -92,7 +91,7 @@ from power_atlas.retrieval_runtime import (
     execute_retrieval_search,
     finalize_live_retrieval_result,
     run_interactive_retrieval_turn,
-    run_with_retrieval_session,
+    run_live_retrieval_session,
 )
 from power_atlas.settings import Neo4jSettings
 from neo4j_graphrag.retrievers import VectorCypherRetriever
@@ -596,19 +595,6 @@ def _run_retrieval_and_qa_impl(
     citation_warnings_list: list[str] = []
     hits: list[dict[str, object]] = []
 
-    resolved_neo4j_settings, neo4j_database = prepare_live_retrieval_preflight(
-        config,
-        neo4j_settings,
-        neo4j_settings_type=Neo4jSettings,
-        require_openai_api_key=require_openai_api_key,
-        openai_api_key=os.getenv("OPENAI_API_KEY", ""),
-        openai_error_message="OPENAI_API_KEY environment variable is required for live retrieval.",
-        neo4j_error_message=(
-            "Live retrieval requires config.settings.neo4j or an explicit neo4j_settings "
-            "argument from RequestContext/AppContext-derived config"
-        ),
-    )
-
     def _run_single_shot_session(*, driver: object, retriever: object, rag: GraphRAG) -> tuple[str, list[dict[str, object]], list[str], list[str]]:
         del driver, retriever
         return run_single_shot_retrieval_session(
@@ -622,12 +608,20 @@ def _run_retrieval_and_qa_impl(
             execute_search=execute_retrieval_search,
         )
 
-    answer_text, hits, session_warnings, session_citation_warnings = run_with_retrieval_session(
-        resolved_neo4j_settings,
+    answer_text, hits, session_warnings, session_citation_warnings = run_live_retrieval_session(
+        config=config,
+        neo4j_settings=neo4j_settings,
+        neo4j_settings_type=Neo4jSettings,
+        require_openai_api_key=require_openai_api_key,
+        openai_api_key=os.getenv("OPENAI_API_KEY", ""),
+        openai_error_message="OPENAI_API_KEY environment variable is required for live retrieval.",
+        neo4j_error_message=(
+            "Live retrieval requires config.settings.neo4j or an explicit neo4j_settings "
+            "argument from RequestContext/AppContext-derived config"
+        ),
         index_name=resolved_index_name,
         retrieval_query=retrieval_query,
         qa_model=effective_qa_model,
-        neo4j_database=neo4j_database,
         pipeline_contract=resolved_pipeline_contract,
         build_retriever_and_rag=_build_retriever_and_rag,
         run_session=_run_single_shot_session,
@@ -775,9 +769,9 @@ def _run_interactive_qa_impl(
             llm_message_factory=LLMMessage,
         )
 
-    resolved_neo4j_settings, neo4j_database = prepare_live_retrieval_preflight(
-        config,
-        neo4j_settings,
+    run_live_retrieval_session(
+        config=config,
+        neo4j_settings=neo4j_settings,
         neo4j_settings_type=Neo4jSettings,
         require_openai_api_key=require_openai_api_key,
         openai_api_key=os.getenv("OPENAI_API_KEY", ""),
@@ -786,14 +780,9 @@ def _run_interactive_qa_impl(
             "Live retrieval requires config.settings.neo4j or an explicit neo4j_settings "
             "argument from RequestContext/AppContext-derived config"
         ),
-    )
-
-    run_with_retrieval_session(
-        resolved_neo4j_settings,
         index_name=resolved_index_name,
         retrieval_query=retrieval_query,
         qa_model=effective_qa_model,
-        neo4j_database=neo4j_database,
         pipeline_contract=resolved_pipeline_contract,
         build_retriever_and_rag=_build_retriever_and_rag,
         run_session=_run_interactive_session,
