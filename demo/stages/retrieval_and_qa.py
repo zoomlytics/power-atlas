@@ -62,6 +62,7 @@ from power_atlas.retrieval_interactive_session import run_interactive_session_lo
 from power_atlas.retrieval_request_helpers import build_retrieval_query_params
 from power_atlas.retrieval_request_helpers import format_retrieval_scope_label
 from power_atlas.retrieval_session_setup import build_retriever_and_rag as build_retriever_and_rag_impl
+from power_atlas.retrieval_single_shot_session import run_single_shot_retrieval_session
 from power_atlas.retrieval_runtime import (
     InteractiveRetrievalTurnResult,
     build_dry_run_retrieval_result,
@@ -1277,20 +1278,15 @@ def _run_retrieval_and_qa_impl(
 
     def _run_single_shot_session(*, driver: object, retriever: object, rag: GraphRAG) -> tuple[str, list[dict[str, object]], list[str], list[str]]:
         del driver, retriever
-        search_result = execute_retrieval_search(
-            rag,
+        return run_single_shot_retrieval_session(
+            rag=rag,
             question=question,
             top_k=top_k,
             query_params=query_params,
             message_history=message_history,
             citation_optional_fields=_CITATION_OPTIONAL_FIELDS,
             logger=_logger,
-        )
-        return (
-            search_result.answer_text,
-            search_result.hits,
-            search_result.warnings,
-            search_result.citation_warnings,
+            execute_search=execute_retrieval_search,
         )
 
     answer_text, hits, session_warnings, session_citation_warnings = run_with_retrieval_session(
