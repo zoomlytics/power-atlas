@@ -75,7 +75,10 @@ from power_atlas.retrieval_query_builders import _select_retrieval_query
 from power_atlas.retrieval_interactive_session import run_interactive_session_loop
 from power_atlas.retrieval_live_preflight import require_live_retrieval_openai_api_key
 from power_atlas.retrieval_live_preflight import resolve_live_neo4j_settings
-from power_atlas.retrieval_execution_setup import prepare_retrieval_execution_settings
+from power_atlas.retrieval_execution_setup import (
+    build_live_retrieval_query_params,
+    prepare_retrieval_execution_context,
+)
 from power_atlas.retrieval_result_prelude import prepare_retrieval_result_prelude
 from power_atlas.retrieval_request_helpers import build_retrieval_query_params
 from power_atlas.retrieval_request_helpers import format_retrieval_scope_label
@@ -504,20 +507,21 @@ def _run_retrieval_and_qa_impl(
         Optional explicit Neo4j settings. RequestContext-driven calls should
         provide this so live retrieval does not depend on config-shape fallback.
     """
-    resolved_pipeline_contract = _resolve_pipeline_contract(config, pipeline_contract)
-    qa_model = getattr(config, "openai_model", None)
-    # effective_qa_model is the model that will actually be used for generation; it
-    # includes the fallback default so the manifest always reflects the true model.
-    resolved_index_name, effective_qa_model, retrieval_query_contract = prepare_retrieval_execution_settings(
+    execution_context = prepare_retrieval_execution_context(
+        config=config,
+        pipeline_contract=pipeline_contract,
         index_name=index_name,
-        pipeline_contract=resolved_pipeline_contract,
-        qa_model=qa_model,
         expand_graph=expand_graph,
         cluster_aware=cluster_aware,
         all_runs=all_runs,
+        resolve_pipeline_contract=_resolve_pipeline_contract,
         pipeline_contract_value=_pipeline_contract_value,
         select_runtime_retrieval_query=_select_runtime_retrieval_query,
     )
+    resolved_pipeline_contract = execution_context.pipeline_contract
+    resolved_index_name = execution_context.resolved_index_name
+    effective_qa_model = execution_context.effective_qa_model
+    retrieval_query_contract = execution_context.retrieval_query
     qa_prompt_version = PROMPT_IDS["qa"]
     prelude = prepare_retrieval_result_prelude(
         run_id=run_id,
@@ -553,14 +557,6 @@ def _run_retrieval_and_qa_impl(
     if early_return_result is not None:
         return early_return_result
 
-    # Live retrieval: build a VectorCypherRetriever with citation formatter.
-    # run_id is mandatory unless all_runs=True (which queries across all chunks).
-    if not all_runs and run_id is None:
-        raise ValueError(
-            "run_id is required for live retrieval. "
-            "Pass --run-id, --latest, or use --all-runs to query across all data."
-        )
-
     retrieval_query = retrieval_query_contract
 
     # Query params for filtering. source_uri=None is valid: the null-conditional
@@ -568,11 +564,16 @@ def _run_retrieval_and_qa_impl(
     # run_id is only included for run-scoped queries (not all-runs mode).
     # alignment_version is passed when cluster_aware=True to filter ALIGNED_WITH edges
     # to the current alignment generation only.
-    query_params = _build_query_params(
+    query_params = build_live_retrieval_query_params(
         run_id=run_id,
         source_uri=source_uri,
         all_runs=all_runs,
         cluster_aware=cluster_aware,
+        build_query_params=_build_query_params,
+        run_id_error_message=(
+            "run_id is required for live retrieval. "
+            "Pass --run-id, --latest, or use --all-runs to query across all data."
+        ),
     )
 
     # ── Warning surfaces ────────────────────────────────────────────────────────
@@ -719,29 +720,31 @@ def _run_interactive_qa_impl(
         Optional explicit Neo4j settings. RequestContext-driven calls should
         provide this so live retrieval does not depend on config-shape fallback.
     """
-    resolved_pipeline_contract = _resolve_pipeline_contract(config, pipeline_contract)
-    # Validate and resolve session-level config once before opening any connections.
-    if not all_runs and run_id is None:
-        raise ValueError(
-            "run_id is required for interactive retrieval. "
-            "Pass run_id, or set all_runs=True to query across all data."
-        )
-
-    resolved_index_name, effective_qa_model, retrieval_query = prepare_retrieval_execution_settings(
+    execution_context = prepare_retrieval_execution_context(
+        config=config,
+        pipeline_contract=pipeline_contract,
         index_name=index_name,
-        pipeline_contract=resolved_pipeline_contract,
-        qa_model=getattr(config, "openai_model", None),
         expand_graph=expand_graph,
         cluster_aware=cluster_aware,
         all_runs=all_runs,
+        resolve_pipeline_contract=_resolve_pipeline_contract,
         pipeline_contract_value=_pipeline_contract_value,
         select_runtime_retrieval_query=_select_runtime_retrieval_query,
     )
-    query_params = _build_query_params(
+    resolved_pipeline_contract = execution_context.pipeline_contract
+    resolved_index_name = execution_context.resolved_index_name
+    effective_qa_model = execution_context.effective_qa_model
+    retrieval_query = execution_context.retrieval_query
+    query_params = build_live_retrieval_query_params(
         run_id=run_id,
         source_uri=source_uri,
         all_runs=all_runs,
         cluster_aware=cluster_aware,
+        build_query_params=_build_query_params,
+        run_id_error_message=(
+            "run_id is required for interactive retrieval. "
+            "Pass run_id, or set all_runs=True to query across all data."
+        ),
     )
 
     history: MessageHistory = InMemoryMessageHistory()
