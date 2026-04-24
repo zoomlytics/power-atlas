@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Any, TypeVar
 
 from power_atlas.bootstrap import create_neo4j_driver
+from power_atlas.contracts import resolve_early_return_rule
 from power_atlas.settings import Neo4jSettings
 
 SessionResultT = TypeVar("SessionResultT")
@@ -139,6 +140,40 @@ def build_retrieval_skipped_result(
         "warnings": [warning_msg],
         "retrieval_skipped": True,
     }
+
+
+def build_early_return_retrieval_result(
+    *,
+    config: object,
+    question: str | None,
+    base: dict[str, object],
+    expand_graph: bool,
+    cluster_aware: bool,
+    all_runs: bool,
+    logger: logging.Logger,
+) -> dict[str, object] | None:
+    """Return the dry-run or retrieval-skipped result when an early-return rule matches."""
+    early_rule = resolve_early_return_rule(
+        is_dry_run=getattr(config, "dry_run", False),
+        question=question,
+    )
+    if early_rule is None:
+        return None
+    if early_rule.name == "dry_run":
+        return build_dry_run_retrieval_result(
+            base=base,
+            expand_graph=expand_graph,
+            cluster_aware=cluster_aware,
+            all_runs=all_runs,
+        )
+    if early_rule.name == "retrieval_skipped":
+        warning_msg = "No question provided; skipping vector retrieval."
+        logger.warning(warning_msg)
+        return build_retrieval_skipped_result(base=base, warning_msg=warning_msg)
+    raise RuntimeError(
+        f"run_retrieval_and_qa: matched early-return rule {early_rule.name!r} "
+        "has no corresponding payload branch.  Add a branch for this rule."
+    )
 
 
 def build_live_retrieval_result(
@@ -334,6 +369,7 @@ def run_with_retrieval_session(
 __all__ = [
     "InteractiveRetrievalTurnResult",
     "RetrievalSearchResult",
+    "build_early_return_retrieval_result",
     "build_dry_run_retrieval_result",
     "build_retrieval_base_result",
     "build_retrieval_skipped_result",

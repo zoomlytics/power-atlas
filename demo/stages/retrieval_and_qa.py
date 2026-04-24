@@ -21,7 +21,6 @@ from power_atlas.contracts import (
     POWER_ATLAS_RAG_TEMPLATE,
     PROMPT_IDS,
     resolve_dataset_root,
-    resolve_early_return_rule,
 )
 from power_atlas.contracts.pipeline import (
     PipelineContractSnapshot,
@@ -69,6 +68,7 @@ from power_atlas.retrieval_session_setup import build_retriever_and_rag as build
 from power_atlas.retrieval_single_shot_session import run_single_shot_retrieval_session
 from power_atlas.retrieval_runtime import (
     InteractiveRetrievalTurnResult,
+    build_early_return_retrieval_result,
     build_dry_run_retrieval_result,
     build_retrieval_base_result,
     build_retrieval_skipped_result,
@@ -1169,41 +1169,17 @@ def _run_retrieval_and_qa_impl(
     base = prelude["base"]
     citation_token_example = prelude["citation_token_example"]
     citation_object_example = prelude["citation_object_example"]
-    # Resolve which (if any) early-return rule applies.
-    # EARLY_RETURN_PRECEDENCE is the single authoritative ordering source; the
-    # resolver evaluates conditions in that order so that mixed inputs
-    # (e.g. dry_run=True and question=None simultaneously) always produce the
-    # correct winning branch without duplicating precedence in manual if-chains.
-    # Precedence contract: src/power_atlas/contracts/retrieval_early_return_policy.py
-    # Contract doc: docs/architecture/retrieval-citation-result-contract-v0.1.md §5
-    _early_rule = resolve_early_return_rule(
-        is_dry_run=getattr(config, "dry_run", False),
+    early_return_result = build_early_return_retrieval_result(
+        config=config,
         question=question,
+        base=base,
+        expand_graph=expand_graph,
+        cluster_aware=cluster_aware,
+        all_runs=all_runs,
+        logger=_logger,
     )
-    if _early_rule is not None:
-        if _early_rule.name == "dry_run":
-            # §5.1 — dry_run early return.
-            return build_dry_run_retrieval_result(
-                base=base,
-                expand_graph=expand_graph,
-                cluster_aware=cluster_aware,
-                all_runs=all_runs,
-            )
-        elif _early_rule.name == "retrieval_skipped":
-            # §5.2 — retrieval_skipped early return.
-            warning_msg = "No question provided; skipping vector retrieval."
-            _logger.warning(warning_msg)
-            return build_retrieval_skipped_result(base=base, warning_msg=warning_msg)
-        else:
-            # Guard against future rules added to EARLY_RETURN_PRECEDENCE without
-            # a corresponding branch here.  resolve_early_return_rule() already
-            # raises if the _conditions dict is missing a rule name, but this
-            # else-raise catches the symmetric gap: a rule whose condition fires
-            # but whose payload is not yet implemented in this block.
-            raise RuntimeError(
-                f"run_retrieval_and_qa: matched early-return rule {_early_rule.name!r} "
-                "has no corresponding payload branch.  Add a branch for this rule."
-            )
+    if early_return_result is not None:
+        return early_return_result
 
     # Live retrieval: build a VectorCypherRetriever with citation formatter.
     # run_id is mandatory unless all_runs=True (which queries across all chunks).
