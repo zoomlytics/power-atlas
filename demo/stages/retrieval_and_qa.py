@@ -59,6 +59,9 @@ from power_atlas.retrieval_query_builders import _RETRIEVAL_QUERY_WITH_EXPANSION
 from power_atlas.retrieval_query_builders import _select_retrieval_query
 from power_atlas.retrieval_query_builders import _select_runtime_retrieval_query
 from power_atlas.retrieval_interactive_session import run_interactive_session_loop
+from power_atlas.retrieval_live_preflight import prepare_live_retrieval_preflight
+from power_atlas.retrieval_live_preflight import require_live_retrieval_openai_api_key
+from power_atlas.retrieval_live_preflight import resolve_live_neo4j_settings
 from power_atlas.retrieval_request_helpers import build_retrieval_query_params
 from power_atlas.retrieval_request_helpers import format_retrieval_scope_label
 from power_atlas.retrieval_session_setup import build_retriever_and_rag as build_retriever_and_rag_impl
@@ -113,22 +116,22 @@ def _neo4j_settings_from_config(
     config: object,
     neo4j_settings: Neo4jSettings | None = None,
 ) -> Neo4jSettings:
-    if neo4j_settings is not None:
-        return neo4j_settings
-    config_settings = getattr(config, "settings", None)
-    settings_neo4j = getattr(config_settings, "neo4j", None)
-    if isinstance(settings_neo4j, Neo4jSettings):
-        return settings_neo4j
-    raise ValueError(
+    return resolve_live_neo4j_settings(
+        config,
+        neo4j_settings,
+        neo4j_settings_type=Neo4jSettings,
+        error_message=(
         "Live retrieval requires config.settings.neo4j or an explicit neo4j_settings "
         "argument from RequestContext/AppContext-derived config"
+        ),
     )
 
 
 def _require_stage_openai_api_key(error_message: str) -> None:
-    require_openai_api_key(
+    require_live_retrieval_openai_api_key(
         error_message,
-        environ={"OPENAI_API_KEY": os.getenv("OPENAI_API_KEY", "")},
+        require_openai_api_key=require_openai_api_key,
+        openai_api_key=os.getenv("OPENAI_API_KEY", ""),
     )
 
 # Optional citation-relevant fields that should be surfaced as warnings when absent.
@@ -1269,12 +1272,18 @@ def _run_retrieval_and_qa_impl(
     citation_warnings_list: list[str] = []
     hits: list[dict[str, object]] = []
 
-    _require_stage_openai_api_key(
-        "OPENAI_API_KEY environment variable is required for live retrieval."
+    resolved_neo4j_settings, neo4j_database = prepare_live_retrieval_preflight(
+        config,
+        neo4j_settings,
+        neo4j_settings_type=Neo4jSettings,
+        require_openai_api_key=require_openai_api_key,
+        openai_api_key=os.getenv("OPENAI_API_KEY", ""),
+        openai_error_message="OPENAI_API_KEY environment variable is required for live retrieval.",
+        neo4j_error_message=(
+            "Live retrieval requires config.settings.neo4j or an explicit neo4j_settings "
+            "argument from RequestContext/AppContext-derived config"
+        ),
     )
-
-    resolved_neo4j_settings = _neo4j_settings_from_config(config, neo4j_settings)
-    neo4j_database = resolved_neo4j_settings.database
 
     def _run_single_shot_session(*, driver: object, retriever: object, rag: GraphRAG) -> tuple[str, list[dict[str, object]], list[str], list[str]]:
         del driver, retriever
@@ -1403,10 +1412,6 @@ def _run_interactive_qa_impl(
             "Pass run_id, or set all_runs=True to query across all data."
         )
 
-    _require_stage_openai_api_key(
-        "OPENAI_API_KEY environment variable is required for live retrieval."
-    )
-
     resolved_index_name = (
         index_name
         if index_name is not None
@@ -1448,14 +1453,25 @@ def _run_interactive_qa_impl(
             llm_message_factory=LLMMessage,
         )
 
-    resolved_neo4j_settings = _neo4j_settings_from_config(config, neo4j_settings)
+    resolved_neo4j_settings, neo4j_database = prepare_live_retrieval_preflight(
+        config,
+        neo4j_settings,
+        neo4j_settings_type=Neo4jSettings,
+        require_openai_api_key=require_openai_api_key,
+        openai_api_key=os.getenv("OPENAI_API_KEY", ""),
+        openai_error_message="OPENAI_API_KEY environment variable is required for live retrieval.",
+        neo4j_error_message=(
+            "Live retrieval requires config.settings.neo4j or an explicit neo4j_settings "
+            "argument from RequestContext/AppContext-derived config"
+        ),
+    )
 
     run_with_retrieval_session(
         resolved_neo4j_settings,
         index_name=resolved_index_name,
         retrieval_query=retrieval_query,
         qa_model=effective_qa_model,
-        neo4j_database=resolved_neo4j_settings.database,
+        neo4j_database=neo4j_database,
         pipeline_contract=resolved_pipeline_contract,
         build_retriever_and_rag=_build_retriever_and_rag,
         run_session=_run_interactive_session,
