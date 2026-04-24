@@ -1,27 +1,6 @@
 from __future__ import annotations
 
-
-def build_retrieval_path_diagnostics(
-    *,
-    claim_details: list[dict[str, object]],
-    canonical_entities: list[str],
-    cluster_memberships: list[dict[str, object]],
-    cluster_canonical_alignments: list[dict[str, object]],
-) -> dict[str, object]:
-    """Build structured retrieval-path diagnostics from already-available metadata fields."""
-    has_participant_edges: list[dict[str, object]] = []
-    for detail in claim_details:
-        claim_text = (detail.get("claim_text") or "").strip()
-        if not claim_text:
-            continue
-        roles = _normalize_claim_roles(detail)
-        has_participant_edges.append({"claim_text": claim_text, "roles": roles})
-    return {
-        "has_participant_edges": has_participant_edges,
-        "canonical_via_resolves_to": list(canonical_entities),
-        "cluster_memberships": list(cluster_memberships),
-        "cluster_canonical_via_aligned_with": list(cluster_canonical_alignments),
-    }
+from power_atlas.retrieval_chunk_formatter import build_retrieval_path_diagnostics
 
 
 def format_retrieval_path_summary(hits: list[dict[str, object]]) -> str:
@@ -179,7 +158,7 @@ def count_malformed_diagnostics(hits: list[dict[str, object]]) -> int:
 
 
 def diagnostics_dict_has_malformed_fields(diag: dict[str, object]) -> bool:
-    """Return ``True`` if *diag* contains any structurally malformed sub-field."""
+    """Return True if diag contains any structurally malformed sub-field."""
     list_fields = (
         "has_participant_edges",
         "canonical_via_resolves_to",
@@ -212,66 +191,6 @@ def diagnostics_dict_has_malformed_fields(diag: dict[str, object]) -> bool:
                         if not isinstance(role, dict):
                             return True
     return False
-
-
-def _normalize_claim_roles(detail: dict[str, object]) -> list[dict[str, object]]:
-    roles_value = detail.get("roles")
-    roles: list[dict[str, object]] = []
-    if isinstance(roles_value, list):
-        for raw_entry in roles_value:
-            if not isinstance(raw_entry, Mapping):
-                continue
-            role_name = str(raw_entry.get("role") or "").strip()
-            mention_name = str(raw_entry.get("mention_name") or "").strip()
-            match_method = raw_entry.get("match_method")
-            if not role_name or not mention_name:
-                continue
-            roles.append(
-                {
-                    "role": role_name,
-                    "mention_name": mention_name,
-                    "match_method": str(match_method).strip() if match_method is not None else "",
-                }
-            )
-    if roles:
-        return sorted(
-            roles,
-            key=lambda entry: (
-                str(entry.get("role") or ""),
-                str(entry.get("mention_name") or ""),
-                str(entry.get("match_method") or ""),
-            ),
-        )
-
-    legacy_map = (
-        ("subject", detail.get("subject_mention")),
-        ("object", detail.get("object_mention")),
-    )
-    for role_name, mention_value in legacy_map:
-        if not isinstance(mention_value, Mapping):
-            continue
-        mention_name = str(mention_value.get("name") or "").strip()
-        match_method = mention_value.get("match_method")
-        if not mention_name:
-            continue
-        roles.append(
-            {
-                "role": role_name,
-                "mention_name": mention_name,
-                "match_method": str(match_method).strip() if match_method is not None else "",
-            }
-        )
-    return sorted(
-        roles,
-        key=lambda entry: (
-            str(entry.get("role") or ""),
-            str(entry.get("mention_name") or ""),
-            str(entry.get("match_method") or ""),
-        ),
-    )
-
-
-from collections.abc import Mapping
 
 
 __all__ = [
