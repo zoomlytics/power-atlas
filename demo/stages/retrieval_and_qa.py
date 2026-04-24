@@ -62,6 +62,7 @@ from power_atlas.retrieval_live_preflight import prepare_live_retrieval_prefligh
 from power_atlas.retrieval_live_preflight import require_live_retrieval_openai_api_key
 from power_atlas.retrieval_live_preflight import resolve_live_neo4j_settings
 from power_atlas.retrieval_execution_setup import prepare_retrieval_execution_settings
+from power_atlas.retrieval_result_prelude import prepare_retrieval_result_prelude
 from power_atlas.retrieval_request_helpers import build_retrieval_query_params
 from power_atlas.retrieval_request_helpers import format_retrieval_scope_label
 from power_atlas.retrieval_session_setup import build_retriever_and_rag as build_retriever_and_rag_impl
@@ -1146,72 +1147,28 @@ def _run_retrieval_and_qa_impl(
         select_runtime_retrieval_query=_select_runtime_retrieval_query,
     )
     qa_prompt_version = PROMPT_IDS["qa"]
-
-    # Use provided run_id/source_uri in citation examples so provenance fields align with stage metadata;
-    # fall back to the active dataset's PDF URI, or a placeholder when dataset resolution is ambiguous.
-    citation_run_id = run_id if run_id is not None else "example_run_id"
-    if source_uri is not None:
-        citation_source_uri = source_uri
-    else:
-        try:
-            citation_source_uri = resolve_dataset_root().pdf_path.resolve().as_uri()
-        except AmbiguousDatasetError:
-            citation_source_uri = "placeholder://citation-source"
-
-    citation_token_example = _build_citation_token(
-        chunk_id="example_chunk",
-        run_id=citation_run_id,
-        source_uri=citation_source_uri,
-        chunk_index=0,
-        page=1,
-        start_char=0,
-        end_char=999,
-    )
-    # cluster_aware implies expansion (clusters are reached via entity mention traversal).
-    # The retrieval query selection priority: cluster_aware > expand_graph > base.
-    # effective_expand_graph records whether any form of graph expansion is active so
-    # manifests accurately describe the retrieval context used.
-    effective_expand_graph = expand_graph or cluster_aware
-    citation_object_example: dict[str, object] = {
-        "chunk_id": "example_chunk",
-        "run_id": citation_run_id,
-        "source_uri": citation_source_uri,
-        "chunk_index": 0,
-        "page": 1,
-        "start_char": 0,
-        "end_char": 999,
-    }
-
-    # Retrieval scope metadata: always recorded so manifests document the scope used.
-    # Use the raw run_id (possibly None for dry-run or all-runs mode) so the recorded
-    # scope reflects the actual input rather than the citation-example fallback value.
-    retrieval_scope: dict[str, object] = {
-        "run_id": run_id,
-        "source_uri": source_uri,
-        "scope_widened": all_runs,
-        "all_runs": all_runs,
-    }
-
-    # Build shared base dict; only status/retrievers/qa and live-specific fields differ.
-    # Use citation_run_id/citation_source_uri (which include fallbacks) so stage metadata is
-    # always consistent with the provenance fields in citation_object_example.
-    base: dict[str, object] = build_retrieval_base_result(
-        citation_run_id=citation_run_id,
-        citation_source_uri=citation_source_uri,
+    prelude = prepare_retrieval_result_prelude(
+        run_id=run_id,
+        source_uri=source_uri,
+        all_runs=all_runs,
         top_k=top_k,
         resolved_index_name=resolved_index_name,
         question=question,
         effective_qa_model=effective_qa_model,
         qa_prompt_version=qa_prompt_version,
-        effective_expand_graph=effective_expand_graph,
+        expand_graph=expand_graph,
         cluster_aware=cluster_aware,
-        retrieval_scope=retrieval_scope,
-        citation_token_example=citation_token_example,
-        citation_object_example=citation_object_example,
         retrieval_query_contract=retrieval_query_contract,
         interactive=interactive,
         message_history_enabled=message_history is not None,
+        resolve_dataset_root=resolve_dataset_root,
+        ambiguous_dataset_error_type=AmbiguousDatasetError,
+        build_citation_token=_build_citation_token,
+        build_retrieval_base_result=build_retrieval_base_result,
     )
+    base = prelude["base"]
+    citation_token_example = prelude["citation_token_example"]
+    citation_object_example = prelude["citation_object_example"]
     # Resolve which (if any) early-return rule applies.
     # EARLY_RETURN_PRECEDENCE is the single authoritative ordering source; the
     # resolver evaluates conditions in that order so that mixed inputs
