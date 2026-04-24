@@ -57,11 +57,11 @@ from power_atlas.retrieval_query_builders import _RETRIEVAL_QUERY_WITH_CLUSTER_A
 from power_atlas.retrieval_query_builders import _RETRIEVAL_QUERY_WITH_EXPANSION
 from power_atlas.retrieval_query_builders import _RETRIEVAL_QUERY_WITH_EXPANSION_ALL_RUNS
 from power_atlas.retrieval_query_builders import _select_retrieval_query
-from power_atlas.retrieval_query_builders import _select_runtime_retrieval_query
 from power_atlas.retrieval_interactive_session import run_interactive_session_loop
 from power_atlas.retrieval_live_preflight import prepare_live_retrieval_preflight
 from power_atlas.retrieval_live_preflight import require_live_retrieval_openai_api_key
 from power_atlas.retrieval_live_preflight import resolve_live_neo4j_settings
+from power_atlas.retrieval_execution_setup import prepare_retrieval_execution_settings
 from power_atlas.retrieval_request_helpers import build_retrieval_query_params
 from power_atlas.retrieval_request_helpers import format_retrieval_scope_label
 from power_atlas.retrieval_session_setup import build_retriever_and_rag as build_retriever_and_rag_impl
@@ -199,6 +199,25 @@ def _build_query_params(
         all_runs=all_runs,
         cluster_aware=cluster_aware,
         alignment_version=ALIGNMENT_VERSION,
+    )
+
+
+def _select_runtime_retrieval_query(
+    *,
+    expand_graph: bool = False,
+    cluster_aware: bool = False,
+    all_runs: bool = False,
+) -> str:
+    """Return the live-built retrieval query using the stage-bound builder seam."""
+    _select_retrieval_query(
+        expand_graph=expand_graph,
+        cluster_aware=cluster_aware,
+        all_runs=all_runs,
+    )
+    return _build_retrieval_query(
+        expand_graph=expand_graph,
+        cluster_aware=cluster_aware,
+        all_runs=all_runs,
     )
 
 
@@ -1113,15 +1132,19 @@ def _run_retrieval_and_qa_impl(
         provide this so live retrieval does not depend on config-shape fallback.
     """
     resolved_pipeline_contract = _resolve_pipeline_contract(config, pipeline_contract)
-    resolved_index_name = (
-        index_name
-        if index_name is not None
-        else _pipeline_contract_value("CHUNK_EMBEDDING_INDEX_NAME", resolved_pipeline_contract)
-    )
     qa_model = getattr(config, "openai_model", None)
     # effective_qa_model is the model that will actually be used for generation; it
     # includes the fallback default so the manifest always reflects the true model.
-    effective_qa_model = qa_model or "gpt-5.4"
+    resolved_index_name, effective_qa_model, retrieval_query_contract = prepare_retrieval_execution_settings(
+        index_name=index_name,
+        pipeline_contract=resolved_pipeline_contract,
+        qa_model=qa_model,
+        expand_graph=expand_graph,
+        cluster_aware=cluster_aware,
+        all_runs=all_runs,
+        pipeline_contract_value=_pipeline_contract_value,
+        select_runtime_retrieval_query=_select_runtime_retrieval_query,
+    )
     qa_prompt_version = PROMPT_IDS["qa"]
 
     # Use provided run_id/source_uri in citation examples so provenance fields align with stage metadata;
@@ -1149,9 +1172,6 @@ def _run_retrieval_and_qa_impl(
     # effective_expand_graph records whether any form of graph expansion is active so
     # manifests accurately describe the retrieval context used.
     effective_expand_graph = expand_graph or cluster_aware
-    retrieval_query_contract = _select_runtime_retrieval_query(
-        expand_graph=expand_graph, cluster_aware=cluster_aware, all_runs=all_runs
-    )
     citation_object_example: dict[str, object] = {
         "chunk_id": "example_chunk",
         "run_id": citation_run_id,
@@ -1236,9 +1256,7 @@ def _run_retrieval_and_qa_impl(
             "Pass --run-id, --latest, or use --all-runs to query across all data."
         )
 
-    retrieval_query = _select_runtime_retrieval_query(
-        expand_graph=expand_graph, cluster_aware=cluster_aware, all_runs=all_runs
-    )
+    retrieval_query = retrieval_query_contract
 
     # Query params for filtering. source_uri=None is valid: the null-conditional
     # in the WHERE clause skips source_uri filtering when the parameter is None.
@@ -1412,14 +1430,15 @@ def _run_interactive_qa_impl(
             "Pass run_id, or set all_runs=True to query across all data."
         )
 
-    resolved_index_name = (
-        index_name
-        if index_name is not None
-        else _pipeline_contract_value("CHUNK_EMBEDDING_INDEX_NAME", resolved_pipeline_contract)
-    )
-    effective_qa_model = getattr(config, "openai_model", None) or "gpt-5.4"
-    retrieval_query = _select_runtime_retrieval_query(
-        expand_graph=expand_graph, cluster_aware=cluster_aware, all_runs=all_runs
+    resolved_index_name, effective_qa_model, retrieval_query = prepare_retrieval_execution_settings(
+        index_name=index_name,
+        pipeline_contract=resolved_pipeline_contract,
+        qa_model=getattr(config, "openai_model", None),
+        expand_graph=expand_graph,
+        cluster_aware=cluster_aware,
+        all_runs=all_runs,
+        pipeline_contract_value=_pipeline_contract_value,
+        select_runtime_retrieval_query=_select_runtime_retrieval_query,
     )
     query_params = _build_query_params(
         run_id=run_id,
