@@ -58,6 +58,8 @@ from power_atlas.retrieval_query_builders import _RETRIEVAL_QUERY_WITH_EXPANSION
 from power_atlas.retrieval_query_builders import _RETRIEVAL_QUERY_WITH_EXPANSION_ALL_RUNS
 from power_atlas.retrieval_query_builders import _select_retrieval_query
 from power_atlas.retrieval_query_builders import _select_runtime_retrieval_query
+from power_atlas.retrieval_request_helpers import build_retrieval_query_params
+from power_atlas.retrieval_request_helpers import format_retrieval_scope_label
 from power_atlas.retrieval_runtime import (
     InteractiveRetrievalTurnResult,
     build_dry_run_retrieval_result,
@@ -167,17 +169,9 @@ _CITATION_FALLBACK_PREFIX = "Insufficient citations detected"
 # Maximum number of characters of the final answer text included in the
 # "Answer replaced with citation fallback" diagnostic log message.
 _FALLBACK_PREVIEW_MAX_LEN = 200
-def _format_scope_label(run_id: str | None, all_runs: bool) -> str:
-    """Return a human-readable retrieval scope label for CLI output.
 
-    Used by both ``run_interactive_qa`` and the ``ask`` path in ``run_demo.main``
-    to ensure consistent scope messaging across all entry points.
-    """
-    if all_runs:
-        return "all runs in database"
-    if run_id is not None:
-        return f"run={run_id}"
-    return "run=(none — dry-run placeholder)"
+
+_format_scope_label = format_retrieval_scope_label
 
 
 def _first_citation_token_from_hits(hits: list[dict[str, object]]) -> str | None:
@@ -192,32 +186,14 @@ def _build_query_params(
     all_runs: bool,
     cluster_aware: bool,
 ) -> dict[str, object]:
-    """Build Cypher query parameters for retrieval filtering.
-
-    Shared by both ``run_retrieval_and_qa`` and ``run_interactive_qa`` so that
-    parameter-construction logic stays in one place.
-
-    Parameters
-    ----------
-    run_id:
-        Scopes retrieval to a specific ingest run.  Included in the params dict
-        only when *all_runs* is False.
-    source_uri:
-        Optional source-level filter (``None`` is valid; the Cypher WHERE clause
-        skips source_uri filtering when the parameter is ``None``).
-    all_runs:
-        When True, ``run_id`` is omitted from the params so retrieval queries all
-        Chunk nodes regardless of run.
-    cluster_aware:
-        When True, ``alignment_version`` is added to the params to scope
-        ``ALIGNED_WITH`` edge traversal to the current alignment generation.
-    """
-    params: dict[str, object] = {"source_uri": source_uri}
-    if not all_runs:
-        params["run_id"] = run_id
-    if cluster_aware:
-        params["alignment_version"] = ALIGNMENT_VERSION
-    return params
+    """Build Cypher query parameters for retrieval filtering."""
+    return build_retrieval_query_params(
+        run_id=run_id,
+        source_uri=source_uri,
+        all_runs=all_runs,
+        cluster_aware=cluster_aware,
+        alignment_version=ALIGNMENT_VERSION,
+    )
 
 
 def _apply_citation_repair(
