@@ -58,8 +58,10 @@ from power_atlas.retrieval_query_builders import _RETRIEVAL_QUERY_WITH_EXPANSION
 from power_atlas.retrieval_query_builders import _RETRIEVAL_QUERY_WITH_EXPANSION_ALL_RUNS
 from power_atlas.retrieval_query_builders import _select_retrieval_query
 from power_atlas.retrieval_query_builders import _select_runtime_retrieval_query
+from power_atlas.retrieval_interactive_session import run_interactive_session_loop
 from power_atlas.retrieval_request_helpers import build_retrieval_query_params
 from power_atlas.retrieval_request_helpers import format_retrieval_scope_label
+from power_atlas.retrieval_session_setup import build_retriever_and_rag as build_retriever_and_rag_impl
 from power_atlas.retrieval_runtime import (
     InteractiveRetrievalTurnResult,
     build_dry_run_retrieval_result,
@@ -991,22 +993,19 @@ def _build_retriever_and_rag(
     neo4j_database:
         Optional Neo4j database name; ``None`` uses the driver's default database.
     """
-    embedder = build_embedder(
-        _pipeline_contract_value("EMBEDDER_MODEL_NAME", pipeline_contract),
-        embedder_factory=OpenAIEmbeddings,
-    )
-    retriever = VectorCypherRetriever(
-        driver=driver,
+    retriever, rag = build_retriever_and_rag_impl(
+        driver,
         index_name=index_name,
-        embedder=embedder,
         retrieval_query=retrieval_query,
-        result_formatter=_chunk_citation_formatter,
+        qa_model=qa_model,
         neo4j_database=neo4j_database,
-    )
-    llm = build_openai_llm(qa_model)
-    rag = GraphRAG(
-        retriever=retriever,
-        llm=llm,
+        embedder_model_name=_pipeline_contract_value("EMBEDDER_MODEL_NAME", pipeline_contract),
+        result_formatter=_chunk_citation_formatter,
+        embedder_factory=OpenAIEmbeddings,
+        retriever_factory=VectorCypherRetriever,
+        rag_factory=GraphRAG,
+        build_embedder=build_embedder,
+        build_llm=build_openai_llm,
         prompt_template=POWER_ATLAS_RAG_TEMPLATE,
     )
     return retriever, rag
@@ -1436,47 +1435,22 @@ def _run_interactive_qa_impl(
     # to avoid per-turn connection overhead and Neo4j driver churn.
     def _run_interactive_session(*, driver: object, retriever: object, rag: GraphRAG) -> None:
         del driver, retriever
-        try:
-            while True:
-                try:
-                    question = input("Question: ").strip()
-                except EOFError:
-                    print()
-                    break
-                if not question:
-                    continue
-                if question.lower() in ("exit", "quit"):
-                    break
-                turn_result: InteractiveRetrievalTurnResult = run_interactive_retrieval_turn(
-                    rag,
-                    question=question,
-                    top_k=top_k,
-                    query_params=query_params,
-                    message_history=history,
-                    citation_optional_fields=_CITATION_OPTIONAL_FIELDS,
-                    logger=_logger,
-                    all_runs=all_runs,
-                    debug=debug,
-                    postprocess_answer=_postprocess_answer,
-                    build_retrieval_debug_view=_build_retrieval_debug_view,
-                    format_postprocess_debug_summary=_format_postprocess_debug_summary,
-                    count_malformed_diagnostics=_count_malformed_diagnostics,
-                )
-                print(f"\nAnswer:\n{turn_result.display_answer}\n")
-                if turn_result.citation_fallback_applied:
-                    print(
-                        "WARNING: Not all answer sentences or bullets are cited - evidence quality may be degraded."
-                    )
-                if turn_result.debug_summary is not None:
-                    print(turn_result.debug_summary)
-                history.add_messages(
-                    [
-                        LLMMessage(role="user", content=question),
-                        LLMMessage(role="assistant", content=turn_result.history_answer),
-                    ]
-                )
-        except KeyboardInterrupt:
-            print()
+        run_interactive_session_loop(
+            rag=rag,
+            history=history,
+            top_k=top_k,
+            query_params=query_params,
+            citation_optional_fields=_CITATION_OPTIONAL_FIELDS,
+            logger=_logger,
+            all_runs=all_runs,
+            debug=debug,
+            run_interactive_turn=run_interactive_retrieval_turn,
+            postprocess_answer=_postprocess_answer,
+            build_retrieval_debug_view=_build_retrieval_debug_view,
+            format_postprocess_debug_summary=_format_postprocess_debug_summary,
+            count_malformed_diagnostics=_count_malformed_diagnostics,
+            llm_message_factory=LLMMessage,
+        )
 
     resolved_neo4j_settings = _neo4j_settings_from_config(config, neo4j_settings)
 
