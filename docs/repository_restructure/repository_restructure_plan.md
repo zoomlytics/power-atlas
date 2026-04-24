@@ -524,12 +524,13 @@ Early seam extraction has already landed additively:
 
 That progress should not be overstated. The repo has not yet reached a true
 adapter/application/interface split for graph access, raw Cypher still appears in
-live stage modules, and interface/orchestration code is still thicker than the
-target architecture allows.
+live stage modules, and the remaining thickness is now concentrated more in
+seam-preserving CLI/test surfaces than in independent-stage coordination logic.
 
 The recommended next work for this phase is therefore no longer more
-stage-by-stage config tightening. It is orchestration/interface thinning,
-explicit adapter relocation, and documenting the remaining layering leaks.
+stage-by-stage config tightening. It is cleanup/documentation consolidation,
+residual interface thinning, explicit adapter relocation, and documenting the
+remaining layering leaks.
 
 #### Objectives
 
@@ -663,9 +664,14 @@ The repo has now completed a first concrete runtime-state reduction pass:
   removes the reset/runtime fallback: `demo/reset_demo_db.py` now requires an
   explicit `PipelineContractSnapshot` for `run_reset(...)`, while its CLI help
   text and `main()` resolve that snapshot through bootstrap-built app context
-  instead of direct pipeline-module reads. The remaining work is the rest of
-  the mutable-global inventory outside those modules plus any further
-  ownership cleanup warranted around that remaining single cached state.
+  instead of direct pipeline-module reads. Follow-up orchestrator-thinning
+  work then moved independent-stage spec dispatch, execution plumbing,
+  run-id resolution, and stage-manifest writing out of `demo/run_demo.py`
+  into `power_atlas.orchestration.independent_stage_runners`, leaving the
+  entrypoint primarily as a `RequestContext`-normalizing seam layer for the
+  current CLI/workflow test surface. The remaining work is the rest of the
+  mutable-global inventory outside those modules plus any further ownership
+  cleanup warranted around that remaining single cached state.
 
 That is meaningful progress, but it does not yet satisfy the phase. The pipeline
 contract still contains mutable module-level state for config/cache concerns,

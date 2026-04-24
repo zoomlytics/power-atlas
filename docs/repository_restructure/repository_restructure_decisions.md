@@ -165,6 +165,7 @@ Intended semantics:
 
 - `AppContext` and `RequestContext` now both exist in the package,
 - `RequestContext` is already used across the main `demo/run_demo.py` ask and ingest execution lanes plus the active stage-facing entrypoints,
+- `demo/run_demo.py` now mostly preserves patchable CLI/test seam names while package orchestration helpers own the independent-stage coordination logic,
 - the remaining work under this decision is the residual mutable-global inventory and any explicit disposition around the remaining cached pipeline-contract state.
 
 ### Open Questions
