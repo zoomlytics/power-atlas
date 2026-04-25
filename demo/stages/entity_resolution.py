@@ -351,7 +351,7 @@ def _neo4j_settings_from_config(
         return settings_neo4j
     raise ValueError(
         "Live entity resolution requires config.settings.neo4j or an explicit "
-        "neo4j_settings argument from RequestContext/AppContext-derived config"
+        "neo4j_settings argument from RequestContext/AppContext-backed config"
     )
 
 
@@ -369,7 +369,7 @@ def _resolve_effective_dataset_id(
         return resolve_dataset_root(configured_dataset_name).dataset_id
     raise ValueError(
         "Entity resolution requires an explicit dataset_id or config.dataset_name from "
-        "RequestContext/AppContext-derived config"
+        "RequestContext/AppContext-backed config"
     )
 
 

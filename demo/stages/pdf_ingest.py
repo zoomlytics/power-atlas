@@ -51,7 +51,7 @@ def _resolve_pipeline_contract(
     if is_pipeline_contract_snapshot(config_pipeline_contract):
         return config_pipeline_contract
     raise ValueError(
-        "run_pdf_ingest requires a pipeline contract from RequestContext/AppContext-derived config or an explicit pipeline_contract argument"
+        "run_pdf_ingest requires a pipeline contract from RequestContext/AppContext-backed config or an explicit pipeline_contract argument"
     )
 
 
@@ -108,7 +108,7 @@ def _neo4j_settings_from_config(
         return settings_neo4j
     raise ValueError(
         "Live PDF ingest requires config.settings.neo4j or an explicit "
-        "neo4j_settings argument from RequestContext/AppContext-derived config"
+        "neo4j_settings argument from RequestContext/AppContext-backed config"
     )
 
 
@@ -124,7 +124,7 @@ def _openai_model_from_config(
         return settings_openai_model
     raise ValueError(
         "PDF ingest requires config.settings.openai_model or an explicit "
-        "openai_model argument from RequestContext/AppContext-derived config"
+        "openai_model argument from RequestContext/AppContext-backed config"
     )
 
 

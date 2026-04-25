@@ -20,7 +20,7 @@ def _resolve_pipeline_contract(
     if is_pipeline_contract_snapshot(config_pipeline_contract):
         return config_pipeline_contract
     raise ValueError(
-        "claim extraction requires a pipeline contract from RequestContext/AppContext-derived config or an explicit pipeline_contract argument"
+        "claim extraction requires a pipeline contract from RequestContext/AppContext-backed config or an explicit pipeline_contract argument"
     )
 
 
@@ -36,7 +36,7 @@ def _neo4j_settings_from_config(
         return settings_neo4j
     raise ValueError(
         "Live claim extraction requires config.settings.neo4j or an explicit "
-        "neo4j_settings argument from RequestContext/AppContext-derived config"
+        "neo4j_settings argument from RequestContext/AppContext-backed config"
     )
 
 
@@ -52,7 +52,7 @@ def _openai_model_from_config(
         return settings_openai_model
     raise ValueError(
         "Claim extraction requires config.settings.openai_model or an explicit "
-        "model_name argument from RequestContext/AppContext-derived config"
+        "model_name argument from RequestContext/AppContext-backed config"
     )
 
 

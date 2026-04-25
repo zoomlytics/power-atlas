@@ -130,7 +130,7 @@ def _resolve_pipeline_contract(
         return config_pipeline_contract
     raise ValueError(
         "Retrieval stage requires an explicit pipeline contract or "
-        "config.pipeline_contract from RequestContext/AppContext-derived config"
+        "config.pipeline_contract from RequestContext/AppContext-backed config"
     )
 
 
@@ -145,7 +145,7 @@ def _neo4j_settings_from_config(
         neo4j_settings_type=Neo4jSettings,
         error_message=(
         "Live retrieval requires config.settings.neo4j or an explicit neo4j_settings "
-        "argument from RequestContext/AppContext-derived config"
+        "argument from RequestContext/AppContext-backed config"
         ),
     )
 
@@ -619,7 +619,7 @@ def _run_retrieval_and_qa_impl(
         openai_error_message="OPENAI_API_KEY environment variable is required for live retrieval.",
         neo4j_error_message=(
             "Live retrieval requires config.settings.neo4j or an explicit neo4j_settings "
-            "argument from RequestContext/AppContext-derived config"
+            "argument from RequestContext/AppContext-backed config"
         ),
         index_name=resolved_index_name,
         retrieval_query=retrieval_query,
@@ -785,7 +785,7 @@ def _run_interactive_qa_impl(
         openai_error_message="OPENAI_API_KEY environment variable is required for live retrieval.",
         neo4j_error_message=(
             "Live retrieval requires config.settings.neo4j or an explicit neo4j_settings "
-            "argument from RequestContext/AppContext-derived config"
+            "argument from RequestContext/AppContext-backed config"
         ),
         index_name=resolved_index_name,
         retrieval_query=retrieval_query,

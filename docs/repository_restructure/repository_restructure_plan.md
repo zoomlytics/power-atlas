@@ -615,8 +615,8 @@ The repo has now completed a first concrete runtime-state reduction pass:
   ingest and independent `ingest-pdf` execution; `structured_ingest` now
   follows the same pattern for both the orchestrated ingest path and the
   independent `ingest-structured` path, so the main stage-entrypoint adoption
-  lane is complete and the interim legacy wrapper/adapter layer has been
-  removed; the remaining pipeline-contract private cache/backing
+  lane is complete and the interim wrapper/adapter layer has been removed;
+  the remaining pipeline-contract private cache/backing
   state has now been narrowed from multiple field-level mutable globals to a
   single cached state object plus explicit snapshot/raw-config getters and
   narrow test override helpers. The next runtime-state cleanup slice also
@@ -634,7 +634,7 @@ The repo has now completed a first concrete runtime-state reduction pass:
   claim_participation.py` now also has a RequestContext entrypoint, and the
   orchestrated `demo/run_demo.py` ingest path now routes both claim
   participation and its retrieval passes through request-context helpers rather
-  than dropping back to legacy Config-only stage calls mid-pipeline.
+  than dropping back to older config-parameter stage calls mid-pipeline.
   `demo/run_demo.py` also no longer forces `refresh_pipeline_contract()` at
   module import time; pipeline reloads now occur only through explicit test-
   owned refresh calls or the normal bootstrap/snapshot path. The pipeline

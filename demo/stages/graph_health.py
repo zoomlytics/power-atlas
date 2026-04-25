@@ -67,7 +67,7 @@ def _neo4j_settings_from_config(config) -> Neo4jSettings:
         return settings_neo4j
     raise ValueError(
         "Graph health diagnostics require config.settings.neo4j from "
-        "RequestContext/AppContext-derived config"
+        "RequestContext/AppContext-backed config"
     )
 
 __all__ = [
