@@ -404,7 +404,7 @@ observability**: it does not alter LLM context, citation tokens, or answer seman
 ### Per-chunk `retrieval_path_diagnostics`
 
 Accessible via `result["retrieval_results"][i]["metadata"]["retrieval_path_diagnostics"]`
-(where `result` is the dict returned by `run_retrieval_and_qa`).
+(where `result` is the dict returned by `run_retrieval_and_qa_request_context()`).
 
 | Key | Type | Description |
 | --- | --- | --- |
@@ -423,9 +423,18 @@ retrieved chunks and their path diagnostics. It is produced internally by the re
 pipeline and is useful for quick debug inspection:
 
 ```python
-from demo.stages.retrieval_and_qa import run_retrieval_and_qa
+from power_atlas.bootstrap.app import build_app_context, build_request_context
+from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context
 
-result = run_retrieval_and_qa(config, run_id=run_id, question="...", cluster_aware=True)
+app_context = build_app_context(settings=config.settings)
+request_context = build_request_context(
+  app_context,
+  command="ask",
+  dry_run=False,
+  question="...",
+  run_id=run_id,
+)
+result = run_retrieval_and_qa_request_context(request_context, cluster_aware=True)
 print(result["retrieval_path_summary"])
 ```
 

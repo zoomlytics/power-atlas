@@ -127,7 +127,7 @@ graph layers contributed context for that chunk:
 | `cluster_memberships` | `MEMBER_OF` | Provisional — cluster identity |
 | `cluster_canonical_via_aligned_with` | `ALIGNED_WITH` | Provisional — hybrid canonical alignment |
 
-The top-level `retrieval_path_summary` field in the `run_retrieval_and_qa` result consolidates
+The top-level `retrieval_path_summary` field in the `run_retrieval_and_qa_request_context()` result consolidates
 these per-chunk diagnostics into a human-readable text summary for debugging.
 
 ---

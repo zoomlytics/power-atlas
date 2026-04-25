@@ -463,7 +463,7 @@ Implement `hybrid` alignment (implemented):
 
 ### Phase 4
 Update retrieval and Q&A behavior (implemented):
-- `cluster_aware=True` flag on `run_retrieval_and_qa` and `run_interactive_qa` enables
+- `cluster_aware=True` flag on `run_retrieval_and_qa_request_context()` and `run_interactive_qa_request_context()` enables
   cluster-aware retrieval using `_RETRIEVAL_QUERY_WITH_CLUSTER` (run-scoped) and
   `_RETRIEVAL_QUERY_WITH_CLUSTER_ALL_RUNS` (all-runs)
 - Cluster membership (`MEMBER_OF`) and canonical alignment (`ALIGNED_WITH`) context is

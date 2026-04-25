@@ -2,13 +2,13 @@
 
 **Status:** Accepted  
 **Audience:** Contributors, architects, reviewers  
-**Scope:** Postprocessing semantics for the retrieval/citation result dict in **postprocessed `status="live"` results** from `run_retrieval_and_qa` (i.e., runs where QA executed and `_postprocess_answer` ran to completion).
+**Scope:** Postprocessing semantics for the retrieval/citation result dict in **postprocessed `status="live"` results** from `run_retrieval_and_qa_request_context()` (i.e., runs where QA executed and `_postprocess_answer` ran to completion).
 
 ---
 
 ## 1) Summary
 
-`run_retrieval_and_qa` returns a result dict that contains both the **final deliverable fields** (what callers and the UI consume) and **diagnostic fields** (what tests and observability tooling inspect).  The postprocessing path — citation repair, citation fallback, evidence-level derivation — runs through a single shared helper (`_postprocess_answer`) so the single-shot and interactive paths stay aligned for **live, postprocessed runs**.
+`run_retrieval_and_qa_request_context()` returns a result dict that contains both the **final deliverable fields** (what callers and the UI consume) and **diagnostic fields** (what tests and observability tooling inspect).  The postprocessing path — citation repair, citation fallback, evidence-level derivation — runs through a single shared helper (`_postprocess_answer`) so the single-shot and interactive paths stay aligned for **live, postprocessed runs**.
 
 This document is the canonical reference for the meaning, relationships, and invariants of every postprocessing/result field **in postprocessed `status="live"` payloads**.  It is not a description of the retrieval architecture itself (see [retrieval-semantics-v0.1.md](retrieval-semantics-v0.1.md)); it focuses exclusively on what the postprocessed result dict carries and why.  **Dry-run and other early-return result shapes (e.g., `status="dry_run"`) are out of scope and may omit postprocessing-only fields such as `warnings`.**
 
@@ -65,7 +65,7 @@ Two answer variants are produced internally by `_postprocess_answer`:
 | `display_answer` | `answer` in result dict | Shown to the user; includes the fallback prefix when citations are incomplete. |
 | `history_answer` | Used only in interactive mode | Stored in conversation history.  When the fallback prefix was applied, only the bare prefix string is stored — not the full under-cited output — so subsequent turns are not conditioned on low-quality evidence. |
 
-`history_answer` is **not** included in the `run_retrieval_and_qa` result dict; it is used exclusively by `run_interactive_qa` when writing to the conversation `MessageHistory`.
+`history_answer` is **not** included in the `run_retrieval_and_qa_request_context()` result dict; it is used exclusively by `run_interactive_qa_request_context()` when writing to the conversation `MessageHistory`.
 
 ### 2.5 Citation quality fields
 
@@ -694,7 +694,7 @@ The retrieval/citation contract is intentionally distributed across several arti
 |---|---|---|
 | **Early-return precedence / short-circuit ordering** | `src/power_atlas/contracts/retrieval_early_return_policy.py` | Machine-readable policy |
 | **Metadata surface ownership, mirror, propagation, and forbidden-placement policy** | `src/power_atlas/contracts/retrieval_metadata_policy.py` | Machine-readable policy |
-| **Runtime payload assembly** (postprocessing, citation repair, evidence-level derivation) | `demo/stages/retrieval_and_qa.py` | Runtime implementation |
+| **Runtime payload assembly** (postprocessing, citation repair, evidence-level derivation) | `demo/stages/retrieval_and_qa.py` plus package-owned retrieval helpers under `src/power_atlas/` | Runtime implementation |
 | **Taxonomy and narrative contract explanation** (this document) | `docs/architecture/retrieval-citation-result-contract-v0.1.md` | Narrative documentation |
 | **Readable scenario-based contract tests** | `demo/tests/test_retrieval_result_contract.py` | Contract tests |
 | **Generic policy-vs-runtime parity tests** | `demo/tests/test_retrieval_metadata_projection_parity.py` | Contract tests |
@@ -703,7 +703,7 @@ The retrieval/citation contract is intentionally distributed across several arti
 ### How these artifacts relate
 
 - **Policy files** (`retrieval_early_return_policy.py`, `retrieval_metadata_policy.py`) are the machine-readable single source of truth.  They encode the rules that the runtime must follow.  Both are package-owned under `power_atlas.contracts` and remain available via `demo/contracts/__init__.py` for compatibility imports.
-- **The runtime** (`retrieval_and_qa.py`) consumes policy objects such as `EARLY_RETURN_PRECEDENCE` directly to drive early-return branching, and its metadata field projection behaviour is validated against `RETRIEVAL_METADATA_SURFACE_POLICY` via the policy-driven parity tests.  It should contain no duplicated rule logic — behaviour is derived from policy.
+- **The runtime seam** (`retrieval_and_qa.py` plus package-owned retrieval helpers) consumes policy objects such as `EARLY_RETURN_PRECEDENCE` directly to drive early-return branching, and its metadata field projection behaviour is validated against `RETRIEVAL_METADATA_SURFACE_POLICY` via the policy-driven parity tests. It should contain no duplicated rule logic — behaviour is derived from policy.
 - **This document** (narrative doc) explains *why* the rules exist, documents invariants in prose and tables, and is the canonical reference that any reviewer should read first.
 - **Contract tests** verify that the runtime matches what the policy and this document declare.  There are three complementary layers: scenario tests for readable coverage of documented cases, parity tests for exhaustive policy-driven checks, and fixture-backed scenarios to catch doc/runtime drift.
 
