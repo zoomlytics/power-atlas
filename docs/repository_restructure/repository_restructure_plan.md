@@ -669,7 +669,12 @@ The repo has now completed a first concrete runtime-state reduction pass:
   run-id resolution, and stage-manifest writing out of `demo/run_demo.py`
   into `power_atlas.orchestration.independent_stage_runners`, leaving the
   entrypoint primarily as a `RequestContext`-normalizing seam layer for the
-  current CLI/workflow test surface. The remaining work is the rest of the
+  current CLI/workflow test surface. Follow-up retrieval thinning then moved
+  the `retrieval_and_qa` request-context adapters, live-session bootstrap,
+  execution-context prep, interactive-session prelude, and single-shot session
+  runner behind package-owned helper modules, leaving that stage mostly as a
+  compatibility seam layer over the remaining patch-sensitive orchestration
+  callbacks. The remaining work is the rest of the
   mutable-global inventory outside those modules plus any further ownership
   cleanup warranted around that remaining single cached state.
 

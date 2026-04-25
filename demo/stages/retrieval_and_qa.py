@@ -88,15 +88,11 @@ from power_atlas.retrieval_request_helpers import format_retrieval_scope_label
 from power_atlas.retrieval_session_setup import build_retriever_and_rag as build_retriever_and_rag_impl
 from power_atlas.retrieval_single_shot_session import (
     build_single_shot_session_runner,
-    run_single_shot_retrieval_session,
 )
 from power_atlas.retrieval_runtime import (
     InteractiveRetrievalTurnResult,
     build_early_return_retrieval_result,
-    build_dry_run_retrieval_result,
     build_retrieval_base_result,
-    build_retrieval_skipped_result,
-    build_live_retrieval_result,
     execute_retrieval_search,
     finalize_live_retrieval_result,
     run_interactive_retrieval_turn,
@@ -142,6 +138,7 @@ def _neo4j_settings_from_config(
     config: object,
     neo4j_settings: Neo4jSettings | None = None,
 ) -> Neo4jSettings:
+    """Compatibility wrapper retained for helper/parity tests around settings resolution."""
     return resolve_live_neo4j_settings(
         config,
         neo4j_settings,
@@ -154,6 +151,7 @@ def _neo4j_settings_from_config(
 
 
 def _require_stage_openai_api_key(error_message: str) -> None:
+    """Compatibility wrapper retained for tests that assert the stage-level API-key guard."""
     require_live_retrieval_openai_api_key(
         error_message,
         require_openai_api_key=require_openai_api_key,
@@ -461,7 +459,7 @@ def _run_retrieval_and_qa_impl(
     pipeline_contract: PipelineContractSnapshot | None = None,
     neo4j_settings: Neo4jSettings | None = None,
 ) -> dict[str, object]:
-    """Run retrieval and GraphRAG Q&A for a single question or interactive session.
+    """Run single-turn retrieval and GraphRAG Q&A for one question.
 
     Parameters
     ----------
@@ -500,8 +498,8 @@ def _run_retrieval_and_qa_impl(
         via retrieved chunks from the current question's retrieval results.
         No evidence may be sourced from assistant history turns.
     interactive:
-        Records whether the call originated from an interactive REPL session.
-        Does not change retrieval or generation behaviour on its own.
+        Records whether this single-turn call originated from an interactive
+        workflow. Does not change retrieval or generation behaviour on its own.
     all_runs:
         When True, retrieval queries all Chunk nodes regardless of run_id.
         Citations may span multiple runs/files; *run_id* is ignored.  In this
