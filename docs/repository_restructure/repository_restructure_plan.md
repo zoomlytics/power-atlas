@@ -681,9 +681,12 @@ The repo has now completed a first concrete runtime-state reduction pass:
 That is meaningful progress, but it does not yet satisfy the phase. The pipeline
 contract still contains mutable module-level state for config/cache concerns,
 and the remaining stateful pipeline surface still needs an explicit disposition
-rather than simple coexistence. The new context seam is no longer limited to a
-small retrieval-only foothold: it is now adopted across the main active
-stage-level execution paths and the `demo/run_demo.py` entrypoint layer.
+rather than simple coexistence. The new context seam is no longer limited to
+entrypoint-only adoption: it is now used across the main active stage-level
+execution paths and the `demo/run_demo.py` entrypoint layer, and the live
+retrieval path now routes most of its request-context binding and session
+bootstrapping through package-owned helper modules rather than stage-local
+mechanics.
 Remaining work is the rest of the mutable-global inventory, any further cleanup
 around the remaining single cached pipeline-contract state, and broader
 consolidation of runtime ownership/documentation rather than more isolated
