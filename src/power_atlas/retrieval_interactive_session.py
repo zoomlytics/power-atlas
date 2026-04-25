@@ -4,6 +4,23 @@ from collections.abc import Callable
 from typing import Any
 
 
+def initialize_interactive_session(
+    *,
+    run_id: str | None,
+    all_runs: bool,
+    history_factory: Callable[[], Any],
+    format_scope_label: Callable[[str | None, bool], str],
+    print_fn: Callable[..., None] | None = None,
+) -> Any:
+    """Create interactive message history and print the session prelude."""
+    if print_fn is None:
+        print_fn = print
+    history = history_factory()
+    print_fn(f"Using retrieval scope: {format_scope_label(run_id, all_runs)}")
+    print_fn("Power Atlas interactive Q&A (type 'exit'/'quit' or Ctrl-D to stop)\n")
+    return history
+
+
 def run_interactive_session_loop(
     *,
     rag: Any,
@@ -71,4 +88,4 @@ def run_interactive_session_loop(
         print_fn()
 
 
-__all__ = ["run_interactive_session_loop"]
+__all__ = ["initialize_interactive_session", "run_interactive_session_loop"]

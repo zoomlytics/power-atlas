@@ -72,7 +72,10 @@ from power_atlas.retrieval_query_builders import _RETRIEVAL_QUERY_WITH_CLUSTER_A
 from power_atlas.retrieval_query_builders import _RETRIEVAL_QUERY_WITH_EXPANSION
 from power_atlas.retrieval_query_builders import _RETRIEVAL_QUERY_WITH_EXPANSION_ALL_RUNS
 from power_atlas.retrieval_query_builders import _select_retrieval_query
-from power_atlas.retrieval_interactive_session import run_interactive_session_loop
+from power_atlas.retrieval_interactive_session import (
+    initialize_interactive_session,
+    run_interactive_session_loop,
+)
 from power_atlas.retrieval_live_preflight import require_live_retrieval_openai_api_key
 from power_atlas.retrieval_live_preflight import resolve_live_neo4j_settings
 from power_atlas.retrieval_execution_setup import (
@@ -747,9 +750,12 @@ def _run_interactive_qa_impl(
         ),
     )
 
-    history: MessageHistory = InMemoryMessageHistory()
-    print(f"Using retrieval scope: {_format_scope_label(run_id, all_runs)}")
-    print("Power Atlas interactive Q&A (type 'exit'/'quit' or Ctrl-D to stop)\n")
+    history: MessageHistory = initialize_interactive_session(
+        run_id=run_id,
+        all_runs=all_runs,
+        history_factory=InMemoryMessageHistory,
+        format_scope_label=_format_scope_label,
+    )
 
     # Build driver, retriever, LLM, and GraphRAG once and reuse across all REPL turns
     # to avoid per-turn connection overhead and Neo4j driver churn.
