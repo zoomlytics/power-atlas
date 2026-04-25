@@ -138,7 +138,7 @@ def _neo4j_settings_from_config(
     config: object,
     neo4j_settings: Neo4jSettings | None = None,
 ) -> Neo4jSettings:
-    """Compatibility wrapper retained for helper/parity tests around settings resolution."""
+    """Test-preserving seam retained for helper/parity tests around settings resolution."""
     return resolve_live_neo4j_settings(
         config,
         neo4j_settings,
@@ -151,7 +151,7 @@ def _neo4j_settings_from_config(
 
 
 def _require_stage_openai_api_key(error_message: str) -> None:
-    """Compatibility wrapper retained for tests that assert the stage-level API-key guard."""
+    """Test-preserving seam retained for tests that assert the stage-level API-key guard."""
     require_live_retrieval_openai_api_key(
         error_message,
         require_openai_api_key=require_openai_api_key,
