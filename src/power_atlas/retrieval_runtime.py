@@ -172,7 +172,7 @@ def build_early_return_retrieval_result(
         logger.warning(warning_msg)
         return build_retrieval_skipped_result(base=base, warning_msg=warning_msg)
     raise RuntimeError(
-        f"run_retrieval_and_qa: matched early-return rule {early_rule.name!r} "
+        f"run_retrieval_and_qa_request_context: matched early-return rule {early_rule.name!r} "
         "has no corresponding payload branch.  Add a branch for this rule."
     )
 

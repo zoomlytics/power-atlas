@@ -143,7 +143,7 @@ Structure
 ``TestProjectPostprocessToPublic``
     Direct unit tests for the :func:`_project_postprocess_to_public` adapter that
     maps an :class:`_AnswerPostprocessResult` to the public result surface.  Tests
-    the adapter in isolation (without going through ``run_retrieval_and_qa``):
+    the adapter in isolation (without going through ``run_retrieval_and_qa_request_context()``):
 
     - The returned key set exactly matches ``_PostprocessPublicFields``.
     - ``display_answer`` is renamed to ``answer``.
@@ -373,7 +373,8 @@ _CITATION_QUALITY_BUNDLE_KEYS: frozenset[str] = _policy_surface_key_set("citatio
 #: automatically in sync with the shared policy.
 _DEBUG_VIEW_REQUIRED_KEYS: frozenset[str] = _policy_surface_key_set("debug_view")
 
-#: A realistic retrieval-item metadata dict for live-path (``run_retrieval_and_qa``) tests.
+#: A realistic retrieval-item metadata dict for live-path
+#: (``run_retrieval_and_qa_request_context()``) tests.
 #: Includes ``citation_object`` with all optional fields (page, start_char, end_char) populated
 #: so no "missing optional citation fields" warnings are emitted by the live code path.
 _LIVE_ITEM_METADATA: dict[str, object] = {
@@ -575,7 +576,7 @@ def _run_with_mocked_retrieval(
     question: str = "What is the claim?",
     run_id: str | None = None,
 ) -> dict[str, object]:
-    """Drive ``run_retrieval_and_qa`` with mocked Neo4j / RAG, returning the result dict.
+    """Drive ``run_retrieval_and_qa_request_context()`` with mocked Neo4j / RAG, returning the result dict.
 
     Parameters
     ----------
@@ -1551,7 +1552,7 @@ class TestRunRetrievalAndQaPostprocessMapping:
         all_runs: bool,
         run_id: str | None = None,
     ) -> tuple[dict, dict]:
-        """Drive ``run_retrieval_and_qa`` with a spy on ``_postprocess_answer``,
+        """Drive ``run_retrieval_and_qa_request_context()`` with a spy on ``_postprocess_answer``,
         returning ``(result, pp)`` where *pp* is the captured internal result."""
         captured: list[dict] = []
 
@@ -1999,7 +2000,7 @@ class TestRunRetrievalAndQaDocumentedScenarios:
         is therefore unreachable through purely end-to-end inputs with the
         current heuristic.  This test patches ``_apply_citation_repair`` to
         return the partially-repaired answer described in the contract document
-        §4.4, verifying that ``run_retrieval_and_qa`` correctly handles this
+        §4.4, verifying that ``run_retrieval_and_qa_request_context()`` correctly handles this
         path (repair applied, fallback also applied, evidence_level degraded)
         regardless of which specific repair algorithm produces it.
         """
@@ -2100,7 +2101,7 @@ class TestRunRetrievalAndQaEarlyReturnContract:
 
     @staticmethod
     def _dry_run_result(**kwargs) -> dict[str, object]:
-        """Return a dry-run result.  Extra keyword args are forwarded to ``run_retrieval_and_qa``."""
+        """Return a dry-run result.  Extra keyword args are forwarded to ``run_retrieval_and_qa_request_context()``."""
         all_runs = kwargs.pop("all_runs", False)
         request_context = _build_request_context(
             _DRY_RUN_CONFIG,
@@ -2437,7 +2438,7 @@ class TestMixedEarlyReturnSentinelEdge:
        modifiers accompany ``dry_run=True``.
 
     6. **question field is recorded faithfully** — the ``question`` key in the
-       result always mirrors the value passed to ``run_retrieval_and_qa``,
+    result always mirrors the value passed to ``run_retrieval_and_qa_request_context()``,
        including ``None`` and ``""``.
     """
 
@@ -3133,7 +3134,7 @@ class TestProjectPostprocessToPublic:
     a known :class:`_AnswerPostprocessResult` and asserting that every public
     key carries the correctly projected value.  Unlike the spy-based tests in
     :class:`TestRunRetrievalAndQaPostprocessMapping`, these tests do not go
-    through the full ``run_retrieval_and_qa`` stack, making each mapping
+    through the full ``run_retrieval_and_qa_request_context()`` stack, making each mapping
     assertion cheaper and more explicit.
     """
 

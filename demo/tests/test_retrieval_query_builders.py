@@ -720,8 +720,9 @@ class TestPostprocessAnswer:
     """_postprocess_answer returns a fully-structured postprocessing result.
 
     Tests verify that both the repaired-answer path and the fallback path
-    produce the same contract, ensuring run_retrieval_and_qa and
-    run_interactive_qa cannot drift silently.
+    produce the same contract, ensuring
+    run_retrieval_and_qa_request_context() and
+    run_interactive_qa_request_context() cannot drift silently.
     """
 
     def test_fully_cited_answer_returns_full_evidence_level(self) -> None:

@@ -8,7 +8,7 @@ These tests verify:
    of hit configurations (empty, base-query, full cluster-aware, mixed).
 3. The ``retrieval_path_diagnostics`` key is present in chunk metadata produced by
    ``_chunk_citation_formatter`` and contains the expected structure.
-4. ``run_retrieval_and_qa`` result dicts always contain the ``retrieval_path_summary``
+4. ``run_retrieval_and_qa_request_context()`` result dicts always contain the ``retrieval_path_summary``
    key (including dry-run and no-question code paths).
 5. ``_count_malformed_diagnostics`` returns the correct hit-level count for all
    malformed and well-formed diagnostics scenarios.
@@ -347,7 +347,7 @@ def _make_hit(
     cluster_memberships: list | None = None,
     cluster_canonical_alignments: list | None = None,
 ) -> dict:
-    """Build a minimal hit dict as produced by run_retrieval_and_qa."""
+    """Build a minimal hit dict as produced by run_retrieval_and_qa_request_context()."""
     diag = None
     if include_diagnostics:
         diag = _build_retrieval_path_diagnostics(
@@ -891,12 +891,12 @@ class TestChunkCitationFormatterInjectsDiagnostics:
 
 
 # ---------------------------------------------------------------------------
-# Integration: run_retrieval_and_qa base dict always has retrieval_path_summary
+# Integration: run_retrieval_and_qa_request_context base dict always has retrieval_path_summary
 # ---------------------------------------------------------------------------
 
 
 class TestRunRetrievalAndQaIncludesRetrievalPathSummary:
-    """run_retrieval_and_qa result dicts must always contain retrieval_path_summary."""
+    """run_retrieval_and_qa_request_context() result dicts must always contain retrieval_path_summary."""
 
     def _make_dry_run_config(self):
         return _RuntimeConfig(

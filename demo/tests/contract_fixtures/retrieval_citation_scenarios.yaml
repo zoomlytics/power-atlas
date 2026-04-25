@@ -13,7 +13,7 @@
 # Each live scenario's ``answer`` / ``items_metadata`` / ``all_runs`` / ``run_id``
 # fields are passed verbatim to ``_run_with_mocked_retrieval()`` in the drift
 # tests.  Each early-return scenario's fields are used to build the appropriate
-# ``run_retrieval_and_qa()`` call.
+# ``run_retrieval_and_qa_request_context()`` call.
 #
 # Excluded scenarios are retained here with ``excluded: true`` so that newly
 # added doc sections cannot fall through silently without at least an explicit
@@ -163,7 +163,7 @@ live_scenarios:
 # §5.x early-return scenarios
 # ---------------------------------------------------------------------------
 # Each non-excluded entry maps a section ID to the config fields used to
-# construct the ``run_retrieval_and_qa()`` call.
+# construct the ``run_retrieval_and_qa_request_context()`` call.
 #
 # Required fields for all non-excluded entries:
 #   dry_run (bool, required)

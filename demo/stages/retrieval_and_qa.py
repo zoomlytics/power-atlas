@@ -383,9 +383,9 @@ def _build_retriever_and_rag(
 ) -> tuple[VectorCypherRetriever, GraphRAG]:
     """Construct a VectorCypherRetriever and GraphRAG instance for a Neo4j session.
 
-    Shared by both ``run_retrieval_and_qa`` (single-turn) and
-    ``run_interactive_qa`` (multi-turn REPL) so that retriever/LLM construction
-    is defined in one place.
+    Shared by both ``run_retrieval_and_qa_request_context()`` (single-turn)
+    and ``run_interactive_qa_request_context()`` (multi-turn REPL) so that
+    retriever/LLM construction is defined in one place.
 
     Parameters
     ----------

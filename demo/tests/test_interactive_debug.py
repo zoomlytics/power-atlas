@@ -375,7 +375,7 @@ class TestRunInteractiveQaDebugFlag:
         debug: bool,
         all_runs: bool = True,
     ) -> str:
-        """Run run_interactive_qa for one question turn and return captured stdout."""
+        """Run run_interactive_qa_request_context for one question turn and return captured stdout."""
         mock_rag_result = self._make_rag_result(answer, token)
         mock_rag = MagicMock()
         mock_rag.search.return_value = mock_rag_result
@@ -425,7 +425,7 @@ class TestRunInteractiveQaDebugFlag:
         assert "[debug]" not in output
 
     def test_debug_default_is_false(self) -> None:
-        """run_interactive_qa's debug parameter defaults to False (no debug output)."""
+        """run_interactive_qa_request_context's debug parameter defaults to False (no debug output)."""
         # Call without passing debug= at all to exercise the default.
         mock_rag_result = self._make_rag_result(f"Cited answer. {_TOKEN}", token=_TOKEN)
         mock_rag = MagicMock()

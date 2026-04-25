@@ -2096,7 +2096,7 @@ class WorkflowTests(unittest.TestCase):
             self.assertIsNone(manifest["run_scopes"].get("unstructured_ingest_run_id"))
 
     def test_ask_all_runs_interactive_passes_null_source_uri(self):
-        """Interactive ask --interactive --all-runs must call run_interactive_qa with source_uri=None.
+        """Interactive ask --interactive --all-runs must call run_interactive_qa_request_context with source_uri=None.
 
         This is a regression guard: before the fix, the interactive path hard-coded
         the demo fixture URI, so --all-runs still filtered to a single document.
@@ -2261,7 +2261,7 @@ class WorkflowTests(unittest.TestCase):
             )
 
     def test_ask_cluster_aware_interactive_passes_cluster_aware_kwarg(self):
-        """Interactive ask --cluster-aware must call run_interactive_qa with cluster_aware=True."""
+        """Interactive ask --cluster-aware must call run_interactive_qa_request_context with cluster_aware=True."""
         module = _load_module(RUN_DEMO_PATH, "run_ask_interactive_cluster_aware_test")
         captured: dict[str, object] = {}
 
@@ -2313,7 +2313,7 @@ class WorkflowTests(unittest.TestCase):
 
         self.assertTrue(
             captured.get("cluster_aware"),
-            "run_interactive_qa must be called with cluster_aware=True when --cluster-aware is set",
+            "run_interactive_qa_request_context must be called with cluster_aware=True when --cluster-aware is set",
         )
 
     def test_parse_args_ask_cluster_aware_flag(self):

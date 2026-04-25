@@ -3027,7 +3027,7 @@ def test_retrieval_and_qa_live_path_no_fallback_when_fully_cited(tmp_path: Path)
 def test_run_interactive_qa_shows_fallback_message_when_uncited(
     tmp_path: Path, capsys: pytest.CaptureFixture
 ):
-    """run_interactive_qa must print the structured fallback message (including the original
+    """run_interactive_qa_request_context must print the structured fallback message (including the original
     uncited answer text) when the LLM returns a response without proper citation tokens."""
     from demo.run_demo import _request_context_from_config
     from demo.stages.retrieval_and_qa import run_interactive_qa_request_context, _CITATION_FALLBACK_PREFIX
@@ -3087,7 +3087,7 @@ def test_run_interactive_qa_shows_fallback_message_when_uncited(
 def test_run_interactive_qa_does_not_show_fallback_when_fully_cited(
     tmp_path: Path, capsys: pytest.CaptureFixture
 ):
-    """run_interactive_qa must print the answer as-is (no fallback prefix) when every
+    """run_interactive_qa_request_context must print the answer as-is (no fallback prefix) when every
     answer sentence ends with a citation token."""
     from demo.run_demo import _request_context_from_config
     from demo.stages.retrieval_and_qa import run_interactive_qa_request_context, _CITATION_FALLBACK_PREFIX
@@ -3367,7 +3367,7 @@ def test_retrieval_and_qa_live_path_qa_model_never_none(tmp_path: Path):
 def test_run_interactive_qa_prints_citation_warning_when_uncited(
     tmp_path: Path, capsys: pytest.CaptureFixture
 ):
-    """run_interactive_qa must print a visible citation warning to stdout when the
+    """run_interactive_qa_request_context must print a visible citation warning to stdout when the
     answer contains lines without citation tokens (degraded evidence quality)."""
     from demo.run_demo import _request_context_from_config
     from demo.stages.retrieval_and_qa import run_interactive_qa_request_context
@@ -3429,7 +3429,7 @@ def test_run_interactive_qa_prints_citation_warning_when_uncited(
 def test_run_interactive_qa_no_warning_when_fully_cited(
     tmp_path: Path, capsys: pytest.CaptureFixture
 ):
-    """run_interactive_qa must NOT print a citation warning when every answer line is cited."""
+    """run_interactive_qa_request_context must NOT print a citation warning when every answer line is cited."""
     from demo.run_demo import _request_context_from_config
     from demo.stages.retrieval_and_qa import run_interactive_qa_request_context
 
@@ -3678,7 +3678,7 @@ def test_retrieval_and_qa_live_path_citation_fallback_applied_false_when_cited(t
 def test_run_interactive_qa_stores_refusal_prefix_in_history(
     tmp_path: Path,
 ):
-    """run_interactive_qa must store only the sanitized refusal prefix (not the full
+    """run_interactive_qa_request_context must store only the sanitized refusal prefix (not the full
     fallback text embedding the uncited output) in conversation history so subsequent
     turns are not conditioned on under-cited content."""
     from demo.run_demo import _request_context_from_config
@@ -5236,7 +5236,7 @@ def test_main_ask_dry_run_no_scope_prints_placeholder(
 def test_run_interactive_qa_all_runs_prints_scope(
     tmp_path: Path, capsys: pytest.CaptureFixture
 ):
-    """run_interactive_qa with all_runs=True must print 'all runs in database' scope message."""
+    """run_interactive_qa_request_context with all_runs=True must print 'all runs in database' scope message."""
     from demo.run_demo import _request_context_from_config
     from demo.stages.retrieval_and_qa import run_interactive_qa_request_context
 
@@ -5281,7 +5281,7 @@ def test_run_interactive_qa_all_runs_prints_scope(
 def test_run_interactive_qa_run_scoped_prints_scope(
     tmp_path: Path, capsys: pytest.CaptureFixture
 ):
-    """run_interactive_qa must print the run_id scope message at session start."""
+    """run_interactive_qa_request_context must print the run_id scope message at session start."""
     from demo.run_demo import _request_context_from_config
     from demo.stages.retrieval_and_qa import run_interactive_qa_request_context
 
@@ -5324,7 +5324,7 @@ def test_run_interactive_qa_run_scoped_prints_scope(
 
 
 def test_run_interactive_qa_requires_run_id_when_not_all_runs(tmp_path: Path):
-    """run_interactive_qa must raise ValueError when run_id is None and all_runs is False."""
+    """run_interactive_qa_request_context must raise ValueError when run_id is None and all_runs is False."""
     from demo.run_demo import _request_context_from_config
     from demo.stages.retrieval_and_qa import run_interactive_qa_request_context
 

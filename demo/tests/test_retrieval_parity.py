@@ -343,11 +343,12 @@ def _capture_interactive_build_query_params(extra_flags: dict[str, object]) -> d
 class TestRetrievalQueryParity:
     """Same mode flags → same ``_select_retrieval_query`` call in both entry points.
 
-    Each test drives the real code path of both ``run_retrieval_and_qa`` and
-    ``run_interactive_qa``, intercepts the ``_select_retrieval_query`` call via a
-    spy, and asserts that the captured kwargs are identical.  This ensures any
-    future change that alters the flag-passing logic in one path but not the other
-    will be caught here.
+    Each test drives the real code path of both
+    ``run_retrieval_and_qa_request_context()`` and
+    ``run_interactive_qa_request_context()``, intercepts the
+    ``_select_retrieval_query`` call via a spy, and asserts that the captured
+    kwargs are identical. This ensures any future change that alters the
+    flag-passing logic in one path but not the other will be caught here.
     """
 
     @pytest.mark.parametrize(
@@ -430,7 +431,8 @@ class TestQueryParamParity:
 class TestCitationRepairParity:
     """Same uncited answer + same hits in all-runs mode → same repaired display answer.
 
-    Both ``run_retrieval_and_qa`` and ``run_interactive_qa`` call
+    Both ``run_retrieval_and_qa_request_context()`` and
+    ``run_interactive_qa_request_context()`` call
     ``_postprocess_answer(answer, hits, all_runs=True)`` in all-runs mode.
     These tests verify that identical inputs produce identical postprocessing
     results, asserting repair is applied consistently by the shared helper.
@@ -439,10 +441,11 @@ class TestCitationRepairParity:
     def test_all_runs_uncited_answer_repair_applied_consistently(self) -> None:
         """Citation repair is applied consistently for an uncited answer in all-runs mode.
 
-        Both ``run_retrieval_and_qa`` and ``run_interactive_qa`` call
-        ``_postprocess_answer(answer, hits, all_runs=True)``; this test verifies the
-        shared helper produces the expected repair outcome so neither path can silently
-        omit repair by changing its call signature.
+        Both ``run_retrieval_and_qa_request_context()`` and
+        ``run_interactive_qa_request_context()`` call
+        ``_postprocess_answer(answer, hits, all_runs=True)``; this test verifies
+        the shared helper produces the expected repair outcome so neither path
+        can silently omit repair by changing its call signature.
         """
         answer = "An uncited claim that needs repair."
 
