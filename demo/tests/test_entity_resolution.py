@@ -198,8 +198,9 @@ def _make_neo4j_test_driver(
     )
 
     # Pre-compute alignment results to simulate graph-backed post-write queries.
-    # This mirrors what run_entity_resolution does internally so that the mock
-    # returns realistic counts rather than hard-coded zeros.
+    # This mirrors what the request-context entity-resolution entrypoint does
+    # internally so that the mock returns realistic counts rather than
+    # hard-coded zeros.
     _cluster_rows = _cluster_mentions_unstructured_only([
         {"mention_id": m["mention_id"], "name": m["name"],
          "entity_type": m.get("entity_type"), "source_uri": m.get("source_uri")}
@@ -650,7 +651,7 @@ class TestResolveMention(unittest.TestCase):
         self.assertEqual(result["canonical_entity_id"], "Q50")
 
 
-class TestRunEntityResolutionDryRun(unittest.TestCase):
+class TestEntityResolutionRequestContextDryRun(unittest.TestCase):
     def test_dry_run_returns_summary_with_zeros(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             config = _dry_run_config(Path(tmpdir))
@@ -748,7 +749,7 @@ class TestEntityResolutionSettingsOwnership(unittest.TestCase):
                     source_uri=None,
                 )
 
-class TestRunEntityResolutionLive(unittest.TestCase):
+class TestEntityResolutionRequestContextLive(unittest.TestCase):
     """Tests for the live path using a mock Neo4j driver."""
 
     def _make_driver(
@@ -923,7 +924,7 @@ class TestRunEntityResolutionLive(unittest.TestCase):
             self.assertEqual(result["resolution_breakdown"], {})
 
 
-class TestRunEntityResolutionOrchestratorIntegration(unittest.TestCase):
+class TestEntityResolutionRequestContextOrchestratorIntegration(unittest.TestCase):
     """Integration smoke test: resolve-entities in the full orchestrator flow."""
 
     def test_resolve_entities_in_independent_stage_mode(self):
@@ -2351,7 +2352,7 @@ class TestClusterMentionsUnstructuredOnly(unittest.TestCase):
         self.assertEqual(by_mid["m2"]["entity_type"], "Person")
 
 
-    """Tests for run_entity_resolution with resolution_mode='unstructured_only'."""
+    """Tests for request-context entity resolution with resolution_mode='unstructured_only'."""
 
     def _live_config(self, tmp_path: Path) -> Config:
         return _make_config(
@@ -2864,8 +2865,8 @@ class TestClusterMentionsUnstructuredOnly(unittest.TestCase):
         self.assertEqual(rows, [])
 
 
-class TestRunEntityResolutionHybrid(unittest.TestCase):
-    """Tests for run_entity_resolution with resolution_mode='hybrid'."""
+class TestEntityResolutionRequestContextHybrid(unittest.TestCase):
+    """Tests for request-context entity resolution with resolution_mode='hybrid'."""
 
     def _live_config(self, tmp_path: Path) -> Config:
         return _make_config(
@@ -3672,7 +3673,7 @@ class TestManifestGraphConsistency(unittest.TestCase):
 
 
 class TestArtifactSubdirValidation(unittest.TestCase):
-    """Tests for artifact_subdir path safety in run_entity_resolution."""
+    """Tests for artifact_subdir path safety in the request-context entity-resolution path."""
 
     def _config(self, tmp_path: Path) -> Config:
         return _make_config(dry_run=True, output_dir=tmp_path)
@@ -4262,8 +4263,8 @@ class TestLegacyNullDatasetIdBehavior(unittest.TestCase):
     These tests:
     1. Document the symptom: hybrid and structured_anchor modes return zero
        aligned/resolved clusters when only legacy-null nodes exist.
-    2. Confirm the warning emitted by run_entity_resolution mentions the legacy
-       null scenario and points to the migration guide.
+     2. Confirm the warning emitted by the request-context entity-resolution path
+         mentions the legacy null scenario and points to the migration guide.
     3. Demonstrate that stamping the correct dataset_id (simulating in-place
        repair per docs/architecture/legacy-dataset-id-migration-v0.1.md) fully
        restores alignment.
