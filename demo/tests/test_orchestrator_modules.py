@@ -7284,7 +7284,10 @@ def test_benchmark_failure_in_orchestrated_run_writes_manifest(tmp_path: Path):
         "demo.run_demo._run_structured_ingest_request_context",
         return_value={"status": "dry_run"},
     ):
-        manifest_path = _run_orchestrated(config)
+        from demo.run_demo import _request_context_from_config, _run_orchestrated_request_context
+
+        request_context = _request_context_from_config(config, command="ingest")
+        manifest_path = _run_orchestrated_request_context(request_context)
 
     assert manifest_path.exists(), "manifest.json must be written even if benchmark fails"
 
@@ -7312,12 +7315,13 @@ def test_orchestrated_run_warns_when_alignment_version_missing(tmp_path: Path):
     import unittest
     from unittest.mock import MagicMock, patch
 
-    from demo.run_demo import _run_orchestrated
+    from demo.run_demo import _request_context_from_config, _run_orchestrated_request_context
 
     config = _make_config(
         dry_run=True,
         output_dir=tmp_path,
     )
+    request_context = _request_context_from_config(config, command="ingest")
 
     # Hybrid stage returns a dict WITHOUT alignment_version — simulates missing key.
     hybrid_stage_without_version = {"status": "dry_run"}
@@ -7354,7 +7358,7 @@ def test_orchestrated_run_warns_when_alignment_version_missing(tmp_path: Path):
             "demo.run_demo._run_structured_ingest_request_context",
             return_value={"status": "dry_run"},
         ):
-            _run_orchestrated(config)
+            _run_orchestrated_request_context(request_context)
 
     warning_messages = [r for r in captured_logs.output if "WARNING" in r]
     assert any(
@@ -7372,12 +7376,13 @@ def test_orchestrated_run_emits_exactly_one_alignment_version_warning(tmp_path: 
     import unittest
     from unittest.mock import MagicMock, patch
 
-    from demo.run_demo import _run_orchestrated
+    from demo.run_demo import _request_context_from_config, _run_orchestrated_request_context
 
     config = _make_config(
         dry_run=True,
         output_dir=tmp_path,
     )
+    request_context = _request_context_from_config(config, command="ingest")
 
     # Hybrid stage returns a dict WITHOUT alignment_version — simulates missing key.
     hybrid_stage_without_version = {"status": "dry_run"}
@@ -7417,7 +7422,7 @@ def test_orchestrated_run_emits_exactly_one_alignment_version_warning(tmp_path: 
             "demo.run_demo._run_structured_ingest_request_context",
             return_value={"status": "dry_run"},
         ):
-            _run_orchestrated(config)
+            _run_orchestrated_request_context(request_context)
 
     # Exactly one alignment_version/aggregate warning on the orchestrator logger.
     all_warning_messages = [r for r in captured_logs.output if "WARNING" in r]
@@ -7466,12 +7471,13 @@ def test_e2e_orchestrated_exactly_one_alignment_version_warning(tmp_path: Path):
     """
     from unittest.mock import MagicMock, patch
 
-    from demo.run_demo import _run_orchestrated
+    from demo.run_demo import _request_context_from_config, _run_orchestrated_request_context
 
     config = _make_config(
         dry_run=True,
         output_dir=tmp_path,
     )
+    request_context = _request_context_from_config(config, command="ingest")
 
     # Hybrid stage returns a dict WITHOUT alignment_version —
     # triggers the orchestrator's alignment_version warning.
@@ -7525,7 +7531,7 @@ def test_e2e_orchestrated_exactly_one_alignment_version_warning(tmp_path: Path):
         ):
             # run_retrieval_benchmark is intentionally NOT mocked.
             # In dry_run mode it writes a stub artifact without connecting to Neo4j.
-            _run_orchestrated(config)
+            _run_orchestrated_request_context(request_context)
     finally:
         for lg, level in zip(loggers_to_watch, original_levels):
             lg.removeHandler(handler)
@@ -7570,12 +7576,13 @@ def test_run_orchestrated_surfaces_stage_warnings(
     """
     from unittest.mock import MagicMock, patch
 
-    from demo.run_demo import _run_orchestrated
+    from demo.run_demo import _request_context_from_config, _run_orchestrated_request_context
 
     config = _make_config(
         dry_run=True,
         output_dir=tmp_path,
     )
+    request_context = _request_context_from_config(config, command="ingest")
 
     # One stage returns a warning; all others return minimal dicts.
     stage_with_warning = {"status": "ok", "warnings": ["synthetic-stage-warning-for-test"]}
@@ -7609,7 +7616,7 @@ def test_run_orchestrated_surfaces_stage_warnings(
         "demo.run_demo.run_retrieval_benchmark",
         return_value={"status": "dry_run"},
     ):
-        _run_orchestrated(config)
+        _run_orchestrated_request_context(request_context)
 
     assert any(
         record.levelno == logging.WARNING
