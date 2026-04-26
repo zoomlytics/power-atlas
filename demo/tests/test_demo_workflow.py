@@ -614,13 +614,13 @@ class WorkflowTests(unittest.TestCase):
     def test_run_demo_dry_run_writes_manifest_with_expected_stages(self):
         module = _load_module(RUN_DEMO_PATH, "run_test")
         with tempfile.TemporaryDirectory() as tmpdir:
-            manifest_path = module.run_demo(
-                _make_module_config(
-                    module,
-                    dry_run=True,
-                    output_dir=Path(tmpdir),
-                )
+            config = _make_module_config(
+                module,
+                dry_run=True,
+                output_dir=Path(tmpdir),
             )
+            request_context = module._request_context_from_config(config, command="ingest")
+            manifest_path = module.run_demo(request_context)
 
             self.assertTrue(manifest_path.exists())
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -701,19 +701,19 @@ class WorkflowTests(unittest.TestCase):
             return real_fn(*args, **kwargs)
 
         with tempfile.TemporaryDirectory() as tmpdir:
+            config = _make_module_config(
+                module,
+                dry_run=True,
+                output_dir=Path(tmpdir),
+                dataset_name="demo_dataset_v1",
+            )
+            request_context = module._request_context_from_config(config, command="ingest")
             with mock_patch.object(
                 module,
                 "_run_entity_resolution_request_context",
                 side_effect=_fake_run_entity_resolution_request_context,
             ):
-                module.run_demo(
-                    _make_module_config(
-                        module,
-                        dry_run=True,
-                        output_dir=Path(tmpdir),
-                        dataset_name="demo_dataset_v1",
-                    )
-                )
+                module.run_demo(request_context)
 
         # There must be exactly two entity-resolution calls in the orchestrated flow:
         # one unstructured_only and one hybrid.

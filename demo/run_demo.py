@@ -521,8 +521,7 @@ def _run_orchestrated_request_context(request_context: RequestContext) -> Path:
     )
 
 
-def _run_orchestrated(request_context_or_config: RequestContext | Config) -> Path:
-    request_context = _ensure_request_context(request_context_or_config, command="ingest")
+def _run_orchestrated(request_context: RequestContext) -> Path:
     return _run_orchestrated_request_context(request_context)
 
 
@@ -557,8 +556,8 @@ def _run_independent_stage(
     )
 
 
-def run_demo(config_or_request_context: RequestContext | Config) -> Path:
-    return _run_orchestrated(config_or_request_context)
+def run_demo(request_context: RequestContext) -> Path:
+    return _run_orchestrated(request_context)
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:

@@ -8,7 +8,7 @@ from pathlib import Path
 
 from power_atlas.bootstrap import build_runtime_config, build_settings
 from power_atlas.contracts.runtime import Config
-from run_demo import run_demo, run_independent_demo
+from run_demo import _request_context_from_config, run_demo, run_independent_demo
 
 # Valid evidence levels per citation contract (#159).
 _VALID_EVIDENCE_LEVELS = frozenset({"full", "degraded", "no_answer"})
@@ -284,7 +284,8 @@ def _run_batch_scenario(output_dir: Path) -> Path:
     - QA signals are present and valid.
     """
     config = _build_config(output_dir)
-    manifest_path = run_demo(config)
+    request_context = _request_context_from_config(config, command="ingest")
+    manifest_path = run_demo(request_context)
     _validate_batch_manifest(manifest_path)
     return manifest_path
 
