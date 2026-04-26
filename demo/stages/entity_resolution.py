@@ -87,7 +87,7 @@ Graph model
 * ``(:ResolvedEntityCluster)-[:ALIGNED_WITH]->(:CanonicalEntity)`` — enrichment link
 
 Artifacts written to ``runs/<run_id>/entity_resolution/`` by default.
-Callers may pass ``artifact_subdir`` to ``run_entity_resolution`` to
+Callers may pass ``artifact_subdir`` to ``run_entity_resolution_request_context()`` to
 redirect artifacts to a different subdirectory under ``runs/<run_id>/``
 (e.g. ``"entity_resolution_unstructured_only"``), which is useful when
 running multiple passes for the same *run_id*:
@@ -326,17 +326,6 @@ _ENTITY_TYPE_SYNONYMS: dict[str, str] = {
 # sentinel_label_warnings.  Do NOT change this value without also updating any
 # consumers of entity_type_report summaries/artifacts that rely on this sentinel.
 _ENTITY_TYPE_NULL_SENTINEL = "__null__"
-
-
-def _warn_config_first_adapter(adapter_name: str, canonical_name: str) -> None:
-    warnings.warn(
-        (
-            f"{adapter_name} is deprecated and will be removed in a future migration step. "
-            f"Use {canonical_name} with a RequestContext instead."
-        ),
-        DeprecationWarning,
-        stacklevel=2,
-    )
 
 
 def _neo4j_settings_from_config(

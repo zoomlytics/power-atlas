@@ -578,7 +578,7 @@ Phase 1 has been implemented in the following modules:
 
 ### What is implemented (Phase 1 + `unstructured_only` + `hybrid`)
 
-- `unstructured_only` resolution mode flag on `run_entity_resolution()` and `Config`.
+- `unstructured_only` resolution mode flag on `run_entity_resolution_request_context()` and `Config`.
 - `--resolution-mode` CLI argument on the `resolve-entities` command.
 - Matching pipeline in `unstructured_only` mode: normalized exact, abbreviation/initialism, basic fuzzy (difflib).
 - `ResolvedEntityCluster` nodes and `MEMBER_OF` edges persist provisional clusters; summary metrics emitted.
@@ -693,7 +693,7 @@ If a workflow requires source-isolated clustering — where mentions from differ
 source documents within the same run must never merge — this should be expressed as an
 explicit mode or policy parameter rather than baked into the default cluster key.  A
 future `cluster_scope` parameter (e.g. `cluster_scope="per_source"`) could be added to
-`run_entity_resolution()` to opt into source-partitioned behaviour.
+`run_entity_resolution_request_context()` to opt into source-partitioned behaviour.
 
 **This mode is not implemented in v0.1.**  It is documented here as a future extension
 point so that callers with strict source-isolation requirements have a clear upgrade path.
@@ -710,7 +710,7 @@ two mentions of "IBM" with types `"ORG"` and `"ORGANIZATION"` would land in diff
 
 ### 16.2 Per-run entity_type report
 
-Every call to `run_entity_resolution()` embeds an `entity_type_report` key in the returned
+Every call to `run_entity_resolution_request_context()` embeds an `entity_type_report` key in the returned
 summary dict (and in the written `entity_resolution_summary.json` artifact).  The report is
 also available as a standalone helper via `_build_entity_type_report(mentions)`.
 

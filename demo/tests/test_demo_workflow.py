@@ -687,7 +687,7 @@ class WorkflowTests(unittest.TestCase):
 
     def test_orchestrated_unstructured_only_entity_resolution_passes_explicit_dataset_id(self):
         """_run_orchestrated must pass dataset_id explicitly to the unstructured-only
-        run_entity_resolution call, not rely on the ambient set_dataset_id() context."""
+        request-context entity-resolution call, not rely on the ambient set_dataset_id() context."""
         from unittest.mock import patch as mock_patch
 
         module = _load_module(RUN_DEMO_PATH, "run_demo_test_module")

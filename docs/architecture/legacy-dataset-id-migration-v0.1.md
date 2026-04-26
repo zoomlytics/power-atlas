@@ -255,7 +255,7 @@ loosening the isolation guarantee.
 ## 7) References
 
 - `demo/stages/entity_resolution.py` — entity resolution stage; see
-  `run_entity_resolution` for the `WHERE canonical.dataset_id = $dataset_id`
+  `run_entity_resolution_request_context()` for the `WHERE canonical.dataset_id = $dataset_id`
   predicate.
 - `demo/stages/structured_ingest.py` — structured ingest stage; see
   `run_structured_ingest` for the `SET entity.dataset_id = $dataset_id`

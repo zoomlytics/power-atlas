@@ -891,7 +891,7 @@ def run_claim_participation(
     ``<output_dir>/runs/<run_id>/claim_participation/`` for offline inspection.
     """
     # Validate run_id to prevent path traversal outside the runs directory.
-    # Mirrors the same check used in run_entity_resolution.
+    # Mirrors the same check used in the request-context entity-resolution path.
     runs_root = (config.output_dir / "runs").resolve()
     run_id_path = Path(run_id)
     if run_id_path.is_absolute() or ".." in run_id_path.parts or run_id_path.name != run_id:
