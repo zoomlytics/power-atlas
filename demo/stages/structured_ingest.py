@@ -318,7 +318,15 @@ def lint_and_clean_structured_csvs(run_id: str, output_dir: Path, fixtures_dir: 
     }
 
 
-def run_structured_ingest(config: Any, run_id: str, *, fixtures_dir: Path | None = None, dataset_id: str | None = None) -> dict[str, Any]:
+def run_structured_ingest_request_context(
+    request_context: RequestContext,
+    *,
+    fixtures_dir: Path | None = None,
+    dataset_id: str | None = None,
+) -> dict[str, Any]:
+    """Run structured ingest using request-scoped context as the primary input."""
+    config = request_context.config
+    run_id = request_context.run_id
     fixtures_root, effective_dataset_id = _resolve_structured_dataset(fixtures_dir, dataset_id)
     lint_output = lint_and_clean_structured_csvs(
         run_id=run_id,
@@ -415,24 +423,8 @@ def run_structured_ingest(config: Any, run_id: str, *, fixtures_dir: Path | None
     }
 
 
-def run_structured_ingest_request_context(
-    request_context: RequestContext,
-    *,
-    fixtures_dir: Path | None = None,
-    dataset_id: str | None = None,
-) -> dict[str, Any]:
-    """Run structured ingest using request-scoped context as the primary input."""
-    return run_structured_ingest(
-        request_context.config,
-        request_context.run_id,
-        fixtures_dir=fixtures_dir,
-        dataset_id=dataset_id,
-    )
-
-
 __all__ = [
     "lint_and_clean_structured_csvs",
     "load_csv_rows",
-    "run_structured_ingest",
     "run_structured_ingest_request_context",
 ]

@@ -258,7 +258,7 @@ loosening the isolation guarantee.
   `run_entity_resolution_request_context()` for the `WHERE canonical.dataset_id = $dataset_id`
   predicate.
 - `demo/stages/structured_ingest.py` — structured ingest stage; see
-  `run_structured_ingest` for the `SET entity.dataset_id = $dataset_id`
+  `run_structured_ingest_request_context()` for the `SET entity.dataset_id = $dataset_id`
   stamping.
 - `docs/architecture/unstructured-first-entity-resolution-v0.1.md` — layered
   identity model and dataset isolation design rationale.
