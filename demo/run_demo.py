@@ -44,6 +44,7 @@ from power_atlas.orchestration.run_scope_bridge import (
     fetch_dataset_id_for_run_from_config as _fetch_dataset_id_for_run_from_config_impl,
     fetch_latest_unstructured_run_id_from_config as _fetch_latest_unstructured_run_id_from_config_impl,
     prepare_ask_request_context_from_scope as _prepare_ask_request_context_from_scope_impl,
+    resolve_required_neo4j_settings as _resolve_required_neo4j_settings_impl,
 )
 from power_atlas.orchestration.independent_stage_runners import (
     DRY_RUN_NO_SCOPE_RUN_ID as _DRY_RUN_NO_SCOPE_RUN_ID,
@@ -209,12 +210,9 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def _neo4j_settings_from_config(config: Config) -> Neo4jSettings:
-    config_settings = getattr(config, "settings", None)
-    settings_neo4j = getattr(config_settings, "neo4j", None)
-    if isinstance(settings_neo4j, Neo4jSettings):
-        return settings_neo4j
-    raise ValueError(
-        "run_demo requires config.settings.neo4j to be configured"
+    return _resolve_required_neo4j_settings_impl(
+        config,
+        error_message="run_demo requires config.settings.neo4j to be configured",
     )
 
 

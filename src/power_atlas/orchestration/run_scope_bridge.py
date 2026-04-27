@@ -8,6 +8,18 @@ from power_atlas.context import RequestContext
 from power_atlas.settings import Neo4jSettings
 
 
+def resolve_required_neo4j_settings(
+    config: Any,
+    *,
+    error_message: str,
+) -> Neo4jSettings:
+    config_settings = getattr(config, "settings", None)
+    settings_neo4j = getattr(config_settings, "neo4j", None)
+    if isinstance(settings_neo4j, Neo4jSettings):
+        return settings_neo4j
+    raise ValueError(error_message)
+
+
 def coerce_run_scope_query_neo4j_settings(
     config: Any,
     *,
@@ -95,4 +107,5 @@ __all__ = [
     "fetch_dataset_id_for_run_from_config",
     "fetch_latest_unstructured_run_id_from_config",
     "prepare_ask_request_context_from_scope",
+    "resolve_required_neo4j_settings",
 ]
