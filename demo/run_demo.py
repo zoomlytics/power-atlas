@@ -209,10 +209,28 @@ def _neo4j_settings_from_config(config: Config) -> Neo4jSettings:
     )
 
 
+def _neo4j_settings_for_run_scope_queries(config: Config) -> Neo4jSettings:
+    try:
+        return _neo4j_settings_from_config(config)
+    except ValueError:
+        uri = getattr(config, "neo4j_uri", None)
+        username = getattr(config, "neo4j_username", None)
+        password = getattr(config, "neo4j_password", None)
+        database = getattr(config, "neo4j_database", None)
+        if all(isinstance(value, str) and value for value in (uri, username, password)):
+            return Neo4jSettings(
+                uri=uri,
+                username=username,
+                password=password,
+                database=database,
+            )
+        raise
+
+
 def _fetch_latest_unstructured_run_id(
     config: Config, dataset_id: str | None = None
 ) -> str | None:
-    neo4j_settings = _neo4j_settings_from_config(config)
+    neo4j_settings = _neo4j_settings_for_run_scope_queries(config)
     return fetch_latest_unstructured_run_id(
         neo4j_settings,
         neo4j_settings.database,
@@ -222,7 +240,7 @@ def _fetch_latest_unstructured_run_id(
 
 
 def _fetch_dataset_id_for_run(config: Config, run_id: str) -> str | None:
-    neo4j_settings = _neo4j_settings_from_config(config)
+    neo4j_settings = _neo4j_settings_for_run_scope_queries(config)
     return fetch_dataset_id_for_run(
         neo4j_settings,
         neo4j_settings.database,
@@ -413,18 +431,17 @@ def _prepare_ask_request_context(
     args: argparse.Namespace,
     request_context: RequestContext,
 ) -> RequestContext:
-    return _prepare_ask_request_context_impl(
-        args,
-        request_context,
-        current_env_unstructured_run_id=_current_env_unstructured_run_id,
-        current_env_dataset_selection=_current_env_dataset_selection,
-        fetch_dataset_id_for_run=_fetch_dataset_id_for_run,
-        fetch_latest_unstructured_run_id=lambda inner_config, dataset_id: _fetch_latest_unstructured_run_id(
-            inner_config,
-            dataset_id=dataset_id,
-        ),
-        resolve_dataset_root=resolve_dataset_root,
-        logger=_logger,
+    resolved_run_id, all_runs = _resolve_ask_scope(args, request_context)
+    prepared_request_context = request_context
+    if resolved_run_id != request_context.run_id or all_runs != request_context.all_runs:
+        prepared_request_context = replace(
+            request_context,
+            run_id=resolved_run_id,
+            all_runs=all_runs,
+        )
+    return replace(
+        prepared_request_context,
+        source_uri=_resolve_ask_source_uri(prepared_request_context),
     )
 
 
