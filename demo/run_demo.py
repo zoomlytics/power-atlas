@@ -41,6 +41,8 @@ from power_atlas.orchestration.ask_scope import (
 )
 from power_atlas.orchestration.run_scope_bridge import (
     coerce_run_scope_query_neo4j_settings as _coerce_run_scope_query_neo4j_settings_impl,
+    fetch_dataset_id_for_run_from_config as _fetch_dataset_id_for_run_from_config_impl,
+    fetch_latest_unstructured_run_id_from_config as _fetch_latest_unstructured_run_id_from_config_impl,
     prepare_ask_request_context_from_scope as _prepare_ask_request_context_from_scope_impl,
 )
 from power_atlas.orchestration.independent_stage_runners import (
@@ -226,21 +228,21 @@ def _neo4j_settings_for_run_scope_queries(config: Config) -> Neo4jSettings:
 def _fetch_latest_unstructured_run_id(
     config: Config, dataset_id: str | None = None
 ) -> str | None:
-    neo4j_settings = _neo4j_settings_for_run_scope_queries(config)
-    return fetch_latest_unstructured_run_id(
-        neo4j_settings,
-        neo4j_settings.database,
+    return _fetch_latest_unstructured_run_id_from_config_impl(
+        config,
         dataset_id=dataset_id,
+        resolve_neo4j_settings=_neo4j_settings_for_run_scope_queries,
+        fetch_latest_unstructured_run_id=fetch_latest_unstructured_run_id,
         logger=_logger,
     )
 
 
 def _fetch_dataset_id_for_run(config: Config, run_id: str) -> str | None:
-    neo4j_settings = _neo4j_settings_for_run_scope_queries(config)
-    return fetch_dataset_id_for_run(
-        neo4j_settings,
-        neo4j_settings.database,
+    return _fetch_dataset_id_for_run_from_config_impl(
+        config,
         run_id,
+        resolve_neo4j_settings=_neo4j_settings_for_run_scope_queries,
+        fetch_dataset_id_for_run=fetch_dataset_id_for_run,
         logger=_logger,
     )
 

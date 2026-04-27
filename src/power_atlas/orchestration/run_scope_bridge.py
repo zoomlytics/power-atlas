@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+import logging
 from typing import Any, Callable
 
 from power_atlas.context import RequestContext
@@ -49,7 +50,49 @@ def prepare_ask_request_context_from_scope(
     )
 
 
+def fetch_latest_unstructured_run_id_from_config(
+    config: Any,
+    *,
+    dataset_id: str | None,
+    resolve_neo4j_settings: Callable[[Any], Neo4jSettings],
+    fetch_latest_unstructured_run_id: Callable[..., str | None],
+    logger: logging.Logger,
+) -> str | None:
+    neo4j_settings = coerce_run_scope_query_neo4j_settings(
+        config,
+        resolve_neo4j_settings=resolve_neo4j_settings,
+    )
+    return fetch_latest_unstructured_run_id(
+        neo4j_settings,
+        neo4j_settings.database,
+        dataset_id=dataset_id,
+        logger=logger,
+    )
+
+
+def fetch_dataset_id_for_run_from_config(
+    config: Any,
+    run_id: str,
+    *,
+    resolve_neo4j_settings: Callable[[Any], Neo4jSettings],
+    fetch_dataset_id_for_run: Callable[..., str | None],
+    logger: logging.Logger,
+) -> str | None:
+    neo4j_settings = coerce_run_scope_query_neo4j_settings(
+        config,
+        resolve_neo4j_settings=resolve_neo4j_settings,
+    )
+    return fetch_dataset_id_for_run(
+        neo4j_settings,
+        neo4j_settings.database,
+        run_id,
+        logger=logger,
+    )
+
+
 __all__ = [
     "coerce_run_scope_query_neo4j_settings",
+    "fetch_dataset_id_for_run_from_config",
+    "fetch_latest_unstructured_run_id_from_config",
     "prepare_ask_request_context_from_scope",
 ]
