@@ -168,7 +168,7 @@ Intended semantics:
 - `demo/run_demo.py` now mostly preserves patchable CLI/test seam names while package orchestration helpers own the independent-stage coordination logic,
 - the live retrieval path is no longer just RequestContext-aware at its entrypoints: `retrieval_and_qa` now delegates request-context binding, live-session bootstrap, execution-context prep, interactive-session prelude, and single-shot session binding to package-owned helper modules while preserving the remaining stage-level patch seams,
 - the remaining config-form graph-analysis stage APIs in `demo/stages/graph_health.py` and `demo/stages/retrieval_benchmark.py` are now treated as explicit standalone analysis surfaces, while orchestrated and query-pipeline callers prefer the request-context entrypoints,
-- the remaining work under this decision is the residual mutable-global inventory and any explicit disposition around the remaining cached pipeline-contract state.
+- the remaining work under this decision is the residual mutable-global inventory and any explicit disposition around the remaining cached pipeline-contract state, and this checkpoint should be read as caller migration plus boundary consolidation rather than a default mandate to delete the surviving standalone config-form stage APIs.
 
 ### Open Questions
 

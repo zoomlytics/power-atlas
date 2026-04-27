@@ -702,7 +702,9 @@ request-context entrypoints, but the config-form APIs remain useful for manual
 diagnostics, notebooks, and standalone query scripts where explicit
 `Config` plus scoping arguments is still a coherent interface. Follow-up work
 in that area should favor documentation and caller migration over wholesale
-removal unless those standalone use cases disappear.
+removal unless those standalone use cases disappear. This should be treated as
+a caller-migration-and-boundary-consolidation checkpoint, not as the next
+automatic stage-API deletion pass.
 
 #### Objectives
 
