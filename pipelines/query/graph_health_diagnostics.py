@@ -44,7 +44,8 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from power_atlas.bootstrap import build_runtime_config, build_settings  # noqa: E402
-from demo.stages.graph_health import run_graph_health_diagnostics  # noqa: E402
+from power_atlas.orchestration.context_builder import build_request_context_from_config  # noqa: E402
+from demo.stages.graph_health import run_graph_health_diagnostics_request_context  # noqa: E402
 
 # Base output directory — the parent of `runs/`, matching Config.output_dir conventions.
 # Artifacts land in <_PIPELINES_DIR>/runs/<run_id>/graph_health/ by default.
@@ -53,7 +54,7 @@ _PIPELINES_DIR = Path(__file__).resolve().parent.parent
 _logger = logging.getLogger(__name__)
 
 
-def _build_cli_config(args: argparse.Namespace):
+def _build_cli_request_context(args: argparse.Namespace):
     settings = build_settings(
         {
             **os.environ,
@@ -64,7 +65,12 @@ def _build_cli_config(args: argparse.Namespace):
             "POWER_ATLAS_OUTPUT_DIR": str(args.output_dir),
         }
     )
-    return build_runtime_config(settings, dry_run=False, output_dir=args.output_dir)
+    config = build_runtime_config(settings, dry_run=False, output_dir=args.output_dir)
+    return build_request_context_from_config(
+        config,
+        command="graph-health",
+        run_id=args.run_id,
+    )
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -133,11 +139,10 @@ def main(argv: list[str] | None = None) -> None:
         )
         sys.exit(1)
 
-    config = _build_cli_config(args)
+    request_context = _build_cli_request_context(args)
 
-    result = run_graph_health_diagnostics(
-        config,
-        run_id=args.run_id,
+    result = run_graph_health_diagnostics_request_context(
+        request_context,
         alignment_version=args.alignment_version,
         output_dir=args.output_dir,
     )

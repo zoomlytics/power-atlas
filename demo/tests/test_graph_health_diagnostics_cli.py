@@ -44,7 +44,7 @@ class TestGraphHealthDiagnosticsCliMainWarnings(unittest.TestCase):
         extra_argv: list[str] | None = None,
     ) -> None:
         argv = ["--neo4j-password", "secret"] + (extra_argv or [])
-        with patch.object(cli_module, "run_graph_health_diagnostics", return_value=result):
+        with patch.object(cli_module, "run_graph_health_diagnostics_request_context", return_value=result):
             main(argv)
 
     def test_single_warning_emits_warning_log(self) -> None:
@@ -145,7 +145,7 @@ class TestGraphHealthDiagnosticsCliUnscopedWarnings(unittest.TestCase):
 
     These tests ensure that when ``main()`` is called without ``--run-id``
     and/or ``--alignment-version``, the warnings produced by
-    ``run_graph_health_diagnostics`` are routed through the CLI logger.
+    ``run_graph_health_diagnostics_request_context`` are routed through the CLI logger.
     """
 
     def _run_main_with_mock_result(
@@ -154,7 +154,7 @@ class TestGraphHealthDiagnosticsCliUnscopedWarnings(unittest.TestCase):
         extra_argv: list[str] | None = None,
     ) -> None:
         argv = ["--neo4j-password", "secret"] + (extra_argv or [])
-        with patch.object(cli_module, "run_graph_health_diagnostics", return_value=result):
+        with patch.object(cli_module, "run_graph_health_diagnostics_request_context", return_value=result):
             main(argv)
 
     def test_unscoped_run_id_warning_routed_through_cli_logger(self) -> None:
