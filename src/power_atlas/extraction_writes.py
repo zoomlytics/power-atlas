@@ -1,23 +1,14 @@
 from __future__ import annotations
 
-import re
 from typing import Any
 
 import neo4j
 from neo4j_graphrag.experimental.components.types import LexicalGraphConfig
 
+from power_atlas.neo4j_io import validate_cypher_identifier
+
 
 EDGE_TYPE_HAS_PARTICIPANT = "HAS_PARTICIPANT"
-
-
-def validate_cypher_identifier(value: str, kind: str) -> str:
-    if not isinstance(value, str):
-        raise ValueError(f"Invalid {kind}: expected string, got {type(value).__name__}")
-    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", value):
-        raise ValueError(f"Unsafe {kind}: {value!r}")
-    return value
-
-
 def _claim_write_query(chunk_label: str, chunk_id_property: str) -> str:
     return f"""
             UNWIND $rows AS row
