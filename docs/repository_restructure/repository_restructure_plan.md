@@ -530,9 +530,12 @@ live stage modules, and the remaining thickness is now concentrated more in
 seam-preserving CLI/test surfaces than in independent-stage coordination logic.
 
 The recommended next work for this phase is therefore no longer more
-stage-by-stage config tightening. It is cleanup/documentation consolidation,
-residual interface thinning, explicit adapter relocation, and documenting the
-remaining layering leaks.
+stage-by-stage config tightening. A final 2026-04-27 audit of
+`demo/run_demo.py` confirmed that its remaining surface is now mostly
+intentional compatibility/composition scaffolding rather than a meaningful
+ownership hotspot, so the next work should be cleanup/documentation
+consolidation, residual interface thinning, explicit adapter relocation, and
+documenting the remaining layering leaks.
 
 #### Objectives
 
@@ -693,7 +696,11 @@ mechanics.
 Remaining work is the rest of the mutable-global inventory, any further cleanup
 around the remaining single cached pipeline-contract state, and broader
 consolidation of runtime ownership/documentation rather than more isolated
-stage-helper strictness edits.
+stage-helper strictness edits. The final `demo/run_demo.py` audit on
+2026-04-27 also means this phase should not treat the surviving CLI/test seam
+wrappers there as default cleanup debt; they now read as deliberate
+compatibility surfaces unless a later interface-consolidation pass narrows that
+contract explicitly.
 
 One explicit boundary choice now needs to stay documented: the remaining
 config-form stage entrypoints in `demo/stages/graph_health.py` and

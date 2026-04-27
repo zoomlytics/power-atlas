@@ -166,10 +166,11 @@ Intended semantics:
 - `AppContext` and `RequestContext` now both exist in the package,
 - `RequestContext` is already used across the main `demo/run_demo.py` ask and ingest execution lanes plus the active stage-facing entrypoints,
 - `demo/run_demo.py` now mostly preserves patchable CLI/test seam names while package orchestration helpers own the independent-stage coordination logic,
+- a final 2026-04-27 audit also moved the last policy-bearing `run_demo.py` helper decisions behind package-owned bridges and confirmed that the remaining `demo/run_demo.py` surface is now primarily deliberate compatibility/composition scaffolding rather than a substantive runtime owner,
 - the live retrieval path is no longer just RequestContext-aware at its entrypoints: `retrieval_and_qa` now delegates request-context binding, live-session bootstrap, execution-context prep, interactive-session prelude, and single-shot session binding to package-owned helper modules while preserving the remaining stage-level patch seams,
 - the remaining config-form graph-analysis stage APIs in `demo/stages/graph_health.py` and `demo/stages/retrieval_benchmark.py` are now treated as explicit standalone analysis surfaces, while orchestrated and query-pipeline callers prefer the request-context entrypoints,
 - the latest live `make phase1-verify` rerun on 2026-04-27 succeeded at commit `8e57fb2856b153ec0fad36fd5e8dd73ab3807ac6`, with artifacts under `artifacts/repository_restructure/phase1/20260427T201502Z` and fully cited baseline, companion, and isolation asks,
-- the remaining work under this decision is the residual mutable-global inventory and any explicit disposition around the remaining cached pipeline-contract state, and this checkpoint should be read as caller migration plus boundary consolidation rather than a default mandate to delete the surviving standalone config-form stage APIs.
+- the remaining work under this decision is the residual mutable-global inventory and any explicit disposition around the remaining cached pipeline-contract state, and this checkpoint should be read as caller migration plus boundary consolidation rather than a default mandate to delete the surviving standalone config-form stage APIs or the now-intentional `demo/run_demo.py` CLI/test seam surface.
 
 ### Open Questions
 
