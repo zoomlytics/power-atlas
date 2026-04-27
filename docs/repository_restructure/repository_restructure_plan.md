@@ -404,8 +404,10 @@ intentional local behavior rather than migration debt:
   missing-password guard remains operator-visible.
 
 The strongest current proof point is the latest full `make phase1-verify` run on
-2026-04-23, which passed with fully cited baseline, companion, and isolation
-asks and no citation fallback.
+2026-04-27 at commit `8e57fb2856b153ec0fad36fd5e8dd73ab3807ac6`, with artifacts
+captured under `artifacts/repository_restructure/phase1/20260427T201502Z`.
+That rerun passed with fully cited baseline, companion, and isolation asks and
+no citation fallback.
 
 #### Objectives
 
