@@ -40,6 +40,10 @@ from power_atlas.orchestration.ask_scope import (
     warn_explicit_run_id_dataset_mismatch as _warn_explicit_run_id_dataset_mismatch_impl,
     warn_if_env_run_id_bypasses_dataset_selection as _warn_if_env_run_id_bypasses_dataset_selection_impl,
 )
+from power_atlas.orchestration.run_scope_bridge import (
+    coerce_run_scope_query_neo4j_settings as _coerce_run_scope_query_neo4j_settings_impl,
+    prepare_ask_request_context_from_scope as _prepare_ask_request_context_from_scope_impl,
+)
 from power_atlas.orchestration.independent_stage_runners import (
     DRY_RUN_NO_SCOPE_RUN_ID as _DRY_RUN_NO_SCOPE_RUN_ID,
     resolve_independent_stage_run_id as _resolve_independent_stage_run_id_impl,
@@ -210,21 +214,10 @@ def _neo4j_settings_from_config(config: Config) -> Neo4jSettings:
 
 
 def _neo4j_settings_for_run_scope_queries(config: Config) -> Neo4jSettings:
-    try:
-        return _neo4j_settings_from_config(config)
-    except ValueError:
-        uri = getattr(config, "neo4j_uri", None)
-        username = getattr(config, "neo4j_username", None)
-        password = getattr(config, "neo4j_password", None)
-        database = getattr(config, "neo4j_database", None)
-        if all(isinstance(value, str) and value for value in (uri, username, password)):
-            return Neo4jSettings(
-                uri=uri,
-                username=username,
-                password=password,
-                database=database,
-            )
-        raise
+    return _coerce_run_scope_query_neo4j_settings_impl(
+        config,
+        resolve_neo4j_settings=_neo4j_settings_from_config,
+    )
 
 
 def _fetch_latest_unstructured_run_id(
@@ -432,16 +425,11 @@ def _prepare_ask_request_context(
     request_context: RequestContext,
 ) -> RequestContext:
     resolved_run_id, all_runs = _resolve_ask_scope(args, request_context)
-    prepared_request_context = request_context
-    if resolved_run_id != request_context.run_id or all_runs != request_context.all_runs:
-        prepared_request_context = replace(
-            request_context,
-            run_id=resolved_run_id,
-            all_runs=all_runs,
-        )
-    return replace(
-        prepared_request_context,
-        source_uri=_resolve_ask_source_uri(prepared_request_context),
+    return _prepare_ask_request_context_from_scope_impl(
+        request_context,
+        resolved_run_id=resolved_run_id,
+        all_runs=all_runs,
+        resolve_ask_source_uri=_resolve_ask_source_uri,
     )
 
 
