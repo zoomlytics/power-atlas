@@ -1441,6 +1441,28 @@ def _run_entity_resolution_impl(
         dataset_id,
         dataset_name=dataset_name,
     )
+    resolved_neo4j_settings = _neo4j_settings_from_config(config, neo4j_settings)
+    return _run_entity_resolution_runtime(
+        config=config,
+        run_id=run_id,
+        source_uri=source_uri,
+        resolution_mode=resolution_mode,
+        artifact_subdir=artifact_subdir,
+        effective_dataset_id=effective_dataset_id,
+        neo4j_settings=resolved_neo4j_settings,
+    )
+
+
+def _run_entity_resolution_runtime(
+    *,
+    config: Any,
+    run_id: str,
+    source_uri: str | None,
+    resolution_mode: str,
+    artifact_subdir: str,
+    effective_dataset_id: str,
+    neo4j_settings: Neo4jSettings,
+) -> dict[str, Any]:
 
     resolved_at = datetime.now(UTC).isoformat()
 
@@ -1514,16 +1536,14 @@ def _run_entity_resolution_impl(
         unresolved_path.write_text(json.dumps([], indent=2), encoding="utf-8")
         return summary
 
-    resolved_neo4j_settings = _neo4j_settings_from_config(config, neo4j_settings)
-
     live_result = run_entity_resolution_live(
-        resolved_neo4j_settings,
+        neo4j_settings,
         run_id=run_id,
         source_uri=source_uri,
         resolution_mode=resolution_mode,
         effective_dataset_id=effective_dataset_id,
         alignment_version=_ALIGNMENT_VERSION,
-        neo4j_database=resolved_neo4j_settings.database,
+        neo4j_database=neo4j_settings.database,
         fetch_mentions=fetch_entity_mentions,
         cluster_mentions=_cluster_mentions_unstructured_only,
         fetch_canonicals=fetch_canonical_entities,

@@ -224,6 +224,7 @@ def _run_pdf_ingest_impl(
 ) -> dict[str, Any]:
     resolved_pipeline_contract = _resolve_pipeline_contract(config, pipeline_contract)
     resolved_openai_model = _openai_model_from_config(config, openai_model)
+    resolved_neo4j_settings = _neo4j_settings_from_config(config, neo4j_settings)
     if dataset_name is None:
         config_settings = getattr(config, "settings", None)
         settings_dataset_name = getattr(config_settings, "dataset_name", None)
@@ -231,6 +232,43 @@ def _run_pdf_ingest_impl(
             dataset_name = settings_dataset_name
         else:
             dataset_name = getattr(config, "dataset_name", None)
+    return _run_pdf_ingest_runtime(
+        config=config,
+        run_id=run_id,
+        fixtures_dir=fixtures_dir,
+        pdf_filename=pdf_filename,
+        dataset_id=dataset_id,
+        index_name=index_name,
+        chunk_label=chunk_label,
+        embedding_property=embedding_property,
+        embedding_dimensions=embedding_dimensions,
+        embedder_model=embedder_model,
+        chunk_stride=chunk_stride,
+        pipeline_contract=resolved_pipeline_contract,
+        neo4j_settings=resolved_neo4j_settings,
+        openai_model=resolved_openai_model,
+        dataset_name=dataset_name,
+    )
+
+
+def _run_pdf_ingest_runtime(
+    *,
+    config: Any,
+    run_id: str | None,
+    fixtures_dir: Path | None,
+    pdf_filename: str | None,
+    dataset_id: str | None,
+    index_name: str | None,
+    chunk_label: str | None,
+    embedding_property: str | None,
+    embedding_dimensions: int | None,
+    embedder_model: str | None,
+    chunk_stride: int | None,
+    pipeline_contract: PipelineContractSnapshot,
+    neo4j_settings: Neo4jSettings,
+    openai_model: str,
+    dataset_name: str | None,
+) -> dict[str, Any]:
     _pdf_filename = pdf_filename or _DEFAULT_PDF_FILENAME
     if (
         _pdf_filename in (".", "..")
@@ -258,21 +296,21 @@ def _run_pdf_ingest_impl(
         raise FileNotFoundError(f"Required PDF fixture not found: {pdf_path}")
     pdf_file_path = str(pdf_path)
     pdf_source_uri = pdf_path.as_uri()
-    effective_index_name = index_name or _pipeline_contract_value("CHUNK_EMBEDDING_INDEX_NAME", resolved_pipeline_contract)
-    effective_chunk_label = chunk_label or _pipeline_contract_value("CHUNK_EMBEDDING_LABEL", resolved_pipeline_contract)
+    effective_index_name = index_name or _pipeline_contract_value("CHUNK_EMBEDDING_INDEX_NAME", pipeline_contract)
+    effective_chunk_label = chunk_label or _pipeline_contract_value("CHUNK_EMBEDDING_LABEL", pipeline_contract)
     effective_embedding_property = embedding_property or _pipeline_contract_value(
-        "CHUNK_EMBEDDING_PROPERTY", resolved_pipeline_contract
+        "CHUNK_EMBEDDING_PROPERTY", pipeline_contract
     )
     effective_embedding_dimensions = (
         _require_positive_int(embedding_dimensions, "embedding_dimensions")
         if embedding_dimensions is not None
-        else _pipeline_contract_value("CHUNK_EMBEDDING_DIMENSIONS", resolved_pipeline_contract)
+        else _pipeline_contract_value("CHUNK_EMBEDDING_DIMENSIONS", pipeline_contract)
     )
-    effective_embedder_model = embedder_model or _pipeline_contract_value("EMBEDDER_MODEL_NAME", resolved_pipeline_contract)
+    effective_embedder_model = embedder_model or _pipeline_contract_value("EMBEDDER_MODEL_NAME", pipeline_contract)
     effective_chunk_stride = (
         _require_positive_int(chunk_stride, "chunk_stride")
         if chunk_stride is not None
-        else _pipeline_contract_value("CHUNK_FALLBACK_STRIDE", resolved_pipeline_contract)
+        else _pipeline_contract_value("CHUNK_FALLBACK_STRIDE", pipeline_contract)
     )
     stage_run_id = run_id or make_run_id("unstructured_ingest")
     run_root = config.output_dir / "runs" / stage_run_id
@@ -339,14 +377,12 @@ def _run_pdf_ingest_impl(
     _validate_cypher_identifier(effective_chunk_label, "label")
     _validate_cypher_identifier(effective_embedding_property, "property")
 
-    resolved_neo4j_settings = _neo4j_settings_from_config(config, neo4j_settings)
-
     live_result = run_pdf_ingest_live(
-        resolved_neo4j_settings,
+        neo4j_settings,
         stage_run_id=stage_run_id,
         pdf_file_path=pdf_file_path,
         pdf_source_uri=pdf_source_uri,
-        openai_model=resolved_openai_model,
+        openai_model=openai_model,
         effective_dataset_id=effective_dataset_id,
         effective_index_name=effective_index_name,
         effective_chunk_label=effective_chunk_label,
