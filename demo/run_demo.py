@@ -53,6 +53,7 @@ from power_atlas.orchestration.independent_stage_runners import (
 )
 from power_atlas.orchestration.stage_dependency_registry import (
     build_demo_independent_stage_specs,
+    build_demo_orchestrated_runner_kwargs,
 )
 from power_atlas.orchestration.orchestrated_runner import (
     run_orchestrated_request_context as _run_orchestrated_request_context_impl,
@@ -453,24 +454,26 @@ def _run_orchestrated_request_context(request_context: RequestContext) -> Path:
     """Run the full demo batch sequence with an unstructured-first posture."""
     return _run_orchestrated_request_context_impl(
         request_context,
-        resolve_dataset_root=resolve_dataset_root,
-        build_orchestrated_run_plan=build_orchestrated_run_plan,
-        make_run_id=make_run_id,
-        now_iso=_now_iso,
-        run_pdf_ingest_request_context=_run_pdf_ingest_request_context,
-        extract_pdf_source_uri=_extract_pdf_source_uri,
-        scope_request_context=_scoped_request_context,
-        run_claim_extraction_request_context=_run_claim_extraction_request_context,
-        run_claim_participation_request_context=_run_claim_participation_request_context,
-        run_entity_resolution_request_context=_run_entity_resolution_request_context,
-        run_retrieval_request_context=_run_retrieval_request_context,
-        run_structured_ingest_request_context=_run_structured_ingest_request_context,
-        run_retrieval_benchmark=run_retrieval_benchmark,
-        emit_stage_warnings=emit_stage_warnings,
-        build_batch_manifest=build_batch_manifest,
-        write_batch_manifest_artifacts=write_batch_manifest_artifacts,
-        logger=_logger,
-        format_traceback=traceback.format_exc,
+        **build_demo_orchestrated_runner_kwargs(
+            resolve_dataset_root=lambda: resolve_dataset_root,
+            build_orchestrated_run_plan=build_orchestrated_run_plan,
+            make_run_id=make_run_id,
+            now_iso=_now_iso,
+            resolve_run_pdf_ingest_request_context=lambda: _run_pdf_ingest_request_context,
+            extract_pdf_source_uri=_extract_pdf_source_uri,
+            scope_request_context=_scoped_request_context,
+            resolve_run_claim_extraction_request_context=lambda: _run_claim_extraction_request_context,
+            resolve_run_claim_participation_request_context=lambda: _run_claim_participation_request_context,
+            resolve_run_entity_resolution_request_context=lambda: _run_entity_resolution_request_context,
+            resolve_run_retrieval_request_context=lambda: _run_retrieval_request_context,
+            resolve_run_structured_ingest_request_context=lambda: _run_structured_ingest_request_context,
+            resolve_run_retrieval_benchmark=lambda: run_retrieval_benchmark,
+            emit_stage_warnings=emit_stage_warnings,
+            build_batch_manifest=build_batch_manifest,
+            write_batch_manifest_artifacts=write_batch_manifest_artifacts,
+            logger=_logger,
+            format_traceback=traceback.format_exc,
+        ),
     )
 
 
