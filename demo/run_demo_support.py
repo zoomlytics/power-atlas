@@ -122,16 +122,6 @@ def request_context_from_config(
     )
 
 
-def ensure_request_context(
-    request_context_or_config: RequestContext | Config,
-    *,
-    command: str | None = None,
-) -> RequestContext:
-    if isinstance(request_context_or_config, RequestContext):
-        return request_context_or_config
-    return request_context_from_config(request_context_or_config, command=command)
-
-
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     raw_argv = list(argv) if argv is not None else sys.argv[1:]
     common_parser = argparse.ArgumentParser(add_help=False, allow_abbrev=False)
@@ -292,7 +282,6 @@ __all__ = [
     "add_common_args",
     "build_config_from_args",
     "build_request_context_from_args",
-    "ensure_request_context",
     "parse_args",
     "request_context_from_config",
 ]

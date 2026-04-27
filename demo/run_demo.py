@@ -380,7 +380,6 @@ def _resolve_ask_scope(
     return _resolve_ask_scope_impl(
         args,
         request_context,
-        ensure_request_context=lambda request_context, command=None: request_context,
         current_env_unstructured_run_id=_current_env_unstructured_run_id,
         current_env_dataset_selection=_current_env_dataset_selection,
         fetch_dataset_id_for_run=_fetch_dataset_id_for_run,
@@ -407,7 +406,6 @@ def _prepare_ask_request_context(
     return _prepare_ask_request_context_impl(
         args,
         request_context,
-        ensure_request_context=lambda request_context, command=None: request_context,
         current_env_unstructured_run_id=_current_env_unstructured_run_id,
         current_env_dataset_selection=_current_env_dataset_selection,
         fetch_dataset_id_for_run=_fetch_dataset_id_for_run,

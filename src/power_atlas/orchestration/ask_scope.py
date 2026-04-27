@@ -283,9 +283,8 @@ def resolve_ask_request_context(
 
 def resolve_ask_scope(
     args,
-    request_context_or_config,
+    request_context: RequestContext,
     *,
-    ensure_request_context: Callable[..., RequestContext],
     current_env_unstructured_run_id: Callable[[], str | None],
     current_env_dataset_selection: Callable[[], tuple[str | None, str | None, str | None]],
     fetch_dataset_id_for_run: Callable[[object, str], str | None],
@@ -293,7 +292,6 @@ def resolve_ask_scope(
     resolve_dataset_root: Callable[[str], object],
     logger: logging.Logger,
 ) -> tuple[str | None, bool]:
-    request_context = ensure_request_context(request_context_or_config, command="ask")
     resolved_request_context = resolve_ask_request_context(
         args,
         request_context,
@@ -319,9 +317,8 @@ def resolve_ask_source_uri(
 
 def prepare_ask_request_context(
     args,
-    request_context_or_config,
+    request_context: RequestContext,
     *,
-    ensure_request_context: Callable[..., RequestContext],
     current_env_unstructured_run_id: Callable[[], str | None],
     current_env_dataset_selection: Callable[[], tuple[str | None, str | None, str | None]],
     fetch_dataset_id_for_run: Callable[[object, str], str | None],
@@ -329,7 +326,6 @@ def prepare_ask_request_context(
     resolve_dataset_root: Callable[[str], object],
     logger: logging.Logger,
 ) -> RequestContext:
-    request_context = ensure_request_context(request_context_or_config, command="ask")
     request_context = resolve_ask_request_context(
         args,
         request_context,
