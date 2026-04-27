@@ -45,7 +45,7 @@ class TestRetrievalBenchmarkCliMainWarnings(unittest.TestCase):
         extra_argv: list[str] | None = None,
     ) -> None:
         argv = ["--neo4j-password", "secret"] + (extra_argv or [])
-        with patch.object(cli_module, "run_retrieval_benchmark", return_value=result):
+        with patch.object(cli_module, "run_retrieval_benchmark_request_context", return_value=result):
             main(argv)
 
     def test_single_warning_emits_warning_log(self) -> None:
@@ -146,7 +146,7 @@ class TestRetrievalBenchmarkCliUnscopedWarnings(unittest.TestCase):
 
     These tests ensure that when ``main()`` is called without ``--run-id``,
     ``--dataset-id``, and/or ``--alignment-version``, the warnings produced by
-    ``run_retrieval_benchmark`` are routed through the CLI logger.
+    ``run_retrieval_benchmark_request_context`` are routed through the CLI logger.
     """
 
     def _run_main_with_mock_result(
@@ -155,7 +155,7 @@ class TestRetrievalBenchmarkCliUnscopedWarnings(unittest.TestCase):
         extra_argv: list[str] | None = None,
     ) -> None:
         argv = ["--neo4j-password", "secret"] + (extra_argv or [])
-        with patch.object(cli_module, "run_retrieval_benchmark", return_value=result):
+        with patch.object(cli_module, "run_retrieval_benchmark_request_context", return_value=result):
             main(argv)
 
     def test_unscoped_run_id_warning_routed_through_cli_logger(self) -> None:

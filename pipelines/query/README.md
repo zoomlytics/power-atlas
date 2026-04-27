@@ -2050,22 +2050,32 @@ step to ensure the results are scoped to the correct cohort.
 ```python
 from pathlib import Path
 
-from power_atlas.contracts.runtime import Config
-from demo.stages.retrieval_benchmark import run_retrieval_benchmark
+from power_atlas.bootstrap import build_runtime_config, build_settings
+from power_atlas.orchestration.context_builder import build_request_context_from_config
+from demo.stages.retrieval_benchmark import run_retrieval_benchmark_request_context
 
-config = Config(
-    dry_run=False,
-    output_dir=Path("pipelines"),
-    neo4j_uri="bolt://localhost:7687",
-    neo4j_username="neo4j",
-    neo4j_password="<password>",
-    neo4j_database="neo4j",
-    openai_model="",
+settings = build_settings(
+  {
+    "NEO4J_URI": "bolt://localhost:7687",
+    "NEO4J_USERNAME": "neo4j",
+    "NEO4J_PASSWORD": "<password>",
+    "NEO4J_DATABASE": "neo4j",
+    "POWER_ATLAS_OUTPUT_DIR": str(Path("pipelines")),
+  }
+)
+config = build_runtime_config(
+  settings,
+  dry_run=False,
+  output_dir=Path("pipelines"),
+)
+request_context = build_request_context_from_config(
+  config,
+  command="retrieval-benchmark",
+  run_id="unstructured_ingest-...",
 )
 
-result = run_retrieval_benchmark(
-    config,
-    run_id="unstructured_ingest-...",
+result = run_retrieval_benchmark_request_context(
+  request_context,
     alignment_version="v1.0",
 )
 print(result["artifact"]["benchmark_summary"])
