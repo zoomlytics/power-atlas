@@ -290,7 +290,7 @@ class ParticipationMatchMetrics:
     """Per-run instrumentation for participation edge matching outcomes.
 
     Produced by :func:`build_participation_edges_with_metrics` and written as
-    ``participation_metrics.json`` by :func:`run_claim_participation`.
+    ``participation_metrics.json`` by :func:`run_claim_participation_request_context`.
 
     All counts are for a single call (i.e. a single pipeline run).
 
@@ -847,7 +847,6 @@ __all__ = [
     "build_participation_edges",
     "build_participation_edges_with_metrics",
     "write_participation_edges",
-    "run_claim_participation",
     "run_claim_participation_request_context",
 ]
 
@@ -857,12 +856,7 @@ __all__ = [
 # ---------------------------------------------------------------------------
 
 
-def run_claim_participation(
-    config: Any,
-    *,
-    run_id: str,
-    source_uri: str | None,
-) -> dict[str, Any]:
+def run_claim_participation_request_context(request_context: RequestContext) -> dict[str, Any]:
     """Build and persist :HAS_PARTICIPANT edges for a claim extraction run (v0.3 model).
 
     Reads :ExtractedClaim and :EntityMention nodes for *run_id* from Neo4j,
@@ -873,14 +867,12 @@ def run_claim_participation(
 
     Parameters
     ----------
-    config:
-        :class:`~power_atlas.contracts.runtime.Config` instance with
-        ``config.settings.neo4j``, ``output_dir``, and ``dry_run``.
-    run_id:
-        The run whose claims and mentions should be linked.  Must match the
-        ``run_id`` used during the preceding claim extraction stage.
-    source_uri:
-        Provenance URI for the source document.
+    Parameters are drawn from ``request_context``:
+
+    - ``request_context.config`` provides Neo4j settings, ``output_dir``, and ``dry_run``.
+    - ``request_context.run_id`` selects the claim-extraction run whose claims and mentions
+      should be linked.
+    - ``request_context.source_uri`` provides source-document provenance.
 
     Returns
     -------
@@ -890,6 +882,10 @@ def run_claim_participation(
     dict.  A separate ``participation_metrics.json`` file is also written to
     ``<output_dir>/runs/<run_id>/claim_participation/`` for offline inspection.
     """
+    config = request_context.config
+    run_id = request_context.run_id
+    source_uri = request_context.source_uri
+
     # Validate run_id to prevent path traversal outside the runs directory.
     # Mirrors the same check used in the request-context entity-resolution path.
     runs_root = (config.output_dir / "runs").resolve()
@@ -956,13 +952,4 @@ def run_claim_participation(
     }
     summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
     return summary
-
-
-def run_claim_participation_request_context(request_context: RequestContext) -> dict[str, Any]:
-    """Run claim participation using request-scoped context as the primary input."""
-    return run_claim_participation(
-        request_context.config,
-        run_id=request_context.run_id,
-        source_uri=request_context.source_uri,
-    )
 

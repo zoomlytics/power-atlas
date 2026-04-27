@@ -298,7 +298,7 @@ artifacts under `<output_dir>/runs/<run_id>/claim_participation/`:
 | `claim_participation_summary.json` | High-level run summary (edges written, role breakdown, embedded `match_metrics`) |
 | `participation_metrics.json` | Full `ParticipationMatchMetrics` object for offline analysis |
 
-Both files are written by `run_claim_participation` and are available
+Both files are written by `run_claim_participation_request_context()` and are available
 immediately after the stage completes.  In `dry_run` mode only the summary
 is written (with `"match_metrics": null`).
 
