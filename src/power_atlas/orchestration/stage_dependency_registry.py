@@ -178,8 +178,40 @@ def build_demo_independent_stage_runner_kwargs(
     }
 
 
+def build_demo_dataset_selection_kwargs(
+    *,
+    resolve_current_env_dataset_selection: Callable[[], Callable[[], tuple[str | None, str | None, str | None]]],
+    resolve_dataset_root: Callable[[str], object],
+) -> dict[str, Any]:
+    return {
+        "current_env_dataset_selection": resolve_current_env_dataset_selection(),
+        "resolve_dataset_root": resolve_dataset_root,
+    }
+
+
+def build_demo_ask_scope_resolution_kwargs(
+    *,
+    resolve_current_env_unstructured_run_id: Callable[[], Callable[[], str | None]],
+    resolve_current_env_dataset_selection: Callable[[], Callable[[], tuple[str | None, str | None, str | None]]],
+    fetch_dataset_id_for_run: Callable[[object, str], str | None],
+    resolve_fetch_latest_unstructured_run_id: Callable[[], Callable[[object, str | None], str | None]],
+    resolve_dataset_root: Callable[[str], object],
+    logger: Any,
+) -> dict[str, Any]:
+    return {
+        "current_env_unstructured_run_id": resolve_current_env_unstructured_run_id(),
+        "current_env_dataset_selection": resolve_current_env_dataset_selection(),
+        "fetch_dataset_id_for_run": fetch_dataset_id_for_run,
+        "fetch_latest_unstructured_run_id": resolve_fetch_latest_unstructured_run_id(),
+        "resolve_dataset_root": resolve_dataset_root,
+        "logger": logger,
+    }
+
+
 __all__ = [
+    "build_demo_ask_scope_resolution_kwargs",
     "build_demo_cli_dispatch_kwargs",
+    "build_demo_dataset_selection_kwargs",
     "build_demo_independent_stage_runner_kwargs",
     "build_demo_orchestrated_runner_kwargs",
     "build_demo_independent_stage_specs",
