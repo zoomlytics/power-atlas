@@ -57,12 +57,14 @@ _logger.warning(
 **Use this for warnings that callers or orchestrators must surface.**
 
 Stage runner functions (e.g. `run_graph_health_diagnostics`,
-`run_retrieval_benchmark`) return a dict.  When a condition warrants a
-human-visible notice alongside the structured result, append a plain-English
-message to a `warnings` key in that dict.  The **caller** (typically a CLI
-`main()`) is responsible for routing each entry — through `_logger.warning`
-in non-interactive contexts, or via `print(...)` in interactive CLI handlers
-(see Section 3).
+`run_retrieval_benchmark`) return a dict. The corresponding graph-analysis
+RequestContext entrypoints used by the active CLI/query-pipeline callers follow
+the same result contract. When a condition warrants a human-visible notice
+alongside the structured result, append a plain-English message to a
+`warnings` key in that dict. The **caller** (typically a CLI `main()`) is
+responsible for routing each entry — through `_logger.warning` in
+non-interactive contexts, or via `print(...)` in interactive CLI handlers (see
+Section 3).
 
 ```python
 # Stage function (demo/stages/graph_health.py)
