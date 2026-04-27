@@ -2776,7 +2776,8 @@ class WorkflowTests(unittest.TestCase):
         env_backup_run_id = os.environ.pop("UNSTRUCTURED_RUN_ID", None)
         try:
             with self.assertLogs(logger=module.__name__, level="WARNING") as log_cm:
-                run_id, all_runs = module._resolve_ask_scope(args, config)
+                request_context = module._request_context_from_config(config, command="ask")
+                run_id, all_runs = module._resolve_ask_scope(args, request_context)
         finally:
             module._fetch_dataset_id_for_run = original_fetch
             if env_backup is not None:
@@ -2827,7 +2828,8 @@ class WorkflowTests(unittest.TestCase):
         os.environ["UNSTRUCTURED_RUN_ID"] = "unstructured_ingest-test-12345678"
         try:
             with self.assertLogs(logger=module.__name__, level="WARNING") as log_cm:
-                run_id, all_runs = module._resolve_ask_scope(args, config)
+                request_context = module._request_context_from_config(config, command="ask")
+                run_id, all_runs = module._resolve_ask_scope(args, request_context)
         finally:
             if env_backup_fixture is not None:
                 os.environ["FIXTURE_DATASET"] = env_backup_fixture

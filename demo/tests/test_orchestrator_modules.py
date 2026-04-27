@@ -4947,12 +4947,12 @@ def test_retrieval_and_qa_dry_run_run_scoped_qa_label(tmp_path: Path):
 
 def test_resolve_ask_scope_run_id_flag(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     """--run-id flag must be returned directly and suppress env var override."""
-    from demo.run_demo import parse_args, _resolve_ask_scope
+    from demo.run_demo import _request_context_from_config, parse_args, _resolve_ask_scope
 
     monkeypatch.delenv("UNSTRUCTURED_RUN_ID", raising=False)
     args = parse_args(["--dry-run", "ask", "--run-id", "my-run-123"])
-    config = _dry_run_config(tmp_path)
-    run_id, all_runs = _resolve_ask_scope(args, config)
+    request_context = _request_context_from_config(_dry_run_config(tmp_path), command="ask")
+    run_id, all_runs = _resolve_ask_scope(args, request_context)
     assert run_id == "my-run-123"
     assert all_runs is False
 
@@ -5107,13 +5107,13 @@ def test_resolve_ask_scope_run_id_flag_overrides_env_var(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ):
     """--run-id must override UNSTRUCTURED_RUN_ID and log a warning."""
-    from demo.run_demo import parse_args, _resolve_ask_scope
+    from demo.run_demo import _request_context_from_config, parse_args, _resolve_ask_scope
 
     monkeypatch.setenv("UNSTRUCTURED_RUN_ID", "env-run-id")
     args = parse_args(["--dry-run", "ask", "--run-id", "cli-run-id"])
-    config = _dry_run_config(tmp_path)
+    request_context = _request_context_from_config(_dry_run_config(tmp_path), command="ask")
     with caplog.at_level(logging.WARNING, logger="demo.run_demo"):
-        run_id, all_runs = _resolve_ask_scope(args, config)
+        run_id, all_runs = _resolve_ask_scope(args, request_context)
     assert run_id == "cli-run-id"
     assert all_runs is False
     assert any(
@@ -5126,12 +5126,12 @@ def test_resolve_ask_scope_run_id_flag_overrides_env_var(
 
 def test_resolve_ask_scope_all_runs_flag(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     """--all-runs must return all_runs=True."""
-    from demo.run_demo import parse_args, _resolve_ask_scope
+    from demo.run_demo import _request_context_from_config, parse_args, _resolve_ask_scope
 
     monkeypatch.delenv("UNSTRUCTURED_RUN_ID", raising=False)
     args = parse_args(["--dry-run", "ask", "--all-runs"])
-    config = _dry_run_config(tmp_path)
-    run_id, all_runs = _resolve_ask_scope(args, config)
+    request_context = _request_context_from_config(_dry_run_config(tmp_path), command="ask")
+    run_id, all_runs = _resolve_ask_scope(args, request_context)
     assert all_runs is True
     assert run_id is None
 
@@ -5140,13 +5140,13 @@ def test_resolve_ask_scope_all_runs_overrides_env_var(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ):
     """--all-runs must override UNSTRUCTURED_RUN_ID and log a warning."""
-    from demo.run_demo import parse_args, _resolve_ask_scope
+    from demo.run_demo import _request_context_from_config, parse_args, _resolve_ask_scope
 
     monkeypatch.setenv("UNSTRUCTURED_RUN_ID", "stale-env-run-id")
     args = parse_args(["--dry-run", "ask", "--all-runs"])
-    config = _dry_run_config(tmp_path)
+    request_context = _request_context_from_config(_dry_run_config(tmp_path), command="ask")
     with caplog.at_level(logging.WARNING, logger="demo.run_demo"):
-        run_id, all_runs = _resolve_ask_scope(args, config)
+        run_id, all_runs = _resolve_ask_scope(args, request_context)
     assert all_runs is True
     assert any(
         record.levelno == logging.WARNING and "stale-env-run-id" in record.getMessage()
@@ -5158,12 +5158,12 @@ def test_resolve_ask_scope_dry_run_uses_env_var(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
     """In dry-run default mode, UNSTRUCTURED_RUN_ID must be used as run_id."""
-    from demo.run_demo import parse_args, _resolve_ask_scope
+    from demo.run_demo import _request_context_from_config, parse_args, _resolve_ask_scope
 
     monkeypatch.setenv("UNSTRUCTURED_RUN_ID", "env-run-for-dry")
     args = parse_args(["--dry-run", "ask"])
-    config = _dry_run_config(tmp_path)
-    run_id, all_runs = _resolve_ask_scope(args, config)
+    request_context = _request_context_from_config(_dry_run_config(tmp_path), command="ask")
+    run_id, all_runs = _resolve_ask_scope(args, request_context)
     assert run_id == "env-run-for-dry"
     assert all_runs is False
 
@@ -5172,12 +5172,12 @@ def test_resolve_ask_scope_dry_run_no_env_var_returns_none(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
     """In dry-run default mode with no env var, run_id must be None (gracefully handled)."""
-    from demo.run_demo import parse_args, _resolve_ask_scope
+    from demo.run_demo import _request_context_from_config, parse_args, _resolve_ask_scope
 
     monkeypatch.delenv("UNSTRUCTURED_RUN_ID", raising=False)
     args = parse_args(["--dry-run", "ask"])
-    config = _dry_run_config(tmp_path)
-    run_id, all_runs = _resolve_ask_scope(args, config)
+    request_context = _request_context_from_config(_dry_run_config(tmp_path), command="ask")
+    run_id, all_runs = _resolve_ask_scope(args, request_context)
     assert run_id is None
     assert all_runs is False
 
@@ -6450,7 +6450,7 @@ def test_resolve_ask_scope_live_dataset_v1_selects_v1_run(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
     """ask --dataset demo_dataset_v1 in live mode must fetch the latest run for v1 only."""
-    from demo.run_demo import _resolve_ask_scope, parse_args
+    from demo.run_demo import _request_context_from_config, _resolve_ask_scope, parse_args
 
     monkeypatch.delenv("UNSTRUCTURED_RUN_ID", raising=False)
 
@@ -6458,6 +6458,7 @@ def test_resolve_ask_scope_live_dataset_v1_selects_v1_run(
 
     args = parse_args(["--live", "--dataset", "demo_dataset_v1", "ask"])
     config = _live_config(tmp_path, dataset_name="demo_dataset_v1")
+    request_context = _request_context_from_config(config, command="ask")
 
     with mock.patch(
         "demo.run_demo._fetch_latest_unstructured_run_id", return_value=v1_run
@@ -6471,18 +6472,18 @@ def test_resolve_ask_scope_live_dataset_v1_selects_v1_run(
             dataset_id="demo_dataset_v1",
             pdf_filename="chain_of_custody.pdf",
         )
-        run_id, all_runs = _resolve_ask_scope(args, config)
+        run_id, all_runs = _resolve_ask_scope(args, request_context)
 
     assert run_id == v1_run
     assert all_runs is False
-    mock_fetch.assert_called_once_with(config, dataset_id="demo_dataset_v1")
+    mock_fetch.assert_called_once_with(request_context.config, dataset_id="demo_dataset_v1")
 
 
 def test_resolve_ask_scope_live_dataset_v2_selects_v2_run(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
     """ask --dataset demo_dataset_v2 in live mode must fetch the latest run for v2 only."""
-    from demo.run_demo import _resolve_ask_scope, parse_args
+    from demo.run_demo import _request_context_from_config, _resolve_ask_scope, parse_args
 
     monkeypatch.delenv("UNSTRUCTURED_RUN_ID", raising=False)
 
@@ -6490,6 +6491,7 @@ def test_resolve_ask_scope_live_dataset_v2_selects_v2_run(
 
     args = parse_args(["--live", "--dataset", "demo_dataset_v2", "ask"])
     config = _live_config(tmp_path, dataset_name="demo_dataset_v2")
+    request_context = _request_context_from_config(config, command="ask")
 
     with mock.patch(
         "demo.run_demo._fetch_latest_unstructured_run_id", return_value=v2_run
@@ -6503,11 +6505,11 @@ def test_resolve_ask_scope_live_dataset_v2_selects_v2_run(
             dataset_id="demo_dataset_v2",
             pdf_filename="chain_of_issuance.pdf",
         )
-        run_id, all_runs = _resolve_ask_scope(args, config)
+        run_id, all_runs = _resolve_ask_scope(args, request_context)
 
     assert run_id == v2_run
     assert all_runs is False
-    mock_fetch.assert_called_once_with(config, dataset_id="demo_dataset_v2")
+    mock_fetch.assert_called_once_with(request_context.config, dataset_id="demo_dataset_v2")
 
 
 def test_resolve_ask_scope_two_datasets_different_latest_runs(
@@ -6519,7 +6521,7 @@ def test_resolve_ask_scope_two_datasets_different_latest_runs(
     demo_dataset_v1 and demo_dataset_v2 ingested, ask --dataset <x> must only
     return the latest run for dataset <x>.
     """
-    from demo.run_demo import _resolve_ask_scope, parse_args
+    from demo.run_demo import _request_context_from_config, _resolve_ask_scope, parse_args
     from pathlib import Path as _Path
 
     monkeypatch.delenv("UNSTRUCTURED_RUN_ID", raising=False)
@@ -6556,10 +6558,11 @@ def test_resolve_ask_scope_two_datasets_different_latest_runs(
     # --- Ask for v1 ---
     args_v1 = parse_args(["--live", "--dataset", "demo_dataset_v1", "ask"])
     config_v1 = _live_config(tmp_path, dataset_name="demo_dataset_v1")
+    request_context_v1 = _request_context_from_config(config_v1, command="ask")
 
     with mock.patch("demo.run_demo._fetch_latest_unstructured_run_id", side_effect=_fake_fetch), \
             mock.patch("demo.run_demo.resolve_dataset_root", side_effect=_fake_resolve):
-        run_id_v1, _ = _resolve_ask_scope(args_v1, config_v1)
+        run_id_v1, _ = _resolve_ask_scope(args_v1, request_context_v1)
 
     assert run_id_v1 == v1_run, (
         f"ask --dataset demo_dataset_v1 must resolve to the v1 run {v1_run!r}, "
@@ -6569,10 +6572,11 @@ def test_resolve_ask_scope_two_datasets_different_latest_runs(
     # --- Ask for v2 ---
     args_v2 = parse_args(["--live", "--dataset", "demo_dataset_v2", "ask"])
     config_v2 = _live_config(tmp_path, dataset_name="demo_dataset_v2")
+    request_context_v2 = _request_context_from_config(config_v2, command="ask")
 
     with mock.patch("demo.run_demo._fetch_latest_unstructured_run_id", side_effect=_fake_fetch), \
             mock.patch("demo.run_demo.resolve_dataset_root", side_effect=_fake_resolve):
-        run_id_v2, _ = _resolve_ask_scope(args_v2, config_v2)
+        run_id_v2, _ = _resolve_ask_scope(args_v2, request_context_v2)
 
     assert run_id_v2 == v2_run, (
         f"ask --dataset demo_dataset_v2 must resolve to the v2 run {v2_run!r}; "
@@ -6585,13 +6589,14 @@ def test_resolve_ask_scope_ambiguous_dataset_falls_back_to_unfiltered(
 ):
     """Implicit dataset (no --dataset flag) that raises AmbiguousDatasetError falls back to
     unfiltered latest-run query (legacy single-dataset behaviour preserved)."""
-    from demo.run_demo import _resolve_ask_scope, parse_args
+    from demo.run_demo import _request_context_from_config, _resolve_ask_scope, parse_args
     monkeypatch.delenv("UNSTRUCTURED_RUN_ID", raising=False)
 
     latest_run = "unstructured_ingest-20260401T000000000000Z-fallback0"
 
     args = parse_args(["--live", "ask"])
     config = _live_config(tmp_path, dataset_name=None)
+    request_context = _request_context_from_config(config, command="ask")
 
     with mock.patch(
         "demo.run_demo._fetch_latest_unstructured_run_id", return_value=latest_run
@@ -6599,12 +6604,12 @@ def test_resolve_ask_scope_ambiguous_dataset_falls_back_to_unfiltered(
         "demo.run_demo.resolve_dataset_root",
         side_effect=AmbiguousDatasetError("Multiple datasets"),
     ):
-        run_id, all_runs = _resolve_ask_scope(args, config)
+        run_id, all_runs = _resolve_ask_scope(args, request_context)
 
     assert run_id == latest_run
     assert all_runs is False
     # Falls back: dataset_id=None (no filter) because resolution was ambiguous
-    mock_fetch.assert_called_once_with(config, dataset_id=None)
+    mock_fetch.assert_called_once_with(request_context.config, dataset_id=None)
 
 
 def test_resolve_ask_scope_explicit_dataset_raises_system_exit_on_resolution_failure(
@@ -6612,12 +6617,13 @@ def test_resolve_ask_scope_explicit_dataset_raises_system_exit_on_resolution_fai
 ):
     """Explicit --dataset that fails to resolve must raise SystemExit (fail fast), never silently
     fall back to an unfiltered latest-run query that could pick up the wrong dataset's run."""
-    from demo.run_demo import _resolve_ask_scope, parse_args
+    from demo.run_demo import _request_context_from_config, _resolve_ask_scope, parse_args
 
     monkeypatch.delenv("UNSTRUCTURED_RUN_ID", raising=False)
 
     args = parse_args(["--live", "--dataset", "nonexistent_dataset", "ask"])
     config = _live_config(tmp_path, dataset_name="nonexistent_dataset")
+    request_context = _request_context_from_config(config, command="ask")
 
     with mock.patch(
         "demo.run_demo.resolve_dataset_root",
@@ -6626,7 +6632,7 @@ def test_resolve_ask_scope_explicit_dataset_raises_system_exit_on_resolution_fai
         "demo.run_demo._fetch_latest_unstructured_run_id"
     ) as mock_fetch:
         with pytest.raises(SystemExit) as exc_info:
-            _resolve_ask_scope(args, config)
+            _resolve_ask_scope(args, request_context)
 
     assert "nonexistent_dataset" in str(exc_info.value), (
         "SystemExit message must mention the unresolvable dataset name"
@@ -6644,7 +6650,7 @@ def test_resolve_ask_scope_fixture_dataset_raises_system_exit_on_resolution_fail
     This specifically exercises the case where config.dataset_name is None (no --dataset
     CLI flag) but FIXTURE_DATASET env var is set, so resolve_dataset_root() treats it as
     an explicit selection that should fail loudly, not silently fall back."""
-    from demo.run_demo import _resolve_ask_scope, parse_args
+    from demo.run_demo import _request_context_from_config, _resolve_ask_scope, parse_args
 
     monkeypatch.delenv("UNSTRUCTURED_RUN_ID", raising=False)
     monkeypatch.setenv("FIXTURE_DATASET", "nonexistent_env_dataset")
@@ -6652,6 +6658,7 @@ def test_resolve_ask_scope_fixture_dataset_raises_system_exit_on_resolution_fail
     # No --dataset flag: config.dataset_name is None; only FIXTURE_DATASET drives selection.
     args = parse_args(["--live", "ask"])
     config = _live_config(tmp_path, dataset_name=None)
+    request_context = _request_context_from_config(config, command="ask")
 
     with mock.patch(
         "demo.run_demo.resolve_dataset_root",
@@ -6660,7 +6667,7 @@ def test_resolve_ask_scope_fixture_dataset_raises_system_exit_on_resolution_fail
         "demo.run_demo._fetch_latest_unstructured_run_id"
     ) as mock_fetch:
         with pytest.raises(SystemExit) as exc_info:
-            _resolve_ask_scope(args, config)
+            _resolve_ask_scope(args, request_context)
 
     assert "nonexistent_env_dataset" in str(exc_info.value), (
         "SystemExit message must mention the unresolvable dataset name from FIXTURE_DATASET"
@@ -6690,7 +6697,7 @@ def test_resolve_ask_scope_env_run_id_with_dataset_warns_live(
     This prevents silent wrong-dataset retrieval from reappearing: if no warning
     is emitted the operator has no indication that the env var may be pointing at
     a different dataset's run."""
-    from demo.run_demo import _resolve_ask_scope, parse_args
+    from demo.run_demo import _request_context_from_config, _resolve_ask_scope, parse_args
 
     v1_env_run = "unstructured_ingest-20260101T000000000000Z-v1run0001"
     monkeypatch.setenv("UNSTRUCTURED_RUN_ID", v1_env_run)
@@ -6699,9 +6706,10 @@ def test_resolve_ask_scope_env_run_id_with_dataset_warns_live(
     # --dataset demo_dataset_v2 but env var points at a v1 run — classic mismatch.
     args = parse_args(["--live", "--dataset", "demo_dataset_v2", "ask"])
     config = _live_config(tmp_path, dataset_name="demo_dataset_v2")
+    request_context = _request_context_from_config(config, command="ask")
 
     with caplog.at_level(logging.WARNING, logger="demo.run_demo"):
-        run_id, all_runs = _resolve_ask_scope(args, config)
+        run_id, all_runs = _resolve_ask_scope(args, request_context)
 
     assert run_id == v1_env_run, (
         "UNSTRUCTURED_RUN_ID must take precedence even when --dataset is provided"
@@ -6733,7 +6741,7 @@ def test_resolve_ask_scope_env_run_id_with_fixture_dataset_warns_live(
 
     FIXTURE_DATASET is an explicit dataset selection just like --dataset; the same
     dataset-integrity risk applies and the same warning must appear."""
-    from demo.run_demo import _resolve_ask_scope, parse_args
+    from demo.run_demo import _request_context_from_config, _resolve_ask_scope, parse_args
 
     v2_env_run = "unstructured_ingest-20260401T000000000000Z-v2run0002"
     monkeypatch.setenv("UNSTRUCTURED_RUN_ID", v2_env_run)
@@ -6742,9 +6750,10 @@ def test_resolve_ask_scope_env_run_id_with_fixture_dataset_warns_live(
     # No --dataset CLI flag; FIXTURE_DATASET drives dataset selection.
     args = parse_args(["--live", "ask"])
     config = _live_config(tmp_path, dataset_name="demo_dataset_v1")
+    request_context = _request_context_from_config(config, command="ask")
 
     with caplog.at_level(logging.WARNING, logger="demo.run_demo"):
-        run_id, all_runs = _resolve_ask_scope(args, config)
+        run_id, all_runs = _resolve_ask_scope(args, request_context)
 
     assert run_id == v2_env_run
     assert all_runs is False
@@ -6771,7 +6780,7 @@ def test_resolve_ask_scope_env_run_id_with_dataset_warns_dry_run(
 
     In dry-run mode Neo4j is not queried, but the dataset-integrity risk is the same:
     the operator may have supplied an env var that belongs to a different dataset."""
-    from demo.run_demo import _resolve_ask_scope, parse_args
+    from demo.run_demo import _request_context_from_config, _resolve_ask_scope, parse_args
 
     v1_env_run = "unstructured_ingest-20260101T000000000000Z-v1run0001"
     monkeypatch.setenv("UNSTRUCTURED_RUN_ID", v1_env_run)
@@ -6780,9 +6789,10 @@ def test_resolve_ask_scope_env_run_id_with_dataset_warns_dry_run(
     args = parse_args(["--dry-run", "--dataset", "demo_dataset_v2", "ask"])
     import dataclasses
     config = dataclasses.replace(_dry_run_config(tmp_path), dataset_name="demo_dataset_v2")
+    request_context = _request_context_from_config(config, command="ask")
 
     with caplog.at_level(logging.WARNING, logger="demo.run_demo"):
-        run_id, all_runs = _resolve_ask_scope(args, config)
+        run_id, all_runs = _resolve_ask_scope(args, request_context)
 
     assert run_id == v1_env_run
     assert all_runs is False
@@ -6809,7 +6819,7 @@ def test_resolve_ask_scope_env_run_id_without_dataset_no_warning_live(
 
     No explicit dataset selection means single-dataset (or all-dataset) posture where
     cross-dataset contamination is not a concern."""
-    from demo.run_demo import _resolve_ask_scope, parse_args
+    from demo.run_demo import _request_context_from_config, _resolve_ask_scope, parse_args
 
     env_run = "unstructured_ingest-20260201T000000000000Z-nodsrun"
     monkeypatch.setenv("UNSTRUCTURED_RUN_ID", env_run)
@@ -6817,9 +6827,10 @@ def test_resolve_ask_scope_env_run_id_without_dataset_no_warning_live(
 
     args = parse_args(["--live", "ask"])
     config = _live_config(tmp_path, dataset_name=None)
+    request_context = _request_context_from_config(config, command="ask")
 
     with caplog.at_level(logging.WARNING, logger="demo.run_demo"):
-        run_id, all_runs = _resolve_ask_scope(args, config)
+        run_id, all_runs = _resolve_ask_scope(args, request_context)
 
     assert run_id == env_run
     assert all_runs is False
@@ -6843,7 +6854,7 @@ def test_resolve_ask_scope_env_run_id_dataset_overrides_fixture_dataset_warns_li
     This exercises the override branch in _warn_env_run_id_dataset_mismatch and
     ensures the label format does not drift silently when both env var and CLI flag
     are in play simultaneously."""
-    from demo.run_demo import _resolve_ask_scope, parse_args
+    from demo.run_demo import _request_context_from_config, _resolve_ask_scope, parse_args
 
     env_run = "unstructured_ingest-20260301T000000000000Z-override0"
     monkeypatch.setenv("UNSTRUCTURED_RUN_ID", env_run)
@@ -6852,9 +6863,10 @@ def test_resolve_ask_scope_env_run_id_dataset_overrides_fixture_dataset_warns_li
     # --dataset explicitly overrides FIXTURE_DATASET with a different value.
     args = parse_args(["--live", "--dataset", "demo_dataset_v2", "ask"])
     config = _live_config(tmp_path, dataset_name="demo_dataset_v2")
+    request_context = _request_context_from_config(config, command="ask")
 
     with caplog.at_level(logging.WARNING, logger="demo.run_demo"):
-        run_id, all_runs = _resolve_ask_scope(args, config)
+        run_id, all_runs = _resolve_ask_scope(args, request_context)
 
     assert run_id == env_run
     assert all_runs is False
@@ -6895,7 +6907,7 @@ def test_resolve_ask_scope_explicit_run_id_wrong_dataset_warns_live(
 
     This prevents silent wrong-dataset retrieval: if no warning is emitted, the
     operator has no indication that the run_id comes from a different dataset."""
-    from demo.run_demo import _resolve_ask_scope, parse_args
+    from demo.run_demo import _request_context_from_config, _resolve_ask_scope, parse_args
 
     v1_run = "unstructured_ingest-20260301T000000000000Z-v1run0001"
     monkeypatch.delenv("UNSTRUCTURED_RUN_ID", raising=False)
@@ -6904,6 +6916,7 @@ def test_resolve_ask_scope_explicit_run_id_wrong_dataset_warns_live(
     # --run-id points at a v1 run but --dataset says v2 — classic mismatch.
     args = parse_args(["--live", "--dataset", "demo_dataset_v2", "ask", "--run-id", v1_run])
     config = _live_config(tmp_path, dataset_name="demo_dataset_v2")
+    request_context = _request_context_from_config(config, command="ask")
 
     with mock.patch(
         "demo.run_demo.resolve_dataset_root"
@@ -6918,14 +6931,14 @@ def test_resolve_ask_scope_explicit_run_id_wrong_dataset_warns_live(
             pdf_filename="chain_of_issuance.pdf",
         )
         with caplog.at_level(logging.WARNING, logger="demo.run_demo"):
-            run_id, all_runs = _resolve_ask_scope(args, config)
+            run_id, all_runs = _resolve_ask_scope(args, request_context)
 
     assert run_id == v1_run, (
         "Explicit --run-id must still be returned even when a dataset mismatch is detected"
     )
     assert all_runs is False
 
-    mock_fetch.assert_called_once_with(config, v1_run)
+    mock_fetch.assert_called_once_with(request_context.config, v1_run)
 
     warning_records = [
         r for r in caplog.records
@@ -6947,7 +6960,7 @@ def test_resolve_ask_scope_explicit_run_id_correct_dataset_no_warning_live(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ):
     """When --run-id belongs to the same dataset as --dataset, no WARNING should be logged."""
-    from demo.run_demo import _resolve_ask_scope, parse_args
+    from demo.run_demo import _request_context_from_config, _resolve_ask_scope, parse_args
 
     v2_run = "unstructured_ingest-20260401T000000000000Z-v2run0001"
     monkeypatch.delenv("UNSTRUCTURED_RUN_ID", raising=False)
@@ -6955,6 +6968,7 @@ def test_resolve_ask_scope_explicit_run_id_correct_dataset_no_warning_live(
 
     args = parse_args(["--live", "--dataset", "demo_dataset_v2", "ask", "--run-id", v2_run])
     config = _live_config(tmp_path, dataset_name="demo_dataset_v2")
+    request_context = _request_context_from_config(config, command="ask")
 
     with mock.patch(
         "demo.run_demo.resolve_dataset_root"
@@ -6969,7 +6983,7 @@ def test_resolve_ask_scope_explicit_run_id_correct_dataset_no_warning_live(
             pdf_filename="chain_of_issuance.pdf",
         )
         with caplog.at_level(logging.WARNING, logger="demo.run_demo"):
-            run_id, all_runs = _resolve_ask_scope(args, config)
+            run_id, all_runs = _resolve_ask_scope(args, request_context)
 
     assert run_id == v2_run
     assert all_runs is False
@@ -6988,7 +7002,7 @@ def test_resolve_ask_scope_explicit_run_id_not_found_no_warning_live(
 ):
     """When --run-id is not found in Neo4j (no Chunk nodes), no mismatch WARNING should
     be logged.  The run may simply not exist yet; downstream retrieval will handle it."""
-    from demo.run_demo import _resolve_ask_scope, parse_args
+    from demo.run_demo import _request_context_from_config, _resolve_ask_scope, parse_args
 
     future_run = "unstructured_ingest-20260501T000000000000Z-notfound1"
     monkeypatch.delenv("UNSTRUCTURED_RUN_ID", raising=False)
@@ -6996,6 +7010,7 @@ def test_resolve_ask_scope_explicit_run_id_not_found_no_warning_live(
 
     args = parse_args(["--live", "--dataset", "demo_dataset_v1", "ask", "--run-id", future_run])
     config = _live_config(tmp_path, dataset_name="demo_dataset_v1")
+    request_context = _request_context_from_config(config, command="ask")
 
     with mock.patch(
         "demo.run_demo.resolve_dataset_root"
@@ -7011,7 +7026,7 @@ def test_resolve_ask_scope_explicit_run_id_not_found_no_warning_live(
             pdf_filename="chain_of_custody.pdf",
         )
         with caplog.at_level(logging.WARNING, logger="demo.run_demo"):
-            run_id, all_runs = _resolve_ask_scope(args, config)
+            run_id, all_runs = _resolve_ask_scope(args, request_context)
 
     assert run_id == future_run
     assert all_runs is False
@@ -7030,7 +7045,7 @@ def test_resolve_ask_scope_explicit_run_id_no_dataset_no_warning_live(
 ):
     """When --run-id is provided but no --dataset or FIXTURE_DATASET is set, no
     dataset-ownership check is performed and no WARNING is logged."""
-    from demo.run_demo import _resolve_ask_scope, parse_args
+    from demo.run_demo import _request_context_from_config, _resolve_ask_scope, parse_args
 
     some_run = "unstructured_ingest-20260301T000000000000Z-nodataset1"
     monkeypatch.delenv("UNSTRUCTURED_RUN_ID", raising=False)
@@ -7038,10 +7053,11 @@ def test_resolve_ask_scope_explicit_run_id_no_dataset_no_warning_live(
 
     args = parse_args(["--live", "ask", "--run-id", some_run])
     config = _live_config(tmp_path, dataset_name=None)
+    request_context = _request_context_from_config(config, command="ask")
 
     with mock.patch("demo.run_demo._fetch_dataset_id_for_run") as mock_fetch:
         with caplog.at_level(logging.WARNING, logger="demo.run_demo"):
-            run_id, all_runs = _resolve_ask_scope(args, config)
+            run_id, all_runs = _resolve_ask_scope(args, request_context)
 
     assert run_id == some_run
     assert all_runs is False
@@ -7062,7 +7078,7 @@ def test_resolve_ask_scope_explicit_run_id_wrong_dataset_dry_run_no_check(
 ):
     """In dry-run mode, --run-id + --dataset should NOT trigger a Neo4j dataset-ownership
     check (Neo4j is unavailable in dry-run).  No mismatch WARNING should be logged."""
-    from demo.run_demo import _resolve_ask_scope, parse_args
+    from demo.run_demo import _request_context_from_config, _resolve_ask_scope, parse_args
 
     v1_run = "unstructured_ingest-20260301T000000000000Z-v1run0001"
     monkeypatch.delenv("UNSTRUCTURED_RUN_ID", raising=False)
@@ -7071,10 +7087,11 @@ def test_resolve_ask_scope_explicit_run_id_wrong_dataset_dry_run_no_check(
     args = parse_args(["--dry-run", "--dataset", "demo_dataset_v2", "ask", "--run-id", v1_run])
     import dataclasses
     config = dataclasses.replace(_dry_run_config(tmp_path), dataset_name="demo_dataset_v2")
+    request_context = _request_context_from_config(config, command="ask")
 
     with mock.patch("demo.run_demo._fetch_dataset_id_for_run") as mock_fetch:
         with caplog.at_level(logging.WARNING, logger="demo.run_demo"):
-            run_id, all_runs = _resolve_ask_scope(args, config)
+            run_id, all_runs = _resolve_ask_scope(args, request_context)
 
     assert run_id == v1_run
     assert all_runs is False
@@ -7099,7 +7116,7 @@ def test_resolve_ask_scope_explicit_run_id_wrong_fixture_dataset_warns_live(
 ):
     """Regression: --run-id + FIXTURE_DATASET (no --dataset flag) with a mismatch
     must also log a WARNING and name FIXTURE_DATASET as the source."""
-    from demo.run_demo import _resolve_ask_scope, parse_args
+    from demo.run_demo import _request_context_from_config, _resolve_ask_scope, parse_args
 
     v2_run = "unstructured_ingest-20260401T000000000000Z-v2run0001"
     monkeypatch.delenv("UNSTRUCTURED_RUN_ID", raising=False)
@@ -7108,6 +7125,7 @@ def test_resolve_ask_scope_explicit_run_id_wrong_fixture_dataset_warns_live(
     # No --dataset CLI flag; FIXTURE_DATASET drives dataset selection.
     args = parse_args(["--live", "ask", "--run-id", v2_run])
     config = _live_config(tmp_path, dataset_name=None)
+    request_context = _request_context_from_config(config, command="ask")
 
     with mock.patch(
         "demo.run_demo.resolve_dataset_root"
@@ -7122,7 +7140,7 @@ def test_resolve_ask_scope_explicit_run_id_wrong_fixture_dataset_warns_live(
             pdf_filename="chain_of_custody.pdf",
         )
         with caplog.at_level(logging.WARNING, logger="demo.run_demo"):
-            run_id, all_runs = _resolve_ask_scope(args, config)
+            run_id, all_runs = _resolve_ask_scope(args, request_context)
 
     assert run_id == v2_run
     assert all_runs is False
@@ -7147,7 +7165,7 @@ def test_resolve_ask_scope_explicit_run_id_wrong_dataset_overrides_fixture_warns
 ):
     """When --dataset overrides FIXTURE_DATASET and --run-id belongs to a third dataset,
     the WARNING must name --dataset as the effective source and also mention FIXTURE_DATASET."""
-    from demo.run_demo import _resolve_ask_scope, parse_args
+    from demo.run_demo import _request_context_from_config, _resolve_ask_scope, parse_args
 
     other_run = "unstructured_ingest-20260501T000000000000Z-other0001"
     monkeypatch.delenv("UNSTRUCTURED_RUN_ID", raising=False)
@@ -7156,6 +7174,7 @@ def test_resolve_ask_scope_explicit_run_id_wrong_dataset_overrides_fixture_warns
     # --dataset explicitly overrides FIXTURE_DATASET with a different value.
     args = parse_args(["--live", "--dataset", "demo_dataset_v2", "ask", "--run-id", other_run])
     config = _live_config(tmp_path, dataset_name="demo_dataset_v2")
+    request_context = _request_context_from_config(config, command="ask")
 
     with mock.patch(
         "demo.run_demo.resolve_dataset_root"
@@ -7170,7 +7189,7 @@ def test_resolve_ask_scope_explicit_run_id_wrong_dataset_overrides_fixture_warns
             pdf_filename="chain_of_issuance.pdf",
         )
         with caplog.at_level(logging.WARNING, logger="demo.run_demo"):
-            run_id, all_runs = _resolve_ask_scope(args, config)
+            run_id, all_runs = _resolve_ask_scope(args, request_context)
 
     assert run_id == other_run
     assert all_runs is False

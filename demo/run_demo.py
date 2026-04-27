@@ -72,7 +72,6 @@ from demo.run_demo_support import (  # noqa: E402
     add_common_args as _add_common_args_impl,
     build_config_from_args as _build_config_from_args_impl,
     build_request_context_from_args as _build_request_context_from_args_impl,
-    ensure_request_context as _ensure_request_context_impl,
     parse_args as _parse_args_impl,
     request_context_from_config as _request_context_from_config_impl,
 )
@@ -184,14 +183,6 @@ def _request_context_from_config(
         all_runs=all_runs,
         source_uri=source_uri,
     )
-
-
-def _ensure_request_context(
-    request_context_or_config: RequestContext | Config,
-    *,
-    command: str | None = None,
-) -> RequestContext:
-    return _ensure_request_context_impl(request_context_or_config, command=command)
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -372,7 +363,7 @@ def _resolve_ask_request_context(
 
 
 def _resolve_ask_scope(
-    args: argparse.Namespace, request_context_or_config: RequestContext | Config
+    args: argparse.Namespace, request_context: RequestContext
 ) -> tuple[str | None, bool]:
     """Resolve the retrieval scope for the ask command.
 
@@ -388,8 +379,8 @@ def _resolve_ask_scope(
     """
     return _resolve_ask_scope_impl(
         args,
-        request_context_or_config,
-        ensure_request_context=_ensure_request_context,
+        request_context,
+        ensure_request_context=lambda request_context, command=None: request_context,
         current_env_unstructured_run_id=_current_env_unstructured_run_id,
         current_env_dataset_selection=_current_env_dataset_selection,
         fetch_dataset_id_for_run=_fetch_dataset_id_for_run,
@@ -411,12 +402,12 @@ def _resolve_ask_source_uri(request_context: RequestContext) -> str | None:
 
 def _prepare_ask_request_context(
     args: argparse.Namespace,
-    request_context_or_config: RequestContext | Config,
+    request_context: RequestContext,
 ) -> RequestContext:
     return _prepare_ask_request_context_impl(
         args,
-        request_context_or_config,
-        ensure_request_context=_ensure_request_context,
+        request_context,
+        ensure_request_context=lambda request_context, command=None: request_context,
         current_env_unstructured_run_id=_current_env_unstructured_run_id,
         current_env_dataset_selection=_current_env_dataset_selection,
         fetch_dataset_id_for_run=_fetch_dataset_id_for_run,
