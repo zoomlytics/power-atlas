@@ -526,7 +526,7 @@ def _run_orchestrated(request_context: RequestContext) -> Path:
 
 
 def _run_independent_stage(
-    config_or_request_context: RequestContext | Config,
+    request_context: RequestContext,
     command: str,
     *,
     resolved_run_id: str | None = None,
@@ -534,7 +534,6 @@ def _run_independent_stage(
     cluster_aware: bool = False,
     expand_graph: bool = False,
 ) -> Path:
-    request_context = _ensure_request_context(config_or_request_context, command=command)
     return _run_independent_stage_request_context_impl(
         request_context,
         command=command,

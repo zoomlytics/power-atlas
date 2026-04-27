@@ -952,7 +952,11 @@ class TestEntityResolutionRequestContextOrchestratorIntegration(unittest.TestCas
             env_backup = os.environ.get("UNSTRUCTURED_RUN_ID")
             try:
                 os.environ["UNSTRUCTURED_RUN_ID"] = "test-unstructured-run-001"
-                manifest_path = module.run_independent_demo(config, "resolve-entities")
+                request_context = module._request_context_from_config(
+                    config,
+                    command="resolve-entities",
+                )
+                manifest_path = module.run_independent_demo(request_context, "resolve-entities")
             finally:
                 if env_backup is None:
                     os.environ.pop("UNSTRUCTURED_RUN_ID", None)
@@ -990,7 +994,11 @@ class TestEntityResolutionRequestContextOrchestratorIntegration(unittest.TestCas
             try:
                 os.environ.pop("UNSTRUCTURED_RUN_ID", None)
                 with self.assertRaises(ValueError) as ctx:
-                    module.run_independent_demo(config, "resolve-entities")
+                    request_context = module._request_context_from_config(
+                        config,
+                        command="resolve-entities",
+                    )
+                    module.run_independent_demo(request_context, "resolve-entities")
                 self.assertIn("UNSTRUCTURED_RUN_ID", str(ctx.exception))
             finally:
                 if env_backup is not None:

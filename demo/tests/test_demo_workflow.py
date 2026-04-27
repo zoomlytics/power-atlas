@@ -823,7 +823,8 @@ class WorkflowTests(unittest.TestCase):
                 dry_run=True,
                 output_dir=Path(tmpdir),
             )
-            manifest_path = module.run_independent_demo(config, "ingest-structured")
+            request_context = module._request_context_from_config(config, command="ingest-structured")
+            manifest_path = module.run_independent_demo(request_context, "ingest-structured")
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             stage = manifest["stages"]["structured_ingest"]
             self.assertTrue(Path(stage["structured_clean_dir"]).exists())
@@ -1458,8 +1459,19 @@ class WorkflowTests(unittest.TestCase):
                 dry_run=True,
                 output_dir=Path(tmpdir),
             )
-            structured_manifest_path = module.run_independent_demo(config, "ingest-structured")
-            pdf_manifest_path = module.run_independent_demo(config, "ingest-pdf")
+            structured_request_context = module._request_context_from_config(
+                config,
+                command="ingest-structured",
+            )
+            pdf_request_context = module._request_context_from_config(
+                config,
+                command="ingest-pdf",
+            )
+            structured_manifest_path = module.run_independent_demo(
+                structured_request_context,
+                "ingest-structured",
+            )
+            pdf_manifest_path = module.run_independent_demo(pdf_request_context, "ingest-pdf")
             self.assertTrue(structured_manifest_path.exists())
             self.assertTrue(pdf_manifest_path.exists())
 
@@ -2083,7 +2095,8 @@ class WorkflowTests(unittest.TestCase):
                 dry_run=True,
                 output_dir=Path(tmpdir),
             )
-            manifest_path = module.run_independent_demo(config, "ask", all_runs=True)
+            request_context = module._request_context_from_config(config, command="ask", all_runs=True)
+            manifest_path = module.run_independent_demo(request_context, "ask", all_runs=True)
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             retrieval_scope = manifest["stages"]["retrieval_and_qa"]["retrieval_scope"]
             self.assertIsNone(
@@ -2169,7 +2182,11 @@ class WorkflowTests(unittest.TestCase):
                     dry_run=True,
                     output_dir=Path(tmpdir),
                 )
-                manifest_path = module.run_independent_demo(config, "extract-claims")
+                request_context = module._request_context_from_config(
+                    config,
+                    command="extract-claims",
+                )
+                manifest_path = module.run_independent_demo(request_context, "extract-claims")
                 manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         finally:
             if env_backup_run_id is None:
@@ -2202,7 +2219,12 @@ class WorkflowTests(unittest.TestCase):
                 dry_run=True,
                 output_dir=Path(tmpdir),
             )
-            manifest_path = module.run_independent_demo(config, "ask", cluster_aware=True)
+            request_context = module._request_context_from_config(config, command="ask")
+            manifest_path = module.run_independent_demo(
+                request_context,
+                "ask",
+                cluster_aware=True,
+            )
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             stage = manifest["stages"]["retrieval_and_qa"]
             self.assertTrue(
@@ -2223,7 +2245,12 @@ class WorkflowTests(unittest.TestCase):
                 dry_run=True,
                 output_dir=Path(tmpdir),
             )
-            manifest_path = module.run_independent_demo(config, "ask", expand_graph=True)
+            request_context = module._request_context_from_config(config, command="ask")
+            manifest_path = module.run_independent_demo(
+                request_context,
+                "ask",
+                expand_graph=True,
+            )
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             stage = manifest["stages"]["retrieval_and_qa"]
             self.assertTrue(
@@ -2248,7 +2275,8 @@ class WorkflowTests(unittest.TestCase):
                 dry_run=True,
                 output_dir=Path(tmpdir),
             )
-            manifest_path = module.run_independent_demo(config, "ask")
+            request_context = module._request_context_from_config(config, command="ask")
+            manifest_path = module.run_independent_demo(request_context, "ask")
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             stage = manifest["stages"]["retrieval_and_qa"]
             self.assertFalse(

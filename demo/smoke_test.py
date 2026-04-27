@@ -249,7 +249,8 @@ def _run_structured_scenario(output_dir: Path) -> Path:
     stage-scoped manifest at runs/<run_id>/structured_ingest/manifest.json.
     """
     config = _build_config(output_dir)
-    manifest_path = run_independent_demo(config, "ingest-structured")
+    request_context = _request_context_from_config(config, command="ingest-structured")
+    manifest_path = run_independent_demo(request_context, "ingest-structured")
     _validate_independent_manifest(
         manifest_path,
         expected_stage="structured_ingest",
@@ -265,7 +266,8 @@ def _run_unstructured_scenario(output_dir: Path) -> Path:
     stage-scoped manifest at runs/<run_id>/pdf_ingest/manifest.json.
     """
     config = _build_config(output_dir)
-    manifest_path = run_independent_demo(config, "ingest-pdf")
+    request_context = _request_context_from_config(config, command="ingest-pdf")
+    manifest_path = run_independent_demo(request_context, "ingest-pdf")
     _validate_independent_manifest(
         manifest_path,
         expected_stage="pdf_ingest",
