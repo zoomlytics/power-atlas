@@ -114,6 +114,26 @@ def _run_claim_and_mention_extraction_impl(
 ) -> dict[str, Any]:
     resolved_pipeline_contract = _resolve_pipeline_contract(config, pipeline_contract)
     resolved_model_name = _openai_model_from_config(config, model_name)
+    resolved_neo4j_settings = _neo4j_settings_from_config(config, neo4j_settings)
+    return _run_claim_and_mention_extraction_runtime(
+        config=config,
+        run_id=run_id,
+        source_uri=source_uri,
+        pipeline_contract=resolved_pipeline_contract,
+        neo4j_settings=resolved_neo4j_settings,
+        model_name=resolved_model_name,
+    )
+
+
+def _run_claim_and_mention_extraction_runtime(
+    *,
+    config: Any,
+    run_id: str,
+    source_uri: str | None,
+    pipeline_contract: PipelineContractSnapshot,
+    neo4j_settings: Neo4jSettings,
+    model_name: str,
+) -> dict[str, Any]:
     run_root = config.output_dir / "runs" / run_id
     extraction_dir = run_root / "claim_extraction"
     extraction_dir.mkdir(parents=True, exist_ok=True)
@@ -125,7 +145,7 @@ def _run_claim_and_mention_extraction_impl(
             "status": "dry_run",
             "run_id": run_id,
             "source_uri": source_uri,
-            "extractor_model": resolved_model_name,
+            "extractor_model": model_name,
             "prompt_version": prompt_version,
             "chunks_processed": 0,
             "chunks_with_extractions": 0,
@@ -151,15 +171,14 @@ def _run_claim_and_mention_extraction_impl(
         ROLE_SUBJECT,
         build_participation_edges,
     )
-    resolved_neo4j_settings = _neo4j_settings_from_config(config, neo4j_settings)
 
     live_result = run_claim_extraction_live(
-        resolved_neo4j_settings,
+        neo4j_settings,
         run_id=run_id,
         source_uri=source_uri,
-        model_name=resolved_model_name,
-        neo4j_database=resolved_neo4j_settings.database,
-        pipeline_contract=resolved_pipeline_contract,
+        model_name=model_name,
+        neo4j_database=neo4j_settings.database,
+        pipeline_contract=pipeline_contract,
         read_chunks_and_extract=_async_read_chunks_and_extract,
         prepare_rows=prepare_extracted_rows,
         build_edges=build_participation_edges,
@@ -179,7 +198,7 @@ def _run_claim_and_mention_extraction_impl(
         "status": "live",
         "run_id": run_id,
         "source_uri": source_uri,
-        "extractor_model": resolved_model_name,
+        "extractor_model": model_name,
         "prompt_version": prompt_version,
         # Total number of chunks read and processed as input
         "chunks_processed": len(text_chunks),
