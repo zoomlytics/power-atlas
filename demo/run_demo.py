@@ -55,6 +55,7 @@ from power_atlas.orchestration.stage_dependency_registry import (
     build_demo_independent_stage_specs,
     build_demo_orchestrated_runner_kwargs,
 )
+from power_atlas.orchestration.stage_entrypoints import load_demo_stage_entrypoints
 from power_atlas.orchestration.orchestrated_runner import (
     run_orchestrated_request_context as _run_orchestrated_request_context_impl,
 )
@@ -78,17 +79,23 @@ from demo.run_demo_support import (  # noqa: E402
     parse_args as _parse_args_impl,
     request_context_from_config as _request_context_from_config_impl,
 )
-from demo.stages.structured_ingest import lint_and_clean_structured_csvs  # noqa: E402
-from demo.stages.retrieval_and_qa import _format_scope_label  # noqa: E402
-from demo.stages.claim_extraction import run_claim_and_mention_extraction_request_context  # noqa: E402
-from demo.stages.claim_participation import run_claim_participation_request_context  # noqa: E402
-from demo.stages.entity_resolution import run_entity_resolution_request_context  # noqa: E402
-from demo.stages.pdf_ingest import run_pdf_ingest_request_context  # noqa: E402
-from demo.stages.structured_ingest import run_structured_ingest_request_context  # noqa: E402
-from demo.stages.retrieval_and_qa import run_interactive_qa_request_context  # noqa: E402
-from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context  # noqa: E402
-from demo.stages.retrieval_benchmark import run_retrieval_benchmark  # noqa: E402
-from demo.stages.pdf_ingest import sha256_file  # noqa: E402, F401 - re-exported for callers and tests
+
+_STAGE_ENTRYPOINTS = load_demo_stage_entrypoints()
+lint_and_clean_structured_csvs = _STAGE_ENTRYPOINTS.lint_and_clean_structured_csvs
+_format_scope_label = _STAGE_ENTRYPOINTS.format_scope_label
+run_claim_and_mention_extraction_request_context = (
+    _STAGE_ENTRYPOINTS.run_claim_and_mention_extraction_request_context
+)
+run_claim_participation_request_context = (
+    _STAGE_ENTRYPOINTS.run_claim_participation_request_context
+)
+run_entity_resolution_request_context = _STAGE_ENTRYPOINTS.run_entity_resolution_request_context
+run_pdf_ingest_request_context = _STAGE_ENTRYPOINTS.run_pdf_ingest_request_context
+run_structured_ingest_request_context = _STAGE_ENTRYPOINTS.run_structured_ingest_request_context
+run_interactive_qa_request_context = _STAGE_ENTRYPOINTS.run_interactive_qa_request_context
+run_retrieval_and_qa_request_context = _STAGE_ENTRYPOINTS.run_retrieval_and_qa_request_context
+run_retrieval_benchmark = _STAGE_ENTRYPOINTS.run_retrieval_benchmark
+sha256_file = _STAGE_ENTRYPOINTS.sha256_file
 
 _logger = logging.getLogger(__name__)
 _KEEP_REQUEST_CONTEXT_VALUE = object()
