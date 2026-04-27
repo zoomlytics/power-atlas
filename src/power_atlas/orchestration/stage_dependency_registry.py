@@ -122,7 +122,65 @@ def build_demo_orchestrated_runner_kwargs(
     }
 
 
+def build_demo_cli_dispatch_kwargs(
+    *,
+    build_request_context_from_args: Callable[..., Any],
+    lint_and_clean_structured_csvs: Callable[..., dict[str, Any]],
+    make_run_id: Callable[[str], str],
+    resolve_dataset_root: Callable[[str | None], Any],
+    run_demo: Callable[[RequestContext], Path],
+    prepare_ask_request_context: Callable[..., RequestContext],
+    resolve_run_interactive_qa_request_context: Callable[[], Callable[..., None]],
+    run_independent_stage: Callable[..., Path],
+    format_scope_label: Callable[[str | None, bool], str],
+    resolve_create_driver: Callable[[], Callable[[Any], Any]],
+    resolve_load_reset_runner: Callable[[], Callable[[], Callable[..., dict[str, Any]]]],
+) -> dict[str, Any]:
+    return {
+        "build_request_context_from_args": build_request_context_from_args,
+        "lint_and_clean_structured_csvs": lint_and_clean_structured_csvs,
+        "make_run_id": make_run_id,
+        "resolve_dataset_root": resolve_dataset_root,
+        "run_demo": run_demo,
+        "prepare_ask_request_context": prepare_ask_request_context,
+        "run_interactive_qa_request_context": resolve_run_interactive_qa_request_context(),
+        "run_independent_stage": run_independent_stage,
+        "format_scope_label": format_scope_label,
+        "create_driver": resolve_create_driver(),
+        "load_reset_runner": resolve_load_reset_runner(),
+    }
+
+
+def build_demo_independent_stage_runner_kwargs(
+    *,
+    resolve_ask_source_uri: Callable[[RequestContext], str | None],
+    resolve_dataset_root: Callable[[str], object],
+    build_independent_stage_plan: Callable[..., Any],
+    stage_specs: dict[str, IndependentStageSpec],
+    resolve_stage_run_id: Callable[..., str],
+    now_iso: Callable[[], str],
+    write_independent_stage_manifest_impl: Callable[..., Path],
+    build_stage_manifest: Callable[..., dict[str, Any]],
+    write_stage_manifest_artifacts: Callable[..., Path],
+) -> dict[str, Any]:
+    return {
+        "resolve_ask_source_uri": resolve_ask_source_uri,
+        "resolve_dataset_root": resolve_dataset_root,
+        "build_independent_stage_plan": build_independent_stage_plan,
+        "stage_specs": stage_specs,
+        "resolve_stage_run_id": resolve_stage_run_id,
+        "now_iso": now_iso,
+        "write_independent_stage_manifest": lambda **kwargs: write_independent_stage_manifest_impl(
+            **kwargs,
+            build_stage_manifest=build_stage_manifest,
+            write_stage_manifest_artifacts=write_stage_manifest_artifacts,
+        ),
+    }
+
+
 __all__ = [
+    "build_demo_cli_dispatch_kwargs",
+    "build_demo_independent_stage_runner_kwargs",
     "build_demo_orchestrated_runner_kwargs",
     "build_demo_independent_stage_specs",
     "make_bound_independent_stage_runner",

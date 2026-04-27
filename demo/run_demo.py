@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import replace
 import logging
 import os
 import traceback
@@ -56,6 +55,8 @@ from power_atlas.orchestration.independent_stage_runners import (
     write_independent_stage_manifest as _write_independent_stage_manifest_impl,
 )
 from power_atlas.orchestration.stage_dependency_registry import (
+    build_demo_cli_dispatch_kwargs,
+    build_demo_independent_stage_runner_kwargs,
     build_demo_independent_stage_specs,
     build_demo_orchestrated_runner_kwargs,
 )
@@ -509,14 +510,14 @@ def _run_independent_stage(
         all_runs=all_runs,
         cluster_aware=cluster_aware,
         expand_graph=expand_graph,
-        resolve_ask_source_uri=_resolve_ask_source_uri,
-        resolve_dataset_root=resolve_dataset_root,
-        build_independent_stage_plan=build_independent_stage_plan,
-        stage_specs=_INDEPENDENT_STAGE_SPECS,
-        resolve_stage_run_id=_resolve_independent_stage_run_id,
-        now_iso=_now_iso,
-        write_independent_stage_manifest=lambda **kwargs: _write_independent_stage_manifest_impl(
-            **kwargs,
+        **build_demo_independent_stage_runner_kwargs(
+            resolve_ask_source_uri=_resolve_ask_source_uri,
+            resolve_dataset_root=resolve_dataset_root,
+            build_independent_stage_plan=build_independent_stage_plan,
+            stage_specs=_INDEPENDENT_STAGE_SPECS,
+            resolve_stage_run_id=_resolve_independent_stage_run_id,
+            now_iso=_now_iso,
+            write_independent_stage_manifest_impl=_write_independent_stage_manifest_impl,
             build_stage_manifest=build_stage_manifest,
             write_stage_manifest_artifacts=write_stage_manifest_artifacts,
         ),
@@ -534,23 +535,29 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 run_independent_demo = _run_independent_stage
 
 
+def _load_reset_runner():
+    return __import__("demo.reset_demo_db", fromlist=["run_reset"]).run_reset
+
+
 def main() -> None:
     args = parse_args()
     try:
         dispatch_cli_command(
             args,
             emit=print,
-            build_request_context_from_args=_build_request_context_from_args,
-            lint_and_clean_structured_csvs=lint_and_clean_structured_csvs,
-            make_run_id=make_run_id,
-            resolve_dataset_root=resolve_dataset_root,
-            run_demo=run_demo,
-            prepare_ask_request_context=_prepare_ask_request_context,
-            run_interactive_qa_request_context=run_interactive_qa_request_context,
-            run_independent_stage=_run_independent_stage,
-            format_scope_label=_format_scope_label,
-            create_driver=create_neo4j_driver,
-            load_reset_runner=lambda: __import__("demo.reset_demo_db", fromlist=["run_reset"]).run_reset,
+            **build_demo_cli_dispatch_kwargs(
+                build_request_context_from_args=_build_request_context_from_args,
+                lint_and_clean_structured_csvs=lint_and_clean_structured_csvs,
+                make_run_id=make_run_id,
+                resolve_dataset_root=resolve_dataset_root,
+                run_demo=run_demo,
+                prepare_ask_request_context=_prepare_ask_request_context,
+                resolve_run_interactive_qa_request_context=lambda: run_interactive_qa_request_context,
+                run_independent_stage=_run_independent_stage,
+                format_scope_label=_format_scope_label,
+                resolve_create_driver=lambda: create_neo4j_driver,
+                resolve_load_reset_runner=lambda: _load_reset_runner,
+            ),
         )
     except SystemExit:
         raise
