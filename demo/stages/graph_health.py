@@ -32,6 +32,15 @@ Usage (standalone script)
 -------------------------
 See ``pipelines/query/graph_health_diagnostics.py`` for a CLI wrapper.
 
+Standalone surface
+------------------
+``run_graph_health_diagnostics(...)`` remains an intentional standalone API for
+manual diagnostics, notebooks, and query-pipeline scripts that want explicit
+``Config`` plus scoping arguments without going through demo orchestration.
+Orchestrated and pipeline-owned flows should prefer
+``run_graph_health_diagnostics_request_context(...)`` so request metadata stays
+owned by ``RequestContext`` at the call boundary.
+
 Usage (programmatic)
 --------------------
 >>> from demo.stages.graph_health import run_graph_health_diagnostics

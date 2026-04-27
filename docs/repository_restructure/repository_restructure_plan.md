@@ -693,6 +693,17 @@ around the remaining single cached pipeline-contract state, and broader
 consolidation of runtime ownership/documentation rather than more isolated
 stage-helper strictness edits.
 
+One explicit boundary choice now needs to stay documented: the remaining
+config-form stage entrypoints in `demo/stages/graph_health.py` and
+`demo/stages/retrieval_benchmark.py` are being treated as intentional
+standalone analysis surfaces, not as accidental compatibility leftovers. Their
+live pipeline and orchestration callers now prefer the corresponding
+request-context entrypoints, but the config-form APIs remain useful for manual
+diagnostics, notebooks, and standalone query scripts where explicit
+`Config` plus scoping arguments is still a coherent interface. Follow-up work
+in that area should favor documentation and caller migration over wholesale
+removal unless those standalone use cases disappear.
+
 #### Objectives
 
 - remove mutable process-global state,

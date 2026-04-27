@@ -59,6 +59,15 @@ Usage (standalone script)
 -------------------------
 See ``pipelines/query/retrieval_benchmark.py`` for a CLI wrapper.
 
+Standalone surface
+------------------
+``run_retrieval_benchmark(...)`` remains an intentional standalone API for
+manual benchmark runs, notebooks, and query-pipeline scripts that want
+explicit ``Config`` plus dataset/run/alignment scoping arguments without going
+through demo orchestration. Orchestrated and pipeline-owned flows should
+prefer ``run_retrieval_benchmark_request_context(...)`` so request metadata
+stays owned by ``RequestContext`` at the call boundary.
+
 Usage (programmatic)
 --------------------
 >>> from demo.stages.retrieval_benchmark import run_retrieval_benchmark
