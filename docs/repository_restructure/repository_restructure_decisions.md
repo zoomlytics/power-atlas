@@ -207,9 +207,9 @@ The exact internal structure of the Neo4j adapter package can remain shallow at 
 
 ### Implementation checkpoint (2026-04-28)
 
-- explicit adapter-local owners now exist for live retrieval session construction plus the `claim_extraction_runtime`, `claim_participation_runtime`, `entity_resolution_runtime`, `graph_health`, `retrieval_benchmark`, and `run_scope_queries` modules under `src/power_atlas/adapters/neo4j/`,
-- `power_atlas.retrieval_session_setup`, `power_atlas.claim_extraction_runtime`, `power_atlas.claim_participation_runtime`, `power_atlas.entity_resolution_runtime`, `power_atlas.graph_health_queries`, `power_atlas.retrieval_benchmark_queries`, and `power_atlas.run_scope_queries` remain as compatibility re-export surfaces so existing stage/test callers do not need to migrate in lockstep,
-- the current remaining direct `create_neo4j_driver(...)` owners outside `adapters/neo4j` are `narrative_extraction_runtime.py`, `pdf_ingest_runtime.py`, `retrieval_runtime.py`, and `structured_ingest_runtime.py`,
+- explicit adapter-local owners now exist for live retrieval session construction plus the `claim_extraction_runtime`, `claim_participation_runtime`, `entity_resolution_runtime`, `narrative_extraction_runtime`, `graph_health`, `retrieval_benchmark`, and `run_scope_queries` modules under `src/power_atlas/adapters/neo4j/`,
+- `power_atlas.retrieval_session_setup`, `power_atlas.claim_extraction_runtime`, `power_atlas.claim_participation_runtime`, `power_atlas.entity_resolution_runtime`, `power_atlas.narrative_extraction_runtime`, `power_atlas.graph_health_queries`, `power_atlas.retrieval_benchmark_queries`, and `power_atlas.run_scope_queries` remain as compatibility re-export surfaces so existing stage/test callers do not need to migrate in lockstep,
+- the current remaining direct `create_neo4j_driver(...)` owners outside `adapters/neo4j` are `pdf_ingest_runtime.py`, `retrieval_runtime.py`, and `structured_ingest_runtime.py`,
 - the next recommended slices under this decision are those remaining runtime-owner moves and any documentation of intentional layering exceptions rather than more wrapper-only cleanup in `demo/run_demo.py`.
 
 ## Decision 6 — Neo4j operational asset boundary
