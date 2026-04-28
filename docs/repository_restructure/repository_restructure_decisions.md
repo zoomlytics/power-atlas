@@ -205,6 +205,13 @@ The following rules apply:
 
 The exact internal structure of the Neo4j adapter package can remain shallow at first and evolve later.
 
+### Implementation checkpoint (2026-04-28)
+
+- explicit adapter-local owners now exist for live retrieval session construction plus the `graph_health` and `retrieval_benchmark` query modules under `src/power_atlas/adapters/neo4j/`,
+- `power_atlas.retrieval_session_setup`, `power_atlas.graph_health_queries`, and `power_atlas.retrieval_benchmark_queries` remain as compatibility re-export surfaces so existing stage/test callers do not need to migrate in lockstep,
+- the current remaining direct `create_neo4j_driver(...)` owners outside `adapters/neo4j` are `claim_extraction_runtime.py`, `claim_participation_runtime.py`, `entity_resolution_runtime.py`, `narrative_extraction_runtime.py`, `pdf_ingest_runtime.py`, `retrieval_runtime.py`, `run_scope_queries.py`, and `structured_ingest_runtime.py`,
+- the next recommended slices under this decision are those remaining runtime-owner moves and any documentation of intentional layering exceptions rather than more wrapper-only cleanup in `demo/run_demo.py`.
+
 ## Decision 6 — Neo4j operational asset boundary
 
 ### Decision
