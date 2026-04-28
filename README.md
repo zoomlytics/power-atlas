@@ -247,6 +247,7 @@ assets and lifecycle documentation. Runtime Neo4j access code remains under
 | [`neo4j/README.md`](neo4j/README.md) | Operational boundary, local/test workflow, and current graph-ops posture |
 | [`neo4j/constraints/`](neo4j/constraints/) | Versioned constraint assets |
 | [`neo4j/indexes/`](neo4j/indexes/) | Versioned index assets |
+| [`neo4j/indexes/demo_chunk_embedding_index.cypher`](neo4j/indexes/demo_chunk_embedding_index.cypher) | Current demo vector-index contract for `:Chunk(embedding)` |
 | [`neo4j/migrations/`](neo4j/migrations/) | Ordered migration assets or manifests |
 | [`neo4j/diagnostics/`](neo4j/diagnostics/) | Repeatable graph diagnostics |
 | [`neo4j/seed/`](neo4j/seed/) | Seed data and seed-loading assets |

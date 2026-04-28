@@ -28,8 +28,10 @@ externalized graph-ops model.
 - Demo graph reset is currently handled by `python -m demo.reset_demo_db --confirm`.
 - The active demo vector index contract is `demo_chunk_embedding_index` on
   `:Chunk(embedding)` with `1536` dimensions.
-- That vector index contract is currently declared in
-  `demo/config/pdf_simple_kg_pipeline.yaml` and mirrored through
+- That vector index contract now has a concrete operational asset at
+  `neo4j/indexes/demo_chunk_embedding_index.cypher`, while runtime creation is
+  still driven by the live PDF-ingest path and mirrored through
+  `demo/config/pdf_simple_kg_pipeline.yaml` and
   `src/power_atlas/contracts/pipeline.py`.
 - Read-only diagnostics currently live in the runtime/query surfaces
   `demo/stages/graph_health.py`, `demo/stages/retrieval_benchmark.py`,
