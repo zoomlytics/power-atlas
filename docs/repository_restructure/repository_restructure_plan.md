@@ -715,15 +715,15 @@ removal unless those standalone use cases disappear. This should be treated as
 a caller-migration-and-boundary-consolidation checkpoint, not as the next
 automatic stage-API deletion pass.
 
-The first 2026-04-28 adapter-boundary follow-up also moved live retrieval
-session construction plus the `graph_health` and `retrieval_benchmark` query
-owners into explicit `src/power_atlas/adapters/neo4j/` modules while
-preserving the historical package paths as compatibility re-exports. That same
-pass established an initial remaining direct Neo4j runtime-owner inventory
-outside `adapters/neo4j`: `claim_extraction_runtime.py`,
-`claim_participation_runtime.py`, `entity_resolution_runtime.py`,
-`narrative_extraction_runtime.py`, `pdf_ingest_runtime.py`,
-`retrieval_runtime.py`, `run_scope_queries.py`, and
+The 2026-04-28 adapter-boundary follow-up then moved live retrieval session
+construction plus the `graph_health`, `retrieval_benchmark`, and
+`run_scope_queries` owners into explicit `src/power_atlas/adapters/neo4j/`
+modules while preserving the historical package paths as compatibility
+re-exports. That same pass also established the current remaining direct
+Neo4j runtime-owner inventory outside `adapters/neo4j`:
+`claim_extraction_runtime.py`, `claim_participation_runtime.py`,
+`entity_resolution_runtime.py`, `narrative_extraction_runtime.py`,
+`pdf_ingest_runtime.py`, `retrieval_runtime.py`, and
 `structured_ingest_runtime.py`. The next recommended slices in this lane are
 those remaining runtime-owner moves plus any documentation of intentional
 layering exceptions, not renewed wrapper-only cleanup in `demo/run_demo.py`.
