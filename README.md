@@ -163,6 +163,7 @@ power-atlas/
 │   ├── agents/
 │   ├── governance/
 │   └── risk/
+├── neo4j/                       # Graph operational assets (constraints, indexes, migrations, diagnostics)
 ├── backend/                     # FastAPI stub (disconnected — see Current Status)
 ├── frontend/                    # Next.js stub (disconnected — see Current Status)
 ├── tests/                       # Repository-level tests
@@ -234,6 +235,21 @@ the package-owned implementations now live under `src/power_atlas/contracts/`.
 | [`retrieval-citation-result-contract-v0.1.md`](docs/architecture/retrieval-citation-result-contract-v0.1.md) | Result contract for citation-grounded Q&A responses |
 | [`retrieval-benchmark-review-rubric-v0.1.md`](docs/architecture/retrieval-benchmark-review-rubric-v0.1.md) | **Benchmark review criteria** — rubric and scoring guidance for regression comparison |
 | [`temporal-modeling-v0.1.md`](docs/architecture/temporal-modeling-v0.1.md) | Temporal relationship modeling (design only; not yet implemented) |
+
+### Neo4j operational assets — `neo4j/`
+
+The top-level `neo4j/` directory is the intended home for graph operational
+assets and lifecycle documentation. Runtime Neo4j access code remains under
+`src/power_atlas/adapters/neo4j/`.
+
+| Path | Purpose |
+|------|---------|
+| [`neo4j/README.md`](neo4j/README.md) | Operational boundary, local/test workflow, and current graph-ops posture |
+| [`neo4j/constraints/`](neo4j/constraints/) | Versioned constraint assets |
+| [`neo4j/indexes/`](neo4j/indexes/) | Versioned index assets |
+| [`neo4j/migrations/`](neo4j/migrations/) | Ordered migration assets or manifests |
+| [`neo4j/diagnostics/`](neo4j/diagnostics/) | Repeatable graph diagnostics |
+| [`neo4j/seed/`](neo4j/seed/) | Seed data and seed-loading assets |
 
 ### Fixtures — `demo/fixtures/`
 

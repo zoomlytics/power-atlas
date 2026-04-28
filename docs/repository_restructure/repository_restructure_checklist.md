@@ -190,10 +190,10 @@ Use the following status values consistently:
 
 ## Phase 6 — Neo4j operationalization
 
-**Status:** not started  
+**Status:** in progress  
 **Owner:**  
 **Blockers:**  
-**Notes:**  
+**Notes:** The top-level `neo4j/` boundary now exists in the repo with an initial operational README plus placeholder subdirectories for `constraints/`, `indexes/`, `migrations/`, `diagnostics/`, and `seed/`. This closes the “directory does not exist” gap from Decision 6 and gives the migration a single home for graph operational assets. Current workflow and ownership are now documented without over-claiming implementation maturity: local provisioning still uses `docker compose up -d neo4j`, demo reset still flows through `demo/reset_demo_db.py`, the active demo vector-index contract remains `demo_chunk_embedding_index` on `:Chunk(embedding)`, and candidate-vs-authoritative graph handling still depends on Decision 7 rather than a finalized implementation mechanism. Phase 6 is therefore active but not complete: the boundary and execution order are now documented, while concrete externalization of constraints, indexes, migrations, and seed assets remains future work.  
 
 ### Exit criteria
 
@@ -205,13 +205,13 @@ Use the following status values consistently:
 
 ### Phase 6 deliverables checklist
 
-- [ ] create or normalize top-level `neo4j/`
-- [ ] define migrations approach
-- [ ] define constraints/indexes approach
-- [ ] define seed/diagnostics approach
-- [ ] document candidate vs authoritative graph handling
-- [ ] document local/test provisioning workflow
-- [ ] document execution order for graph setup
+ [x] create or normalize top-level `neo4j/`
+ [x] define migrations approach
+ [x] define constraints/indexes approach
+ [x] define seed/diagnostics approach
+ [x] document candidate vs authoritative graph handling
+ [x] document local/test provisioning workflow
+ [x] document execution order for graph setup
 
 ---
 
