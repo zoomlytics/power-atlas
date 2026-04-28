@@ -210,7 +210,9 @@ The exact internal structure of the Neo4j adapter package can remain shallow at 
 - explicit adapter-local owners now exist for live retrieval session construction plus the `claim_extraction_runtime`, `claim_participation_runtime`, `entity_resolution_runtime`, `narrative_extraction_runtime`, `pdf_ingest_runtime`, `structured_ingest_runtime`, `retrieval_runtime`, `graph_health`, `retrieval_benchmark`, and `run_scope_queries` modules under `src/power_atlas/adapters/neo4j/`,
 - `power_atlas.retrieval_session_setup`, `power_atlas.claim_extraction_runtime`, `power_atlas.claim_participation_runtime`, `power_atlas.entity_resolution_runtime`, `power_atlas.narrative_extraction_runtime`, `power_atlas.pdf_ingest_runtime`, `power_atlas.structured_ingest_runtime`, `power_atlas.retrieval_runtime`, `power_atlas.graph_health_queries`, `power_atlas.retrieval_benchmark_queries`, and `power_atlas.run_scope_queries` remain as compatibility re-export surfaces so existing stage/test callers do not need to migrate in lockstep,
 - the direct `create_neo4j_driver(...)` runtime-owner inventory outside `adapters/neo4j` is now exhausted,
-- the next recommended slices under this decision are documentation of intentional layering exceptions and closure of the remaining runtime-state inventory rather than more wrapper-only cleanup in `demo/run_demo.py`.
+- the intentional layering exceptions at this checkpoint are the config-form `graph_health` and `retrieval_benchmark` stage entrypoints as standalone analysis surfaces plus `demo/run_demo.py` as deliberate compatibility/composition scaffolding,
+- the remaining explicit runtime-state exceptions are the private `power_atlas.contracts.pipeline` cache boundary and the demo-owned `UNSTRUCTURED_RUN_ID` environment override for manual CLI scope selection,
+- the next recommended slices under this decision are interface consolidation, residual test-surface cleanup, and any future non-Neo4j adapter boundaries rather than more wrapper-only cleanup in `demo/run_demo.py`.
 
 ## Decision 6 — Neo4j operational asset boundary
 

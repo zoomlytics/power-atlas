@@ -723,10 +723,19 @@ construction plus the `claim_extraction_runtime`,
 `retrieval_benchmark`, and `run_scope_queries` owners into explicit
 `src/power_atlas/adapters/neo4j/` modules while preserving the historical
 package paths as compatibility re-exports. That same pass exhausted the
-direct Neo4j runtime-owner inventory outside `adapters/neo4j`, so the next
-recommended slices in this lane are documentation of any intentional layering
-exceptions and closure of the remaining runtime-state inventory, not renewed
-wrapper-only cleanup in `demo/run_demo.py`.
+direct Neo4j runtime-owner inventory outside `adapters/neo4j`. The
+intentional layering exceptions at this checkpoint are now explicit: the
+config-form entrypoints in `demo/stages/graph_health.py` and
+`demo/stages/retrieval_benchmark.py` remain supported standalone analysis
+surfaces, and `demo/run_demo.py` remains deliberate
+compatibility/composition scaffolding rather than migration debt. The
+remaining explicit runtime-state exceptions are also now tracked: the private
+pipeline-contract cache in `power_atlas.contracts.pipeline` and the
+demo-owned `UNSTRUCTURED_RUN_ID` environment override used for manual CLI
+scope selection. Follow-up work in this lane should therefore shift toward
+interface consolidation, residual test-surface cleanup, and any future
+non-Neo4j adapter boundaries rather than renewed wrapper-only cleanup in
+`demo/run_demo.py`.
 
 #### Objectives
 
