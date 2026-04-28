@@ -85,7 +85,9 @@ from power_atlas.retrieval_execution_setup import (
 from power_atlas.retrieval_result_prelude import prepare_retrieval_result_prelude
 from power_atlas.retrieval_request_helpers import build_retrieval_query_params
 from power_atlas.retrieval_request_helpers import format_retrieval_scope_label
-from power_atlas.retrieval_session_setup import build_retriever_and_rag as build_retriever_and_rag_impl
+from power_atlas.adapters.neo4j.retrieval_session import (
+    build_retriever_and_rag as build_retriever_and_rag_impl,
+)
 from power_atlas.retrieval_single_shot_session import (
     build_single_shot_session_runner,
 )
