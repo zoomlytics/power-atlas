@@ -39,6 +39,9 @@ externalized graph-ops model.
   `pipelines/query/retrieval_benchmark.py`.
 - The first concrete operational diagnostic asset now exists at
   `neo4j/diagnostics/check_demo_chunk_embedding_index.cypher`.
+- The current demo reset scope is now also externalized under
+  `neo4j/diagnostics/demo_reset_scope.md` and
+  `neo4j/diagnostics/check_demo_reset_scope.cypher`.
 - Seed-like demo source assets currently live under `demo/fixtures/`.
 
 This means the folder structure is now explicit even though some concrete graph

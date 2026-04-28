@@ -251,6 +251,8 @@ assets and lifecycle documentation. Runtime Neo4j access code remains under
 | [`neo4j/migrations/`](neo4j/migrations/) | Ordered migration assets or manifests |
 | [`neo4j/diagnostics/`](neo4j/diagnostics/) | Repeatable graph diagnostics |
 | [`neo4j/diagnostics/check_demo_chunk_embedding_index.cypher`](neo4j/diagnostics/check_demo_chunk_embedding_index.cypher) | Read-only check for the live demo vector-index contract |
+| [`neo4j/diagnostics/check_demo_reset_scope.cypher`](neo4j/diagnostics/check_demo_reset_scope.cypher) | Read-only check for the live demo reset footprint |
+| [`neo4j/diagnostics/demo_reset_scope.md`](neo4j/diagnostics/demo_reset_scope.md) | Current demo reset wipe/index-drop inventory |
 | [`neo4j/seed/`](neo4j/seed/) | Seed data and seed-loading assets |
 
 ### Fixtures — `demo/fixtures/`
