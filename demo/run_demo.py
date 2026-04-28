@@ -82,7 +82,7 @@ from power_atlas.contracts import (  # noqa: E402
     resolve_dataset_root,
 )
 from power_atlas.settings import Neo4jSettings  # noqa: E402
-from demo.run_demo_support import (  # noqa: E402
+from power_atlas.interfaces.cli.run_demo_support import (  # noqa: E402
     add_common_args as _add_common_args_impl,
     build_config_from_args as _build_config_from_args_impl,
     build_request_context_from_args as _build_request_context_from_args_impl,

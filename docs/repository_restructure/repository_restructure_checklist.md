@@ -241,10 +241,10 @@ Use the following status values consistently:
 
 ## Phase 8 — Interface consolidation
 
-**Status:** not started  
+**Status:** in progress  
 **Owner:**  
 **Blockers:**  
-**Notes:**  
+**Notes:** Interface consolidation has now started additively rather than only as a future target. The first concrete slice moved the reusable `run_demo` CLI argument/config/request-context helper logic into `src/power_atlas/interfaces/cli/run_demo_support.py`, updated `demo/run_demo.py` to consume the package-owned interface path directly, and reduced `demo/run_demo_support.py` to a compatibility re-export surface for the current test/import seam. This does not yet mean the CLI has been fully consolidated under `interfaces/cli`, but it establishes the intended direction: transport- and parser-facing helpers move package-side first while the existing `demo/` entrypoints remain stable compatibility shells until more of the seam can migrate safely.  
 
 ### Exit criteria
 
