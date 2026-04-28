@@ -718,13 +718,13 @@ automatic stage-API deletion pass.
 The 2026-04-28 adapter-boundary follow-up then moved live retrieval session
 construction plus the `claim_extraction_runtime`,
 `claim_participation_runtime`, `entity_resolution_runtime`,
-`narrative_extraction_runtime`, `pdf_ingest_runtime`, `graph_health`,
-`retrieval_benchmark`, and `run_scope_queries` owners into explicit
-`src/power_atlas/adapters/neo4j/` modules while preserving the historical
-package paths as compatibility re-exports. That same pass also established the
-current remaining direct Neo4j runtime-owner inventory outside
-`adapters/neo4j`: `retrieval_runtime.py` and
-`structured_ingest_runtime.py`. The next recommended slices in this lane are
+`narrative_extraction_runtime`, `pdf_ingest_runtime`,
+`structured_ingest_runtime`, `graph_health`, `retrieval_benchmark`, and
+`run_scope_queries` owners into explicit `src/power_atlas/adapters/neo4j/`
+modules while preserving the historical package paths as compatibility
+re-exports. That same pass also established the current remaining direct
+Neo4j runtime-owner inventory outside `adapters/neo4j`:
+`retrieval_runtime.py`. The next recommended slices in this lane are
 those remaining runtime-owner moves plus any documentation of intentional
 layering exceptions, not renewed wrapper-only cleanup in `demo/run_demo.py`.
 
