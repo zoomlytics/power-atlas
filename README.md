@@ -250,6 +250,7 @@ assets and lifecycle documentation. Runtime Neo4j access code remains under
 | [`neo4j/indexes/demo_chunk_embedding_index.cypher`](neo4j/indexes/demo_chunk_embedding_index.cypher) | Current demo vector-index contract for `:Chunk(embedding)` |
 | [`neo4j/migrations/`](neo4j/migrations/) | Ordered migration assets or manifests |
 | [`neo4j/diagnostics/`](neo4j/diagnostics/) | Repeatable graph diagnostics |
+| [`neo4j/diagnostics/check_demo_chunk_embedding_index.cypher`](neo4j/diagnostics/check_demo_chunk_embedding_index.cypher) | Read-only check for the live demo vector-index contract |
 | [`neo4j/seed/`](neo4j/seed/) | Seed data and seed-loading assets |
 
 ### Fixtures — `demo/fixtures/`

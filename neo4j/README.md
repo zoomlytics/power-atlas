@@ -37,6 +37,8 @@ externalized graph-ops model.
   `demo/stages/graph_health.py`, `demo/stages/retrieval_benchmark.py`,
   `pipelines/query/graph_health_diagnostics.py`, and
   `pipelines/query/retrieval_benchmark.py`.
+- The first concrete operational diagnostic asset now exists at
+  `neo4j/diagnostics/check_demo_chunk_embedding_index.cypher`.
 - Seed-like demo source assets currently live under `demo/fixtures/`.
 
 This means the folder structure is now explicit even though some concrete graph
