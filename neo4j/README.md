@@ -55,6 +55,7 @@ when their ownership is stable enough to avoid split-brain maintenance.
 - `migrations/`: ordered migration assets or migration manifests
 - `diagnostics/`: repeatable operational checks and graph inspection assets
 - `seed/`: seed data, seed manifests, or seed-loading notes
+- `local_dev_workflow.md`: current local/test Neo4j provisioning and validation workflow
 
 ## Current Operating Workflow
 
@@ -65,6 +66,8 @@ For local development and validation, the effective workflow today is:
 3. Optionally reset the demo-owned graph with `python -m demo.reset_demo_db --confirm`.
 4. Run the demo pipeline (`ingest-pdf`, `extract-claims`, `resolve-entities`, optional `ingest-structured`).
 5. Run read-only diagnostics (`graph-health`, `retrieval-benchmark`) or retrieval validation.
+
+See `neo4j/local_dev_workflow.md` for the consolidated local/test procedure.
 
 ## Execution Order For Future Graph Setup
 
