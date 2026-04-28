@@ -716,12 +716,12 @@ a caller-migration-and-boundary-consolidation checkpoint, not as the next
 automatic stage-API deletion pass.
 
 The 2026-04-28 adapter-boundary follow-up then moved live retrieval session
-construction plus the `graph_health`, `retrieval_benchmark`, and
-`run_scope_queries` owners into explicit `src/power_atlas/adapters/neo4j/`
-modules while preserving the historical package paths as compatibility
-re-exports. That same pass also established the current remaining direct
-Neo4j runtime-owner inventory outside `adapters/neo4j`:
-`claim_extraction_runtime.py`, `claim_participation_runtime.py`,
+construction plus the `claim_extraction_runtime`, `graph_health`,
+`retrieval_benchmark`, and `run_scope_queries` owners into explicit
+`src/power_atlas/adapters/neo4j/` modules while preserving the historical
+package paths as compatibility re-exports. That same pass also established the
+current remaining direct Neo4j runtime-owner inventory outside
+`adapters/neo4j`: `claim_participation_runtime.py`,
 `entity_resolution_runtime.py`, `narrative_extraction_runtime.py`,
 `pdf_ingest_runtime.py`, `retrieval_runtime.py`, and
 `structured_ingest_runtime.py`. The next recommended slices in this lane are
