@@ -94,6 +94,7 @@ from power_atlas.interfaces.cli.run_demo_entrypoint import (  # noqa: E402
     prepare_run_demo_ask_request_context as _prepare_run_demo_ask_request_context_impl,
     resolve_run_demo_ask_scope as _resolve_run_demo_ask_scope_impl,
     run_demo_independent_stage as _run_demo_independent_stage_impl,
+    run_demo_orchestrated_request_context as _run_demo_orchestrated_request_context_impl,
     run_demo_main as _run_demo_main_impl,
 )
 
@@ -484,28 +485,28 @@ _run_independent_ask_stage = _INDEPENDENT_STAGE_SPECS["ask"].runner
 
 def _run_orchestrated_request_context(request_context: RequestContext) -> Path:
     """Run the full demo batch sequence with an unstructured-first posture."""
-    return _run_orchestrated_request_context_impl(
+    return _run_demo_orchestrated_request_context_impl(
         request_context,
-        **build_demo_orchestrated_runner_kwargs(
-            resolve_dataset_root=lambda: resolve_dataset_root,
-            build_orchestrated_run_plan=build_orchestrated_run_plan,
-            make_run_id=make_run_id,
-            now_iso=_now_iso,
-            resolve_run_pdf_ingest_request_context=lambda: _run_pdf_ingest_request_context,
-            extract_pdf_source_uri=_extract_pdf_source_uri,
-            scope_request_context=_scoped_request_context,
-            resolve_run_claim_extraction_request_context=lambda: _run_claim_extraction_request_context,
-            resolve_run_claim_participation_request_context=lambda: _run_claim_participation_request_context,
-            resolve_run_entity_resolution_request_context=lambda: _run_entity_resolution_request_context,
-            resolve_run_retrieval_request_context=lambda: _run_retrieval_request_context,
-            resolve_run_structured_ingest_request_context=lambda: _run_structured_ingest_request_context,
-            resolve_run_retrieval_benchmark=lambda: run_retrieval_benchmark,
-            emit_stage_warnings=emit_stage_warnings,
-            build_batch_manifest=build_batch_manifest,
-            write_batch_manifest_artifacts=write_batch_manifest_artifacts,
-            logger=_logger,
-            format_traceback=traceback.format_exc,
-        ),
+        run_orchestrated_request_context_impl=_run_orchestrated_request_context_impl,
+        build_demo_orchestrated_runner_kwargs=build_demo_orchestrated_runner_kwargs,
+        resolve_dataset_root=lambda: resolve_dataset_root,
+        build_orchestrated_run_plan=build_orchestrated_run_plan,
+        make_run_id=make_run_id,
+        now_iso=_now_iso,
+        resolve_run_pdf_ingest_request_context=lambda: _run_pdf_ingest_request_context,
+        extract_pdf_source_uri=_extract_pdf_source_uri,
+        scope_request_context=_scoped_request_context,
+        resolve_run_claim_extraction_request_context=lambda: _run_claim_extraction_request_context,
+        resolve_run_claim_participation_request_context=lambda: _run_claim_participation_request_context,
+        resolve_run_entity_resolution_request_context=lambda: _run_entity_resolution_request_context,
+        resolve_run_retrieval_request_context=lambda: _run_retrieval_request_context,
+        resolve_run_structured_ingest_request_context=lambda: _run_structured_ingest_request_context,
+        resolve_run_retrieval_benchmark=lambda: run_retrieval_benchmark,
+        emit_stage_warnings=emit_stage_warnings,
+        build_batch_manifest=build_batch_manifest,
+        write_batch_manifest_artifacts=write_batch_manifest_artifacts,
+        logger=_logger,
+        format_traceback=traceback.format_exc,
     )
 
 
