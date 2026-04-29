@@ -93,6 +93,7 @@ from power_atlas.interfaces.cli.run_demo_entrypoint import (  # noqa: E402
     load_demo_reset_runner as _load_demo_reset_runner_impl,
     prepare_run_demo_ask_request_context as _prepare_run_demo_ask_request_context_impl,
     resolve_run_demo_ask_scope as _resolve_run_demo_ask_scope_impl,
+    run_demo_independent_stage as _run_demo_independent_stage_impl,
     run_demo_main as _run_demo_main_impl,
 )
 
@@ -521,24 +522,24 @@ def _run_independent_stage(
     cluster_aware: bool = False,
     expand_graph: bool = False,
 ) -> Path:
-    return _run_independent_stage_request_context_impl(
+    return _run_demo_independent_stage_impl(
         request_context,
         command=command,
         resolved_run_id=resolved_run_id,
         all_runs=all_runs,
         cluster_aware=cluster_aware,
         expand_graph=expand_graph,
-        **build_demo_independent_stage_runner_kwargs(
-            resolve_ask_source_uri=_resolve_ask_source_uri,
-            resolve_dataset_root=resolve_dataset_root,
-            build_independent_stage_plan=build_independent_stage_plan,
-            stage_specs=_INDEPENDENT_STAGE_SPECS,
-            resolve_stage_run_id=_resolve_independent_stage_run_id,
-            now_iso=_now_iso,
-            write_independent_stage_manifest_impl=_write_independent_stage_manifest_impl,
-            build_stage_manifest=build_stage_manifest,
-            write_stage_manifest_artifacts=write_stage_manifest_artifacts,
-        ),
+        run_independent_stage_request_context=_run_independent_stage_request_context_impl,
+        resolve_ask_source_uri=_resolve_ask_source_uri,
+        resolve_dataset_root=resolve_dataset_root,
+        build_independent_stage_plan=build_independent_stage_plan,
+        stage_specs=_INDEPENDENT_STAGE_SPECS,
+        resolve_stage_run_id=_resolve_independent_stage_run_id,
+        now_iso=_now_iso,
+        write_independent_stage_manifest_impl=_write_independent_stage_manifest_impl,
+        build_stage_manifest=build_stage_manifest,
+        write_stage_manifest_artifacts=write_stage_manifest_artifacts,
+        build_demo_independent_stage_runner_kwargs=build_demo_independent_stage_runner_kwargs,
     )
 
 

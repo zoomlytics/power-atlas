@@ -54,6 +54,47 @@ def prepare_run_demo_ask_request_context(
     )
 
 
+def run_demo_independent_stage(
+    request_context: RequestContext,
+    command: str,
+    *,
+    resolved_run_id: str | None = None,
+    all_runs: bool = False,
+    cluster_aware: bool = False,
+    expand_graph: bool = False,
+    run_independent_stage_request_context: Callable[..., Path],
+    resolve_ask_source_uri: Callable[[RequestContext], str | None],
+    resolve_dataset_root: Callable[[str], object],
+    build_independent_stage_plan: Callable[..., Any],
+    stage_specs: dict[str, Any],
+    resolve_stage_run_id: Callable[..., str],
+    now_iso: Callable[[], str],
+    write_independent_stage_manifest_impl: Callable[..., Path],
+    build_stage_manifest: Callable[..., dict[str, Any]],
+    write_stage_manifest_artifacts: Callable[..., Path],
+    build_demo_independent_stage_runner_kwargs: Callable[..., dict[str, Any]],
+) -> Path:
+    return run_independent_stage_request_context(
+        request_context,
+        command=command,
+        resolved_run_id=resolved_run_id,
+        all_runs=all_runs,
+        cluster_aware=cluster_aware,
+        expand_graph=expand_graph,
+        **build_demo_independent_stage_runner_kwargs(
+            resolve_ask_source_uri=resolve_ask_source_uri,
+            resolve_dataset_root=resolve_dataset_root,
+            build_independent_stage_plan=build_independent_stage_plan,
+            stage_specs=stage_specs,
+            resolve_stage_run_id=resolve_stage_run_id,
+            now_iso=now_iso,
+            write_independent_stage_manifest_impl=write_independent_stage_manifest_impl,
+            build_stage_manifest=build_stage_manifest,
+            write_stage_manifest_artifacts=write_stage_manifest_artifacts,
+        ),
+    )
+
+
 def run_demo_main(
     *,
     parse_args: Callable[[], Namespace],
@@ -101,5 +142,6 @@ __all__ = [
     "load_demo_reset_runner",
     "prepare_run_demo_ask_request_context",
     "resolve_run_demo_ask_scope",
+    "run_demo_independent_stage",
     "run_demo_main",
 ]
