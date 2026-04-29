@@ -89,6 +89,10 @@ from power_atlas.interfaces.cli.run_demo_support import (  # noqa: E402
     parse_args as _parse_args_impl,
     request_context_from_config as _request_context_from_config_impl,
 )
+from power_atlas.interfaces.cli.run_demo_entrypoint import (  # noqa: E402
+    load_demo_reset_runner as _load_demo_reset_runner_impl,
+    run_demo_main as _run_demo_main_impl,
+)
 
 _STAGE_ENTRYPOINTS = load_demo_stage_entrypoints()
 lint_and_clean_structured_csvs = _STAGE_ENTRYPOINTS.lint_and_clean_structured_csvs
@@ -550,34 +554,23 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 run_independent_demo = _run_independent_stage
 
 
-def _load_reset_runner():
-    return __import__("demo.reset_demo_db", fromlist=["run_reset"]).run_reset
-
-
 def main() -> None:
-    args = parse_args()
-    try:
-        dispatch_cli_command(
-            args,
-            emit=print,
-            **build_demo_cli_dispatch_kwargs(
-                build_request_context_from_args=_build_request_context_from_args,
-                lint_and_clean_structured_csvs=lint_and_clean_structured_csvs,
-                make_run_id=make_run_id,
-                resolve_dataset_root=resolve_dataset_root,
-                run_demo=run_demo,
-                prepare_ask_request_context=_prepare_ask_request_context,
-                resolve_run_interactive_qa_request_context=lambda: run_interactive_qa_request_context,
-                run_independent_stage=_run_independent_stage,
-                format_scope_label=_format_scope_label,
-                resolve_create_driver=lambda: create_neo4j_driver,
-                resolve_load_reset_runner=lambda: _load_reset_runner,
-            ),
-        )
-    except SystemExit:
-        raise
-    except ValueError as exc:
-        raise SystemExit(str(exc)) from exc
+    _run_demo_main_impl(
+        parse_args=parse_args,
+        dispatch_cli_command=dispatch_cli_command,
+        build_demo_cli_dispatch_kwargs=build_demo_cli_dispatch_kwargs,
+        build_request_context_from_args=_build_request_context_from_args,
+        lint_and_clean_structured_csvs=lint_and_clean_structured_csvs,
+        make_run_id=make_run_id,
+        resolve_dataset_root=resolve_dataset_root,
+        run_demo=run_demo,
+        prepare_ask_request_context=_prepare_ask_request_context,
+        resolve_run_interactive_qa_request_context=lambda: run_interactive_qa_request_context,
+        run_independent_stage=_run_independent_stage,
+        format_scope_label=_format_scope_label,
+        resolve_create_driver=lambda: create_neo4j_driver,
+        resolve_load_reset_runner=lambda: _load_demo_reset_runner_impl,
+    )
 
 
 if __name__ == "__main__":
