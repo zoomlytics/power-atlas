@@ -91,6 +91,7 @@ from power_atlas.interfaces.cli.run_demo_support import (  # noqa: E402
 )
 from power_atlas.interfaces.cli.run_demo_entrypoint import (  # noqa: E402
     load_demo_reset_runner as _load_demo_reset_runner_impl,
+    prepare_run_demo_ask_request_context as _prepare_run_demo_ask_request_context_impl,
     run_demo_main as _run_demo_main_impl,
 )
 
@@ -444,11 +445,10 @@ def _prepare_ask_request_context(
     args: argparse.Namespace,
     request_context: RequestContext,
 ) -> RequestContext:
-    resolved_run_id, all_runs = _resolve_ask_scope(args, request_context)
-    return _prepare_ask_request_context_from_scope_impl(
+    return _prepare_run_demo_ask_request_context_impl(
+        args,
         request_context,
-        resolved_run_id=resolved_run_id,
-        all_runs=all_runs,
+        resolve_ask_scope=_resolve_ask_scope,
         resolve_ask_source_uri=_resolve_ask_source_uri,
     )
 

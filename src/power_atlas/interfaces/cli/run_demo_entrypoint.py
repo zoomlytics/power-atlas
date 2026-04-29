@@ -5,9 +5,28 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from power_atlas.context import RequestContext
+from power_atlas.orchestration.run_scope_bridge import prepare_ask_request_context_from_scope
+
 
 def load_demo_reset_runner() -> Callable[..., Any]:
     return __import__("demo.reset_demo_db", fromlist=["run_reset"]).run_reset
+
+
+def prepare_run_demo_ask_request_context(
+    args: Namespace,
+    request_context: RequestContext,
+    *,
+    resolve_ask_scope: Callable[[Namespace, RequestContext], tuple[str | None, bool]],
+    resolve_ask_source_uri: Callable[[RequestContext], str | None],
+) -> RequestContext:
+    resolved_run_id, all_runs = resolve_ask_scope(args, request_context)
+    return prepare_ask_request_context_from_scope(
+        request_context,
+        resolved_run_id=resolved_run_id,
+        all_runs=all_runs,
+        resolve_ask_source_uri=resolve_ask_source_uri,
+    )
 
 
 def run_demo_main(
@@ -53,4 +72,8 @@ def run_demo_main(
         raise SystemExit(str(exc)) from exc
 
 
-__all__ = ["load_demo_reset_runner", "run_demo_main"]
+__all__ = [
+    "load_demo_reset_runner",
+    "prepare_run_demo_ask_request_context",
+    "run_demo_main",
+]
