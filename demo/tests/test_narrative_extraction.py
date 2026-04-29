@@ -244,6 +244,23 @@ def test_parse_args_preserves_narrative_default_model(monkeypatch: pytest.Monkey
     assert config.settings.openai_model == "gpt-4o-mini"
 
 
+def test_main_emits_json_summary(capsys: pytest.CaptureFixture[str], tmp_path: Path):
+    from demo import narrative_extraction as module
+
+    config = _make_config(run_id="main-run", output_root=tmp_path, dry_run=True)
+    summary = {"status": "dry_run", "run_id": "main-run"}
+
+    with mock.patch.object(module, "_parse_args", return_value=config), mock.patch.object(
+        module,
+        "run_narrative_extraction",
+        return_value=summary,
+    ):
+        module.main()
+
+    captured = capsys.readouterr()
+    assert json.loads(captured.out) == summary
+
+
 def test_write_extracted_rows_validates_cypher_identifiers():
     from demo import narrative_extraction  # import inside to use updated helper
 

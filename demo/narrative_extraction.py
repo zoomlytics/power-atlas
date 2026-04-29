@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -10,7 +9,6 @@ from types import SimpleNamespace
 from typing import Any, Iterable
 
 from power_atlas.bootstrap import build_app_context
-from power_atlas.bootstrap import build_settings
 from power_atlas.bootstrap import require_openai_api_key
 from power_atlas.bootstrap.clients import build_llm as build_openai_llm
 from power_atlas.contracts import (
@@ -21,12 +19,14 @@ from power_atlas.contracts import (
     write_manifest,
 )
 from power_atlas.narrative_extraction_runtime import run_narrative_extraction_live
+from power_atlas.interfaces.cli.narrative_extraction_entrypoint import (
+    run_narrative_extraction_main as _run_narrative_extraction_main_impl,
+)
 from power_atlas.interfaces.cli.narrative_extraction_support import (
     build_narrative_cli_config as _build_narrative_cli_config_impl,
     default_narrative_cli_settings as _default_narrative_cli_settings_impl,
     parse_narrative_extraction_args as _parse_narrative_extraction_args_impl,
 )
-from power_atlas.orchestration.context_builder import build_settings_from_overrides
 from power_atlas.settings import AppSettings
 from demo.extraction_utils import prepare_extracted_rows, write_extracted_rows
 from demo.io import RunScopedNeo4jChunkReader
@@ -272,9 +272,10 @@ def _parse_args(argv: list[str] | None = None) -> ExtractionConfig:
 
 
 def main() -> None:
-    config = _parse_args()
-    summary = run_narrative_extraction(config)
-    print(json.dumps(summary, indent=2))
+    _run_narrative_extraction_main_impl(
+        parse_args=_parse_args,
+        run_narrative_extraction=run_narrative_extraction,
+    )
 
 
 if __name__ == "__main__":
