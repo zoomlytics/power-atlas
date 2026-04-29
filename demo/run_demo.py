@@ -92,6 +92,7 @@ from power_atlas.interfaces.cli.run_demo_support import (  # noqa: E402
 from power_atlas.interfaces.cli.run_demo_entrypoint import (  # noqa: E402
     load_demo_reset_runner as _load_demo_reset_runner_impl,
     prepare_run_demo_ask_request_context as _prepare_run_demo_ask_request_context_impl,
+    resolve_run_demo_ask_scope as _resolve_run_demo_ask_scope_impl,
     run_demo_main as _run_demo_main_impl,
 )
 
@@ -417,20 +418,18 @@ def _resolve_ask_scope(
     overrides the ``UNSTRUCTURED_RUN_ID`` environment variable. Warnings are
     logged whenever the env var is overridden or stale.
     """
-    return _resolve_ask_scope_impl(
+    return _resolve_run_demo_ask_scope_impl(
         args,
         request_context,
-        **build_demo_ask_scope_resolution_kwargs(
-            resolve_current_env_unstructured_run_id=lambda: _current_env_unstructured_run_id,
-            resolve_current_env_dataset_selection=lambda: _current_env_dataset_selection,
-            fetch_dataset_id_for_run=_fetch_dataset_id_for_run,
-            resolve_fetch_latest_unstructured_run_id=lambda: lambda inner_config, dataset_id: _fetch_latest_unstructured_run_id(
-                inner_config,
-                dataset_id=dataset_id,
-            ),
-            resolve_dataset_root=resolve_dataset_root,
-            logger=_logger,
+        current_env_unstructured_run_id=_current_env_unstructured_run_id,
+        current_env_dataset_selection=_current_env_dataset_selection,
+        fetch_dataset_id_for_run=_fetch_dataset_id_for_run,
+        fetch_latest_unstructured_run_id=lambda inner_config, dataset_id: _fetch_latest_unstructured_run_id(
+            inner_config,
+            dataset_id=dataset_id,
         ),
+        resolve_dataset_root=resolve_dataset_root,
+        logger=_logger,
     )
 
 

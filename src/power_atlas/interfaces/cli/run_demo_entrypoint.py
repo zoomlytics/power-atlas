@@ -2,15 +2,40 @@ from __future__ import annotations
 
 from argparse import Namespace
 from collections.abc import Callable
+import logging
 from pathlib import Path
 from typing import Any
 
 from power_atlas.context import RequestContext
+from power_atlas.orchestration.ask_scope import resolve_ask_scope as resolve_ask_scope_impl
 from power_atlas.orchestration.run_scope_bridge import prepare_ask_request_context_from_scope
 
 
 def load_demo_reset_runner() -> Callable[..., Any]:
     return __import__("demo.reset_demo_db", fromlist=["run_reset"]).run_reset
+
+
+def resolve_run_demo_ask_scope(
+    args: Namespace,
+    request_context: RequestContext,
+    *,
+    current_env_unstructured_run_id: Callable[[], str | None],
+    current_env_dataset_selection: Callable[[], tuple[str | None, str | None, str | None]],
+    fetch_dataset_id_for_run: Callable[[object, str], str | None],
+    fetch_latest_unstructured_run_id: Callable[[object, str | None], str | None],
+    resolve_dataset_root: Callable[[str], object],
+    logger: logging.Logger,
+) -> tuple[str | None, bool]:
+    return resolve_ask_scope_impl(
+        args,
+        request_context,
+        current_env_unstructured_run_id=current_env_unstructured_run_id,
+        current_env_dataset_selection=current_env_dataset_selection,
+        fetch_dataset_id_for_run=fetch_dataset_id_for_run,
+        fetch_latest_unstructured_run_id=fetch_latest_unstructured_run_id,
+        resolve_dataset_root=resolve_dataset_root,
+        logger=logger,
+    )
 
 
 def prepare_run_demo_ask_request_context(
@@ -75,5 +100,6 @@ def run_demo_main(
 __all__ = [
     "load_demo_reset_runner",
     "prepare_run_demo_ask_request_context",
+    "resolve_run_demo_ask_scope",
     "run_demo_main",
 ]
