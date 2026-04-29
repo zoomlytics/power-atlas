@@ -21,6 +21,11 @@ from power_atlas.contracts import (
     write_manifest,
 )
 from power_atlas.narrative_extraction_runtime import run_narrative_extraction_live
+from power_atlas.interfaces.cli.narrative_extraction_support import (
+    build_narrative_cli_config as _build_narrative_cli_config_impl,
+    default_narrative_cli_settings as _default_narrative_cli_settings_impl,
+    parse_narrative_extraction_args as _parse_narrative_extraction_args_impl,
+)
 from power_atlas.orchestration.context_builder import build_settings_from_overrides
 from power_atlas.settings import AppSettings
 from demo.extraction_utils import prepare_extracted_rows, write_extracted_rows
@@ -155,25 +160,13 @@ def _build_summary(
 
 
 def _default_cli_settings():
-    environ = dict(os.environ)
-    environ.setdefault("OPENAI_MODEL", "gpt-4o-mini")
-    return build_settings(environ)
+    return _default_narrative_cli_settings_impl()
 
 
 def _build_cli_config(args: argparse.Namespace) -> ExtractionConfig:
-    settings = build_settings_from_overrides(
-        neo4j_uri=args.neo4j_uri,
-        neo4j_username=args.neo4j_username,
-        neo4j_password=args.neo4j_password,
-        neo4j_database=args.neo4j_database,
-        openai_model=args.model_name,
-    )
-    return ExtractionConfig(
-        run_id=args.run_id,
-        source_uri=args.source_uri,
-        settings=settings,
-        output_root=args.output_root,
-        dry_run=args.dry_run,
+    return _build_narrative_cli_config_impl(
+        args,
+        extraction_config_type=ExtractionConfig,
     )
 
 
@@ -271,33 +264,11 @@ def run_narrative_extraction(config: ExtractionConfig) -> dict[str, Any]:
 
 
 def _parse_args(argv: list[str] | None = None) -> ExtractionConfig:
-    package_settings = _default_cli_settings()
-    parser = argparse.ArgumentParser(
-        description="Run narrative claim and mention extraction from existing ingested chunks."
+    return _parse_narrative_extraction_args_impl(
+        argv,
+        default_output_root=DEFAULT_OUTPUT_ROOT,
+        extraction_config_type=ExtractionConfig,
     )
-    parser.add_argument("--run-id", required=True, help="run_id for the ingested chunks to process")
-    parser.add_argument(
-        "--source-uri",
-        help="Optional source_uri filter to scope chunks within the run",
-    )
-    parser.add_argument(
-        "--output-root",
-        type=Path,
-        default=DEFAULT_OUTPUT_ROOT,
-        help="Directory where run artifacts are written (default: demo/runs)",
-    )
-    parser.add_argument("--neo4j-uri", default=package_settings.neo4j.uri)
-    parser.add_argument("--neo4j-username", default=package_settings.neo4j.username)
-    parser.add_argument("--neo4j-password", default=package_settings.neo4j.password)
-    parser.add_argument("--neo4j-database", default=package_settings.neo4j.database)
-    parser.add_argument("--model-name", default=package_settings.openai_model)
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Write artifacts without reading chunks or calling the LLM",
-    )
-    args = parser.parse_args(argv)
-    return _build_cli_config(args)
 
 
 def main() -> None:
