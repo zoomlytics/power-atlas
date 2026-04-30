@@ -1,7 +1,7 @@
 """Structural tests for the declarative retrieval metadata surface-ownership policy.
 
 These tests validate the shape and internal consistency of
-:data:`~demo.contracts.retrieval_metadata_policy.RETRIEVAL_METADATA_SURFACE_POLICY`
+:data:`~power_atlas.contracts.retrieval_metadata_policy.RETRIEVAL_METADATA_SURFACE_POLICY`
 without re-running the runtime contract assertions that already live in
 :mod:`demo.tests.test_retrieval_result_contract`.
 
@@ -10,7 +10,7 @@ The goals here are:
 1. Guarantee the policy map covers the required set of settled fields
    (acceptance criterion: "Policy covers all established metadata surfaces and
    at least the main ambiguous fields").
-2. Confirm every :class:`~demo.contracts.retrieval_metadata_policy.FieldSurfacePolicy`
+2. Confirm every :class:`~power_atlas.contracts.retrieval_metadata_policy.FieldSurfacePolicy`
    entry uses valid surface identifiers.
 3. Confirm no field lists its canonical surface as a forbidden surface (structural
    contradiction).
@@ -614,15 +614,15 @@ class TestPackagePublicExports:
 
         assert _contracts.FieldSurfacePolicy is _SubFieldSurfacePolicy, (
             "demo.contracts.FieldSurfacePolicy must be the same object as "
-            "demo.contracts.retrieval_metadata_policy.FieldSurfacePolicy"
+            "power_atlas.contracts.retrieval_metadata_policy.FieldSurfacePolicy"
         )
         assert _contracts.RetrievalMetadataSurface is _SubSurface, (
             "demo.contracts.RetrievalMetadataSurface must be the same object as "
-            "demo.contracts.retrieval_metadata_policy.RetrievalMetadataSurface"
+            "power_atlas.contracts.retrieval_metadata_policy.RetrievalMetadataSurface"
         )
         assert _contracts.RETRIEVAL_METADATA_SURFACE_POLICY is _SubPolicy, (
             "demo.contracts.RETRIEVAL_METADATA_SURFACE_POLICY must be the same object as "
-            "demo.contracts.retrieval_metadata_policy.RETRIEVAL_METADATA_SURFACE_POLICY"
+            "power_atlas.contracts.retrieval_metadata_policy.RETRIEVAL_METADATA_SURFACE_POLICY"
         )
 
 

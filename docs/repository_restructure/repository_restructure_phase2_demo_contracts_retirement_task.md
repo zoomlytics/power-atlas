@@ -61,6 +61,17 @@ simple shim class.
 - `demo/contracts/pipeline.py` remains the special-case module alias shim using
   `sys.modules[...]` replacement to preserve shared module identity.
 
+The first simple-shim retirement slice has now landed as well:
+
+- `demo/contracts/resolution.py` has been removed,
+- `demo/contracts/retrieval_early_return_policy.py` has been removed,
+- `demo/contracts/retrieval_metadata_policy.py` has been removed,
+- post-removal searches found no lingering references to those retired demo
+  submodule paths,
+- `demo/tests/test_retrieval_metadata_policy.py` continues to pass after
+  updating its prose/messages to reference the package-owned submodule rather
+  than the retired demo submodule path.
+
 This sharpens the Phase 10 retirement order: the simple package-owned contract
 shims are now the clearest first implementation class, while the root proxy and
 pipeline alias still require separate handling.
@@ -77,9 +88,6 @@ These files are the compatibility layer itself and remain active by design:
 - `demo/contracts/paths.py`
 - `demo/contracts/pipeline.py`
 - `demo/contracts/prompts.py`
-- `demo/contracts/resolution.py`
-- `demo/contracts/retrieval_early_return_policy.py`
-- `demo/contracts/retrieval_metadata_policy.py`
 - `demo/contracts/runtime.py`
 - `demo/contracts/structured.py`
 
@@ -173,11 +181,14 @@ module identity.
   - `manifest.py`
   - `paths.py`
   - `prompts.py`
-  - `resolution.py`
-  - `retrieval_early_return_policy.py`
-  - `retrieval_metadata_policy.py`
   - `runtime.py`
   - `structured.py`
+
+#### Retired in the first Phase 10 simple-shim slice
+
+- `resolution.py`
+- `retrieval_early_return_policy.py`
+- `retrieval_metadata_policy.py`
 - **Root compatibility proxy**
   - `demo/contracts/__init__.py`
   - special because it defines the demo-root compatibility surface and lazy
