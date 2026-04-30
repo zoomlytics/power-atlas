@@ -37,6 +37,8 @@ Phase 10 therefore cannot be treated as a blanket instruction to remove everythi
 - no Azure Functions or queue-storage-specific tooling was found in the repository,
 - the directory was empty in the checked workspace,
 - the directory has now been removed as the first low-risk Phase 10 retirement slice.
+- `_archive/` has now been labeled explicitly as archived, non-active material via `_archive/README.md` and the root `README.md`,
+- the current decision is to keep its historical contents in place for reference rather than delete them during this low-risk slice.
 
 ## Retirement classes
 
@@ -46,8 +48,8 @@ These look like the best first shortlist once implementation work begins:
 
 - `_archive/`
   - currently contains historical experimentation material
-  - already reads as intentionally archival rather than active product code
-  - likely action: keep archived but make its non-active status explicit in final docs or move it behind a clearer archival boundary if needed
+  - now explicitly labeled as archival/non-active in repo docs
+  - remaining question: whether its current top-level location remains acceptable or should later move behind a different archival boundary
 
 `__queuestorage__/` no longer belongs on the active shortlist because that low-risk retirement slice has already been completed.
 
@@ -105,7 +107,6 @@ Documentation changes should follow actual retirement work, not lead it.
 
 ### Ready for Phase 10 planning
 
-- classify `_archive/` as archival/non-active,
 - define the implementation order for `demo/contracts` shim retirement,
 - define the documentation updates that must accompany any actual deletion.
 
@@ -118,7 +119,7 @@ Documentation changes should follow actual retirement work, not lead it.
 
 ## Recommended implementation order
 
-1. Make `_archive/` status explicit as archived/non-active and decide whether its current location is acceptable.
+1. Decide whether `_archive/` should remain at the repo root or move behind a different archival boundary.
 2. Execute the already-planned `demo/contracts` retirement lane in classes:
    - simple re-export shims,
    - root compatibility proxy,
@@ -139,7 +140,7 @@ Before removing a shortlisted surface, require at minimum:
 
 Treat the next Phase 10 implementation slice as one of these, not both at once:
 
-1. a low-risk cleanup lane around explicit archive labeling for `_archive/`, or
+1. a follow-up archive-placement decision for `_archive/`, or
 2. the higher-value but more constrained `demo/contracts` shim-retirement lane.
 
 Do not mix archive cleanup, shim retirement, and compatibility-shell deletion into a single pass.

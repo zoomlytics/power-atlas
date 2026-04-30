@@ -130,6 +130,7 @@ Refer to [`demo/VALIDATION_RUNBOOK.md`](demo/VALIDATION_RUNBOOK.md) for a step-b
 | **`pipelines/`** | ✅ Operational — ingest/query/experiment scripts + run artifacts |
 | **`backend/`** | 🚧 Disconnected scaffold — FastAPI stub with `/health` and placeholder `/graph/status` (HTTP 503); not connected to the GraphRAG pipeline |
 | **`frontend/`** | 🚧 Disconnected scaffold — Next.js stub; not connected to the pipeline or backend |
+| **`_archive/`** | 📦 Historical material — retained for reference only; not part of the active product or pipeline surface |
 | **Temporal modeling** | 📋 Planned — Architecture drafted ([`docs/architecture/temporal-modeling-v0.1.md`](docs/architecture/temporal-modeling-v0.1.md)) — not yet implemented in pipeline |
 | **Confidence scoring** | 📋 Planned — Design in progress — not yet implemented |
 | **HITL oversight** | 📋 Planned — Design in progress — not yet implemented |
@@ -169,6 +170,7 @@ power-atlas/
 ├── tests/                       # Repository-level tests
 ├── scripts/                     # Utility scripts (e.g., vendor sync)
 ├── studies/                     # Historical research and exploratory notes
+├── _archive/                    # Archived experimentation material (non-active reference only)
 ├── docker-compose.yml
 ├── .env.example
 └── requirements.txt
