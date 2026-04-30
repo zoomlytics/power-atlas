@@ -285,10 +285,10 @@ Use the following status values consistently:
 
 ## Phase 10 — Legacy retirement
 
-**Status:** not started  
+**Status:** in progress  
 **Owner:**  
 **Blockers:**  
-**Notes:**  
+**Notes:** Phase 10 planning has now started with a concrete shortlist document in `docs/repository_restructure/repository_restructure_phase10_legacy_retirement_shortlist.md`. The first classification pass separates low-coupling legacy candidates from still-intentional compatibility surfaces. `_archive/` and the currently empty `__queuestorage__/` are the clearest early retirement/archive candidates to verify first. By contrast, `demo/contracts` remains a deliberate compatibility-retirement lane rather than expired cleanup debt, and the compatibility shells under `demo/`, `pipelines/query/`, `scripts/`, and `backend/` are not yet ready for deletion while those invocation surfaces remain accepted. The practical next implementation slice should therefore be either a small archive/queue-surface cleanup or a deliberate `demo/contracts` shim-retirement class, but not a mixed broad sweep.  
 
 ### Exit criteria
 
