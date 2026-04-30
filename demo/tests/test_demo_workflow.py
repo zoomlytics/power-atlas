@@ -1527,7 +1527,7 @@ class WorkflowTests(unittest.TestCase):
         try:
             yaml.safe_load = lambda *_args, **_kwargs: (_ for _ in ()).throw(yaml.YAMLError("bad yaml"))
             module = _load_module(RUN_DEMO_PATH, "run_yaml_warn_test")
-            with self.assertLogs("demo.contracts.pipeline", level="WARNING") as captured:
+            with self.assertLogs("power_atlas.contracts.pipeline", level="WARNING") as captured:
                 pipeline_contracts.refresh_pipeline_contract()
             pipeline_contract = _run_demo_pipeline_snapshot(module)
             self.assertEqual(pipeline_contract.chunk_embedding_index_name, "demo_chunk_embedding_index")
@@ -1549,7 +1549,7 @@ class WorkflowTests(unittest.TestCase):
         try:
             yaml.safe_load = lambda *_args, **_kwargs: []
             module = _load_module(RUN_DEMO_PATH, "run_yaml_top_level_type_warn_test")
-            with self.assertLogs("demo.contracts.pipeline", level="WARNING") as captured:
+            with self.assertLogs("power_atlas.contracts.pipeline", level="WARNING") as captured:
                 pipeline_contracts.refresh_pipeline_contract()
             pipeline_contract = _run_demo_pipeline_snapshot(module)
             self.assertEqual(pipeline_contract.chunk_embedding_index_name, "demo_chunk_embedding_index")
@@ -1611,7 +1611,7 @@ class WorkflowTests(unittest.TestCase):
         try:
             yaml.safe_load = lambda *_args, **_kwargs: {"contract": {"chunk_embedding": []}}
             module = _load_module(RUN_DEMO_PATH, "run_chunk_contract_type_warn_test")
-            with self.assertLogs("demo.contracts.pipeline", level="WARNING") as captured:
+            with self.assertLogs("power_atlas.contracts.pipeline", level="WARNING") as captured:
                 pipeline_contracts.refresh_pipeline_contract()
             pipeline_contract = _run_demo_pipeline_snapshot(module)
             self.assertEqual(pipeline_contract.chunk_embedding_index_name, "demo_chunk_embedding_index")
@@ -1633,7 +1633,7 @@ class WorkflowTests(unittest.TestCase):
         try:
             yaml.safe_load = lambda *_args, **_kwargs: {"contract": "not-a-dict"}
             module = _load_module(RUN_DEMO_PATH, "run_pipeline_contract_type_warn_test")
-            with self.assertLogs("demo.contracts.pipeline", level="WARNING") as captured:
+            with self.assertLogs("power_atlas.contracts.pipeline", level="WARNING") as captured:
                 pipeline_contracts.refresh_pipeline_contract()
             pipeline_contract = _run_demo_pipeline_snapshot(module)
             self.assertEqual(pipeline_contract.chunk_embedding_index_name, "demo_chunk_embedding_index")

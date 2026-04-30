@@ -40,7 +40,7 @@ Phase 10 therefore cannot be treated as a blanket instruction to remove everythi
 - `_archive/` has now been labeled explicitly as archived, non-active material via `_archive/README.md` and the root `README.md`,
 - the current decision is to keep its historical contents in place for reference rather than delete them during this low-risk slice.
 - a fresh 2026-04-30 `demo.contracts` caller re-inventory found no remaining non-test runtime imports outside the compatibility layer itself,
-- the simple shim class remains mechanically simple one-line package re-exports, while `demo/contracts/__init__.py` and `demo/contracts/pipeline.py` still require special handling.
+- at that checkpoint, the simple shim class was mechanically simple one-line package re-exports, while `demo/contracts/__init__.py` and `demo/contracts/pipeline.py` still required special handling.
 - the first simple-shim retirement slice has now removed `demo/contracts/resolution.py`, `demo/contracts/retrieval_early_return_policy.py`, and `demo/contracts/retrieval_metadata_policy.py`,
 - post-removal searches found no remaining references to those retired submodule paths.
 - the second zero-caller simple-shim retirement slice has now removed `demo/contracts/claim_schema.py`, `demo/contracts/manifest.py`, `demo/contracts/paths.py`, `demo/contracts/runtime.py`, and `demo/contracts/structured.py`,
@@ -48,7 +48,9 @@ Phase 10 therefore cannot be treated as a blanket instruction to remove everythi
 - the final simple-shim retirement slice has now removed `demo/contracts/prompts.py`,
 - post-removal searches found no remaining references to `demo.contracts.prompts`, and a nearby prompt-focused orchestrator slice continues to pass.
 - the root compatibility proxy in `demo/contracts/__init__.py` has now been retired after rewriting the remaining direct root-import test callers to use package-native imports,
-- the remaining `demo.contracts` lane is now only the separate stateful module-alias shim in `demo/contracts/pipeline.py` plus trailing documentation wording cleanup.
+- the final stateful module-alias shim in `demo/contracts/pipeline.py` has now also been retired,
+- the now-empty `demo/contracts/` directory has been removed,
+- the remaining `demo.contracts` work is now documentation wording cleanup only.
 
 ## Retirement classes
 
@@ -67,21 +69,19 @@ The remaining early candidate in this class is `_archive/`, which still appears 
 
 ### 2. Deferred shim-retirement candidates
 
-The remaining compatibility-retirement lane is now down to:
+There are no remaining `demo/contracts` code shims in the repository.
 
-- `demo/contracts/pipeline.py` module-alias shim
+Current outcome:
 
-Why deferred:
-
-- compatibility tests still intentionally exercise the demo contract surface,
-- `demo.contracts.pipeline` still preserves logger-name and shared-module identity behavior,
-- the dedicated planning document for this surface already concludes that removal belongs in deliberate Phase 10 work, not incidental cleanup.
+- the simple shim class is retired,
+- the root compatibility proxy is retired,
+- the pipeline module-alias shim is retired,
+- the remaining work in this lane is documentation normalization only.
 
 Recommended treatment:
 
-- keep this as the highest-value remaining shim-retirement lane,
-- do not combine it with unrelated directory cleanup,
-- treat the pipeline alias separately from the already-retired root proxy and simple shims.
+- keep `demo.contracts` retirement closed as a completed code lane,
+- treat any remaining `demo.contracts` mentions as wording cleanup rather than a live shim boundary.
 
 Current checkpoint:
 
@@ -90,7 +90,8 @@ Current checkpoint:
 - the second zero-caller simple-shim subset has also been retired successfully,
 - the simple package-owned contract shim class is now fully retired,
 - the root compatibility proxy in `demo/contracts/__init__.py` is now retired,
-- the stateful `demo/contracts/pipeline.py` alias should still be treated as the last shim candidate.
+- the stateful `demo/contracts/pipeline.py` alias is now retired as well,
+- the full `demo/contracts` shim family is now gone from the codebase.
 
 ### 3. Not-yet-retirable compatibility shells
 
@@ -132,18 +133,14 @@ Documentation changes should follow actual retirement work, not lead it.
 - `demo/` as a whole,
 - compatibility entrypoint shells under `demo/`, `pipelines/query/`, `scripts/`, and `backend/`,
 - `frontend/` as a whole,
-- `demo/contracts/pipeline.py` until logger-name and shared-module identity obligations are intentionally retired.
+- any remaining legacy compatibility shells outside the now-retired `demo.contracts` lane.
 
 ## Recommended implementation order
 
 1. Decide whether `_archive/` should remain at the repo root or move behind a different archival boundary.
-2. Execute the already-planned `demo/contracts` retirement lane in classes:
-  - simple re-export shims,
-  - root compatibility proxy,
-  - stateful pipeline alias shim.
-3. Only after actual retirement work lands, update README and restructure docs to remove stale references to retired surfaces.
+2. Update README and restructure docs to remove stale references to retired surfaces.
 
-At the current checkpoint, step 2 has progressed through the full simple-shim class and the root-proxy slice, and now pauses only at the pipeline-alias boundary.
+At the current checkpoint, the `demo/contracts` retirement implementation lane is complete and only documentation cleanup remains.
 
 ## Acceptance gate before any code deletion
 

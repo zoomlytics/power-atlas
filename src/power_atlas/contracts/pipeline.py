@@ -11,7 +11,7 @@ import yaml
 
 from power_atlas.contracts.paths import PDF_PIPELINE_CONFIG_PATH
 
-_logger = logging.getLogger("demo.contracts.pipeline")
+_logger = logging.getLogger(__name__)
 
 _DEFAULT_CHUNK_SIZE = 1000
 _DEFAULT_CHUNK_OVERLAP = 0

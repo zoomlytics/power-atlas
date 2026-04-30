@@ -29,9 +29,10 @@ As of 2026-04-16:
 - `power_atlas.contracts` is the preferred stable contract surface,
 - `power_atlas.contracts.pipeline` remains intentionally submodule-only for
   stateful pipeline access,
-- `demo/contracts` remains an intentional compatibility layer,
-- compatibility tests still exercise the demo contract surface deliberately,
-- remaining `demo.contracts` references are a mix of:
+- at the start of this planning lane, `demo/contracts` remained an intentional
+  compatibility layer,
+- compatibility tests still exercised the demo contract surface deliberately,
+- remaining `demo.contracts` references were a mix of:
   - compatibility tests,
   - compatibility notes in docs,
   - the preserved `demo.contracts.pipeline` logger name,
@@ -48,17 +49,17 @@ itself.
 
 ### Implementation checkpoint (2026-04-30)
 
-The latest Phase 10 re-inventory confirms that this is still true for the
-simple shim class.
+The latest Phase 10 re-inventory confirmed that this was still true for the
+simple shim class at the start of implementation.
 
 - workspace Python-callsite searches found `demo.contracts` imports only in
   compatibility-focused tests, not in active non-test runtime callers,
-- representative simple shims such as `demo/contracts/paths.py` remain pure
+- representative simple shims such as `demo/contracts/paths.py` were pure
   package-owned re-export files (`from power_atlas.contracts.paths import *`),
-- `demo/contracts/__init__.py` remains a real compatibility proxy rather than a
+- `demo/contracts/__init__.py` was a real compatibility proxy rather than a
   simple one-line shim because it curates the demo-root surface and lazy claim
   schema access,
-- `demo/contracts/pipeline.py` remains the special-case module alias shim using
+- `demo/contracts/pipeline.py` was the special-case module alias shim using
   `sys.modules[...]` replacement to preserve shared module identity.
 
 The first simple-shim retirement slice has now landed as well:
@@ -123,17 +124,26 @@ That root-proxy slice has now landed:
   shim in `demo/contracts/pipeline.py` plus docstring/documentation references
   that still mention the historical surface.
 
-This sharpens the Phase 10 retirement order: the simple package-owned contract
-shims are now the clearest first implementation class, while the root proxy and
-pipeline alias still require separate handling.
+The final pipeline-alias slice has now landed too:
+
+- `demo/contracts/pipeline.py` has been removed,
+- the package module logger now uses the native `power_atlas.contracts.pipeline`
+  name instead of the historical demo logger path,
+- focused validation across `demo/tests/test_pipeline_contract.py`, the
+  pipeline-warning slice in `demo/tests/test_demo_workflow.py`, and
+  `tests/test_power_atlas_package.py` continues to pass,
+- the now-empty `demo/contracts/` directory has been removed,
+- remaining `demo.contracts` mentions are now historical documentation notes,
+  not live Python import surfaces.
+
+This Phase 10 lane is now complete: the simple package-owned contract shims,
+the root proxy, and the pipeline alias were retired as separate classes.
 
 The remaining references fall into the following classes.
 
 ### A. Active shim modules
 
-These files are the compatibility layer itself and remain active by design:
-
-- `demo/contracts/pipeline.py`
+There are no remaining active `demo/contracts` shim modules.
 
 ### B. Compatibility-test callers
 
@@ -141,21 +151,19 @@ These references intentionally verify that the compatibility surface still
 behaves as documented and should not be treated as accidental cleanup debt.
 
 - `tests/test_power_atlas_package.py`
-  - verifies `demo.contracts.pipeline` is the same module object as
-    `power_atlas.contracts.pipeline`
+  - no longer carries `demo.contracts` import coverage
 - `demo/tests/test_retrieval_metadata_policy.py`
   - now verifies package-native root exports for metadata policy objects
 - `demo/tests/test_retrieval_result_contract.py`
   - now verifies package-native root exports for early-return policy objects
 - `demo/tests/test_orchestrator_modules.py`
-  - preserves explicit demo pipeline-module checks
+  - no longer carries prompt-shim compatibility assertions
 - `demo/tests/test_pipeline_contract.py`
-  - preserves logger-name and pipeline module behavior coverage
+  - now verifies package-native pipeline logger behavior
 - `demo/tests/test_demo_workflow.py`
-  - asserts warning logs under the preserved `demo.contracts.pipeline` logger
-    name
+  - now asserts warning logs under the package-native pipeline logger name
 - `demo/tests/test_retrieval_metadata_projection_parity.py`
-  - docs/tests reference the demo surface as the policy anchor for parity
+  - historical prose references remain cleanup-only work
 
 ### C. Documentation-only compatibility references
 
@@ -169,9 +177,8 @@ than runtime dependency.
 ### D. Deliberate special-case runtime exception
 
 - `src/power_atlas/contracts/pipeline.py`
-  - preserves the logger name `demo.contracts.pipeline`
-  - this is not an import dependency, but it is a compatibility-facing runtime
-    identity that must be treated as part of the shim surface
+  - no longer preserves the historical demo logger name
+  - now uses the native package logger path
 
 ### E. Generated metadata
 
@@ -228,6 +235,13 @@ There are no remaining simple package-owned contract shim files.
 - the next compatibility cleanup in this lane is documentation wording, not
   another root-package code surface
 
+#### Retired final stateful module-alias shim
+
+- `demo/contracts/pipeline.py`
+- retired after module-identity and logger-name compatibility expectations were
+  rewritten to the package-native pipeline module
+- the `demo/contracts/` directory itself has now been removed
+
 #### Retired in the first Phase 10 simple-shim slice
 
 - `resolution.py`
@@ -246,14 +260,7 @@ There are no remaining simple package-owned contract shim files.
 
 - `prompts.py`
 
-- **Root compatibility proxy**
-  - `demo/contracts/__init__.py`
-  - special because it defines the demo-root compatibility surface and lazy
-    attributes
-- **Stateful module-alias shim**
-  - `demo/contracts/pipeline.py`
-  - special because it preserves shared mutable module identity, not just object
-    re-export behavior
+There are no remaining `demo.contracts` code shims.
 
 ### 3. What would count as safe retirement readiness?
 
@@ -267,20 +274,11 @@ Define explicit retirement prerequisites, such as:
 
 #### Initial readiness assessment
 
-The repo is not yet retirement-ready because:
+The repo is now retirement-ready for the `demo.contracts` lane itself. The
+implementation work for that shim family has landed under Phase 10.
 
-- compatibility tests still intentionally depend on demo-surface imports,
-- the demo-root proxy and pipeline alias still encode explicit compatibility
-  promises,
-- the logger-name compatibility surface has not been reviewed for change
-  tolerance,
-- the accepted phase-placement decision is to defer actual shim-retirement
-  implementation to Phase 10 while `demo/` remains the active execution
-  surface.
-
-The root-proxy blocker is now resolved. The remaining blocker in the
-`demo.contracts` lane is the stateful pipeline alias plus its logger-name and
-shared-module-identity contract.
+The remaining follow-up work in this lane is documentation normalization, not
+additional code-surface retirement.
 
 At the same time, the 2026-04-30 re-inventory means the first Phase 10 shim
 lane no longer needs a broad caller hunt before starting: for the simple
@@ -390,15 +388,15 @@ the following:
 - whether shim retirement is a late-Phase-2 task or a Phase-10 legacy-retirement
   task.
 
-Until then, `demo/contracts` should continue to be treated as an intentional,
-tracked compatibility layer.
+That completion threshold has now been met for the `demo.contracts` shim lane.
 
 ## Current decision outcome
 
-As of 2026-04-16, this planning task recommends:
+As of 2026-04-30, this planning-and-implementation lane has reached its
+intended outcome:
 
-- **Phase 2:** finish planning, classification, and compatibility-boundary
-  documentation only
-- **Phase 10:** perform actual `demo/contracts` retirement work, unless a future
-  checkpoint shows that `demo/` is no longer an active execution surface and the
-  compatibility promise has already been narrowed materially
+- **Phase 2:** the compatibility boundary was classified and documented
+- **Phase 10:** the `demo/contracts` shim family was deliberately retired in
+  classes through completion
+- remaining references to `demo.contracts` are now historical documentation
+  cleanup items rather than active compatibility surfaces

@@ -349,13 +349,6 @@ def test_claim_extraction_lexical_config_accepts_explicit_pipeline_contract() ->
     assert lexical_config.chunk_embedding_property == "explicit_embedding"
 
 
-def test_demo_pipeline_contract_shim_is_package_module() -> None:
-    import demo.contracts.pipeline as demo_pipeline
-    import power_atlas.contracts.pipeline as package_pipeline
-
-    assert demo_pipeline is package_pipeline
-
-
 def test_package_contracts_root_does_not_reexport_stateful_pipeline_symbols() -> None:
     import power_atlas.contracts as contracts_module
 

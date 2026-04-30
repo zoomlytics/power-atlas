@@ -143,13 +143,13 @@ def test_coerce_identifier_strips_and_accepts_valid():
 def test_coerce_identifier_warns_and_falls_back(
     caplog: pytest.LogCaptureFixture,
 ):
-    with caplog.at_level(logging.WARNING, logger="demo.contracts.pipeline"):
+    with caplog.at_level(logging.WARNING, logger="power_atlas.contracts.pipeline"):
         result = pipeline._coerce_identifier("invalid space", "default", "field")
     assert result == "default"
     assert caplog.records
     assert any(
         record.levelno == logging.WARNING
-        and record.name == "demo.contracts.pipeline"
+        and record.name == "power_atlas.contracts.pipeline"
         and "identifier-safe string" in record.getMessage()
         for record in caplog.records
     )
