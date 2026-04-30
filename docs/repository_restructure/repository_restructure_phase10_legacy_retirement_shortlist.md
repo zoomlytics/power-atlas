@@ -31,6 +31,13 @@ As of 2026-04-30:
 
 Phase 10 therefore cannot be treated as a blanket instruction to remove everything outside `src/`.
 
+### Implementation checkpoint (2026-04-30)
+
+- `__queuestorage__/` was verified to have no remaining workspace references outside the Phase 10 planning docs,
+- no Azure Functions or queue-storage-specific tooling was found in the repository,
+- the directory was empty in the checked workspace,
+- the directory has now been removed as the first low-risk Phase 10 retirement slice.
+
 ## Retirement classes
 
 ### 1. Likely early retirement or archive candidates
@@ -41,12 +48,10 @@ These look like the best first shortlist once implementation work begins:
   - currently contains historical experimentation material
   - already reads as intentionally archival rather than active product code
   - likely action: keep archived but make its non-active status explicit in final docs or move it behind a clearer archival boundary if needed
-- `__queuestorage__/`
-  - currently empty in the checked workspace
-  - likely action: remove from the active repo surface if no live workflow or local tooling depends on it
-  - required check before removal: confirm it is not recreated intentionally by any supported local Azure/storage workflow
 
-These are good Phase 10 starting points because they appear operationally low-coupling compared with the compatibility layers.
+`__queuestorage__/` no longer belongs on the active shortlist because that low-risk retirement slice has already been completed.
+
+The remaining early candidate in this class is `_archive/`, which still appears operationally low-coupling compared with the compatibility layers.
 
 ### 2. Deferred shim-retirement candidates
 
@@ -101,7 +106,6 @@ Documentation changes should follow actual retirement work, not lead it.
 ### Ready for Phase 10 planning
 
 - classify `_archive/` as archival/non-active,
-- verify whether `__queuestorage__/` has any supported workflow dependency,
 - define the implementation order for `demo/contracts` shim retirement,
 - define the documentation updates that must accompany any actual deletion.
 
@@ -114,13 +118,12 @@ Documentation changes should follow actual retirement work, not lead it.
 
 ## Recommended implementation order
 
-1. Verify whether `__queuestorage__/` is truly unused and can be removed safely.
-2. Make `_archive/` status explicit as archived/non-active and decide whether its current location is acceptable.
-3. Execute the already-planned `demo/contracts` retirement lane in classes:
+1. Make `_archive/` status explicit as archived/non-active and decide whether its current location is acceptable.
+2. Execute the already-planned `demo/contracts` retirement lane in classes:
    - simple re-export shims,
    - root compatibility proxy,
    - stateful pipeline alias shim.
-4. Only after actual retirement work lands, update README and restructure docs to remove stale references to retired surfaces.
+3. Only after actual retirement work lands, update README and restructure docs to remove stale references to retired surfaces.
 
 ## Acceptance gate before any code deletion
 
@@ -136,7 +139,7 @@ Before removing a shortlisted surface, require at minimum:
 
 Treat the next Phase 10 implementation slice as one of these, not both at once:
 
-1. a low-risk cleanup lane around `__queuestorage__/` and explicit archive labeling, or
+1. a low-risk cleanup lane around explicit archive labeling for `_archive/`, or
 2. the higher-value but more constrained `demo/contracts` shim-retirement lane.
 
 Do not mix archive cleanup, shim retirement, and compatibility-shell deletion into a single pass.
