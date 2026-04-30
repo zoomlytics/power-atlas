@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-import argparse
 import json
-import tempfile
-from contextlib import ExitStack
 from pathlib import Path
 
 from power_atlas.bootstrap import build_runtime_config, build_settings
 from power_atlas.contracts.runtime import Config
+from power_atlas.interfaces.cli.smoke_test_entrypoint import run_smoke_test_main
+from power_atlas.interfaces.cli.smoke_test_support import parse_smoke_test_args
 from run_demo import _request_context_from_config, run_demo, run_independent_demo
 
 # Valid evidence levels per citation contract (#159).
@@ -23,15 +22,8 @@ _REQUIRED_CORE_MANIFEST_FIELDS = frozenset(
 )
 
 
-def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Run demo smoke test")
-    parser.add_argument(
-        "--output-dir",
-        type=Path,
-        default=None,
-        help="Optional manifest output directory; defaults to an isolated temporary directory.",
-    )
-    return parser.parse_args()
+def _parse_args(argv: list[str] | None = None):
+    return parse_smoke_test_args(argv)
 
 
 def _validate_core_manifest_fields(manifest: dict, manifest_path: Path) -> None:
@@ -301,18 +293,12 @@ _validate_manifest = _validate_batch_manifest
 
 
 def main() -> None:
-    args = _parse_args()
-    with ExitStack() as stack:
-        output_dir = args.output_dir or Path(
-            stack.enter_context(tempfile.TemporaryDirectory(prefix="smoke_"))
-        )
-        structured_path = _run_structured_scenario(output_dir)
-        print(f"[PASS] structured-only: {structured_path}")
-        unstructured_path = _run_unstructured_scenario(output_dir)
-        print(f"[PASS] unstructured-only: {unstructured_path}")
-        batch_path = _run_batch_scenario(output_dir)
-        print(f"[PASS] batch: {batch_path}")
-        print("Smoke test passed.")
+    run_smoke_test_main(
+        parse_args=_parse_args,
+        run_structured_scenario=_run_structured_scenario,
+        run_unstructured_scenario=_run_unstructured_scenario,
+        run_batch_scenario=_run_batch_scenario,
+    )
 
 
 if __name__ == "__main__":

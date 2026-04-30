@@ -1510,6 +1510,16 @@ class WorkflowTests(unittest.TestCase):
         finally:
             sys.path.pop(0)
 
+    def test_smoke_parse_args_supports_output_dir_override(self):
+        sys.path.insert(0, str(DEMO_DIR))
+        try:
+            smoke_module = _load_module(SMOKE_TEST_PATH, "smoke_test_parse_args")
+            args = smoke_module._parse_args(["--output-dir", "custom-smoke-output"])
+        finally:
+            sys.path.pop(0)
+
+        self.assertEqual(args.output_dir, Path("custom-smoke-output"))
+
     def test_run_demo_warns_and_falls_back_when_pipeline_yaml_cannot_be_parsed(self):
         original_safe_load = yaml.safe_load
         import power_atlas.contracts.pipeline as pipeline_contracts
