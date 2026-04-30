@@ -2406,8 +2406,8 @@ class TestMixedEarlyReturnSentinelEdge:
     paths already covered by :class:`TestRunRetrievalAndQaEarlyReturnContract`.
 
     The precedence rules encoded here are backed by the centralized
-    :data:`~demo.contracts.EARLY_RETURN_PRECEDENCE` policy
-    (``demo/contracts/retrieval_early_return_policy.py``).  See
+    :data:`~power_atlas.contracts.EARLY_RETURN_PRECEDENCE` policy
+    (``src/power_atlas/contracts/retrieval_early_return_policy.py``).  See
     :class:`TestEarlyReturnPrecedencePolicy` for direct unit tests of the policy
     structure itself.
 
@@ -2882,14 +2882,14 @@ class TestEarlyReturnRulePayloadCorrespondence:
     ``run_retrieval_and_qa_request_context()``.
 
     This class is the explicit **rule ↔ payload** seam.  For each current rule in
-    :data:`~demo.contracts.EARLY_RETURN_PRECEDENCE` it drives
+    :data:`~power_atlas.contracts.EARLY_RETURN_PRECEDENCE` it drives
     ``run_retrieval_and_qa_request_context()`` with the canonical triggering
     inputs and asserts that:
 
     - ``result["status"]`` equals ``rule.outcome_status``
     - every key in ``rule.absent_keys`` is absent from the returned payload
     - every key in ``rule.exclusive_keys`` is present in the returned payload
-    - :func:`~demo.contracts.resolve_early_return_rule` returns the same rule for
+    - :func:`~power_atlas.contracts.resolve_early_return_rule` returns the same rule for
       those inputs (resolver ↔ runtime alignment)
 
     Failures report which rule fired and which invariant (status / absent / exclusive)
@@ -3329,7 +3329,7 @@ class TestRunRetrievalAndQaWarningsContract:
         appear on every surface in ``propagates_to`` (invariant §3.7).
 
         Propagation targets are read from
-        :data:`~demo.contracts.RETRIEVAL_METADATA_SURFACE_POLICY`
+        :data:`~power_atlas.contracts.RETRIEVAL_METADATA_SURFACE_POLICY`
         ``["citation_warnings"].propagates_to`` so this assertion stays anchored
         to the policy declaration rather than hard-coded surface names.
         """
@@ -3771,7 +3771,7 @@ class TestMetadataTaxonomyBoundaries:
         not citation-quality problems.
 
         Assertions are anchored to
-        :data:`~demo.contracts.RETRIEVAL_METADATA_SURFACE_POLICY`
+        :data:`~power_atlas.contracts.RETRIEVAL_METADATA_SURFACE_POLICY`
         ``["citation_warnings"].propagates_to`` so the test stays in sync with the
         policy model rather than hard-coding surface names.
         """
