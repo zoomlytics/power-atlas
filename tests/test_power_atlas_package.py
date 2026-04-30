@@ -301,60 +301,6 @@ def test_create_neo4j_driver_uses_neo4j_settings_credentials() -> None:
     )
 
 
-def test_demo_runtime_contract_shim_matches_package_exports() -> None:
-    import demo.contracts.runtime as demo_runtime
-    import power_atlas.contracts as contracts_module
-
-    assert demo_runtime.Config is contracts_module.Config
-    assert demo_runtime.make_run_id is contracts_module.make_run_id
-    assert demo_runtime.timestamp is contracts_module.timestamp
-
-
-def test_demo_structured_contract_shim_matches_package_exports() -> None:
-    import demo.contracts.structured as demo_structured
-    import power_atlas.contracts as contracts_module
-
-    assert demo_structured.COMMON_PREDICATE_LABELS is contracts_module.COMMON_PREDICATE_LABELS
-    assert demo_structured.CSV_FIRST_DATA_ROW is contracts_module.CSV_FIRST_DATA_ROW
-    assert demo_structured.ID_PATTERNS is contracts_module.ID_PATTERNS
-    assert demo_structured.STRUCTURED_FILE_HEADERS is contracts_module.STRUCTURED_FILE_HEADERS
-    assert demo_structured.VALUE_TYPES is contracts_module.VALUE_TYPES
-
-
-def test_demo_paths_contract_shim_matches_package_exports() -> None:
-    import demo.contracts.paths as demo_paths
-    import power_atlas.contracts as contracts_module
-
-    assert demo_paths.AmbiguousDatasetError is contracts_module.AmbiguousDatasetError
-    assert demo_paths.ARTIFACTS_DIR == contracts_module.ARTIFACTS_DIR
-    assert demo_paths.CONFIG_DIR == contracts_module.CONFIG_DIR
-    assert demo_paths.DATASETS_CONTAINER_DIR == contracts_module.DATASETS_CONTAINER_DIR
-    assert demo_paths.DatasetRoot is contracts_module.DatasetRoot
-    assert demo_paths.FIXTURES_DIR == contracts_module.FIXTURES_DIR
-    assert demo_paths.PDF_PIPELINE_CONFIG_PATH == contracts_module.PDF_PIPELINE_CONFIG_PATH
-    assert demo_paths.list_available_datasets is contracts_module.list_available_datasets
-    assert demo_paths.resolve_dataset_root is contracts_module.resolve_dataset_root
-
-
-def test_demo_manifest_contract_shim_matches_package_exports() -> None:
-    import demo.contracts.manifest as demo_manifest
-    import power_atlas.contracts as contracts_module
-
-    assert demo_manifest.build_batch_manifest is contracts_module.build_batch_manifest
-    assert demo_manifest.build_stage_manifest is contracts_module.build_stage_manifest
-    assert demo_manifest.write_manifest is contracts_module.write_manifest
-    assert demo_manifest.write_manifest_md is contracts_module.write_manifest_md
-
-
-def test_demo_claim_schema_contract_shim_matches_package_exports() -> None:
-    import demo.contracts.claim_schema as demo_claim_schema
-    import power_atlas.contracts as contracts_module
-
-    assert demo_claim_schema.claim_extraction_lexical_config is contracts_module.claim_extraction_lexical_config
-    assert demo_claim_schema.claim_extraction_schema is contracts_module.claim_extraction_schema
-    assert demo_claim_schema.resolution_layer_schema is contracts_module.resolution_layer_schema
-
-
 def test_claim_extraction_lexical_config_reads_live_pipeline_contract_snapshot() -> None:
     import power_atlas.contracts.claim_schema as claim_schema_module
     import power_atlas.contracts.pipeline as pipeline_module

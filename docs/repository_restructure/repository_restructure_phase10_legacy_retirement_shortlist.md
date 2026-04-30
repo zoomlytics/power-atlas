@@ -43,6 +43,8 @@ Phase 10 therefore cannot be treated as a blanket instruction to remove everythi
 - the simple shim class remains mechanically simple one-line package re-exports, while `demo/contracts/__init__.py` and `demo/contracts/pipeline.py` still require special handling.
 - the first simple-shim retirement slice has now removed `demo/contracts/resolution.py`, `demo/contracts/retrieval_early_return_policy.py`, and `demo/contracts/retrieval_metadata_policy.py`,
 - post-removal searches found no remaining references to those retired submodule paths.
+- the second zero-caller simple-shim retirement slice has now removed `demo/contracts/claim_schema.py`, `demo/contracts/manifest.py`, `demo/contracts/paths.py`, `demo/contracts/runtime.py`, and `demo/contracts/structured.py`,
+- post-removal searches found no remaining references to those retired submodule paths, and `tests/test_power_atlas_package.py` continues to pass.
 
 ## Retirement classes
 
@@ -83,6 +85,8 @@ Current checkpoint:
 
 - the simple package-owned contract shims are now the first concrete Phase 10 shim-retirement class,
 - the first zero-caller simple-shim subset has already been retired successfully,
+- the second zero-caller simple-shim subset has also been retired successfully,
+- the remaining simple-shim class is now effectively `demo/contracts/prompts.py`,
 - the root compatibility proxy in `demo/contracts/__init__.py` should remain a separate follow-up step,
 - the stateful `demo/contracts/pipeline.py` alias should still be treated as the last shim candidate.
 

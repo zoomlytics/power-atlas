@@ -72,6 +72,19 @@ The first simple-shim retirement slice has now landed as well:
   updating its prose/messages to reference the package-owned submodule rather
   than the retired demo submodule path.
 
+The second zero-caller simple-shim retirement slice has now landed too:
+
+- `demo/contracts/claim_schema.py` has been removed,
+- `demo/contracts/manifest.py` has been removed,
+- `demo/contracts/paths.py` has been removed,
+- `demo/contracts/runtime.py` has been removed,
+- `demo/contracts/structured.py` has been removed,
+- the matching package-compatibility tests in `tests/test_power_atlas_package.py`
+  were retired in the same slice,
+- post-removal searches found no lingering references to those retired demo
+  submodule paths,
+- `tests/test_power_atlas_package.py` continues to pass after the slice.
+
 This sharpens the Phase 10 retirement order: the simple package-owned contract
 shims are now the clearest first implementation class, while the root proxy and
 pipeline alias still require separate handling.
@@ -83,13 +96,8 @@ The remaining references fall into the following classes.
 These files are the compatibility layer itself and remain active by design:
 
 - `demo/contracts/__init__.py`
-- `demo/contracts/claim_schema.py`
-- `demo/contracts/manifest.py`
-- `demo/contracts/paths.py`
 - `demo/contracts/pipeline.py`
 - `demo/contracts/prompts.py`
-- `demo/contracts/runtime.py`
-- `demo/contracts/structured.py`
 
 ### B. Compatibility-test callers
 
@@ -177,18 +185,23 @@ module identity.
 #### Current classification
 
 - **Simple package-owned contract shims**
-  - `claim_schema.py`
-  - `manifest.py`
-  - `paths.py`
   - `prompts.py`
-  - `runtime.py`
-  - `structured.py`
+  - the remaining simple-shim class is now only `prompts.py`
 
 #### Retired in the first Phase 10 simple-shim slice
 
 - `resolution.py`
 - `retrieval_early_return_policy.py`
 - `retrieval_metadata_policy.py`
+
+#### Retired in the second Phase 10 simple-shim slice
+
+- `claim_schema.py`
+- `manifest.py`
+- `paths.py`
+- `runtime.py`
+- `structured.py`
+
 - **Root compatibility proxy**
   - `demo/contracts/__init__.py`
   - special because it defines the demo-root compatibility surface and lazy
