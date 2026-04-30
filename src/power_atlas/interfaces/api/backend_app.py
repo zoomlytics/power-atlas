@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import logging
 from contextlib import asynccontextmanager
-from typing import Dict
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
+from power_atlas.interfaces.api.backend_routes import backend_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -36,39 +37,7 @@ def create_backend_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    @app.get("/health")
-    async def health_check() -> Dict[str, str]:
-        return {"status": "ok", "message": "Backend is healthy"}
-
-    @app.get(
-        "/graph/status",
-        status_code=503,
-        responses={
-            503: {
-                "description": "Graph integration is not configured yet",
-                "content": {
-                    "application/json": {
-                        "schema": {
-                            "type": "object",
-                            "properties": {"detail": {"type": "string"}},
-                            "required": ["detail"],
-                        },
-                        "example": {"detail": "Graph integration is not configured yet"},
-                    }
-                },
-            }
-        },
-    )
-    async def graph_status() -> Dict[str, str]:
-        return {"detail": "Graph integration is not configured yet"}
-
-    @app.get("/")
-    async def root() -> Dict[str, str]:
-        return {
-            "message": "Power Atlas API",
-            "version": "0.1.0",
-            "docs": "/docs",
-        }
+    app.include_router(backend_router)
 
     return app
 
