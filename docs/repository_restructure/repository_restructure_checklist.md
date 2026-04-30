@@ -264,10 +264,10 @@ Use the following status values consistently:
 
 ## Phase 9 — Frontend decision and contract alignment
 
-**Status:** not started  
+**Status:** completed  
 **Owner:**  
 **Blockers:**  
-**Notes:**  
+**Notes:** Frontend positioning is now explicit at the current checkpoint. The in-repo `frontend/` package remains a transitional/non-core Next.js shell rather than the primary product execution surface. Its current backend dependency is intentionally narrow: `frontend/app/page.tsx` reads `NEXT_PUBLIC_BACKEND_URL` and calls `GET /health`, while the backend API remains a stub surface exposing `GET /`, `GET /health`, and placeholder `GET /graph/status` from `src/power_atlas/interfaces/api/backend_routes.py`. That is sufficient to treat the frontend as intentionally deferred from the main graph-product lane rather than unresolved. Backend contract expectations are therefore documented as placeholder-only for now, and formal schema-versioning work remains deferred until the backend exposes non-placeholder graph operations that a frontend is expected to consume materially.  
 
 ### Exit criteria
 
@@ -277,9 +277,9 @@ Use the following status values consistently:
 
 ### Phase 9 deliverables checklist
 
-- [ ] decide active status of frontend
-- [ ] document how frontend consumes backend contracts
-- [ ] defer or normalize `frontend/` intentionally
+- [x] decide active status of frontend
+- [x] document how frontend consumes backend contracts
+- [x] defer or normalize `frontend/` intentionally
 
 ---
 
@@ -453,7 +453,7 @@ Track follow-up decisions that must be resolved before later phases can complete
 | Neo4j migration tooling | Phase 6 |  | not started |  |
 | Candidate vs authoritative graph implementation model | Phase 6 |  | not started |  |
 | Prompt storage/versioning model | Phase 4 / 7 |  | not started |  |
-| API schema versioning approach | Phase 8 / 9 |  | not started |  |
+| API schema versioning approach | Phase 8 / 9 |  | in progress | Placeholder-only API/frontend contract documented; formal versioning deferred until non-placeholder frontend-consumed graph APIs exist |
 | Worker necessity decision | Phase 8 |  | completed | Deferred by Decision 11; no current first-party async job surface justifies `interfaces/workers/` |
 | `demo.contracts` deprecation / retirement strategy | Phase 2 / 10 | Ash | in progress | Follow-up task is captured in `docs/repository_restructure/repository_restructure_phase2_demo_contracts_retirement_task.md`; current recommendation is to complete planning in Phase 2 and defer actual shim-removal implementation to Phase 10 while `demo/` remains the active execution surface |
 

@@ -379,6 +379,14 @@ If the repository exposes API boundaries consumed by other interfaces such as `w
 - Backend changes that affect contracts should be reviewed as contract changes, not just internal refactors.
 - Frontend positioning should remain secondary until backend contracts stabilize.
 
+### Implementation checkpoint (2026-04-30)
+
+- The repository currently contains a minimal Next.js frontend under `frontend/`, but it is not yet the primary product surface for graph workflows.
+- The current frontend-to-backend contract is intentionally narrow: `frontend/app/page.tsx` reads `NEXT_PUBLIC_BACKEND_URL` and performs a simple health check against `GET /health` on the backend API.
+- The backend contract exposed to that frontend is currently limited to the existing stub endpoints in `src/power_atlas/interfaces/api/backend_routes.py`: `GET /`, `GET /health`, and placeholder `GET /graph/status`.
+- This means the frontend is best classified at this checkpoint as a transitional/non-core interface shell rather than a stabilized product UI. It is allowed to exist in-repo, but it should not drive backend contract design ahead of the package-first restructure.
+- Formal schema versioning is therefore still deferred for the current placeholder API surface. The next contract-bearing decision should happen only when the backend exposes non-placeholder graph operations that the frontend is expected to consume beyond health/status checks.
+
 ### Open Questions
 
 - Versioning approach for API schemas.
