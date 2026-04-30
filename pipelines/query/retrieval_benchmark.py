@@ -74,7 +74,6 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-import os
 import sys
 from pathlib import Path
 
@@ -84,9 +83,12 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from power_atlas.bootstrap import build_runtime_config, build_settings  # noqa: E402
-from power_atlas.orchestration.context_builder import (  # noqa: E402
-    build_request_context_from_config,
-    build_settings_from_overrides,
+from power_atlas.interfaces.cli.retrieval_benchmark_support import (  # noqa: E402
+    build_retrieval_benchmark_cli_request_context as _build_retrieval_benchmark_cli_request_context_impl,
+    parse_retrieval_benchmark_args as _parse_retrieval_benchmark_args_impl,
+)
+from power_atlas.interfaces.cli.retrieval_benchmark_entrypoint import (  # noqa: E402
+    run_retrieval_benchmark_main,
 )
 from demo.stages.retrieval_benchmark import run_retrieval_benchmark_request_context  # noqa: E402
 
@@ -97,150 +99,27 @@ _logger = logging.getLogger(__name__)
 
 
 def _build_cli_request_context(args: argparse.Namespace):
-    settings = build_settings_from_overrides(
-        neo4j_uri=args.neo4j_uri,
-        neo4j_username=args.neo4j_username,
-        neo4j_password=args.neo4j_password,
-        neo4j_database=args.neo4j_database,
-        output_dir=args.output_dir,
-    )
-    config = build_runtime_config(settings, dry_run=False, output_dir=args.output_dir)
-    return build_request_context_from_config(
-        config,
-        command="retrieval-benchmark",
-        run_id=args.run_id,
+    return _build_retrieval_benchmark_cli_request_context_impl(
+        args,
     )
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    package_settings = build_settings()
-    parser = argparse.ArgumentParser(
-        description="Run the post-hybrid retrieval benchmark and write a JSON artifact.",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=__doc__,
+    return _parse_retrieval_benchmark_args_impl(
+        argv,
+        default_output_dir=_PIPELINES_DIR,
+        doc_epilog=__doc__,
     )
-    parser.add_argument(
-        "--dataset-id",
-        default=None,
-        help=(
-            "Dataset identifier to scope all CanonicalEntity lookups.  "
-            "In a multi-dataset graph, always pass this to prevent shared "
-            "entity names from matching canonical nodes across datasets.  "
-            "If omitted, queries aggregate across all datasets."
-        ),
-    )
-    parser.add_argument(
-        "--run-id",
-        default=None,
-        help=(
-            "Pipeline run_id to scope all queries.  If omitted, "
-            "queries aggregate across all runs in the database."
-        ),
-    )
-    parser.add_argument(
-        "--alignment-version",
-        default=None,
-        help=(
-            "Alignment version to scope ALIGNED_WITH queries (e.g. 'v1.0').  "
-            "If omitted, alignment queries aggregate across all versions."
-        ),
-    )
-    parser.add_argument(
-        "--neo4j-uri",
-        default=package_settings.neo4j.uri,
-        help="Neo4j bolt URI (default: $NEO4J_URI or bolt://localhost:7687).",
-    )
-    parser.add_argument(
-        "--neo4j-username",
-        default=package_settings.neo4j.username,
-        help="Neo4j username (default: $NEO4J_USERNAME or 'neo4j').",
-    )
-    parser.add_argument(
-        "--neo4j-password",
-        default=os.getenv("NEO4J_PASSWORD", ""),
-        help="Neo4j password (default: $NEO4J_PASSWORD).",
-    )
-    parser.add_argument(
-        "--neo4j-database",
-        default=package_settings.neo4j.database,
-        help="Neo4j database name (default: $NEO4J_DATABASE or 'neo4j').",
-    )
-    parser.add_argument(
-        "--output-dir",
-        type=Path,
-        default=_PIPELINES_DIR,
-        help=(
-            "Base output directory (default: pipelines/).  "
-            "Artifacts are written under <output_dir>/runs/<run_id>/retrieval_benchmark/ "
-            "when --run-id is given, or <output_dir>/runs/retrieval_benchmark/ otherwise."
-        ),
-    )
-    return parser.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> None:
-    args = _parse_args(argv)
-
-    if not args.neo4j_password:
-        print(
-            "ERROR: Neo4j password is required.  Set NEO4J_PASSWORD or pass --neo4j-password.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-
-    request_context = _build_cli_request_context(args)
-
-    result = run_retrieval_benchmark_request_context(
-        request_context,
-        dataset_id=args.dataset_id,
-        alignment_version=args.alignment_version,
-        output_dir=args.output_dir,
+    run_retrieval_benchmark_main(
+        parse_args=_parse_args,
+        build_cli_request_context=_build_cli_request_context,
+        run_retrieval_benchmark_request_context=run_retrieval_benchmark_request_context,
+        warn=lambda warning: _logger.warning("%s", warning),
+        argv=argv,
     )
-
-    artifact_path = result["artifact_path"]
-    status = result["status"]
-    print(f"Status           : {status}")
-    print(
-        f"Dataset ID       : "
-        f"{'(all datasets)' if result['dataset_id'] is None else result['dataset_id']}"
-    )
-    print(
-        f"Run ID           : "
-        f"{'(all runs)' if result['run_id'] is None else result['run_id']}"
-    )
-    print(
-        f"Align version    : "
-        f"{'(all versions)' if result['alignment_version'] is None else result['alignment_version']}"
-    )
-    print(f"Artifact path    : {artifact_path}")
-
-    if result.get("artifact"):
-        artifact = result["artifact"]
-        s = artifact["benchmark_summary"]
-        print()
-        print("--- Benchmark summary ---")
-        print(f"  Total cases              : {s['total_cases']}")
-        print(f"  Single/comparison cases  : {s['single_and_comparison_cases']}")
-        print(f"  Pairwise cases           : {s['pairwise_cases']}")
-        print(f"  Fragmentation detected   : {s['fragmentation_detected_count']}")
-        print(f"  Entities w/ claims (canonical) : {s['entities_with_claims_canonical']}")
-        print(f"  Entities w/ claims (cluster)   : {s['entities_with_claims_cluster']}")
-        print(f"  Total canonical claims   : {s['total_canonical_claims']}")
-        print(f"  Total cluster claims     : {s['total_cluster_claims']}")
-        print(f"  Total pairwise claims    : {s['total_pairwise_claims']}")
-
-    for w in result.get("warnings", []):
-        _logger.warning("%s", w)
-
-    summary = {
-        "run_id": result["run_id"],
-        "dataset_id": result["dataset_id"],
-        "alignment_version": result["alignment_version"],
-        "artifact_path": artifact_path,
-        "status": status,
-    }
-    print()
-    print(json.dumps(summary))
 
 
 if __name__ == "__main__":
