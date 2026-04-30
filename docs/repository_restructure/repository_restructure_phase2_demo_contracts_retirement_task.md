@@ -85,6 +85,18 @@ The second zero-caller simple-shim retirement slice has now landed too:
   submodule paths,
 - `tests/test_power_atlas_package.py` continues to pass after the slice.
 
+The final simple-shim retirement slice has now landed as well:
+
+- `demo/contracts/prompts.py` has been removed,
+- the matching prompt-shim compatibility assertion in
+  `demo/tests/test_orchestrator_modules.py` was retired in the same slice,
+- post-removal searches found no lingering references to the retired
+  `demo.contracts.prompts` submodule path,
+- the direct prompt-shim selector now intentionally selects no tests because
+  the compatibility seam is gone,
+- a nearby prompt-focused fallback slice in
+  `demo/tests/test_orchestrator_modules.py` continues to pass.
+
 This sharpens the Phase 10 retirement order: the simple package-owned contract
 shims are now the clearest first implementation class, while the root proxy and
 pipeline alias still require separate handling.
@@ -97,7 +109,6 @@ These files are the compatibility layer itself and remain active by design:
 
 - `demo/contracts/__init__.py`
 - `demo/contracts/pipeline.py`
-- `demo/contracts/prompts.py`
 
 ### B. Compatibility-test callers
 
@@ -184,9 +195,7 @@ module identity.
 
 #### Current classification
 
-- **Simple package-owned contract shims**
-  - `prompts.py`
-  - the remaining simple-shim class is now only `prompts.py`
+There are no remaining simple package-owned contract shim files.
 
 #### Retired in the first Phase 10 simple-shim slice
 
@@ -201,6 +210,10 @@ module identity.
 - `paths.py`
 - `runtime.py`
 - `structured.py`
+
+#### Retired in the final Phase 10 simple-shim slice
+
+- `prompts.py`
 
 - **Root compatibility proxy**
   - `demo/contracts/__init__.py`

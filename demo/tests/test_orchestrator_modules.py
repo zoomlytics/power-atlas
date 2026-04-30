@@ -2607,14 +2607,6 @@ def test_power_atlas_rag_template_prompt_id_updated():
     )
 
 
-def test_demo_prompt_contract_shim_matches_package_exports():
-    from demo.contracts.prompts import POWER_ATLAS_RAG_TEMPLATE as demo_prompt_template
-    from demo.contracts.prompts import PROMPT_IDS as demo_prompt_ids
-
-    assert demo_prompt_template is POWER_ATLAS_RAG_TEMPLATE
-    assert demo_prompt_ids is PROMPT_IDS
-
-
 def test_check_all_answers_cited_fully_cited():
     """_check_all_answers_cited must return True when every sentence has a citation token."""
     from demo.stages.retrieval_and_qa import _check_all_answers_cited
