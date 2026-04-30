@@ -10,6 +10,13 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+SRC_ROOT = REPO_ROOT / "src"
+if str(SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(SRC_ROOT))
+
+from power_atlas.interfaces.cli.sync_vendor_version_entrypoint import run_sync_vendor_version_main
+from power_atlas.interfaces.cli.sync_vendor_version_support import parse_sync_vendor_version_args
+
 SUBMODULE_PATH = "vendor/neo4j-graphrag-python"
 VERSION_FILE = REPO_ROOT / "docs/vendor/neo4j-graphrag-python.version.json"
 
@@ -74,11 +81,12 @@ def sync_version_file(version_file: Path = VERSION_FILE, gitlink_sha: str | None
     return 0
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--check", action="store_true", help="Fail if the version file is out of sync")
-    args = parser.parse_args()
-    return sync_version_file(check_only=args.check)
+def main(argv: list[str] | None = None) -> int:
+    return run_sync_vendor_version_main(
+        parse_args=parse_sync_vendor_version_args,
+        sync_version_file=sync_version_file,
+        argv=argv,
+    )
 
 
 if __name__ == "__main__":

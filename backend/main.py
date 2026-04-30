@@ -1,87 +1,14 @@
-"""
-Power Atlas Backend - FastAPI application
-"""
-from contextlib import asynccontextmanager
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from typing import Dict
-import logging
+"""Power Atlas Backend - FastAPI application."""
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+from pathlib import Path
+import sys
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """Manage application lifespan events."""
-    logger.info("Power Atlas API starting up")
-    yield
+REPO_ROOT = Path(__file__).resolve().parents[1]
+SRC_ROOT = REPO_ROOT / "src"
+if str(SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(SRC_ROOT))
+
+from power_atlas.interfaces.api import create_backend_app
 
 
-# Create FastAPI app
-app = FastAPI(
-    title="Power Atlas API",
-    description="Backend API for Power Atlas",
-    version="0.1.0",
-    lifespan=lifespan,
-)
-
-# Configure CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # Restrict to frontend origin for security
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-
-@app.get("/health")
-async def health_check() -> Dict[str, str]:
-    """
-    Health check endpoint
-    
-    Returns:
-        Dictionary with status
-    """
-    return {"status": "ok", "message": "Backend is healthy"}
-
-@app.get(
-    "/graph/status",
-    status_code=503,
-    responses={
-        503: {
-            "description": "Graph integration is not configured yet",
-            "content": {
-                "application/json": {
-                    "schema": {
-                        "type": "object",
-                        "properties": {"detail": {"type": "string"}},
-                        "required": ["detail"],
-                    },
-                    "example": {"detail": "Graph integration is not configured yet"},
-                }
-            },
-        }
-    },
-)
-async def graph_status() -> Dict[str, str]:
-    """
-    Placeholder endpoint for future graph integration.
-
-    This endpoint currently always responds with HTTP 503.
-    """
-    return {"detail": "Graph integration is not configured yet"}
-
-
-@app.get("/")
-async def root() -> Dict[str, str]:
-    """Root endpoint"""
-    return {
-        "message": "Power Atlas API",
-        "version": "0.1.0",
-        "docs": "/docs"
-    }
+app = create_backend_app()

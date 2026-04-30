@@ -3,8 +3,9 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
-from scripts.sync_vendor_version import get_gitlink_sha, sync_version_file
+from scripts.sync_vendor_version import get_gitlink_sha, main, sync_version_file
 
 
 class SyncVendorVersionTests(unittest.TestCase):
@@ -136,6 +137,22 @@ class GetGitlinkShaTests(unittest.TestCase):
                 get_gitlink_sha(repo_root=Path(tmpdir), submodule_path="nonexistent/path")
 
             self.assertIn("No gitlink entry found", str(ctx.exception))
+
+
+class SyncVendorVersionCliTests(unittest.TestCase):
+    def test_main_passes_check_flag_to_sync_version_file(self):
+        with mock.patch("scripts.sync_vendor_version.sync_version_file", return_value=7) as sync_mock:
+            exit_code = main(["--check"])
+
+        self.assertEqual(exit_code, 7)
+        sync_mock.assert_called_once_with(check_only=True)
+
+    def test_main_defaults_check_flag_to_false(self):
+        with mock.patch("scripts.sync_vendor_version.sync_version_file", return_value=0) as sync_mock:
+            exit_code = main([])
+
+        self.assertEqual(exit_code, 0)
+        sync_mock.assert_called_once_with(check_only=False)
 
 
 if __name__ == "__main__":
