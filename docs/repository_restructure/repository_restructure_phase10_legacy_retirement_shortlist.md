@@ -47,6 +47,10 @@ Phase 10 therefore cannot be treated as a blanket instruction to remove everythi
 - post-removal searches found no remaining references to those retired submodule paths, and `tests/test_power_atlas_package.py` continues to pass.
 - the final simple-shim retirement slice has now removed `demo/contracts/prompts.py`,
 - post-removal searches found no remaining references to `demo.contracts.prompts`, and a nearby prompt-focused orchestrator slice continues to pass.
+- direct `from demo.contracts import ...` usage is now limited to compatibility-focused tests,
+- the remaining `demo.contracts` lane is therefore split cleanly into:
+  - the root compatibility proxy in `demo/contracts/__init__.py`, and
+  - the separate stateful module-alias shim in `demo/contracts/pipeline.py`.
 
 ## Retirement classes
 
@@ -89,6 +93,7 @@ Current checkpoint:
 - the first zero-caller simple-shim subset has already been retired successfully,
 - the second zero-caller simple-shim subset has also been retired successfully,
 - the simple package-owned contract shim class is now fully retired,
+- the next decision point is the root compatibility proxy boundary, not more simple-shim cleanup,
 - the root compatibility proxy in `demo/contracts/__init__.py` should remain a separate follow-up step,
 - the stateful `demo/contracts/pipeline.py` alias should still be treated as the last shim candidate.
 
@@ -138,10 +143,12 @@ Documentation changes should follow actual retirement work, not lead it.
 
 1. Decide whether `_archive/` should remain at the repo root or move behind a different archival boundary.
 2. Execute the already-planned `demo/contracts` retirement lane in classes, starting with the simple package-owned re-export shims:
-   - simple re-export shims,
-   - root compatibility proxy,
-   - stateful pipeline alias shim.
+  - simple re-export shims,
+  - root compatibility proxy,
+  - stateful pipeline alias shim.
 3. Only after actual retirement work lands, update README and restructure docs to remove stale references to retired surfaces.
+
+At the current checkpoint, step 2 has progressed through the full simple-shim class and now pauses at the root-proxy boundary.
 
 ## Acceptance gate before any code deletion
 

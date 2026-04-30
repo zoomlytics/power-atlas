@@ -97,6 +97,20 @@ The final simple-shim retirement slice has now landed as well:
 - a nearby prompt-focused fallback slice in
   `demo/tests/test_orchestrator_modules.py` continues to pass.
 
+The remaining root-proxy boundary is now much narrower and clearer:
+
+- workspace Python-callsite searches now show `from demo.contracts import ...`
+  usage only in compatibility-focused tests, not in non-test runtime code,
+- `demo/contracts/__init__.py` is no longer a thin umbrella over many sibling
+  shim files because the simple shim class has been retired,
+- its remaining compatibility value is now concentrated in a curated demo-root
+  re-export surface plus lazy access to `claim_extraction_lexical_config` and
+  `claim_extraction_schema`,
+- this means the next `demo.contracts` retirement decision is no longer about
+  broad shim discovery; it is specifically about whether the demo-root package
+  surface itself still needs to exist for compatibility tests and documented
+  import expectations.
+
 This sharpens the Phase 10 retirement order: the simple package-owned contract
 shims are now the clearest first implementation class, while the root proxy and
 pipeline alias still require separate handling.
@@ -116,7 +130,7 @@ These references intentionally verify that the compatibility surface still
 behaves as documented and should not be treated as accidental cleanup debt.
 
 - `tests/test_power_atlas_package.py`
-  - verifies package-owned objects remain reachable via demo shim modules
+  - verifies the remaining demo-root compatibility exports still exist
   - verifies `demo.contracts.pipeline` is the same module object as
     `power_atlas.contracts.pipeline`
 - `demo/tests/test_retrieval_metadata_policy.py`
@@ -197,6 +211,33 @@ module identity.
 
 There are no remaining simple package-owned contract shim files.
 
+#### Remaining root compatibility proxy surface
+
+- `demo/contracts/__init__.py`
+- current exported compatibility surface includes:
+  - manifest helpers,
+  - path/dataset helpers,
+  - runtime helpers,
+  - structured contract constants,
+  - prompt exports,
+  - early-return policy exports,
+  - retrieval metadata policy exports,
+  - alignment version,
+  - `ensure_pipeline_contract_loaded`,
+  - lazy `claim_extraction_lexical_config` and `claim_extraction_schema`
+- current known direct Python callers are compatibility-focused tests only
+
+#### Root proxy retirement prerequisites
+
+- retire or rewrite the remaining tests that import names directly from
+  `demo.contracts`,
+- replace any remaining documentation that presents `demo.contracts` root
+  imports as a supported surface rather than a compatibility layer,
+- decide whether the lazy claim-schema access should disappear entirely or move
+  to explicit package-native imports in tests/docs,
+- validate that package-native imports cover every currently asserted root
+  export before removing the proxy.
+
 #### Retired in the first Phase 10 simple-shim slice
 
 - `resolution.py`
@@ -246,6 +287,10 @@ The repo is not yet retirement-ready because:
 - the accepted phase-placement decision is to defer actual shim-retirement
   implementation to Phase 10 while `demo/` remains the active execution
   surface.
+
+For the root proxy specifically, the remaining blocker is no longer runtime
+coupling. The blocker is the still-intentional compatibility-test surface and
+the explicit root-package import contract it preserves.
 
 At the same time, the 2026-04-30 re-inventory means the first Phase 10 shim
 lane no longer needs a broad caller hunt before starting: for the simple
