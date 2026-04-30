@@ -46,6 +46,25 @@ The first classification pass on 2026-04-16 found no remaining active
 non-shim runtime imports of `demo.contracts` outside the compatibility layer
 itself.
 
+### Implementation checkpoint (2026-04-30)
+
+The latest Phase 10 re-inventory confirms that this is still true for the
+simple shim class.
+
+- workspace Python-callsite searches found `demo.contracts` imports only in
+  compatibility-focused tests, not in active non-test runtime callers,
+- representative simple shims such as `demo/contracts/paths.py` remain pure
+  package-owned re-export files (`from power_atlas.contracts.paths import *`),
+- `demo/contracts/__init__.py` remains a real compatibility proxy rather than a
+  simple one-line shim because it curates the demo-root surface and lazy claim
+  schema access,
+- `demo/contracts/pipeline.py` remains the special-case module alias shim using
+  `sys.modules[...]` replacement to preserve shared module identity.
+
+This sharpens the Phase 10 retirement order: the simple package-owned contract
+shims are now the clearest first implementation class, while the root proxy and
+pipeline alias still require separate handling.
+
 The remaining references fall into the following classes.
 
 ### A. Active shim modules
@@ -190,6 +209,11 @@ The repo is not yet retirement-ready because:
 - the accepted phase-placement decision is to defer actual shim-retirement
   implementation to Phase 10 while `demo/` remains the active execution
   surface.
+
+At the same time, the 2026-04-30 re-inventory means the first Phase 10 shim
+lane no longer needs a broad caller hunt before starting: for the simple
+package-owned contract shims, the remaining work is compatibility-policy and
+test-surface retirement, not discovery of hidden runtime imports.
 
 ### 4. What should happen before any code removal?
 

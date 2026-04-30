@@ -39,6 +39,8 @@ Phase 10 therefore cannot be treated as a blanket instruction to remove everythi
 - the directory has now been removed as the first low-risk Phase 10 retirement slice.
 - `_archive/` has now been labeled explicitly as archived, non-active material via `_archive/README.md` and the root `README.md`,
 - the current decision is to keep its historical contents in place for reference rather than delete them during this low-risk slice.
+- a fresh 2026-04-30 `demo.contracts` caller re-inventory found no remaining non-test runtime imports outside the compatibility layer itself,
+- the simple shim class remains mechanically simple one-line package re-exports, while `demo/contracts/__init__.py` and `demo/contracts/pipeline.py` still require special handling.
 
 ## Retirement classes
 
@@ -74,6 +76,12 @@ Recommended treatment:
 - keep this as the highest-value shim-retirement lane,
 - do not combine it with unrelated directory cleanup,
 - retire simple re-export shims separately from the special pipeline alias.
+
+Current checkpoint:
+
+- the simple package-owned contract shims are now the first concrete Phase 10 shim-retirement class,
+- the root compatibility proxy in `demo/contracts/__init__.py` should remain a separate follow-up step,
+- the stateful `demo/contracts/pipeline.py` alias should still be treated as the last shim candidate.
 
 ### 3. Not-yet-retirable compatibility shells
 
@@ -120,7 +128,7 @@ Documentation changes should follow actual retirement work, not lead it.
 ## Recommended implementation order
 
 1. Decide whether `_archive/` should remain at the repo root or move behind a different archival boundary.
-2. Execute the already-planned `demo/contracts` retirement lane in classes:
+2. Execute the already-planned `demo/contracts` retirement lane in classes, starting with the simple package-owned re-export shims:
    - simple re-export shims,
    - root compatibility proxy,
    - stateful pipeline alias shim.
