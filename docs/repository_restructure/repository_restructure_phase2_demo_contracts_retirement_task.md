@@ -111,6 +111,18 @@ The remaining root-proxy boundary is now much narrower and clearer:
   surface itself still needs to exist for compatibility tests and documented
   import expectations.
 
+That root-proxy slice has now landed:
+
+- `demo/contracts/__init__.py` has been removed,
+- the remaining compatibility tests were rewritten to use package-native root
+  imports where appropriate,
+- focused validation across `demo/tests/test_retrieval_metadata_policy.py`,
+  `demo/tests/test_retrieval_result_contract.py`, and
+  `tests/test_power_atlas_package.py` continues to pass,
+- the remaining `demo.contracts` lane is now only the stateful pipeline alias
+  shim in `demo/contracts/pipeline.py` plus docstring/documentation references
+  that still mention the historical surface.
+
 This sharpens the Phase 10 retirement order: the simple package-owned contract
 shims are now the clearest first implementation class, while the root proxy and
 pipeline alias still require separate handling.
@@ -121,7 +133,6 @@ The remaining references fall into the following classes.
 
 These files are the compatibility layer itself and remain active by design:
 
-- `demo/contracts/__init__.py`
 - `demo/contracts/pipeline.py`
 
 ### B. Compatibility-test callers
@@ -130,15 +141,13 @@ These references intentionally verify that the compatibility surface still
 behaves as documented and should not be treated as accidental cleanup debt.
 
 - `tests/test_power_atlas_package.py`
-  - verifies the remaining demo-root compatibility exports still exist
   - verifies `demo.contracts.pipeline` is the same module object as
     `power_atlas.contracts.pipeline`
 - `demo/tests/test_retrieval_metadata_policy.py`
-  - verifies `demo.contracts` root re-exports for metadata policy objects
+  - now verifies package-native root exports for metadata policy objects
 - `demo/tests/test_retrieval_result_contract.py`
-  - verifies `demo.contracts` root re-exports for early-return policy objects
+  - now verifies package-native root exports for early-return policy objects
 - `demo/tests/test_orchestrator_modules.py`
-  - preserves explicit demo prompt-shim checks
   - preserves explicit demo pipeline-module checks
 - `demo/tests/test_pipeline_contract.py`
   - preserves logger-name and pipeline module behavior coverage
@@ -211,32 +220,13 @@ module identity.
 
 There are no remaining simple package-owned contract shim files.
 
-#### Remaining root compatibility proxy surface
+#### Retired root compatibility proxy
 
 - `demo/contracts/__init__.py`
-- current exported compatibility surface includes:
-  - manifest helpers,
-  - path/dataset helpers,
-  - runtime helpers,
-  - structured contract constants,
-  - prompt exports,
-  - early-return policy exports,
-  - retrieval metadata policy exports,
-  - alignment version,
-  - `ensure_pipeline_contract_loaded`,
-  - lazy `claim_extraction_lexical_config` and `claim_extraction_schema`
-- current known direct Python callers are compatibility-focused tests only
-
-#### Root proxy retirement prerequisites
-
-- retire or rewrite the remaining tests that import names directly from
-  `demo.contracts`,
-- replace any remaining documentation that presents `demo.contracts` root
-  imports as a supported surface rather than a compatibility layer,
-- decide whether the lazy claim-schema access should disappear entirely or move
-  to explicit package-native imports in tests/docs,
-- validate that package-native imports cover every currently asserted root
-  export before removing the proxy.
+- retired after the remaining direct root-import callers were rewritten to use
+  package-native imports
+- the next compatibility cleanup in this lane is documentation wording, not
+  another root-package code surface
 
 #### Retired in the first Phase 10 simple-shim slice
 
@@ -288,9 +278,9 @@ The repo is not yet retirement-ready because:
   implementation to Phase 10 while `demo/` remains the active execution
   surface.
 
-For the root proxy specifically, the remaining blocker is no longer runtime
-coupling. The blocker is the still-intentional compatibility-test surface and
-the explicit root-package import contract it preserves.
+The root-proxy blocker is now resolved. The remaining blocker in the
+`demo.contracts` lane is the stateful pipeline alias plus its logger-name and
+shared-module-identity contract.
 
 At the same time, the 2026-04-30 re-inventory means the first Phase 10 shim
 lane no longer needs a broad caller hunt before starting: for the simple

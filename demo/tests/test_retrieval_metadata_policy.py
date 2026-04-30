@@ -16,7 +16,7 @@ The goals here are:
    contradiction).
 4. Confirm the known ambiguous fields (§2.6) are correctly classified.
 5. Confirm the module is importable and exports the documented public names via
-   the public ``demo.contracts`` package surface (not just the submodule).
+    the public ``power_atlas.contracts`` package surface (not just the submodule).
 """
 
 from __future__ import annotations
@@ -566,46 +566,40 @@ class TestKnownFieldClassifications:
 
 
 class TestPackagePublicExports:
-    """Verify the three policy names are importable from the public ``demo.contracts`` surface.
-
-    Importing from ``demo.contracts`` rather than the submodule catches any drift
-    in ``demo/contracts/__init__.py`` — if a name is removed from the package
-    ``__all__`` or the re-export import is deleted, this test will fail before
-    callers encounter a runtime ``ImportError``.
-    """
+    """Verify the three policy names are importable from the public ``power_atlas.contracts`` surface."""
 
     def test_field_surface_policy_importable_from_package(self) -> None:
-        """``FieldSurfacePolicy`` must be importable from ``demo.contracts``."""
-        from demo.contracts import FieldSurfacePolicy as _FieldSurfacePolicy  # noqa: PLC0415
+        """``FieldSurfacePolicy`` must be importable from ``power_atlas.contracts``."""
+        from power_atlas.contracts import FieldSurfacePolicy as _FieldSurfacePolicy  # noqa: PLC0415
 
         assert _FieldSurfacePolicy is not None
 
     def test_retrieval_metadata_surface_importable_from_package(self) -> None:
-        """``RetrievalMetadataSurface`` must be importable from ``demo.contracts``."""
-        from demo.contracts import RetrievalMetadataSurface as _Surface  # noqa: PLC0415
+        """``RetrievalMetadataSurface`` must be importable from ``power_atlas.contracts``."""
+        from power_atlas.contracts import RetrievalMetadataSurface as _Surface  # noqa: PLC0415
 
         assert _Surface is not None
 
     def test_retrieval_metadata_surface_policy_importable_from_package(self) -> None:
-        """``RETRIEVAL_METADATA_SURFACE_POLICY`` must be importable from ``demo.contracts``."""
-        from demo.contracts import RETRIEVAL_METADATA_SURFACE_POLICY as _POLICY  # noqa: PLC0415
+        """``RETRIEVAL_METADATA_SURFACE_POLICY`` must be importable from ``power_atlas.contracts``."""
+        from power_atlas.contracts import RETRIEVAL_METADATA_SURFACE_POLICY as _POLICY  # noqa: PLC0415
 
         assert _POLICY is not None
 
     def test_all_three_names_in_package_all(self) -> None:
-        """All three public names must appear in ``demo.contracts.__all__``."""
-        import demo.contracts as _contracts  # noqa: PLC0415
+        """All three public names must appear in ``power_atlas.contracts.__all__``."""
+        import power_atlas.contracts as _contracts  # noqa: PLC0415
 
         expected = {"FieldSurfacePolicy", "RetrievalMetadataSurface", "RETRIEVAL_METADATA_SURFACE_POLICY"}
         missing = expected - set(_contracts.__all__)
         assert not missing, (
-            f"The following names are missing from demo.contracts.__all__: {sorted(missing)!r}. "
-            f"Add them so callers using 'from demo.contracts import *' receive them."
+            f"The following names are missing from power_atlas.contracts.__all__: {sorted(missing)!r}. "
+            f"Add them so callers using 'from power_atlas.contracts import *' receive them."
         )
 
     def test_package_exports_are_same_objects_as_submodule(self) -> None:
-        """Names re-exported from ``demo.contracts`` must be the same objects as from the submodule."""
-        import demo.contracts as _contracts  # noqa: PLC0415
+        """Names re-exported from ``power_atlas.contracts`` must be the same objects as from the submodule."""
+        import power_atlas.contracts as _contracts  # noqa: PLC0415
         from power_atlas.contracts.retrieval_metadata_policy import (  # noqa: PLC0415
             FieldSurfacePolicy as _SubFieldSurfacePolicy,
             RetrievalMetadataSurface as _SubSurface,
@@ -613,15 +607,15 @@ class TestPackagePublicExports:
         )
 
         assert _contracts.FieldSurfacePolicy is _SubFieldSurfacePolicy, (
-            "demo.contracts.FieldSurfacePolicy must be the same object as "
+            "power_atlas.contracts.FieldSurfacePolicy must be the same object as "
             "power_atlas.contracts.retrieval_metadata_policy.FieldSurfacePolicy"
         )
         assert _contracts.RetrievalMetadataSurface is _SubSurface, (
-            "demo.contracts.RetrievalMetadataSurface must be the same object as "
+            "power_atlas.contracts.RetrievalMetadataSurface must be the same object as "
             "power_atlas.contracts.retrieval_metadata_policy.RetrievalMetadataSurface"
         )
         assert _contracts.RETRIEVAL_METADATA_SURFACE_POLICY is _SubPolicy, (
-            "demo.contracts.RETRIEVAL_METADATA_SURFACE_POLICY must be the same object as "
+            "power_atlas.contracts.RETRIEVAL_METADATA_SURFACE_POLICY must be the same object as "
             "power_atlas.contracts.retrieval_metadata_policy.RETRIEVAL_METADATA_SURFACE_POLICY"
         )
 

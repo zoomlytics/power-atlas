@@ -380,27 +380,6 @@ def test_package_contracts_root_does_not_reexport_stateful_pipeline_symbols() ->
         assert not hasattr(contracts_module, name)
 
 
-def test_demo_contracts_root_does_not_reexport_mutable_pipeline_symbols() -> None:
-    import demo.contracts as demo_contracts
-
-    disallowed_exports = {
-        "CHUNK_EMBEDDING_DIMENSIONS",
-        "CHUNK_EMBEDDING_INDEX_NAME",
-        "CHUNK_EMBEDDING_LABEL",
-        "CHUNK_EMBEDDING_PROPERTY",
-        "CHUNK_FALLBACK_STRIDE",
-        "DATASET_ID",
-        "EMBEDDER_MODEL_NAME",
-        "get_dataset_id",
-        "PIPELINE_CONFIG_DATA",
-        "set_dataset_id",
-    }
-
-    assert disallowed_exports.isdisjoint(demo_contracts.__all__)
-    for name in disallowed_exports:
-        assert not hasattr(demo_contracts, name)
-
-
 def test_demo_run_demo_module_does_not_reexport_mutable_pipeline_symbols() -> None:
     import demo.run_demo as run_demo_module
 

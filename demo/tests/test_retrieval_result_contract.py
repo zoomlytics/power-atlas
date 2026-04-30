@@ -105,12 +105,12 @@ Structure
 ``TestMixedEarlyReturnSentinelEdge``
     Contract tests for mixed early-return inputs and sentinel-edge behavior.  The
     precedence rules asserted here are backed by the centralized
-    :data:`~demo.contracts.EARLY_RETURN_PRECEDENCE` policy in
+    :data:`~power_atlas.contracts.EARLY_RETURN_PRECEDENCE` policy in
     ``demo/contracts/retrieval_early_return_policy.py``.
 
 ``TestEarlyReturnPrecedencePolicy``
     Direct unit tests for the centralized
-    :data:`~demo.contracts.EARLY_RETURN_PRECEDENCE` policy itself.  Verifies that:
+    :data:`~power_atlas.contracts.EARLY_RETURN_PRECEDENCE` policy itself.  Verifies that:
 
     - The policy contains exactly two rules with unique priorities 1 and 2.
     - The dry-run rule (priority 1) uses ``outcome_status="dry_run"`` and lists
@@ -127,8 +127,8 @@ Structure
     Policy-backed correspondence tests that verify the runtime payload returned by
         ``run_retrieval_and_qa_request_context()`` matches the structured metadata declared in each
         ``run_retrieval_and_qa_request_context()`` matches the structured metadata declared in each
-    :class:`~demo.contracts.EarlyReturnRule` entry in
-    :data:`~demo.contracts.EARLY_RETURN_PRECEDENCE`.  For each current rule this
+    :class:`~power_atlas.contracts.EarlyReturnRule` entry in
+    :data:`~power_atlas.contracts.EARLY_RETURN_PRECEDENCE`.  For each current rule this
     layer checks:
 
     - ``result["status"]`` equals ``rule.outcome_status``.
@@ -286,9 +286,9 @@ _DRY_RUN_CONFIG = _make_config(
 
 
 def test_demo_early_return_contract_shim_matches_package_exports() -> None:
-    from demo.contracts import EARLY_RETURN_PRECEDENCE as demo_precedence
-    from demo.contracts import EARLY_RETURN_RULE_BY_NAME as demo_rule_by_name
-    from demo.contracts import resolve_early_return_rule as demo_resolver
+    from power_atlas.contracts import EARLY_RETURN_PRECEDENCE as demo_precedence
+    from power_atlas.contracts import EARLY_RETURN_RULE_BY_NAME as demo_rule_by_name
+    from power_atlas.contracts import resolve_early_return_rule as demo_resolver
 
     assert demo_precedence is EARLY_RETURN_PRECEDENCE
     assert demo_rule_by_name is EARLY_RETURN_RULE_BY_NAME
@@ -2614,7 +2614,7 @@ class TestMixedEarlyReturnSentinelEdge:
 
 
 class TestEarlyReturnPrecedencePolicy:
-    """Direct unit tests for the centralized :data:`~demo.contracts.EARLY_RETURN_PRECEDENCE` policy.
+    """Direct unit tests for the centralized :data:`~power_atlas.contracts.EARLY_RETURN_PRECEDENCE` policy.
 
     These tests verify the *policy structure* itself — not the runtime behaviour
     (which is covered by :class:`TestMixedEarlyReturnSentinelEdge` and
@@ -2630,7 +2630,7 @@ class TestEarlyReturnPrecedencePolicy:
       be *derived* from the policy + :data:`_LIVE_RESULT_REQUIRED_KEYS`.
 
     If any of these tests fail after a new early-return branch is added, update
-    :data:`~demo.contracts.EARLY_RETURN_PRECEDENCE` and the corresponding key-set
+    :data:`~power_atlas.contracts.EARLY_RETURN_PRECEDENCE` and the corresponding key-set
     constants to keep the policy and the runtime in sync.
     """
 
@@ -2784,11 +2784,11 @@ class TestEarlyReturnPrecedencePolicy:
 
 
 class TestResolveEarlyReturnRule:
-    """Unit tests for :func:`~demo.contracts.resolve_early_return_rule`.
+    """Unit tests for :func:`~power_atlas.contracts.resolve_early_return_rule`.
 
     These tests verify that the resolver correctly maps runtime inputs to the
-    matching :class:`~demo.contracts.EarlyReturnRule` (or ``None``) by
-    evaluating conditions in :data:`~demo.contracts.EARLY_RETURN_PRECEDENCE`
+    matching :class:`~power_atlas.contracts.EarlyReturnRule` (or ``None``) by
+    evaluating conditions in :data:`~power_atlas.contracts.EARLY_RETURN_PRECEDENCE`
     order.  They do not go through ``run_retrieval_and_qa_request_context()`` — they exercise
     the helper in isolation.
     """

@@ -6,7 +6,7 @@ This suite is the single explicit parity layer whose purpose is:
     ``run_retrieval_and_qa_request_context()`` correctly projects every
     policy-covered field onto the canonical, mirrored, and forbidden surfaces
     declared by
-    :data:`~demo.contracts.RETRIEVAL_METADATA_SURFACE_POLICY`.
+    :data:`~power_atlas.contracts.RETRIEVAL_METADATA_SURFACE_POLICY`.
 
 It closes the remaining drift gap left after the field-level contract tests and
 exact-key-set checks: those tests verify representative cases or individual
@@ -51,12 +51,12 @@ and
 use representative, rule-based, or per-scenario assertions.  This suite uses the
 policy as its only source of truth: every parametrized check is automatically
 extended when a new field is added to
-:data:`~demo.contracts.RETRIEVAL_METADATA_SURFACE_POLICY`, with no manual test
+:data:`~power_atlas.contracts.RETRIEVAL_METADATA_SURFACE_POLICY`, with no manual test
 update required.
 
 Notes on the ``warnings`` surface
 ----------------------------------
-:data:`~demo.contracts.RETRIEVAL_METADATA_SURFACE_POLICY` lists ``"warnings"`` as
+:data:`~power_atlas.contracts.RETRIEVAL_METADATA_SURFACE_POLICY` lists ``"warnings"`` as
 a ``forbidden_in`` surface for ``malformed_diagnostics_count``.  The ``warnings``
 surface is a top-level ``list[str]`` (not a dict), so key-based presence checks
 cannot be applied directly.  The generic forbidden-surface tests therefore skip
