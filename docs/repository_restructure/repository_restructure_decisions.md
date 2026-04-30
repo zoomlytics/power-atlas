@@ -93,6 +93,15 @@ Layer intent:
 - `interfaces` must stay thin and avoid turning into orchestration layers.
 - `bootstrap` becomes the only place where broad dependency construction is allowed.
 
+### Implementation checkpoint (2026-04-30)
+
+- Phase 8 has now established a concrete thin-interface pattern rather than only a future intent: first-party CLI and API entrypoints increasingly remain as compatibility shells while package-owned `interfaces` modules own parser, transport, and entrypoint glue.
+- Under `interfaces/cli`, package-owned support and entrypoint modules now own the transport flow for `demo/run_demo.py`, `demo/narrative_extraction.py` main wiring, `demo/reset_demo_db.py`, `demo/smoke_test.py`, `pipelines/query/graph_health_diagnostics.py`, `pipelines/query/retrieval_benchmark.py`, and `scripts/sync_vendor_version.py`, while runtime behavior continues to live with the existing stage/runtime owners.
+- The accepted boundary rule is now explicit rather than inferred from code motion: parser/defaults, request-context assembly, password/confirm guards, dispatch, stdout/stderr formatting, and route registration belong under `interfaces`; artifact construction, dry-run/live branching, stage-specific writes, query/runtime execution, and other behavior that materially changes application outcomes stay with application or runtime owners.
+- Compatibility shells are now a deliberate migration device, not a sign that ownership is unresolved. A legacy `demo/`, `pipelines/`, `scripts/`, or `backend/` file may remain as a stable import or execution seam even after its transport logic has moved package-side.
+- The current explicit runtime-side exception is `demo/narrative_extraction.py::run_narrative_extraction(config)`, which remains intentionally outside `interfaces/cli` because it owns stage artifact paths, dry/live branching, manifest emission, and runtime collaborator composition.
+- Under `interfaces/api`, `backend/main.py` is now a compatibility shell, `src/power_atlas/interfaces/api/backend_app.py` owns app creation and middleware setup, and `src/power_atlas/interfaces/api/backend_routes.py` owns the current route table. This establishes the same pattern for API transport as the CLI lane without prematurely inventing a larger backend architecture.
+
 ### Open Questions
 
 Whether any shared contracts should live in `schemas/` or be localized more aggressively can be refined later.

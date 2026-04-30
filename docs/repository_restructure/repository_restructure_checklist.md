@@ -258,7 +258,7 @@ Use the following status values consistently:
 - [ ] consolidate CLI entrypoints
 - [ ] consolidate API entrypoints
 - [ ] verify worker need before adding worker interfaces
-- [ ] document transport/application boundaries
+- [x] document transport/application boundaries
 
 ---
 
