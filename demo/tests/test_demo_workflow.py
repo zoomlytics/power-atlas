@@ -3070,6 +3070,61 @@ class ResetDemoDbTests(unittest.TestCase):
         self.assertEqual(args.neo4j_password, "override-secret")
         self.assertEqual(args.neo4j_database, "override-db")
 
+    def test_reset_main_emits_summary_and_warnings(self):
+        module = self._load_reset_module("reset_main_summary_test")
+        args = types.SimpleNamespace(
+            confirm=True,
+            output_dir=None,
+            neo4j_password="testpassword",
+            neo4j_database="neo4j",
+        )
+        stub_report = {
+            "target_database": "neo4j",
+            "deleted_nodes": 3,
+            "deleted_relationships": 4,
+            "indexes_dropped": ["demo_chunk_embedding_index"],
+            "warnings": ["graph already clean"],
+            "report_path": "demo/artifacts/reset-report.json",
+        }
+
+        class _FakeDriver:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_):
+                return False
+
+        original_parse_args = module.parse_args
+        original_build_settings_from_args = module._build_settings_from_args
+        original_build_app_context = module.build_app_context
+        original_create_driver = module.create_neo4j_driver
+        original_run_reset = module.run_reset
+        try:
+            module.parse_args = lambda: args
+            module._build_settings_from_args = lambda parsed_args: parsed_args
+            module.build_app_context = lambda **_kw: types.SimpleNamespace(
+                pipeline_contract=object()
+            )
+            module.create_neo4j_driver = lambda _settings: _FakeDriver()
+            module.run_reset = lambda **_kw: stub_report
+
+            with io.StringIO() as buffer, redirect_stdout(buffer):
+                module.main()
+                output = buffer.getvalue()
+
+            self.assertIn("Demo graph reset complete:", output)
+            self.assertIn("nodes_deleted=3", output)
+            self.assertIn("relationships_deleted=4", output)
+            self.assertIn("indexes_dropped=['demo_chunk_embedding_index']", output)
+            self.assertIn("  warning: graph already clean", output)
+            self.assertIn("Reset report written to: demo/artifacts/reset-report.json", output)
+        finally:
+            module.parse_args = original_parse_args
+            module._build_settings_from_args = original_build_settings_from_args
+            module.build_app_context = original_build_app_context
+            module.create_neo4j_driver = original_create_driver
+            module.run_reset = original_run_reset
+
     # ── run_reset report structure ────────────────────────────────────────────
 
     def test_run_reset_returns_report_with_expected_keys(self):
