@@ -702,7 +702,7 @@ The retrieval/citation contract is intentionally distributed across several arti
 
 ### How these artifacts relate
 
-- **Policy files** (`retrieval_early_return_policy.py`, `retrieval_metadata_policy.py`) are the machine-readable single source of truth.  They encode the rules that the runtime must follow.  Both are package-owned under `power_atlas.contracts` and remain available via `demo/contracts/__init__.py` for compatibility imports.
+- **Policy files** (`retrieval_early_return_policy.py`, `retrieval_metadata_policy.py`) are the machine-readable single source of truth. They encode the rules that the runtime must follow and are package-owned under `power_atlas.contracts`.
 - **The runtime seam** (`retrieval_and_qa.py` plus package-owned retrieval helpers) consumes policy objects such as `EARLY_RETURN_PRECEDENCE` directly to drive early-return branching, and its metadata field projection behaviour is validated against `RETRIEVAL_METADATA_SURFACE_POLICY` via the policy-driven parity tests. It should contain no duplicated rule logic — behaviour is derived from policy.
 - **This document** (narrative doc) explains *why* the rules exist, documents invariants in prose and tables, and is the canonical reference that any reviewer should read first.
 - **Contract tests** verify that the runtime matches what the policy and this document declare.  There are three complementary layers: scenario tests for readable coverage of documented cases, parity tests for exhaustive policy-driven checks, and fixture-backed scenarios to catch doc/runtime drift.

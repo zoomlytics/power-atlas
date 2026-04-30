@@ -210,8 +210,8 @@ Manual validation checklist: [`demo/VALIDATION_RUNBOOK.md`](demo/VALIDATION_RUNB
 
 ### Data contracts — `src/power_atlas/contracts/`
 
-`demo/contracts/` remains as a compatibility shim layer during the migration, but
-the package-owned implementations now live under `src/power_atlas/contracts/`.
+The package-owned contract implementations live under
+`src/power_atlas/contracts/`.
 
 | Module | Purpose |
 |--------|---------|
