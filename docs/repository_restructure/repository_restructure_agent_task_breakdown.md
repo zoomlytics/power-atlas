@@ -20,8 +20,11 @@ Phase 2 package-foundation work:
 - `src/power_atlas/`, packaging metadata, bootstrap, and typed settings are present,
 - package/import proof exists and editable install has been re-verified,
 - multiple contract modules have been promoted into `src/power_atlas/contracts/`,
-- `demo/contracts` remains intentional compatibility surface rather than the
-   package-native target.
+- at that checkpoint, `demo/contracts` remained an intentional compatibility
+   surface rather than the package-native target.
+
+Later Phase 10 work retired the `demo/contracts` shim family, so this note
+should be read as historical setup context rather than the current repo state.
 
 Use the checklist and decision register for current Phase 2 status and follow-up
 sequencing.

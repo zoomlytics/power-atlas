@@ -370,14 +370,16 @@ later migration has already landed in the repo:
 - multiple contract modules have been promoted into `src/power_atlas/contracts/`,
 - more active entrypoints now resolve defaults and infrastructure through package-owned bootstrap seams,
 - maintainer-facing docs now point at package-owned contract paths,
-- `demo/contracts` remains in place intentionally as a compatibility layer.
+- at that checkpoint, `demo/contracts` still remained in place intentionally as
+  a compatibility layer.
 
 This means Phase 2 should no longer be treated as untouched future intent.
 However, it should also not yet be treated as full legacy retirement: the active
-CLI path remains `demo/`, the compatibility layer is still deliberate, and the
-next useful work is broader bootstrap/composition-root adoption than additional
-blind import cleanup. Shim/deprecation planning is now documented separately and
-should not be confused with the next implementation lane.
+CLI path remains `demo/`, and at that checkpoint the compatibility layer was
+still deliberate. The next useful work was broader bootstrap/composition-root
+adoption than additional blind import cleanup. Shim/deprecation planning was
+documented separately and should not be confused with the next implementation
+lane.
 
 Since the previous documentation checkpoint, the package/bootstrap lane has
 expanded beyond structural foundation work into active entrypoint ownership:
@@ -442,9 +444,13 @@ At the current checkpoint, the structural package foundation is already proven.
 The remaining Phase 2 work should preserve the additive migration posture:
 
 - keep package-owned stable contract surfaces authoritative,
-- keep `demo/contracts` explicitly documented as compatibility-only,
+- keep compatibility obligations explicit until they are intentionally retired,
 - avoid re-opening Phase 1 execution posture,
 - avoid treating remaining compatibility references as accidental by default.
+
+Later Phase 10 work has now retired the `demo/contracts` shim family. This
+Phase 2 section should therefore be read as historical checkpoint context for
+the package-first migration, not as a statement of the current shim surface.
 
 ---
 
@@ -457,9 +463,9 @@ theoretical.
 
 Several low-risk contract modules have already been promoted into
 `src/power_atlas/contracts/` under the Phase 2 package-first lane, with
-compatibility shims preserved in `demo/contracts`. That progress should be read
-as additive early promotion work, not as proof that the broader implementation
-has left `demo/` as its execution center.
+compatibility shims then preserved in `demo/contracts`. That progress should be
+read as additive early promotion work, not as proof that the broader
+implementation had left `demo/` as its execution center.
 
 #### Objectives
 
@@ -597,7 +603,7 @@ The repo has now completed a first concrete runtime-state reduction pass:
   state plus explicit `get_pipeline_contract_snapshot()` and
   `get_pipeline_contract_config_data()` read APIs,
 - `demo.contracts` root no longer eagerly imports or re-exports those former
-  non-dataset pipeline globals, and `demo.run_demo` now reads live pipeline
+  non-dataset pipeline globals, and `demo.run_demo` now read live pipeline
   settings only through the snapshot seam rather than exposing or honoring
   module-level compatibility state for those values,
 - the deprecated dataset-state compatibility surface

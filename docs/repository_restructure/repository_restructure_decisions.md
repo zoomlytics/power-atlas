@@ -544,6 +544,20 @@ The preferred contract locations are:
 The `demo.contracts` package should be treated as a tracked compatibility layer
 until there is an explicit deprecation/removal plan.
 
+### Implementation checkpoint (2026-04-30)
+
+That deprecation/removal plan was later executed in Phase 10.
+
+- the simple package-owned `demo/contracts/*.py` shims were retired,
+- the `demo/contracts/__init__.py` root proxy was retired,
+- the `demo/contracts/pipeline.py` module-alias shim was retired,
+- the `demo/contracts/` directory itself has been removed.
+
+The current contract surface is therefore package-native:
+
+- `power_atlas.contracts`
+- `power_atlas.contracts.<submodule>`
+
 ### Why
 
 - The migration is being executed additively rather than as a flag day.
@@ -563,8 +577,7 @@ until there is an explicit deprecation/removal plan.
 
 ### Open Questions
 
-- When to begin formal deprecation planning for `demo/contracts/*`.
-- Whether shim retirement should be grouped into a dedicated later-phase task.
+- No open questions remain for the `demo.contracts` shim lane.
 
 ---
 
