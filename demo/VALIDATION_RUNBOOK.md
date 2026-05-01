@@ -655,10 +655,10 @@ demo/artifacts_compare/q3/cluster_aware/runs/<UNSTRUCTURED_RUN_ID>/retrieval_and
 
 This section documents the first committed end-to-end pipeline recording for
 `demo_dataset_v2`.  The run was executed in dry-run mode (no Neo4j or OpenAI
-calls) and its normalized manifest is committed at:
+calls) and its committed reference material is:
 
 ```
-pipelines/runs/demo_dataset_v2-dryrun-20260408T163338Z-b09f7e1b/run_manifest.json
+pipelines/runs/demo_dataset_v2-dryrun-20260408T163338Z-b09f7e1b/
 pipelines/runs/demo_dataset_v2-dryrun-20260408T163338Z-b09f7e1b/PROVENANCE.md
 ```
 
