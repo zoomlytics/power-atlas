@@ -218,15 +218,18 @@ Resulting state:
 
 ### 4. Documentation normalization candidates
 
-These are likely to become follow-up work once any retirement implementation starts:
+This is now the active follow-up lane after the bounded shell audits closed the
+remaining obvious defer-or-retire decisions:
 
 - root `README.md`
-  - currently states that `demo/` is the working implementation and that `backend/` / `frontend/` are scaffolding or transitional surfaces
+  - should keep describing `demo/` as the working implementation and `backend/` / `frontend/` as disconnected scaffolding, but should not be read as reopening a separate `backend/main.py` retirement lane
 - `demo/README.md`
   - remains the active operator walkthrough and should only be downgraded after the active execution path changes
 - restructure docs that still describe compatibility shells or shim deferment as current posture
+  - should now point to explicit accepted defer-in-place decisions for `backend/main.py`, `scripts/sync_vendor_version.py`, `pipelines/query/graph_health_diagnostics.py`, and `pipelines/query/retrieval_benchmark.py`
 
-Documentation changes should follow actual retirement work, not lead it.
+Documentation changes should follow actual retirement or defer decisions, not
+lead them.
 
 ## Current readiness assessment
 
@@ -244,7 +247,7 @@ Documentation changes should follow actual retirement work, not lead it.
 
 ## Recommended implementation order
 
-1. Update README and restructure docs to remove stale references to retired surfaces.
+1. Update README and restructure docs to remove stale references to retired surfaces and to normalize wording around accepted defer-in-place shells.
 
 At the current checkpoint, the `demo/contracts` retirement implementation lane is complete, the `_archive/` placement decision is accepted, and the mixed `demo/artifacts/` / `pipelines/runs/` output-root question is resolved as a defer-in-place decision. The remaining Phase 10 work is broader documentation cleanup or later legacy-surface retirement outside those closed lanes.
 
@@ -260,6 +263,6 @@ Before removing a shortlisted surface, require at minimum:
 
 ## Initial recommendation
 
-Treat the next Phase 10 implementation slice as a legacy-surface cleanup or retirement lane other than `_archive/` placement or `demo/contracts`.
+Treat the next Phase 10 implementation slice as documentation/caller-surface cleanup or a legacy-surface retirement lane other than `_archive/` placement, `demo/contracts`, or the already-classified defer-in-place shells.
 
 Do not mix archive cleanup with broader compatibility-shell deletion into a single pass.

@@ -999,7 +999,7 @@ useful next work in sequence is now:
 3. treat Phase 4 as partially underway and use that framing to prioritize the next lane,
 4. treat the first-party env/default cleanup lane as mostly complete and avoid reopening it unless new real debt is found,
 5. take the next narrow migration slices on broader Phase 4 seam extraction, especially raw Cypher isolation and thinner orchestration boundaries,
-6. defer actual shim retirement until late migration unless the active execution surface changes materially.
+6. treat the completed Phase 10 shim and compatibility-shell decisions as closed unless the active execution surface changes materially, and prefer documentation/caller-surface migration over deleting accepted defer-in-place shells.
 
 ---
 
@@ -1013,4 +1013,4 @@ This migration is successful if, at the end:
 - runtime state is explicit,
 - tests and eval are clearly separated,
 - legacy structures are retired,
-- future work can proceed without continuing to route through "temporary" paths.
+- future work can proceed without continuing to route through undocumented temporary paths or untracked compatibility seams.
