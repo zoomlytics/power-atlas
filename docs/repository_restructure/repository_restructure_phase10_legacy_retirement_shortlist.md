@@ -112,6 +112,17 @@ These files or directories still have an accepted role and should not yet be put
 
 These are legacy-shaped surfaces, but they are not yet expired. Removing them before the active execution posture changes would create churn without closing the real migration obligations.
 
+Script-specific audit result:
+
+- `scripts/sync_vendor_version.py` is currently a defer-in-place shell rather
+  than a live retirement candidate,
+- it still serves as the stable operator and CI seam for vendor metadata sync:
+  the repo README, vendor docs, and `.github/workflows/vendor-version-consistency.yml`
+  still invoke this exact script path,
+- `tests/test_sync_vendor_version.py` still imports and patches symbols from
+  `scripts.sync_vendor_version`, so deleting it now would change the active
+  script/test seam rather than retire dead compatibility debt.
+
 Backend-specific audit result:
 
 - `backend/main.py` is currently a defer-in-place shell rather than a live

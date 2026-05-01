@@ -692,6 +692,44 @@ rather than being retired in the current Phase 10 lane.
 
 ---
 
+## Decision 20 — `scripts/sync_vendor_version.py` stays as a defer-in-place compatibility shell for now
+
+### Decision
+
+`scripts/sync_vendor_version.py` should remain in place for now as a thin
+compatibility shell rather than being retired in the current Phase 10 lane.
+
+### Why
+
+- it is already reduced to a package-backed CLI bridge that delegates argument
+	parsing and main-entry dispatch to `power_atlas.interfaces.cli`,
+- the remaining caller surface is still an active operator seam rather than a
+	dead wrapper,
+- `.github/workflows/vendor-version-consistency.yml` still invokes
+	`python3 scripts/sync_vendor_version.py --check`,
+- the root README and `docs/vendor/neo4j-graphrag-python.md` still document
+	this exact script path for local operator use,
+- `tests/test_sync_vendor_version.py` still imports and patches symbols from
+	`scripts.sync_vendor_version`, so deleting the file now would change the
+	active script/test seam rather than retire obsolete compatibility debt.
+
+### Consequences
+
+- treat `scripts/sync_vendor_version.py` as an accepted defer-in-place shell,
+- do not open a deletion lane for it until the workflow/docs invocation surface
+	and test seam are intentionally migrated,
+- keep the package-owned CLI support modules under `src/power_atlas/interfaces/cli/`
+	as the authoritative implementation while this script remains the stable
+	outer seam.
+
+### Open Questions
+
+- None for the current slice; the next meaningful move would require an
+	intentional workflow/doc/test-seam migration rather than another caller
+	search.
+
+---
+
 ## Summary of decisions that still require follow-up
 
 The following areas are intentionally narrowed but not fully finalized yet:
