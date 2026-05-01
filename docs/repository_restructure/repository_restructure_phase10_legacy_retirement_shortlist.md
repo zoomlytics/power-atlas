@@ -1,6 +1,6 @@
 # Phase 10 Planning Task — Legacy Retirement Shortlist
 
-**Status:** in progress  
+**Status:** completed as a planning shortlist  
 **Owner:** Ash  
 **Date context:** 2026-04-30  
 **Related documents:**
@@ -11,11 +11,11 @@
 
 ## Purpose
 
-This document starts the concrete planning lane for Phase 10 legacy retirement.
+This document records the concrete planning shortlist for Phase 10 legacy retirement.
 
-The immediate goal is not to delete code opportunistically. The goal is to:
+The immediate goal of this shortlist was not to delete code opportunistically. The goal was to:
 
-- classify which legacy-shaped surfaces are plausible retirement candidates,
+- classify which legacy-shaped surfaces were plausible retirement candidates,
 - separate blocked compatibility surfaces from genuinely archivable ones,
 - define a small, ordered shortlist for later implementation work.
 
