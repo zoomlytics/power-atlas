@@ -110,6 +110,29 @@ These files or directories still have an accepted role and should not yet be put
 
 These are legacy-shaped surfaces, but they are not yet expired. Removing them before the active execution posture changes would create churn without closing the real migration obligations.
 
+### 3a. Mixed active-output roots with committed historical exemplars
+
+These paths contain committed historical run-output surfaces, but they are also
+still part of the active output contract and therefore should not yet be moved
+behind `_archive/` or another archival boundary wholesale:
+
+- `demo/artifacts/`
+  - still the default output root for reset reports and demo run artifacts
+  - referenced by `scripts/phase1_verify.sh`, CLI help/defaults, validation
+    docs, and historical restructure logs
+- `pipelines/runs/`
+  - still the active output root for graph-health and retrieval-benchmark CLI
+    artifacts
+  - committed exceptions are explicitly carved out in `.gitignore` for
+    documentation and benchmark-reference purposes
+
+Accepted treatment:
+
+- keep both roots in place as active output locations,
+- treat their committed contents as historical reference exemplars,
+- defer any move behind a stronger archival boundary until runtime defaults and
+  documentation references are intentionally decoupled.
+
 ### 4. Documentation normalization candidates
 
 These are likely to become follow-up work once any retirement implementation starts:
@@ -140,7 +163,7 @@ Documentation changes should follow actual retirement work, not lead it.
 
 1. Update README and restructure docs to remove stale references to retired surfaces.
 
-At the current checkpoint, the `demo/contracts` retirement implementation lane is complete and the `_archive/` placement decision is accepted; the remaining Phase 10 work is broader documentation cleanup or later legacy-surface retirement outside those closed lanes.
+At the current checkpoint, the `demo/contracts` retirement implementation lane is complete, the `_archive/` placement decision is accepted, and the mixed `demo/artifacts/` / `pipelines/runs/` output-root question is resolved as a defer-in-place decision. The remaining Phase 10 work is broader documentation cleanup or later legacy-surface retirement outside those closed lanes.
 
 ## Acceptance gate before any code deletion
 

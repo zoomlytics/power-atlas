@@ -612,6 +612,41 @@ boundary for historical experimentation material.
 
 ---
 
+## Decision 18 — Committed historical run outputs stay in active output roots for now
+
+### Decision
+
+Committed historical run-output surfaces under `demo/artifacts/` and
+`pipelines/runs/` should remain in place for now rather than being moved behind
+`_archive/` or another archival boundary immediately.
+
+### Why
+
+- both directories are still active output roots used by current commands,
+- `demo/artifacts/` remains the default destination for reset reports and demo
+	run artifacts,
+- `pipelines/runs/` remains the active destination for graph-health and
+	retrieval-benchmark CLI artifacts,
+- the committed exceptions under those roots are heavily referenced by docs,
+	provenance files, verification scripts, and historical restructure logs,
+- moving them now would mix archival cleanup with live output-path changes and
+	create path churn without reducing current runtime risk.
+
+### Consequences
+
+- treat the committed contents under those roots as historical reference
+	exemplars rather than as evidence that the roots are pure archive surfaces,
+- keep the active output paths unchanged for now,
+- only revisit relocation after runtime defaults and documentation references
+	are intentionally decoupled from those roots.
+
+### Open Questions
+
+- None for the current Phase 10 lane; the decision is to defer relocation until
+	the output roots are no longer mixed active/historical surfaces.
+
+---
+
 ## Summary of decisions that still require follow-up
 
 The following areas are intentionally narrowed but not fully finalized yet:
