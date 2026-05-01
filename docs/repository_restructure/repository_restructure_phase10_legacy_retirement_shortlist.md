@@ -61,11 +61,12 @@ These look like the best first shortlist once implementation work begins:
 - `_archive/`
   - currently contains historical experimentation material
   - now explicitly labeled as archival/non-active in repo docs
-  - remaining question: whether its current top-level location remains acceptable or should later move behind a different archival boundary
+  - accepted decision: keep it at the repo root as the explicit archival boundary for now
+  - rationale: no non-doc/runtime coupling was found, and moving it would create reference churn without reducing current product risk
 
 `__queuestorage__/` no longer belongs on the active shortlist because that low-risk retirement slice has already been completed.
 
-The remaining early candidate in this class is `_archive/`, which still appears operationally low-coupling compared with the compatibility layers.
+The remaining early candidate in this class is `_archive/`, but its placement decision is now resolved: it should remain at the repo root until a broader repository-layout change creates a stronger reason to move archival material elsewhere.
 
 ### 2. Deferred shim-retirement candidates
 
@@ -137,10 +138,9 @@ Documentation changes should follow actual retirement work, not lead it.
 
 ## Recommended implementation order
 
-1. Decide whether `_archive/` should remain at the repo root or move behind a different archival boundary.
-2. Update README and restructure docs to remove stale references to retired surfaces.
+1. Update README and restructure docs to remove stale references to retired surfaces.
 
-At the current checkpoint, the `demo/contracts` retirement implementation lane is complete and only documentation cleanup remains.
+At the current checkpoint, the `demo/contracts` retirement implementation lane is complete and the `_archive/` placement decision is accepted; the remaining Phase 10 work is broader documentation cleanup or later legacy-surface retirement outside those closed lanes.
 
 ## Acceptance gate before any code deletion
 
@@ -154,8 +154,6 @@ Before removing a shortlisted surface, require at minimum:
 
 ## Initial recommendation
 
-Treat the next Phase 10 implementation slice as this remaining option:
-
-1. a follow-up archive-placement decision for `_archive/`.
+Treat the next Phase 10 implementation slice as a legacy-surface cleanup or retirement lane other than `_archive/` placement or `demo/contracts`.
 
 Do not mix archive cleanup with broader compatibility-shell deletion into a single pass.

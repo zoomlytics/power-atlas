@@ -581,6 +581,37 @@ The current contract surface is therefore package-native:
 
 ---
 
+## Decision 17 — `_archive/` remains at the repo root as the archival boundary for now
+
+### Decision
+
+`_archive/` should remain at the repository root as the accepted archival
+boundary for historical experimentation material.
+
+### Why
+
+- workspace searches found no live runtime coupling to `_archive/` beyond
+	documentation references,
+- `_archive/README.md` and the root `README.md` already mark the directory as
+	historical, non-active material,
+- moving the directory now would create reference churn without reducing
+	current product or migration risk.
+
+### Consequences
+
+- Phase 10 should treat `_archive/` placement as resolved unless a broader
+	repository-layout change creates a stronger reason to move archival material,
+- future documentation can refer to `_archive/` as the explicit historical
+	boundary without implying active product ownership,
+- archive cleanup should focus on labeling and reference hygiene rather than
+	path relocation by default.
+
+### Open Questions
+
+- None for the current Phase 10 lane.
+
+---
+
 ## Summary of decisions that still require follow-up
 
 The following areas are intentionally narrowed but not fully finalized yet:
