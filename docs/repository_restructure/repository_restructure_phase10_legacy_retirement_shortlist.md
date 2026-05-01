@@ -123,6 +123,17 @@ Script-specific audit result:
   `scripts.sync_vendor_version`, so deleting it now would change the active
   script/test seam rather than retire dead compatibility debt.
 
+Query-entrypoint audit result:
+
+- `pipelines/query/graph_health_diagnostics.py` is also currently a
+  defer-in-place shell rather than a live retirement candidate,
+- it still serves as the documented manual diagnostics entrypoint in
+  `pipelines/query/README.md`, `docs/architecture/retrieval-benchmark-review-rubric-v0.1.md`,
+  and `docs/architecture/warning-channel-conventions.md`,
+- `demo/tests/test_graph_health_diagnostics_cli.py` still imports and patches
+  `pipelines.query.graph_health_diagnostics`, so deleting it now would change
+  the active CLI/test seam rather than retire dead compatibility debt.
+
 Backend-specific audit result:
 
 - `backend/main.py` is currently a defer-in-place shell rather than a live
