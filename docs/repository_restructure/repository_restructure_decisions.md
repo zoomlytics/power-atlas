@@ -657,6 +657,41 @@ files once the deletions are accepted.
 
 ---
 
+## Decision 19 — `backend/main.py` stays as a defer-in-place compatibility shell for now
+
+### Decision
+
+`backend/main.py` should remain in place for now as a thin compatibility shell
+rather than being retired in the current Phase 10 lane.
+
+### Why
+
+- it is already reduced to a minimal package bridge that delegates app creation
+	to `power_atlas.interfaces.api.create_backend_app`,
+- the remaining direct caller surface is small but still real,
+- `backend/Dockerfile` still launches the backend through this seam with
+	`uvicorn main:app`,
+- `tests/test_backend_main.py` still imports `app` from `backend.main` as the
+	dedicated backend compatibility test seam,
+- deleting the file now would change the active backend execution posture
+	rather than retire dead compatibility debt.
+
+### Consequences
+
+- treat `backend/main.py` as an accepted defer-in-place shell,
+- do not open a deletion lane for it until the backend container entrypoint and
+	test seam are intentionally migrated,
+- keep the package-owned API app factory under
+	`src/power_atlas/interfaces/api/` as the authoritative implementation while
+	`backend/main.py` remains the stable outer seam.
+
+### Open Questions
+
+- None for the current slice; the next meaningful move would require an
+	intentional container/test-seam migration rather than another caller search.
+
+---
+
 ## Summary of decisions that still require follow-up
 
 The following areas are intentionally narrowed but not fully finalized yet:

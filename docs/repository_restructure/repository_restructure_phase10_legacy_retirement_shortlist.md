@@ -102,6 +102,8 @@ These files or directories still have an accepted role and should not yet be put
   - still the active implementation and walkthrough surface referenced by the root README
 - `backend/main.py`
   - now a thin compatibility shell for the package-owned FastAPI app factory
+  - still the stable backend container seam via `backend/Dockerfile` (`uvicorn main:app`)
+  - still the import seam exercised by `tests/test_backend_main.py`
 - `frontend/`
   - documented as a transitional non-core health-check client, not yet a retired surface
 - `pipelines/query/*.py` and `scripts/sync_vendor_version.py`
@@ -109,6 +111,16 @@ These files or directories still have an accepted role and should not yet be put
 - compatibility re-export modules noted in the decisions register under the package root
 
 These are legacy-shaped surfaces, but they are not yet expired. Removing them before the active execution posture changes would create churn without closing the real migration obligations.
+
+Backend-specific audit result:
+
+- `backend/main.py` is currently a defer-in-place shell rather than a live
+  retirement candidate,
+- the nearby caller inventory is intentionally small, but it is not empty:
+  `backend/Dockerfile` still launches the backend through this seam and
+  `tests/test_backend_main.py` still imports `app` from it,
+- retiring the file now would force an execution-seam change rather than close
+  dead compatibility debt.
 
 ### 3a. Mixed active-output roots and committed exemplar boundaries
 
