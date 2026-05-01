@@ -110,16 +110,18 @@ These files or directories still have an accepted role and should not yet be put
 
 These are legacy-shaped surfaces, but they are not yet expired. Removing them before the active execution posture changes would create churn without closing the real migration obligations.
 
-### 3a. Mixed active-output roots with committed historical exemplars
+### 3a. Mixed active-output roots and committed exemplar boundaries
 
-These paths contain committed historical run-output surfaces, but they are also
-still part of the active output contract and therefore should not yet be moved
-behind `_archive/` or another archival boundary wholesale:
+These paths are still part of the active output contract and therefore should
+not be moved behind `_archive/` or another archival boundary wholesale:
 
 - `demo/artifacts/`
   - still the default output root for reset reports and demo run artifacts
   - referenced by `scripts/phase1_verify.sh`, CLI help/defaults, validation
     docs, and historical restructure logs
+  - current git inventory shows no tracked historical payload under this root
+    beyond its ignore control file; the visible run outputs here are ignored
+    local artifacts rather than committed exemplars
 - `pipelines/runs/`
   - still the active output root for graph-health and retrieval-benchmark CLI
     artifacts
@@ -129,7 +131,11 @@ behind `_archive/` or another archival boundary wholesale:
 Accepted treatment:
 
 - keep both roots in place as active output locations,
-- treat their committed contents as historical reference exemplars,
+- treat committed exemplar handling as path-specific rather than root-wide,
+- for `demo/artifacts/`, there is currently no tracked historical payload to
+  retire after references disappear,
+- for `pipelines/runs/`, keep the committed reference exemplars in place until
+  runtime defaults and documentation references are intentionally decoupled,
 - defer any move behind a stronger archival boundary until runtime defaults and
   documentation references are intentionally decoupled.
 

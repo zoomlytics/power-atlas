@@ -612,13 +612,14 @@ boundary for historical experimentation material.
 
 ---
 
-## Decision 18 — Committed historical run outputs stay in active output roots for now
+## Decision 18 — Active output roots remain in place; only `pipelines/runs/` still has tracked exemplar payload
 
 ### Decision
 
-Committed historical run-output surfaces under `demo/artifacts/` and
-`pipelines/runs/` should remain in place for now rather than being moved behind
-`_archive/` or another archival boundary immediately.
+The active output roots `demo/artifacts/` and `pipelines/runs/` should remain
+in place for now rather than being moved behind `_archive/` or another archival
+boundary immediately. Within that scope, only `pipelines/runs/` still carries
+tracked committed exemplar payload in the current checkout.
 
 ### Why
 
@@ -627,15 +628,21 @@ Committed historical run-output surfaces under `demo/artifacts/` and
 	run artifacts,
 - `pipelines/runs/` remains the active destination for graph-health and
 	retrieval-benchmark CLI artifacts,
-- the committed exceptions under those roots are heavily referenced by docs,
-	provenance files, verification scripts, and historical restructure logs,
+- a git inventory of `demo/artifacts/` shows no tracked historical payload
+	beyond the ignore control file, even though ignored local run residue may be
+	present in a working tree,
+- the committed exceptions that still exist under `pipelines/runs/` are heavily
+	referenced by docs, provenance files, and benchmark review material,
 - moving them now would mix archival cleanup with live output-path changes and
 	create path churn without reducing current runtime risk.
 
 ### Consequences
 
-- treat the committed contents under those roots as historical reference
-	exemplars rather than as evidence that the roots are pure archive surfaces,
+- do not treat `demo/artifacts/` as an outstanding tracked-file retirement
+	bucket; there is currently nothing there to drop later except ignored local
+	outputs,
+- treat the committed contents under `pipelines/runs/` as historical reference
+	exemplars rather than as evidence that the root is a pure archive surface,
 - keep the active output paths unchanged for now,
 - only revisit relocation after runtime defaults and documentation references
 	are intentionally decoupled from those roots.
