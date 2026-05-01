@@ -1,6 +1,6 @@
 # Phase 2 Follow-Up Task — `demo/contracts` Deprecation Planning
 
-**Status:** in progress  
+**Status:** completed  
 **Owner:** Ash  
 **Date context:** 2026-04-16  
 **Related documents:**
@@ -10,16 +10,17 @@
 
 ## Purpose
 
-This document defines the next deliberate Phase 2 follow-up task for the
-package-first migration lane:
+This document records the deliberate Phase 2 follow-up task that defined the
+`demo/contracts` retirement lane for the package-first migration:
 
 - determine how `demo/contracts` should be deprecated and eventually retired,
-- keep the current compatibility-preserving posture explicit until that work is
+- keep the compatibility-preserving posture explicit until that work is
   accepted,
 - prevent incidental import cleanup from turning into untracked compatibility
   breakage.
 
-This is a planning and scoping task, not an immediate deletion or refactor task.
+This document now serves as a historical planning and execution record; the
+retirement work itself was completed in Phase 10.
 
 ## Current repo state
 
@@ -296,7 +297,7 @@ Define the acceptance gate for implementation work, including:
 
 ## Required deliverables
 
-The planning task should produce:
+The planning task was expected to produce:
 
 1. a classified inventory of `demo/contracts` shims and remaining callers,
 2. a recommended retirement order,
@@ -305,7 +306,7 @@ The planning task should produce:
 5. a recommendation on whether retirement belongs to late Phase 2 work or should
    remain deferred to Phase 10.
 
-## Initial recommendation
+## Historical recommendation
 
 ### Recommended retirement order
 
@@ -326,12 +327,12 @@ The planning task should produce:
 
 ### Recommended phase placement
 
-The planning work belongs in Phase 2 now.
+At the time of planning, the scoping work belonged in Phase 2.
 
-Actual shim-removal implementation should be treated as **deferred to Phase 10**
-unless a later repo state materially changes the current execution posture.
+Actual shim-removal implementation was deferred to **Phase 10**, where it was
+later completed.
 
-#### Current recommendation
+#### Recommendation at that checkpoint
 
 Based on the current repo state, the retirement implementation should not be
 scheduled as a late-Phase-2 slice.
@@ -356,7 +357,7 @@ This means the right Phase 2 outcome is:
 
 ### Validation gate for any future implementation
 
-Before any shim-removal code change, require at minimum:
+Before any shim-removal code change, the minimum required validation was:
 
 - `tests/test_power_atlas_package.py`
 - compatibility-focused demo tests that currently import or assert against
@@ -365,7 +366,7 @@ Before any shim-removal code change, require at minimum:
 - `make phase1-verify` for any change that can affect runtime behavior or the
   accepted CLI path
 
-## Suggested execution sequence
+## Historical execution sequence
 
 1. Re-inventory `demo/contracts` callers and classify them as runtime,
    compatibility-test, documentation-only, or deliberate exception.

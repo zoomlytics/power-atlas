@@ -26,7 +26,7 @@ As of 2026-04-30:
 - `demo/` is still the active implementation and operator-facing walkthrough surface,
 - CLI and API transport logic has moved package-side under `src/power_atlas/interfaces/`,
 - several legacy entrypoint files now remain intentionally as compatibility shells,
-- `demo/contracts` remains a tracked compatibility layer rather than expired debt,
+- the former `demo/contracts` compatibility layer has now been retired,
 - the backend API and frontend UI are both documented as minimal or transitional surfaces rather than the primary product path.
 
 Phase 10 therefore cannot be treated as a blanket instruction to remove everything outside `src/`.
@@ -121,12 +121,12 @@ These are likely to become follow-up work once any retirement implementation sta
 
 Documentation changes should follow actual retirement work, not lead it.
 
-## Initial readiness assessment
+## Current readiness assessment
 
-### Ready for Phase 10 planning
+### Already completed in this lane
 
-- define the implementation order for `demo/contracts` shim retirement,
-- define the documentation updates that must accompany any actual deletion.
+- the `demo/contracts` shim-retirement order was executed,
+- the required documentation updates for that lane have been landed.
 
 ### Not ready for direct removal
 
@@ -154,9 +154,8 @@ Before removing a shortlisted surface, require at minimum:
 
 ## Initial recommendation
 
-Treat the next Phase 10 implementation slice as one of these, not both at once:
+Treat the next Phase 10 implementation slice as this remaining option:
 
-1. a follow-up archive-placement decision for `_archive/`, or
-2. the higher-value but more constrained `demo/contracts` shim-retirement lane.
+1. a follow-up archive-placement decision for `_archive/`.
 
-Do not mix archive cleanup, shim retirement, and compatibility-shell deletion into a single pass.
+Do not mix archive cleanup with broader compatibility-shell deletion into a single pass.
