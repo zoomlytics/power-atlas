@@ -139,6 +139,50 @@ Accepted treatment:
 - defer any move behind a stronger archival boundary until runtime defaults and
   documentation references are intentionally decoupled.
 
+### 3b. Exact current drop-candidate inventory under `pipelines/runs/`
+
+Current git inventory shows four tracked exemplar files under
+`pipelines/runs/` plus the control file `.gitkeep`:
+
+- `pipelines/runs/demo_dataset_v2-dryrun-20260408T163338Z-b09f7e1b/run_manifest.json`
+- `pipelines/runs/demo_dataset_v2-dryrun-20260408T163338Z-b09f7e1b/PROVENANCE.md`
+- `pipelines/runs/unstructured_ingest-20260401T184420771950Z-ee78cf8c/retrieval_benchmark/retrieval_benchmark.json`
+- `pipelines/runs/unstructured_ingest-20260401T184420771950Z-ee78cf8c/retrieval_benchmark/PROVENANCE.md`
+
+Cheap discriminating check outcome:
+
+- no runtime code or tests currently point at these exact tracked files,
+- the exact-path references are documentation and sibling provenance links.
+
+That means these four files are the current committed payload that can be
+dropped once their historical references are intentionally removed or replaced.
+
+Current reference anchors to clear first:
+
+- `run_manifest.json`
+  - referenced by `demo/VALIDATION_RUNBOOK.md`
+- v2 `PROVENANCE.md`
+  - referenced by `demo/VALIDATION_RUNBOOK.md`
+  - referenced by `docs/cross-dataset-validation-report-v1-v2.md`
+- v1 `retrieval_benchmark.json`
+  - referenced by `pipelines/query/README.md`
+  - referenced by `docs/cross-dataset-validation-report-v1-v2.md`
+  - referenced by `docs/architecture/retrieval-benchmark-review-rubric-v0.1.md`
+  - referenced by sibling provenance under the same committed run
+- v1 `PROVENANCE.md`
+  - referenced by `pipelines/query/README.md`
+  - referenced by `docs/cross-dataset-validation-report-v1-v2.md`
+  - referenced by `docs/architecture/retrieval-benchmark-review-rubric-v0.1.md`
+
+Retirement order implication:
+
+- `run_manifest.json` is the narrowest first drop candidate,
+- the v2 dry-run provenance file can follow once the runbook/report references
+  are rewritten,
+- the v1 retrieval benchmark JSON and its provenance are the heaviest anchors
+  because they support the benchmark review rubric and cross-dataset baseline
+  report.
+
 ### 4. Documentation normalization candidates
 
 These are likely to become follow-up work once any retirement implementation starts:
