@@ -771,6 +771,46 @@ lane.
 
 ---
 
+## Decision 22 — `pipelines/query/retrieval_benchmark.py` stays as a defer-in-place compatibility shell for now
+
+### Decision
+
+`pipelines/query/retrieval_benchmark.py` should remain in place for now as a
+thin compatibility shell rather than being retired in the current Phase 10
+lane.
+
+### Why
+
+- it is already reduced to a package-backed CLI bridge that delegates argument
+	parsing and main-entry dispatch to `power_atlas.interfaces.cli`,
+- the remaining caller surface is still an active manual/operator seam rather
+	than dead wrapper glue,
+- `demo/README.md`, `pipelines/query/README.md`,
+	`docs/architecture/legacy-dataset-id-migration-v0.1.md`, and
+	`docs/architecture/retrieval-benchmark-review-rubric-v0.1.md` still describe
+	or invoke this exact script path for manual benchmark usage,
+- `demo/tests/test_retrieval_benchmark_cli.py` still imports and patches
+	`pipelines.query.retrieval_benchmark`, so deleting the file now would change
+	the active CLI/test seam rather than retire obsolete compatibility debt.
+
+### Consequences
+
+- treat `pipelines/query/retrieval_benchmark.py` as an accepted
+	defer-in-place shell,
+- do not open a deletion lane for it until the manual-doc invocation surface
+	and test seam are intentionally migrated,
+- keep the package-owned CLI support modules under `src/power_atlas/interfaces/cli/`
+	as the authoritative implementation while this script remains the stable
+	outer seam.
+
+### Open Questions
+
+- None for the current slice; the next meaningful move would require an
+	intentional documentation/test-seam migration rather than another caller
+	search.
+
+---
+
 ## Summary of decisions that still require follow-up
 
 The following areas are intentionally narrowed but not fully finalized yet:

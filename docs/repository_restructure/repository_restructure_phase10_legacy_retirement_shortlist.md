@@ -134,6 +134,16 @@ Query-entrypoint audit result:
   `pipelines.query.graph_health_diagnostics`, so deleting it now would change
   the active CLI/test seam rather than retire dead compatibility debt.
 
+- `pipelines/query/retrieval_benchmark.py` is also currently a
+  defer-in-place shell rather than a live retirement candidate,
+- it still serves as the documented manual benchmark CLI seam in
+  `demo/README.md`, `pipelines/query/README.md`,
+  `docs/architecture/legacy-dataset-id-migration-v0.1.md`, and
+  `docs/architecture/retrieval-benchmark-review-rubric-v0.1.md`,
+- `demo/tests/test_retrieval_benchmark_cli.py` still imports and patches
+  `pipelines.query.retrieval_benchmark`, so deleting it now would change the
+  active CLI/test seam rather than retire dead compatibility debt.
+
 Backend-specific audit result:
 
 - `backend/main.py` is currently a defer-in-place shell rather than a live
