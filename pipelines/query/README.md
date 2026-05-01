@@ -1937,25 +1937,18 @@ Each entry in `case_results` includes:
 
 #### Real reviewed baseline (primary regression reference)
 
-A real reviewed baseline artifact — derived from an actual post-hybrid run — is
-committed at:
+A real reviewed baseline summary — derived from an actual post-hybrid run — is
+captured in this section and in the retrieval benchmark review rubric.
 
-```
-pipelines/runs/unstructured_ingest-20260401T184420771950Z-ee78cf8c/retrieval_benchmark/retrieval_benchmark.json
-```
-
-Run provenance is documented in:
-
-```
-pipelines/runs/unstructured_ingest-20260401T184420771950Z-ee78cf8c/retrieval_benchmark/PROVENANCE.md
-```
+The original committed benchmark artifact and provenance files were retired
+after their key baseline facts were folded into repo docs.
 
 > **⚠️ Pre-PR-#433 reference point.**  This baseline was generated before PR **#433**
 > hardened `entity_type` normalization.  The `fragmentation_detected_count=4` and
 > all `entity_type_case_split` hints in this artifact reflect a now-addressed
 > normalization gap.  A post-PR-#433 run is expected to produce lower fragmentation
-> counts.  See `PROVENANCE.md` § *Relationship to PR #433* for the full impact
-> table.
+> counts.  The detailed impact explanation is summarized in
+> `docs/architecture/retrieval-benchmark-review-rubric-v0.1.md`.
 
 **Baseline summary figures** (run `unstructured_ingest-20260401T184420771950Z-ee78cf8c`, alignment `v1.0`, **pre-PR-#433**):
 

@@ -141,39 +141,35 @@ Accepted treatment:
 
 ### 3b. Exact current drop-candidate inventory under `pipelines/runs/`
 
-Current git inventory shows two tracked exemplar files under
-`pipelines/runs/` plus the control file `.gitkeep`:
-
-- `pipelines/runs/unstructured_ingest-20260401T184420771950Z-ee78cf8c/retrieval_benchmark/retrieval_benchmark.json`
-- `pipelines/runs/unstructured_ingest-20260401T184420771950Z-ee78cf8c/retrieval_benchmark/PROVENANCE.md`
+The current working tree removes the last tracked exemplar payload that had
+been kept under `pipelines/runs/`. After these deletions are accepted, only the
+control file `.gitkeep` remains tracked there.
 
 Cheap discriminating check outcome:
 
 - no runtime code or tests currently point at these exact tracked files,
 - the exact-path references are documentation and sibling provenance links.
 
-That means these two files are the current committed payload that can be
-dropped once their historical references are intentionally removed or replaced.
+That means the tracked exemplar-retirement lane under `pipelines/runs/` has now
+been executed in the working tree.
 
-Current reference anchors to clear first:
+Reference anchors cleared in this slice:
 
 - v1 `retrieval_benchmark.json`
   - referenced by `pipelines/query/README.md`
   - referenced by `docs/cross-dataset-validation-report-v1-v2.md`
   - referenced by `docs/architecture/retrieval-benchmark-review-rubric-v0.1.md`
-  - referenced by sibling provenance under the same committed run
 - v1 `PROVENANCE.md`
   - referenced by `pipelines/query/README.md`
   - referenced by `docs/cross-dataset-validation-report-v1-v2.md`
   - referenced by `docs/architecture/retrieval-benchmark-review-rubric-v0.1.md`
 
-Retirement order implication:
+Resulting state:
 
-- the v1 retrieval benchmark JSON and its provenance are now the remaining
-  tracked exemplar payload,
-- they are also the heaviest anchors
-  because they support the benchmark review rubric and cross-dataset baseline
-  report.
+- `demo/artifacts/` has no tracked historical payload beyond its control file,
+- `pipelines/runs/` is reduced to its control file in the working tree,
+- the historical benchmark facts formerly carried by the committed v1 files are
+  now summarized in durable documentation instead.
 
 ### 4. Documentation normalization candidates
 

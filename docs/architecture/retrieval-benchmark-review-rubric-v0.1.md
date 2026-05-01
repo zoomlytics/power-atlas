@@ -14,18 +14,9 @@ against the committed baseline.  It covers:
 
 ### Real reviewed baseline (primary regression reference)
 
-The real reviewed baseline artifact — derived from an actual post-hybrid run —
-is committed at:
-
-```
-pipelines/runs/unstructured_ingest-20260401T184420771950Z-ee78cf8c/retrieval_benchmark/retrieval_benchmark.json
-```
-
-See the accompanying provenance document at:
-
-```
-pipelines/runs/unstructured_ingest-20260401T184420771950Z-ee78cf8c/retrieval_benchmark/PROVENANCE.md
-```
+The real reviewed baseline summary — derived from an actual post-hybrid run —
+is preserved in this document and the companion benchmark overview in
+`pipelines/query/README.md`.
 
 > **⚠️ Pre-PR-#433 reference point.**  This baseline was generated *before*
 > PR-#433 hardened `entity_type` normalization (lowercase-variant mapping,
@@ -634,8 +625,7 @@ of your PR:
 
 ## References
 
-- Real reviewed baseline artifact: [`pipelines/runs/unstructured_ingest-20260401T184420771950Z-ee78cf8c/retrieval_benchmark/retrieval_benchmark.json`](../../pipelines/runs/unstructured_ingest-20260401T184420771950Z-ee78cf8c/retrieval_benchmark/retrieval_benchmark.json)
-- Baseline provenance: [`pipelines/runs/unstructured_ingest-20260401T184420771950Z-ee78cf8c/retrieval_benchmark/PROVENANCE.md`](../../pipelines/runs/unstructured_ingest-20260401T184420771950Z-ee78cf8c/retrieval_benchmark/PROVENANCE.md)
+- Historical baseline summary: [`pipelines/query/README.md`](../../pipelines/query/README.md)
 - Illustrative example artifact (schema reference only): [`pipelines/query/retrieval_benchmark_example_output.json`](../../pipelines/query/retrieval_benchmark_example_output.json)
 - Benchmark stage: [`demo/stages/retrieval_benchmark.py`](../../demo/stages/retrieval_benchmark.py)
 - CLI runner: [`pipelines/query/retrieval_benchmark.py`](../../pipelines/query/retrieval_benchmark.py)

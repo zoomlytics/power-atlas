@@ -612,14 +612,15 @@ boundary for historical experimentation material.
 
 ---
 
-## Decision 18 — Active output roots remain in place; only `pipelines/runs/` still has tracked exemplar payload
+## Decision 18 — Active output roots remain in place; tracked exemplar payload is retired from them
 
 ### Decision
 
 The active output roots `demo/artifacts/` and `pipelines/runs/` should remain
 in place for now rather than being moved behind `_archive/` or another archival
-boundary immediately. Within that scope, only `pipelines/runs/` still carries
-tracked committed exemplar payload in the current checkout.
+boundary immediately. Within that scope, tracked committed exemplar payload has
+been retired from both roots in the working tree, leaving only their control
+files once the deletions are accepted.
 
 ### Why
 
@@ -631,8 +632,9 @@ tracked committed exemplar payload in the current checkout.
 - a git inventory of `demo/artifacts/` shows no tracked historical payload
 	beyond the ignore control file, even though ignored local run residue may be
 	present in a working tree,
-- the committed exceptions that still exist under `pipelines/runs/` are heavily
-	referenced by docs, provenance files, and benchmark review material,
+- the previously committed `pipelines/runs/` exemplar files were doc-anchored
+	rather than runtime-anchored, so they could be replaced by durable
+	documentation summaries without changing live output paths,
 - moving them now would mix archival cleanup with live output-path changes and
 	create path churn without reducing current runtime risk.
 
@@ -641,8 +643,9 @@ tracked committed exemplar payload in the current checkout.
 - do not treat `demo/artifacts/` as an outstanding tracked-file retirement
 	bucket; there is currently nothing there to drop later except ignored local
 	outputs,
-- treat the committed contents under `pipelines/runs/` as historical reference
-	exemplars rather than as evidence that the root is a pure archive surface,
+- do not treat `pipelines/runs/` as an outstanding tracked-file retirement
+	bucket once the current deletions are accepted; historical benchmark facts now
+	live in durable documentation instead of committed run-output payload,
 - keep the active output paths unchanged for now,
 - only revisit relocation after runtime defaults and documentation references
 	are intentionally decoupled from those roots.

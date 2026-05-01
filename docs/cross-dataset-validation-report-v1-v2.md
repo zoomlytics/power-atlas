@@ -47,8 +47,7 @@ The comparison covers:
 | `alignment_version` | `v1.0` |
 | `generated_at` | `2026-04-01T20:38:01Z` |
 | Normalization baseline | **pre-PR-#433** (entity-type case-split present) |
-| Artifact location | `pipelines/runs/unstructured_ingest-20260401T184420771950Z-ee78cf8c/` |
-| Provenance doc | `pipelines/runs/unstructured_ingest-20260401T184420771950Z-ee78cf8c/retrieval_benchmark/PROVENANCE.md` |
+| Historical summary surfaces | `pipelines/query/README.md` and `docs/architecture/retrieval-benchmark-review-rubric-v0.1.md` |
 
 **Reproduce command:**
 
@@ -286,7 +285,8 @@ executed.  See [follow-up item F-01](#8-follow-up-items).
 | `total_cluster_claims` | 54 |
 | `total_pairwise_claims` | 0 |
 
-Benchmark artifact: `pipelines/runs/unstructured_ingest-20260401T184420771950Z-ee78cf8c/retrieval_benchmark/retrieval_benchmark.json`
+Historical benchmark summary is preserved in `pipelines/query/README.md` and
+`docs/architecture/retrieval-benchmark-review-rubric-v0.1.md`.
 
 **Notable v1 benchmark conditions:**
 
@@ -533,7 +533,7 @@ dual-dataset run.
 | dataset v2 README | `demo/fixtures/datasets/demo_dataset_v2/README.md` |
 | Fixtures overview | `demo/fixtures/README.md` |
 | Validation runbook | `demo/VALIDATION_RUNBOOK.md` |
-| v1 live run provenance | `pipelines/runs/unstructured_ingest-20260401T184420771950Z-ee78cf8c/retrieval_benchmark/PROVENANCE.md` |
+| v1 live run summary surfaces | `pipelines/query/README.md` and `docs/architecture/retrieval-benchmark-review-rubric-v0.1.md` |
 | v2 dry-run recorded run directory | `pipelines/runs/demo_dataset_v2-dryrun-20260408T163338Z-b09f7e1b/` |
 | Retrieval benchmark rubric | `docs/architecture/retrieval-benchmark-review-rubric-v0.1.md` |
 | Unstructured-first entity resolution | `docs/architecture/unstructured-first-entity-resolution-v0.1.md` |
