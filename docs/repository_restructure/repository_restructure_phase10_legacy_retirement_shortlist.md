@@ -125,8 +125,8 @@ not be moved behind `_archive/` or another archival boundary wholesale:
 - `pipelines/runs/`
   - still the active output root for graph-health and retrieval-benchmark CLI
     artifacts
-  - committed exceptions are explicitly carved out in `.gitignore` for
-    documentation and benchmark-reference purposes
+  - `.gitignore` still preserves the active-output posture even though the
+    tracked exemplar payload has now been removed from the working tree
 
 Accepted treatment:
 
@@ -134,8 +134,9 @@ Accepted treatment:
 - treat committed exemplar handling as path-specific rather than root-wide,
 - for `demo/artifacts/`, there is currently no tracked historical payload to
   retire after references disappear,
-- for `pipelines/runs/`, keep the committed reference exemplars in place until
-  runtime defaults and documentation references are intentionally decoupled,
+- for `pipelines/runs/`, the tracked exemplar-retirement lane has already been
+  executed in the working tree and only the control file remains once the
+  deletions are accepted,
 - defer any move behind a stronger archival boundary until runtime defaults and
   documentation references are intentionally decoupled.
 

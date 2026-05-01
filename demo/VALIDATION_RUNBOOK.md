@@ -653,13 +653,10 @@ demo/artifacts_compare/q3/cluster_aware/runs/<UNSTRUCTURED_RUN_ID>/retrieval_and
 
 ## 9. Dataset v2 recorded run
 
-This section documents the first committed end-to-end pipeline recording for
-`demo_dataset_v2`.  The run was executed in dry-run mode (no Neo4j or OpenAI
-calls) and its committed reference material is:
-
-```
-pipelines/runs/demo_dataset_v2-dryrun-20260408T163338Z-b09f7e1b/
-```
+This section documents the first recorded end-to-end pipeline dry run for
+`demo_dataset_v2`. The original committed run-output exemplar has been retired
+from the working tree; the durable reference for this run is now the summary in
+this runbook plus the cross-dataset validation report.
 
 ### Command used
 

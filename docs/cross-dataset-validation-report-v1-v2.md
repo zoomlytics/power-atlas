@@ -71,7 +71,7 @@ python -m demo.run_demo ingest --live --dataset demo_dataset_v1
 | `structured_ingest_run_id` | `structured_ingest-20260408T163338705724Z-83b4973b` |
 | `batch_run_id` | `batch-20260408T163338711870Z-d7eea62f` |
 | `generated_at` | `2026-04-08T16:33:38Z` |
-| Artifact location | `pipelines/runs/demo_dataset_v2-dryrun-20260408T163338Z-b09f7e1b/` |
+| Historical summary surfaces | `demo/VALIDATION_RUNBOOK.md` and this report |
 
 **Reproduce command (dry run — no credentials required):**
 
