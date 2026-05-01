@@ -659,7 +659,6 @@ calls) and its committed reference material is:
 
 ```
 pipelines/runs/demo_dataset_v2-dryrun-20260408T163338Z-b09f7e1b/
-pipelines/runs/demo_dataset_v2-dryrun-20260408T163338Z-b09f7e1b/PROVENANCE.md
 ```
 
 ### Command used

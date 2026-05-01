@@ -73,7 +73,6 @@ python -m demo.run_demo ingest --live --dataset demo_dataset_v1
 | `batch_run_id` | `batch-20260408T163338711870Z-d7eea62f` |
 | `generated_at` | `2026-04-08T16:33:38Z` |
 | Artifact location | `pipelines/runs/demo_dataset_v2-dryrun-20260408T163338Z-b09f7e1b/` |
-| Provenance doc | `pipelines/runs/demo_dataset_v2-dryrun-20260408T163338Z-b09f7e1b/PROVENANCE.md` |
 
 **Reproduce command (dry run — no credentials required):**
 
@@ -535,7 +534,7 @@ dual-dataset run.
 | Fixtures overview | `demo/fixtures/README.md` |
 | Validation runbook | `demo/VALIDATION_RUNBOOK.md` |
 | v1 live run provenance | `pipelines/runs/unstructured_ingest-20260401T184420771950Z-ee78cf8c/retrieval_benchmark/PROVENANCE.md` |
-| v2 dry-run provenance | `pipelines/runs/demo_dataset_v2-dryrun-20260408T163338Z-b09f7e1b/PROVENANCE.md` |
+| v2 dry-run recorded run directory | `pipelines/runs/demo_dataset_v2-dryrun-20260408T163338Z-b09f7e1b/` |
 | Retrieval benchmark rubric | `docs/architecture/retrieval-benchmark-review-rubric-v0.1.md` |
 | Unstructured-first entity resolution | `docs/architecture/unstructured-first-entity-resolution-v0.1.md` |
 | Claim-argument model | `docs/architecture/claim-argument-model-v0.3.md` |

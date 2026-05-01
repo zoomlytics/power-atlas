@@ -141,10 +141,9 @@ Accepted treatment:
 
 ### 3b. Exact current drop-candidate inventory under `pipelines/runs/`
 
-Current git inventory shows three tracked exemplar files under
+Current git inventory shows two tracked exemplar files under
 `pipelines/runs/` plus the control file `.gitkeep`:
 
-- `pipelines/runs/demo_dataset_v2-dryrun-20260408T163338Z-b09f7e1b/PROVENANCE.md`
 - `pipelines/runs/unstructured_ingest-20260401T184420771950Z-ee78cf8c/retrieval_benchmark/retrieval_benchmark.json`
 - `pipelines/runs/unstructured_ingest-20260401T184420771950Z-ee78cf8c/retrieval_benchmark/PROVENANCE.md`
 
@@ -153,14 +152,11 @@ Cheap discriminating check outcome:
 - no runtime code or tests currently point at these exact tracked files,
 - the exact-path references are documentation and sibling provenance links.
 
-That means these three files are the current committed payload that can be
+That means these two files are the current committed payload that can be
 dropped once their historical references are intentionally removed or replaced.
 
 Current reference anchors to clear first:
 
-- v2 `PROVENANCE.md`
-  - referenced by `demo/VALIDATION_RUNBOOK.md`
-  - referenced by `docs/cross-dataset-validation-report-v1-v2.md`
 - v1 `retrieval_benchmark.json`
   - referenced by `pipelines/query/README.md`
   - referenced by `docs/cross-dataset-validation-report-v1-v2.md`
@@ -173,9 +169,9 @@ Current reference anchors to clear first:
 
 Retirement order implication:
 
-- the v2 dry-run provenance file is now the narrowest remaining drop candidate
-  once the runbook/report references are rewritten,
-- the v1 retrieval benchmark JSON and its provenance are the heaviest anchors
+- the v1 retrieval benchmark JSON and its provenance are now the remaining
+  tracked exemplar payload,
+- they are also the heaviest anchors
   because they support the benchmark review rubric and cross-dataset baseline
   report.
 
