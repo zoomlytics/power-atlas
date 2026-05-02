@@ -222,7 +222,7 @@ This is now the active follow-up lane after the bounded shell audits closed the
 remaining obvious defer-or-retire decisions:
 
 - root `README.md`
-  - should keep describing `demo/` as the working implementation and `backend/` / `frontend/` as disconnected scaffolding, but should not be read as reopening a separate `backend/main.py` retirement lane
+  - now keeps describing `demo/` as the working implementation and `backend/` / `frontend/` as disconnected scaffolding, while clarifying that `backend/main.py` remains the accepted launch seam for the placeholder backend surface
 - `demo/README.md`
   - remains the active operator walkthrough and should only be downgraded after the active execution path changes
 - restructure docs that still describe compatibility shells or shim deferment as current posture

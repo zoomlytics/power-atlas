@@ -24,7 +24,7 @@ The pipeline supports three entity resolution modes:
 - **`hybrid`** — runs `ingest-structured` first to create `CanonicalEntity` nodes from a CSV catalog, then runs `resolve-entities --resolution-mode hybrid` to enrich existing `ResolvedEntityCluster` nodes with `ALIGNED_WITH` edges to matching `CanonicalEntity` nodes, enabling cluster-aware retrieval.
 - **`structured_anchor`** — resolves entity mentions directly against `CanonicalEntity` nodes rather than clustering them against each other first.
 
-The working implementation lives in [`demo/`](demo/). The `backend/` and `frontend/` directories are minimal scaffolding and are **not connected to the pipeline** (see [Current Status](#current-status)).
+The working implementation lives in [`demo/`](demo/). The `backend/` and `frontend/` directories are disconnected scaffolding and are **not connected to the pipeline**; within that stub surface, `backend/main.py` remains the stable launch seam for the placeholder API app (see [Current Status](#current-status)).
 
 ---
 
@@ -128,7 +128,7 @@ Refer to [`demo/VALIDATION_RUNBOOK.md`](demo/VALIDATION_RUNBOOK.md) for a step-b
 |---------|--------|
 | **`demo/` pipeline** | ✅ Operational — `unstructured_only` and `hybrid` modes working end-to-end |
 | **`pipelines/`** | ✅ Operational — ingest/query/experiment scripts + run artifacts |
-| **`backend/`** | 🚧 Disconnected scaffold — FastAPI stub with `/health` and placeholder `/graph/status` (HTTP 503); not connected to the GraphRAG pipeline |
+| **`backend/`** | 🚧 Disconnected scaffold — FastAPI stub with `/health` and placeholder `/graph/status` (HTTP 503); not connected to the GraphRAG pipeline, while `backend/main.py` remains the accepted launch seam for that stub surface |
 | **`frontend/`** | 🚧 Disconnected scaffold — Next.js stub; not connected to the pipeline or backend |
 | **`_archive/`** | 📦 Historical material — retained for reference only; not part of the active product or pipeline surface |
 | **Temporal modeling** | 📋 Planned — Architecture drafted ([`docs/architecture/temporal-modeling-v0.1.md`](docs/architecture/temporal-modeling-v0.1.md)) — not yet implemented in pipeline |
@@ -165,7 +165,7 @@ power-atlas/
 │   ├── governance/
 │   └── risk/
 ├── neo4j/                       # Graph operational assets (constraints, indexes, migrations, diagnostics)
-├── backend/                     # FastAPI stub (disconnected — see Current Status)
+├── backend/                     # FastAPI stub + stable launch seam for the disconnected placeholder API
 ├── frontend/                    # Next.js stub (disconnected — see Current Status)
 ├── tests/                       # Repository-level tests
 ├── scripts/                     # Utility scripts (e.g., vendor sync)
@@ -414,7 +414,7 @@ python scripts/sync_vendor_version.py --check
 # Start Neo4j only (sufficient for the demo pipeline)
 docker compose up -d neo4j
 
-# Start all services (includes disconnected backend/frontend stubs)
+# Start all services (includes disconnected backend/frontend stubs; the backend still launches through backend/main.py)
 docker compose up --build
 
 # Logs
