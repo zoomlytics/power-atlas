@@ -249,7 +249,11 @@ lead them.
 
 1. Update README and restructure docs to remove stale references to retired surfaces and to normalize wording around accepted defer-in-place shells.
 
-At the current checkpoint, the `demo/contracts` retirement implementation lane is complete, the `_archive/` placement decision is accepted, and the mixed `demo/artifacts/` / `pipelines/runs/` output-root question is resolved as a defer-in-place decision. The remaining Phase 10 work is broader documentation cleanup or later legacy-surface retirement outside those closed lanes.
+This documentation/caller-surface cleanup lane has now landed across the root
+README, operator docs, architecture docs, vendor docs, and secondary reference
+docs.
+
+At the current checkpoint, the `demo/contracts` retirement implementation lane is complete, the `_archive/` placement decision is accepted, the mixed `demo/artifacts/` / `pipelines/runs/` output-root question is resolved as a defer-in-place decision, and the accepted compatibility-shell documentation cleanup lane is also complete. The remaining Phase 10 work is later legacy-surface retirement outside those closed lanes.
 
 ## Acceptance gate before any code deletion
 
@@ -263,6 +267,6 @@ Before removing a shortlisted surface, require at minimum:
 
 ## Initial recommendation
 
-Treat the next Phase 10 implementation slice as documentation/caller-surface cleanup or a legacy-surface retirement lane other than `_archive/` placement, `demo/contracts`, or the already-classified defer-in-place shells.
+Treat the next Phase 10 implementation slice as a legacy-surface retirement lane other than `_archive/` placement, `demo/contracts`, or the already-classified defer-in-place shells.
 
 Do not mix archive cleanup with broader compatibility-shell deletion into a single pass.
