@@ -227,7 +227,7 @@ Check `entity_resolution_summary.json` under
 - `resolved` should be greater than `0` (`structured_anchor` mode)
 - `warnings` should be empty or should not mention "zero rows"
 
-For a deeper validation, run the retrieval benchmark:
+For a deeper validation, run the documented manual benchmark CLI seam:
 
 ```bash
 python pipelines/query/retrieval_benchmark.py --dataset-id demo_dataset_v1

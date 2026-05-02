@@ -67,7 +67,7 @@ These are used for:
    - `git add vendor/neo4j-graphrag-python`
    - verify the new SHA with `git submodule status -- vendor/neo4j-graphrag-python`.
 3. Regenerate version metadata so docs and gitlink stay aligned:
-   - run `python scripts/sync_vendor_version.py`
+   - run the stable operator script seam: `python scripts/sync_vendor_version.py`
    - review `docs/vendor/neo4j-graphrag-python.version.json` and confirm `pinned_commit_sha` matches step 2 (update `tag` in the same file when moving to a new upstream release tag).
 4. Update links in this vendor contract page to stable commit-pinned URLs:
    - update `Pinned commit`
@@ -80,5 +80,5 @@ These are used for:
 6. Validate local runtime assumptions (Neo4j connectivity, APOC availability, `OPENAI_API_KEY`).
 7. If upstream changes require dependency constraints, update `requirements.txt` accordingly.
 8. Verify CI consistency before/after pushing:
-   - local check: `python scripts/sync_vendor_version.py --check`
+   - local check via the same stable operator seam: `python scripts/sync_vendor_version.py --check`
    - confirm `.github/workflows/vendor-version-consistency.yml` passes in GitHub Actions for the PR.

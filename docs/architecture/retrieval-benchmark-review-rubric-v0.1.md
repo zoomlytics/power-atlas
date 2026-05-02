@@ -91,6 +91,9 @@ use the illustrative example as a regression reference.
 
 ## How to produce a new benchmark artifact
 
+Use the documented manual benchmark CLI seam below when you want to rerun the
+benchmark against an existing graph.
+
 ```bash
 export NEO4J_URI=bolt://localhost:7687
 export NEO4J_USERNAME=neo4j
@@ -628,7 +631,7 @@ of your PR:
 - Historical baseline summary: [`pipelines/query/README.md`](../../pipelines/query/README.md)
 - Illustrative example artifact (schema reference only): [`pipelines/query/retrieval_benchmark_example_output.json`](../../pipelines/query/retrieval_benchmark_example_output.json)
 - Benchmark stage: [`demo/stages/retrieval_benchmark.py`](../../demo/stages/retrieval_benchmark.py)
-- CLI runner: [`pipelines/query/retrieval_benchmark.py`](../../pipelines/query/retrieval_benchmark.py)
+- Documented manual benchmark CLI seam: [`pipelines/query/retrieval_benchmark.py`](../../pipelines/query/retrieval_benchmark.py)
 - Query workbook section 14: [`pipelines/query/README.md`](../../pipelines/query/README.md#14-post-hybrid-retrieval-benchmark)
-- Graph health diagnostics: [`pipelines/query/graph_health_diagnostics.py`](../../pipelines/query/graph_health_diagnostics.py)
+- Documented manual diagnostics CLI seam: [`pipelines/query/graph_health_diagnostics.py`](../../pipelines/query/graph_health_diagnostics.py)
 - Retrieval semantics: [`docs/architecture/retrieval-semantics-v0.1.md`](retrieval-semantics-v0.1.md)
