@@ -35,8 +35,9 @@ externalized graph-ops model.
   `src/power_atlas/contracts/pipeline.py`.
 - Read-only diagnostics currently live in the runtime/query surfaces
   `demo/stages/graph_health.py`, `demo/stages/retrieval_benchmark.py`,
-  `pipelines/query/graph_health_diagnostics.py`, and
-  `pipelines/query/retrieval_benchmark.py`.
+  the documented manual diagnostics CLI seam
+  `pipelines/query/graph_health_diagnostics.py`, and the documented manual
+  benchmark CLI seam `pipelines/query/retrieval_benchmark.py`.
 - The first concrete operational diagnostic asset now exists at
   `neo4j/diagnostics/check_demo_chunk_embedding_index.cypher`.
 - The current demo reset scope is now also externalized under

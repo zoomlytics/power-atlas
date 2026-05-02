@@ -76,7 +76,7 @@ return {
     "warnings": collected_warnings,
 }
 
-# CLI entry point (pipelines/query/graph_health_diagnostics.py)
+# Documented manual diagnostics CLI seam (`pipelines/query/graph_health_diagnostics.py`)
 for msg in result.get("warnings", []):
     _logger.warning(msg)
 ```
