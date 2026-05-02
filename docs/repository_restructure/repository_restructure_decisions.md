@@ -811,6 +811,43 @@ lane.
 
 ---
 
+## Decision 23 — `frontend/` stays as a defer-in-place non-core surface for now
+
+### Decision
+
+`frontend/` should remain in place for now as a defer-in-place non-core surface
+rather than being retired in the current Phase 10 lane.
+
+### Why
+
+- the current runtime seam is intentionally narrow but still real,
+- `docker-compose.yml` still includes the checked-in `frontend` service as part
+	of the local scaffold posture,
+- `frontend/app/page.tsx` still reads `NEXT_PUBLIC_BACKEND_URL` and performs a
+	placeholder `GET /health` check against the backend stub surface,
+- the root README and existing restructure notes still describe `frontend/` as
+	a disconnected but accepted placeholder UI surface,
+- deleting it now would change the accepted local scaffold posture rather than
+	retire dead compatibility debt.
+
+### Consequences
+
+- treat `frontend/` as an accepted defer-in-place non-core surface,
+- do not open a deletion lane for it until the local scaffold posture and the
+	placeholder frontend-to-backend health-check contract are intentionally
+	migrated or removed,
+- keep formal frontend contract/versioning work deferred until the backend
+	exposes non-placeholder graph operations that the frontend is actually
+	expected to consume.
+
+### Open Questions
+
+- None for the current slice; the next meaningful move would require an
+	intentional local-scaffold or frontend-contract migration rather than another
+	caller search.
+
+---
+
 ## Summary of decisions that still require follow-up
 
 The following areas are intentionally narrowed but not fully finalized yet:

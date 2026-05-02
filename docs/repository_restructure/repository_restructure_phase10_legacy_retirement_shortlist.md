@@ -154,6 +154,19 @@ Backend-specific audit result:
 - retiring the file now would force an execution-seam change rather than close
   dead compatibility debt.
 
+Frontend-specific audit result:
+
+- `frontend/` is currently a defer-in-place non-core surface rather than a
+  live retirement candidate,
+- it still participates in the checked-in local execution posture through the
+  `frontend` service in `docker-compose.yml`,
+- the direct runtime seam is intentionally small but real:
+  `frontend/app/page.tsx` still reads `NEXT_PUBLIC_BACKEND_URL` and performs a
+  placeholder `GET /health` check against the backend stub surface,
+- the root README and restructure docs still document it as a disconnected but
+  accepted placeholder UI surface, so deleting it now would change the current
+  local scaffold posture rather than retire dead compatibility debt.
+
 ### 3a. Mixed active-output roots and committed exemplar boundaries
 
 These paths are still part of the active output contract and therefore should
