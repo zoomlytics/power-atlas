@@ -400,7 +400,8 @@ Key environment variables:
 
 ### Vendor metadata sync
 
-When the `vendor/neo4j-graphrag-python` submodule pin changes:
+When the `vendor/neo4j-graphrag-python` submodule pin changes, use the stable
+operator script seam:
 
 ```bash
 python scripts/sync_vendor_version.py

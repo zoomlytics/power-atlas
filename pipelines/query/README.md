@@ -1548,7 +1548,8 @@ source document, or because the claim-participation stage could not resolve a ma
 ## 13. Repeatable graph-health diagnostics artifact
 
 The queries in section 12 are also available as a repeatable, scriptable diagnostic
-tool.  Running `pipelines/query/graph_health_diagnostics.py` executes all queries
+tool. Running the documented manual diagnostics CLI seam
+`pipelines/query/graph_health_diagnostics.py` executes all queries
 in one pass and writes a scoped JSON artifact to disk that can be committed,
 compared across runs, and used for regression tracking.
 
@@ -1866,6 +1867,9 @@ ORDER BY direction, c.claim_id;
 ```
 
 ### Generating the benchmark artifact
+
+Use the documented manual benchmark CLI seam below when you want to rerun the
+benchmark independently against an existing graph.
 
 ```bash
 # Set Neo4j connection environment variables

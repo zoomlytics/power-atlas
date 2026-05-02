@@ -480,7 +480,7 @@ The **retrieval benchmark** runs automatically at the end of every `ingest` run 
 <output-dir>/runs/<unstructured_run_id>/retrieval_benchmark/retrieval_benchmark.json
 ```
 
-The benchmark result is also included in the batch manifest under `stages.retrieval_benchmark`. In `--dry-run` mode a stub artifact is produced (no live Neo4j calls are made). To run the benchmark independently against an existing graph, use the standalone script:
+The benchmark result is also included in the batch manifest under `stages.retrieval_benchmark`. In `--dry-run` mode a stub artifact is produced (no live Neo4j calls are made). To run the benchmark independently against an existing graph, use the documented manual benchmark CLI seam:
 
 ```bash
 python pipelines/query/retrieval_benchmark.py \
