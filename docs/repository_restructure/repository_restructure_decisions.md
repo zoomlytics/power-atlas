@@ -848,6 +848,43 @@ rather than being retired in the current Phase 10 lane.
 
 ---
 
+## Decision 24 — `artifacts/repository_restructure/phase1/` stays as a defer-in-place verification-evidence root for now
+
+### Decision
+
+`artifacts/repository_restructure/phase1/` should remain in place for now as a
+defer-in-place verification-evidence root rather than being retired or moved in
+the current Phase 10 lane.
+
+### Why
+
+- it still serves as the checked-in output root for `make phase1-verify` /
+	`bash scripts/phase1_verify.sh`,
+- `scripts/phase1_verify.sh` still writes accepted Phase 1 proof artifacts into
+	`artifacts/repository_restructure/phase1/<timestamp>/`,
+- the current checklist, safety harness, plan, and Phase 1 execution log still
+	anchor accepted verification evidence to this exact path family,
+- the directory contents are historical in one sense, but they are also part of
+	the current reproducible verification posture rather than dead runtime debris,
+- relocating or deleting the root now would change the accepted artifact-capture
+	contract rather than retire obsolete compatibility debt.
+
+### Consequences
+
+- treat `artifacts/repository_restructure/phase1/` as an accepted defer-in-place
+	verification-evidence root,
+- do not open a deletion or relocation lane for it until the accepted
+	`phase1-verify` artifact-capture posture is intentionally migrated,
+- keep the current Phase 1 proof docs pointed at this path family until a later
+	verification-contract change is explicitly approved.
+
+### Open Questions
+
+- None for the current slice; the next meaningful move would require an
+	intentional verification-contract migration rather than another caller search.
+
+---
+
 ## Summary of decisions that still require follow-up
 
 The following areas are intentionally narrowed but not fully finalized yet:

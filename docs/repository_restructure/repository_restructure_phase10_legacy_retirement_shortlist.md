@@ -167,6 +167,18 @@ Frontend-specific audit result:
   accepted placeholder UI surface, so deleting it now would change the current
   local scaffold posture rather than retire dead compatibility debt.
 
+Phase-1 verification artifact-root audit result:
+
+- `artifacts/repository_restructure/phase1/` is currently a defer-in-place
+  verification-evidence root rather than a live retirement candidate,
+- it still serves as the checked-in output root for `make phase1-verify` /
+  `bash scripts/phase1_verify.sh`,
+- the current verification harness, checklist, plan, safety-harness docs, and
+  Phase 1 execution log all still anchor accepted run evidence to this exact
+  path family,
+- retiring or relocating it now would change the accepted Phase 1 proof and
+  artifact-capture posture rather than retire dead compatibility debt.
+
 ### 3a. Mixed active-output roots and committed exemplar boundaries
 
 These paths are still part of the active output contract and therefore should
