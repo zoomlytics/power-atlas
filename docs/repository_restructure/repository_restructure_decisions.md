@@ -1118,8 +1118,7 @@ duplicate vendor subtree.
 
 - treat `vendor-resources/tests/` as a completed low-risk stale vendor-subtree
 	retirement slice,
-- keep the remaining `vendor-resources/examples/` and
-	`vendor-resources/images/` surfaces in place,
+- keep the remaining `vendor-resources/examples/` surface in place,
 - do not infer from this subtree removal that the broader retained
 	`vendor-resources/` reference posture has changed.
 
@@ -1152,8 +1151,40 @@ duplicate vendor subtree.
 
 - treat `vendor-resources/docs/` as a completed low-risk stale vendor-subtree
 	retirement slice,
-- keep the remaining `vendor-resources/examples/` and
-	`vendor-resources/images/` surfaces in place,
+- keep the remaining `vendor-resources/examples/` surface in place,
+- do not infer from this subtree removal that the broader retained
+	`vendor-resources/` reference posture has changed.
+
+### Open Questions
+
+- None for the current slice; no live caller or documentation dependencies had
+	to be migrated.
+
+---
+
+## Decision 33 — `vendor-resources/images/` is retired as a stale duplicate vendor subtree
+
+### Decision
+
+`vendor-resources/images/` should be removed from the repository as a stale
+duplicate vendor subtree.
+
+### Why
+
+- exact path searches found no live workspace references to
+	`vendor-resources/images`,
+- the subtree contained only a duplicated upstream image asset already present
+	under `vendor/neo4j-graphrag-python/images/`,
+- the repo's retained vendor-reference usage still points to
+	`vendor-resources/examples` rather than to the duplicated image mirror,
+- removing it therefore retires duplicate historical payload without changing
+	live repo behavior.
+
+### Consequences
+
+- treat `vendor-resources/images/` as a completed low-risk stale vendor-subtree
+	retirement slice,
+- keep the remaining `vendor-resources/examples/` surface in place,
 - do not infer from this subtree removal that the broader retained
 	`vendor-resources/` reference posture has changed.
 

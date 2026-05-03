@@ -194,8 +194,15 @@ Vendor-reference subtree audit result:
 - exact path searches found no live workspace references to
   `vendor-resources/docs`,
 - the subtree mirrored the upstream vendored docs tree, so removing it narrowed
-  the retained vendor-reference posture to `vendor-resources/examples/` and
-  `vendor-resources/images/` without affecting live repo behavior.
+  the retained vendor-reference posture to `vendor-resources/examples/`
+  without affecting live repo behavior.
+- `vendor-resources/images/` has now also been retired as a low-risk stale
+  duplicate vendor subtree,
+- exact path searches found no live workspace references to
+  `vendor-resources/images`,
+- the subtree contained only a duplicated upstream image asset, so removing it
+  narrowed the retained vendor-reference posture to `vendor-resources/examples/`
+  without affecting live repo behavior.
 - the direct runtime seam is intentionally small but real:
   `frontend/app/page.tsx` still reads `NEXT_PUBLIC_BACKEND_URL` and performs a
   placeholder `GET /health` check against the backend stub surface,
