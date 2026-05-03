@@ -1061,6 +1061,41 @@ retained `_archive/` boundary as a stale dated experimentation subtree.
 
 ---
 
+## Decision 30 — `demo/artifacts_compare/` stays as a defer-in-place manual validation artifact root for now
+
+### Decision
+
+`demo/artifacts_compare/` should remain in place for now as a defer-in-place
+manual validation artifact root rather than being retired in the current Phase
+10 lane.
+
+### Why
+
+- no code or automated test callers currently depend on that path family,
+- but the current repo still documents it as an accepted comparison-output
+	surface in `demo/README.md`, `demo/VALIDATION_RUNBOOK.md`, and
+	`docs/repository_restructure/repository_restructure_safety_harness.md`,
+- the validation runbook also treats specific manifests under that tree as part
+	of the minimal retained artifact set for reviewable manual validation runs,
+- deleting it now would therefore change the accepted manual validation posture
+	rather than retire dead compatibility debt.
+
+### Consequences
+
+- treat `demo/artifacts_compare/` as an accepted defer-in-place manual
+	validation artifact root,
+- do not open a deletion lane for it unless the current manual comparison flow
+	and retained-artifact guidance are intentionally migrated or retired,
+- keep the documented comparison-output examples in place until that broader
+	validation-posture change is approved.
+
+### Open Questions
+
+- whether the current manual comparison flow should later be replaced by a more
+	automated validation posture remains a separate follow-up decision.
+
+---
+
 ## Summary of decisions that still require follow-up
 
 The following areas are intentionally narrowed but not fully finalized yet:

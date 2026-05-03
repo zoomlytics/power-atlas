@@ -168,6 +168,17 @@ Frontend-specific audit result:
   live retirement candidate,
 - it still participates in the checked-in local execution posture through the
   `frontend` service in `docker-compose.yml`,
+
+Manual-validation artifact audit result:
+
+- `demo/artifacts_compare/` is currently a defer-in-place manual validation
+  artifact root rather than a live retirement candidate,
+- no code or automated test callers currently depend on that path family,
+  but the current repo still documents it as an accepted output surface in
+  `demo/README.md`, `demo/VALIDATION_RUNBOOK.md`, and
+  `docs/repository_restructure/repository_restructure_safety_harness.md`,
+- deleting it now would change the accepted manual validation posture and
+  retained-artifact guidance rather than retire dead compatibility debt.
 - the direct runtime seam is intentionally small but real:
   `frontend/app/page.tsx` still reads `NEXT_PUBLIC_BACKEND_URL` and performs a
   placeholder `GET /health` check against the backend stub surface,
