@@ -885,6 +885,43 @@ the current Phase 10 lane.
 
 ---
 
+## Decision 25 — `docs/repository_restructure/repository_restructure_phase1_execution_run_log.md` stays as a defer-in-place verification document for now
+
+### Decision
+
+`docs/repository_restructure/repository_restructure_phase1_execution_run_log.md`
+should remain in place for now as a defer-in-place verification document rather
+than being retired or archived in the current Phase 10 lane.
+
+### Why
+
+- it is still referenced by `scripts/phase1_verify.sh` as canonical execution
+	context for the accepted automation entrypoint,
+- it still records the accepted run evidence and automation history behind the
+	current Phase 1 verification posture,
+- the file is historical in one sense, but it is also part of the current
+	reproducible verification documentation surface rather than dead planning
+	residue,
+- retiring or archiving it now would change the accepted verification-document
+	contract rather than retire obsolete compatibility debt.
+
+### Consequences
+
+- treat `docs/repository_restructure/repository_restructure_phase1_execution_run_log.md`
+	as an accepted defer-in-place verification document,
+- do not open an archival or deletion lane for it until the accepted Phase 1
+	verification documentation surface is intentionally migrated,
+- keep `scripts/phase1_verify.sh` and the current proof docs pointed at this
+	run log until a later verification-document contract change is explicitly
+	approved.
+
+### Open Questions
+
+- None for the current slice; the next meaningful move would require an
+	intentional verification-document migration rather than another caller search.
+
+---
+
 ## Summary of decisions that still require follow-up
 
 The following areas are intentionally narrowed but not fully finalized yet:

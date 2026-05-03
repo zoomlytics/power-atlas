@@ -179,6 +179,18 @@ Phase-1 verification artifact-root audit result:
 - retiring or relocating it now would change the accepted Phase 1 proof and
   artifact-capture posture rather than retire dead compatibility debt.
 
+Phase-1 execution-run-log audit result:
+
+- `docs/repository_restructure/repository_restructure_phase1_execution_run_log.md`
+  is currently a defer-in-place verification document rather than a live
+  retirement candidate,
+- it is still referenced by `scripts/phase1_verify.sh` as canonical execution
+  context for the accepted automation entrypoint,
+- it still records the accepted run evidence and automation history that the
+  current verification posture points back to,
+- retiring or archiving it now would change the accepted Phase 1 verification
+  documentation surface rather than retire dead compatibility debt.
+
 ### 3a. Mixed active-output roots and committed exemplar boundaries
 
 These paths are still part of the active output contract and therefore should
