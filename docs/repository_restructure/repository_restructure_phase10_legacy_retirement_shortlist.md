@@ -191,6 +191,17 @@ Phase-1 execution-run-log audit result:
 - retiring or archiving it now would change the accepted Phase 1 verification
   documentation surface rather than retire dead compatibility debt.
 
+Phase-1 agent-task-breakdown audit result:
+
+- `docs/repository_restructure/repository_restructure_agent_task_breakdown.md`
+  is currently a defer-in-place verification/planning-history document rather
+  than a live retirement candidate,
+- its own checkpoint note marks it as historical setup context rather than the
+  canonical current plan, but the accepted Phase 1 execution run log still
+  references it as part of the authoritative context for interpreting runs,
+- retiring or archiving it now would change the accepted Phase 1 verification
+  documentation surface rather than retire dead compatibility debt.
+
 ### 3a. Mixed active-output roots and committed exemplar boundaries
 
 These paths are still part of the active output contract and therefore should

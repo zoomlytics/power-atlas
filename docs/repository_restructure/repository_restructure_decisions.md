@@ -922,6 +922,41 @@ than being retired or archived in the current Phase 10 lane.
 
 ---
 
+## Decision 26 — `docs/repository_restructure/repository_restructure_agent_task_breakdown.md` stays as a defer-in-place verification/planning-history document for now
+
+### Decision
+
+`docs/repository_restructure/repository_restructure_agent_task_breakdown.md`
+should remain in place for now as a defer-in-place verification/planning-history
+document rather than being retired or archived in the current Phase 10 lane.
+
+### Why
+
+- its own checkpoint note already marks it as historical setup context rather
+	than the canonical current plan,
+- but the accepted Phase 1 execution run log still references it as part of the
+	authoritative context for interpreting runs,
+- that means the file is historical in one sense while still participating in
+	the accepted verification documentation surface,
+- retiring or archiving it now would change that accepted documentation surface
+	rather than retire obsolete compatibility debt.
+
+### Consequences
+
+- treat `docs/repository_restructure/repository_restructure_agent_task_breakdown.md`
+	as an accepted defer-in-place verification/planning-history document,
+- do not open an archival or deletion lane for it until the accepted Phase 1
+	verification documentation surface is intentionally migrated,
+- keep the current run-log references in place until a later
+	verification-document contract change is explicitly approved.
+
+### Open Questions
+
+- None for the current slice; the next meaningful move would require an
+	intentional verification-document migration rather than another caller search.
+
+---
+
 ## Summary of decisions that still require follow-up
 
 The following areas are intentionally narrowed but not fully finalized yet:
