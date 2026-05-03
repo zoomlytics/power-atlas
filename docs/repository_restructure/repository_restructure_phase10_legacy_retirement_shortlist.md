@@ -202,6 +202,19 @@ Phase-1 agent-task-breakdown audit result:
 - retiring or archiving it now would change the accepted Phase 1 verification
   documentation surface rather than retire dead compatibility debt.
 
+`demo/contracts` retirement-task audit result:
+
+- `docs/repository_restructure/repository_restructure_phase2_demo_contracts_retirement_task.md`
+  is currently a defer-in-place historical planning/execution record rather
+  than a live retirement candidate,
+- its own status and body already describe the underlying `demo/contracts`
+  retirement lane as completed historical work,
+- the current Phase 10 shortlist and checklist still reference it as the
+  executed follow-up planning task behind that now-closed lane,
+- retiring or archiving it now would change the accepted restructuring record
+  for the completed `demo/contracts` retirement lane rather than retire dead
+  compatibility debt.
+
 ### 3a. Mixed active-output roots and committed exemplar boundaries
 
 These paths are still part of the active output contract and therefore should

@@ -957,6 +957,43 @@ document rather than being retired or archived in the current Phase 10 lane.
 
 ---
 
+## Decision 27 — `docs/repository_restructure/repository_restructure_phase2_demo_contracts_retirement_task.md` stays as a defer-in-place historical planning/execution record for now
+
+### Decision
+
+`docs/repository_restructure/repository_restructure_phase2_demo_contracts_retirement_task.md`
+should remain in place for now as a defer-in-place historical planning/execution
+record rather than being retired or archived in the current Phase 10 lane.
+
+### Why
+
+- its own status and body already mark the underlying `demo/contracts`
+	retirement lane as completed historical work,
+- but the current Phase 10 shortlist and checklist still reference it as the
+	executed follow-up planning task behind that closed lane,
+- that means the file no longer participates in accepted execution or
+	verification, but it still participates in the accepted restructuring record
+	for completed work,
+- retiring or archiving it now would change that accepted restructuring record
+	rather than retire obsolete compatibility debt.
+
+### Consequences
+
+- treat `docs/repository_restructure/repository_restructure_phase2_demo_contracts_retirement_task.md`
+	as an accepted defer-in-place historical planning/execution record,
+- do not open an archival or deletion lane for it until the accepted
+	restructuring record for the closed `demo/contracts` lane is intentionally
+	migrated,
+- keep the current shortlist/checklist references in place until a later
+	documentation-record migration is explicitly approved.
+
+### Open Questions
+
+- None for the current slice; the next meaningful move would require an
+	intentional documentation-record migration rather than another caller search.
+
+---
+
 ## Summary of decisions that still require follow-up
 
 The following areas are intentionally narrowed but not fully finalized yet:
