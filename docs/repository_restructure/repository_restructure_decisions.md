@@ -1118,8 +1118,42 @@ duplicate vendor subtree.
 
 - treat `vendor-resources/tests/` as a completed low-risk stale vendor-subtree
 	retirement slice,
-- keep the remaining `vendor-resources/docs/`, `vendor-resources/examples/`,
-	and `vendor-resources/images/` surfaces in place,
+- keep the remaining `vendor-resources/examples/` and
+	`vendor-resources/images/` surfaces in place,
+- do not infer from this subtree removal that the broader retained
+	`vendor-resources/` reference posture has changed.
+
+### Open Questions
+
+- None for the current slice; no live caller or documentation dependencies had
+	to be migrated.
+
+---
+
+## Decision 32 — `vendor-resources/docs/` is retired as a stale duplicate vendor subtree
+
+### Decision
+
+`vendor-resources/docs/` should be removed from the repository as a stale
+duplicate vendor subtree.
+
+### Why
+
+- exact path searches found no live workspace references to
+	`vendor-resources/docs`,
+- the subtree mirrored the upstream vendored docs tree already present under
+	`vendor/neo4j-graphrag-python/docs/`,
+- the repo's retained vendor-reference usage still points to
+	`vendor-resources/examples` rather than to the duplicated docs mirror,
+- removing it therefore retires duplicate historical payload without changing
+	live repo behavior.
+
+### Consequences
+
+- treat `vendor-resources/docs/` as a completed low-risk stale vendor-subtree
+	retirement slice,
+- keep the remaining `vendor-resources/examples/` and
+	`vendor-resources/images/` surfaces in place,
 - do not infer from this subtree removal that the broader retained
 	`vendor-resources/` reference posture has changed.
 

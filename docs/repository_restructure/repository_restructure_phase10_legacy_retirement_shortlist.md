@@ -189,6 +189,13 @@ Vendor-reference subtree audit result:
 - the retained vendor-reference usage in this repo still points to
   `vendor-resources/examples` instead, so removing the duplicate test mirror did
   not change the accepted vendor-reference posture.
+- `vendor-resources/docs/` has now also been retired as a low-risk stale
+  duplicate vendor subtree,
+- exact path searches found no live workspace references to
+  `vendor-resources/docs`,
+- the subtree mirrored the upstream vendored docs tree, so removing it narrowed
+  the retained vendor-reference posture to `vendor-resources/examples/` and
+  `vendor-resources/images/` without affecting live repo behavior.
 - the direct runtime seam is intentionally small but real:
   `frontend/app/page.tsx` still reads `NEXT_PUBLIC_BACKEND_URL` and performs a
   placeholder `GET /health` check against the backend stub surface,
