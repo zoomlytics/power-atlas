@@ -994,6 +994,40 @@ record rather than being retired or archived in the current Phase 10 lane.
 
 ---
 
+## Decision 28 — `studies/SYSTEM-INDEX-v0.1.md` is retired as a stale unreferenced studies index
+
+### Decision
+
+`studies/SYSTEM-INDEX-v0.1.md` should be removed from the repository as a stale
+studies index rather than retained as an active or deferred legacy surface.
+
+### Why
+
+- exact filename and title searches found no remaining workspace references
+	outside the file itself,
+- the surviving studies-system docs already establish a different canonical
+	posture: `/studies/_studies/` is the inventory, while the workflow and
+	template docs are the real entrypoints,
+- keeping the stale index in place would preserve a conflicting description of
+	the studies-system navigation model without providing any live compatibility or
+	verification value.
+
+### Consequences
+
+- treat `studies/SYSTEM-INDEX-v0.1.md` as a completed low-risk stale-doc
+	retirement slice,
+- do not preserve it as an accepted defer-in-place surface,
+- keep the surviving studies docs as the authoritative studies-system entry
+	points unless a later studies-workflow change introduces a genuinely used
+	index surface again.
+
+### Open Questions
+
+- None for the current slice; the file had no live caller or documentation
+	dependencies to migrate.
+
+---
+
 ## Summary of decisions that still require follow-up
 
 The following areas are intentionally narrowed but not fully finalized yet:

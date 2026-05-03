@@ -51,6 +51,9 @@ Phase 10 therefore cannot be treated as a blanket instruction to remove everythi
 - the final stateful module-alias shim in `demo/contracts/pipeline.py` has now also been retired,
 - the now-empty `demo/contracts/` directory has been removed,
 - the remaining `demo.contracts` work is now documentation wording cleanup only.
+- `studies/SYSTEM-INDEX-v0.1.md` has now been removed as a low-risk stale-doc retirement slice,
+- exact filename searches showed no remaining workspace references outside the file itself,
+- the surviving studies-system docs already treat `/studies/_studies/` plus the workflow/template docs as the canonical inventory and entrypoints.
 
 ## Retirement classes
 
@@ -65,6 +68,8 @@ These look like the best first shortlist once implementation work begins:
   - rationale: no non-doc/runtime coupling was found, and moving it would create reference churn without reducing current product risk
 
 `__queuestorage__/` no longer belongs on the active shortlist because that low-risk retirement slice has already been completed.
+
+`studies/SYSTEM-INDEX-v0.1.md` no longer belongs on the active shortlist because that low-risk stale-doc retirement slice has already been completed.
 
 The remaining early candidate in this class is `_archive/`, but its placement decision is now resolved: it should remain at the repo root until a broader repository-layout change creates a stronger reason to move archival material elsewhere.
 
