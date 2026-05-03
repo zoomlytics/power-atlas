@@ -179,6 +179,16 @@ Manual-validation artifact audit result:
   `docs/repository_restructure/repository_restructure_safety_harness.md`,
 - deleting it now would change the accepted manual validation posture and
   retained-artifact guidance rather than retire dead compatibility debt.
+
+Vendor-reference subtree audit result:
+
+- `vendor-resources/tests/` has now been retired as a low-risk stale duplicate
+  subtree,
+- exact path searches found no live workspace references to
+  `vendor-resources/tests`,
+- the retained vendor-reference usage in this repo still points to
+  `vendor-resources/examples` instead, so removing the duplicate test mirror did
+  not change the accepted vendor-reference posture.
 - the direct runtime seam is intentionally small but real:
   `frontend/app/page.tsx` still reads `NEXT_PUBLIC_BACKEND_URL` and performs a
   placeholder `GET /health` check against the backend stub surface,

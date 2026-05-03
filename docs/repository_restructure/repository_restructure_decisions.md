@@ -1096,6 +1096,40 @@ manual validation artifact root rather than being retired in the current Phase
 
 ---
 
+## Decision 31 — `vendor-resources/tests/` is retired as a stale duplicate vendor subtree
+
+### Decision
+
+`vendor-resources/tests/` should be removed from the repository as a stale
+duplicate vendor subtree.
+
+### Why
+
+- exact path searches found no live workspace references to
+	`vendor-resources/tests`,
+- the repo's retained vendor-reference usage still points to
+	`vendor-resources/examples` rather than to the duplicated test mirror,
+- the subtree mirrored the upstream vendor test layout already present under
+	`vendor/neo4j-graphrag-python/tests/`,
+- removing it therefore retires duplicate historical payload without changing
+	the accepted vendor-reference posture.
+
+### Consequences
+
+- treat `vendor-resources/tests/` as a completed low-risk stale vendor-subtree
+	retirement slice,
+- keep the remaining `vendor-resources/docs/`, `vendor-resources/examples/`,
+	and `vendor-resources/images/` surfaces in place,
+- do not infer from this subtree removal that the broader retained
+	`vendor-resources/` reference posture has changed.
+
+### Open Questions
+
+- None for the current slice; no live caller or documentation dependencies had
+	to be migrated.
+
+---
+
 ## Summary of decisions that still require follow-up
 
 The following areas are intentionally narrowed but not fully finalized yet:
