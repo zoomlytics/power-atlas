@@ -1028,6 +1028,39 @@ studies index rather than retained as an active or deferred legacy surface.
 
 ---
 
+## Decision 29 — `_archive/initial_experimentation_2026_02_28/` is retired as a stale archive subtree
+
+### Decision
+
+`_archive/initial_experimentation_2026_02_28/` should be removed from the
+retained `_archive/` boundary as a stale dated experimentation subtree.
+
+### Why
+
+- nothing outside that subtree still referenced the dated experimentation path,
+- its README still documented the old `/examples` demo layout rather than the
+	current repo posture,
+- leaving it in place would preserve an isolated historical snapshot without
+	adding live execution, verification, or restructuring-record value,
+- removing the subtree does not change the accepted Phase 10 decision to keep
+	`_archive/` itself as the explicit archive boundary.
+
+### Consequences
+
+- treat `_archive/initial_experimentation_2026_02_28/` as a completed low-risk
+	archive cleanup slice,
+- keep `_archive/README.md` and the retained `_archive/` root boundary in
+	place,
+- do not infer from this subtree removal that the broader `_archive/` root
+	placement decision has changed.
+
+### Open Questions
+
+- None for the current slice; no live caller or documentation dependencies had
+	to be migrated.
+
+---
+
 ## Summary of decisions that still require follow-up
 
 The following areas are intentionally narrowed but not fully finalized yet:

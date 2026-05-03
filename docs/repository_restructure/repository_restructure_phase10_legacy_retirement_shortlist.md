@@ -39,6 +39,9 @@ Phase 10 therefore cannot be treated as a blanket instruction to remove everythi
 - the directory has now been removed as the first low-risk Phase 10 retirement slice.
 - `_archive/` has now been labeled explicitly as archived, non-active material via `_archive/README.md` and the root `README.md`,
 - the current decision is to keep its historical contents in place for reference rather than delete them during this low-risk slice.
+- a bounded follow-up audit later found `_archive/initial_experimentation_2026_02_28/` to be an isolated stale subtree inside that retained archive boundary,
+- nothing outside the subtree still referenced that dated experimentation path,
+- the subtree has now been removed while keeping the accepted `_archive/` root boundary in place.
 - a fresh 2026-04-30 `demo.contracts` caller re-inventory found no remaining non-test runtime imports outside the compatibility layer itself,
 - at that checkpoint, the simple shim class was mechanically simple one-line package re-exports, while `demo/contracts/__init__.py` and `demo/contracts/pipeline.py` still required special handling.
 - the first simple-shim retirement slice has now removed `demo/contracts/resolution.py`, `demo/contracts/retrieval_early_return_policy.py`, and `demo/contracts/retrieval_metadata_policy.py`,
