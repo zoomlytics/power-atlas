@@ -141,6 +141,10 @@ Post-reset import-boundary checkpoint:
   `src/power_atlas/narrative_extraction_readers.py`, while
   `demo/narrative_extraction.py` now keeps only the compatibility alias that
   the focused narrative-extraction tests patch.
+- the next follow-up structural slice then moved the remaining stage execution
+  orchestration under `src/power_atlas/narrative_extraction_service.py`, so the
+  demo module is now better understood as a thin compatibility wrapper with
+  retained config and test seams rather than as the execution owner.
 
 Script-specific audit result:
 

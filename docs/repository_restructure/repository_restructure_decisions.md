@@ -1381,6 +1381,47 @@ focused tests patch.
 
 ---
 
+## Decision 39 — Narrative extraction stage execution now runs through a package-owned service, while the demo module remains the compatibility wrapper
+
+### Decision
+
+The main narrative extraction stage execution flow should now remain
+package-owned under `src/power_atlas/narrative_extraction_service.py`, while
+`demo/narrative_extraction.py` remains only as the compatibility wrapper that
+provides stage-specific constants, config type exposure, lexical-config setup,
+and retained patch seams.
+
+### Why
+
+- after moving artifact serialization and chunk-read/extract execution under
+	`src/power_atlas/`, the remaining `run_narrative_extraction(...)` body had
+	become an injected orchestration block rather than a demo-specific runtime
+	implementation,
+- extracting that orchestration into a package-owned service further narrows the
+	demo runtime exception without forcing a caller-surface or test-surface
+	rewrite,
+- the focused `demo/tests/test_narrative_extraction.py` slice still passed after
+	the move, which confirms the wrapper preserved its public behavior and patch
+	seams.
+
+### Consequences
+
+- treat `power_atlas.narrative_extraction_service` as the owned execution
+	boundary for the stage flow,
+- treat `demo/narrative_extraction.py` as a thin compatibility/orchestration
+	wrapper rather than the execution owner,
+- keep the retained `_read_chunks_and_extract` symbol and exported config
+	surface in the demo module only as compatibility/test seams until a later
+	caller migration intentionally removes them.
+
+### Open Questions
+
+- whether the remaining compatibility exports in `demo/narrative_extraction.py`
+	should later be migrated or retired remains a follow-up caller-surface
+	question rather than a current runtime-ownership gap.
+
+---
+
 ## Summary of decisions that still require follow-up
 
 The following areas are intentionally narrowed but not fully finalized yet:
