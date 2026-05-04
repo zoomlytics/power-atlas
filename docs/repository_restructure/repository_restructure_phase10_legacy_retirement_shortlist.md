@@ -136,6 +136,11 @@ Post-reset import-boundary checkpoint:
   `src/power_atlas/narrative_extraction_artifacts.py`, while the demo stage
   still owns artifact-path selection, dry/live branching, and collaborator
   composition.
+- the next bounded structural slice narrowed the same exception further: the
+  chunk-read/extract implementation moved under
+  `src/power_atlas/narrative_extraction_readers.py`, while
+  `demo/narrative_extraction.py` now keeps only the compatibility alias that
+  the focused narrative-extraction tests patch.
 
 Script-specific audit result:
 

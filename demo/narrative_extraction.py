@@ -4,23 +4,25 @@ import argparse
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Iterable
 
 from power_atlas.bootstrap import build_app_context
 from power_atlas.bootstrap import build_settings
 from power_atlas.bootstrap import require_openai_api_key
-from power_atlas.bootstrap.clients import build_llm as build_openai_llm
 from power_atlas.contracts import (
     PROMPT_IDS,
     claim_extraction_lexical_config,
-    claim_extraction_schema,
 )
 from power_atlas.narrative_extraction_artifacts import (
     build_narrative_extraction_summary,
     normalize_stage_warnings,
     write_narrative_extraction_artifacts,
 )
+from power_atlas.narrative_extraction_readers import (
+    read_chunks_and_extract_narrative_graph,
+)
 from power_atlas.narrative_extraction_runtime import run_narrative_extraction_live
+from power_atlas.extraction_rows import prepare_extracted_rows
+from power_atlas.extraction_writes import write_extracted_rows
 from power_atlas.interfaces.cli.narrative_extraction_entrypoint import (
     run_narrative_extraction_main as _run_narrative_extraction_main_impl,
 )
@@ -30,18 +32,7 @@ from power_atlas.interfaces.cli.narrative_extraction_support import (
     parse_narrative_extraction_args as _parse_narrative_extraction_args_impl,
 )
 from power_atlas.settings import AppSettings
-from demo.extraction_utils import prepare_extracted_rows, write_extracted_rows
-from demo.io import RunScopedNeo4jChunkReader
-from neo4j_graphrag.experimental.components.entity_relation_extractor import (
-    LLMEntityRelationExtractor,
-)
-from neo4j_graphrag.experimental.components.schema import GraphSchema
-from neo4j_graphrag.experimental.components.types import (
-    LexicalGraphConfig,
-    Neo4jGraph,
-    TextChunk,
-    TextChunks,
-)
+from neo4j_graphrag.experimental.components.types import LexicalGraphConfig
 
 PROMPT_VERSION = PROMPT_IDS["narrative_extraction"]
 DEFAULT_OUTPUT_ROOT = Path(__file__).resolve().parent / "runs"
@@ -62,42 +53,7 @@ def build_lexical_config() -> LexicalGraphConfig:
     return claim_extraction_lexical_config(app_context.pipeline_contract)
 
 
-def _extraction_schema() -> GraphSchema:
-    return claim_extraction_schema()
-
-
-async def _read_chunks_and_extract(
-    driver: neo4j.Driver,
-    *,
-    run_id: str,
-    source_uri: str | None,
-    neo4j_database: str | None,
-    model_name: str,
-    lexical_graph_config: LexicalGraphConfig,
-) -> tuple[Neo4jGraph, list[TextChunk]]:
-    chunk_reader = RunScopedNeo4jChunkReader(
-        driver,
-        run_id=run_id,
-        source_uri=source_uri,
-        fetch_embeddings=False,
-        neo4j_database=neo4j_database,
-    )
-    text_chunks: TextChunks = await chunk_reader.run(lexical_graph_config=lexical_graph_config)
-    llm = build_openai_llm(model_name)
-    extractor = LLMEntityRelationExtractor(
-        llm=llm,
-        create_lexical_graph=False,
-        use_structured_output=True,
-    )
-    try:
-        graph = await extractor.run(
-            chunks=text_chunks,
-            schema=_extraction_schema(),
-            lexical_graph_config=lexical_graph_config,
-        )
-    finally:
-        await llm.async_client.close()
-    return graph, text_chunks.chunks
+_read_chunks_and_extract = read_chunks_and_extract_narrative_graph
 
 
 def _ensure_dir(path: Path) -> None:

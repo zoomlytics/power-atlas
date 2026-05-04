@@ -1341,6 +1341,46 @@ selection, dry/live branching, and collaborator composition.
 
 ---
 
+## Decision 38 — Narrative extraction chunk-read/extract execution now belongs under `src/power_atlas/`, while the demo stage keeps the compatibility patch seam
+
+### Decision
+
+The narrative extraction chunk-read/extract helper should now remain
+package-owned under `src/power_atlas/narrative_extraction_readers.py`, while
+`demo/narrative_extraction.py` keeps only the compatibility alias that its
+focused tests patch.
+
+### Why
+
+- after the artifact-helper extraction, the next bounded read showed that the
+	chunk-reader plus LLM extractor path was also package-safe,
+- `RunScopedNeo4jChunkReader`, the extraction schema, and the OpenAI LLM
+	construction path already had package-owned homes,
+- the remaining reason to keep a demo-local symbol was test seam stability:
+	`demo/tests/test_narrative_extraction.py` still patches
+	`demo.narrative_extraction._read_chunks_and_extract`,
+- restoring that alias after the move preserved the existing patch seam while
+	still relocating the actual implementation under `src/power_atlas/`.
+
+### Consequences
+
+- treat `power_atlas.narrative_extraction_readers` as the owned helper
+	boundary for chunk read/extract execution in this stage,
+- treat the `_read_chunks_and_extract` symbol left in
+	`demo/narrative_extraction.py` as a compatibility alias rather than the
+	implementation owner,
+- keep `demo/narrative_extraction.py` classified as a narrower runtime-side
+	exception for now; it still owns stage path selection, dry/live branching,
+	and top-level collaborator wiring.
+
+### Open Questions
+
+- whether the remaining stage-level orchestration in
+	`demo/narrative_extraction.py` should later move behind a package-owned
+	runtime service remains a follow-up structural slice.
+
+---
+
 ## Summary of decisions that still require follow-up
 
 The following areas are intentionally narrowed but not fully finalized yet:
