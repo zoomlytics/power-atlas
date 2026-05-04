@@ -9,10 +9,11 @@ from typing import Any
 from power_atlas.context import RequestContext
 from power_atlas.orchestration.ask_scope import resolve_ask_scope as resolve_ask_scope_impl
 from power_atlas.orchestration.run_scope_bridge import prepare_ask_request_context_from_scope
+from power_atlas.reset_demo_runtime import run_reset as run_reset_demo
 
 
 def load_demo_reset_runner() -> Callable[..., Any]:
-    return __import__("demo.reset_demo_db", fromlist=["run_reset"]).run_reset
+    return run_reset_demo
 
 
 def resolve_run_demo_ask_scope(

@@ -57,14 +57,8 @@ inspection/debugging.  See ``run_reset()`` for the report schema.
 from __future__ import annotations
 
 import argparse
-import json
 import logging
-import os
-from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
-
-import neo4j
 
 from power_atlas.bootstrap import build_app_context, build_settings, create_neo4j_driver
 from power_atlas.interfaces.cli.reset_demo_entrypoint import run_reset_demo_main
@@ -72,219 +66,19 @@ from power_atlas.interfaces.cli.reset_demo_support import (
     build_reset_settings_from_args as _build_reset_settings_from_args_impl,
     parse_reset_demo_args as _parse_reset_demo_args_impl,
 )
-from power_atlas.orchestration.context_builder import build_settings_from_overrides
 from power_atlas.contracts import ARTIFACTS_DIR
 from power_atlas.contracts.pipeline import PipelineContractSnapshot
-from demo.cypher_utils import validate_cypher_identifier as _validate_cypher_identifier
+from power_atlas.neo4j_io import validate_cypher_identifier as _validate_cypher_identifier
+from power_atlas.reset_demo_runtime import DEMO_NODE_LABELS
+from power_atlas.reset_demo_runtime import demo_owned_indexes as _demo_owned_indexes_impl
+from power_atlas.reset_demo_runtime import run_reset
 
 logger = logging.getLogger(__name__)
 
-# Demo-owned node labels.  Nodes with these labels (and all their
-# relationships) are removed on reset.  Keep in sync with:
-#   - demo/config/pdf_simple_kg_pipeline.yaml
-#   - demo/stages/*.py (structured ingest, pdf ingest, claim extraction, etc.)
-DEMO_NODE_LABELS: tuple[str, ...] = (
-    # Lexical layer — pdf ingest
-    "Document",
-    "Chunk",
-    # Structured layer — structured ingest (CSV fixtures)
-    "CanonicalEntity",
-    "Claim",
-    "Fact",
-    "Relationship",
-    "Source",
-    # Extraction layer — claim/mention extraction
-    "ExtractedClaim",
-    "EntityMention",
-    # Resolution layer — entity resolution
-    "UnresolvedEntity",
-    "ResolvedEntityCluster",
-)
-
-def _demo_owned_indexes(
-    pipeline_contract: PipelineContractSnapshot,
-) -> tuple[str, ...]:
-    """Return the current demo-owned index names from the provided pipeline contract."""
-    return (pipeline_contract.chunk_embedding_index_name,)
 
 
-def _index_exists(driver: neo4j.Driver, index_name: str, database: str) -> bool:
-    """Return True if an index named *index_name* exists in *database*."""
-    records, _, _ = driver.execute_query(
-        "SHOW INDEXES YIELD name WHERE name = $name RETURN count(*) AS cnt",
-        parameters_={"name": index_name},
-        database_=database,
-    )
-    record = records[0] if records else None
-    return bool(record and record["cnt"] > 0)
-
-
-def run_reset(
-    *,
-    driver: neo4j.Driver,
-    database: str,
-    output_dir: Path | None = None,
-    pipeline_contract: PipelineContractSnapshot,
-) -> dict[str, Any]:
-    """Reset demo-owned graph content and indexes in *database*.
-
-    Deletes all nodes with demo-owned labels (and their relationships) using
-    ``DETACH DELETE``.  Also explicitly removes any surviving stale
-    pre-v0.3 participation edges left by old demo runs:
-
-    - :HAS_SUBJECT / :HAS_OBJECT (v0.1, retired in v0.2)
-    - :HAS_SUBJECT_MENTION / :HAS_OBJECT_MENTION (v0.2, retired in v0.3)
-
-    These relationship types are all replaced by :HAS_PARTICIPANT (v0.3).
-    Old graphs are **non-migratable** — a full reset + fresh pipeline run is
-    required.  Drops each demo-owned index by issuing a direct Cypher
-    ``DROP INDEX <name> IF EXISTS`` statement scoped to *database*
-    (idempotent: safe if the index is absent).
-
-    Does **not** touch any other nodes, relationships, indexes, constraints, or
-    databases.
-
-    Args:
-        driver: Connected Neo4j driver pointing at the demo database host.
-        database: Name of the Neo4j database to reset (must be the demo DB).
-        output_dir: Directory where the reset report JSON is written.  If
-            ``None``, no report file is created on disk (the report dict is
-            still returned).
-
-    Returns:
-        Report dict with the following keys:
-
-        - ``created_at``: ISO-8601 timestamp of the reset run.
-        - ``target_database``: Name of the database that was reset.
-        - ``reset_mode``: Always ``"demo_full_graph_wipe"`` for this function.
-        - ``demo_labels_deleted``: List of node labels targeted by the delete.
-        - ``deleted_nodes``: Number of nodes actually removed.
-        - ``deleted_relationships``: Number of relationships actually removed.
-        - ``stale_participation_edges_deleted``: Number of surviving pre-v0.3
-          stale participation edges removed (normally 0; non-zero only when a
-          pre-v0.3 graph was not fully cleaned up by the DETACH DELETE).
-        - ``indexes_dropped``: Names of indexes that existed and were dropped.
-        - ``indexes_not_found``: Names of indexes that were absent (no-op).
-        - ``warnings``: Human-readable strings for idempotent no-ops or other
-          non-fatal conditions.
-        - ``idempotent``: ``True`` when nothing was changed (graph already
-          empty, all indexes already absent).
-        - ``report_path``: Path to the written JSON file (only present when
-          *output_dir* is provided).
-    """
-    now = datetime.now(timezone.utc)
-    created_at = now.isoformat()
-    # Derive a filesystem-safe timestamp for the report filename, consistent with
-    # other demo artifacts (e.g., run IDs/manifests).
-    _ts_for_filename = now.strftime("%Y%m%dT%H%M%S%fZ")
-    warnings_list: list[str] = []
-    indexes_dropped: list[str] = []
-    indexes_not_found: list[str] = []
-
-    # ── Delete demo-owned nodes and their relationships ──────────────────────
-    # Generate the WHERE clause from DEMO_NODE_LABELS so the Cypher and the
-    # reported contract cannot drift independently.  Each label is a compile-time
-    # constant (simple identifier string) so the OR-join is safe to construct.
-    _label_conditions = " OR ".join(f"n:{label}" for label in DEMO_NODE_LABELS)
-    _delete_query = f"MATCH (n) WHERE {_label_conditions} DETACH DELETE n"
-    with driver.session(database=database) as session:
-        result = session.run(_delete_query)
-        counters = result.consume().counters
-        deleted_nodes: int = counters.nodes_deleted
-        deleted_relationships: int = counters.relationships_deleted
-
-    if deleted_nodes == 0:
-        _label_list = ", ".join(DEMO_NODE_LABELS)
-        warnings_list.append(
-            f"No demo-owned nodes found for labels ({_label_list}); nothing deleted (idempotent no-op)."
-        )
-    logger.info(
-        "Demo node deletion: database=%s nodes_deleted=%d relationships_deleted=%d",
-        database,
-        deleted_nodes,
-        deleted_relationships,
-    )
-
-    # ── Stale pre-v0.3 participation edge cleanup ─────────────────────────────
-    # Old demo graphs may contain stale participation edges that were not
-    # removed by the DETACH DELETE above (e.g. when their endpoints were not
-    # among the deleted labels).  Two generations of stale types are covered:
-    #
-    #   v0.1 types: :HAS_SUBJECT / :HAS_OBJECT
-    #     Retired in v0.2 and replaced by :HAS_SUBJECT_MENTION/:HAS_OBJECT_MENTION.
-    #   v0.2 types: :HAS_SUBJECT_MENTION / :HAS_OBJECT_MENTION
-    #     Retired in v0.3 and replaced by :HAS_PARTICIPANT {role}.
-    #
-    # Both are cleaned up here.  Old graphs are non-migratable; a full reset
-    # plus a fresh pipeline run is the only supported upgrade path.
-    _stale_query = (
-        "MATCH (c:ExtractedClaim)-[r:HAS_SUBJECT|HAS_OBJECT|HAS_SUBJECT_MENTION|HAS_OBJECT_MENTION]->(m:EntityMention) DELETE r"
-    )
-    with driver.session(database=database) as _stale_session:
-        _stale_result = _stale_session.run(_stale_query)
-        _stale_counters = _stale_result.consume().counters
-        stale_participation_edges_deleted: int = _stale_counters.relationships_deleted
-
-    if stale_participation_edges_deleted > 0:
-        warnings_list.append(
-            f"Removed {stale_participation_edges_deleted} stale pre-v0.3 participation "
-            "edge(s) (:HAS_SUBJECT, :HAS_OBJECT, :HAS_SUBJECT_MENTION, or "
-            ":HAS_OBJECT_MENTION).  These relationship types were retired prior to v0.3 and "
-            "replaced by :HAS_PARTICIPANT {role}.  Old demo graphs are non-migratable — "
-            "a full reset followed by a fresh pipeline run is required."
-        )
-
-    logger.info(
-        "Stale pre-v0.3 participation edge cleanup: stale_deleted=%d",
-        stale_participation_edges_deleted,
-    )
-
-    # ── Drop demo-owned indexes ───────────────────────────────────────────────
-    # Keep this reset contract aligned with demo/config/pdf_simple_kg_pipeline.yaml
-    # and power_atlas.contracts.pipeline (CHUNK_EMBEDDING_INDEX_NAME).
-    demo_owned_indexes = _demo_owned_indexes(pipeline_contract)
-    for index_name in demo_owned_indexes:
-        if _index_exists(driver, index_name, database):
-            # Issue a direct DROP INDEX statement in a session scoped to the
-            # demo database.  The index name is a compile-time constant from
-            # power_atlas.contracts, but we validate it as a safe bare identifier
-            # before interpolating it into the Cypher string.
-            _validate_cypher_identifier(index_name, "index name")
-            with driver.session(database=database) as _drop_session:
-                _drop_session.run(f"DROP INDEX {index_name} IF EXISTS")
-            indexes_dropped.append(index_name)
-            logger.info("Dropped demo index: %s", index_name)
-        else:
-            indexes_not_found.append(index_name)
-            warnings_list.append(
-                f"Index '{index_name}' not found; skipped (idempotent no-op)."
-            )
-            logger.info("Demo index not found (already absent): %s", index_name)
-
-    idempotent = deleted_nodes == 0 and not indexes_dropped and stale_participation_edges_deleted == 0
-
-    report: dict[str, Any] = {
-        "created_at": created_at,
-        "target_database": database,
-        "reset_mode": "demo_full_graph_wipe",
-        "demo_labels_deleted": list(DEMO_NODE_LABELS),
-        "deleted_nodes": deleted_nodes,
-        "deleted_relationships": deleted_relationships,
-        "stale_participation_edges_deleted": stale_participation_edges_deleted,
-        "indexes_dropped": indexes_dropped,
-        "indexes_not_found": indexes_not_found,
-        "warnings": warnings_list,
-        "idempotent": idempotent,
-    }
-
-    if output_dir is not None:
-        output_dir.mkdir(parents=True, exist_ok=True)
-        report_path = output_dir / f"reset_report_{_ts_for_filename}.json"
-        report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
-        report["report_path"] = str(report_path)
-        logger.info("Reset report written to: %s", report_path)
-
-    return report
+def _demo_owned_indexes(pipeline_contract):
+    return _demo_owned_indexes_impl(pipeline_contract)
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:

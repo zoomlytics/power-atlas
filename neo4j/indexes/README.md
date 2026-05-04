@@ -10,7 +10,8 @@ Store versioned Neo4j index assets here.
 ## Current ownership note
 
 The runtime/demo path still creates this index today during live PDF ingest,
-and `demo/reset_demo_db.py` still owns the corresponding drop behavior.
+and the reset drop behavior now lives in `power_atlas.reset_demo_runtime`
+behind the retained `demo/reset_demo_db.py` compatibility entrypoint.
 
 This file is the first operational-source artifact for that contract. Any
 future migration of index creation out of runtime code should keep this file as

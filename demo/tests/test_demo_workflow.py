@@ -3590,16 +3590,13 @@ class ResetDemoDbTests(unittest.TestCase):
             "indexes_not_found": ["demo_chunk_embedding_index"],
             "warnings": stub_warnings,
         }
-        fake_reset_module = types.ModuleType("demo.reset_demo_db")
-        fake_reset_module.run_reset = lambda **_kw: stub_report
-
         original_parse_args = module.parse_args
-        original_reset_db = sys.modules.get("demo.reset_demo_db")
         original_driver = bootstrap_clients.neo4j.GraphDatabase.driver
+        original_run_reset_loader = module._load_demo_reset_runner_impl
         try:
             module.parse_args = lambda: args
             bootstrap_clients.neo4j.GraphDatabase.driver = lambda *_a, **_kw: _FakeDriver()
-            sys.modules["demo.reset_demo_db"] = fake_reset_module
+            module._load_demo_reset_runner_impl = lambda: (lambda **_kw: stub_report)
 
             with io.StringIO() as buffer, redirect_stdout(buffer):
                 module.main()
@@ -3627,10 +3624,7 @@ class ResetDemoDbTests(unittest.TestCase):
         finally:
             module.parse_args = original_parse_args
             bootstrap_clients.neo4j.GraphDatabase.driver = original_driver
-            if original_reset_db is None:
-                sys.modules.pop("demo.reset_demo_db", None)
-            else:
-                sys.modules["demo.reset_demo_db"] = original_reset_db
+            module._load_demo_reset_runner_impl = original_run_reset_loader
 
 
 if __name__ == "__main__":
