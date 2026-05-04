@@ -203,6 +203,16 @@ Vendor-reference subtree audit result:
 - the subtree contained only a duplicated upstream image asset, so removing it
   narrowed the retained vendor-reference posture to `vendor-resources/examples/`
   without affecting live repo behavior.
+
+Fixture-subtree audit result:
+
+- `demo/fixtures/wikidata_extraction_prompts/` is currently a defer-in-place
+  operator-facing prototyping template subtree rather than a live retirement
+  candidate,
+- it is not code-called, but it is still intentionally used by operators during
+  external Wikidata dataset construction in the prototyping phase,
+- deleting it now would remove retained human workflow templates rather than
+  retire dead compatibility debt.
 - the direct runtime seam is intentionally small but real:
   `frontend/app/page.tsx` still reads `NEXT_PUBLIC_BACKEND_URL` and performs a
   placeholder `GET /health` check against the backend stub surface,

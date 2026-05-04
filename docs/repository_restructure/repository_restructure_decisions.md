@@ -1195,6 +1195,39 @@ duplicate vendor subtree.
 
 ---
 
+## Decision 34 — `demo/fixtures/wikidata_extraction_prompts/` stays as a defer-in-place operator-facing prototyping template subtree for now
+
+### Decision
+
+`demo/fixtures/wikidata_extraction_prompts/` should remain in place for now as
+a defer-in-place operator-facing prototyping template subtree rather than being
+retired in the current Phase 10 lane.
+
+### Why
+
+- it is not code-called, but it is still intentionally used by operators during
+	external Wikidata dataset construction in the prototyping phase,
+- that makes the subtree part of a retained human workflow rather than dead
+	compatibility debris,
+- deleting it now would remove useful operator templates rather than retire
+	obsolete execution or verification surfaces.
+
+### Consequences
+
+- treat `demo/fixtures/wikidata_extraction_prompts/` as an accepted
+	defer-in-place operator-facing template subtree,
+- keep the retained dataset-based fixture surface under `demo/fixtures/` in
+	place alongside those prototyping templates,
+- do not reopen a deletion lane for these files unless the operator-facing
+	prototyping workflow is intentionally retired or migrated.
+
+### Open Questions
+
+- whether these operator templates should later be documented more explicitly as
+	part of the prototyping workflow remains a follow-up documentation question.
+
+---
+
 ## Summary of decisions that still require follow-up
 
 The following areas are intentionally narrowed but not fully finalized yet:
