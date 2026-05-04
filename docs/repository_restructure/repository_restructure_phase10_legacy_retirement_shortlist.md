@@ -404,7 +404,7 @@ remaining obvious defer-or-retire decisions:
 - `demo/README.md`
   - remains the active operator walkthrough and should only be downgraded after the active execution path changes
 - restructure docs that still describe compatibility shells or shim deferment as current posture
-  - should now point to explicit accepted defer-in-place decisions for `backend/main.py`, `scripts/sync_vendor_version.py`, `pipelines/query/graph_health_diagnostics.py`, and `pipelines/query/retrieval_benchmark.py`
+  - should now point to explicit accepted defer-in-place decisions for `backend/main.py`, `scripts/sync_vendor_version.py`, `pipelines/query/graph_health_diagnostics.py`, `pipelines/query/retrieval_benchmark.py`, `demo/smoke_test.py`, `demo/reset_demo_db.py`, and `demo/run_demo.py`
 
 Documentation changes should follow actual retirement or defer decisions, not
 lead them.
