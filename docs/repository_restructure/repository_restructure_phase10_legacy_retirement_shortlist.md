@@ -160,6 +160,31 @@ Smoke-test audit result:
   change both the active operator CLI seam and the focused test seam rather
   than retire dead compatibility debt.
 
+Reset-wrapper audit result:
+
+- `demo/reset_demo_db.py` is also currently a defer-in-place shell rather than
+  a live retirement candidate,
+- it still serves as the accepted reset CLI entrypoint across the root README,
+  demo workflow docs, and Neo4j workflow/diagnostic docs through
+  `python -m demo.reset_demo_db --confirm`,
+- `demo/tests/test_demo_workflow.py` still loads that exact file path through
+  `reset_path = DEMO_DIR / "reset_demo_db.py"`, so deleting it now would
+  change both the active reset operator seam and the focused reset test seam
+  rather than retire dead compatibility debt.
+
+Run-demo audit result:
+
+- `demo/run_demo.py` is also currently a defer-in-place shell rather than a
+  live retirement candidate,
+- it still serves as the accepted operator orchestration CLI through
+  `python -m demo.run_demo ...` across the root README, demo docs,
+  validation runbook, Neo4j workflow docs, and restructure safety harness,
+- `demo/tests/test_demo_workflow.py` still loads that exact file path through
+  `RUN_DEMO_PATH = DEMO_DIR / "run_demo.py"`, and additional tests still
+  import `demo.run_demo` directly, so deleting it now would change both the
+  active operator CLI seam and a broad focused test seam rather than retire
+  dead compatibility debt.
+
 Query-entrypoint audit result:
 
 - `pipelines/query/graph_health_diagnostics.py` is also currently a

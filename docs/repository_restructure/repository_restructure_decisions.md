@@ -1495,6 +1495,89 @@ compatibility shell for now.
 
 ---
 
+## Decision 42 — `demo/reset_demo_db.py` stays as a defer-in-place compatibility seam for now
+
+### Decision
+
+`demo/reset_demo_db.py` should remain in the repository as a defer-in-place
+compatibility shell for now.
+
+### Why
+
+- the active operator and workflow docs still anchor reset execution to that
+	exact entrypoint, including `README.md`, `demo/README.md`,
+	`neo4j/README.md`, `neo4j/local_dev_workflow.md`, and
+	`demo/VALIDATION_RUNBOOK.md`,
+- the package runtime refactor moved reset behavior into
+	`src/power_atlas/reset_demo_runtime.py`, but the accepted CLI seam still runs
+	through `python -m demo.reset_demo_db --confirm` and related help text,
+- the focused reset coverage in `demo/tests/test_demo_workflow.py` still loads
+	that exact file path through `reset_path = DEMO_DIR / "reset_demo_db.py"`
+	and patches exported wrapper symbols on that module,
+- deleting or renaming the file now would therefore change both the accepted
+	operator CLI seam and the current focused test seam rather than retire dead
+	compatibility debt.
+
+### Consequences
+
+- treat `demo/reset_demo_db.py` as an accepted compatibility shell rather than
+	a live retirement candidate,
+- keep future work in this area scoped to an intentional caller-surface
+	migration if the project later wants a package-native reset CLI path,
+- do not reopen this file as low-risk Phase 10 deletion work unless the docs
+	and focused reset test seam are migrated first.
+
+### Open Questions
+
+- whether the reset CLI should later collapse fully into a package-native
+	entrypoint remains open, but that is a migration task rather than a current
+	retirement decision.
+
+---
+
+## Decision 43 — `demo/run_demo.py` stays as a defer-in-place compatibility seam for now
+
+### Decision
+
+`demo/run_demo.py` should remain in the repository as a defer-in-place
+compatibility shell for now.
+
+### Why
+
+- the active operator workflow still anchors heavily to that exact module
+	invocation across `README.md`, `demo/README.md`, `demo/VALIDATION_RUNBOOK.md`,
+	`neo4j/local_dev_workflow.md`, and other execution/validation docs through
+	`python -m demo.run_demo ...`,
+- the focused workflow test surface still loads that exact file path through
+	`RUN_DEMO_PATH = DEMO_DIR / "run_demo.py"` in
+	`demo/tests/test_demo_workflow.py`, and additional tests also import
+	`demo.run_demo` directly,
+- earlier orchestration thinning already moved the substantive runtime owners
+	behind package-owned helpers, so the remaining file is deliberate
+	compatibility/composition scaffolding rather than an unreviewed ownership
+	hotspot,
+- deleting or renaming the file now would therefore change the accepted
+	operator CLI seam and a broad focused test surface rather than retire dead
+	compatibility debt.
+
+### Consequences
+
+- treat `demo/run_demo.py` as an accepted compatibility shell rather than a
+	live retirement candidate,
+- keep future work in this area scoped to an intentional caller-surface
+	migration only if the project later wants to replace the current demo CLI
+	module path,
+- do not reopen this file as low-risk Phase 10 deletion work unless the docs
+	and the focused `RUN_DEMO_PATH` / direct-import test seams are migrated first.
+
+### Open Questions
+
+- whether the long-term CLI should consolidate further under a package-native
+	entrypoint remains open, but that is a caller-migration task rather than a
+	current retirement decision.
+
+---
+
 ## Summary of decisions that still require follow-up
 
 The following areas are intentionally narrowed but not fully finalized yet:
