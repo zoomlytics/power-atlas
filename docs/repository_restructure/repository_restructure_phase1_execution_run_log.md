@@ -1039,7 +1039,7 @@ export UNSTRUCTURED_RUN_ID="unstructured_ingest-20260415T084900882156Z-ebb71646"
 
 #### Drift / findings
 
-- **Doc/code mismatch found?:** No new drift discovered beyond the findings already tracked at the time (`RR-P1-001`, `RR-P1-005`, `RR-P1-006`, `RR-P1-007`). `RR-P1-001` has since been closed by canonical doc alignment.
+- **Doc/code mismatch found?:** No new drift discovered beyond the findings already tracked at the time (`RR-P1-001`, `RR-P1-005`, `RR-P1-006`, `RR-P1-007`). `RR-P1-001` and `RR-P1-005` have since been closed by canonical doc/code alignment.
 - **Runtime/config mismatch found?:** No
 - **Unexpected dependency or setup requirement?:** No. All prerequisites were already captured by Agents A–C.
 - **Safety-harness impact note:** Automation candidate (script + Make target) was designed to mirror safety harness Sections 9.6 and 9.7 command sequences exactly. No new safety-harness concerns introduced.
