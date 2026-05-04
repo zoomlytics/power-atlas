@@ -121,8 +121,8 @@ export OPENAI_API_KEY=<your-openai-api-key>   # required for the ingest step
 
 # 1. Reset the graph (wipes all demo-owned nodes and relationships)
 python -m demo.run_demo --live reset --confirm
-# Alternative (direct script):
-# NEO4J_PASSWORD=... python demo/reset_demo_db.py --confirm
+# Alternative (direct module invocation):
+# NEO4J_PASSWORD=... python -m demo.reset_demo_db --confirm
 
 # 2. Re-run the full pipeline for your dataset
 python -m demo.run_demo ingest --live --dataset demo_dataset_v1

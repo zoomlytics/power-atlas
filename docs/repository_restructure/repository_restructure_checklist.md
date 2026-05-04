@@ -420,7 +420,7 @@ For Phase 1, the following are explicitly accepted:
 - natural-language answer wording may vary as long as the accepted structural invariants and citation-quality signals hold,
 - retrieval hit counts may vary across clean runs as long as retrieval is non-empty for known-good prompts and cross-run isolation is preserved,
 - warning-not-error handling for deliberate cross-dataset mismatch probes remains acceptable because it is visible to operators and is not part of the accepted Phase 1 verification harness,
-- minor helper-text drift that does not affect the canonical module-invocation path does not block Phase 1 closure.
+- the earlier reset-helper command-path drift has been closed and no longer remains as an accepted Phase 1 cosmetic exception.
 
 ---
 
