@@ -120,31 +120,23 @@ These files or directories still have an accepted role and should not yet be put
 
 These are legacy-shaped surfaces, but they are not yet expired. Removing them before the active execution posture changes would create churn without closing the real migration obligations.
 
-Post-reset import-boundary checkpoint:
+Post-reset and narrative-wrapper checkpoint:
 
 - a bounded `src/**/*.py` import audit now finds no remaining package-to-demo
   runtime import,
 - the reset behavior that previously bridged back into `demo/` now lives under
   `src/power_atlas/reset_demo_runtime.py`, while `demo/reset_demo_db.py`
   remains the stable operator-facing compatibility seam,
-- `demo/narrative_extraction.py` should not be grouped into that same thin-shell
-  class: it still owns artifact-path creation, manifest emission, dry/live
-  branching, and runtime collaborator composition, so it remains an explicit
-  runtime-side exception rather than a live retirement candidate.
-- a follow-up structural slice has now narrowed that exception boundary: the
-  stage summary/manifest serialization helpers moved under
-  `src/power_atlas/narrative_extraction_artifacts.py`, while the demo stage
-  still owns artifact-path selection, dry/live branching, and collaborator
-  composition.
-- the next bounded structural slice narrowed the same exception further: the
-  chunk-read/extract implementation moved under
-  `src/power_atlas/narrative_extraction_readers.py`, while
-  `demo/narrative_extraction.py` now keeps only the compatibility alias that
-  the focused narrative-extraction tests patch.
-- the next follow-up structural slice then moved the remaining stage execution
-  orchestration under `src/power_atlas/narrative_extraction_service.py`, so the
-  demo module is now better understood as a thin compatibility wrapper with
-  retained config and test seams rather than as the execution owner.
+- the earlier narrative-extraction exception is now closed: the stage summary/
+  manifest serialization moved under
+  `src/power_atlas/narrative_extraction_artifacts.py`, the chunk-read/extract
+  path moved under `src/power_atlas/narrative_extraction_readers.py`, the stage
+  execution flow moved under `src/power_atlas/narrative_extraction_service.py`,
+  and the final focused caller surface moved to
+  `src/power_atlas/narrative_extraction_cli.py`,
+- after that caller migration, `demo/narrative_extraction.py` was removed,
+  because no remaining non-test code callers or operator-facing docs anchored
+  to it.
 
 Script-specific audit result:
 

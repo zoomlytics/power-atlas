@@ -1422,6 +1422,44 @@ and retained patch seams.
 
 ---
 
+## Decision 40 — `demo/narrative_extraction.py` is retired after caller migration to a package-native CLI module
+
+### Decision
+
+`demo/narrative_extraction.py` should now be removed from the repository.
+Its remaining focused caller surface has been migrated to the package-native
+module `src/power_atlas/narrative_extraction_cli.py`.
+
+### Why
+
+- an exact caller/reference sweep found no remaining non-test code callers and
+	no operator-facing docs anchored to `demo/narrative_extraction.py`,
+- the only live caller surface left was the focused
+	`demo/tests/test_narrative_extraction.py` file,
+- that focused test surface was migrated to `power_atlas.narrative_extraction_cli`,
+	which now preserves the needed config/constants/patch seams under `src/`,
+- after the caller migration, the focused narrative-extraction test slice still
+	passed, so removing the demo file no longer changed an accepted runtime or
+	operator workflow surface.
+
+### Consequences
+
+- treat `demo/narrative_extraction.py` as a completed retirement slice rather
+	than a defer-in-place compatibility seam,
+- treat `power_atlas.narrative_extraction_cli` as the retained package-native
+	CLI/test surface for this workflow,
+- update restructure notes that previously described
+	`demo/narrative_extraction.py` as a runtime exception or thin wrapper; those
+	statements are now historical context only.
+
+### Open Questions
+
+- whether `power_atlas.narrative_extraction_cli` should later be folded further
+	into a broader package CLI layout remains a follow-up packaging question, not
+	a reason to restore the retired demo wrapper.
+
+---
+
 ## Summary of decisions that still require follow-up
 
 The following areas are intentionally narrowed but not fully finalized yet:

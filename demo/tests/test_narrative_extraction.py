@@ -16,7 +16,7 @@ from neo4j_graphrag.experimental.components.types import (
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-from demo.narrative_extraction import (  # noqa: E402
+from power_atlas.narrative_extraction_cli import (  # noqa: E402
     PROMPT_VERSION,
     DEFAULT_NEO4J_PASSWORD,
     ExtractionConfig,
@@ -183,10 +183,10 @@ def test_run_narrative_extraction_live_path_uses_run_scoped_reader_and_writer(tm
         assert lexical_graph_config == lexical_config
 
     with mock.patch(
-        "demo.narrative_extraction._read_chunks_and_extract",
+        "power_atlas.narrative_extraction_cli._read_chunks_and_extract",
         side_effect=_fake_read_chunks_and_extract,
     ), mock.patch(
-            "demo.narrative_extraction.write_extracted_rows",
+            "power_atlas.narrative_extraction_cli.write_extracted_rows",
             side_effect=_fake_write_extracted_rows,
         ), mock.patch("power_atlas.bootstrap.clients.neo4j.GraphDatabase.driver"):
         config = _make_config(
@@ -245,7 +245,7 @@ def test_parse_args_preserves_narrative_default_model(monkeypatch: pytest.Monkey
 
 
 def test_main_emits_json_summary(capsys: pytest.CaptureFixture[str], tmp_path: Path):
-    from demo import narrative_extraction as module
+    import power_atlas.narrative_extraction_cli as module
 
     config = _make_config(run_id="main-run", output_root=tmp_path, dry_run=True)
     summary = {"status": "dry_run", "run_id": "main-run"}
@@ -262,7 +262,7 @@ def test_main_emits_json_summary(capsys: pytest.CaptureFixture[str], tmp_path: P
 
 
 def test_write_extracted_rows_validates_cypher_identifiers():
-    from demo import narrative_extraction  # import inside to use updated helper
+    import power_atlas.narrative_extraction_cli as narrative_extraction
 
     class _FakeDriver:
         def execute_query(self, *args, **kwargs):
@@ -281,7 +281,7 @@ def test_write_extracted_rows_validates_cypher_identifiers():
 
 
 def test_write_extracted_rows_validates_chunk_id_property():
-    from demo import narrative_extraction  # import inside to use updated helper
+    import power_atlas.narrative_extraction_cli as narrative_extraction
 
     class _FakeDriver:
         def execute_query(self, *args, **kwargs):
@@ -300,7 +300,7 @@ def test_write_extracted_rows_validates_chunk_id_property():
 
 
 def test_write_extracted_rows_allows_valid_identifiers_and_executes():
-    from demo import narrative_extraction  # import inside to use updated helper
+    import power_atlas.narrative_extraction_cli as narrative_extraction
 
     executed = {"count": 0}
 

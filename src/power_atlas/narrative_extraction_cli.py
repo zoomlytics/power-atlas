@@ -2,23 +2,11 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from pathlib import Path
 
 from power_atlas.bootstrap import build_app_context
 from power_atlas.bootstrap import build_settings
-from power_atlas.bootstrap import require_openai_api_key
-from power_atlas.contracts import (
-    PROMPT_IDS,
-    claim_extraction_lexical_config,
-)
-from power_atlas.narrative_extraction_readers import (
-    read_chunks_and_extract_narrative_graph,
-)
-from power_atlas.narrative_extraction_runtime import run_narrative_extraction_live
-from power_atlas.narrative_extraction_service import (
-    run_narrative_extraction_stage,
-)
+from power_atlas.contracts import PROMPT_IDS, claim_extraction_lexical_config
 from power_atlas.extraction_rows import prepare_extracted_rows
 from power_atlas.extraction_writes import write_extracted_rows
 from power_atlas.interfaces.cli.narrative_extraction_entrypoint import (
@@ -29,11 +17,16 @@ from power_atlas.interfaces.cli.narrative_extraction_support import (
     default_narrative_cli_settings as _default_narrative_cli_settings_impl,
     parse_narrative_extraction_args as _parse_narrative_extraction_args_impl,
 )
+from power_atlas.narrative_extraction_readers import (
+    read_chunks_and_extract_narrative_graph,
+)
+from power_atlas.narrative_extraction_runtime import run_narrative_extraction_live
+from power_atlas.narrative_extraction_service import run_narrative_extraction_stage
 from power_atlas.settings import AppSettings
 from neo4j_graphrag.experimental.components.types import LexicalGraphConfig
 
 PROMPT_VERSION = PROMPT_IDS["narrative_extraction"]
-DEFAULT_OUTPUT_ROOT = Path(__file__).resolve().parent / "runs"
+DEFAULT_OUTPUT_ROOT = Path(__file__).resolve().parents[2] / "demo" / "runs"
 DEFAULT_NEO4J_PASSWORD = "CHANGE_ME_BEFORE_USE"
 
 
@@ -65,7 +58,9 @@ def _build_cli_config(args: argparse.Namespace) -> ExtractionConfig:
     )
 
 
-def run_narrative_extraction(config: ExtractionConfig) -> dict[str, Any]:
+def run_narrative_extraction(config: ExtractionConfig) -> dict[str, object]:
+    from power_atlas.bootstrap import require_openai_api_key
+
     return run_narrative_extraction_stage(
         config,
         prompt_version=PROMPT_VERSION,
