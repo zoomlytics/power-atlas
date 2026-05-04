@@ -120,6 +120,18 @@ These files or directories still have an accepted role and should not yet be put
 
 These are legacy-shaped surfaces, but they are not yet expired. Removing them before the active execution posture changes would create churn without closing the real migration obligations.
 
+Post-reset import-boundary checkpoint:
+
+- a bounded `src/**/*.py` import audit now finds no remaining package-to-demo
+  runtime import,
+- the reset behavior that previously bridged back into `demo/` now lives under
+  `src/power_atlas/reset_demo_runtime.py`, while `demo/reset_demo_db.py`
+  remains the stable operator-facing compatibility seam,
+- `demo/narrative_extraction.py` should not be grouped into that same thin-shell
+  class: it still owns artifact-path creation, manifest emission, dry/live
+  branching, and runtime collaborator composition, so it remains an explicit
+  runtime-side exception rather than a live retirement candidate.
+
 Script-specific audit result:
 
 - `scripts/sync_vendor_version.py` is currently a defer-in-place shell rather

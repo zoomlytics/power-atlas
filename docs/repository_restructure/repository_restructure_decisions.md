@@ -1259,6 +1259,48 @@ from the repository as a stale governance draft.
 
 ---
 
+## Decision 36 — Demo reset runtime now belongs under `src/power_atlas/`, and no package-to-demo runtime back-edge remains
+
+### Decision
+
+The demo reset runtime should remain package-owned under
+`src/power_atlas/reset_demo_runtime.py`, while `demo/reset_demo_db.py` stays in
+place only as the operator-facing compatibility entrypoint.
+
+### Why
+
+- the package-side `run_demo` entrypoint was still reaching back into
+	`demo.reset_demo_db` for live reset execution, which meant the package layer
+	still depended on a repo-root demo runtime module,
+- that reset seam was the last remaining `src -> demo` runtime import found by
+	a bounded import audit after the refactor,
+- moving the reset behavior under `src/power_atlas/` removes that structural
+	back-edge without changing the accepted operator CLI seam,
+- a nearby read also confirmed that `demo/narrative_extraction.py` should not be
+	treated as the same class of candidate: it still owns stage artifact paths,
+	dry/live branching, manifest emission, and runtime collaborator composition.
+
+### Consequences
+
+- treat `power_atlas.reset_demo_runtime` as the owned runtime boundary for demo
+	graph reset behavior,
+- treat `demo/reset_demo_db.py` as a retained compatibility entrypoint rather
+	than the runtime owner,
+- treat the bounded `src/**/*.py` import audit result as a current checkpoint:
+	no remaining package-to-demo runtime back-edge is present,
+- do not misclassify `demo/narrative_extraction.py` as a thin compatibility
+	shell in later Phase 10 retirement passes; it remains an explicit runtime-side
+	exception until a separate structural slice intentionally moves its owned
+	behavior.
+
+### Open Questions
+
+- whether `demo/narrative_extraction.py` should later be split further into
+	package-owned runtime collaborators remains a follow-up structural question,
+	not a current Phase 10 retirement slice.
+
+---
+
 ## Summary of decisions that still require follow-up
 
 The following areas are intentionally narrowed but not fully finalized yet:
