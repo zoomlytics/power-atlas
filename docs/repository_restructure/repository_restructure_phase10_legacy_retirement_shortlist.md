@@ -213,6 +213,16 @@ Fixture-subtree audit result:
   external Wikidata dataset construction in the prototyping phase,
 - deleting it now would remove retained human workflow templates rather than
   retire dead compatibility debt.
+
+Governance-doc audit result:
+
+- `docs/governance/relationship-assertion-decision-matrix.md` has now been
+  retired as a low-risk stale governance draft,
+- exact filename and title searches found no live workspace references outside
+  the file itself,
+- the document described itself as experimental conceptual guidance only, so
+  removing it did not change any accepted execution, verification, or operator
+  workflow surface.
 - the direct runtime seam is intentionally small but real:
   `frontend/app/page.tsx` still reads `NEXT_PUBLIC_BACKEND_URL` and performs a
   placeholder `GET /health` check against the backend stub surface,

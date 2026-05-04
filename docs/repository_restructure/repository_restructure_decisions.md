@@ -1228,6 +1228,37 @@ retired in the current Phase 10 lane.
 
 ---
 
+## Decision 35 — `docs/governance/relationship-assertion-decision-matrix.md` is retired as a stale governance draft
+
+### Decision
+
+`docs/governance/relationship-assertion-decision-matrix.md` should be removed
+from the repository as a stale governance draft.
+
+### Why
+
+- exact filename and title searches found no live workspace references outside
+	the file itself,
+- the document described itself as experimental conceptual guidance only,
+- removing it therefore retires isolated historical draft material without
+	changing any accepted execution, verification, or operator workflow surface.
+
+### Consequences
+
+- treat `docs/governance/relationship-assertion-decision-matrix.md` as a
+	completed low-risk stale-governance-draft retirement slice,
+- do not infer from this removal that the referenced ontology or provenance
+	charters have changed,
+- only reopen this area if a new governance-matrix document is intentionally
+	reintroduced as part of an active governance workflow.
+
+### Open Questions
+
+- None for the current slice; no live caller or documentation dependencies had
+	to be migrated.
+
+---
+
 ## Summary of decisions that still require follow-up
 
 The following areas are intentionally narrowed but not fully finalized yet:
