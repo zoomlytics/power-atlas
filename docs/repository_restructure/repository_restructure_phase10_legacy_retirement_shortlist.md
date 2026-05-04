@@ -149,6 +149,17 @@ Script-specific audit result:
   `scripts.sync_vendor_version`, so deleting it now would change the active
   script/test seam rather than retire dead compatibility debt.
 
+Smoke-test audit result:
+
+- `demo/smoke_test.py` is currently a defer-in-place shell rather than a live
+  retirement candidate,
+- it still serves as the documented operator smoke-test command in
+  `demo/README.md`,
+- `demo/tests/test_demo_workflow.py` still imports that exact file path through
+  `SMOKE_TEST_PATH = DEMO_DIR / "smoke_test.py"`, so deleting it now would
+  change both the active operator CLI seam and the focused test seam rather
+  than retire dead compatibility debt.
+
 Query-entrypoint audit result:
 
 - `pipelines/query/graph_health_diagnostics.py` is also currently a

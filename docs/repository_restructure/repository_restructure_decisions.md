@@ -1460,6 +1460,41 @@ module `src/power_atlas/narrative_extraction_cli.py`.
 
 ---
 
+## Decision 41 — `demo/smoke_test.py` stays as a defer-in-place compatibility seam for now
+
+### Decision
+
+`demo/smoke_test.py` should remain in the repository as a defer-in-place
+compatibility shell for now.
+
+### Why
+
+- the operator walkthrough in `demo/README.md` still directs users to run the
+	exact command `python demo/smoke_test.py`,
+- the focused smoke-test unit and scenario coverage in
+	`demo/tests/test_demo_workflow.py` still imports that exact file path through
+	`SMOKE_TEST_PATH = DEMO_DIR / "smoke_test.py"`,
+- deleting or renaming the file now would therefore change both the accepted
+	operator CLI seam and the current focused test seam rather than retire dead
+	compatibility debt.
+
+### Consequences
+
+- treat `demo/smoke_test.py` as an accepted compatibility shell rather than a
+	live retirement candidate,
+- keep future work in this area scoped to an intentional caller-surface
+	migration if the project later wants a package-native smoke-test CLI path,
+- do not reopen this file as low-risk Phase 10 deletion work unless the docs
+	and test seam are migrated first.
+
+### Open Questions
+
+- whether the smoke-test CLI should later gain a package-native caller surface
+	remains open, but that is a migration task rather than a current retirement
+	decision.
+
+---
+
 ## Summary of decisions that still require follow-up
 
 The following areas are intentionally narrowed but not fully finalized yet:
