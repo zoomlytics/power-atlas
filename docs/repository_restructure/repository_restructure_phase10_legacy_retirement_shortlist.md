@@ -131,6 +131,11 @@ Post-reset import-boundary checkpoint:
   class: it still owns artifact-path creation, manifest emission, dry/live
   branching, and runtime collaborator composition, so it remains an explicit
   runtime-side exception rather than a live retirement candidate.
+- a follow-up structural slice has now narrowed that exception boundary: the
+  stage summary/manifest serialization helpers moved under
+  `src/power_atlas/narrative_extraction_artifacts.py`, while the demo stage
+  still owns artifact-path selection, dry/live branching, and collaborator
+  composition.
 
 Script-specific audit result:
 

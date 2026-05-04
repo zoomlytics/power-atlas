@@ -1301,6 +1301,46 @@ place only as the operator-facing compatibility entrypoint.
 
 ---
 
+## Decision 37 — Narrative extraction artifact serialization now belongs under `src/power_atlas/`, while the demo stage remains the runtime owner
+
+### Decision
+
+The narrative extraction stage should now treat summary and manifest
+serialization as package-owned helper behavior under
+`src/power_atlas/narrative_extraction_artifacts.py`, while
+`demo/narrative_extraction.py` remains the runtime owner for stage path
+selection, dry/live branching, and collaborator composition.
+
+### Why
+
+- a bounded read of `demo/narrative_extraction.py` showed that not every part of
+	the file belonged to the same ownership class,
+- the summary-building and manifest-writing helpers were package-safe and did
+	not need to stay in `demo/`,
+- extracting that helper block narrows the demo runtime exception without
+	pretending that the full stage is already a thin compatibility shell,
+- the focused `demo/tests/test_narrative_extraction.py` slice continued to pass
+	after the extraction, which confirms the wrapper behavior and artifact
+	contract stayed stable.
+
+### Consequences
+
+- treat `power_atlas.narrative_extraction_artifacts` as the owned helper
+	boundary for summary/manifest serialization in this stage,
+- keep `demo/narrative_extraction.py` classified as an explicit runtime-side
+	exception for now, but with a narrower ownership surface than before,
+- do not treat this extraction as evidence that the whole file is delete-ready;
+	the stage still owns artifact-path decisions, dry/live branching, and runtime
+	collaborator assembly.
+
+### Open Questions
+
+- whether the remaining runtime-owned behavior in
+	`demo/narrative_extraction.py` should later move behind package-owned runtime
+	services remains a follow-up structural slice.
+
+---
+
 ## Summary of decisions that still require follow-up
 
 The following areas are intentionally narrowed but not fully finalized yet:

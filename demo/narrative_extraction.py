@@ -1,22 +1,24 @@
 from __future__ import annotations
 
 import argparse
-import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Any, Iterable
 
 from power_atlas.bootstrap import build_app_context
+from power_atlas.bootstrap import build_settings
 from power_atlas.bootstrap import require_openai_api_key
 from power_atlas.bootstrap.clients import build_llm as build_openai_llm
 from power_atlas.contracts import (
     PROMPT_IDS,
-    build_stage_manifest,
     claim_extraction_lexical_config,
     claim_extraction_schema,
-    write_manifest,
+)
+from power_atlas.narrative_extraction_artifacts import (
+    build_narrative_extraction_summary,
+    normalize_stage_warnings,
+    write_narrative_extraction_artifacts,
 )
 from power_atlas.narrative_extraction_runtime import run_narrative_extraction_live
 from power_atlas.interfaces.cli.narrative_extraction_entrypoint import (
@@ -102,63 +104,6 @@ def _ensure_dir(path: Path) -> None:
     path.mkdir(parents=True, exist_ok=True)
 
 
-def _write_json(path: Path, payload: dict[str, Any]) -> None:
-    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-
-
-def _normalize_warnings(warnings: Iterable[str] | None) -> list[str]:
-    if not warnings:
-        return []
-    return [str(w) for w in warnings if w is not None]
-
-
-def _update_manifest(
-    manifest_path: Path, run_id: str, stage_payload: dict[str, Any], *, config: ExtractionConfig
-) -> None:
-    manifest_config = SimpleNamespace(
-        dry_run=config.dry_run,
-        neo4j_database=config.settings.neo4j.database,
-        openai_model=config.settings.openai_model,
-    )
-    manifest = build_stage_manifest(
-        config=manifest_config,
-        stage_name="narrative_extraction",
-        stage_run_id=run_id,
-        run_scope_key="unstructured_ingest_run_id",
-        stage_output=stage_payload,
-    )
-    write_manifest(manifest_path, manifest)
-
-
-def _build_summary(
-    *,
-    run_id: str,
-    source_uri: str | None,
-    model_name: str,
-    prompt_version: str,
-    extracted_at: str,
-    chunk_count: int,
-    claim_rows: list[dict[str, Any]],
-    mention_rows: list[dict[str, Any]],
-    warnings: Iterable[str],
-) -> dict[str, Any]:
-    all_extracted_rows = claim_rows + mention_rows
-    unique_chunk_ids = {chunk_id for row in all_extracted_rows for chunk_id in row["chunk_ids"]}
-    return {
-        "status": "live",
-        "run_id": run_id,
-        "source_uri": source_uri,
-        "extractor_model": model_name,
-        "prompt_version": prompt_version,
-        "extracted_at": extracted_at,
-        "chunks_processed": chunk_count,
-        "claims": len(claim_rows),
-        "mentions": len(mention_rows),
-        "chunk_ids": sorted(unique_chunk_ids),
-        "warnings": _normalize_warnings(warnings),
-    }
-
-
 def _default_cli_settings():
     return _default_narrative_cli_settings_impl()
 
@@ -197,18 +142,22 @@ def run_narrative_extraction(config: ExtractionConfig) -> dict[str, Any]:
             "claims": 0,
             "mentions": 0,
             "chunk_ids": [],
-            "warnings": ["narrative extraction skipped in dry_run mode"],
+            "warnings": normalize_stage_warnings(
+                ["narrative extraction skipped in dry_run mode"]
+            ),
         }
-        _write_json(summary_path, summary)
-        _update_manifest(
-            manifest_path,
-            config.run_id,
-            {
+        write_narrative_extraction_artifacts(
+            summary_path=summary_path,
+            manifest_path=manifest_path,
+            config_dry_run=config.dry_run,
+            neo4j_database=config.settings.neo4j.database,
+            openai_model=config.settings.openai_model,
+            run_id=config.run_id,
+            stage_payload={
                 **summary,
                 "summary_path": str(summary_path),
                 "output_dir": str(extraction_dir),
             },
-            config=config,
         )
         return summary
 
@@ -238,7 +187,7 @@ def run_narrative_extraction(config: ExtractionConfig) -> dict[str, Any]:
     mention_rows = live_result.mention_rows
     warnings = live_result.warnings
 
-    summary = _build_summary(
+    summary = build_narrative_extraction_summary(
         run_id=config.run_id,
         source_uri=config.source_uri,
         model_name=config.settings.openai_model,
@@ -249,16 +198,18 @@ def run_narrative_extraction(config: ExtractionConfig) -> dict[str, Any]:
         mention_rows=mention_rows,
         warnings=warnings,
     )
-    _write_json(summary_path, summary)
-    _update_manifest(
-        manifest_path,
-        config.run_id,
-        {
+    write_narrative_extraction_artifacts(
+        summary_path=summary_path,
+        manifest_path=manifest_path,
+        config_dry_run=config.dry_run,
+        neo4j_database=config.settings.neo4j.database,
+        openai_model=config.settings.openai_model,
+        run_id=config.run_id,
+        stage_payload={
             **summary,
             "summary_path": str(summary_path),
             "output_dir": str(extraction_dir),
         },
-        config=config,
     )
     return summary
 
