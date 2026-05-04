@@ -3501,7 +3501,8 @@ class ResetDemoDbTests(unittest.TestCase):
             with io.StringIO() as buffer, redirect_stdout(buffer):
                 module.main()
                 output = buffer.getvalue()
-            self.assertIn("reset_demo_db.py --confirm", output)
+            self.assertIn("python -m demo.reset_demo_db --confirm", output)
+            self.assertIn("python -m demo.run_demo --live reset --confirm", output)
             self.assertIn("--confirm", output)
         finally:
             module.parse_args = original_parse_args
@@ -3543,6 +3544,10 @@ class ResetDemoDbTests(unittest.TestCase):
             with self.assertRaises(SystemExit) as ctx:
                 module.main()
             self.assertIn("--live", str(ctx.exception))
+            self.assertIn(
+                "python -m demo.run_demo --live reset --confirm",
+                str(ctx.exception),
+            )
         finally:
             module.parse_args = original_parse_args
 

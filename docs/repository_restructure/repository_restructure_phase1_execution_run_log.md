@@ -336,7 +336,7 @@ Use this section as a lightweight summary view. Full triage can live elsewhere i
 | RR-P1-002 | 2026-04-15 | output/citation correctness | Root cause identified and confirmed closed: defaulting the baseline path to `gpt-4o-mini` drove `extract-claims` to 0 claims on `demo_dataset_v1`. After updating the default to `gpt-5.4`, a fresh clean rerun from reset produced `68` claims and `246` mentions with no warnings. | P1 | `phase1-agent-b-002` | Ash | closed |
 | RR-P1-003 | 2026-04-15 | output/citation correctness | Root cause identified and confirmed closed: degraded citations were model-floor related, not a postprocessing defect. After updating the default to `gpt-5.4`, a fresh clean rerun from reset restored `all_answers_cited: true`, `citation_fallback_applied: false`, and `evidence_level: "full"`. | P1 | `phase1-agent-b-002` | Ash | closed |
 | RR-P1-004 | 2026-04-15 | CLI/UX | `citation_repair_attempted: false` is expected for the failing baseline run because repair is intentionally only attempted in `--all-runs` mode. Reclassified from unknown behavior to documented-by-code behavior. | P3 | `phase1-agent-e-001` | Ash | closed |
-| RR-P1-005 | 2026-04-15 | documentation drift | `run_demo.py reset` helper output still references script-path forms; Phase 1 posture is module invocation. Minor cosmetic drift. | P3 | `phase1-agent-a-001` | Ash | accepted for Phase 1 |
+| RR-P1-005 | 2026-04-15 | documentation drift | Closed by canonical CLI helper cleanup: reset helper output now uses the accepted module-invocation forms for both `demo.reset_demo_db` and `demo.run_demo`. | P3 | `phase1-agent-a-001` | Ash | closed |
 | RR-P1-006 | 2026-04-15 | run-id handling | Cross-dataset mismatch (`--dataset <v1>` + `--run-id <v2-run>`) is warning-not-error. Operator gets a visible warning but execution proceeds with mismatched retrieval scope. Confirmed with live execution evidence during companion isolation probing. Consistent with Agent A findings. Automation impact: acceptable for Phase 1 because no automated step exercises the mismatch path; hardening deferred post-automation. | P2 | `phase1-agent-c-001` | Ash | deferred to Phase 1.5 |
 | RR-P1-007 | 2026-04-15 | dataset handling | Most graph nodes (EntityMention, ExtractedClaim, ResolvedEntityCluster) do NOT carry `dataset_id`; isolation relies on `run_id` (tagged on Chunk nodes and extraction nodes). This is by design: the retrieval query contract scopes by `run_id`, not `dataset_id`. No leakage observed, but the provenance coverage gap between `dataset_id` stamping on Chunk vs. non-Chunk nodes should be understood before automation. | P3 | `phase1-agent-c-001` | Ash | accepted for Phase 1 |
 
@@ -399,7 +399,7 @@ Use this section as a compact execution-facing view of whether the repo is movin
   - `RR-P1-002` — resolved.
   - `RR-P1-003` — resolved.
   - `RR-P1-004` — resolved.
-  - `RR-P1-005` — accepted for Phase 1; minor helper-text drift only.
+  - `RR-P1-005` — resolved by canonical CLI helper cleanup.
   - `RR-P1-006` — deferred to Phase 1.5 / later hardening; warning-not-error mismatch behavior is understood, visible, and not exercised by the accepted Phase 1 harness.
   - `RR-P1-007` — accepted for Phase 1; provenance model relies on `run_id` isolation and no leakage was observed in live evidence.
 - **Checklist/safety-harness updates needed?:** `no`
@@ -636,7 +636,7 @@ python -m demo.run_demo ask --live --dataset demo_dataset_v1 --run-id "$UNSTRUCT
 #### Drift / findings
 
 - **Doc/code mismatch found?:** Yes — Phase 1 docs do not clearly state the Python 3.11+ hard interpreter requirement. `datetime.UTC` fails on Python 3.9 immediately.
-- **Runtime/config mismatch found?:** Yes — `run_demo.py reset` helper output still references script-path forms; Phase 1 posture is module invocation.
+- **Runtime/config mismatch found?:** Previously yes — `run_demo.py reset` helper output referenced script-path forms, but this cosmetic drift has since been closed by updating the helper output to the accepted module-invocation forms.
 - **Unexpected dependency or setup requirement?:** `neo4j` package must be installed in `.venv`. `OPENAI_API_KEY` and `NEO4J_PASSWORD` required. Neo4j must be running.
 - **Safety-harness impact note:** Harness Section 9.6–9.7 commands are confirmed correct as documented. Interpreter version is an unwritten precondition.
 - **Checklist impact note:** Checklist should note Python 3.11+ and `.venv` interpreter as explicit Phase 1 prerequisites once confirmed by execution.
@@ -1114,7 +1114,7 @@ export UNSTRUCTURED_RUN_ID="unstructured_ingest-20260415T084900882156Z-ebb71646"
   - After the first automated run completes and artifacts are stable, escalate RR-P1-006 to a hard-fail as a Phase 1.5 follow-up. This remained non-blocking for first automation and was later accepted as post-Phase 1 hardening rather than a gate-closure blocker.
 - **Doc/code/runtime drift observed:**
   - RR-P1-001: Python 3.11+ hard requirement was not documented at this point in time (P1). This has since been closed by canonical doc updates.
-  - RR-P1-005: `run_demo.py reset` output references script-path forms (P3, cosmetic, no impact on automation).
+  - RR-P1-005: reset-helper command-path drift was cosmetic and has since been closed by switching the helper output to canonical module invocation.
   - RR-P1-006: Cross-dataset mismatch warning-not-error (P2, deferred post-automation).
   - RR-P1-007: Non-Chunk graph nodes do not carry `dataset_id` (P3, by-design, no leakage observed, no automation impact).
   - No new drift discovered by Agent D.

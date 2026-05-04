@@ -92,10 +92,10 @@ def execute_config_command(
 def reset_instructions_text() -> str:
     return (
         "To reset the demo graph, run:\n"
-        "  python demo/reset_demo_db.py --confirm\n"
+        "  python -m demo.reset_demo_db --confirm\n"
         "Or pass --confirm to this command:\n"
-        "  python demo/run_demo.py --live reset --confirm\n"
-        "See demo/reset_demo_db.py for full usage."
+        "  python -m demo.run_demo --live reset --confirm\n"
+        "See demo.reset_demo_db for full usage."
     )
 
 
@@ -113,7 +113,7 @@ def execute_reset_command(
     if getattr(args, "dry_run", True):
         raise SystemExit(
             "reset --confirm requires --live; re-run with:\n"
-            "  python demo/run_demo.py --live reset --confirm"
+            "  python -m demo.run_demo --live reset --confirm"
         )
     if not args.neo4j_password or args.neo4j_password == "CHANGE_ME_BEFORE_USE":
         raise SystemExit(
