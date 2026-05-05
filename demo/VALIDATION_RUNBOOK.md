@@ -358,6 +358,10 @@ python -m demo.run_demo ask --live \
   --question "What does the document say about Endeavor and MercadoLibre?"
 ```
 
+The `demo/artifacts_compare/...` paths in this section are example destinations
+for manual comparison output. They may be created by the commands during a run
+and are not required to already exist as tracked repository directories.
+
 Inspect:
 
 - `all_answers_cited`
@@ -648,6 +652,10 @@ demo/artifacts_compare/post_hybrid_bridge/runs/<UNSTRUCTURED_RUN_ID>/retrieval_a
 demo/artifacts_compare/post_hybrid_person/runs/<UNSTRUCTURED_RUN_ID>/retrieval_and_qa/manifest.json
 demo/artifacts_compare/q3/cluster_aware/runs/<UNSTRUCTURED_RUN_ID>/retrieval_and_qa/manifest.json
 ```
+
+These comparison-output paths are examples of artifacts to retain after a
+validation run, not a guarantee that matching directories are already checked
+into the repository beforehand.
 
 ---
 
