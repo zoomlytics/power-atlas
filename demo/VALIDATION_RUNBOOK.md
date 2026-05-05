@@ -17,7 +17,7 @@ For the canonical setup and conceptual background, see:
 - [`docs/architecture/retrieval-semantics-v0.1.md`](../docs/architecture/retrieval-semantics-v0.1.md)
 - [`docs/architecture/unstructured-first-entity-resolution-v0.1.md`](../docs/architecture/unstructured-first-entity-resolution-v0.1.md)
 - [`docs/architecture/retrieval-citation-result-contract-v0.1.md`](../docs/architecture/retrieval-citation-result-contract-v0.1.md)
-- [`docs/architecture/retrieval-benchmark-review-rubric-v0.1.md`](../docs/architecture/retrieval-benchmark-review-rubric-v0.1.md)
+- [`eval/rubrics/retrieval-benchmark-review-rubric-v0.1.md`](../eval/rubrics/retrieval-benchmark-review-rubric-v0.1.md)
 - [`docs/architecture/claim-argument-model-v0.3.md`](../docs/architecture/claim-argument-model-v0.3.md)
 
 ---
@@ -571,7 +571,7 @@ python -m demo.run_demo ask --live \
 
 This question is particularly useful when reviewing retrieval behavior against the benchmark rubric:
 
-- [`docs/architecture/retrieval-benchmark-review-rubric-v0.1.md`](../docs/architecture/retrieval-benchmark-review-rubric-v0.1.md)
+- [`eval/rubrics/retrieval-benchmark-review-rubric-v0.1.md`](../eval/rubrics/retrieval-benchmark-review-rubric-v0.1.md)
 
 ---
 

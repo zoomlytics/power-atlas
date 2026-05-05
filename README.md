@@ -236,7 +236,7 @@ The package-owned contract implementations live under
 | [`unstructured-first-entity-resolution-v0.1.md`](docs/architecture/unstructured-first-entity-resolution-v0.1.md) | Entity resolution modes and cluster identity design |
 | [`retrieval-semantics-v0.1.md`](docs/architecture/retrieval-semantics-v0.1.md) | Retrieval design and citation contract |
 | [`retrieval-citation-result-contract-v0.1.md`](docs/architecture/retrieval-citation-result-contract-v0.1.md) | Result contract for citation-grounded Q&A responses |
-| [`retrieval-benchmark-review-rubric-v0.1.md`](docs/architecture/retrieval-benchmark-review-rubric-v0.1.md) | **Benchmark review criteria** — rubric and scoring guidance for regression comparison |
+| [`retrieval-benchmark-review-rubric-v0.1.md`](eval/rubrics/retrieval-benchmark-review-rubric-v0.1.md) | **Benchmark review criteria** — rubric and scoring guidance for regression comparison |
 | [`temporal-modeling-v0.1.md`](docs/architecture/temporal-modeling-v0.1.md) | Temporal relationship modeling (design only; not yet implemented) |
 
 ### Neo4j operational assets — `neo4j/`
@@ -333,7 +333,7 @@ check skipped.
 
 | Asset | Purpose |
 |-------|---------|
-| [`docs/architecture/retrieval-benchmark-review-rubric-v0.1.md`](docs/architecture/retrieval-benchmark-review-rubric-v0.1.md) | **Review criteria** — rubric and scoring guidance for evaluating benchmark regressions |
+| [`eval/rubrics/retrieval-benchmark-review-rubric-v0.1.md`](eval/rubrics/retrieval-benchmark-review-rubric-v0.1.md) | **Review criteria** — rubric and scoring guidance for evaluating benchmark regressions |
 | [`pipelines/query/retrieval_benchmark_example_output.json`](pipelines/query/retrieval_benchmark_example_output.json) | Synthetic example of benchmark output schema (for tooling and training) |
 | [`demo/stages/retrieval_benchmark.py`](demo/stages/retrieval_benchmark.py) | Benchmark stage implementation |
 | `pipelines/runs/<run_id>/retrieval_benchmark/` | Actual run baseline artifacts (gitignored by default; see `.gitignore`) |
@@ -370,7 +370,7 @@ results are not lost and debugging incomplete runs is straightforward.
 | [`docs/architecture/unstructured-first-entity-resolution-v0.1.md`](docs/architecture/unstructured-first-entity-resolution-v0.1.md) | Entity resolution architecture |
 | [`docs/architecture/claim-argument-model-v0.3.md`](docs/architecture/claim-argument-model-v0.3.md) | Claim and participation model (v0.3) |
 | [`docs/architecture/retrieval-semantics-v0.1.md`](docs/architecture/retrieval-semantics-v0.1.md) | Retrieval design and citation contract |
-| [`docs/architecture/retrieval-benchmark-review-rubric-v0.1.md`](docs/architecture/retrieval-benchmark-review-rubric-v0.1.md) | Benchmark review rubric for regression comparison |
+| [`eval/rubrics/retrieval-benchmark-review-rubric-v0.1.md`](eval/rubrics/retrieval-benchmark-review-rubric-v0.1.md) | Benchmark review rubric for regression comparison |
 | [`docs/architecture/temporal-modeling-v0.1.md`](docs/architecture/temporal-modeling-v0.1.md) | Temporal relationship modeling (design only) |
 | [`docs/ontology/v0.1.md`](docs/ontology/v0.1.md) | Ontology v0.1 |
 | [`docs/provenance/v0.1.md`](docs/provenance/v0.1.md) | Provenance model v0.1 |

@@ -1952,7 +1952,7 @@ after their key baseline facts were folded into repo docs.
 > all `entity_type_case_split` hints in this artifact reflect a now-addressed
 > normalization gap.  A post-PR-#433 run is expected to produce lower fragmentation
 > counts.  The detailed impact explanation is summarized in
-> `docs/architecture/retrieval-benchmark-review-rubric-v0.1.md`.
+> `eval/rubrics/retrieval-benchmark-review-rubric-v0.1.md`.
 
 **Baseline summary figures** (run `unstructured_ingest-20260401T184420771950Z-ee78cf8c`, alignment `v1.0`, **pre-PR-#433**):
 
@@ -1983,7 +1983,7 @@ artifact shape stability, documentation, and review training.  Do **not** use it
 as a regression reference.
 
 For detailed per-case review thresholds and red/yellow/green movement guidance, see
-the **[Retrieval Benchmark Review Rubric](../../docs/architecture/retrieval-benchmark-review-rubric-v0.1.md)**.
+the **[Retrieval Benchmark Review Rubric](../../eval/rubrics/retrieval-benchmark-review-rubric-v0.1.md)**.
 
 ### Interpreting benchmark results
 

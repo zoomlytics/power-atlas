@@ -745,7 +745,7 @@ lane.
 - the remaining caller surface is still an active manual/operator seam rather
 	than dead wrapper glue,
 - `pipelines/query/README.md`,
-	`docs/architecture/retrieval-benchmark-review-rubric-v0.1.md`, and
+	`eval/rubrics/retrieval-benchmark-review-rubric-v0.1.md`, and
 	`docs/architecture/warning-channel-conventions.md` still describe or link to
 	this exact script path for manual diagnostics usage,
 - `demo/tests/test_graph_health_diagnostics_cli.py` still imports and patches
@@ -787,7 +787,7 @@ lane.
 	than dead wrapper glue,
 - `demo/README.md`, `pipelines/query/README.md`,
 	`docs/architecture/legacy-dataset-id-migration-v0.1.md`, and
-	`docs/architecture/retrieval-benchmark-review-rubric-v0.1.md` still describe
+	`eval/rubrics/retrieval-benchmark-review-rubric-v0.1.md` still describe
 	or invoke this exact script path for manual benchmark usage,
 - `demo/tests/test_retrieval_benchmark_cli.py` still imports and patches
 	`pipelines.query.retrieval_benchmark`, so deleting the file now would change

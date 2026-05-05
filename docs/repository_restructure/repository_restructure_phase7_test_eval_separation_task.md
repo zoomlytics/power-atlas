@@ -183,3 +183,28 @@ This is the first actual repository-side Phase 7 relocation into the `eval/`
 boundary. It does not yet close the broader phase, but it confirms that Phase 7
 can make real progress through tracked evaluation reports even while the active
 artifact roots remain intentionally deferred in place.
+
+### 7. Second tracked evaluation-artifact move
+
+The next bounded candidate was the retrieval benchmark review rubric.
+
+- `docs/architecture/retrieval-benchmark-review-rubric-v0.1.md` functioned as
+  an evaluation-specific review and regression rubric rather than as a core
+  architecture-spec document
+- its reference surface was broader than the cross-dataset report but still
+  bounded to documentation and restructure records, with no direct behavior or
+  runtime dependency
+- the file has now moved to
+  `eval/rubrics/retrieval-benchmark-review-rubric-v0.1.md`
+
+This establishes a second concrete Phase 7 pattern:
+
+- evaluation reports belong under `eval/reports/`
+- evaluation review rubrics belong under `eval/rubrics/`
+
+At this checkpoint, the `move benchmark/evaluation artifacts out of correctness
+test paths` deliverable is satisfied in substance because tracked evaluation
+documents are no longer confined to `docs/` as generic architecture prose.
+Remaining Phase 7 work should now shift toward any additional eval-only
+documents or datasets plus the later question of whether obsolete benchmark or
+comparison tests need quarantine or CI scope changes.

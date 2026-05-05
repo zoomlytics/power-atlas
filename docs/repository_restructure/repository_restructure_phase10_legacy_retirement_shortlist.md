@@ -190,7 +190,7 @@ Query-entrypoint audit result:
 - `pipelines/query/graph_health_diagnostics.py` is also currently a
   defer-in-place shell rather than a live retirement candidate,
 - it still serves as the documented manual diagnostics entrypoint in
-  `pipelines/query/README.md`, `docs/architecture/retrieval-benchmark-review-rubric-v0.1.md`,
+  `pipelines/query/README.md`, `eval/rubrics/retrieval-benchmark-review-rubric-v0.1.md`,
   and `docs/architecture/warning-channel-conventions.md`,
 - `demo/tests/test_graph_health_diagnostics_cli.py` still imports and patches
   `pipelines.query.graph_health_diagnostics`, so deleting it now would change
@@ -201,7 +201,7 @@ Query-entrypoint audit result:
 - it still serves as the documented manual benchmark CLI seam in
   `demo/README.md`, `pipelines/query/README.md`,
   `docs/architecture/legacy-dataset-id-migration-v0.1.md`, and
-  `docs/architecture/retrieval-benchmark-review-rubric-v0.1.md`,
+  `eval/rubrics/retrieval-benchmark-review-rubric-v0.1.md`,
 - `demo/tests/test_retrieval_benchmark_cli.py` still imports and patches
   `pipelines.query.retrieval_benchmark`, so deleting it now would change the
   active CLI/test seam rather than retire dead compatibility debt.
@@ -381,11 +381,11 @@ Reference anchors cleared in this slice:
 - v1 `retrieval_benchmark.json`
   - referenced by `pipelines/query/README.md`
   - referenced by `eval/reports/cross-dataset-validation-report-v1-v2.md`
-  - referenced by `docs/architecture/retrieval-benchmark-review-rubric-v0.1.md`
+  - referenced by `eval/rubrics/retrieval-benchmark-review-rubric-v0.1.md`
 - v1 `PROVENANCE.md`
   - referenced by `pipelines/query/README.md`
   - referenced by `eval/reports/cross-dataset-validation-report-v1-v2.md`
-  - referenced by `docs/architecture/retrieval-benchmark-review-rubric-v0.1.md`
+  - referenced by `eval/rubrics/retrieval-benchmark-review-rubric-v0.1.md`
 
 Resulting state:
 

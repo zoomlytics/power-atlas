@@ -634,4 +634,4 @@ of your PR:
 - Documented manual benchmark CLI seam: [`pipelines/query/retrieval_benchmark.py`](../../pipelines/query/retrieval_benchmark.py)
 - Query workbook section 14: [`pipelines/query/README.md`](../../pipelines/query/README.md#14-post-hybrid-retrieval-benchmark)
 - Documented manual diagnostics CLI seam: [`pipelines/query/graph_health_diagnostics.py`](../../pipelines/query/graph_health_diagnostics.py)
-- Retrieval semantics: [`docs/architecture/retrieval-semantics-v0.1.md`](retrieval-semantics-v0.1.md)
+- Retrieval semantics: [`docs/architecture/retrieval-semantics-v0.1.md`](../../docs/architecture/retrieval-semantics-v0.1.md)
