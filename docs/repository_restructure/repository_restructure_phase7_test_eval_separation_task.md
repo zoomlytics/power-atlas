@@ -102,16 +102,16 @@ distinct classes:
     `post_hybrid_bridge`, and `post_hybrid_person` remain part of the current
     validation runbook posture in `demo/VALIDATION_RUNBOOK.md`
 
-### 2. Retained reference artifacts under an active root
+### 2. Local working-tree artifacts under an active root
 
-- `demo/artifacts/manifest.json`
-- `demo/artifacts/manifest.md`
-- committed `demo/artifacts/reset_report_*.json` files
+The initial directory inventory showed local `demo/artifacts/manifest.json`,
+`demo/artifacts/manifest.md`, and multiple `reset_report_*.json` files in the
+working tree. A follow-up git inventory confirmed that these are not currently
+tracked repository payload.
 
-These look historical or audit-oriented rather than active workflow defaults,
-but they are still anchored by migration logs and the current `demo/artifacts/`
-live-root decision. They should not be moved before the active `demo/artifacts/`
-output contract is decoupled.
+So, for repository-restructure purposes, these files are local generated
+artifacts sitting under an active output seam, not committed assets that are
+waiting for relocation into `eval/`.
 
 ### 3. First concrete move candidates once a narrow move is approved
 
@@ -132,6 +132,10 @@ depends on them.
 The follow-up inventory on the three candidate directories showed that they are
 currently represented in the working tree only as ignored local run-output
 trees under `runs/`, not as tracked repository payload.
+
+The same git inventory check also confirmed that `demo/artifacts/` currently
+has no tracked payload beyond its `.gitignore` control file, matching the
+accepted Phase 10 documentation posture.
 
 That means there is no repository-side file move to perform for those
 directories in the current checkpoint. The next real relocation slice must
