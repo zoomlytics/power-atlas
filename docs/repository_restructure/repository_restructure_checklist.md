@@ -217,10 +217,21 @@ Use the following status values consistently:
 
 ## Phase 7 — Test and eval separation cleanup
 
-**Status:** not started  
+**Status:** in progress  
 **Owner:**  
 **Blockers:**  
-**Notes:**  
+**Notes:** Phase 7 has now started with the minimum structural boundary work: a
+top-level `eval/` root now exists with an explicit README describing the target
+home for benchmark datasets, evaluation reports, and other non-correctness
+evaluation assets, and the follow-up Phase 7 task record now defines the target
+correctness-test layout across `demo/tests/` and `tests/`. This first lane is
+intentionally boundary-defining rather than path-moving. The accepted active
+operator roots under `demo/artifacts/`, `demo/artifacts_compare/`, and
+`pipelines/runs/` remain in place for now because earlier defer decisions still
+treat them as live workflow seams rather than movable archive payload. The next
+Phase 7 slices should therefore focus on which retained outputs are truly
+evaluation-only and can migrate into `eval/` without changing active runtime or
+manual-validation paths.  
 
 ### Exit criteria
 
@@ -231,8 +242,8 @@ Use the following status values consistently:
 
 ### Phase 7 deliverables checklist
 
-- [ ] define target `tests/` layout
-- [ ] define target `eval/` layout
+- [x] define target `tests/` layout
+- [x] define target `eval/` layout
 - [ ] move benchmark/evaluation artifacts out of correctness test paths
 - [ ] remove or quarantine obsolete tests
 - [ ] update CI scope where needed

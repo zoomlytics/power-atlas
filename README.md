@@ -167,6 +167,7 @@ power-atlas/
 ├── neo4j/                       # Graph operational assets (constraints, indexes, migrations, diagnostics)
 ├── backend/                     # FastAPI stub + stable launch seam for the disconnected placeholder API
 ├── frontend/                    # Next.js stub (disconnected — see Current Status)
+├── eval/                        # Reserved home for benchmark/evaluation assets as Phase 7 separation proceeds
 ├── tests/                       # Repository-level tests
 ├── scripts/                     # Utility scripts (e.g., vendor sync)
 ├── studies/                     # Historical research and exploratory notes
