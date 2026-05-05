@@ -82,3 +82,82 @@ The next bounded Phase 7 slices should proceed in this order:
    require `demo/`-local paths,
 3. update docs and CI scope only after those assets have a stable `eval/`
    destination.
+
+## Initial classification checkpoint (2026-05-05)
+
+The first asset inventory after defining the Phase 7 boundary shows three
+distinct classes:
+
+### 1. Active output seams that should not move yet
+
+- `demo/artifacts/`
+  - remains the active demo output root for reset reports and run artifacts,
+    and its own README still marks it as a live output seam rather than a pure
+    retained-asset bucket
+- `pipelines/runs/`
+  - remains the active output root for the query-side CLIs
+- documented manual-validation comparison paths under `demo/artifacts_compare/`
+  - `q3/` is still referenced by `demo/README.md`
+  - `pre_hybrid_plain`, `pre_hybrid_expand`, `post_hybrid_cluster_aware`,
+    `post_hybrid_bridge`, and `post_hybrid_person` remain part of the current
+    validation runbook posture in `demo/VALIDATION_RUNBOOK.md`
+
+### 2. Retained reference artifacts under an active root
+
+- `demo/artifacts/manifest.json`
+- `demo/artifacts/manifest.md`
+- committed `demo/artifacts/reset_report_*.json` files
+
+These look historical or audit-oriented rather than active workflow defaults,
+but they are still anchored by migration logs and the current `demo/artifacts/`
+live-root decision. They should not be moved before the active `demo/artifacts/`
+output contract is decoupled.
+
+### 3. First concrete move candidates once a narrow move is approved
+
+The following retained comparison-output roots currently have no live doc or
+code references in the workspace outside the directories themselves:
+
+- `demo/artifacts_compare/base_vs_expand_graph/`
+- `demo/artifacts_compare/expand_graph_vs_cluster_aware/`
+- `demo/artifacts_compare/run_scoped_vs_all_runs/`
+
+At this checkpoint, these three directories are the best Phase 7 candidates for
+the first actual relocation into `eval/`, subject to one last tracked-file
+inventory and a small doc sweep to confirm no missing operator guidance still
+depends on them.
+
+### 4. Tracked-file inventory result
+
+The follow-up inventory on the three candidate directories showed that they are
+currently represented in the working tree only as ignored local run-output
+trees under `runs/`, not as tracked repository payload.
+
+That means there is no repository-side file move to perform for those
+directories in the current checkpoint. The next real relocation slice must
+therefore target either:
+
+- future retained comparison payload that becomes intentionally tracked, or
+- another eval-only retained asset family that is both documented and checked
+  into the repository.
+
+For now, the concrete Phase 7 implementation outcome is classification clarity:
+the repo no longer has an obvious committed comparison-artifact subtree ready
+for relocation from those three paths.
+
+### 5. Correctness-test root audit result
+
+The follow-up inventory of `demo/tests/` and `tests/` also found no obvious
+evaluation-only retained assets living under the active correctness-test roots.
+
+- `demo/tests/` is almost entirely Python correctness coverage plus one
+  machine-readable contract scenario fixture file,
+  `demo/tests/contract_fixtures/retrieval_citation_scenarios.yaml`, that is
+  explicitly used as correctness-test input rather than as an evaluation report
+  or benchmark dataset
+- `tests/` is repository-level correctness coverage without any comparable
+  eval-only retained artifact family
+
+So, at the current checkpoint, Phase 7 has clarified the target boundaries but
+has not yet identified a safe committed asset move under the active
+correctness-test roots themselves.
