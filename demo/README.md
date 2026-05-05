@@ -504,6 +504,10 @@ The batch manifest has its own `run_id`, while producer stages still preserve se
 python demo/smoke_test.py
 ```
 
+This smoke-test entrypoint intentionally remains a direct script-path
+compatibility seam for now; unlike the main demo CLI and reset flows, it has
+not yet moved to a package-native module-invocation path.
+
 By default, artifacts are written to a temporary directory deleted on exit. Pass `--output-dir` to retain them.
 
 The smoke test runs structured, unstructured, and batch scenarios in sequence.
