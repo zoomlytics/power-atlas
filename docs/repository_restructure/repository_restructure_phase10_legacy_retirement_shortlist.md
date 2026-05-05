@@ -380,11 +380,11 @@ Reference anchors cleared in this slice:
 
 - v1 `retrieval_benchmark.json`
   - referenced by `pipelines/query/README.md`
-  - referenced by `docs/cross-dataset-validation-report-v1-v2.md`
+  - referenced by `eval/reports/cross-dataset-validation-report-v1-v2.md`
   - referenced by `docs/architecture/retrieval-benchmark-review-rubric-v0.1.md`
 - v1 `PROVENANCE.md`
   - referenced by `pipelines/query/README.md`
-  - referenced by `docs/cross-dataset-validation-report-v1-v2.md`
+  - referenced by `eval/reports/cross-dataset-validation-report-v1-v2.md`
   - referenced by `docs/architecture/retrieval-benchmark-review-rubric-v0.1.md`
 
 Resulting state:

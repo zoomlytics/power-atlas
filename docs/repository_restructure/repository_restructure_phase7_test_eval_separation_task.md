@@ -165,3 +165,21 @@ evaluation-only retained assets living under the active correctness-test roots.
 So, at the current checkpoint, Phase 7 has clarified the target boundaries but
 has not yet identified a safe committed asset move under the active
 correctness-test roots themselves.
+
+### 6. First tracked evaluation-report move
+
+After the negative inventories above, the next bounded candidate came from a
+different class of tracked asset: the cross-dataset validation report.
+
+- `docs/cross-dataset-validation-report-v1-v2.md` was a tracked evaluation
+  report rather than a correctness-test asset or an active runtime seam
+- its reference surface was small and behavior-neutral:
+  - one existence/section check in `demo/tests/test_demo_workflow.py`
+  - two restructure-shortlist references
+- the file has now moved to
+  `eval/reports/cross-dataset-validation-report-v1-v2.md`
+
+This is the first actual repository-side Phase 7 relocation into the `eval/`
+boundary. It does not yet close the broader phase, but it confirms that Phase 7
+can make real progress through tracked evaluation reports even while the active
+artifact roots remain intentionally deferred in place.

@@ -224,14 +224,16 @@ Use the following status values consistently:
 top-level `eval/` root now exists with an explicit README describing the target
 home for benchmark datasets, evaluation reports, and other non-correctness
 evaluation assets, and the follow-up Phase 7 task record now defines the target
-correctness-test layout across `demo/tests/` and `tests/`. This first lane is
-intentionally boundary-defining rather than path-moving. The accepted active
-operator roots under `demo/artifacts/`, `demo/artifacts_compare/`, and
-`pipelines/runs/` remain in place for now because earlier defer decisions still
-treat them as live workflow seams rather than movable archive payload. The next
-Phase 7 slices should therefore focus on which retained outputs are truly
-evaluation-only and can migrate into `eval/` without changing active runtime or
-manual-validation paths.  
+correctness-test layout across `demo/tests/` and `tests/`. A first tracked
+evaluation artifact has now also moved into that boundary: the cross-dataset
+validation report now lives at `eval/reports/cross-dataset-validation-report-v1-v2.md`
+rather than under `docs/`. The accepted active operator roots under
+`demo/artifacts/`, `demo/artifacts_compare/`, and `pipelines/runs/` remain in
+place for now because earlier defer decisions still treat them as live workflow
+seams rather than movable archive payload. The next Phase 7 slices should
+therefore focus on which other retained outputs are truly evaluation-only and
+can migrate into `eval/` without changing active runtime or manual-validation
+paths.  
 
 ### Exit criteria
 

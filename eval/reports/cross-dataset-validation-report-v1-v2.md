@@ -26,11 +26,11 @@ The comparison covers:
 **Out of scope for this report:**
 
 - Re-litigating settled unstructured-first / hybrid semantics (see
-  [`docs/architecture/unstructured-first-entity-resolution-v0.1.md`](architecture/unstructured-first-entity-resolution-v0.1.md))
+   [`docs/architecture/unstructured-first-entity-resolution-v0.1.md`](../../docs/architecture/unstructured-first-entity-resolution-v0.1.md))
 - Changes to claim-argument semantics (see
-  [`docs/architecture/claim-argument-model-v0.3.md`](architecture/claim-argument-model-v0.3.md))
+   [`docs/architecture/claim-argument-model-v0.3.md`](../../docs/architecture/claim-argument-model-v0.3.md))
 - Retrieval-citation contract details (see
-  [`docs/architecture/retrieval-citation-result-contract-v0.1.md`](architecture/retrieval-citation-result-contract-v0.1.md))
+   [`docs/architecture/retrieval-citation-result-contract-v0.1.md`](../../docs/architecture/retrieval-citation-result-contract-v0.1.md))
 
 ---
 

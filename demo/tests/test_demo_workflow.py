@@ -752,7 +752,7 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn("## Golden questions for the demo", text)
 
     def test_cross_dataset_validation_report_exists_with_required_sections(self):
-        report_path = DEMO_DIR.parent / "docs" / "cross-dataset-validation-report-v1-v2.md"
+        report_path = DEMO_DIR.parent / "eval" / "reports" / "cross-dataset-validation-report-v1-v2.md"
         self.assertTrue(report_path.exists(), f"Cross-dataset validation report not found at {report_path}")
         text = report_path.read_text(encoding="utf-8")
         for section in (
