@@ -3,8 +3,8 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from power_atlas.adapters.llm import build_llm as build_openai_llm
 from power_atlas.bootstrap import require_openai_api_key
-from power_atlas.bootstrap.clients import build_llm as build_openai_llm
 from power_atlas.context import RequestContext
 from power_atlas.contracts.pipeline import PipelineContractSnapshot, is_pipeline_contract_snapshot
 from power_atlas.contracts.prompts import PROMPT_IDS

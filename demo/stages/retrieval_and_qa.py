@@ -12,8 +12,8 @@ from neo4j_graphrag.embeddings.openai import OpenAIEmbeddings
 from neo4j_graphrag.generation import GraphRAG
 from neo4j_graphrag.message_history import InMemoryMessageHistory, MessageHistory
 
+from power_atlas.adapters.llm import build_embedder, build_llm as build_openai_llm
 from power_atlas.bootstrap import require_openai_api_key
-from power_atlas.bootstrap.clients import build_embedder, build_llm as build_openai_llm
 from power_atlas.context import RequestContext
 from power_atlas.contracts import (
     ALIGNMENT_VERSION,

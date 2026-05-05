@@ -12,7 +12,7 @@ from neo4j_graphrag.experimental.components.types import (
     TextChunks,
 )
 
-from power_atlas.bootstrap.clients import build_llm as build_openai_llm
+from power_atlas.adapters.llm import build_llm as build_openai_llm
 from power_atlas.contracts import claim_extraction_schema
 from power_atlas.neo4j_io import RunScopedNeo4jChunkReader
 
