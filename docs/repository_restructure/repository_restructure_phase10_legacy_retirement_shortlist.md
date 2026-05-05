@@ -396,8 +396,14 @@ Resulting state:
 
 ### 4. Documentation normalization candidates
 
-This is now the active follow-up lane after the bounded shell audits closed the
-remaining obvious defer-or-retire decisions:
+This follow-up lane has now closed the active command-path drift found during
+the bounded shell audits. The remaining exact script-path examples in the
+restructure docs are intentional references to accepted compatibility seams,
+not unresolved normalization debt.
+
+The remaining documentation work in this lane is therefore limited to summary
+alignment after future retirement or defer decisions, not further command-path
+rewrites for the currently accepted compatibility shells:
 
 - root `README.md`
   - now keeps describing `demo/` as the working implementation and `backend/` / `frontend/` as disconnected scaffolding, while clarifying that `backend/main.py` remains the accepted launch seam for the placeholder backend surface
