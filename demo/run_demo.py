@@ -516,9 +516,10 @@ def _build_run_demo_main_kwargs() -> dict[str, Any]:
         resolve_dataset_root=resolve_dataset_root,
         run_demo=run_demo,
         prepare_ask_request_context=(
-            lambda args, request_context: _run_demo_entrypoint.prepare_run_demo_ask_request_context(
-                args,
-                request_context,
+            _run_demo_entrypoint.build_run_demo_prepare_ask_request_context(
+                resolve_prepare_run_demo_ask_request_context=lambda: (
+                    _run_demo_entrypoint.prepare_run_demo_ask_request_context
+                ),
                 resolve_ask_scope=_resolve_ask_scope,
                 resolve_ask_source_uri=_resolve_ask_source_uri,
             )

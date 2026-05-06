@@ -221,6 +221,26 @@ def prepare_run_demo_ask_request_context(
     )
 
 
+def build_run_demo_prepare_ask_request_context(
+    *,
+    resolve_prepare_run_demo_ask_request_context: Callable[[], Callable[..., Any]],
+    resolve_ask_scope: Callable[[Namespace, RequestContext], tuple[str | None, bool]],
+    resolve_ask_source_uri: Callable[[RequestContext], str | None],
+) -> Callable[[Namespace, RequestContext], RequestContext]:
+    def _prepare_ask_request_context(
+        args: Namespace,
+        request_context: RequestContext,
+    ) -> RequestContext:
+        return resolve_prepare_run_demo_ask_request_context()(
+            args,
+            request_context,
+            resolve_ask_scope=resolve_ask_scope,
+            resolve_ask_source_uri=resolve_ask_source_uri,
+        )
+
+    return _prepare_ask_request_context
+
+
 def run_demo_independent_stage(
     request_context: RequestContext,
     command: str,
@@ -390,6 +410,7 @@ def run_demo_main(
 
 
 __all__ = [
+    "build_run_demo_prepare_ask_request_context",
     "load_demo_reset_runner",
     "prepare_run_demo_ask_request_context",
     "resolve_run_demo_ask_request_context",
