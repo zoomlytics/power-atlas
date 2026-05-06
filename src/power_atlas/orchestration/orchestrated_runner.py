@@ -21,7 +21,7 @@ def run_orchestrated_request_context(
     run_entity_resolution_request_context: Callable[..., dict[str, Any]],
     run_retrieval_request_context: Callable[..., dict[str, Any]],
     run_structured_ingest_request_context: Callable[..., dict[str, Any]],
-    run_retrieval_benchmark: Callable[..., dict[str, Any]],
+    run_retrieval_benchmark_request_context: Callable[..., dict[str, Any]],
     emit_stage_warnings: Callable[[Any, list[tuple[str, object]]], None],
     build_batch_manifest: Callable[..., dict[str, Any]],
     write_batch_manifest_artifacts: Callable[..., Path],
@@ -99,9 +99,8 @@ def run_orchestrated_request_context(
             "successfully and returned an 'alignment_version' key."
         )
     try:
-        benchmark_stage = run_retrieval_benchmark(
-            config,
-            run_id=plan.unstructured_run_id,
+        benchmark_stage = run_retrieval_benchmark_request_context(
+            scoped_unstructured_request_context,
             dataset_id=plan.dataset_id,
             alignment_version=hybrid_alignment_version,
             output_dir=config.output_dir,

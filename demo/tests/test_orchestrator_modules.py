@@ -7267,7 +7267,7 @@ def test_benchmark_failure_in_orchestrated_run_writes_manifest(tmp_path: Path):
         raise RuntimeError("simulated Neo4j benchmark failure")
 
     with patch(
-        "demo.run_demo.run_retrieval_benchmark",
+        "demo.run_demo.run_retrieval_benchmark_request_context",
         side_effect=_raise_benchmark,
     ), patch(
         "demo.run_demo.resolve_dataset_root",
@@ -7341,7 +7341,7 @@ def test_orchestrated_run_warns_when_alignment_version_missing(tmp_path: Path):
     tc.maxDiff = None
     with tc.assertLogs("demo.run_demo", level=logging.WARNING) as captured_logs:
         with patch(
-            "demo.run_demo.run_retrieval_benchmark",
+            "demo.run_demo.run_retrieval_benchmark_request_context",
             return_value={"status": "dry_run", "artifact_path": str(tmp_path / "bench.json"), "artifact": None},
         ), patch(
             "demo.run_demo.resolve_dataset_root",
@@ -7405,7 +7405,7 @@ def test_orchestrated_run_emits_exactly_one_alignment_version_warning(tmp_path: 
     )
     with tc.assertLogs("demo.run_demo", level=logging.WARNING) as captured_logs:
         with patch(
-            "demo.run_demo.run_retrieval_benchmark",
+            "demo.run_demo.run_retrieval_benchmark_request_context",
             mock_run_benchmark,
         ), patch(
             "demo.run_demo.resolve_dataset_root",
@@ -7624,7 +7624,7 @@ def test_run_orchestrated_surfaces_stage_warnings(
         "demo.run_demo._run_structured_ingest_request_context",
         return_value={"status": "dry_run"},
     ), patch(
-        "demo.run_demo.run_retrieval_benchmark",
+        "demo.run_demo.run_retrieval_benchmark_request_context",
         return_value={"status": "dry_run"},
     ):
         _run_orchestrated_request_context(request_context)

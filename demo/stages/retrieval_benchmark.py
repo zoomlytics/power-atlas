@@ -62,11 +62,11 @@ See ``pipelines/query/retrieval_benchmark.py`` for a CLI wrapper.
 Standalone surface
 ------------------
 ``run_retrieval_benchmark(...)`` remains an intentional standalone API for
-manual benchmark runs, notebooks, and query-pipeline scripts that want
-explicit ``Config`` plus dataset/run/alignment scoping arguments without going
-through demo orchestration. Orchestrated and pipeline-owned flows should
-prefer ``run_retrieval_benchmark_request_context(...)`` so request metadata
-stays owned by ``RequestContext`` at the call boundary.
+manual benchmark runs, notebooks, and direct scripts that want explicit
+``Config`` plus dataset/run/alignment scoping arguments. Orchestrated flows
+and other request-owned callers should prefer
+``run_retrieval_benchmark_request_context(...)`` so run and dataset scope stay
+owned by ``RequestContext`` at the call boundary.
 
 Usage (programmatic)
 --------------------
@@ -111,6 +111,13 @@ def _neo4j_settings_from_config(config) -> Neo4jSettings:
         "Retrieval benchmark requires config.settings.neo4j from "
         "RequestContext/AppContext-backed config"
     )
+
+
+def _neo4j_settings_from_request_context(request_context: RequestContext) -> Neo4jSettings:
+    request_settings_neo4j = getattr(request_context.settings, "neo4j", None)
+    if isinstance(request_settings_neo4j, Neo4jSettings):
+        return request_settings_neo4j
+    return _neo4j_settings_from_config(request_context.config)
 
 __all__ = [
     "BENCHMARK_CASES",
@@ -1041,8 +1048,193 @@ def build_benchmark_artifact(
     )
 
 
+def _run_retrieval_benchmark_impl(
+    *,
+    dry_run: bool,
+    output_dir: Path,
+    neo4j_settings: Neo4jSettings | None,
+    run_id: str | None = None,
+    dataset_id: str | None = None,
+    alignment_version: str | None = None,
+    benchmark_cases: list[BenchmarkCaseDefinition] | None = None,
+    suppress_alignment_version_warning: bool = False,
+) -> dict[str, Any]:
+    """Shared retrieval benchmark implementation used by both public entrypoints."""
+    cases = benchmark_cases if benchmark_cases is not None else BENCHMARK_CASES
+    effective_output_dir = Path(output_dir)
+
+    runs_root = (effective_output_dir / "runs").resolve()
+
+    if run_id == "":
+        raise ValueError("run_id must be None or a non-empty string.")
+
+    if dataset_id == "":
+        raise ValueError("dataset_id must be None or a non-empty string.")
+
+    if run_id is not None:
+        run_id_path = Path(run_id)
+        if run_id_path.is_absolute() or ".." in run_id_path.parts or run_id_path.name != run_id:
+            raise ValueError(
+                f"Invalid run_id {run_id!r}: must be a simple relative name without path separators or '..'."
+            )
+        run_root = (runs_root / run_id_path).resolve()
+        if run_root == runs_root or runs_root not in run_root.parents:
+            raise ValueError(
+                f"Invalid run_id {run_id!r}: must resolve to a subdirectory of the runs directory."
+            )
+        artifact_dir = run_root / "retrieval_benchmark"
+    else:
+        artifact_dir = runs_root / "retrieval_benchmark"
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+    artifact_path = artifact_dir / "retrieval_benchmark.json"
+
+    collected_warnings: list[str] = []
+
+    if run_id is None:
+        msg = (
+            "run_retrieval_benchmark: run_id is None — benchmark will aggregate "
+            "across ALL pipeline runs in the database, not just the current run. "
+            "Pass run_id to scope queries to the intended pipeline execution."
+        )
+        collected_warnings.append(msg)
+
+    if dataset_id is None:
+        msg = (
+            "run_retrieval_benchmark: dataset_id is None — benchmark will aggregate "
+            "across ALL datasets in the database, not just the current dataset. "
+            "Results are not suitable for regression baselines in a multi-dataset graph. "
+            "Pass dataset_id to scope queries to the intended dataset."
+        )
+        collected_warnings.append(msg)
+
+    if alignment_version is None and not suppress_alignment_version_warning:
+        msg = (
+            "run_retrieval_benchmark: alignment_version is None — benchmark will aggregate "
+            "across ALL alignment versions in the database, not just the current cohort. "
+            "Pass alignment_version (e.g. from the hybrid entity resolution stage output) "
+            "to scope queries to the intended ALIGNED_WITH edge version."
+        )
+        collected_warnings.append(msg)
+
+    if dry_run:
+        dry_artifact_obj = build_benchmark_artifact(
+            run_id=run_id,
+            dataset_id=dataset_id,
+            alignment_version=alignment_version,
+            case_results=[],
+            pairwise_results=[],
+        )
+        artifact_path.write_text(dry_artifact_obj.to_json(), encoding="utf-8")
+        return {
+            "status": "dry_run",
+            "run_id": run_id,
+            "dataset_id": dataset_id,
+            "alignment_version": alignment_version,
+            "artifact_path": str(artifact_path),
+            "artifact": None,
+            "warnings": ["retrieval benchmark skipped in dry_run mode"] + collected_warnings,
+        }
+
+    if neo4j_settings is None:
+        raise ValueError("Retrieval benchmark requires Neo4j settings for live execution.")
+
+    params: dict[str, Any] = {
+        "run_id": run_id,
+        "dataset_id": dataset_id,
+        "alignment_version": alignment_version,
+    }
+    case_results: list[BenchmarkCaseResult] = []
+    pairwise_results: list[PairwiseCaseResult] = []
+
+    for case_def in cases:
+        if not case_def.entity_names:
+            raise ValueError(
+                f"retrieval_benchmark: case {case_def.case_id!r} has empty entity_names"
+            )
+        entity_name = case_def.entity_names[0]
+
+        if case_def.case_type == "pairwise_entity":
+            if len(case_def.entity_names) < 2:
+                _logger.warning(
+                    "retrieval_benchmark: pairwise case %r has fewer than 2 entity names; skipping",
+                    case_def.case_id,
+                )
+                continue
+            entity_a = case_def.entity_names[0]
+            entity_b = case_def.entity_names[1]
+            _logger.info(
+                "retrieval_benchmark: running pairwise case %r (%r ↔ %r)",
+                case_def.case_id,
+                entity_a,
+                entity_b,
+            )
+            query_rows = fetch_retrieval_benchmark_query_rows(
+                neo4j_settings,
+                neo4j_settings.database,
+                base_params=params,
+                query_specs=build_pairwise_query_specs(entity_a, entity_b),
+                logger=_logger,
+            )
+            pairwise_rows = query_rows["pairwise_rows"]
+            pairwise_results.append(
+                PairwiseCaseResult(
+                    case_id=case_def.case_id,
+                    entity_names=list(case_def.entity_names),
+                    description=case_def.description,
+                    expected_shape=case_def.expected_shape,
+                    failure_modes=list(case_def.failure_modes),
+                    pairwise_rows=pairwise_rows,
+                    pairwise_claim_count=_count_distinct_claims(pairwise_rows),
+                )
+            )
+        else:
+            _logger.info(
+                "retrieval_benchmark: running case %r (entity=%r)",
+                case_def.case_id,
+                entity_name,
+            )
+            query_rows = fetch_retrieval_benchmark_query_rows(
+                neo4j_settings,
+                neo4j_settings.database,
+                base_params=params,
+                query_specs=build_single_entity_query_specs(entity_name),
+                logger=_logger,
+            )
+            case_results.append(
+                build_benchmark_case_result(
+                    case_def=case_def,
+                    canonical_rows=query_rows["canonical_rows"],
+                    cluster_rows=query_rows["cluster_rows"],
+                    lower_layer_rows=query_rows["lower_layer_rows"],
+                    fragmentation_check_rows=query_rows["fragmentation_check_rows"],
+                    catalog_check_rows=query_rows["catalog_check_rows"],
+                )
+            )
+
+    artifact = build_benchmark_artifact(
+        run_id=run_id,
+        dataset_id=dataset_id,
+        alignment_version=alignment_version,
+        case_results=case_results,
+        pairwise_results=pairwise_results,
+    )
+
+    artifact_path.write_text(artifact.to_json(), encoding="utf-8")
+    _logger.info("retrieval_benchmark: artifact written to %s", artifact_path)
+
+    return {
+        "status": "live",
+        "run_id": run_id,
+        "dataset_id": dataset_id,
+        "alignment_version": alignment_version,
+        "artifact_path": str(artifact_path),
+        "artifact": artifact.to_dict(),
+        "warnings": collected_warnings,
+    }
+
+
 # ---------------------------------------------------------------------------
-# Pipeline stage entry point
+# Pipeline stage entry points
 # ---------------------------------------------------------------------------
 
 
@@ -1056,7 +1248,7 @@ def run_retrieval_benchmark(
     benchmark_cases: list[BenchmarkCaseDefinition] | None = None,
     suppress_alignment_version_warning: bool = False,
 ) -> dict[str, Any]:
-    """Run the retrieval benchmark and write a JSON artifact.
+    """Run the retrieval benchmark from explicit config-owned runtime inputs.
 
     Connects to Neo4j using credentials from *config*, runs the full set of
     benchmark queries for each case defined in *benchmark_cases* (defaulting to
@@ -1113,183 +1305,19 @@ def run_retrieval_benchmark(
     each one via its own logger so they are visible in CLI output without
     double-logging.
     """
-    cases = benchmark_cases if benchmark_cases is not None else BENCHMARK_CASES
-    effective_output_dir = output_dir if output_dir is not None else config.output_dir
-    effective_output_dir = Path(effective_output_dir)
-
-    runs_root = (effective_output_dir / "runs").resolve()
-
-    if run_id == "":
-        raise ValueError("run_id must be None or a non-empty string.")
-
-    if dataset_id == "":
-        raise ValueError("dataset_id must be None or a non-empty string.")
-
-    if run_id is not None:
-        run_id_path = Path(run_id)
-        if run_id_path.is_absolute() or ".." in run_id_path.parts or run_id_path.name != run_id:
-            raise ValueError(
-                f"Invalid run_id {run_id!r}: must be a simple relative name without path separators or '..'."
-            )
-        run_root = (runs_root / run_id_path).resolve()
-        if run_root == runs_root or runs_root not in run_root.parents:
-            raise ValueError(
-                f"Invalid run_id {run_id!r}: must resolve to a subdirectory of the runs directory."
-            )
-        artifact_dir = run_root / "retrieval_benchmark"
-    else:
-        artifact_dir = runs_root / "retrieval_benchmark"
-    artifact_dir.mkdir(parents=True, exist_ok=True)
-    artifact_path = artifact_dir / "retrieval_benchmark.json"
-
-    # Collect scoping warnings before Neo4j queries and artifact writes so they
-    # are surfaced uniformly in both dry_run and live modes.
-    collected_warnings: list[str] = []
-
-    if run_id is None:
-        msg = (
-            "run_retrieval_benchmark: run_id is None — benchmark will aggregate "
-            "across ALL pipeline runs in the database, not just the current run. "
-            "Pass run_id to scope queries to the intended pipeline execution."
-        )
-        collected_warnings.append(msg)
-
-    if dataset_id is None:
-        msg = (
-            "run_retrieval_benchmark: dataset_id is None — benchmark will aggregate "
-            "across ALL datasets in the database, not just the current dataset. "
-            "Results are not suitable for regression baselines in a multi-dataset graph. "
-            "Pass dataset_id to scope queries to the intended dataset."
-        )
-        collected_warnings.append(msg)
-
-    # Warn when alignment_version is None so callers are aware that the
-    # benchmark will aggregate across all versions.  The warning is suppressed
-    # when suppress_alignment_version_warning=True to avoid a duplicate log
-    # entry in orchestrated runs where the orchestrator has already emitted its
-    # own warning for the same event.
-    if alignment_version is None and not suppress_alignment_version_warning:
-        msg = (
-            "run_retrieval_benchmark: alignment_version is None — benchmark will aggregate "
-            "across ALL alignment versions in the database, not just the current cohort. "
-            "Pass alignment_version (e.g. from the hybrid entity resolution stage output) "
-            "to scope queries to the intended ALIGNED_WITH edge version."
-        )
-        collected_warnings.append(msg)
-
-    if getattr(config, "dry_run", False):
-        dry_artifact_obj = build_benchmark_artifact(
-            run_id=run_id,
-            dataset_id=dataset_id,
-            alignment_version=alignment_version,
-            case_results=[],
-            pairwise_results=[],
-        )
-        artifact_path.write_text(dry_artifact_obj.to_json(), encoding="utf-8")
-        return {
-            "status": "dry_run",
-            "run_id": run_id,
-            "dataset_id": dataset_id,
-            "alignment_version": alignment_version,
-            "artifact_path": str(artifact_path),
-            "artifact": None,
-            "warnings": ["retrieval benchmark skipped in dry_run mode"] + collected_warnings,
-        }
-
-    params: dict[str, Any] = {
-        "run_id": run_id,
-        "dataset_id": dataset_id,
-        "alignment_version": alignment_version,
-    }
-    resolved_neo4j_settings = _neo4j_settings_from_config(config)
-    case_results: list[BenchmarkCaseResult] = []
-    pairwise_results: list[PairwiseCaseResult] = []
-
-    for case_def in cases:
-        if not case_def.entity_names:
-            raise ValueError(
-                f"retrieval_benchmark: case {case_def.case_id!r} has empty entity_names"
-            )
-        entity_name = case_def.entity_names[0]
-
-        if case_def.case_type == "pairwise_entity":
-            if len(case_def.entity_names) < 2:
-                _logger.warning(
-                    "retrieval_benchmark: pairwise case %r has fewer than 2 entity names; skipping",
-                    case_def.case_id,
-                )
-                continue
-            entity_a = case_def.entity_names[0]
-            entity_b = case_def.entity_names[1]
-            _logger.info(
-                "retrieval_benchmark: running pairwise case %r (%r ↔ %r)",
-                case_def.case_id,
-                entity_a,
-                entity_b,
-            )
-            query_rows = fetch_retrieval_benchmark_query_rows(
-                resolved_neo4j_settings,
-                resolved_neo4j_settings.database,
-                base_params=params,
-                query_specs=build_pairwise_query_specs(entity_a, entity_b),
-                logger=_logger,
-            )
-            pairwise_rows = query_rows["pairwise_rows"]
-            pairwise_results.append(
-                PairwiseCaseResult(
-                    case_id=case_def.case_id,
-                    entity_names=list(case_def.entity_names),
-                    description=case_def.description,
-                    expected_shape=case_def.expected_shape,
-                    failure_modes=list(case_def.failure_modes),
-                    pairwise_rows=pairwise_rows,
-                    pairwise_claim_count=_count_distinct_claims(pairwise_rows),
-                )
-            )
-        else:
-            _logger.info(
-                "retrieval_benchmark: running case %r (entity=%r)",
-                case_def.case_id,
-                entity_name,
-            )
-            query_rows = fetch_retrieval_benchmark_query_rows(
-                resolved_neo4j_settings,
-                resolved_neo4j_settings.database,
-                base_params=params,
-                query_specs=build_single_entity_query_specs(entity_name),
-                logger=_logger,
-            )
-            case_results.append(
-                build_benchmark_case_result(
-                    case_def=case_def,
-                    canonical_rows=query_rows["canonical_rows"],
-                    cluster_rows=query_rows["cluster_rows"],
-                    lower_layer_rows=query_rows["lower_layer_rows"],
-                    fragmentation_check_rows=query_rows["fragmentation_check_rows"],
-                    catalog_check_rows=query_rows["catalog_check_rows"],
-                )
-            )
-
-    artifact = build_benchmark_artifact(
+    resolved_output_dir = Path(output_dir if output_dir is not None else config.output_dir)
+    dry_run = bool(getattr(config, "dry_run", False))
+    resolved_neo4j_settings = None if dry_run else _neo4j_settings_from_config(config)
+    return _run_retrieval_benchmark_impl(
+        dry_run=dry_run,
+        output_dir=resolved_output_dir,
+        neo4j_settings=resolved_neo4j_settings,
         run_id=run_id,
         dataset_id=dataset_id,
         alignment_version=alignment_version,
-        case_results=case_results,
-        pairwise_results=pairwise_results,
+        benchmark_cases=benchmark_cases,
+        suppress_alignment_version_warning=suppress_alignment_version_warning,
     )
-
-    artifact_path.write_text(artifact.to_json(), encoding="utf-8")
-    _logger.info("retrieval_benchmark: artifact written to %s", artifact_path)
-
-    return {
-        "status": "live",
-        "run_id": run_id,
-        "dataset_id": dataset_id,
-        "alignment_version": alignment_version,
-        "artifact_path": str(artifact_path),
-        "artifact": artifact.to_dict(),
-        "warnings": collected_warnings,
-    }
 
 
 def run_retrieval_benchmark_request_context(
@@ -1301,9 +1329,18 @@ def run_retrieval_benchmark_request_context(
     benchmark_cases: list[BenchmarkCaseDefinition] | None = None,
     suppress_alignment_version_warning: bool = False,
 ) -> dict[str, Any]:
-    """Run the retrieval benchmark using request-scoped context as the primary input."""
-    return run_retrieval_benchmark(
-        request_context.config,
+    """Run the retrieval benchmark using RequestContext-owned run scope."""
+    resolved_output_dir = Path(
+        output_dir if output_dir is not None else request_context.config.output_dir
+    )
+    dry_run = bool(getattr(request_context.config, "dry_run", False))
+    resolved_neo4j_settings = None if dry_run else _neo4j_settings_from_request_context(
+        request_context
+    )
+    return _run_retrieval_benchmark_impl(
+        dry_run=dry_run,
+        output_dir=resolved_output_dir,
+        neo4j_settings=resolved_neo4j_settings,
         run_id=request_context.run_id,
         dataset_id=(
             dataset_id
@@ -1311,7 +1348,6 @@ def run_retrieval_benchmark_request_context(
             else getattr(request_context.config, "dataset_name", None)
         ),
         alignment_version=alignment_version,
-        output_dir=output_dir,
         benchmark_cases=benchmark_cases,
         suppress_alignment_version_warning=suppress_alignment_version_warning,
     )

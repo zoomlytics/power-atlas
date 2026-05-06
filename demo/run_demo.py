@@ -113,6 +113,9 @@ run_structured_ingest_request_context = _STAGE_ENTRYPOINTS.run_structured_ingest
 run_interactive_qa_request_context = _STAGE_ENTRYPOINTS.run_interactive_qa_request_context
 run_retrieval_and_qa_request_context = _STAGE_ENTRYPOINTS.run_retrieval_and_qa_request_context
 run_retrieval_benchmark = _STAGE_ENTRYPOINTS.run_retrieval_benchmark
+run_retrieval_benchmark_request_context = (
+    _STAGE_ENTRYPOINTS.run_retrieval_benchmark_request_context
+)
 sha256_file = _STAGE_ENTRYPOINTS.sha256_file
 
 _logger = logging.getLogger(__name__)
@@ -501,7 +504,9 @@ def _run_orchestrated_request_context(request_context: RequestContext) -> Path:
         resolve_run_entity_resolution_request_context=lambda: _run_entity_resolution_request_context,
         resolve_run_retrieval_request_context=lambda: _run_retrieval_request_context,
         resolve_run_structured_ingest_request_context=lambda: _run_structured_ingest_request_context,
-        resolve_run_retrieval_benchmark=lambda: run_retrieval_benchmark,
+        resolve_run_retrieval_benchmark_request_context=lambda: (
+            run_retrieval_benchmark_request_context
+        ),
         emit_stage_warnings=emit_stage_warnings,
         build_batch_manifest=build_batch_manifest,
         write_batch_manifest_artifacts=write_batch_manifest_artifacts,

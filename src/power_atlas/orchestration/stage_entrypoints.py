@@ -16,6 +16,7 @@ class DemoStageEntrypoints:
     run_interactive_qa_request_context: Callable[..., Any]
     run_retrieval_and_qa_request_context: Callable[..., dict[str, Any]]
     run_retrieval_benchmark: Callable[..., dict[str, Any]]
+    run_retrieval_benchmark_request_context: Callable[..., dict[str, Any]]
     sha256_file: Callable[..., str]
 
 
@@ -29,7 +30,10 @@ def load_demo_stage_entrypoints() -> DemoStageEntrypoints:
         run_interactive_qa_request_context,
         run_retrieval_and_qa_request_context,
     )
-    from demo.stages.retrieval_benchmark import run_retrieval_benchmark
+    from demo.stages.retrieval_benchmark import (
+        run_retrieval_benchmark,
+        run_retrieval_benchmark_request_context,
+    )
     from demo.stages.structured_ingest import (
         lint_and_clean_structured_csvs,
         run_structured_ingest_request_context,
@@ -46,6 +50,7 @@ def load_demo_stage_entrypoints() -> DemoStageEntrypoints:
         run_interactive_qa_request_context=run_interactive_qa_request_context,
         run_retrieval_and_qa_request_context=run_retrieval_and_qa_request_context,
         run_retrieval_benchmark=run_retrieval_benchmark,
+        run_retrieval_benchmark_request_context=run_retrieval_benchmark_request_context,
         sha256_file=sha256_file,
     )
 

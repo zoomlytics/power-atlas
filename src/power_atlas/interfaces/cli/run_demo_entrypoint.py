@@ -113,7 +113,9 @@ def run_demo_orchestrated_request_context(
     resolve_run_entity_resolution_request_context: Callable[[], Callable[..., dict[str, Any]]],
     resolve_run_retrieval_request_context: Callable[[], Callable[..., dict[str, Any]]],
     resolve_run_structured_ingest_request_context: Callable[[], Callable[..., dict[str, Any]]],
-    resolve_run_retrieval_benchmark: Callable[[], Callable[..., dict[str, Any]]],
+    resolve_run_retrieval_benchmark_request_context: Callable[
+        [], Callable[..., dict[str, Any]]
+    ],
     emit_stage_warnings: Callable[[Any, list[tuple[str, object]]], None],
     build_batch_manifest: Callable[..., dict[str, Any]],
     write_batch_manifest_artifacts: Callable[..., Path],
@@ -135,7 +137,9 @@ def run_demo_orchestrated_request_context(
             resolve_run_entity_resolution_request_context=resolve_run_entity_resolution_request_context,
             resolve_run_retrieval_request_context=resolve_run_retrieval_request_context,
             resolve_run_structured_ingest_request_context=resolve_run_structured_ingest_request_context,
-            resolve_run_retrieval_benchmark=resolve_run_retrieval_benchmark,
+            resolve_run_retrieval_benchmark_request_context=(
+                resolve_run_retrieval_benchmark_request_context
+            ),
             emit_stage_warnings=emit_stage_warnings,
             build_batch_manifest=build_batch_manifest,
             write_batch_manifest_artifacts=write_batch_manifest_artifacts,
