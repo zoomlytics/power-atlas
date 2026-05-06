@@ -2840,18 +2840,23 @@ class WorkflowTests(unittest.TestCase):
             },
         )()
 
-        # Stub _fetch_dataset_id_for_run to avoid a live Neo4j call.
-        original_fetch = module._fetch_dataset_id_for_run
-        module._fetch_dataset_id_for_run = lambda _cfg, _rid: "some_dataset_id"
+        original_resolve = module._run_demo_entrypoint.resolve_run_demo_ask_scope
+
+        def _fake_resolve_run_demo_ask_scope(_args, request_context, **kwargs):
+            kwargs["fetch_dataset_id_for_run"] = lambda _cfg, _rid: "some_dataset_id"
+            return original_resolve(_args, request_context, **kwargs)
 
         env_backup = os.environ.pop("FIXTURE_DATASET", None)
         env_backup_run_id = os.environ.pop("UNSTRUCTURED_RUN_ID", None)
         try:
+            module._run_demo_entrypoint.resolve_run_demo_ask_scope = (
+                _fake_resolve_run_demo_ask_scope
+            )
             with self.assertLogs(logger=module.__name__, level="WARNING") as log_cm:
                 request_context = module._request_context_from_config(config, command="ask")
                 run_id, all_runs = module._resolve_ask_scope(args, request_context)
         finally:
-            module._fetch_dataset_id_for_run = original_fetch
+            module._run_demo_entrypoint.resolve_run_demo_ask_scope = original_resolve
             if env_backup is not None:
                 os.environ["FIXTURE_DATASET"] = env_backup
             if env_backup_run_id is not None:
