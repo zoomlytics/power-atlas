@@ -404,17 +404,6 @@ def _resolve_dry_run_ask_scope(
     )
 
 
-def _resolve_ask_request_context(
-    args: argparse.Namespace,
-    request_context: RequestContext,
-) -> RequestContext:
-    return _resolve_run_demo_ask_request_context_impl(
-        args,
-        request_context,
-        **_build_ask_scope_resolution_kwargs(),
-    )
-
-
 def _resolve_ask_scope(
     args: argparse.Namespace, request_context: RequestContext
 ) -> tuple[str | None, bool]:
