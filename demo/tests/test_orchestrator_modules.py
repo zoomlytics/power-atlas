@@ -6910,11 +6910,18 @@ def test_resolve_ask_scope_explicit_run_id_wrong_dataset_warns_live(
     config = _live_config(tmp_path, dataset_name="demo_dataset_v2")
     request_context = _request_context_from_config(config, command="ask")
 
+    mock_fetch = mock.Mock(return_value="demo_dataset_v1")
+    from demo import run_demo as run_demo_module
+
+    original_resolve = run_demo_module._run_demo_entrypoint.resolve_run_demo_ask_scope
+
+    def _fake_resolve_run_demo_ask_scope(_args, _request_context, **kwargs):
+        kwargs["fetch_dataset_id_for_run"] = mock_fetch
+        return original_resolve(_args, _request_context, **kwargs)
+
     with mock.patch(
         "demo.run_demo.resolve_dataset_root"
-    ) as mock_resolve, mock.patch(
-        "demo.run_demo._fetch_dataset_id_for_run", return_value="demo_dataset_v1"
-    ) as mock_fetch:
+    ) as mock_resolve:
         from pathlib import Path as _Path
 
         mock_resolve.return_value = DatasetRoot(
@@ -6922,8 +6929,14 @@ def test_resolve_ask_scope_explicit_run_id_wrong_dataset_warns_live(
             dataset_id="demo_dataset_v2",
             pdf_filename="chain_of_issuance.pdf",
         )
-        with caplog.at_level(logging.WARNING, logger="demo.run_demo"):
-            run_id, all_runs = _resolve_ask_scope(args, request_context)
+        run_demo_module._run_demo_entrypoint.resolve_run_demo_ask_scope = (
+            _fake_resolve_run_demo_ask_scope
+        )
+        try:
+            with caplog.at_level(logging.WARNING, logger="demo.run_demo"):
+                run_id, all_runs = _resolve_ask_scope(args, request_context)
+        finally:
+            run_demo_module._run_demo_entrypoint.resolve_run_demo_ask_scope = original_resolve
 
     assert run_id == v1_run, (
         "Explicit --run-id must still be returned even when a dataset mismatch is detected"
