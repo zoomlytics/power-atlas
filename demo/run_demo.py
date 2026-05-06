@@ -540,6 +540,25 @@ def _build_run_demo_independent_stage_runner_kwargs() -> dict[str, Any]:
     )
 
 
+def _build_run_demo_main_kwargs() -> dict[str, Any]:
+    return dict(
+        parse_args=parse_args,
+        dispatch_cli_command=dispatch_cli_command,
+        build_demo_cli_dispatch_kwargs=build_demo_cli_dispatch_kwargs,
+        build_request_context_from_args=_build_request_context_from_args,
+        lint_and_clean_structured_csvs=lint_and_clean_structured_csvs,
+        make_run_id=make_run_id,
+        resolve_dataset_root=resolve_dataset_root,
+        run_demo=run_demo,
+        prepare_ask_request_context=_prepare_ask_request_context,
+        resolve_run_interactive_qa_request_context=lambda: run_interactive_qa_request_context,
+        run_independent_stage=_run_independent_stage,
+        format_scope_label=_format_scope_label,
+        resolve_create_driver=lambda: create_neo4j_driver,
+        resolve_load_reset_runner=lambda: _load_demo_reset_runner_impl,
+    )
+
+
 def _run_orchestrated_request_context(request_context: RequestContext) -> Path:
     """Run the full demo batch sequence with an unstructured-first posture."""
     return _run_demo_orchestrated_request_context_impl(
@@ -584,22 +603,7 @@ run_independent_demo = _run_independent_stage
 
 
 def main() -> None:
-    _run_demo_main_impl(
-        parse_args=parse_args,
-        dispatch_cli_command=dispatch_cli_command,
-        build_demo_cli_dispatch_kwargs=build_demo_cli_dispatch_kwargs,
-        build_request_context_from_args=_build_request_context_from_args,
-        lint_and_clean_structured_csvs=lint_and_clean_structured_csvs,
-        make_run_id=make_run_id,
-        resolve_dataset_root=resolve_dataset_root,
-        run_demo=run_demo,
-        prepare_ask_request_context=_prepare_ask_request_context,
-        resolve_run_interactive_qa_request_context=lambda: run_interactive_qa_request_context,
-        run_independent_stage=_run_independent_stage,
-        format_scope_label=_format_scope_label,
-        resolve_create_driver=lambda: create_neo4j_driver,
-        resolve_load_reset_runner=lambda: _load_demo_reset_runner_impl,
-    )
+    _run_demo_main_impl(**_build_run_demo_main_kwargs())
 
 
 if __name__ == "__main__":
