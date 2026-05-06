@@ -38,8 +38,8 @@ Standalone surface
 manual diagnostics, notebooks, and query-pipeline scripts that want explicit
 ``Config`` plus scoping arguments without going through demo orchestration.
 Orchestrated and pipeline-owned flows should prefer
-``run_graph_health_diagnostics_request_context(...)`` so request metadata stays
-owned by ``RequestContext`` at the call boundary.
+``run_graph_health_diagnostics_request_context(...)`` so run scope and runtime
+ownership stay with ``RequestContext`` at the call boundary.
 
 Usage (programmatic)
 --------------------
@@ -78,6 +78,13 @@ def _neo4j_settings_from_config(config) -> Neo4jSettings:
         "Graph health diagnostics require config.settings.neo4j from "
         "RequestContext/AppContext-backed config"
     )
+
+
+def _neo4j_settings_from_request_context(request_context: RequestContext) -> Neo4jSettings:
+    request_settings_neo4j = getattr(request_context.settings, "neo4j", None)
+    if isinstance(request_settings_neo4j, Neo4jSettings):
+        return request_settings_neo4j
+    return _neo4j_settings_from_config(request_context.config)
 
 __all__ = [
     "GraphHealthArtifact",
@@ -376,8 +383,157 @@ def build_graph_health_artifact(
     )
 
 
+def _run_graph_health_diagnostics_impl(
+    *,
+    dry_run: bool,
+    output_dir: Path,
+    neo4j_settings: Neo4jSettings | None,
+    run_id: str | None = None,
+    alignment_version: str | None = None,
+    suppress_alignment_version_warning: bool = False,
+) -> dict[str, Any]:
+    """Shared graph-health implementation used by both public entrypoints."""
+    effective_output_dir = Path(output_dir)
+
+    # Determine artifact output path.
+    # Unscoped diagnostics still live under "runs/" to align with the repository's
+    # artifact layout convention (stage outputs are always under <output_dir>/runs/).
+    runs_root = (effective_output_dir / "runs").resolve()
+
+    if run_id == "":
+        raise ValueError("run_id must be None or a non-empty string.")
+
+    if run_id is not None:
+        run_id_path = Path(run_id)
+        if run_id_path.is_absolute() or ".." in run_id_path.parts or run_id_path.name != run_id:
+            raise ValueError(
+                f"Invalid run_id {run_id!r}: must be a simple relative name without path separators or '..'."
+            )
+        run_root = (runs_root / run_id_path).resolve()
+        if run_root == runs_root or runs_root not in run_root.parents:
+            raise ValueError(
+                f"Invalid run_id {run_id!r}: must resolve to a subdirectory of the runs directory."
+            )
+        artifact_dir = run_root / "graph_health"
+    else:
+        artifact_dir = runs_root / "graph_health"
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+    artifact_path = artifact_dir / "graph_health_diagnostics.json"
+
+    collected_warnings: list[str] = []
+
+    if run_id is None:
+        msg = (
+            "run_graph_health_diagnostics: run_id is None — diagnostics will aggregate "
+            "across ALL pipeline runs in the database, not just the current run. "
+            "Pass run_id to scope queries to the intended pipeline execution."
+        )
+        collected_warnings.append(msg)
+
+    if alignment_version is None and not suppress_alignment_version_warning:
+        msg = (
+            "run_graph_health_diagnostics: alignment_version is None — alignment "
+            "metrics will aggregate across ALL alignment versions in the database, "
+            "not just the current cohort. "
+            "Pass alignment_version (e.g. from the hybrid entity resolution stage output) "
+            "to scope queries to the intended ALIGNED_WITH edge version."
+        )
+        collected_warnings.append(msg)
+
+    if dry_run:
+        dry_artifact_obj = build_graph_health_artifact(
+            run_id=run_id,
+            alignment_version=alignment_version,
+            participation_role_distribution=[],
+            claim_edge_coverage_distribution=[],
+            match_method_distribution=[],
+            mention_clustering=[],
+            cluster_size_distribution=[],
+            cluster_type_fragmentation=[],
+            alignment_coverage=[],
+            per_canonical_alignment=[],
+            canonical_chain_health=[],
+        )
+        artifact_path.write_text(dry_artifact_obj.to_json(), encoding="utf-8")
+        return {
+            "status": "dry_run",
+            "run_id": run_id,
+            "alignment_version": alignment_version,
+            "artifact_path": str(artifact_path),
+            "artifact": None,
+            "warnings": ["graph health diagnostics skipped in dry_run mode"] + collected_warnings,
+        }
+
+    if neo4j_settings is None:
+        raise ValueError("Graph health diagnostics require Neo4j settings for live execution.")
+
+    query_rows = fetch_graph_health_query_rows(
+        neo4j_settings,
+        neo4j_settings.database,
+        run_id=run_id,
+        alignment_version=alignment_version,
+        query_specs=build_graph_health_query_specs(
+            cluster_type_fragmentation_query=_get_cluster_type_fragmentation_query(),
+            per_canonical_alignment_limit=_PER_CANONICAL_ALIGNMENT_LIMIT,
+            canonical_chain_health_limit=_CANONICAL_CHAIN_HEALTH_LIMIT,
+        ),
+        logger=_logger,
+    )
+    role_dist = query_rows["role_dist"]
+    edge_coverage = query_rows["edge_coverage"]
+    match_method_dist = query_rows["match_method_dist"]
+    mention_clustering = query_rows["mention_clustering"]
+    cluster_size_dist = query_rows["cluster_size_dist"]
+    cluster_type_frag = query_rows["cluster_type_frag"]
+    alignment_coverage = query_rows["alignment_coverage"]
+    per_canonical = query_rows["per_canonical"]
+    chain_health = query_rows["chain_health"]
+
+    artifact = build_graph_health_artifact(
+        run_id=run_id,
+        alignment_version=alignment_version,
+        participation_role_distribution=role_dist,
+        claim_edge_coverage_distribution=edge_coverage,
+        match_method_distribution=match_method_dist,
+        mention_clustering=mention_clustering,
+        cluster_size_distribution=cluster_size_dist,
+        cluster_type_fragmentation=cluster_type_frag,
+        alignment_coverage=alignment_coverage,
+        per_canonical_alignment=per_canonical,
+        canonical_chain_health=chain_health,
+    )
+
+    artifact_path.write_text(artifact.to_json(), encoding="utf-8")
+    _logger.info("graph_health: artifact written to %s", artifact_path)
+
+    if len(per_canonical) == _PER_CANONICAL_ALIGNMENT_LIMIT:
+        msg = (
+            f"run_graph_health_diagnostics: per_canonical_alignment result is at the "
+            f"query row limit ({_PER_CANONICAL_ALIGNMENT_LIMIT} rows) — the detail table "
+            f"may be truncated and not reflect all canonical entities in the current scope."
+        )
+        collected_warnings.append(msg)
+
+    if len(chain_health) == _CANONICAL_CHAIN_HEALTH_LIMIT:
+        msg = (
+            f"run_graph_health_diagnostics: canonical_chain_health result is at the "
+            f"query row limit ({_CANONICAL_CHAIN_HEALTH_LIMIT} rows) — the detail table "
+            f"may be truncated and not reflect all canonical entities in the current scope."
+        )
+        collected_warnings.append(msg)
+
+    return {
+        "status": "live",
+        "run_id": run_id,
+        "alignment_version": alignment_version,
+        "artifact_path": str(artifact_path),
+        "artifact": artifact.to_dict(),
+        "warnings": collected_warnings,
+    }
+
+
 # ---------------------------------------------------------------------------
-# Pipeline stage entry point
+# Pipeline stage entry points
 # ---------------------------------------------------------------------------
 
 
@@ -389,7 +545,7 @@ def run_graph_health_diagnostics(
     output_dir: Path | None = None,
     suppress_alignment_version_warning: bool = False,
 ) -> dict[str, Any]:
-    """Run graph-health diagnostics and write a JSON artifact.
+    """Run graph-health diagnostics from explicit config-owned runtime inputs.
 
     Connects to Neo4j using credentials from *config*, runs the full set of
     diagnostic read queries, and persists the result as a JSON artifact under
@@ -436,155 +592,17 @@ def run_graph_health_diagnostics(
     during the run so that CLI wrappers and programmatic callers can inspect
     or re-emit them.
     """
-    effective_output_dir = output_dir if output_dir is not None else config.output_dir
-    effective_output_dir = Path(effective_output_dir)
-
-    # Determine artifact output path.
-    # Unscoped diagnostics still live under "runs/" to align with the repository's
-    # artifact layout convention (stage outputs are always under <output_dir>/runs/).
-    runs_root = (effective_output_dir / "runs").resolve()
-
-    # Treat only None as "unscoped". Reject the empty string to avoid ambiguity
-    # between an explicitly empty run_id and a genuinely unscoped artifact.
-    if run_id == "":
-        raise ValueError("run_id must be None or a non-empty string.")
-
-    if run_id is not None:
-        run_id_path = Path(run_id)
-        if run_id_path.is_absolute() or ".." in run_id_path.parts or run_id_path.name != run_id:
-            raise ValueError(
-                f"Invalid run_id {run_id!r}: must be a simple relative name without path separators or '..'."
-            )
-        run_root = (runs_root / run_id_path).resolve()
-        if run_root == runs_root or runs_root not in run_root.parents:
-            raise ValueError(
-                f"Invalid run_id {run_id!r}: must resolve to a subdirectory of the runs directory."
-            )
-        artifact_dir = run_root / "graph_health"
-    else:
-        artifact_dir = runs_root / "graph_health"
-    artifact_dir.mkdir(parents=True, exist_ok=True)
-    artifact_path = artifact_dir / "graph_health_diagnostics.json"
-
-    # Collect scoping warnings before dry_run/live-mode handling so they are
-    # surfaced uniformly in both modes.
-    collected_warnings: list[str] = []
-
-    if run_id is None:
-        msg = (
-            "run_graph_health_diagnostics: run_id is None — diagnostics will aggregate "
-            "across ALL pipeline runs in the database, not just the current run. "
-            "Pass run_id to scope queries to the intended pipeline execution."
-        )
-        collected_warnings.append(msg)
-
-    if alignment_version is None and not suppress_alignment_version_warning:
-        msg = (
-            "run_graph_health_diagnostics: alignment_version is None — alignment "
-            "metrics will aggregate across ALL alignment versions in the database, "
-            "not just the current cohort. "
-            "Pass alignment_version (e.g. from the hybrid entity resolution stage output) "
-            "to scope queries to the intended ALIGNED_WITH edge version."
-        )
-        collected_warnings.append(msg)
-
-    if getattr(config, "dry_run", False):
-        # In dry_run mode, write a file with the same schema as the live artifact
-        # by building a real GraphHealthArtifact from empty row lists.  This
-        # ensures the on-disk format is fully stable — including all summary
-        # keys — regardless of dry_run state.
-        dry_artifact_obj = build_graph_health_artifact(
-            run_id=run_id,
-            alignment_version=alignment_version,
-            participation_role_distribution=[],
-            claim_edge_coverage_distribution=[],
-            match_method_distribution=[],
-            mention_clustering=[],
-            cluster_size_distribution=[],
-            cluster_type_fragmentation=[],
-            alignment_coverage=[],
-            per_canonical_alignment=[],
-            canonical_chain_health=[],
-        )
-        artifact_path.write_text(dry_artifact_obj.to_json(), encoding="utf-8")
-        summary: dict[str, Any] = {
-            "status": "dry_run",
-            "run_id": run_id,
-            "alignment_version": alignment_version,
-            "artifact_path": str(artifact_path),
-            "artifact": None,
-            "warnings": ["graph health diagnostics skipped in dry_run mode"] + collected_warnings,
-        }
-        return summary
-
-    neo4j_settings = _neo4j_settings_from_config(config)
-
-    query_rows = fetch_graph_health_query_rows(
-        neo4j_settings,
-        neo4j_settings.database,
+    resolved_output_dir = Path(output_dir if output_dir is not None else config.output_dir)
+    dry_run = bool(getattr(config, "dry_run", False))
+    resolved_neo4j_settings = None if dry_run else _neo4j_settings_from_config(config)
+    return _run_graph_health_diagnostics_impl(
+        dry_run=dry_run,
+        output_dir=resolved_output_dir,
+        neo4j_settings=resolved_neo4j_settings,
         run_id=run_id,
         alignment_version=alignment_version,
-        query_specs=build_graph_health_query_specs(
-            cluster_type_fragmentation_query=_get_cluster_type_fragmentation_query(),
-            per_canonical_alignment_limit=_PER_CANONICAL_ALIGNMENT_LIMIT,
-            canonical_chain_health_limit=_CANONICAL_CHAIN_HEALTH_LIMIT,
-        ),
-        logger=_logger,
+        suppress_alignment_version_warning=suppress_alignment_version_warning,
     )
-    role_dist = query_rows["role_dist"]
-    edge_coverage = query_rows["edge_coverage"]
-    match_method_dist = query_rows["match_method_dist"]
-    mention_clustering = query_rows["mention_clustering"]
-    cluster_size_dist = query_rows["cluster_size_dist"]
-    cluster_type_frag = query_rows["cluster_type_frag"]
-    alignment_coverage = query_rows["alignment_coverage"]
-    per_canonical = query_rows["per_canonical"]
-    chain_health = query_rows["chain_health"]
-
-    artifact = build_graph_health_artifact(
-        run_id=run_id,
-        alignment_version=alignment_version,
-        participation_role_distribution=role_dist,
-        claim_edge_coverage_distribution=edge_coverage,
-        match_method_distribution=match_method_dist,
-        mention_clustering=mention_clustering,
-        cluster_size_distribution=cluster_size_dist,
-        cluster_type_fragmentation=cluster_type_frag,
-        alignment_coverage=alignment_coverage,
-        per_canonical_alignment=per_canonical,
-        canonical_chain_health=chain_health,
-    )
-
-    artifact_path.write_text(artifact.to_json(), encoding="utf-8")
-    _logger.info("graph_health: artifact written to %s", artifact_path)
-
-    # Detect truncation: if a capped query returned exactly its row limit the
-    # result set may be incomplete.  Surface this as a warning so callers and
-    # CLI consumers can tell when per-entity detail tables are partial.
-    if len(per_canonical) == _PER_CANONICAL_ALIGNMENT_LIMIT:
-        msg = (
-            f"run_graph_health_diagnostics: per_canonical_alignment result is at the "
-            f"query row limit ({_PER_CANONICAL_ALIGNMENT_LIMIT} rows) — the detail table "
-            f"may be truncated and not reflect all canonical entities in the current scope."
-        )
-        collected_warnings.append(msg)
-
-    if len(chain_health) == _CANONICAL_CHAIN_HEALTH_LIMIT:
-        msg = (
-            f"run_graph_health_diagnostics: canonical_chain_health result is at the "
-            f"query row limit ({_CANONICAL_CHAIN_HEALTH_LIMIT} rows) — the detail table "
-            f"may be truncated and not reflect all canonical entities in the current scope."
-        )
-        collected_warnings.append(msg)
-
-    return {
-        "status": "live",
-        "run_id": run_id,
-        "alignment_version": alignment_version,
-        "artifact_path": str(artifact_path),
-        "artifact": artifact.to_dict(),
-        "warnings": collected_warnings,
-    }
 
 
 def run_graph_health_diagnostics_request_context(
@@ -594,11 +612,19 @@ def run_graph_health_diagnostics_request_context(
     output_dir: Path | None = None,
     suppress_alignment_version_warning: bool = False,
 ) -> dict[str, Any]:
-    """Run graph-health diagnostics using request-scoped context as the primary input."""
-    return run_graph_health_diagnostics(
-        request_context.config,
+    """Run graph-health diagnostics using RequestContext-owned run scope."""
+    resolved_output_dir = Path(
+        output_dir if output_dir is not None else request_context.config.output_dir
+    )
+    dry_run = bool(getattr(request_context.config, "dry_run", False))
+    resolved_neo4j_settings = None if dry_run else _neo4j_settings_from_request_context(
+        request_context
+    )
+    return _run_graph_health_diagnostics_impl(
+        dry_run=dry_run,
+        output_dir=resolved_output_dir,
+        neo4j_settings=resolved_neo4j_settings,
         run_id=request_context.run_id,
         alignment_version=alignment_version,
-        output_dir=output_dir,
         suppress_alignment_version_warning=suppress_alignment_version_warning,
     )
