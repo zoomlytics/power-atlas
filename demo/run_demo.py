@@ -408,16 +408,10 @@ def _resolve_ask_request_context(
     args: argparse.Namespace,
     request_context: RequestContext,
 ) -> RequestContext:
-    ask_scope_resolution_kwargs = _build_ask_scope_resolution_kwargs()
     return _resolve_run_demo_ask_request_context_impl(
         args,
         request_context,
-        current_env_unstructured_run_id=ask_scope_resolution_kwargs["current_env_unstructured_run_id"],
-        current_env_dataset_selection=ask_scope_resolution_kwargs["current_env_dataset_selection"],
-        fetch_dataset_id_for_run=_fetch_dataset_id_for_run,
-        fetch_latest_unstructured_run_id=_fetch_latest_unstructured_run_id_for_dataset,
-        resolve_dataset_root=resolve_dataset_root,
-        logger=_logger,
+        **_build_ask_scope_resolution_kwargs(),
     )
 
 
@@ -439,12 +433,7 @@ def _resolve_ask_scope(
     return _run_demo_entrypoint.resolve_run_demo_ask_scope(
         args,
         request_context,
-        current_env_unstructured_run_id=_current_env_unstructured_run_id,
-        current_env_dataset_selection=_current_env_dataset_selection,
-        fetch_dataset_id_for_run=_fetch_dataset_id_for_run,
-        fetch_latest_unstructured_run_id=_fetch_latest_unstructured_run_id_for_dataset,
-        resolve_dataset_root=resolve_dataset_root,
-        logger=_logger,
+        **_build_ask_scope_resolution_kwargs(),
     )
 
 
