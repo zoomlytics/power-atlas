@@ -2383,6 +2383,52 @@ class WorkflowTests(unittest.TestCase):
             "--expand-graph must default to False when not specified",
         )
 
+    def test_resolve_ask_scope_can_patch_package_owned_seam(self):
+        """The shell wrapper must resolve ask-scope through the package module dynamically.
+
+        This keeps the direct shell surface available while allowing future tests to
+        patch the package-owned seam instead of shell-local wiring when they only need
+        to short-circuit live scope resolution.
+        """
+        module = _load_module(RUN_DEMO_PATH, "run_ask_scope_package_seam_test")
+        request_context = module._request_context_from_config(
+            _make_module_config(
+                module,
+                dry_run=True,
+                output_dir=DEMO_DIR / "artifacts",
+            ),
+            command="ask",
+        )
+        args = type(
+            "Args",
+            (),
+            {
+                "run_id": None,
+                "latest": False,
+                "all_runs": False,
+            },
+        )()
+
+        original_resolve = module._run_demo_entrypoint.resolve_run_demo_ask_scope
+
+        def _fake_resolve_run_demo_ask_scope(
+            _args,
+            _request_context,
+            **_kwargs,
+        ):
+            return ("patched-package-scope", False)
+
+        try:
+            module._run_demo_entrypoint.resolve_run_demo_ask_scope = (
+                _fake_resolve_run_demo_ask_scope
+            )
+            run_id, all_runs = module._resolve_ask_scope(args, request_context)
+        finally:
+            module._run_demo_entrypoint.resolve_run_demo_ask_scope = original_resolve
+
+        self.assertEqual(run_id, "patched-package-scope")
+        self.assertFalse(all_runs)
+
     def test_parse_args_ask_expand_graph_flag(self):
         """parse_args must accept --expand-graph for the ask subcommand."""
         module = _load_module(RUN_DEMO_PATH, "run_ask_parse_expand_graph_test")

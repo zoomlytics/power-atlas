@@ -83,7 +83,6 @@ from power_atlas.interfaces.cli.run_demo_entrypoint import (  # noqa: E402
     load_demo_reset_runner as _load_demo_reset_runner_impl,
     resolve_run_demo_ask_request_context as _resolve_run_demo_ask_request_context_impl,
     resolve_run_demo_ask_source_uri as _resolve_run_demo_ask_source_uri_impl,
-    resolve_run_demo_ask_scope as _resolve_run_demo_ask_scope_impl,
     resolve_run_demo_dry_run_ask_scope as _resolve_run_demo_dry_run_ask_scope_impl,
     resolve_run_demo_latest_dataset_id as _resolve_run_demo_latest_dataset_id_impl,
     resolve_run_demo_latest_run_scope as _resolve_run_demo_latest_run_scope_impl,
@@ -437,7 +436,7 @@ def _resolve_ask_scope(
     overrides the ``UNSTRUCTURED_RUN_ID`` environment variable. Warnings are
     logged whenever the env var is overridden or stale.
     """
-    return _resolve_run_demo_ask_scope_impl(
+    return _run_demo_entrypoint.resolve_run_demo_ask_scope(
         args,
         request_context,
         current_env_unstructured_run_id=_current_env_unstructured_run_id,
