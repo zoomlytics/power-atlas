@@ -141,17 +141,25 @@ def build_demo_cli_dispatch_kwargs(
     resolve_load_reset_runner: Callable[[], Callable[[], Callable[..., dict[str, Any]]]],
 ) -> dict[str, Any]:
     return {
-        "build_request_context_from_args": build_request_context_from_args,
-        "lint_and_clean_structured_csvs": lint_and_clean_structured_csvs,
-        "make_run_id": make_run_id,
-        "resolve_dataset_root": resolve_dataset_root,
-        "run_demo": run_demo,
-        "prepare_ask_request_context": prepare_ask_request_context,
-        "run_interactive_qa_request_context": resolve_run_interactive_qa_request_context(),
-        "run_independent_stage": run_independent_stage,
-        "format_scope_label": format_scope_label,
-        "create_driver": resolve_create_driver(),
-        "load_reset_runner": resolve_load_reset_runner(),
+        "lint_structured_command_kwargs": {
+            "build_request_context_from_args": build_request_context_from_args,
+            "lint_and_clean_structured_csvs": lint_and_clean_structured_csvs,
+            "make_run_id": make_run_id,
+            "resolve_dataset_root": resolve_dataset_root,
+        },
+        "config_command_kwargs": {
+            "build_request_context_from_args": build_request_context_from_args,
+            "run_demo": run_demo,
+            "prepare_ask_request_context": prepare_ask_request_context,
+            "run_interactive_qa_request_context": resolve_run_interactive_qa_request_context(),
+            "run_independent_stage": run_independent_stage,
+            "format_scope_label": format_scope_label,
+        },
+        "reset_command_kwargs": {
+            "build_request_context_from_args": build_request_context_from_args,
+            "create_driver": resolve_create_driver(),
+            "load_reset_runner": resolve_load_reset_runner(),
+        },
     }
 
 

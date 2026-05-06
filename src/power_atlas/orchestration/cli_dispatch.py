@@ -146,47 +146,29 @@ def dispatch_cli_command(
     args,
     *,
     emit: Callable[[str], None],
-    build_request_context_from_args: Callable[..., Any],
-    lint_and_clean_structured_csvs: Callable[..., dict[str, Any]],
-    make_run_id: Callable[[str], str],
-    resolve_dataset_root: Callable[[str | None], Any],
-    run_demo: Callable[[Any], Any],
-    prepare_ask_request_context: Callable[..., Any],
-    run_interactive_qa_request_context: Callable[..., None],
-    run_independent_stage: Callable[..., Any],
-    format_scope_label: Callable[[str | None, bool], str],
-    create_driver: Callable[[Any], Any],
-    load_reset_runner: Callable[[], Callable[..., dict[str, Any]]],
+    lint_structured_command_kwargs: dict[str, Any],
+    config_command_kwargs: dict[str, Any],
+    reset_command_kwargs: dict[str, Any],
 ) -> None:
     if args.command == "lint-structured":
         execute_lint_structured_command(
             args,
             emit=emit,
-            build_request_context_from_args=build_request_context_from_args,
-            lint_and_clean_structured_csvs=lint_and_clean_structured_csvs,
-            make_run_id=make_run_id,
-            resolve_dataset_root=resolve_dataset_root,
+            **lint_structured_command_kwargs,
         )
         return
     if args.command in CONFIG_COMMANDS:
         execute_config_command(
             args,
             emit=emit,
-            build_request_context_from_args=build_request_context_from_args,
-            run_demo=run_demo,
-            prepare_ask_request_context=prepare_ask_request_context,
-            run_interactive_qa_request_context=run_interactive_qa_request_context,
-            run_independent_stage=run_independent_stage,
-            format_scope_label=format_scope_label,
+            **config_command_kwargs,
         )
         return
     if args.command == "reset":
         execute_reset_command(
             args,
             emit=emit,
-            build_request_context_from_args=build_request_context_from_args,
-            create_driver=create_driver,
-            load_reset_runner=load_reset_runner,
+            **reset_command_kwargs,
         )
         return
     emit(f"Stub: '{args.command}' command scaffold is ready.")
