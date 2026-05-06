@@ -7,13 +7,168 @@ from pathlib import Path
 from typing import Any
 
 from power_atlas.context import RequestContext
-from power_atlas.orchestration.ask_scope import resolve_ask_scope as resolve_ask_scope_impl
+from power_atlas.orchestration.ask_scope import (
+    resolve_ask_request_context as resolve_ask_request_context_impl,
+    resolve_ask_scope as resolve_ask_scope_impl,
+    resolve_ask_source_uri as resolve_ask_source_uri_impl,
+    resolve_dry_run_ask_scope as resolve_dry_run_ask_scope_impl,
+    resolve_latest_dataset_id as resolve_latest_dataset_id_impl,
+    resolve_latest_run_scope as resolve_latest_run_scope_impl,
+    validate_explicit_run_id_dataset_selection as validate_explicit_run_id_dataset_selection_impl,
+    warn_env_run_id_dataset_mismatch as warn_env_run_id_dataset_mismatch_impl,
+    warn_explicit_run_id_dataset_mismatch as warn_explicit_run_id_dataset_mismatch_impl,
+    warn_if_env_run_id_bypasses_dataset_selection as warn_if_env_run_id_bypasses_dataset_selection_impl,
+)
 from power_atlas.orchestration.run_scope_bridge import prepare_ask_request_context_from_scope
 from power_atlas.reset_demo_runtime import run_reset as run_reset_demo
 
 
 def load_demo_reset_runner() -> Callable[..., Any]:
     return run_reset_demo
+
+
+def warn_run_demo_explicit_run_id_dataset_mismatch(
+    explicit_run_id: str,
+    expected_dataset_id: str,
+    actual_dataset_id: str,
+    *,
+    config_dataset: str | None,
+    power_atlas_dataset: str | None,
+    fixture_dataset: str | None,
+    logger: logging.Logger,
+) -> None:
+    warn_explicit_run_id_dataset_mismatch_impl(
+        explicit_run_id,
+        expected_dataset_id,
+        actual_dataset_id,
+        config_dataset=config_dataset,
+        power_atlas_dataset=power_atlas_dataset,
+        fixture_dataset=fixture_dataset,
+        logger=logger,
+    )
+
+
+def warn_run_demo_env_run_id_dataset_mismatch(
+    env_run_id: str,
+    config_dataset: str | None,
+    power_atlas_dataset: str | None,
+    fixture_dataset: str | None,
+    *,
+    logger: logging.Logger,
+) -> None:
+    warn_env_run_id_dataset_mismatch_impl(
+        env_run_id,
+        config_dataset,
+        power_atlas_dataset,
+        fixture_dataset,
+        logger=logger,
+    )
+
+
+def warn_run_demo_if_env_run_id_bypasses_dataset_selection(
+    env_run_id: str,
+    *,
+    config_dataset: str | None,
+    current_env_dataset_selection: Callable[[], tuple[str | None, str | None, str | None]],
+    logger: logging.Logger,
+) -> None:
+    warn_if_env_run_id_bypasses_dataset_selection_impl(
+        env_run_id,
+        config_dataset=config_dataset,
+        current_env_dataset_selection=current_env_dataset_selection,
+        logger=logger,
+    )
+
+
+def validate_run_demo_explicit_run_id_dataset_selection(
+    config,
+    explicit_run_id: str,
+    *,
+    current_env_dataset_selection: Callable[[], tuple[str | None, str | None, str | None]],
+    resolve_dataset_root: Callable[[str], object],
+    fetch_dataset_id_for_run: Callable[[object, str], str | None],
+    logger: logging.Logger,
+) -> None:
+    validate_explicit_run_id_dataset_selection_impl(
+        config,
+        explicit_run_id,
+        current_env_dataset_selection=current_env_dataset_selection,
+        resolve_dataset_root=resolve_dataset_root,
+        fetch_dataset_id_for_run=fetch_dataset_id_for_run,
+        logger=logger,
+    )
+
+
+def resolve_run_demo_latest_dataset_id(
+    config,
+    *,
+    current_env_dataset_selection: Callable[[], tuple[str | None, str | None, str | None]],
+    resolve_dataset_root: Callable[[str], object],
+) -> str | None:
+    return resolve_latest_dataset_id_impl(
+        config,
+        current_env_dataset_selection=current_env_dataset_selection,
+        resolve_dataset_root=resolve_dataset_root,
+    )
+
+
+def resolve_run_demo_latest_run_scope(
+    config,
+    *,
+    env_run_id: str | None,
+    use_latest: bool,
+    current_env_dataset_selection: Callable[[], tuple[str | None, str | None, str | None]],
+    resolve_dataset_root: Callable[[str], object],
+    fetch_latest_unstructured_run_id: Callable[[object, str | None], str | None],
+    logger: logging.Logger,
+) -> str:
+    return resolve_latest_run_scope_impl(
+        config,
+        env_run_id=env_run_id,
+        use_latest=use_latest,
+        current_env_dataset_selection=current_env_dataset_selection,
+        resolve_dataset_root=resolve_dataset_root,
+        fetch_latest_unstructured_run_id=fetch_latest_unstructured_run_id,
+        logger=logger,
+    )
+
+
+def resolve_run_demo_dry_run_ask_scope(
+    config,
+    *,
+    env_run_id: str | None,
+    current_env_dataset_selection: Callable[[], tuple[str | None, str | None, str | None]],
+    logger: logging.Logger,
+) -> tuple[str | None, bool]:
+    return resolve_dry_run_ask_scope_impl(
+        config,
+        env_run_id=env_run_id,
+        current_env_dataset_selection=current_env_dataset_selection,
+        logger=logger,
+    )
+
+
+def resolve_run_demo_ask_request_context(
+    args,
+    request_context: RequestContext,
+    *,
+    current_env_unstructured_run_id: Callable[[], str | None],
+    current_env_dataset_selection: Callable[[], tuple[str | None, str | None, str | None]],
+    fetch_dataset_id_for_run: Callable[[object, str], str | None],
+    fetch_latest_unstructured_run_id: Callable[[object, str | None], str | None],
+    resolve_dataset_root: Callable[[str], object],
+    logger: logging.Logger,
+) -> RequestContext:
+    return resolve_ask_request_context_impl(
+        args,
+        request_context,
+        current_env_unstructured_run_id=current_env_unstructured_run_id,
+        current_env_dataset_selection=current_env_dataset_selection,
+        fetch_dataset_id_for_run=fetch_dataset_id_for_run,
+        fetch_latest_unstructured_run_id=fetch_latest_unstructured_run_id,
+        resolve_dataset_root=resolve_dataset_root,
+        logger=logger,
+    )
 
 
 def resolve_run_demo_ask_scope(
@@ -36,6 +191,17 @@ def resolve_run_demo_ask_scope(
         fetch_latest_unstructured_run_id=fetch_latest_unstructured_run_id,
         resolve_dataset_root=resolve_dataset_root,
         logger=logger,
+    )
+
+
+def resolve_run_demo_ask_source_uri(
+    request_context: RequestContext,
+    *,
+    resolve_dataset_root: Callable[[str], object],
+) -> str | None:
+    return resolve_ask_source_uri_impl(
+        request_context,
+        resolve_dataset_root=resolve_dataset_root,
     )
 
 
@@ -195,7 +361,16 @@ def run_demo_main(
 __all__ = [
     "load_demo_reset_runner",
     "prepare_run_demo_ask_request_context",
+    "resolve_run_demo_ask_request_context",
+    "resolve_run_demo_ask_source_uri",
     "resolve_run_demo_ask_scope",
+    "resolve_run_demo_dry_run_ask_scope",
+    "resolve_run_demo_latest_dataset_id",
+    "resolve_run_demo_latest_run_scope",
+    "validate_run_demo_explicit_run_id_dataset_selection",
+    "warn_run_demo_env_run_id_dataset_mismatch",
+    "warn_run_demo_explicit_run_id_dataset_mismatch",
+    "warn_run_demo_if_env_run_id_bypasses_dataset_selection",
     "run_demo_independent_stage",
     "run_demo_orchestrated_request_context",
     "run_demo_main",

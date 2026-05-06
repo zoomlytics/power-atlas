@@ -27,17 +27,6 @@ from power_atlas.orchestration.demo_planner import (
 )
 from power_atlas.orchestration.ask_scope import (
     format_dataset_label as _format_dataset_label_impl,
-    prepare_ask_request_context as _prepare_ask_request_context_impl,
-    resolve_ask_request_context as _resolve_ask_request_context_impl,
-    resolve_ask_scope as _resolve_ask_scope_impl,
-    resolve_ask_source_uri as _resolve_ask_source_uri_impl,
-    resolve_dry_run_ask_scope as _resolve_dry_run_ask_scope_impl,
-    resolve_latest_dataset_id as _resolve_latest_dataset_id_impl,
-    resolve_latest_run_scope as _resolve_latest_run_scope_impl,
-    validate_explicit_run_id_dataset_selection as _validate_explicit_run_id_dataset_selection_impl,
-    warn_env_run_id_dataset_mismatch as _warn_env_run_id_dataset_mismatch_impl,
-    warn_explicit_run_id_dataset_mismatch as _warn_explicit_run_id_dataset_mismatch_impl,
-    warn_if_env_run_id_bypasses_dataset_selection as _warn_if_env_run_id_bypasses_dataset_selection_impl,
 )
 from power_atlas.orchestration.run_scope_bridge import (
     coerce_run_scope_query_neo4j_settings as _coerce_run_scope_query_neo4j_settings_impl,
@@ -92,7 +81,16 @@ from power_atlas.interfaces.cli.run_demo_support import (  # noqa: E402
 from power_atlas.interfaces.cli.run_demo_entrypoint import (  # noqa: E402
     load_demo_reset_runner as _load_demo_reset_runner_impl,
     prepare_run_demo_ask_request_context as _prepare_run_demo_ask_request_context_impl,
+    resolve_run_demo_ask_request_context as _resolve_run_demo_ask_request_context_impl,
+    resolve_run_demo_ask_source_uri as _resolve_run_demo_ask_source_uri_impl,
     resolve_run_demo_ask_scope as _resolve_run_demo_ask_scope_impl,
+    resolve_run_demo_dry_run_ask_scope as _resolve_run_demo_dry_run_ask_scope_impl,
+    resolve_run_demo_latest_dataset_id as _resolve_run_demo_latest_dataset_id_impl,
+    resolve_run_demo_latest_run_scope as _resolve_run_demo_latest_run_scope_impl,
+    validate_run_demo_explicit_run_id_dataset_selection as _validate_run_demo_explicit_run_id_dataset_selection_impl,
+    warn_run_demo_env_run_id_dataset_mismatch as _warn_run_demo_env_run_id_dataset_mismatch_impl,
+    warn_run_demo_explicit_run_id_dataset_mismatch as _warn_run_demo_explicit_run_id_dataset_mismatch_impl,
+    warn_run_demo_if_env_run_id_bypasses_dataset_selection as _warn_run_demo_if_env_run_id_bypasses_dataset_selection_impl,
     run_demo_independent_stage as _run_demo_independent_stage_impl,
     run_demo_orchestrated_request_context as _run_demo_orchestrated_request_context_impl,
     run_demo_main as _run_demo_main_impl,
@@ -283,7 +281,7 @@ def _warn_explicit_run_id_dataset_mismatch(
     fixture_dataset: str | None,
 ) -> None:
     """Emit a WARNING log when --run-id belongs to a different dataset than selected."""
-    _warn_explicit_run_id_dataset_mismatch_impl(
+    _warn_run_demo_explicit_run_id_dataset_mismatch_impl(
         explicit_run_id,
         expected_dataset_id,
         actual_dataset_id,
@@ -301,7 +299,7 @@ def _warn_env_run_id_dataset_mismatch(
     fixture_dataset: str | None,
 ) -> None:
     """Emit a WARNING log when UNSTRUCTURED_RUN_ID is set alongside a dataset selection."""
-    _warn_env_run_id_dataset_mismatch_impl(
+    _warn_run_demo_env_run_id_dataset_mismatch_impl(
         env_run_id,
         config_dataset,
         power_atlas_dataset,
@@ -315,7 +313,7 @@ def _warn_if_env_run_id_bypasses_dataset_selection(
     *,
     config_dataset: str | None,
 ) -> None:
-    _warn_if_env_run_id_bypasses_dataset_selection_impl(
+    _warn_run_demo_if_env_run_id_bypasses_dataset_selection_impl(
         env_run_id,
         config_dataset=config_dataset,
         current_env_dataset_selection=_current_env_dataset_selection,
@@ -327,25 +325,27 @@ def _validate_explicit_run_id_dataset_selection(
     config: Config,
     explicit_run_id: str,
 ) -> None:
-    _validate_explicit_run_id_dataset_selection_impl(
+    _validate_run_demo_explicit_run_id_dataset_selection_impl(
         config,
         explicit_run_id,
-        **build_demo_dataset_selection_kwargs(
+        current_env_dataset_selection=build_demo_dataset_selection_kwargs(
             resolve_current_env_dataset_selection=lambda: _current_env_dataset_selection,
             resolve_dataset_root=resolve_dataset_root,
-        ),
+        )["current_env_dataset_selection"],
+        resolve_dataset_root=resolve_dataset_root,
         fetch_dataset_id_for_run=_fetch_dataset_id_for_run,
         logger=_logger,
     )
 
 
 def _resolve_latest_dataset_id(config: Config) -> str | None:
-    return _resolve_latest_dataset_id_impl(
+    return _resolve_run_demo_latest_dataset_id_impl(
         config,
-        **build_demo_dataset_selection_kwargs(
+        current_env_dataset_selection=build_demo_dataset_selection_kwargs(
             resolve_current_env_dataset_selection=lambda: _current_env_dataset_selection,
             resolve_dataset_root=resolve_dataset_root,
-        ),
+        )["current_env_dataset_selection"],
+        resolve_dataset_root=resolve_dataset_root,
     )
 
 
@@ -355,14 +355,15 @@ def _resolve_latest_run_scope(
     env_run_id: str | None,
     use_latest: bool,
 ) -> str:
-    return _resolve_latest_run_scope_impl(
+    return _resolve_run_demo_latest_run_scope_impl(
         config,
         env_run_id=env_run_id,
         use_latest=use_latest,
-        **build_demo_dataset_selection_kwargs(
+        current_env_dataset_selection=build_demo_dataset_selection_kwargs(
             resolve_current_env_dataset_selection=lambda: _current_env_dataset_selection,
             resolve_dataset_root=resolve_dataset_root,
-        ),
+        )["current_env_dataset_selection"],
+        resolve_dataset_root=resolve_dataset_root,
         fetch_latest_unstructured_run_id=lambda inner_config, dataset_id: _fetch_latest_unstructured_run_id(
             inner_config,
             dataset_id=dataset_id,
@@ -376,7 +377,7 @@ def _resolve_dry_run_ask_scope(
     *,
     env_run_id: str | None,
 ) -> tuple[str | None, bool]:
-    return _resolve_dry_run_ask_scope_impl(
+    return _resolve_run_demo_dry_run_ask_scope_impl(
         config,
         env_run_id=env_run_id,
         current_env_dataset_selection=build_demo_dataset_selection_kwargs(
@@ -391,10 +392,10 @@ def _resolve_ask_request_context(
     args: argparse.Namespace,
     request_context: RequestContext,
 ) -> RequestContext:
-    return _resolve_ask_request_context_impl(
+    return _resolve_run_demo_ask_request_context_impl(
         args,
         request_context,
-        **build_demo_ask_scope_resolution_kwargs(
+        current_env_unstructured_run_id=build_demo_ask_scope_resolution_kwargs(
             resolve_current_env_unstructured_run_id=lambda: _current_env_unstructured_run_id,
             resolve_current_env_dataset_selection=lambda: _current_env_dataset_selection,
             fetch_dataset_id_for_run=_fetch_dataset_id_for_run,
@@ -404,7 +405,25 @@ def _resolve_ask_request_context(
             ),
             resolve_dataset_root=resolve_dataset_root,
             logger=_logger,
+        )["current_env_unstructured_run_id"],
+        current_env_dataset_selection=build_demo_ask_scope_resolution_kwargs(
+            resolve_current_env_unstructured_run_id=lambda: _current_env_unstructured_run_id,
+            resolve_current_env_dataset_selection=lambda: _current_env_dataset_selection,
+            fetch_dataset_id_for_run=_fetch_dataset_id_for_run,
+            resolve_fetch_latest_unstructured_run_id=lambda: lambda inner_config, dataset_id: _fetch_latest_unstructured_run_id(
+                inner_config,
+                dataset_id=dataset_id,
+            ),
+            resolve_dataset_root=resolve_dataset_root,
+            logger=_logger,
+        )["current_env_dataset_selection"],
+        fetch_dataset_id_for_run=_fetch_dataset_id_for_run,
+        fetch_latest_unstructured_run_id=lambda inner_config, dataset_id: _fetch_latest_unstructured_run_id(
+            inner_config,
+            dataset_id=dataset_id,
         ),
+        resolve_dataset_root=resolve_dataset_root,
+        logger=_logger,
     )
 
 
@@ -439,7 +458,7 @@ def _resolve_ask_scope(
 
 
 def _resolve_ask_source_uri(request_context: RequestContext) -> str | None:
-    return _resolve_ask_source_uri_impl(
+    return _resolve_run_demo_ask_source_uri_impl(
         request_context,
         resolve_dataset_root=resolve_dataset_root,
     )
