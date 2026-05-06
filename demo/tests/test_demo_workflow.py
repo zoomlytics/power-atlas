@@ -2336,18 +2336,34 @@ class WorkflowTests(unittest.TestCase):
         )()
         original_parse_args = module.parse_args
         original_run_interactive_qa_request_context = module.run_interactive_qa_request_context
-        original_resolve = module._resolve_ask_scope
+        original_prepare = module._run_demo_entrypoint.prepare_run_demo_ask_request_context
+
+        def _fake_prepare_run_demo_ask_request_context(
+            _args,
+            request_context,
+            *,
+            resolve_ask_scope,
+            resolve_ask_source_uri,
+        ):
+            del resolve_ask_scope, resolve_ask_source_uri
+            return module._scoped_request_context(
+                request_context,
+                run_id="test-run-id",
+                source_uri=None,
+            )
+
         try:
             module.parse_args = lambda: args
             module.run_interactive_qa_request_context = _fake_run_interactive_qa_request_context
-            # Stub _resolve_ask_scope to avoid a live Neo4j call.
-            module._resolve_ask_scope = lambda _args, _cfg: ("test-run-id", False)
+            module._run_demo_entrypoint.prepare_run_demo_ask_request_context = (
+                _fake_prepare_run_demo_ask_request_context
+            )
             with io.StringIO() as buf, redirect_stdout(buf):
                 module.main()
         finally:
             module.parse_args = original_parse_args
             module.run_interactive_qa_request_context = original_run_interactive_qa_request_context
-            module._resolve_ask_scope = original_resolve
+            module._run_demo_entrypoint.prepare_run_demo_ask_request_context = original_prepare
 
         self.assertTrue(
             captured.get("cluster_aware"),
