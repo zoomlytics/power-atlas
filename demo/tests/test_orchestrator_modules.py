@@ -4965,15 +4965,28 @@ def test_resolve_ask_scope_accepts_request_context(tmp_path: Path, monkeypatch: 
 
 def test_prepare_ask_request_context_sets_source_uri(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     """Prepared ask request contexts must carry the resolved source_uri for single-run retrieval."""
-    from demo.run_demo import _prepare_ask_request_context, _request_context_from_config, parse_args
+    from demo.run_demo import (
+        _request_context_from_config,
+        _resolve_ask_scope,
+        _resolve_ask_source_uri,
+        parse_args,
+    )
     from power_atlas.contracts import resolve_dataset_root
+    from power_atlas.interfaces.cli.run_demo_entrypoint import (
+        prepare_run_demo_ask_request_context,
+    )
 
     monkeypatch.setenv("FIXTURE_DATASET", "demo_dataset_v1")
     monkeypatch.delenv("UNSTRUCTURED_RUN_ID", raising=False)
     args = parse_args(["--dry-run", "ask", "--run-id", "context-run-456"])
     request_context = _request_context_from_config(_dry_run_config(tmp_path), command="ask")
 
-    prepared = _prepare_ask_request_context(args, request_context)
+    prepared = prepare_run_demo_ask_request_context(
+        args,
+        request_context,
+        resolve_ask_scope=_resolve_ask_scope,
+        resolve_ask_source_uri=_resolve_ask_source_uri,
+    )
 
     assert prepared.run_id == "context-run-456"
     assert prepared.all_runs is False

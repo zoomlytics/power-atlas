@@ -433,18 +433,6 @@ def _resolve_ask_source_uri(request_context: RequestContext) -> str | None:
     )
 
 
-def _prepare_ask_request_context(
-    args: argparse.Namespace,
-    request_context: RequestContext,
-) -> RequestContext:
-    return _run_demo_entrypoint.prepare_run_demo_ask_request_context(
-        args,
-        request_context,
-        resolve_ask_scope=_resolve_ask_scope,
-        resolve_ask_source_uri=_resolve_ask_source_uri,
-    )
-
-
 _run_ask_request_context = run_retrieval_and_qa_request_context
 _run_claim_extraction_request_context = run_claim_and_mention_extraction_request_context
 _run_claim_participation_request_context = run_claim_participation_request_context
@@ -527,7 +515,14 @@ def _build_run_demo_main_kwargs() -> dict[str, Any]:
         make_run_id=make_run_id,
         resolve_dataset_root=resolve_dataset_root,
         run_demo=run_demo,
-        prepare_ask_request_context=_prepare_ask_request_context,
+        prepare_ask_request_context=(
+            lambda args, request_context: _run_demo_entrypoint.prepare_run_demo_ask_request_context(
+                args,
+                request_context,
+                resolve_ask_scope=_resolve_ask_scope,
+                resolve_ask_source_uri=_resolve_ask_source_uri,
+            )
+        ),
         resolve_run_interactive_qa_request_context=lambda: run_interactive_qa_request_context,
         run_independent_stage=_run_independent_stage,
         format_scope_label=_format_scope_label,
