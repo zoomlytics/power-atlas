@@ -271,6 +271,34 @@ def _current_env_unstructured_run_id() -> str | None:
     return os.getenv("UNSTRUCTURED_RUN_ID") or None
 
 
+def _fetch_latest_unstructured_run_id_for_dataset(
+    config: Config,
+    dataset_id: str | None,
+) -> str | None:
+    return _fetch_latest_unstructured_run_id(
+        config,
+        dataset_id=dataset_id,
+    )
+
+
+def _build_dataset_selection_kwargs() -> dict[str, Any]:
+    return build_demo_dataset_selection_kwargs(
+        resolve_current_env_dataset_selection=lambda: _current_env_dataset_selection,
+        resolve_dataset_root=resolve_dataset_root,
+    )
+
+
+def _build_ask_scope_resolution_kwargs() -> dict[str, Any]:
+    return build_demo_ask_scope_resolution_kwargs(
+        resolve_current_env_unstructured_run_id=lambda: _current_env_unstructured_run_id,
+        resolve_current_env_dataset_selection=lambda: _current_env_dataset_selection,
+        fetch_dataset_id_for_run=_fetch_dataset_id_for_run,
+        resolve_fetch_latest_unstructured_run_id=lambda: _fetch_latest_unstructured_run_id_for_dataset,
+        resolve_dataset_root=resolve_dataset_root,
+        logger=_logger,
+    )
+
+
 def _warn_explicit_run_id_dataset_mismatch(
     explicit_run_id: str,
     expected_dataset_id: str,
@@ -325,13 +353,11 @@ def _validate_explicit_run_id_dataset_selection(
     config: Config,
     explicit_run_id: str,
 ) -> None:
+    dataset_selection_kwargs = _build_dataset_selection_kwargs()
     _validate_run_demo_explicit_run_id_dataset_selection_impl(
         config,
         explicit_run_id,
-        current_env_dataset_selection=build_demo_dataset_selection_kwargs(
-            resolve_current_env_dataset_selection=lambda: _current_env_dataset_selection,
-            resolve_dataset_root=resolve_dataset_root,
-        )["current_env_dataset_selection"],
+        current_env_dataset_selection=dataset_selection_kwargs["current_env_dataset_selection"],
         resolve_dataset_root=resolve_dataset_root,
         fetch_dataset_id_for_run=_fetch_dataset_id_for_run,
         logger=_logger,
@@ -339,12 +365,10 @@ def _validate_explicit_run_id_dataset_selection(
 
 
 def _resolve_latest_dataset_id(config: Config) -> str | None:
+    dataset_selection_kwargs = _build_dataset_selection_kwargs()
     return _resolve_run_demo_latest_dataset_id_impl(
         config,
-        current_env_dataset_selection=build_demo_dataset_selection_kwargs(
-            resolve_current_env_dataset_selection=lambda: _current_env_dataset_selection,
-            resolve_dataset_root=resolve_dataset_root,
-        )["current_env_dataset_selection"],
+        current_env_dataset_selection=dataset_selection_kwargs["current_env_dataset_selection"],
         resolve_dataset_root=resolve_dataset_root,
     )
 
@@ -355,19 +379,14 @@ def _resolve_latest_run_scope(
     env_run_id: str | None,
     use_latest: bool,
 ) -> str:
+    dataset_selection_kwargs = _build_dataset_selection_kwargs()
     return _resolve_run_demo_latest_run_scope_impl(
         config,
         env_run_id=env_run_id,
         use_latest=use_latest,
-        current_env_dataset_selection=build_demo_dataset_selection_kwargs(
-            resolve_current_env_dataset_selection=lambda: _current_env_dataset_selection,
-            resolve_dataset_root=resolve_dataset_root,
-        )["current_env_dataset_selection"],
+        current_env_dataset_selection=dataset_selection_kwargs["current_env_dataset_selection"],
         resolve_dataset_root=resolve_dataset_root,
-        fetch_latest_unstructured_run_id=lambda inner_config, dataset_id: _fetch_latest_unstructured_run_id(
-            inner_config,
-            dataset_id=dataset_id,
-        ),
+        fetch_latest_unstructured_run_id=_fetch_latest_unstructured_run_id_for_dataset,
         logger=_logger,
     )
 
@@ -377,13 +396,11 @@ def _resolve_dry_run_ask_scope(
     *,
     env_run_id: str | None,
 ) -> tuple[str | None, bool]:
+    dataset_selection_kwargs = _build_dataset_selection_kwargs()
     return _resolve_run_demo_dry_run_ask_scope_impl(
         config,
         env_run_id=env_run_id,
-        current_env_dataset_selection=build_demo_dataset_selection_kwargs(
-            resolve_current_env_dataset_selection=lambda: _current_env_dataset_selection,
-            resolve_dataset_root=resolve_dataset_root,
-        )["current_env_dataset_selection"],
+        current_env_dataset_selection=dataset_selection_kwargs["current_env_dataset_selection"],
         logger=_logger,
     )
 
@@ -392,36 +409,14 @@ def _resolve_ask_request_context(
     args: argparse.Namespace,
     request_context: RequestContext,
 ) -> RequestContext:
+    ask_scope_resolution_kwargs = _build_ask_scope_resolution_kwargs()
     return _resolve_run_demo_ask_request_context_impl(
         args,
         request_context,
-        current_env_unstructured_run_id=build_demo_ask_scope_resolution_kwargs(
-            resolve_current_env_unstructured_run_id=lambda: _current_env_unstructured_run_id,
-            resolve_current_env_dataset_selection=lambda: _current_env_dataset_selection,
-            fetch_dataset_id_for_run=_fetch_dataset_id_for_run,
-            resolve_fetch_latest_unstructured_run_id=lambda: lambda inner_config, dataset_id: _fetch_latest_unstructured_run_id(
-                inner_config,
-                dataset_id=dataset_id,
-            ),
-            resolve_dataset_root=resolve_dataset_root,
-            logger=_logger,
-        )["current_env_unstructured_run_id"],
-        current_env_dataset_selection=build_demo_ask_scope_resolution_kwargs(
-            resolve_current_env_unstructured_run_id=lambda: _current_env_unstructured_run_id,
-            resolve_current_env_dataset_selection=lambda: _current_env_dataset_selection,
-            fetch_dataset_id_for_run=_fetch_dataset_id_for_run,
-            resolve_fetch_latest_unstructured_run_id=lambda: lambda inner_config, dataset_id: _fetch_latest_unstructured_run_id(
-                inner_config,
-                dataset_id=dataset_id,
-            ),
-            resolve_dataset_root=resolve_dataset_root,
-            logger=_logger,
-        )["current_env_dataset_selection"],
+        current_env_unstructured_run_id=ask_scope_resolution_kwargs["current_env_unstructured_run_id"],
+        current_env_dataset_selection=ask_scope_resolution_kwargs["current_env_dataset_selection"],
         fetch_dataset_id_for_run=_fetch_dataset_id_for_run,
-        fetch_latest_unstructured_run_id=lambda inner_config, dataset_id: _fetch_latest_unstructured_run_id(
-            inner_config,
-            dataset_id=dataset_id,
-        ),
+        fetch_latest_unstructured_run_id=_fetch_latest_unstructured_run_id_for_dataset,
         resolve_dataset_root=resolve_dataset_root,
         logger=_logger,
     )
@@ -448,10 +443,7 @@ def _resolve_ask_scope(
         current_env_unstructured_run_id=_current_env_unstructured_run_id,
         current_env_dataset_selection=_current_env_dataset_selection,
         fetch_dataset_id_for_run=_fetch_dataset_id_for_run,
-        fetch_latest_unstructured_run_id=lambda inner_config, dataset_id: _fetch_latest_unstructured_run_id(
-            inner_config,
-            dataset_id=dataset_id,
-        ),
+        fetch_latest_unstructured_run_id=_fetch_latest_unstructured_run_id_for_dataset,
         resolve_dataset_root=resolve_dataset_root,
         logger=_logger,
     )
