@@ -497,10 +497,8 @@ _run_independent_entity_resolution_stage = _INDEPENDENT_STAGE_SPECS["resolve-ent
 _run_independent_ask_stage = _INDEPENDENT_STAGE_SPECS["ask"].runner
 
 
-def _run_orchestrated_request_context(request_context: RequestContext) -> Path:
-    """Run the full demo batch sequence with an unstructured-first posture."""
-    return _run_demo_orchestrated_request_context_impl(
-        request_context,
+def _build_run_demo_orchestrated_runner_kwargs() -> dict[str, Any]:
+    return dict(
         run_orchestrated_request_context_impl=_run_orchestrated_request_context_impl,
         build_demo_orchestrated_runner_kwargs=build_demo_orchestrated_runner_kwargs,
         resolve_dataset_root=lambda: resolve_dataset_root,
@@ -526,6 +524,30 @@ def _run_orchestrated_request_context(request_context: RequestContext) -> Path:
     )
 
 
+def _build_run_demo_independent_stage_runner_kwargs() -> dict[str, Any]:
+    return dict(
+        run_independent_stage_request_context=_run_independent_stage_request_context_impl,
+        resolve_ask_source_uri=_resolve_ask_source_uri,
+        resolve_dataset_root=resolve_dataset_root,
+        build_independent_stage_plan=build_independent_stage_plan,
+        stage_specs=_INDEPENDENT_STAGE_SPECS,
+        resolve_stage_run_id=_resolve_independent_stage_run_id,
+        now_iso=_now_iso,
+        write_independent_stage_manifest_impl=_write_independent_stage_manifest_impl,
+        build_stage_manifest=build_stage_manifest,
+        write_stage_manifest_artifacts=write_stage_manifest_artifacts,
+        build_demo_independent_stage_runner_kwargs=build_demo_independent_stage_runner_kwargs,
+    )
+
+
+def _run_orchestrated_request_context(request_context: RequestContext) -> Path:
+    """Run the full demo batch sequence with an unstructured-first posture."""
+    return _run_demo_orchestrated_request_context_impl(
+        request_context,
+        **_build_run_demo_orchestrated_runner_kwargs(),
+    )
+
+
 def _run_orchestrated(request_context: RequestContext) -> Path:
     return _run_orchestrated_request_context(request_context)
 
@@ -546,17 +568,7 @@ def _run_independent_stage(
         all_runs=all_runs,
         cluster_aware=cluster_aware,
         expand_graph=expand_graph,
-        run_independent_stage_request_context=_run_independent_stage_request_context_impl,
-        resolve_ask_source_uri=_resolve_ask_source_uri,
-        resolve_dataset_root=resolve_dataset_root,
-        build_independent_stage_plan=build_independent_stage_plan,
-        stage_specs=_INDEPENDENT_STAGE_SPECS,
-        resolve_stage_run_id=_resolve_independent_stage_run_id,
-        now_iso=_now_iso,
-        write_independent_stage_manifest_impl=_write_independent_stage_manifest_impl,
-        build_stage_manifest=build_stage_manifest,
-        write_stage_manifest_artifacts=write_stage_manifest_artifacts,
-        build_demo_independent_stage_runner_kwargs=build_demo_independent_stage_runner_kwargs,
+        **_build_run_demo_independent_stage_runner_kwargs(),
     )
 
 
