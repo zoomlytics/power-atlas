@@ -200,6 +200,7 @@ Manual validation checklist: [`demo/VALIDATION_RUNBOOK.md`](demo/VALIDATION_RUNB
 
 | Module | Purpose |
 |--------|---------|
+| [`entrypoints.py`](demo/stages/entrypoints.py) | Demo-owned loader for the accepted stage runtime callables used by `demo/run_demo.py` |
 | [`pdf_ingest.py`](demo/stages/pdf_ingest.py) | Ingest PDF sources into `Document` and `Chunk` nodes in the lexical graph |
 | [`claim_extraction.py`](demo/stages/claim_extraction.py) | LLM-driven extraction of `ExtractedClaim` and `EntityMention` nodes |
 | [`claim_participation.py`](demo/stages/claim_participation.py) | Build `HAS_PARTICIPANT` edges linking claims to their entity mentions |
@@ -208,6 +209,11 @@ Manual validation checklist: [`demo/VALIDATION_RUNBOOK.md`](demo/VALIDATION_RUNB
 | [`retrieval_and_qa.py`](demo/stages/retrieval_and_qa.py) | Vector search + graph expansion for citation-grounded Q&A |
 | [`retrieval_benchmark.py`](demo/stages/retrieval_benchmark.py) | Evaluate retrieval quality against a baseline; produce benchmark artifacts |
 | [`graph_health.py`](demo/stages/graph_health.py) | Run read-only graph diagnostics and emit a scoped health report |
+
+`demo/run_demo.py` now resolves its stage runtime callables through
+[`demo/stages/entrypoints.py`](demo/stages/entrypoints.py), so maintained
+package code no longer needs a package-owned bridge that imports
+`demo.stages.*` directly.
 
 ### Data contracts — `src/power_atlas/contracts/`
 

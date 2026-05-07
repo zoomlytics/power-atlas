@@ -62,6 +62,10 @@ export NEO4J_USERNAME='neo4j'
 export NEO4J_DATABASE='neo4j'
 ```
 
+Maintainer note: `demo/run_demo.py` now loads its accepted stage runtime
+callables through `demo/stages/entrypoints.py`, so that stage-loader boundary
+is owned by the demo package rather than by `src/power_atlas/`.
+
 Start from a clean graph:
 
 ```bash
