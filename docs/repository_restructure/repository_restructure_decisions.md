@@ -102,6 +102,14 @@ Layer intent:
 - The earlier narrative-extraction runtime-side exception is now closed: the retained caller surface is `src/power_atlas/narrative_extraction_cli.py`, and `demo/narrative_extraction.py` is retired under Decision 40 rather than remaining a current `interfaces/cli` exception.
 - Under `interfaces/api`, `backend/main.py` is now a compatibility shell, `src/power_atlas/interfaces/api/backend_app.py` owns app creation and middleware setup, and `src/power_atlas/interfaces/api/backend_routes.py` owns the current route table. This establishes the same pattern for API transport as the CLI lane without prematurely inventing a larger backend architecture.
 
+### Follow-up checkpoint (2026-05-07)
+
+- The Phase 4 interface-thinning goal should now be read as satisfied rather than merely underway: the active API and CLI entrypoints already behave as thin transport/compatibility shells over package-owned `interfaces` helpers.
+- The surviving `demo/run_demo.py` shell is now a deliberate compatibility/composition seam. It still owns `parse_args`, lazy local patch seams, and a small amount of operator-facing glue, but the policy-bearing ask-scope, dispatch, and runtime-resolver assembly now live behind package-owned helpers.
+- The focused `main()` workflow regressions in `demo/tests/test_demo_workflow.py` no longer force additional shell thinning. Aside from the intentional `parse_args` seam, the remaining `demo.run_demo` workflow tests already patch package-owned interception points; the remaining shell-local patches in that file belong to the separate `reset_demo_db` lane.
+- Focused 2026-05-07 verification also confirms that the last plausible query-pipeline Phase 4 holdouts are closed: `pipelines/query/graph_health_diagnostics.py` and `pipelines/query/retrieval_benchmark.py` both build request context through package-owned CLI support helpers and dispatch through their `RequestContext` stage entrypoints, and the narrow request-scope plus CLI regression slices for both lanes pass.
+- The remaining work under the interface-layer decisions is therefore architectural choice rather than cleanup pressure: either keep `demo/run_demo.py` as a long-term compatibility shell and track it as such, or move the final `run_demo_main(...)` construction package-side only if that materially simplifies ownership.
+
 ### Open Questions
 
 Whether any shared contracts should live in `schemas/` or be localized more aggressively can be refined later.
@@ -137,6 +145,11 @@ This means:
 - typed settings plus `bootstrap`-owned runtime config assembly are already the active path for the main `demo/` entrypoints,
 - first-party default resolution and most live Neo4j construction now already flow through package-owned seams,
 - the remaining work under this decision is primarily orchestration thinning and adapter relocation rather than basic bootstrap adoption.
+
+### Follow-up checkpoint (2026-05-07)
+
+- The active interface and orchestration lanes now route their dependency construction through package/bootstrap-owned seams strongly enough that the original Phase 4 bootstrap objective should be treated as satisfied.
+- The remaining bootstrap-related work is sign-off and exception handling, not broad interface-local constructor removal: the question now is whether any deliberate compatibility shell or cached-state exception should stay documented, not whether the codebase still broadly constructs runtime dependencies ad hoc from CLI/API surfaces.
 
 ### Open Questions
 

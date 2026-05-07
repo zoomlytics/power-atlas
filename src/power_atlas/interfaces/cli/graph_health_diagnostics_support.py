@@ -6,18 +6,16 @@ from pathlib import Path
 
 from power_atlas.bootstrap import build_runtime_config, build_settings
 from power_atlas.orchestration.context_builder import build_request_context_from_config
+from power_atlas.orchestration.context_builder import build_settings_from_overrides
 
 
 def build_graph_health_cli_request_context(args: argparse.Namespace):
-    settings = build_settings(
-        {
-            **os.environ,
-            "NEO4J_URI": args.neo4j_uri,
-            "NEO4J_USERNAME": args.neo4j_username,
-            "NEO4J_PASSWORD": args.neo4j_password,
-            "NEO4J_DATABASE": args.neo4j_database,
-            "POWER_ATLAS_OUTPUT_DIR": str(args.output_dir),
-        }
+    settings = build_settings_from_overrides(
+        neo4j_uri=args.neo4j_uri,
+        neo4j_username=args.neo4j_username,
+        neo4j_password=args.neo4j_password,
+        neo4j_database=args.neo4j_database,
+        output_dir=args.output_dir,
     )
     config = build_runtime_config(settings, dry_run=False, output_dir=args.output_dir)
     return build_request_context_from_config(
