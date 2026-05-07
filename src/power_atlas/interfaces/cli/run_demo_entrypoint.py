@@ -241,6 +241,21 @@ def build_run_demo_prepare_ask_request_context(
     return _prepare_ask_request_context
 
 
+def build_run_demo_main_runtime_resolvers(
+    *,
+    run_interactive_qa_request_context: Callable[..., Any],
+    create_driver: Callable[..., Any],
+    load_reset_runner: Callable[..., Any],
+) -> dict[str, Callable[[], Callable[..., Any]]]:
+    return {
+        "resolve_run_interactive_qa_request_context": (
+            lambda: run_interactive_qa_request_context
+        ),
+        "resolve_create_driver": lambda: create_driver,
+        "resolve_load_reset_runner": lambda: load_reset_runner,
+    }
+
+
 def run_demo_independent_stage(
     request_context: RequestContext,
     command: str,
@@ -411,6 +426,7 @@ def run_demo_main(
 
 __all__ = [
     "build_run_demo_prepare_ask_request_context",
+    "build_run_demo_main_runtime_resolvers",
     "load_demo_reset_runner",
     "prepare_run_demo_ask_request_context",
     "resolve_run_demo_ask_request_context",

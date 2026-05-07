@@ -524,11 +524,13 @@ def _build_run_demo_main_kwargs() -> dict[str, Any]:
                 resolve_ask_source_uri=_resolve_ask_source_uri,
             )
         ),
-        resolve_run_interactive_qa_request_context=lambda: run_interactive_qa_request_context,
         run_independent_stage=_run_independent_stage,
         format_scope_label=_format_scope_label,
-        resolve_create_driver=lambda: create_neo4j_driver,
-        resolve_load_reset_runner=lambda: _load_demo_reset_runner_impl,
+        **_run_demo_entrypoint.build_run_demo_main_runtime_resolvers(
+            run_interactive_qa_request_context=run_interactive_qa_request_context,
+            create_driver=create_neo4j_driver,
+            load_reset_runner=_load_demo_reset_runner_impl,
+        ),
     )
 
 
