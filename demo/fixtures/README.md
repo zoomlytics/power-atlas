@@ -23,7 +23,8 @@ The `wikidata_extraction_prompts/` subtree is retained as an operator-facing
 prototyping aid for external Wikidata dataset construction. These prompt
 templates are not part of the runtime dataset-loading path for `demo/run_demo.py`,
 but they remain part of the human workflow used to curate and review structured
-fixtures during prototyping.
+fixtures during prototyping. For the subtree-local boundary note, see
+[`wikidata_extraction_prompts/README.md`](wikidata_extraction_prompts/README.md).
 
 **Naming rule:** the directory name under `datasets/` should be identical to the
 `"dataset"` field in that directory's `manifest.json`. The `--dataset` flag (and
