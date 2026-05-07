@@ -83,6 +83,23 @@ These principles govern all phases.
 
 This is the **first-pass target**, not the final fully expanded taxonomy.
 
+At the current checkpoint, this section should be read as directional rather
+than literal. The migration did land the intended package-first/runtime-boundary
+shape, but it did not converge on this exact root taxonomy. In particular, the
+accepted long-term repo posture now treats:
+
+- `src/power_atlas/` as the package-owned runtime core,
+- `demo/` as the maintained operator/demo shell over that core,
+- `backend/` and `frontend/` as intentionally retained placeholder shells,
+- `neo4j/`, `eval/`, `tests/`, and `docs/` as first-class repo boundaries,
+- `artifacts/`, `_archive/`, `studies/`, and vendor roots as evidence,
+  archive, and external-reference surfaces.
+
+That means the original first-pass diagram below remains useful for explaining
+the intended direction of package ownership and boundary extraction, but it
+should not be treated as the exact final root layout that the repo must still
+mechanically reach.
+
 ```text
 power-atlas/
 ├── pyproject.toml
@@ -931,8 +948,10 @@ This is intentionally late.
 
 #### Exit criteria
 
-- `demo/`, old backend/frontend scaffolds, and obsolete pathways are not active production paths,
-- transitional architecture is fully retired.
+- obsolete pathways and expired compatibility layers are retired or explicitly bounded,
+- `src/power_atlas/` is the authoritative runtime core,
+- retained shells such as `demo/`, `backend/`, and `frontend/` are documented as intentional seams rather than ambiguous parallel product roots,
+- transitional architecture is either retired or intentionally classified.
 
 #### Risks
 
@@ -1029,5 +1048,5 @@ This migration is successful if, at the end:
 - Neo4j concerns are isolated and operationalized,
 - runtime state is explicit,
 - tests and eval are clearly separated,
-- legacy structures are retired,
+- legacy structures are retired where they are truly obsolete, and retained shells are explicitly classified where they remain part of the accepted operator or placeholder posture,
 - future work can proceed without continuing to route through undocumented temporary paths or untracked compatibility seams.
