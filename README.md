@@ -380,6 +380,7 @@ runtime boundary posture.
 | [`demo/README.md`](demo/README.md) | Full pipeline walkthrough, CLI reference, and troubleshooting |
 | [`demo/VALIDATION_RUNBOOK.md`](demo/VALIDATION_RUNBOOK.md) | Manual end-to-end validation checklist |
 | [`artifacts/repository_restructure/phase1/README.md`](artifacts/repository_restructure/phase1/README.md) | Local guide to the retained Phase 1 verification-evidence artifact root |
+| [`frontend/README.md`](frontend/README.md) | Local status note for the retained placeholder frontend surface |
 | [`pipelines/query/README.md`](pipelines/query/README.md) | Neo4j Browser Cypher query workbook (v0.3) |
 | [`docs/repository_restructure/repository_restructure_plan.md`](docs/repository_restructure/repository_restructure_plan.md) | Canonical restructure plan and closure-status narrative |
 | [`docs/repository_restructure/repository_restructure_checklist.md`](docs/repository_restructure/repository_restructure_checklist.md) | Phase-by-phase completion tracker and compatibility-shim inventory |
