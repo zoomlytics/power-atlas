@@ -179,6 +179,33 @@ different class of tracked asset: the cross-dataset validation report.
 - the file has now moved to
   `eval/reports/cross-dataset-validation-report-v1-v2.md`
 
+### 7. Re-evaluation checkpoint (2026-05-07)
+
+The next previously suggested move candidate was the manual comparison-output
+lane under `demo/artifacts_compare/`. A focused re-evaluation closed that as an
+immediate move target.
+
+- `demo/artifacts_compare/` is still the accepted output root for the current
+  manual comparison workflow documented in `demo/README.md` and
+  `demo/VALIDATION_RUNBOOK.md`
+- the runbook still treats specific manifests under that tree as part of the
+  minimal retained artifact set for a reviewable manual validation run
+- `eval/README.md` still explicitly defers moving active manual-validation
+  output roots while they remain part of the accepted operator posture
+
+So the current Phase 7 outcome is not "move `demo/artifacts_compare/` next".
+It is:
+
+- keep `demo/artifacts_compare/` defer-in-place until the manual validation
+  workflow itself is intentionally migrated or retired
+- do not treat the presence of `eval/` as sufficient reason to relocate the
+  comparison-output lane
+- choose a different future Phase 7 slice only when it targets tracked,
+  evaluation-only assets whose workflows no longer require `demo/`-local paths
+
+That makes the next migration work outside Phase 7 more valuable than forcing a
+path move here.
+
 This is the first actual repository-side Phase 7 relocation into the `eval/`
 boundary. It does not yet close the broader phase, but it confirms that Phase 7
 can make real progress through tracked evaluation reports even while the active

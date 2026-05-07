@@ -194,6 +194,13 @@ Intended semantics:
 - the latest live `make phase1-verify` rerun on 2026-04-27 succeeded at commit `8e57fb2856b153ec0fad36fd5e8dd73ab3807ac6`, with artifacts under `artifacts/repository_restructure/phase1/20260427T201502Z` and fully cited baseline, companion, and isolation asks,
 - the remaining work under this decision is the residual mutable-global inventory and any explicit disposition around the remaining cached pipeline-contract state, and this checkpoint should be read as caller migration plus boundary consolidation rather than a default mandate to delete the surviving standalone config-form stage APIs or the now-intentional `demo/run_demo.py` CLI/test seam surface.
 
+### Follow-up checkpoint (2026-05-07)
+
+- The remaining runtime-state exceptions have now been explicitly accepted rather than left at a review-only checkpoint.
+- The `UNSTRUCTURED_RUN_ID` override remains a deliberate demo-owned CLI behavior in `demo/run_demo.py`, and the focused regression surface still covers both precedence and dataset-mismatch warning behavior for that exception.
+- The stateful `power_atlas.contracts.pipeline` cache boundary remains narrow and explicit: bootstrap reads snapshots/config data from it, runtime code consumes injected snapshots or request/app context, and direct imports outside those type/bootstrap boundaries no longer indicate broad mutable-global coupling.
+- With those exceptions documented and bounded, Phase 5 should be read as complete; future work in this area is optional exception retirement, not required migration cleanup.
+
 ### Open Questions
 
 Whether offline batch execution needs a distinct run-scoped context will be revisited after safety harness and seam extraction work.
