@@ -360,7 +360,9 @@ python -m demo.run_demo ask --live \
 
 The `demo/artifacts_compare/...` paths in this section are example destinations
 for manual comparison output. They may be created by the commands during a run
-and are not required to already exist as tracked repository directories.
+and are not required to already exist as tracked repository directories. For
+the current status of that output root, see
+[`demo/artifacts_compare/README.md`](artifacts_compare/README.md).
 
 Inspect:
 

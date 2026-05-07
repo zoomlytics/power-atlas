@@ -605,7 +605,9 @@ python -m demo.run_demo --live ask \
 
 These `demo/artifacts_compare/...` paths are example output destinations for
 the comparison run. The commands create them as needed; they are not expected
-to exist as pre-populated retained directories in the repository.
+to exist as pre-populated retained directories in the repository. For the
+current status of that output root, see
+[`demo/artifacts_compare/README.md`](artifacts_compare/README.md).
 
 **Why this question tests cluster-aware retrieval:** A four-company relationship question requires
 aggregating evidence spread across many chunks where the companies may not co-occur directly.
