@@ -1227,3 +1227,100 @@ bash scripts/phase1_verify.sh > /tmp/phase1_verify_smoke.log 2>&1
 - **Priority:** `P1`
 - **Escalation needed?:** no
 - **If escalated, to whom?:** (N/A)
+
+---
+
+### Run ID: `phase1-agent-b-003`
+
+#### Metadata
+
+- **Status:** `PASS`
+- **Date:** `2026-05-07`
+- **Operator / primary agent:** `GitHub Copilot`
+- **Supporting agents:** none
+- **Branch:** `main`
+- **Commit SHA:** `4666f6ec2b97d9f158737ae537d6a8f2f1481383`
+- **Environment / host context:** macOS, `.venv` Python 3.11.14, Docker Compose Neo4j healthy, `OPENAI_MODEL` unset (effective `gpt-5.4`), `OPENAI_API_KEY` set, `NEO4J_PASSWORD` set
+- **Related agent track:** `Agent B`
+
+#### Scope of attempt
+
+- **Intent of this run:** Re-run the accepted live Phase 1 closure harness after the Phase 4 and Phase 5 closure work to prove the current migration state still satisfies the safety-harness invariants end-to-end.
+- **Target scenario:** `baseline`
+- **Dataset(s):** `demo_dataset_v1` (baseline), `demo_dataset_v2` (companion)
+- **Expected run ID(s) involved:** fresh (produced by script)
+- **Neo4j posture / dependency state:** Docker Compose Neo4j was started immediately before the run and reached healthy state. Graph was reset by the harness in step 1.
+- **Prerequisites assumed satisfied:** `.venv` Python 3.11.14 active, `OPENAI_API_KEY` set, `NEO4J_PASSWORD` set, fixture datasets present, `OPENAI_MODEL` unset or `gpt-5.4`.
+
+#### Canonical command reference
+
+- **Source doc section(s):**
+  - `repository_restructure_safety_harness.md` Sections 9.1 and 9.3
+  - `scripts/phase1_verify.sh`
+
+- **Documented command(s):**
+
+```bash
+make phase1-verify
+# or equivalently:
+bash scripts/phase1_verify.sh
+```
+
+#### Executed command(s)
+
+```bash
+docker compose up -d neo4j
+bash scripts/phase1_verify.sh
+```
+
+#### Outputs and captured identifiers
+
+- **Produced `UNSTRUCTURED_RUN_ID` (v1):** `unstructured_ingest-20260507T063621575504Z-5a6423a3`
+- **Produced `UNSTRUCTURED_RUN_ID` (v2):** `unstructured_ingest-20260507T063850624288Z-c47c2ae7`
+- **Primary output summary:**
+  - Reset completed successfully: `889` nodes, `1864` relationships deleted, `demo_chunk_embedding_index` dropped.
+  - v1 extract-claims: `78` claims, `249` mentions, `extractor_model: gpt-5.4`.
+  - v2 extract-claims: `131` claims, `195` mentions, `extractor_model: gpt-5.4`.
+  - v1 ask (baseline): `all_answers_cited: True`, `citation_fallback_applied: False`, `evidence_level: full`, `hits: 10`.
+  - v2 ask (companion): `all_answers_cited: True`, `citation_fallback_applied: False`, `evidence_level: full`, `hits: 7`.
+  - v1 isolation re-ask (post-v2 ingest): `all_answers_cited: True`, `citation_fallback_applied: False`, `evidence_level: full`, `hits: 5`.
+  - Total wall time: about 4m40s (`Started at: 2026-05-07T06:36:11Z`, `Finished at: 2026-05-07T06:40:51Z`).
+- **Citation/output behavior observed:** All three ask operations remained fully cited with no citation fallback. Baseline isolation re-ask remained fully cited after the companion run, preserving the run-isolation guarantee.
+- **Artifact path(s):** `artifacts/repository_restructure/phase1/20260507T063610Z/`
+  - `commit_sha.txt`
+  - `run_metadata.json`
+  - `validation_summary.txt`
+  - `logs/00_reset.log` through `logs/09_v1_isolation_ask.log`
+  - `manifests/v1_pdf_ingest.json`, `v1_claim_and_mention_extraction.json`, `v1_entity_resolution.json`, `v1_retrieval_and_qa.json`, `v1_isolation_retrieval_and_qa.json`
+  - `manifests/v2_pdf_ingest.json`, `v2_claim_and_mention_extraction.json`, `v2_entity_resolution.json`, `v2_retrieval_and_qa.json`
+
+#### Result assessment
+
+- **What worked:**
+  - All 10 steps of `phase1_verify.sh` completed successfully with exit 0.
+  - The live baseline, companion, and baseline-isolation ask flows all preserved the citation-quality invariants.
+  - Both produced run IDs were captured and the harness copied the expected manifest set into the dated artifact directory.
+  - The closure proof now post-dates the Phase 4 and Phase 5 documentation/sign-off work rather than relying on the earlier 2026-04-27 checkpoint.
+- **What failed or remained uncertain:** Nothing. Clean end-to-end rerun.
+- **Was dataset selection explicit and correct?:** Yes — `--dataset demo_dataset_v1` and `--dataset demo_dataset_v2` were used throughout the harness where expected.
+- **Was run targeting explicit and correct?:** Yes — baseline and companion ask flows used explicit `--run-id`, and extraction/resolution used the produced `UNSTRUCTURED_RUN_ID` values.
+- **Did output match expected golden-path behavior?:** Yes.
+- **Did this affect Phase 1 gates?:** `yes`
+- **If yes or uncertain, which gate/control is affected?:** Confirms the accepted end-to-end safety-harness proof remains green at the current migration checkpoint.
+
+#### Drift / findings
+
+- **Doc/code mismatch found?:** No runtime drift observed during the rerun. The main follow-up from this run is documentation refresh so the latest proof point is recorded in the restructure docs.
+- **Runtime/config mismatch found?:** No.
+- **Unexpected dependency or setup requirement?:** Neo4j had to be started locally with `docker compose up -d neo4j` before the harness run; this matches the documented prerequisites.
+- **Safety-harness impact note:** This rerun reconfirms the accepted CLI-first, Neo4j-backed golden path after the recent migration-closure work on interfaces, bootstrap ownership, and runtime state.
+- **Checklist impact note:** Supports treating the migration as functionally complete through the Stage 7 closure-validation checkpoint, with remaining work shifting to later legacy-retirement or optional eval-layout cleanup rather than boundary cleanup.
+- **Recommended immediate follow-up:** Refresh the canonical restructure docs to reference this 2026-05-07 proof point and stop automatic migration work before Phase 10 retirement slices.
+
+#### Disposition
+
+- **Next action owner:** Ash
+- **Next action:** Use this rerun as the latest closure proof point in the restructure docs, then re-evaluate later legacy-retirement priorities instead of continuing migration-boundary cleanup automatically.
+- **Priority:** `P1`
+- **Escalation needed?:** no
+- **If escalated, to whom?:** (N/A)
