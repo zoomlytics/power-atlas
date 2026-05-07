@@ -24,7 +24,13 @@ The pipeline supports three entity resolution modes:
 - **`hybrid`** — runs `ingest-structured` first to create `CanonicalEntity` nodes from a CSV catalog, then runs `resolve-entities --resolution-mode hybrid` to enrich existing `ResolvedEntityCluster` nodes with `ALIGNED_WITH` edges to matching `CanonicalEntity` nodes, enabling cluster-aware retrieval.
 - **`structured_anchor`** — resolves entity mentions directly against `CanonicalEntity` nodes rather than clustering them against each other first.
 
-The working implementation lives in [`demo/`](demo/). The `backend/` and `frontend/` directories are disconnected scaffolding and are **not connected to the pipeline**; within that stub surface, `backend/main.py` remains the stable launch seam for the placeholder API app (see [Current Status](#current-status)).
+The package-owned runtime core now lives under [`src/power_atlas/`](src/power_atlas).
+The primary operator workflow remains [`demo/`](demo/), which should be read as
+the maintained demo/CLI shell over that package core rather than as a separate
+product root. The `backend/` and `frontend/` directories are intentionally
+retained placeholder shells and are **not connected to the pipeline**; within
+that stub surface, `backend/main.py` remains the stable launch seam for the
+placeholder API app (see [Current Status](#current-status)).
 
 ---
 
@@ -139,8 +145,18 @@ Refer to [`demo/VALIDATION_RUNBOOK.md`](demo/VALIDATION_RUNBOOK.md) for a step-b
 
 ## Repository Structure
 
+The stable long-term root should be read in four layers:
+
+- `src/` as the package-owned runtime core,
+- `demo/`, `backend/`, and `frontend/` as retained execution shells,
+- `neo4j/`, `eval/`, `tests/`, and `docs/` as first-class repo boundaries,
+- `artifacts/`, `_archive/`, `studies/`, and vendor roots as evidence,
+  history, and external reference surfaces.
+
 ```
 power-atlas/
+├── src/
+│   └── power_atlas/            # Package-owned runtime core
 ├── demo/                        # Self-contained GraphRAG pipeline (start here)
 │   ├── README.md               # Full pipeline walkthrough and CLI reference
 │   ├── VALIDATION_RUNBOOK.md   # Step-by-step end-to-end validation checklist
@@ -170,11 +186,16 @@ power-atlas/
 ├── eval/                        # Reserved home for benchmark/evaluation assets as Phase 7 separation proceeds
 ├── tests/                       # Repository-level tests
 ├── scripts/                     # Utility scripts (e.g., vendor sync)
+├── artifacts/                   # Durable verification and restructure evidence
 ├── studies/                     # Historical research and exploratory notes
 ├── _archive/                    # Archived experimentation material (non-active reference only)
+├── vendor/                      # Vendored third-party code
+├── vendor-resources/            # Retained vendor reference material
 ├── docker-compose.yml
+├── pyproject.toml
 ├── .env.example
-└── requirements.txt
+├── requirements.txt
+└── requirements-dev.txt
 ```
 
 ---
