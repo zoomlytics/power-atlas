@@ -361,11 +361,22 @@ results are not lost and debugging incomplete runs is straightforward.
 
 ## Documentation
 
+Repository restructure status: the package-first migration is functionally
+complete through the 2026-05-07 closure-validation checkpoint. The latest live
+proof point is `make phase1-verify` at commit
+`4666f6ec2b97d9f158737ae537d6a8f2f1481383`, with artifacts under
+`artifacts/repository_restructure/phase1/20260507T063610Z`. Remaining Phase 7
+and Phase 10 items are deliberate follow-up work, not blockers for the current
+runtime boundary posture.
+
 | Document | Purpose |
 |----------|---------|
 | [`demo/README.md`](demo/README.md) | Full pipeline walkthrough, CLI reference, and troubleshooting |
 | [`demo/VALIDATION_RUNBOOK.md`](demo/VALIDATION_RUNBOOK.md) | Manual end-to-end validation checklist |
 | [`pipelines/query/README.md`](pipelines/query/README.md) | Neo4j Browser Cypher query workbook (v0.3) |
+| [`docs/repository_restructure/repository_restructure_plan.md`](docs/repository_restructure/repository_restructure_plan.md) | Canonical restructure plan and closure-status narrative |
+| [`docs/repository_restructure/repository_restructure_checklist.md`](docs/repository_restructure/repository_restructure_checklist.md) | Phase-by-phase completion tracker and compatibility-shim inventory |
+| [`docs/repository_restructure/repository_restructure_decisions.md`](docs/repository_restructure/repository_restructure_decisions.md) | Decision register for accepted migration exceptions and defer-in-place surfaces |
 | [`docs/architecture/v0.1.md`](docs/architecture/v0.1.md) | Core architecture design |
 | [`docs/architecture/unstructured-first-entity-resolution-v0.1.md`](docs/architecture/unstructured-first-entity-resolution-v0.1.md) | Entity resolution architecture |
 | [`docs/architecture/claim-argument-model-v0.3.md`](docs/architecture/claim-argument-model-v0.3.md) | Claim and participation model (v0.3) |

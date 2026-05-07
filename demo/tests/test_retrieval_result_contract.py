@@ -106,7 +106,7 @@ Structure
     Contract tests for mixed early-return inputs and sentinel-edge behavior.  The
     precedence rules asserted here are backed by the centralized
     :data:`~power_atlas.contracts.EARLY_RETURN_PRECEDENCE` policy in
-    ``demo/contracts/retrieval_early_return_policy.py``.
+    ``src/power_atlas/contracts/retrieval_early_return_policy.py``.
 
 ``TestEarlyReturnPrecedencePolicy``
     Direct unit tests for the centralized

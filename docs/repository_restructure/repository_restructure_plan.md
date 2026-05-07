@@ -1,5 +1,22 @@
 # Revised Migration Plan for `zoomlytics/power-atlas`
 
+## Current Status Snapshot
+
+As of 2026-05-07, this migration should be read as functionally complete
+through the closure-validation checkpoint rather than as an open-ended active
+restructure program.
+
+The strongest current proof point is the successful live `make phase1-verify`
+rerun at commit `4666f6ec2b97d9f158737ae537d6a8f2f1481383`, with artifacts under
+`artifacts/repository_restructure/phase1/20260507T063610Z`. That run preserved
+the accepted safety-harness invariants end-to-end: baseline, companion, and
+isolation asks all remained fully cited with no citation fallback.
+
+That means the remaining work in this plan should now be interpreted narrowly:
+later Phase 7 evaluation-layout decisions and Phase 10 legacy-retirement work
+remain available as deliberate follow-up slices, but they are no longer
+prerequisites for calling the migration structurally closed.
+
 ## 0. Goals
 
 This migration is intended to:
