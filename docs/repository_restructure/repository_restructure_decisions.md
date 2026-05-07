@@ -1308,7 +1308,9 @@ place only as the operator-facing compatibility entrypoint.
 - treat `demo/reset_demo_db.py` as a retained compatibility entrypoint rather
 	than the runtime owner,
 - treat the bounded `src/**/*.py` import audit result as a current checkpoint:
-	no remaining package-to-demo runtime back-edge is present,
+	the earlier reset and narrative-extraction back-edges are closed, but
+	`src/power_atlas/orchestration/stage_entrypoints.py` still acts as a
+	package-owned import bridge into `demo.stages.*`,
 - do not misclassify `demo/narrative_extraction.py` as a thin compatibility
 	shell in later Phase 10 retirement passes; it remains an explicit runtime-side
 	exception until a separate structural slice intentionally moves its owned
