@@ -122,10 +122,8 @@ These are legacy-shaped surfaces, but they are not yet expired. Removing them be
 
 Post-reset and narrative-wrapper checkpoint:
 
-- a bounded `src/**/*.py` import audit now finds no broad package-to-demo
-  runtime import outside one remaining package-owned bridge:
-  `src/power_atlas/orchestration/stage_entrypoints.py` still imports
-  `demo.stages.*` directly to load the accepted demo stage entrypoints,
+- a bounded `src/**/*.py` import audit now finds no remaining package-to-demo
+  runtime import,
 - the reset behavior that previously bridged back into `demo/` now lives under
   `src/power_atlas/reset_demo_runtime.py`, while `demo/reset_demo_db.py`
   remains the stable operator-facing compatibility seam,
@@ -136,10 +134,9 @@ Post-reset and narrative-wrapper checkpoint:
   execution flow moved under `src/power_atlas/narrative_extraction_service.py`,
   and the final focused caller surface moved to
   `src/power_atlas/narrative_extraction_cli.py`,
- - that leaves `power_atlas.orchestration.stage_entrypoints` as the clearest
-   remaining packaging-coupling hotspot if a later structural slice wants to
-   remove the last package-owned import bridge into `demo/` without changing
-   the accepted operator shells.
+- the former package-owned `stage_entrypoints` bridge has now also been
+  relocated under `demo/stages/entrypoints.py`, so the accepted demo shells no
+  longer require `src/power_atlas/` to import `demo.stages.*` directly.
 - after that caller migration, `demo/narrative_extraction.py` was removed,
   because no remaining non-test code callers or operator-facing docs anchored
   to it.

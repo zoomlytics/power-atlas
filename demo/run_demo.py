@@ -54,7 +54,6 @@ from power_atlas.orchestration.stage_dependency_registry import (
     build_demo_independent_stage_specs,
     build_demo_orchestrated_runner_kwargs,
 )
-from power_atlas.orchestration.stage_entrypoints import load_demo_stage_entrypoints
 from power_atlas.orchestration.orchestrated_runner import (
     run_orchestrated_request_context as _run_orchestrated_request_context_impl,
 )
@@ -94,6 +93,7 @@ from power_atlas.interfaces.cli.run_demo_entrypoint import (  # noqa: E402
     run_demo_orchestrated_request_context as _run_demo_orchestrated_request_context_impl,
     run_demo_main as _run_demo_main_impl,
 )
+from demo.stages.entrypoints import load_demo_stage_entrypoints
 
 _STAGE_ENTRYPOINTS = load_demo_stage_entrypoints()
 lint_and_clean_structured_csvs = _STAGE_ENTRYPOINTS.lint_and_clean_structured_csvs
