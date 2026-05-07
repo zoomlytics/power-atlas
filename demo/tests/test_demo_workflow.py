@@ -2157,15 +2157,35 @@ class WorkflowTests(unittest.TestCase):
             },
         )()
         original_parse_args = module.parse_args
-        original_run_interactive_qa_request_context = module.run_interactive_qa_request_context
+        original_build_runtime_resolvers = (
+            module._run_demo_entrypoint.build_run_demo_main_runtime_resolvers
+        )
+
+        def _fake_build_run_demo_main_runtime_resolvers(
+            *,
+            run_interactive_qa_request_context,
+            create_driver,
+            load_reset_runner,
+        ):
+            del run_interactive_qa_request_context
+            return original_build_runtime_resolvers(
+                run_interactive_qa_request_context=_fake_run_interactive_qa_request_context,
+                create_driver=create_driver,
+                load_reset_runner=load_reset_runner,
+            )
+
         try:
             module.parse_args = lambda: args
-            module.run_interactive_qa_request_context = _fake_run_interactive_qa_request_context
+            module._run_demo_entrypoint.build_run_demo_main_runtime_resolvers = (
+                _fake_build_run_demo_main_runtime_resolvers
+            )
             with io.StringIO() as buf, redirect_stdout(buf):
                 module.main()
         finally:
             module.parse_args = original_parse_args
-            module.run_interactive_qa_request_context = original_run_interactive_qa_request_context
+            module._run_demo_entrypoint.build_run_demo_main_runtime_resolvers = (
+                original_build_runtime_resolvers
+            )
 
         self.assertIn("source_uri", captured, "interactive ask request context must carry source_uri")
         self.assertIsNone(
@@ -2335,8 +2355,23 @@ class WorkflowTests(unittest.TestCase):
             },
         )()
         original_parse_args = module.parse_args
-        original_run_interactive_qa_request_context = module.run_interactive_qa_request_context
+        original_build_runtime_resolvers = (
+            module._run_demo_entrypoint.build_run_demo_main_runtime_resolvers
+        )
         original_prepare = module._run_demo_entrypoint.prepare_run_demo_ask_request_context
+
+        def _fake_build_run_demo_main_runtime_resolvers(
+            *,
+            run_interactive_qa_request_context,
+            create_driver,
+            load_reset_runner,
+        ):
+            del run_interactive_qa_request_context
+            return original_build_runtime_resolvers(
+                run_interactive_qa_request_context=_fake_run_interactive_qa_request_context,
+                create_driver=create_driver,
+                load_reset_runner=load_reset_runner,
+            )
 
         def _fake_prepare_run_demo_ask_request_context(
             _args,
@@ -2354,7 +2389,9 @@ class WorkflowTests(unittest.TestCase):
 
         try:
             module.parse_args = lambda: args
-            module.run_interactive_qa_request_context = _fake_run_interactive_qa_request_context
+            module._run_demo_entrypoint.build_run_demo_main_runtime_resolvers = (
+                _fake_build_run_demo_main_runtime_resolvers
+            )
             module._run_demo_entrypoint.prepare_run_demo_ask_request_context = (
                 _fake_prepare_run_demo_ask_request_context
             )
@@ -2362,7 +2399,9 @@ class WorkflowTests(unittest.TestCase):
                 module.main()
         finally:
             module.parse_args = original_parse_args
-            module.run_interactive_qa_request_context = original_run_interactive_qa_request_context
+            module._run_demo_entrypoint.build_run_demo_main_runtime_resolvers = (
+                original_build_runtime_resolvers
+            )
             module._run_demo_entrypoint.prepare_run_demo_ask_request_context = original_prepare
 
         self.assertTrue(
@@ -3664,11 +3703,29 @@ class ResetDemoDbTests(unittest.TestCase):
         }
         original_parse_args = module.parse_args
         original_driver = bootstrap_clients.neo4j.GraphDatabase.driver
-        original_run_reset_loader = module._load_demo_reset_runner_impl
+        original_build_runtime_resolvers = (
+            module._run_demo_entrypoint.build_run_demo_main_runtime_resolvers
+        )
+
+        def _fake_build_run_demo_main_runtime_resolvers(
+            *,
+            run_interactive_qa_request_context,
+            create_driver,
+            load_reset_runner,
+        ):
+            del load_reset_runner
+            return original_build_runtime_resolvers(
+                run_interactive_qa_request_context=run_interactive_qa_request_context,
+                create_driver=create_driver,
+                load_reset_runner=(lambda: (lambda **_kw: stub_report)),
+            )
+
         try:
             module.parse_args = lambda: args
             bootstrap_clients.neo4j.GraphDatabase.driver = lambda *_a, **_kw: _FakeDriver()
-            module._load_demo_reset_runner_impl = lambda: (lambda **_kw: stub_report)
+            module._run_demo_entrypoint.build_run_demo_main_runtime_resolvers = (
+                _fake_build_run_demo_main_runtime_resolvers
+            )
 
             with io.StringIO() as buffer, redirect_stdout(buffer):
                 module.main()
@@ -3696,7 +3753,9 @@ class ResetDemoDbTests(unittest.TestCase):
         finally:
             module.parse_args = original_parse_args
             bootstrap_clients.neo4j.GraphDatabase.driver = original_driver
-            module._load_demo_reset_runner_impl = original_run_reset_loader
+            module._run_demo_entrypoint.build_run_demo_main_runtime_resolvers = (
+                original_build_runtime_resolvers
+            )
 
 
 if __name__ == "__main__":
