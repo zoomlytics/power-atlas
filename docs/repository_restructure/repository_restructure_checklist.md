@@ -116,7 +116,7 @@ Use the following status values consistently:
 **Status:** complete  
 **Owner:**  
 **Blockers:**  
-**Notes:** Low-risk contract promotion has already started additively: multiple contract modules now live under `src/power_atlas/contracts/`, and the former `demo/contracts` compatibility layer has already been retired in Phase 10. Do not read this as full Phase 3 closure. `demo/` is still the active execution center, and broader implementation movement remains open.  
+**Notes:** Phase 3 is complete in the accepted package-first sense: the authoritative runtime core now lives under `src/power_atlas/`, and the former `demo/contracts` compatibility layer has already been retired in Phase 10. The landed outcome is not a shell-free repo. Instead, `demo/` remains the maintained operator/demo shell over package-owned runtime behavior, while broader execution ownership has moved into package modules and helpers. Read any remaining `demo/` entrypoints here as intentional retained seams rather than evidence that the real product still lives primarily outside the package.  
 
 ### Exit criteria
 
@@ -124,17 +124,17 @@ Use the following status values consistently:
 - behavior is materially unchanged,
 - smoke checks still pass,
 - compatibility shims are tracked explicitly,
-- `demo/` is no longer the active center of execution.
+- `demo/` is no longer the authoritative owner of runtime behavior and instead operates as a documented shell over package-owned execution paths.
 
 ### Phase 3 deliverables checklist
 
-- [ ] identify code to be promoted from legacy location
-- [ ] move code with minimal renames
-- [ ] update imports
-- [ ] add temporary shims only where necessary
-- [ ] record each shim in the shim tracker
-- [ ] run smoke checks
-- [ ] verify critical paths still behave as expected
+- [x] identify code to be promoted from legacy location
+- [x] move code with minimal renames
+- [x] update imports
+- [x] add temporary shims only where necessary
+- [x] record each shim in the shim tracker
+- [x] run smoke checks
+- [x] verify critical paths still behave as expected
 
 ---
 
