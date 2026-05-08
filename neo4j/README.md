@@ -49,6 +49,9 @@ This means the folder structure is now explicit even though some concrete graph
 assets are still managed by the demo/runtime path and should be moved here only
 when their ownership is stable enough to avoid split-brain maintenance.
 
+The current candidate-vs-authoritative graph posture is documented explicitly
+at `neo4j/CANDIDATE_VS_AUTHORITATIVE_GRAPH_STRATEGY.md`.
+
 ## Directory Layout
 
 - `constraints/`: named Cypher assets for schema and uniqueness constraints
@@ -84,12 +87,19 @@ graph operational assets is:
 
 ## Candidate vs Authoritative Graph Handling
 
-The repo now treats this as a required documented distinction, but the concrete
-implementation mechanism is still open.
+The repo now treats this distinction as documented at the current checkpoint.
 
-See `docs/repository_restructure/repository_restructure_decisions.md`,
-Decision 7, for the accepted boundary: candidate and authoritative graph flows
-must be explicit before Phase 6 can be considered complete.
+See:
+
+- `neo4j/CANDIDATE_VS_AUTHORITATIVE_GRAPH_STRATEGY.md`
+- `docs/repository_restructure/repository_restructure_decisions.md`, Decision 7
+
+Current accepted rule:
+
+- the checked-in repo documents and supports one local candidate-graph
+  workflow,
+- an authoritative graph workflow is not yet implemented as a checked-in
+  operational environment.
 
 ## Near-Term Migration Rule
 

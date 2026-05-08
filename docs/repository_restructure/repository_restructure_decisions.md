@@ -302,6 +302,19 @@ Possible implementation models still to be decided include:
 - Graph setup and test design should anticipate this distinction.
 - A concrete implementation decision is still required before later migration phases.
 
+### Follow-up checkpoint (2026-05-07)
+
+- The documentation requirement for this decision is now satisfied by
+	`neo4j/CANDIDATE_VS_AUTHORITATIVE_GRAPH_STRATEGY.md`.
+- The accepted current repo posture is intentionally narrow: the checked-in
+	local workflow owns one resettable candidate graph through the compose-managed
+	Neo4j service and the `demo.reset_demo_db` path.
+- The repo does not yet define or automate a separate authoritative graph
+	environment, promotion pipeline, or authoritative reset contract.
+- This means the candidate-vs-authoritative distinction is now explicit enough
+	for the current operational checkpoint without overstating the maturity of the
+	graph-ops model.
+
 ### Open Questions
 
 - Physical vs logical separation.
