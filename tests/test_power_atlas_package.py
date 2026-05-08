@@ -35,6 +35,8 @@ def test_package_modules_import() -> None:
     assert package.POWER_ATLAS_RETRIEVAL_POLICY is contracts_module.POWER_ATLAS_RETRIEVAL_POLICY
     assert package.Config is contracts_module.Config
     assert package.COMMON_PREDICATE_LABELS is contracts_module.COMMON_PREDICATE_LABELS
+    assert package.ClaimExtractionOntology is contracts_module.ClaimExtractionOntology
+    assert package.ClaimExtractionPolicy is contracts_module.ClaimExtractionPolicy
     assert package.CSV_FIRST_DATA_ROW is contracts_module.CSV_FIRST_DATA_ROW
     assert package.DATASETS_CONTAINER_DIR == contracts_module.DATASETS_CONTAINER_DIR
     assert package.DatasetRoot is contracts_module.DatasetRoot
@@ -43,6 +45,8 @@ def test_package_modules_import() -> None:
     assert package.ID_PATTERNS is contracts_module.ID_PATTERNS
     assert package.AppContext is context_module.AppContext
     assert package.PDF_PIPELINE_CONFIG_PATH == contracts_module.PDF_PIPELINE_CONFIG_PATH
+    assert package.POWER_ATLAS_CLAIM_EXTRACTION_ONTOLOGY is contracts_module.POWER_ATLAS_CLAIM_EXTRACTION_ONTOLOGY
+    assert package.POWER_ATLAS_CLAIM_EXTRACTION_POLICY is contracts_module.POWER_ATLAS_CLAIM_EXTRACTION_POLICY
     assert package.RETRIEVAL_METADATA_SURFACE_POLICY is contracts_module.RETRIEVAL_METADATA_SURFACE_POLICY
     assert package.RequestContext is context_module.RequestContext
     assert package.RetrievalMetadataSurface is contracts_module.RetrievalMetadataSurface
@@ -55,6 +59,7 @@ def test_package_modules_import() -> None:
     assert package.resolve_dataset_root is contracts_module.resolve_dataset_root
     assert package.resolve_early_return_rule is contracts_module.resolve_early_return_rule
     assert package.get_default_retrieval_policy is contracts_module.get_default_retrieval_policy
+    assert package.get_default_claim_extraction_policy is contracts_module.get_default_claim_extraction_policy
     assert package.resolution_layer_schema is contracts_module.resolution_layer_schema
     assert package.timestamp is contracts_module.timestamp
     assert package.write_manifest is contracts_module.write_manifest
@@ -126,6 +131,42 @@ def test_default_retrieval_policy_matches_existing_power_atlas_defaults() -> Non
     assert retrieval_policy.ontology.aligned_with_relationship == "ALIGNED_WITH"
     assert retrieval_policy.default_expand_graph is False
     assert retrieval_policy.default_cluster_aware is False
+
+
+def test_default_claim_extraction_policy_matches_existing_power_atlas_defaults() -> None:
+    from power_atlas.contracts import (
+        POWER_ATLAS_CLAIM_EXTRACTION_POLICY,
+        PROMPT_IDS,
+        get_default_claim_extraction_policy,
+    )
+
+    claim_extraction_policy = get_default_claim_extraction_policy()
+
+    assert claim_extraction_policy is POWER_ATLAS_CLAIM_EXTRACTION_POLICY
+    assert claim_extraction_policy.prompt_id == PROMPT_IDS["claim_extraction"]
+    assert claim_extraction_policy.ontology.claim_label == "ExtractedClaim"
+    assert claim_extraction_policy.ontology.mentioned_in_relationship == "MENTIONED_IN"
+
+
+def test_claim_extraction_schema_accepts_policy_ontology_override() -> None:
+    from power_atlas.contracts import ClaimExtractionOntology, claim_extraction_schema
+
+    schema = claim_extraction_schema(
+        ClaimExtractionOntology(
+            claim_label="ResearchClaim",
+            mention_label="ResearchMention",
+            mentions_relationship="ASSERTS",
+            supported_by_relationship="EVIDENCED_BY",
+            mentioned_in_relationship="FOUND_IN",
+            has_participant_relationship="HAS_ROLE",
+            chunk_text_property="body_text",
+        )
+    )
+
+    node_labels = {node_type.label for node_type in schema.node_types}
+    relationship_labels = {relationship_type.label for relationship_type in schema.relationship_types}
+    assert node_labels == {"ResearchClaim", "ResearchMention"}
+    assert relationship_labels == {"ASSERTS", "EVIDENCED_BY", "FOUND_IN", "HAS_ROLE"}
 
 
 def test_build_runtime_config_from_settings() -> None:

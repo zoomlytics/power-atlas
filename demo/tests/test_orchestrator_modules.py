@@ -18,6 +18,8 @@ from neo4j_graphrag.experimental.components.types import (
 
 from demo.stages.structured_ingest import lint_and_clean_structured_csvs
 from power_atlas.contracts import (
+    ClaimExtractionOntology,
+    ClaimExtractionPolicy,
     Config as _RuntimeConfig,
     POWER_ATLAS_RAG_TEMPLATE,
     PROMPT_IDS,
@@ -457,6 +459,40 @@ def test_claim_extraction_dry_run_uses_prompt_registry(tmp_path: Path):
     )
     summary = run_claim_and_mention_extraction_request_context(request_context)
     assert summary["prompt_version"] == PROMPT_IDS["claim_extraction"]
+    assert summary["status"] == "dry_run"
+
+
+def test_claim_extraction_dry_run_can_use_claim_extraction_policy_override(tmp_path: Path):
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.claim_extraction import run_claim_and_mention_extraction_request_context
+
+    config = _dry_run_config(tmp_path)
+    request_context = _request_context_from_config(
+        config,
+        command="extract-claims",
+        run_id="claim-run",
+        source_uri=None,
+    )
+    alternate_policy = ClaimExtractionPolicy(
+        ontology=ClaimExtractionOntology(
+            claim_label="ResearchClaim",
+            mention_label="ResearchMention",
+            mentions_relationship="ASSERTS",
+            supported_by_relationship="EVIDENCED_BY",
+            mentioned_in_relationship="FOUND_IN",
+            has_participant_relationship="HAS_ROLE",
+            chunk_text_property="body_text",
+        ),
+        prompt_id="claims_alt_v1",
+    )
+
+    with mock.patch(
+        "demo.stages.claim_extraction._get_claim_extraction_policy",
+        return_value=alternate_policy,
+    ):
+        summary = run_claim_and_mention_extraction_request_context(request_context)
+
+    assert summary["prompt_version"] == "claims_alt_v1"
     assert summary["status"] == "dry_run"
 
 
@@ -1000,6 +1036,121 @@ def test_claim_extraction_live_path_uses_create_lexical_graph_false(tmp_path: Pa
     # so no edges are expected; but write_all_extraction_data must still have been invoked.
     assert summary["subject_edges"] == 0
     assert summary["object_edges"] == 0
+
+
+def test_claim_extraction_live_path_uses_claim_extraction_policy_override(tmp_path: Path):
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.claim_extraction import run_claim_and_mention_extraction_request_context
+
+    chunk_id = "chunk-policy-1"
+    fake_graph = Neo4jGraph(
+        nodes=[
+            Neo4jNode(
+                id="claim-policy-1",
+                label="ResearchClaim",
+                properties={"claim_text": "A policy claim", "subject": "s", "predicate": "p", "object": "o"},
+            ),
+            Neo4jNode(
+                id="mention-policy-1",
+                label="ResearchMention",
+                properties={"name": "Policy Entity", "entity_type": "ORG"},
+            ),
+        ],
+        relationships=[
+            Neo4jRelationship(start_node_id=chunk_id, end_node_id="claim-policy-1", type="FOUND_IN"),
+            Neo4jRelationship(start_node_id=chunk_id, end_node_id="mention-policy-1", type="FOUND_IN"),
+        ],
+    )
+    fake_chunks = TextChunks(
+        chunks=[TextChunk(uid=chunk_id, text="policy chunk text", index=0, metadata={"run_id": "policy-run"})]
+    )
+    extractor_run_kwargs: dict = {}
+
+    class _FakeExtractor:
+        def __init__(self, **kwargs):
+            pass
+
+        async def run(self, **kwargs):
+            extractor_run_kwargs.update(kwargs)
+            return fake_graph
+
+    class _FakeLLM:
+        def __init__(self, *args, **kwargs):
+            self.async_client = mock.MagicMock()
+            self.async_client.close = mock.AsyncMock()
+
+    class _FakeChunkReader:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def run(self, **kwargs):
+            return fake_chunks
+
+    captured_write_all: dict = {"call_kwargs": None}
+
+    def _fake_write_all_extraction_data(
+        driver, *, neo4j_database, lexical_graph_config, claim_rows, mention_rows, edge_rows
+    ):
+        captured_write_all["call_kwargs"] = {
+            "lexical_graph_config": lexical_graph_config,
+            "claim_rows": list(claim_rows),
+            "mention_rows": list(mention_rows),
+            "edge_rows": list(edge_rows),
+        }
+
+    config = _make_config(
+        dry_run=False,
+        output_dir=tmp_path,
+        openai_model="gpt-4o-mini",
+    )
+    request_context = _request_context_from_config(
+        config,
+        command="extract-claims",
+        run_id="policy-run",
+        source_uri="file:///doc.pdf",
+    )
+    alternate_policy = ClaimExtractionPolicy(
+        ontology=ClaimExtractionOntology(
+            claim_label="ResearchClaim",
+            mention_label="ResearchMention",
+            mentions_relationship="ASSERTS",
+            supported_by_relationship="EVIDENCED_BY",
+            mentioned_in_relationship="FOUND_IN",
+            has_participant_relationship="HAS_ROLE",
+            chunk_text_property="body_text",
+        ),
+        prompt_id="claims_alt_v1",
+    )
+
+    with mock.patch(
+        "neo4j_graphrag.experimental.components.entity_relation_extractor.LLMEntityRelationExtractor",
+        _FakeExtractor,
+    ), mock.patch(
+        "neo4j_graphrag.llm.OpenAILLM",
+        _FakeLLM,
+    ), mock.patch(
+        "demo.io.RunScopedNeo4jChunkReader",
+        _FakeChunkReader,
+    ), mock.patch(
+        "demo.extraction_utils.write_all_extraction_data",
+        side_effect=_fake_write_all_extraction_data,
+    ), mock.patch(
+        "demo.stages.claim_extraction._get_claim_extraction_policy",
+        return_value=alternate_policy,
+    ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+        summary = run_claim_and_mention_extraction_request_context(request_context)
+
+    assert summary["prompt_version"] == "claims_alt_v1"
+    assert summary["status"] == "live"
+    assert extractor_run_kwargs["schema"].node_types[0].label == "ResearchClaim"
+    assert extractor_run_kwargs["schema"].node_types[1].label == "ResearchMention"
+    relationship_labels = {
+        relationship_type.label for relationship_type in extractor_run_kwargs["schema"].relationship_types
+    }
+    assert relationship_labels == {"ASSERTS", "EVIDENCED_BY", "FOUND_IN", "HAS_ROLE"}
+    assert extractor_run_kwargs["lexical_graph_config"].chunk_text_property == "body_text"
+    assert extractor_run_kwargs["lexical_graph_config"].node_to_chunk_relationship_type == "FOUND_IN"
+    assert captured_write_all["call_kwargs"] is not None
 
 
 def test_claim_extraction_live_writes_participation_edges_when_mention_matches(tmp_path: Path):

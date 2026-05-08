@@ -3,27 +3,39 @@ from __future__ import annotations
 from neo4j_graphrag.experimental.components.schema import GraphSchema, NodeType, PropertyType, RelationshipType
 from neo4j_graphrag.experimental.components.types import LexicalGraphConfig
 
+from power_atlas.contracts.claim_extraction_policy import ClaimExtractionOntology
 from power_atlas.contracts.pipeline import PipelineContractSnapshot
+
+
+def _resolve_claim_extraction_ontology(
+    claim_extraction_ontology: ClaimExtractionOntology | None,
+) -> ClaimExtractionOntology:
+    return ClaimExtractionOntology() if claim_extraction_ontology is None else claim_extraction_ontology
 
 
 def claim_extraction_lexical_config(
     pipeline_contract: PipelineContractSnapshot,
+    claim_extraction_ontology: ClaimExtractionOntology | None = None,
 ) -> LexicalGraphConfig:
+    ontology = _resolve_claim_extraction_ontology(claim_extraction_ontology)
     return LexicalGraphConfig(
         chunk_node_label=pipeline_contract.chunk_embedding_label,
         chunk_id_property="chunk_id",
         chunk_index_property="chunk_index",
-        chunk_text_property="text",
+        chunk_text_property=ontology.chunk_text_property,
         chunk_embedding_property=pipeline_contract.chunk_embedding_property,
-        node_to_chunk_relationship_type="MENTIONED_IN",
+        node_to_chunk_relationship_type=ontology.mentioned_in_relationship,
     )
 
 
-def claim_extraction_schema() -> GraphSchema:
+def claim_extraction_schema(
+    claim_extraction_ontology: ClaimExtractionOntology | None = None,
+) -> GraphSchema:
+    ontology = _resolve_claim_extraction_ontology(claim_extraction_ontology)
     return GraphSchema(
         node_types=[
             NodeType(
-                label="ExtractedClaim",
+                label=ontology.claim_label,
                 description="Claim extracted from unstructured chunk",
                 properties=[
                     PropertyType(name="claim_text", type="STRING", required=True),
@@ -35,7 +47,7 @@ def claim_extraction_schema() -> GraphSchema:
                 additional_properties=True,
             ),
             NodeType(
-                label="EntityMention",
+                label=ontology.mention_label,
                 description="Entity mention extracted from text chunk",
                 properties=[
                     PropertyType(name="name", type="STRING", required=True),
@@ -46,10 +58,10 @@ def claim_extraction_schema() -> GraphSchema:
             ),
         ],
         relationship_types=[
-            RelationshipType(label="MENTIONS"),
-            RelationshipType(label="SUPPORTED_BY"),
-            RelationshipType(label="MENTIONED_IN"),
-            RelationshipType(label="HAS_PARTICIPANT"),
+            RelationshipType(label=ontology.mentions_relationship),
+            RelationshipType(label=ontology.supported_by_relationship),
+            RelationshipType(label=ontology.mentioned_in_relationship),
+            RelationshipType(label=ontology.has_participant_relationship),
         ],
     )
 

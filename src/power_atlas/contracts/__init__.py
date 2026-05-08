@@ -1,3 +1,10 @@
+from power_atlas.contracts.claim_extraction_policy import (
+	ClaimExtractionOntology,
+	ClaimExtractionPolicy,
+	POWER_ATLAS_CLAIM_EXTRACTION_ONTOLOGY,
+	POWER_ATLAS_CLAIM_EXTRACTION_POLICY,
+	get_default_claim_extraction_policy,
+)
 from power_atlas.contracts.prompts import POWER_ATLAS_RAG_TEMPLATE, PROMPT_IDS
 from power_atlas.contracts.retrieval_policy import (
 	POWER_ATLAS_RETRIEVAL_ONTOLOGY,
@@ -59,6 +66,8 @@ __all__ = [
 	"ARTIFACTS_DIR",
 	"build_batch_manifest",
 	"build_stage_manifest",
+	"ClaimExtractionOntology",
+	"ClaimExtractionPolicy",
 	"claim_extraction_lexical_config",
 	"claim_extraction_schema",
 	"EARLY_RETURN_PRECEDENCE",
@@ -73,6 +82,8 @@ __all__ = [
 	"DatasetRoot",
 	"FIXTURES_DIR",
 	"ID_PATTERNS",
+	"POWER_ATLAS_CLAIM_EXTRACTION_ONTOLOGY",
+	"POWER_ATLAS_CLAIM_EXTRACTION_POLICY",
 	"POWER_ATLAS_RAG_TEMPLATE",
 	"POWER_ATLAS_RETRIEVAL_ONTOLOGY",
 	"POWER_ATLAS_RETRIEVAL_POLICY",
@@ -85,6 +96,7 @@ __all__ = [
 	"STRUCTURED_FILE_HEADERS",
 	"VALUE_TYPES",
 	"get_default_retrieval_policy",
+	"get_default_claim_extraction_policy",
 	"list_available_datasets",
 	"make_run_id",
 	"resolve_dataset_root",

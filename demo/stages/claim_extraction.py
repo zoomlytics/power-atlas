@@ -6,10 +6,17 @@ from typing import Any
 from power_atlas.adapters.llm import build_llm as build_openai_llm
 from power_atlas.bootstrap import require_openai_api_key
 from power_atlas.context import RequestContext
+from power_atlas.contracts import ClaimExtractionPolicy, get_default_claim_extraction_policy
 from power_atlas.contracts.pipeline import PipelineContractSnapshot, is_pipeline_contract_snapshot
 from power_atlas.contracts.prompts import PROMPT_IDS
 from power_atlas.claim_extraction_runtime import run_claim_extraction_live
 from power_atlas.settings import Neo4jSettings
+
+
+def _get_claim_extraction_policy() -> ClaimExtractionPolicy:
+    return get_default_claim_extraction_policy()
+
+
 def _resolve_pipeline_contract(
     config: Any,
     pipeline_contract: PipelineContractSnapshot | None,
@@ -71,7 +78,11 @@ async def _async_read_chunks_and_extract(
         claim_extraction_schema,
     )
     from demo.io import RunScopedNeo4jChunkReader
-    lexical_config = claim_extraction_lexical_config(pipeline_contract)
+    claim_extraction_policy = _get_claim_extraction_policy()
+    lexical_config = claim_extraction_lexical_config(
+        pipeline_contract,
+        claim_extraction_policy.ontology,
+    )
     chunk_reader = RunScopedNeo4jChunkReader(
         driver,
         run_id=run_id,
@@ -95,7 +106,7 @@ async def _async_read_chunks_and_extract(
     try:
         graph = await extractor.run(
             chunks=text_chunks,
-            schema=claim_extraction_schema(),
+            schema=claim_extraction_schema(claim_extraction_policy.ontology),
             lexical_graph_config=lexical_config,
         )
     finally:
@@ -139,7 +150,7 @@ def _run_claim_and_mention_extraction_runtime(
     extraction_dir.mkdir(parents=True, exist_ok=True)
     summary_path = extraction_dir / "claim_extraction_summary.json"
 
-    prompt_version = PROMPT_IDS["claim_extraction"]
+    prompt_version = _get_claim_extraction_policy().prompt_id
     if config.dry_run:
         summary = {
             "status": "dry_run",
