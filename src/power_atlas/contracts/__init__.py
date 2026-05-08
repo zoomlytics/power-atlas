@@ -5,6 +5,13 @@ from power_atlas.contracts.claim_extraction_policy import (
 	POWER_ATLAS_CLAIM_EXTRACTION_POLICY,
 	get_default_claim_extraction_policy,
 )
+from power_atlas.contracts.entity_type_normalization_policy import (
+	EntityTypeNormalizationPolicy,
+	POWER_ATLAS_ENTITY_TYPE_NORMALIZATION_POLICY,
+	build_entity_type_cypher_case,
+	get_default_entity_type_normalization_policy,
+	normalize_entity_type,
+)
 from power_atlas.contracts.prompts import POWER_ATLAS_RAG_TEMPLATE, PROMPT_IDS
 from power_atlas.contracts.retrieval_policy import (
 	POWER_ATLAS_RETRIEVAL_ONTOLOGY,
@@ -80,8 +87,10 @@ __all__ = [
 	"CSV_FIRST_DATA_ROW",
 	"DATASETS_CONTAINER_DIR",
 	"DatasetRoot",
+	"EntityTypeNormalizationPolicy",
 	"FIXTURES_DIR",
 	"ID_PATTERNS",
+	"POWER_ATLAS_ENTITY_TYPE_NORMALIZATION_POLICY",
 	"POWER_ATLAS_CLAIM_EXTRACTION_ONTOLOGY",
 	"POWER_ATLAS_CLAIM_EXTRACTION_POLICY",
 	"POWER_ATLAS_RAG_TEMPLATE",
@@ -97,8 +106,11 @@ __all__ = [
 	"VALUE_TYPES",
 	"get_default_retrieval_policy",
 	"get_default_claim_extraction_policy",
+	"get_default_entity_type_normalization_policy",
+	"build_entity_type_cypher_case",
 	"list_available_datasets",
 	"make_run_id",
+	"normalize_entity_type",
 	"resolve_dataset_root",
 	"resolve_early_return_rule",
 	"resolution_layer_schema",

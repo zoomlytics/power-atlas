@@ -28,6 +28,7 @@ def test_package_modules_import() -> None:
     assert package.EarlyReturnRule is contracts_module.EarlyReturnRule
     assert package.EARLY_RETURN_PRECEDENCE is contracts_module.EARLY_RETURN_PRECEDENCE
     assert package.EARLY_RETURN_RULE_BY_NAME is contracts_module.EARLY_RETURN_RULE_BY_NAME
+    assert package.EntityTypeNormalizationPolicy is contracts_module.EntityTypeNormalizationPolicy
     assert package.CONFIG_DIR == contracts_module.CONFIG_DIR
     assert package.PROMPT_IDS is contracts_module.PROMPT_IDS
     assert package.POWER_ATLAS_RAG_TEMPLATE is contracts_module.POWER_ATLAS_RAG_TEMPLATE
@@ -48,6 +49,7 @@ def test_package_modules_import() -> None:
     assert package.PDF_PIPELINE_CONFIG_PATH == contracts_module.PDF_PIPELINE_CONFIG_PATH
     assert package.POWER_ATLAS_CLAIM_EXTRACTION_ONTOLOGY is contracts_module.POWER_ATLAS_CLAIM_EXTRACTION_ONTOLOGY
     assert package.POWER_ATLAS_CLAIM_EXTRACTION_POLICY is contracts_module.POWER_ATLAS_CLAIM_EXTRACTION_POLICY
+    assert package.POWER_ATLAS_ENTITY_TYPE_NORMALIZATION_POLICY is contracts_module.POWER_ATLAS_ENTITY_TYPE_NORMALIZATION_POLICY
     assert package.RETRIEVAL_METADATA_SURFACE_POLICY is contracts_module.RETRIEVAL_METADATA_SURFACE_POLICY
     assert package.RequestContext is context_module.RequestContext
     assert package.RetrievalMetadataSurface is contracts_module.RetrievalMetadataSurface
@@ -61,6 +63,9 @@ def test_package_modules_import() -> None:
     assert package.resolve_early_return_rule is contracts_module.resolve_early_return_rule
     assert package.get_default_retrieval_policy is contracts_module.get_default_retrieval_policy
     assert package.get_default_claim_extraction_policy is contracts_module.get_default_claim_extraction_policy
+    assert package.get_default_entity_type_normalization_policy is contracts_module.get_default_entity_type_normalization_policy
+    assert package.build_entity_type_cypher_case is contracts_module.build_entity_type_cypher_case
+    assert package.normalize_entity_type is contracts_module.normalize_entity_type
     assert package.resolution_layer_schema is contracts_module.resolution_layer_schema
     assert package.timestamp is contracts_module.timestamp
     assert package.write_manifest is contracts_module.write_manifest
@@ -254,6 +259,7 @@ def test_default_app_policies_expose_default_stage_policies() -> None:
     from power_atlas.context import build_default_app_policies
     from power_atlas.contracts import (
         POWER_ATLAS_CLAIM_EXTRACTION_POLICY,
+        POWER_ATLAS_ENTITY_TYPE_NORMALIZATION_POLICY,
         POWER_ATLAS_RETRIEVAL_POLICY,
     )
 
@@ -261,6 +267,22 @@ def test_default_app_policies_expose_default_stage_policies() -> None:
 
     assert policies.retrieval is POWER_ATLAS_RETRIEVAL_POLICY
     assert policies.claim_extraction is POWER_ATLAS_CLAIM_EXTRACTION_POLICY
+    assert policies.entity_type_normalization is POWER_ATLAS_ENTITY_TYPE_NORMALIZATION_POLICY
+
+
+def test_default_entity_type_normalization_policy_matches_power_atlas_defaults() -> None:
+    from power_atlas.contracts import (
+        POWER_ATLAS_ENTITY_TYPE_NORMALIZATION_POLICY,
+        get_default_entity_type_normalization_policy,
+        normalize_entity_type,
+    )
+
+    policy = get_default_entity_type_normalization_policy()
+
+    assert policy is POWER_ATLAS_ENTITY_TYPE_NORMALIZATION_POLICY
+    assert normalize_entity_type("ORG", policy) == "Organization"
+    assert normalize_entity_type("person", policy) == "Person"
+    assert normalize_entity_type("", policy) is None
 
 
 def test_dataset_env_selection_prefers_power_atlas_dataset() -> None:

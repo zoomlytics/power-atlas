@@ -21,6 +21,7 @@ from demo.stages.structured_ingest import lint_and_clean_structured_csvs
 from power_atlas.contracts import (
     ClaimExtractionOntology,
     ClaimExtractionPolicy,
+    EntityTypeNormalizationPolicy,
     Config as _RuntimeConfig,
     POWER_ATLAS_RAG_TEMPLATE,
     PROMPT_IDS,
@@ -923,6 +924,93 @@ def test_entity_resolution_request_context_uses_request_scope(tmp_path: Path):
     assert summary["run_id"] == "context-entity-run"
     assert summary["source_uri"] == "file:///context/entity.pdf"
     assert summary["status"] == "dry_run"
+
+
+def test_entity_resolution_request_context_can_use_entity_type_policy_override(tmp_path: Path):
+    from power_atlas.entity_resolution_runtime import EntityResolutionLiveResult
+
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.entity_resolution import run_entity_resolution_request_context
+
+    config = _make_config(
+        dry_run=False,
+        output_dir=tmp_path,
+        openai_model="gpt-4o-mini",
+        dataset_name="demo_dataset_v1",
+        resolution_mode="structured_anchor",
+    )
+    request_context = _request_context_from_config(
+        config,
+        command="resolve-entities",
+        run_id="entity-policy-run",
+        source_uri="file:///context/entity-policy.pdf",
+    )
+    alternate_policy = EntityTypeNormalizationPolicy(
+        synonyms={"ORG": "OrgCanonical", "company": "OrgCanonical"},
+        null_sentinel="__missing__",
+    )
+    request_context = replace(
+        request_context,
+        app=replace(
+            request_context.app,
+            policies=replace(
+                request_context.policies,
+                entity_type_normalization=alternate_policy,
+            ),
+        ),
+    )
+
+    def _fake_run_entity_resolution_live(*args, **kwargs):
+        resolved_row = kwargs["resolve_mention"](
+            {
+                "mention_id": "mention-1",
+                "name": "Acme",
+                "entity_type": "ORG",
+                "source_uri": "file:///context/entity-policy.pdf",
+            },
+            {},
+            {},
+            {},
+        )
+        unresolved_row = kwargs["cluster_mentions"](
+            [
+                {
+                    "mention_id": "mention-2",
+                    "name": "Acme",
+                    "entity_type": "company",
+                    "source_uri": "file:///context/entity-policy.pdf",
+                }
+            ]
+        )[0]
+        return EntityResolutionLiveResult(
+            mentions=[
+                {"mention_id": "mention-1", "name": "Acme", "entity_type": "ORG"},
+                {"mention_id": "mention-2", "name": "Acme", "entity_type": "company"},
+            ],
+            resolved_rows=[resolved_row],
+            unresolved_rows=[unresolved_row],
+            resolution_breakdown={"label_cluster": 1},
+            graph_mentions_clustered=0,
+            graph_mentions_unclustered=0,
+            graph_total_clusters=1,
+            graph_aligned_clusters=0,
+            graph_distinct_canonical_entities=0,
+            graph_mentions_in_aligned=0,
+            graph_alignment_breakdown={},
+            warnings=[],
+        )
+
+    with mock.patch(
+        "demo.stages.entity_resolution.run_entity_resolution_live",
+        side_effect=_fake_run_entity_resolution_live,
+    ):
+        summary = run_entity_resolution_request_context(request_context)
+
+    assert summary["status"] == "live"
+    assert summary["entity_type_report"]["mapped_variants"] == {
+        "ORG": "OrgCanonical",
+        "company": "OrgCanonical",
+    }
 
 
 def test_claim_extraction_live_path_uses_create_lexical_graph_false(tmp_path: Path):
@@ -5395,6 +5483,58 @@ def test_run_graph_health_diagnostics_request_context_uses_request_scope(tmp_pat
     assert result["status"] == "dry_run"
     assert result["run_id"] == "context-graph-health-run"
     assert result["alignment_version"] == "v1.0"
+
+
+def test_run_graph_health_diagnostics_request_context_can_use_entity_type_policy_override(tmp_path: Path):
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.graph_health import run_graph_health_diagnostics_request_context
+
+    request_context = _request_context_from_config(
+        _make_config(dry_run=False, output_dir=tmp_path),
+        command="graph-health",
+        run_id="graph-health-policy-run",
+    )
+    alternate_policy = EntityTypeNormalizationPolicy(
+        synonyms={"ORG": "OrgCanonical"},
+        null_sentinel="__missing__",
+    )
+    request_context = replace(
+        request_context,
+        app=replace(
+            request_context.app,
+            policies=replace(
+                request_context.policies,
+                entity_type_normalization=alternate_policy,
+            ),
+        ),
+    )
+    captured_query: dict[str, str] = {}
+
+    def _fake_fetch_graph_health_query_rows(*args, **kwargs):
+        captured_query["cluster_type_fragmentation_query"] = kwargs["query_specs"][5][2]
+        return {
+            "role_dist": [],
+            "edge_coverage": [],
+            "match_method_dist": [],
+            "mention_clustering": [],
+            "cluster_size_dist": [],
+            "cluster_type_frag": [],
+            "alignment_coverage": [],
+            "per_canonical": [],
+            "chain_health": [],
+        }
+
+    with mock.patch(
+        "demo.stages.graph_health.fetch_graph_health_query_rows",
+        side_effect=_fake_fetch_graph_health_query_rows,
+    ):
+        result = run_graph_health_diagnostics_request_context(
+            request_context,
+            alignment_version="v1.0",
+        )
+
+    assert result["status"] == "live"
+    assert "OrgCanonical" in captured_query["cluster_type_fragmentation_query"]
 
 
 def test_run_retrieval_benchmark_request_context_uses_request_scope(tmp_path: Path):

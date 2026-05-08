@@ -228,7 +228,13 @@ from urllib.parse import quote as _pct_encode
 import neo4j
 
 from power_atlas.context import RequestContext
-from power_atlas.contracts import resolve_dataset_root
+from power_atlas.contracts import (
+    EntityTypeNormalizationPolicy,
+    POWER_ATLAS_ENTITY_TYPE_NORMALIZATION_POLICY,
+    build_entity_type_cypher_case as build_entity_type_cypher_case_from_policy,
+    normalize_entity_type as normalize_entity_type_from_policy,
+    resolve_dataset_root,
+)
 from power_atlas.contracts.resolution import ALIGNMENT_VERSION as _ALIGNMENT_VERSION
 from power_atlas.entity_resolution_queries import (
     fetch_alignment_coverage,
@@ -311,13 +317,7 @@ _VALID_RESOLUTION_MODES = frozenset({
 #   - Leading/trailing whitespace is stripped before this lookup is applied
 #     (see ``_normalize_entity_type``), so ``' Organization '`` resolves
 #     correctly even though no explicit entry exists for the padded form.
-_ENTITY_TYPE_SYNONYMS: dict[str, str] = {
-    "ORG": "Organization",
-    "Company": "Organization",
-    "organization": "Organization",
-    "PERSON": "Person",
-    "person": "Person",
-}
+_ENTITY_TYPE_SYNONYMS: dict[str, str] = POWER_ATLAS_ENTITY_TYPE_NORMALIZATION_POLICY.synonyms
 
 # Reserved sentinel key used in entity_type_report dicts to represent absent or
 # empty entity_type values (None / "").  The decorated name is chosen to make
@@ -325,7 +325,7 @@ _ENTITY_TYPE_SYNONYMS: dict[str, str] = {
 # accidentally; if it does, collisions are detected and reported via
 # sentinel_label_warnings.  Do NOT change this value without also updating any
 # consumers of entity_type_report summaries/artifacts that rely on this sentinel.
-_ENTITY_TYPE_NULL_SENTINEL = "__null__"
+_ENTITY_TYPE_NULL_SENTINEL = POWER_ATLAS_ENTITY_TYPE_NORMALIZATION_POLICY.null_sentinel
 
 
 def _neo4j_settings_from_config(
@@ -362,7 +362,10 @@ def _resolve_effective_dataset_id(
     )
 
 
-def _normalize_entity_type(entity_type: str | None) -> str | None:
+def _normalize_entity_type(
+    entity_type: str | None,
+    entity_type_policy: EntityTypeNormalizationPolicy | None = None,
+) -> str | None:
     """Return the canonical form of *entity_type*, or ``None`` if absent.
 
     Synonymous and variant labels produced by upstream LLM extractors are
@@ -384,10 +387,7 @@ def _normalize_entity_type(entity_type: str | None) -> str | None:
     return ``None`` (the caller of :func:`_make_cluster_id` maps ``None``
     to an empty string, preserving the existing ``None``/``''`` equivalence).
     """
-    entity_type = (entity_type or "").strip()
-    if not entity_type:
-        return None
-    return _ENTITY_TYPE_SYNONYMS.get(entity_type, entity_type)
+    return normalize_entity_type_from_policy(entity_type, entity_type_policy)
 
 
 # Allowlist for the `var` parameter of build_entity_type_cypher_case.
@@ -406,7 +406,11 @@ def _escape_cypher_string(value: str) -> str:
     return value.replace("'", "''")
 
 
-def build_entity_type_cypher_case(var: str, unknown_label: str = "UNKNOWN") -> str:
+def build_entity_type_cypher_case(
+    var: str,
+    unknown_label: str = "UNKNOWN",
+    entity_type_policy: EntityTypeNormalizationPolicy | None = None,
+) -> str:
     """Return a Cypher CASE expression that mirrors :func:`_normalize_entity_type`.
 
     The generated expression is derived directly from :data:`_ENTITY_TYPE_SYNONYMS`
@@ -463,28 +467,16 @@ def build_entity_type_cypher_case(var: str, unknown_label: str = "UNKNOWN") -> s
           ELSE trim(m.entity_type)
         END
     """
-    if not _SAFE_CYPHER_VAR_RE.fullmatch(var):
-        raise ValueError(
-            f"Unsafe Cypher variable reference {var!r}: must match "
-            f"[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)* "
-            f"(dot-separated identifier segments; only alphanumerics and underscores)."
-        )
-    escaped_unknown = _escape_cypher_string(unknown_label)
-    when_lines = "\n".join(
-        f"  WHEN trim({var}) = '{_escape_cypher_string(raw)}' THEN '{_escape_cypher_string(canonical)}'"
-        for raw, canonical in _ENTITY_TYPE_SYNONYMS.items()
-    )
-    return (
-        f"CASE\n"
-        f"  WHEN {var} IS NULL OR trim({var}) = '' THEN '{escaped_unknown}'\n"
-        f"{when_lines}\n"
-        f"  ELSE trim({var})\n"
-        f"END"
+    return build_entity_type_cypher_case_from_policy(
+        var,
+        unknown_label,
+        entity_type_policy=entity_type_policy,
     )
 
 
 def _build_entity_type_report(
     mentions: list[dict[str, Any]],
+    entity_type_policy: EntityTypeNormalizationPolicy | None = None,
 ) -> dict[str, Any]:
     """Build a per-run summary of observed raw ``entity_type`` values.
 
@@ -540,7 +532,7 @@ def _build_entity_type_report(
             null_or_empty_count += 1
             norm_key = _ENTITY_TYPE_NULL_SENTINEL
         else:
-            normalized = _normalize_entity_type(raw)
+            normalized = _normalize_entity_type(raw, entity_type_policy)
             if normalized is None:
                 null_or_empty_count += 1
                 norm_key = _ENTITY_TYPE_NULL_SENTINEL
@@ -593,6 +585,7 @@ def _make_cluster_id(
     run_id: str,
     entity_type: str | None,
     normalized_text: str,
+    entity_type_policy: EntityTypeNormalizationPolicy | None = None,
 ) -> str:
     """Compute a scoped cluster_id for a :ResolvedEntityCluster node.
 
@@ -635,7 +628,10 @@ def _make_cluster_id(
     if not run_id:
         raise ValueError("run_id must be a non-empty string")
     run_id_enc = _pct_encode(run_id, safe="")
-    entity_type_enc = _pct_encode(_normalize_entity_type(entity_type) or "", safe="")
+    entity_type_enc = _pct_encode(
+        _normalize_entity_type(entity_type, entity_type_policy) or "",
+        safe="",
+    )
     normalized_text_enc = _pct_encode(normalized_text, safe="")
     return f"cluster::{run_id_enc}::{entity_type_enc}::{normalized_text_enc}"
 
@@ -789,6 +785,7 @@ def _cluster_mentions_unstructured_only(
     mentions: list[dict[str, Any]],
     *,
     fuzzy_threshold: float = 0.85,
+    entity_type_policy: EntityTypeNormalizationPolicy | None = None,
 ) -> list[dict[str, Any]]:
     """Cluster *mentions* against each other without relying on canonical entities.
 
@@ -951,7 +948,10 @@ def _cluster_mentions_unstructured_only(
         name = (mention.get("name") or "").strip()
         normalized = _normalize(name)
         mid = mention["mention_id"]
-        entity_type: str | None = _normalize_entity_type(mention.get("entity_type") or None)
+        entity_type: str | None = _normalize_entity_type(
+            mention.get("entity_type") or None,
+            entity_type_policy,
+        )
         short_alpha = _RE_NON_ALPHA.sub("", normalized)
 
         # Strategy 1: normalized_exact (type-agnostic).
@@ -1067,6 +1067,7 @@ def _resolve_mention(
     by_qid: dict[str, dict[str, Any]],
     by_label: dict[str, dict[str, Any]],
     by_alias: dict[str, dict[str, Any]],
+    entity_type_policy: EntityTypeNormalizationPolicy | None = None,
 ) -> dict[str, Any]:
     """Apply resolution strategies and return a resolution record."""
     name = (mention.get("name") or "").strip()
@@ -1092,7 +1093,10 @@ def _resolve_mention(
             "mention_id": mention["mention_id"],
             "normalized_text": normalized,
             "mention_name": name,
-            "entity_type": _normalize_entity_type(mention.get("entity_type") or None),
+            "entity_type": _normalize_entity_type(
+                mention.get("entity_type") or None,
+                entity_type_policy,
+            ),
             "source_uri": mention.get("source_uri") or None,
             "resolution_method": "label_cluster",
             "resolution_confidence": 0.0,
@@ -1131,7 +1135,10 @@ def _resolve_mention(
         "mention_id": mention["mention_id"],
         "normalized_text": normalized,
         "mention_name": name,
-        "entity_type": _normalize_entity_type(mention.get("entity_type") or None),
+        "entity_type": _normalize_entity_type(
+            mention.get("entity_type") or None,
+            entity_type_policy,
+        ),
         "source_uri": mention.get("source_uri") or None,
         "resolution_method": "label_cluster",
         "resolution_confidence": 0.0,
@@ -1366,6 +1373,7 @@ def _run_entity_resolution_impl(
     dataset_id: str | None = None,
     neo4j_settings: Neo4jSettings | None = None,
     dataset_name: str | None = None,
+    entity_type_policy: EntityTypeNormalizationPolicy | None = None,
 ) -> dict[str, Any]:
     """Resolve or cluster :EntityMention nodes scoped to *run_id*.
 
@@ -1450,6 +1458,7 @@ def _run_entity_resolution_impl(
         artifact_subdir=artifact_subdir,
         effective_dataset_id=effective_dataset_id,
         neo4j_settings=resolved_neo4j_settings,
+        entity_type_policy=entity_type_policy,
     )
 
 
@@ -1462,6 +1471,7 @@ def _run_entity_resolution_runtime(
     artifact_subdir: str,
     effective_dataset_id: str,
     neo4j_settings: Neo4jSettings,
+    entity_type_policy: EntityTypeNormalizationPolicy | None = None,
 ) -> dict[str, Any]:
 
     resolved_at = datetime.now(UTC).isoformat()
@@ -1519,7 +1529,7 @@ def _run_entity_resolution_runtime(
             "unresolved": 0,
             "clusters_created": 0,
             "resolution_breakdown": {},
-            "entity_type_report": _build_entity_type_report([]),
+            "entity_type_report": _build_entity_type_report([], entity_type_policy),
             "warnings": ["entity resolution skipped in dry_run mode"],
         }
         if resolution_mode in (_RESOLUTION_MODE_UNSTRUCTURED_ONLY, _RESOLUTION_MODE_HYBRID):
@@ -1545,12 +1555,26 @@ def _run_entity_resolution_runtime(
         alignment_version=_ALIGNMENT_VERSION,
         neo4j_database=neo4j_settings.database,
         fetch_mentions=fetch_entity_mentions,
-        cluster_mentions=_cluster_mentions_unstructured_only,
+        cluster_mentions=lambda mentions: _cluster_mentions_unstructured_only(
+            mentions,
+            entity_type_policy=entity_type_policy,
+        ),
         fetch_canonicals=fetch_canonical_entities,
         build_lookup_tables=_build_lookup_tables,
-        make_cluster_id=_make_cluster_id,
+        make_cluster_id=lambda current_run_id, current_entity_type, normalized_text: _make_cluster_id(
+            current_run_id,
+            current_entity_type,
+            normalized_text,
+            entity_type_policy,
+        ),
         align_clusters_to_canonical=_align_clusters_to_canonical,
-        resolve_mention=_resolve_mention,
+        resolve_mention=lambda mention, by_qid, by_label, by_alias: _resolve_mention(
+            mention,
+            by_qid,
+            by_label,
+            by_alias,
+            entity_type_policy,
+        ),
         write_resolution_results=_write_resolution_results,
         write_alignment_results=_write_alignment_results,
         fetch_member_of_coverage=fetch_member_of_coverage,
@@ -1577,7 +1601,12 @@ def _run_entity_resolution_runtime(
             "mention_name": row["mention_name"],
             "normalized_text": row["normalized_text"],
             "entity_type": row.get("entity_type") or None,
-            "cluster_id": _make_cluster_id(run_id, row.get("entity_type"), row["normalized_text"]),
+            "cluster_id": _make_cluster_id(
+                run_id,
+                row.get("entity_type"),
+                row["normalized_text"],
+                entity_type_policy,
+            ),
         }
         for row in unresolved_rows
     ]
@@ -1600,7 +1629,7 @@ def _run_entity_resolution_runtime(
 
     # Build entity_type_report and propagate any sentinel_label_warnings into the
     # stage warnings list so they surface at orchestration boundaries.
-    _entity_type_report = _build_entity_type_report(mentions)
+    _entity_type_report = _build_entity_type_report(mentions, entity_type_policy)
     _stage_warnings.extend(_entity_type_report.get("sentinel_label_warnings") or [])
 
     summary = {
@@ -1668,6 +1697,7 @@ def run_entity_resolution_request_context(
         dataset_id=dataset_id,
         neo4j_settings=request_context.settings.neo4j,
         dataset_name=request_context.settings.dataset_name,
+        entity_type_policy=request_context.policies.entity_type_normalization,
     )
 
 

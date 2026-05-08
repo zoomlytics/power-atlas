@@ -58,6 +58,7 @@ from pathlib import Path
 from typing import Any
 
 from power_atlas.context import RequestContext
+from power_atlas.contracts import EntityTypeNormalizationPolicy
 from power_atlas.graph_health_queries import CANONICAL_CHAIN_HEALTH_LIMIT as _CANONICAL_CHAIN_HEALTH_LIMIT
 from power_atlas.graph_health_queries import PER_CANONICAL_ALIGNMENT_LIMIT as _PER_CANONICAL_ALIGNMENT_LIMIT
 from power_atlas.graph_health_queries import build_cluster_type_fragmentation_query
@@ -93,14 +94,19 @@ __all__ = [
     "run_graph_health_diagnostics_request_context",
 ]
 
-def _get_cluster_type_fragmentation_query() -> str:
+def _get_cluster_type_fragmentation_query(
+    entity_type_policy: EntityTypeNormalizationPolicy | None = None,
+) -> str:
     """Return the current cluster type-fragmentation query.
 
     This stays live with entity-resolution normalization policy changes rather
     than freezing the derived Cypher text at module import time.
     """
     return build_cluster_type_fragmentation_query(
-        build_entity_type_cypher_case=_build_entity_type_cypher_case,
+        build_entity_type_cypher_case=lambda var: _build_entity_type_cypher_case(
+            var,
+            entity_type_policy=entity_type_policy,
+        ),
     )
 
 
@@ -391,6 +397,7 @@ def _run_graph_health_diagnostics_impl(
     run_id: str | None = None,
     alignment_version: str | None = None,
     suppress_alignment_version_warning: bool = False,
+    entity_type_policy: EntityTypeNormalizationPolicy | None = None,
 ) -> dict[str, Any]:
     """Shared graph-health implementation used by both public entrypoints."""
     effective_output_dir = Path(output_dir)
@@ -473,7 +480,9 @@ def _run_graph_health_diagnostics_impl(
         run_id=run_id,
         alignment_version=alignment_version,
         query_specs=build_graph_health_query_specs(
-            cluster_type_fragmentation_query=_get_cluster_type_fragmentation_query(),
+            cluster_type_fragmentation_query=_get_cluster_type_fragmentation_query(
+                entity_type_policy,
+            ),
             per_canonical_alignment_limit=_PER_CANONICAL_ALIGNMENT_LIMIT,
             canonical_chain_health_limit=_CANONICAL_CHAIN_HEALTH_LIMIT,
         ),
@@ -627,4 +636,5 @@ def run_graph_health_diagnostics_request_context(
         run_id=request_context.run_id,
         alignment_version=alignment_version,
         suppress_alignment_version_warning=suppress_alignment_version_warning,
+        entity_type_policy=request_context.policies.entity_type_normalization,
     )
