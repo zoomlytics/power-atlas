@@ -832,6 +832,24 @@ def write_participation_edges(
     )
 
 
+from power_atlas.claim_participation_edges import (
+    MATCH_METHOD_CASEFOLD_EXACT,
+    MATCH_METHOD_LIST_SPLIT,
+    MATCH_METHOD_NORMALIZED_EXACT,
+    MATCH_METHOD_RAW_EXACT,
+    MATCH_OUTCOME_AMBIGUOUS,
+    ROLE_OBJECT,
+    ROLE_SUBJECT,
+    EDGE_TYPE_HAS_PARTICIPANT,
+    ParticipationMatchMetrics,
+    _METRICS_SAMPLE_SIZE,
+    build_participation_edges,
+    build_participation_edges_with_metrics,
+    match_slot_to_mention,
+    split_slot_text,
+)
+
+
 __all__ = [
     "MATCH_METHOD_RAW_EXACT",
     "MATCH_METHOD_CASEFOLD_EXACT",

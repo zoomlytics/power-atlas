@@ -182,13 +182,13 @@ def _run_claim_and_mention_extraction_runtime(
         "OPENAI_API_KEY environment variable is required for live claim extraction."
     )
 
-    from power_atlas.extraction_rows import prepare_extracted_rows
-    from power_atlas.extraction_writes import write_all_extraction_data
-    from demo.stages.claim_participation import (
+    from power_atlas.claim_participation_edges import (
         ROLE_OBJECT,
         ROLE_SUBJECT,
         build_participation_edges,
     )
+    from power_atlas.extraction_rows import prepare_extracted_rows
+    from power_atlas.extraction_writes import write_all_extraction_data
 
     live_result = run_claim_extraction_live(
         neo4j_settings,
