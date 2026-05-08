@@ -3,9 +3,27 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from power_atlas.contracts.claim_extraction_policy import (
+    ClaimExtractionPolicy,
+    get_default_claim_extraction_policy,
+)
 from power_atlas.contracts.pipeline import PipelineContractSnapshot, is_pipeline_contract_snapshot
+from power_atlas.contracts.retrieval_policy import RetrievalPolicy, get_default_retrieval_policy
 from power_atlas.contracts.runtime import Config
 from power_atlas.settings import AppSettings
+
+
+@dataclass(frozen=True)
+class AppPolicies:
+    retrieval: RetrievalPolicy
+    claim_extraction: ClaimExtractionPolicy
+
+
+def build_default_app_policies() -> AppPolicies:
+    return AppPolicies(
+        retrieval=get_default_retrieval_policy(),
+        claim_extraction=get_default_claim_extraction_policy(),
+    )
 
 
 @dataclass(frozen=True)
@@ -13,6 +31,7 @@ class AppContext:
     settings: AppSettings
     pipeline_contract: PipelineContractSnapshot
     pipeline_contract_config_data: dict[str, Any]
+    policies: AppPolicies
 
 
 @dataclass(frozen=True)
@@ -40,5 +59,9 @@ class RequestContext:
             "RequestContext requires a pipeline contract on app or config runtime state"
         )
 
+    @property
+    def policies(self) -> AppPolicies:
+        return self.app.policies
 
-__all__ = ["AppContext", "RequestContext"]
+
+__all__ = ["AppContext", "AppPolicies", "RequestContext", "build_default_app_policies"]

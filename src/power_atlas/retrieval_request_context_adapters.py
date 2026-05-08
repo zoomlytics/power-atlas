@@ -32,6 +32,7 @@ def run_retrieval_request_context(
         interactive=interactive,
         all_runs=request_context.all_runs,
         pipeline_contract=request_context.pipeline_contract,
+        retrieval_policy=request_context.policies.retrieval,
         neo4j_settings=request_context.settings.neo4j,
     )
 
@@ -59,6 +60,7 @@ def run_interactive_request_context(
         all_runs=request_context.all_runs if all_runs is None else all_runs,
         debug=debug,
         pipeline_contract=request_context.pipeline_contract,
+        retrieval_policy=request_context.policies.retrieval,
         neo4j_settings=request_context.settings.neo4j,
     )
 

@@ -13,8 +13,10 @@ from power_atlas.claim_extraction_runtime import run_claim_extraction_live
 from power_atlas.settings import Neo4jSettings
 
 
-def _get_claim_extraction_policy() -> ClaimExtractionPolicy:
-    return get_default_claim_extraction_policy()
+def _resolve_claim_extraction_policy(
+    claim_extraction_policy: ClaimExtractionPolicy | None,
+) -> ClaimExtractionPolicy:
+    return get_default_claim_extraction_policy() if claim_extraction_policy is None else claim_extraction_policy
 
 
 def _resolve_pipeline_contract(
@@ -71,6 +73,7 @@ async def _async_read_chunks_and_extract(
     neo4j_database: str,
     model_name: str,
     pipeline_contract: PipelineContractSnapshot,
+    claim_extraction_policy: ClaimExtractionPolicy | None = None,
 ) -> tuple[Any, list[Any], Any]:
     from neo4j_graphrag.experimental.components.entity_relation_extractor import LLMEntityRelationExtractor
     from power_atlas.contracts import (
@@ -78,10 +81,10 @@ async def _async_read_chunks_and_extract(
         claim_extraction_schema,
     )
     from demo.io import RunScopedNeo4jChunkReader
-    claim_extraction_policy = _get_claim_extraction_policy()
+    resolved_claim_extraction_policy = _resolve_claim_extraction_policy(claim_extraction_policy)
     lexical_config = claim_extraction_lexical_config(
         pipeline_contract,
-        claim_extraction_policy.ontology,
+        resolved_claim_extraction_policy.ontology,
     )
     chunk_reader = RunScopedNeo4jChunkReader(
         driver,
@@ -106,7 +109,7 @@ async def _async_read_chunks_and_extract(
     try:
         graph = await extractor.run(
             chunks=text_chunks,
-            schema=claim_extraction_schema(claim_extraction_policy.ontology),
+            schema=claim_extraction_schema(resolved_claim_extraction_policy.ontology),
             lexical_graph_config=lexical_config,
         )
     finally:
@@ -120,6 +123,7 @@ def _run_claim_and_mention_extraction_impl(
     run_id: str,
     source_uri: str | None,
     pipeline_contract: PipelineContractSnapshot | None = None,
+    claim_extraction_policy: ClaimExtractionPolicy | None = None,
     neo4j_settings: Neo4jSettings | None = None,
     model_name: str | None = None,
 ) -> dict[str, Any]:
@@ -131,6 +135,7 @@ def _run_claim_and_mention_extraction_impl(
         run_id=run_id,
         source_uri=source_uri,
         pipeline_contract=resolved_pipeline_contract,
+        claim_extraction_policy=_resolve_claim_extraction_policy(claim_extraction_policy),
         neo4j_settings=resolved_neo4j_settings,
         model_name=resolved_model_name,
     )
@@ -142,6 +147,7 @@ def _run_claim_and_mention_extraction_runtime(
     run_id: str,
     source_uri: str | None,
     pipeline_contract: PipelineContractSnapshot,
+    claim_extraction_policy: ClaimExtractionPolicy,
     neo4j_settings: Neo4jSettings,
     model_name: str,
 ) -> dict[str, Any]:
@@ -150,7 +156,7 @@ def _run_claim_and_mention_extraction_runtime(
     extraction_dir.mkdir(parents=True, exist_ok=True)
     summary_path = extraction_dir / "claim_extraction_summary.json"
 
-    prompt_version = _get_claim_extraction_policy().prompt_id
+    prompt_version = claim_extraction_policy.prompt_id
     if config.dry_run:
         summary = {
             "status": "dry_run",
@@ -190,7 +196,11 @@ def _run_claim_and_mention_extraction_runtime(
         model_name=model_name,
         neo4j_database=neo4j_settings.database,
         pipeline_contract=pipeline_contract,
-        read_chunks_and_extract=_async_read_chunks_and_extract,
+        read_chunks_and_extract=lambda *args, **kwargs: _async_read_chunks_and_extract(
+            *args,
+            **kwargs,
+            claim_extraction_policy=claim_extraction_policy,
+        ),
         prepare_rows=prepare_extracted_rows,
         build_edges=build_participation_edges,
         write_rows=write_all_extraction_data,
@@ -235,6 +245,7 @@ def run_claim_and_mention_extraction_request_context(request_context: RequestCon
         run_id=request_context.run_id,
         source_uri=request_context.source_uri,
         pipeline_contract=request_context.pipeline_contract,
+        claim_extraction_policy=request_context.policies.claim_extraction,
         neo4j_settings=request_context.settings.neo4j,
         model_name=request_context.settings.openai_model,
     )

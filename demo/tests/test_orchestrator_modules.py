@@ -4,6 +4,7 @@ import csv
 import json
 import logging
 import os
+from dataclasses import replace
 from pathlib import Path
 from unittest import mock
 
@@ -486,11 +487,14 @@ def test_claim_extraction_dry_run_can_use_claim_extraction_policy_override(tmp_p
         prompt_id="claims_alt_v1",
     )
 
-    with mock.patch(
-        "demo.stages.claim_extraction._get_claim_extraction_policy",
-        return_value=alternate_policy,
-    ):
-        summary = run_claim_and_mention_extraction_request_context(request_context)
+    request_context = replace(
+        request_context,
+        app=replace(
+            request_context.app,
+            policies=replace(request_context.policies, claim_extraction=alternate_policy),
+        ),
+    )
+    summary = run_claim_and_mention_extraction_request_context(request_context)
 
     assert summary["prompt_version"] == "claims_alt_v1"
     assert summary["status"] == "dry_run"
@@ -998,6 +1002,14 @@ def test_claim_extraction_live_path_uses_create_lexical_graph_false(tmp_path: Pa
         source_uri="file:///doc.pdf",
     )
 
+    request_context = replace(
+        request_context,
+        app=replace(
+            request_context.app,
+            policies=replace(request_context.policies, claim_extraction=alternate_policy),
+        ),
+    )
+
     with mock.patch(
         "neo4j_graphrag.experimental.components.entity_relation_extractor.LLMEntityRelationExtractor",
         _FakeExtractor,
@@ -1121,6 +1133,13 @@ def test_claim_extraction_live_path_uses_claim_extraction_policy_override(tmp_pa
         ),
         prompt_id="claims_alt_v1",
     )
+    request_context = replace(
+        request_context,
+        app=replace(
+            request_context.app,
+            policies=replace(request_context.policies, claim_extraction=alternate_policy),
+        ),
+    )
 
     with mock.patch(
         "neo4j_graphrag.experimental.components.entity_relation_extractor.LLMEntityRelationExtractor",
@@ -1134,9 +1153,6 @@ def test_claim_extraction_live_path_uses_claim_extraction_policy_override(tmp_pa
     ), mock.patch(
         "demo.extraction_utils.write_all_extraction_data",
         side_effect=_fake_write_all_extraction_data,
-    ), mock.patch(
-        "demo.stages.claim_extraction._get_claim_extraction_policy",
-        return_value=alternate_policy,
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
         summary = run_claim_and_mention_extraction_request_context(request_context)
 
@@ -3504,13 +3520,19 @@ def test_retrieval_and_qa_live_path_can_use_retrieval_policy_override(tmp_path: 
         rag_template=alternate_prompt,
     )
 
+    request_context = replace(
+        request_context,
+        app=replace(
+            request_context.app,
+            policies=replace(request_context.policies, retrieval=alternate_policy),
+        ),
+    )
+
     with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
     ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class(capture=captured_prompt)), mock.patch(
         "demo.stages.retrieval_and_qa.build_openai_llm"
-    ), mock.patch("demo.stages.retrieval_and_qa._get_retrieval_policy", return_value=alternate_policy), mock.patch(
-        "neo4j.GraphDatabase.driver"
-    ), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+    ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
         result = run_retrieval_and_qa_request_context(
             request_context,
             question="Test question",
@@ -3572,13 +3594,19 @@ def test_retrieval_and_qa_live_path_uses_policy_traversal_defaults_when_flags_om
         default_cluster_aware=True,
     )
 
+    request_context = replace(
+        request_context,
+        app=replace(
+            request_context.app,
+            policies=replace(request_context.policies, retrieval=alternate_policy),
+        ),
+    )
+
     with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
         "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
     ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class()), mock.patch(
         "demo.stages.retrieval_and_qa.build_openai_llm"
-    ), mock.patch("demo.stages.retrieval_and_qa._get_retrieval_policy", return_value=alternate_policy), mock.patch(
-        "neo4j.GraphDatabase.driver"
-    ), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+    ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
         result = run_retrieval_and_qa_request_context(request_context, question="Test question")
 
     retrieval_query_contract = str(result["retrieval_query_contract"])

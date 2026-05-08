@@ -123,21 +123,24 @@ def _pipeline_contract_value(
     return cast(str, get_stage_pipeline_contract_value(name, _PIPELINE_CONTRACT_EXPORTS, pipeline_contract))
 
 
-def _get_retrieval_policy() -> RetrievalPolicy:
-    return get_default_retrieval_policy()
+def _resolve_retrieval_policy(
+    retrieval_policy: RetrievalPolicy | None,
+) -> RetrievalPolicy:
+    return get_default_retrieval_policy() if retrieval_policy is None else retrieval_policy
 
 
 def _resolve_retrieval_traversal_options(
     *,
+    retrieval_policy: RetrievalPolicy | None,
     expand_graph: bool | None,
     cluster_aware: bool | None,
 ) -> tuple[bool, bool]:
-    retrieval_policy = _get_retrieval_policy()
+    resolved_retrieval_policy = _resolve_retrieval_policy(retrieval_policy)
     effective_expand_graph = (
-        retrieval_policy.default_expand_graph if expand_graph is None else expand_graph
+        resolved_retrieval_policy.default_expand_graph if expand_graph is None else expand_graph
     )
     effective_cluster_aware = (
-        retrieval_policy.default_cluster_aware
+        resolved_retrieval_policy.default_cluster_aware
         if cluster_aware is None
         else cluster_aware
     )
@@ -256,9 +259,10 @@ def _select_runtime_retrieval_query(
     expand_graph: bool = False,
     cluster_aware: bool = False,
     all_runs: bool = False,
+    retrieval_policy: RetrievalPolicy | None = None,
 ) -> str:
     """Return the live-built retrieval query using the stage-bound builder seam."""
-    retrieval_policy = _get_retrieval_policy()
+    resolved_retrieval_policy = _resolve_retrieval_policy(retrieval_policy)
     _select_retrieval_query(
         expand_graph=expand_graph,
         cluster_aware=cluster_aware,
@@ -268,7 +272,7 @@ def _select_runtime_retrieval_query(
         expand_graph=expand_graph,
         cluster_aware=cluster_aware,
         all_runs=all_runs,
-        retrieval_ontology=retrieval_policy.ontology,
+        retrieval_ontology=resolved_retrieval_policy.ontology,
     )
 
 
@@ -407,6 +411,7 @@ def _build_retriever_and_rag(
     qa_model: str,
     neo4j_database: str | None,
     pipeline_contract: PipelineContractSnapshot,
+    retrieval_policy: RetrievalPolicy | None = None,
 ) -> tuple[VectorCypherRetriever, GraphRAG]:
     """Construct a VectorCypherRetriever and GraphRAG instance for a Neo4j session.
 
@@ -427,7 +432,7 @@ def _build_retriever_and_rag(
     neo4j_database:
         Optional Neo4j database name; ``None`` uses the driver's default database.
     """
-    retrieval_policy = _get_retrieval_policy()
+    resolved_retrieval_policy = _resolve_retrieval_policy(retrieval_policy)
     retriever, rag = build_retriever_and_rag_impl(
         driver,
         index_name=index_name,
@@ -441,7 +446,7 @@ def _build_retriever_and_rag(
         rag_factory=GraphRAG,
         build_embedder=build_embedder,
         build_llm=build_openai_llm,
-        prompt_template=retrieval_policy.rag_template,
+        prompt_template=resolved_retrieval_policy.rag_template,
     )
     return retriever, rag
 
@@ -485,6 +490,7 @@ def _run_retrieval_and_qa_impl(
     interactive: bool = False,
     all_runs: bool = False,
     pipeline_contract: PipelineContractSnapshot | None = None,
+    retrieval_policy: RetrievalPolicy | None = None,
     neo4j_settings: Neo4jSettings | None = None,
 ) -> dict[str, object]:
     """Run single-turn retrieval and GraphRAG Q&A for one question.
@@ -540,6 +546,7 @@ def _run_retrieval_and_qa_impl(
         provide this so live retrieval does not depend on config-shape fallback.
     """
     effective_expand_graph, effective_cluster_aware = _resolve_retrieval_traversal_options(
+        retrieval_policy=retrieval_policy,
         expand_graph=expand_graph,
         cluster_aware=cluster_aware,
     )
@@ -552,13 +559,16 @@ def _run_retrieval_and_qa_impl(
         all_runs=all_runs,
         resolve_pipeline_contract=_resolve_pipeline_contract,
         pipeline_contract_value=_pipeline_contract_value,
-        select_runtime_retrieval_query=_select_runtime_retrieval_query,
+        select_runtime_retrieval_query=lambda **kwargs: _select_runtime_retrieval_query(
+            **kwargs,
+            retrieval_policy=retrieval_policy,
+        ),
     )
     resolved_pipeline_contract = execution_context.pipeline_contract
     resolved_index_name = execution_context.resolved_index_name
     effective_qa_model = execution_context.effective_qa_model
     retrieval_query_contract = execution_context.retrieval_query
-    qa_prompt_version = _get_retrieval_policy().qa_prompt_id
+    qa_prompt_version = _resolve_retrieval_policy(retrieval_policy).qa_prompt_id
     prelude = prepare_retrieval_result_prelude(
         run_id=run_id,
         source_uri=source_uri,
@@ -657,7 +667,11 @@ def _run_retrieval_and_qa_impl(
         retrieval_query=retrieval_query,
         qa_model=effective_qa_model,
         pipeline_contract=resolved_pipeline_contract,
-        build_retriever_and_rag=_build_retriever_and_rag,
+        build_retriever_and_rag=lambda *args, **kwargs: _build_retriever_and_rag(
+            *args,
+            **kwargs,
+            retrieval_policy=retrieval_policy,
+        ),
         run_session=run_single_shot_session,
     )
     return finalize_live_retrieval_result(
@@ -698,6 +712,7 @@ def _run_interactive_qa_impl(
     all_runs: bool = False,
     debug: bool = False,
     pipeline_contract: PipelineContractSnapshot | None = None,
+    retrieval_policy: RetrievalPolicy | None = None,
     neo4j_settings: Neo4jSettings | None = None,
 ) -> None:
     """Run a REPL-style interactive Q&A session.
@@ -754,6 +769,7 @@ def _run_interactive_qa_impl(
         provide this so live retrieval does not depend on config-shape fallback.
     """
     effective_expand_graph, effective_cluster_aware = _resolve_retrieval_traversal_options(
+        retrieval_policy=retrieval_policy,
         expand_graph=expand_graph,
         cluster_aware=cluster_aware,
     )
@@ -766,7 +782,10 @@ def _run_interactive_qa_impl(
         all_runs=all_runs,
         resolve_pipeline_contract=_resolve_pipeline_contract,
         pipeline_contract_value=_pipeline_contract_value,
-        select_runtime_retrieval_query=_select_runtime_retrieval_query,
+        select_runtime_retrieval_query=lambda **kwargs: _select_runtime_retrieval_query(
+            **kwargs,
+            retrieval_policy=retrieval_policy,
+        ),
     )
     resolved_pipeline_contract = execution_context.pipeline_contract
     resolved_index_name = execution_context.resolved_index_name
@@ -827,7 +846,11 @@ def _run_interactive_qa_impl(
         retrieval_query=retrieval_query,
         qa_model=effective_qa_model,
         pipeline_contract=resolved_pipeline_contract,
-        build_retriever_and_rag=_build_retriever_and_rag,
+        build_retriever_and_rag=lambda *args, **kwargs: _build_retriever_and_rag(
+            *args,
+            **kwargs,
+            retrieval_policy=retrieval_policy,
+        ),
         run_session=_run_interactive_session,
     )
 

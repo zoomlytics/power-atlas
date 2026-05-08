@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Iterator, Mapping, MutableMapping
 import os
 
-from power_atlas.context import AppContext, RequestContext
+from power_atlas.context import AppContext, AppPolicies, RequestContext, build_default_app_policies
 from power_atlas.contracts.pipeline import get_pipeline_contract_config_data, get_pipeline_contract_snapshot
 from power_atlas.contracts.runtime import Config
 from power_atlas.settings import AppSettings
@@ -25,6 +25,7 @@ def build_settings(environ: Mapping[str, str] | None = None) -> AppSettings:
 def build_app_context(
     *,
     settings: AppSettings | None = None,
+    policies: AppPolicies | None = None,
     environ: Mapping[str, str] | None = None,
 ) -> AppContext:
     resolved_settings = build_settings(environ=environ) if settings is None else settings
@@ -32,6 +33,7 @@ def build_app_context(
         settings=resolved_settings,
         pipeline_contract=get_pipeline_contract_snapshot(),
         pipeline_contract_config_data=get_pipeline_contract_config_data(),
+        policies=build_default_app_policies() if policies is None else policies,
     )
 
 

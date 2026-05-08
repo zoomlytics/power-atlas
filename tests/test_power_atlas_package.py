@@ -44,6 +44,7 @@ def test_package_modules_import() -> None:
     assert package.FIXTURES_DIR == contracts_module.FIXTURES_DIR
     assert package.ID_PATTERNS is contracts_module.ID_PATTERNS
     assert package.AppContext is context_module.AppContext
+    assert package.AppPolicies is context_module.AppPolicies
     assert package.PDF_PIPELINE_CONFIG_PATH == contracts_module.PDF_PIPELINE_CONFIG_PATH
     assert package.POWER_ATLAS_CLAIM_EXTRACTION_ONTOLOGY is contracts_module.POWER_ATLAS_CLAIM_EXTRACTION_ONTOLOGY
     assert package.POWER_ATLAS_CLAIM_EXTRACTION_POLICY is contracts_module.POWER_ATLAS_CLAIM_EXTRACTION_POLICY
@@ -68,6 +69,7 @@ def test_package_modules_import() -> None:
     assert package.build_settings is bootstrap_module.build_settings
     assert package.build_app_context is bootstrap_module.build_app_context
     assert package.build_request_context is bootstrap_module.build_request_context
+    assert package.build_default_app_policies is context_module.build_default_app_policies
     assert package.build_openai_llm is llm_utils_module.build_openai_llm
     assert package.normalize_mention_text is text_utils_module.normalize_mention_text
     assert not hasattr(pipeline_module, "DATASET_ID")
@@ -237,6 +239,7 @@ def test_bootstrap_app_exposes_app_context_and_request_context() -> None:
     )
 
     assert app.app_context.settings is app.settings
+    assert request_context.policies is app.app_context.policies
     assert request_context.app is app.app_context
     assert request_context.settings is app.settings
     assert request_context.command == "ask"
@@ -245,6 +248,19 @@ def test_bootstrap_app_exposes_app_context_and_request_context() -> None:
     assert request_context.config.question == "Who acquired Xapo?"
     assert request_context.config.resolution_mode == "hybrid"
     assert request_context.config.dataset_name == "demo_dataset_v1"
+
+
+def test_default_app_policies_expose_default_stage_policies() -> None:
+    from power_atlas.context import build_default_app_policies
+    from power_atlas.contracts import (
+        POWER_ATLAS_CLAIM_EXTRACTION_POLICY,
+        POWER_ATLAS_RETRIEVAL_POLICY,
+    )
+
+    policies = build_default_app_policies()
+
+    assert policies.retrieval is POWER_ATLAS_RETRIEVAL_POLICY
+    assert policies.claim_extraction is POWER_ATLAS_CLAIM_EXTRACTION_POLICY
 
 
 def test_dataset_env_selection_prefers_power_atlas_dataset() -> None:
