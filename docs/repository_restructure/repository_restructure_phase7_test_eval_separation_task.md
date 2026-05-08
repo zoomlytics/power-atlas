@@ -235,3 +235,43 @@ documents are no longer confined to `docs/` as generic architecture prose.
 Remaining Phase 7 work should now shift toward any additional eval-only
 documents or datasets plus the later question of whether obsolete benchmark or
 comparison tests need quarantine or CI scope changes.
+
+### 8. Focused obsolete-test / CI-scope audit (2026-05-07)
+
+The next bounded follow-up audit checked the strongest remaining Phase 7
+question directly: whether any currently active benchmark- or diagnostics-named
+tests should now be quarantined as obsolete or archive-only, and whether the
+repository CI scope needs narrowing as a result.
+
+Audit inputs:
+
+- `demo/tests/test_retrieval_benchmark.py`
+- `demo/tests/test_retrieval_benchmark_cli.py`
+- `demo/tests/test_graph_health_diagnostics_cli.py`
+- `pyproject.toml`
+- `Makefile`
+- `.github/workflows/vendor-version-consistency.yml`
+- the README and restructure references that still describe these tests as
+  active correctness coverage
+
+Result:
+
+- no obvious obsolete or archive-only tests were identified under the active
+  `demo/tests/` or `tests/` roots
+- benchmark-named tests remain correctness-owned when they verify stage logic,
+  CLI argument parsing, warning routing, or other supported contracts
+- the dedicated CLI tests remain active because the corresponding CLI shells
+  are still accepted defer-in-place operator/query seams
+- no repository-side CI scope change is required at this checkpoint:
+  - the repo does not currently have a broad GitHub Actions test workflow for
+    these roots beyond the vendor-version consistency check
+  - the active safety harness continues to run through `make phase1-verify`
+    rather than through a broader pytest selection policy
+
+This means the Phase 7 outcome for this audit is a negative classification
+result, not a code move:
+
+- keep the current active correctness tests in place,
+- do not quarantine benchmark/diagnostics tests based on naming alone,
+- leave CI scope unchanged until a future audit identifies an actual obsolete
+  or archive-only test family.

@@ -244,7 +244,15 @@ tests such as `demo/tests/test_retrieval_parity.py`,
 correctness surfaces rather than evaluation assets. The next Phase 7 slices should focus only on other retained outputs
 that are truly evaluation-only and can migrate into `eval/` without changing
 active runtime or manual-validation paths; this is now selective follow-up work
-rather than remaining closure-critical migration work.  
+rather than remaining closure-critical migration work. A focused 2026-05-07
+follow-up audit then checked the strongest remaining open question directly:
+whether benchmark- or diagnostics-named tests under `demo/tests/` had become
+obsolete or archive-only, and whether CI scope therefore needed tightening.
+That audit found no such quarantine candidates. The likely tests remain active
+correctness coverage for stage logic and preserved CLI seams, and the repo does
+not currently have a broad first-party GitHub Actions test workflow for these
+roots that would need narrowing. So the current checkpoint records a negative
+result: no obsolete-test quarantine or CI-scope change is warranted yet.  
 
 ### Exit criteria
 
@@ -258,8 +266,8 @@ rather than remaining closure-critical migration work.
 - [x] define target `tests/` layout
 - [x] define target `eval/` layout
 - [x] move benchmark/evaluation artifacts out of correctness test paths
-- [ ] remove or quarantine obsolete tests
-- [ ] update CI scope where needed
+- [x] remove or quarantine obsolete tests
+- [x] update CI scope where needed
 
 ---
 
