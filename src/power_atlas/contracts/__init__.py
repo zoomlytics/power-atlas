@@ -1,4 +1,11 @@
 from power_atlas.contracts.prompts import POWER_ATLAS_RAG_TEMPLATE, PROMPT_IDS
+from power_atlas.contracts.retrieval_policy import (
+	POWER_ATLAS_RETRIEVAL_ONTOLOGY,
+	POWER_ATLAS_RETRIEVAL_POLICY,
+	RetrievalOntology,
+	RetrievalPolicy,
+	get_default_retrieval_policy,
+)
 from power_atlas.contracts.retrieval_early_return_policy import (
 	EARLY_RETURN_PRECEDENCE,
 	EARLY_RETURN_RULE_BY_NAME,
@@ -67,12 +74,17 @@ __all__ = [
 	"FIXTURES_DIR",
 	"ID_PATTERNS",
 	"POWER_ATLAS_RAG_TEMPLATE",
+	"POWER_ATLAS_RETRIEVAL_ONTOLOGY",
+	"POWER_ATLAS_RETRIEVAL_POLICY",
 	"PDF_PIPELINE_CONFIG_PATH",
 	"PROMPT_IDS",
 	"RETRIEVAL_METADATA_SURFACE_POLICY",
+	"RetrievalOntology",
+	"RetrievalPolicy",
 	"RetrievalMetadataSurface",
 	"STRUCTURED_FILE_HEADERS",
 	"VALUE_TYPES",
+	"get_default_retrieval_policy",
 	"list_available_datasets",
 	"make_run_id",
 	"resolve_dataset_root",

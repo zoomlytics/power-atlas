@@ -21,6 +21,8 @@ from power_atlas.contracts import (
     Config as _RuntimeConfig,
     POWER_ATLAS_RAG_TEMPLATE,
     PROMPT_IDS,
+    RetrievalOntology,
+    RetrievalPolicy,
     STRUCTURED_FILE_HEADERS,
     AmbiguousDatasetError,
     DatasetRoot,
@@ -3302,6 +3304,75 @@ def test_retrieval_and_qa_live_path_uses_power_atlas_prompt_template(tmp_path: P
         run_retrieval_and_qa_request_context(request_context, question="Test question")
 
     assert captured_prompt["prompt_template"] is POWER_ATLAS_RAG_TEMPLATE
+
+
+def test_retrieval_and_qa_live_path_can_use_retrieval_policy_override(tmp_path: Path):
+    from neo4j_graphrag.generation import RagTemplate
+
+    from demo.run_demo import _request_context_from_config
+    from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context
+
+    captured_prompt: dict = {}
+
+    class _FakeRetriever:
+        def __init__(self, **kwargs):
+            pass
+
+        def search(self, **kwargs):
+            return _make_fake_retriever_result([])
+
+    live_config = _make_config(
+        dry_run=False,
+        output_dir=tmp_path,
+        openai_model="gpt-4o-mini",
+    )
+    request_context = _request_context_from_config(
+        live_config,
+        command="ask",
+        run_id="live-run-policy",
+        source_uri=None,
+    )
+    alternate_prompt = RagTemplate(
+        template="Context:\n{context}\nExamples:\n{examples}\nQuestion:\n{query_text}\nAnswer:",
+        system_instructions="Alternate retrieval policy prompt",
+    )
+    alternate_policy = RetrievalPolicy(
+        ontology=RetrievalOntology(
+            claim_label="ResearchClaim",
+            mention_label="ResearchMention",
+            cluster_label="ResearchCluster",
+            canonical_label="ResearchCanonical",
+            supported_by_relationship="BACKED_BY",
+            mentioned_in_relationship="LOCATED_IN",
+            has_participant_relationship="HAS_ROLE",
+            resolves_to_relationship="MAPS_TO",
+            member_of_relationship="BELONGS_TO",
+            aligned_with_relationship="LINKED_TO",
+        ),
+        qa_prompt_id="alt_qa_v1",
+        rag_template=alternate_prompt,
+    )
+
+    with mock.patch("demo.stages.retrieval_and_qa.VectorCypherRetriever", _FakeRetriever), mock.patch(
+        "demo.stages.retrieval_and_qa.OpenAIEmbeddings"
+    ), mock.patch("demo.stages.retrieval_and_qa.GraphRAG", _make_stub_graphrag_class(capture=captured_prompt)), mock.patch(
+        "demo.stages.retrieval_and_qa.build_openai_llm"
+    ), mock.patch("demo.stages.retrieval_and_qa._get_retrieval_policy", return_value=alternate_policy), mock.patch(
+        "neo4j.GraphDatabase.driver"
+    ), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+        result = run_retrieval_and_qa_request_context(
+            request_context,
+            question="Test question",
+            expand_graph=True,
+            cluster_aware=True,
+        )
+
+    assert captured_prompt["prompt_template"] is alternate_prompt
+    assert result["qa_prompt_version"] == "alt_qa_v1"
+    retrieval_query_contract = str(result["retrieval_query_contract"])
+    assert "ResearchClaim" in retrieval_query_contract
+    assert "LOCATED_IN" in retrieval_query_contract
+    assert "LINKED_TO" in retrieval_query_contract
 
 
 def test_ask_interactive_rejects_dry_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):

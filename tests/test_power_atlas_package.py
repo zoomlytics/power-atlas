@@ -31,6 +31,8 @@ def test_package_modules_import() -> None:
     assert package.CONFIG_DIR == contracts_module.CONFIG_DIR
     assert package.PROMPT_IDS is contracts_module.PROMPT_IDS
     assert package.POWER_ATLAS_RAG_TEMPLATE is contracts_module.POWER_ATLAS_RAG_TEMPLATE
+    assert package.POWER_ATLAS_RETRIEVAL_ONTOLOGY is contracts_module.POWER_ATLAS_RETRIEVAL_ONTOLOGY
+    assert package.POWER_ATLAS_RETRIEVAL_POLICY is contracts_module.POWER_ATLAS_RETRIEVAL_POLICY
     assert package.Config is contracts_module.Config
     assert package.COMMON_PREDICATE_LABELS is contracts_module.COMMON_PREDICATE_LABELS
     assert package.CSV_FIRST_DATA_ROW is contracts_module.CSV_FIRST_DATA_ROW
@@ -44,12 +46,15 @@ def test_package_modules_import() -> None:
     assert package.RETRIEVAL_METADATA_SURFACE_POLICY is contracts_module.RETRIEVAL_METADATA_SURFACE_POLICY
     assert package.RequestContext is context_module.RequestContext
     assert package.RetrievalMetadataSurface is contracts_module.RetrievalMetadataSurface
+    assert package.RetrievalOntology is contracts_module.RetrievalOntology
+    assert package.RetrievalPolicy is contracts_module.RetrievalPolicy
     assert package.STRUCTURED_FILE_HEADERS is contracts_module.STRUCTURED_FILE_HEADERS
     assert package.VALUE_TYPES is contracts_module.VALUE_TYPES
     assert package.list_available_datasets is contracts_module.list_available_datasets
     assert package.make_run_id is contracts_module.make_run_id
     assert package.resolve_dataset_root is contracts_module.resolve_dataset_root
     assert package.resolve_early_return_rule is contracts_module.resolve_early_return_rule
+    assert package.get_default_retrieval_policy is contracts_module.get_default_retrieval_policy
     assert package.resolution_layer_schema is contracts_module.resolution_layer_schema
     assert package.timestamp is contracts_module.timestamp
     assert package.write_manifest is contracts_module.write_manifest
@@ -102,6 +107,23 @@ def test_build_settings_from_env_mapping() -> None:
     assert app.settings.embedder_model == "text-embedding-3-large"
     assert app.settings.output_dir == Path("build/power-atlas")
     assert app.settings.dataset_name == "demo_dataset_v1"
+
+
+def test_default_retrieval_policy_matches_existing_power_atlas_defaults() -> None:
+    from power_atlas.contracts import (
+        POWER_ATLAS_RAG_TEMPLATE,
+        POWER_ATLAS_RETRIEVAL_POLICY,
+        PROMPT_IDS,
+        get_default_retrieval_policy,
+    )
+
+    retrieval_policy = get_default_retrieval_policy()
+
+    assert retrieval_policy is POWER_ATLAS_RETRIEVAL_POLICY
+    assert retrieval_policy.qa_prompt_id == PROMPT_IDS["qa"]
+    assert retrieval_policy.rag_template is POWER_ATLAS_RAG_TEMPLATE
+    assert retrieval_policy.ontology.claim_label == "ExtractedClaim"
+    assert retrieval_policy.ontology.aligned_with_relationship == "ALIGNED_WITH"
 
 
 def test_build_runtime_config_from_settings() -> None:

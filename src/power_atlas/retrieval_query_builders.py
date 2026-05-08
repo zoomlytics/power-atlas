@@ -1,5 +1,13 @@
 from __future__ import annotations
 
+from power_atlas.contracts.retrieval_policy import RetrievalOntology
+
+
+def _resolve_retrieval_ontology(
+    retrieval_ontology: RetrievalOntology | None,
+) -> RetrievalOntology:
+    return RetrievalOntology() if retrieval_ontology is None else retrieval_ontology
+
 
 # Shared RETURN projection for chunk provenance fields — identical in all variants.
 _RETURN_BASE_COLUMNS = (
@@ -15,43 +23,67 @@ _RETURN_BASE_COLUMNS = (
 )
 
 
-def _build_claim_details_with_clause(run_scoped: bool) -> str:
+def _build_claim_details_with_clause(
+    run_scoped: bool,
+    retrieval_ontology: RetrievalOntology | None = None,
+) -> str:
+    ontology = _resolve_retrieval_ontology(retrieval_ontology)
     claim_filter = " WHERE claim.run_id = $run_id" if run_scoped else ""
     return (
         "WITH c, score,\n"
-        "     [(c)<-[:SUPPORTED_BY]-(claim:ExtractedClaim)" + claim_filter + " |\n"
+        f"     [(c)<-[:{ontology.supported_by_relationship}]-(claim:{ontology.claim_label})"
+        + claim_filter + " |\n"
         "         {claim_text: claim.claim_text,\n"
-        "          roles: [(claim)-[r:HAS_PARTICIPANT]->(m:EntityMention) | {role: r.role, mention_name: m.name, match_method: r.match_method}]}\n"
+        f"          roles: [(claim)-[r:{ontology.has_participant_relationship}]->(m:{ontology.mention_label})"
+        " | {role: r.role, mention_name: m.name, match_method: r.match_method}]}\n"
         "     ] AS claim_details"
     )
 
 
-def _build_mention_names_expr(run_scoped: bool) -> str:
+def _build_mention_names_expr(
+    run_scoped: bool,
+    retrieval_ontology: RetrievalOntology | None = None,
+) -> str:
+    ontology = _resolve_retrieval_ontology(retrieval_ontology)
     run_filter = " WHERE mention.run_id = $run_id" if run_scoped else ""
     return (
-        "[(c)<-[:MENTIONED_IN]-(mention:EntityMention)" + run_filter
+        f"[(c)<-[:{ontology.mentioned_in_relationship}]-(mention:{ontology.mention_label})" + run_filter
         + " | mention.name] AS mentions"
     )
 
 
-def _build_canonical_names_expr(run_scoped: bool) -> str:
+def _build_canonical_names_expr(
+    run_scoped: bool,
+    retrieval_ontology: RetrievalOntology | None = None,
+) -> str:
+    ontology = _resolve_retrieval_ontology(retrieval_ontology)
     run_filter = " WHERE mention.run_id = $run_id" if run_scoped else ""
     return (
-        "[(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:RESOLVES_TO]->(canonical)"
+        f"[(c)<-[:{ontology.mentioned_in_relationship}]-(mention:{ontology.mention_label})"
+        f"-[:{ontology.resolves_to_relationship}]->(canonical:{ontology.canonical_label})"
         + run_filter + " | canonical.name] AS canonical_entities"
     )
 
 
-def _build_cluster_memberships_expr(run_scoped: bool) -> str:
+def _build_cluster_memberships_expr(
+    run_scoped: bool,
+    retrieval_ontology: RetrievalOntology | None = None,
+) -> str:
+    ontology = _resolve_retrieval_ontology(retrieval_ontology)
     run_filter = " WHERE mention.run_id = $run_id" if run_scoped else ""
     return (
-        "[(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[r:MEMBER_OF]->(cluster:ResolvedEntityCluster)"
+        f"[(c)<-[:{ontology.mentioned_in_relationship}]-(mention:{ontology.mention_label})"
+        f"-[r:{ontology.member_of_relationship}]->(cluster:{ontology.cluster_label})"
         + run_filter
         + " | {cluster_id: cluster.cluster_id, cluster_name: cluster.canonical_name, membership_status: r.status, membership_method: r.method}] AS cluster_memberships"
     )
 
 
-def _build_cluster_canonical_alignments_expr(run_scoped: bool) -> str:
+def _build_cluster_canonical_alignments_expr(
+    run_scoped: bool,
+    retrieval_ontology: RetrievalOntology | None = None,
+) -> str:
+    ontology = _resolve_retrieval_ontology(retrieval_ontology)
     if run_scoped:
         where_clause = (
             " WHERE mention.run_id = $run_id AND a.run_id = $run_id"
@@ -62,8 +94,9 @@ def _build_cluster_canonical_alignments_expr(run_scoped: bool) -> str:
             " WHERE a.run_id = mention.run_id AND a.alignment_version = $alignment_version"
         )
     return (
-        "[(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:MEMBER_OF]"
-        "->(cluster:ResolvedEntityCluster)-[a:ALIGNED_WITH]->(aligned_canonical)"
+        f"[(c)<-[:{ontology.mentioned_in_relationship}]-(mention:{ontology.mention_label})"
+        f"-[:{ontology.member_of_relationship}]->(cluster:{ontology.cluster_label})"
+        f"-[a:{ontology.aligned_with_relationship}]->(aligned_canonical:{ontology.canonical_label})"
         + where_clause
         + " | {canonical_name: aligned_canonical.name, alignment_method: a.alignment_method,"
         " alignment_status: a.alignment_status}] AS cluster_canonical_alignments"
@@ -75,7 +108,9 @@ def _build_retrieval_query(
     expand_graph: bool = False,
     cluster_aware: bool = False,
     all_runs: bool = False,
+    retrieval_ontology: RetrievalOntology | None = None,
 ) -> str:
+    ontology = _resolve_retrieval_ontology(retrieval_ontology)
     run_scoped = not all_runs
     expand_graph = expand_graph or cluster_aware
 
@@ -94,9 +129,9 @@ def _build_retrieval_query(
     if not expand_graph:
         return "\n" + preamble + "\n" + _RETURN_BASE_COLUMNS + "\n"
 
-    with_claim = _build_claim_details_with_clause(run_scoped)
-    mention_expr = _build_mention_names_expr(run_scoped)
-    canonical_expr = _build_canonical_names_expr(run_scoped)
+    with_claim = _build_claim_details_with_clause(run_scoped, ontology)
+    mention_expr = _build_mention_names_expr(run_scoped, ontology)
+    canonical_expr = _build_canonical_names_expr(run_scoped, ontology)
     expansion_return = (
         "       [cd IN claim_details | cd.claim_text] AS claims,\n"
         "       " + mention_expr + ",\n"
@@ -112,8 +147,8 @@ def _build_retrieval_query(
             + expansion_return + "\n"
         )
 
-    cluster_memberships_expr = _build_cluster_memberships_expr(run_scoped)
-    cluster_canonical_expr = _build_cluster_canonical_alignments_expr(run_scoped)
+    cluster_memberships_expr = _build_cluster_memberships_expr(run_scoped, ontology)
+    cluster_canonical_expr = _build_cluster_canonical_alignments_expr(run_scoped, ontology)
     cluster_return = (
         "       " + cluster_memberships_expr + ",\n"
         "       " + cluster_canonical_expr
@@ -159,6 +194,7 @@ def _select_runtime_retrieval_query(
     expand_graph: bool = False,
     cluster_aware: bool = False,
     all_runs: bool = False,
+    retrieval_ontology: RetrievalOntology | None = None,
 ) -> str:
     _select_retrieval_query(
         expand_graph=expand_graph,
@@ -169,6 +205,7 @@ def _select_runtime_retrieval_query(
         expand_graph=expand_graph,
         cluster_aware=cluster_aware,
         all_runs=all_runs,
+        retrieval_ontology=retrieval_ontology,
     )
 
 

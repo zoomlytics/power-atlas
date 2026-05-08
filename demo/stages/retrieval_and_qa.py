@@ -20,6 +20,8 @@ from power_atlas.contracts import (
     AmbiguousDatasetError,
     POWER_ATLAS_RAG_TEMPLATE,
     PROMPT_IDS,
+    RetrievalPolicy,
+    get_default_retrieval_policy,
     resolve_dataset_root,
 )
 from power_atlas.contracts.pipeline import (
@@ -119,6 +121,10 @@ def _pipeline_contract_value(
     pipeline_contract: PipelineContractSnapshot,
 ) -> str:
     return cast(str, get_stage_pipeline_contract_value(name, _PIPELINE_CONTRACT_EXPORTS, pipeline_contract))
+
+
+def _get_retrieval_policy() -> RetrievalPolicy:
+    return get_default_retrieval_policy()
 
 
 def _resolve_pipeline_contract(
@@ -235,6 +241,7 @@ def _select_runtime_retrieval_query(
     all_runs: bool = False,
 ) -> str:
     """Return the live-built retrieval query using the stage-bound builder seam."""
+    retrieval_policy = _get_retrieval_policy()
     _select_retrieval_query(
         expand_graph=expand_graph,
         cluster_aware=cluster_aware,
@@ -244,6 +251,7 @@ def _select_runtime_retrieval_query(
         expand_graph=expand_graph,
         cluster_aware=cluster_aware,
         all_runs=all_runs,
+        retrieval_ontology=retrieval_policy.ontology,
     )
 
 
@@ -402,6 +410,7 @@ def _build_retriever_and_rag(
     neo4j_database:
         Optional Neo4j database name; ``None`` uses the driver's default database.
     """
+    retrieval_policy = _get_retrieval_policy()
     retriever, rag = build_retriever_and_rag_impl(
         driver,
         index_name=index_name,
@@ -415,7 +424,7 @@ def _build_retriever_and_rag(
         rag_factory=GraphRAG,
         build_embedder=build_embedder,
         build_llm=build_openai_llm,
-        prompt_template=POWER_ATLAS_RAG_TEMPLATE,
+        prompt_template=retrieval_policy.rag_template,
     )
     return retriever, rag
 
@@ -528,7 +537,7 @@ def _run_retrieval_and_qa_impl(
     resolved_index_name = execution_context.resolved_index_name
     effective_qa_model = execution_context.effective_qa_model
     retrieval_query_contract = execution_context.retrieval_query
-    qa_prompt_version = PROMPT_IDS["qa"]
+    qa_prompt_version = _get_retrieval_policy().qa_prompt_id
     prelude = prepare_retrieval_result_prelude(
         run_id=run_id,
         source_uri=source_uri,
