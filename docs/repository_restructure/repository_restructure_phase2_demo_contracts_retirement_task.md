@@ -334,12 +334,13 @@ later completed.
 
 #### Recommendation at that checkpoint
 
-Based on the current repo state, the retirement implementation should not be
-scheduled as a late-Phase-2 slice.
+Based on the repo state at that checkpoint, the retirement implementation
+should not have been scheduled as a late-Phase-2 slice.
 
 Reasons:
 
-- `demo/` remains the active execution center of gravity,
+- `demo/` still functioned as the active execution center of gravity at that
+  stage,
 - the remaining demo contract surface is now primarily an explicit compatibility
   promise rather than stray runtime coupling,
 - the root proxy and pipeline alias still encode compatibility behavior that is
@@ -353,7 +354,11 @@ This means the right Phase 2 outcome is:
 - avoid more blind import cleanup framed as retirement,
 - continue package adoption and broader architectural movement elsewhere,
 - defer actual shim-removal implementation to Phase 10 unless the repo later
-  stops treating `demo/` as an active execution surface.
+  stopped treating `demo/` as an active execution surface.
+
+Current status note: that condition has since been satisfied. The repo now
+treats `src/power_atlas/` as the runtime core, with `demo/` retained as a
+maintained operator/demo shell rather than the execution center of gravity.
 
 ### Validation gate for any future implementation
 
