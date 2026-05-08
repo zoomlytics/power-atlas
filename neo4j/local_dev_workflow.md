@@ -87,6 +87,13 @@ cypher-shell -a "$NEO4J_URI" -u "$NEO4J_USERNAME" -p "$NEO4J_PASSWORD" \
   -f neo4j/diagnostics/check_demo_chunk_embedding_index.cypher
 ```
 
+If you need the broader live demo schema inventory for the current database:
+
+```bash
+cypher-shell -a "$NEO4J_URI" -u "$NEO4J_USERNAME" -p "$NEO4J_PASSWORD" \
+  -f neo4j/diagnostics/check_demo_schema_inventory.cypher
+```
+
 If you need to apply the current index asset manually:
 
 ```bash

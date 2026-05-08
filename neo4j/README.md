@@ -40,6 +40,8 @@ externalized graph-ops model.
   benchmark CLI seam `pipelines/query/retrieval_benchmark.py`.
 - The first concrete operational diagnostic asset now exists at
   `neo4j/diagnostics/check_demo_chunk_embedding_index.cypher`.
+- The demo-relevant live schema inventory is now also externalized at
+  `neo4j/diagnostics/check_demo_schema_inventory.cypher`.
 - The current demo reset scope is now also externalized under
   `neo4j/diagnostics/demo_reset_scope.md` and
   `neo4j/diagnostics/check_demo_reset_scope.cypher`.
@@ -70,6 +72,9 @@ For local development and validation, the effective workflow today is:
 3. Optionally reset the demo-owned graph with `python -m demo.reset_demo_db --confirm`.
 4. Run the demo pipeline (`ingest-pdf`, `extract-claims`, `resolve-entities`, optional `ingest-structured`).
 5. Run read-only diagnostics (`graph-health`, `retrieval-benchmark`) or retrieval validation.
+
+For low-level manual inspection, prefer the read-only Cypher assets under
+`neo4j/diagnostics/` before writing one-off ad hoc queries.
 
 See `neo4j/local_dev_workflow.md` for the consolidated local/test procedure.
 
