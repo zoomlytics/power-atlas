@@ -17,6 +17,13 @@ later Phase 7 evaluation-layout decisions and Phase 10 legacy-retirement work
 remain available as deliberate follow-up slices, but they are no longer
 prerequisites for calling the migration structurally closed.
 
+As a separate forward-looking question, the repo now also has a dedicated
+assessment of whether the package-first runtime seams are strong enough to
+support extraction into a reusable multi-app Neo4j research runner core:
+`docs/repository_restructure/repository_restructure_generic_research_runner_feasibility.md`.
+That memo should be read as a productization/reuse feasibility note rather than
+as evidence that the original restructure remains open.
+
 ## 0. Goals
 
 This migration is intended to:
