@@ -47,6 +47,9 @@ externalized graph-ops model.
   `neo4j/diagnostics/check_demo_reset_scope.cypher`.
 - Seed-like demo source assets currently live under `demo/fixtures/`, and that
   posture is now documented at `neo4j/seed/demo_fixture_seed_inventory.md`.
+- The current constraints posture is now documented at
+  `neo4j/constraints/current_demo_constraints_posture.md`: there is not yet a
+  stable checked-in demo-owned constraint bundle to apply.
 
 This means the folder structure is now explicit even though some concrete graph
 assets are still managed by the demo/runtime path and should be moved here only

@@ -115,6 +115,11 @@ For the current seed/reference-data posture, see
 `neo4j/seed/demo_fixture_seed_inventory.md`. The practical source-of-truth
 inputs for local graph setup still live under `demo/fixtures/`.
 
+For the current constraints posture, see
+`neo4j/constraints/current_demo_constraints_posture.md`. The local candidate
+workflow does not yet require applying a checked-in demo-owned constraint
+bundle before ingest.
+
 Typical sequence:
 
 ```bash
