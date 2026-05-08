@@ -111,6 +111,10 @@ The current practical local flow is:
 4. run the demo pipeline stages
 5. run read-only diagnostics and retrieval validation
 
+For the current seed/reference-data posture, see
+`neo4j/seed/demo_fixture_seed_inventory.md`. The practical source-of-truth
+inputs for local graph setup still live under `demo/fixtures/`.
+
 Typical sequence:
 
 ```bash

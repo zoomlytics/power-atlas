@@ -45,7 +45,8 @@ externalized graph-ops model.
 - The current demo reset scope is now also externalized under
   `neo4j/diagnostics/demo_reset_scope.md` and
   `neo4j/diagnostics/check_demo_reset_scope.cypher`.
-- Seed-like demo source assets currently live under `demo/fixtures/`.
+- Seed-like demo source assets currently live under `demo/fixtures/`, and that
+  posture is now documented at `neo4j/seed/demo_fixture_seed_inventory.md`.
 
 This means the folder structure is now explicit even though some concrete graph
 assets are still managed by the demo/runtime path and should be moved here only
