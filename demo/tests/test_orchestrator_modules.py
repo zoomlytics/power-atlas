@@ -1090,14 +1090,6 @@ def test_claim_extraction_live_path_uses_create_lexical_graph_false(tmp_path: Pa
         source_uri="file:///doc.pdf",
     )
 
-    request_context = replace(
-        request_context,
-        app=replace(
-            request_context.app,
-            policies=replace(request_context.policies, claim_extraction=alternate_policy),
-        ),
-    )
-
     with mock.patch(
         "neo4j_graphrag.experimental.components.entity_relation_extractor.LLMEntityRelationExtractor",
         _FakeExtractor,
@@ -1108,7 +1100,7 @@ def test_claim_extraction_live_path_uses_create_lexical_graph_false(tmp_path: Pa
         "demo.io.RunScopedNeo4jChunkReader",
         _FakeChunkReader,
     ), mock.patch(
-        "demo.extraction_utils.write_all_extraction_data",
+        "power_atlas.extraction_writes.write_all_extraction_data",
         side_effect=_fake_write_all_extraction_data,
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
         summary = run_claim_and_mention_extraction_request_context(request_context)
@@ -1239,7 +1231,7 @@ def test_claim_extraction_live_path_uses_claim_extraction_policy_override(tmp_pa
         "demo.io.RunScopedNeo4jChunkReader",
         _FakeChunkReader,
     ), mock.patch(
-        "demo.extraction_utils.write_all_extraction_data",
+        "power_atlas.extraction_writes.write_all_extraction_data",
         side_effect=_fake_write_all_extraction_data,
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
         summary = run_claim_and_mention_extraction_request_context(request_context)
@@ -1342,7 +1334,7 @@ def test_claim_extraction_live_writes_participation_edges_when_mention_matches(t
         "demo.io.RunScopedNeo4jChunkReader",
         _FakeChunkReader,
     ), mock.patch(
-        "demo.extraction_utils.write_all_extraction_data",
+        "power_atlas.extraction_writes.write_all_extraction_data",
         side_effect=_fake_write_all_extraction_data,
     ), mock.patch("neo4j.GraphDatabase.driver"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
         summary = run_claim_and_mention_extraction_request_context(request_context)

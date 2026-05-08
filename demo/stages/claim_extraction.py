@@ -182,7 +182,8 @@ def _run_claim_and_mention_extraction_runtime(
         "OPENAI_API_KEY environment variable is required for live claim extraction."
     )
 
-    from demo.extraction_utils import prepare_extracted_rows, write_all_extraction_data
+    from power_atlas.extraction_rows import prepare_extracted_rows
+    from power_atlas.extraction_writes import write_all_extraction_data
     from demo.stages.claim_participation import (
         ROLE_OBJECT,
         ROLE_SUBJECT,
