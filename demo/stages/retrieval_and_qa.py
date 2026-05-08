@@ -127,6 +127,23 @@ def _get_retrieval_policy() -> RetrievalPolicy:
     return get_default_retrieval_policy()
 
 
+def _resolve_retrieval_traversal_options(
+    *,
+    expand_graph: bool | None,
+    cluster_aware: bool | None,
+) -> tuple[bool, bool]:
+    retrieval_policy = _get_retrieval_policy()
+    effective_expand_graph = (
+        retrieval_policy.default_expand_graph if expand_graph is None else expand_graph
+    )
+    effective_cluster_aware = (
+        retrieval_policy.default_cluster_aware
+        if cluster_aware is None
+        else cluster_aware
+    )
+    return effective_expand_graph or effective_cluster_aware, effective_cluster_aware
+
+
 def _resolve_pipeline_contract(
     config: object,
     pipeline_contract: PipelineContractSnapshot | None,
@@ -435,8 +452,8 @@ def run_retrieval_and_qa_request_context(
     top_k: int = _DEFAULT_TOP_K,
     index_name: str | None = None,
     question: str | None = None,
-    expand_graph: bool = False,
-    cluster_aware: bool = False,
+    expand_graph: bool | None = None,
+    cluster_aware: bool | None = None,
     message_history: MessageHistory | list[dict[str, str]] | None = None,
     interactive: bool = False,
 ) -> dict[str, object]:
@@ -462,8 +479,8 @@ def _run_retrieval_and_qa_impl(
     top_k: int = _DEFAULT_TOP_K,
     index_name: str | None = None,
     question: str | None = None,
-    expand_graph: bool = False,
-    cluster_aware: bool = False,
+    expand_graph: bool | None = None,
+    cluster_aware: bool | None = None,
     message_history: MessageHistory | list[dict[str, str]] | None = None,
     interactive: bool = False,
     all_runs: bool = False,
@@ -522,12 +539,16 @@ def _run_retrieval_and_qa_impl(
         Optional explicit Neo4j settings. RequestContext-driven calls should
         provide this so live retrieval does not depend on config-shape fallback.
     """
+    effective_expand_graph, effective_cluster_aware = _resolve_retrieval_traversal_options(
+        expand_graph=expand_graph,
+        cluster_aware=cluster_aware,
+    )
     execution_context = prepare_retrieval_execution_context(
         config=config,
         pipeline_contract=pipeline_contract,
         index_name=index_name,
-        expand_graph=expand_graph,
-        cluster_aware=cluster_aware,
+        expand_graph=effective_expand_graph,
+        cluster_aware=effective_cluster_aware,
         all_runs=all_runs,
         resolve_pipeline_contract=_resolve_pipeline_contract,
         pipeline_contract_value=_pipeline_contract_value,
@@ -547,8 +568,8 @@ def _run_retrieval_and_qa_impl(
         question=question,
         effective_qa_model=effective_qa_model,
         qa_prompt_version=qa_prompt_version,
-        expand_graph=expand_graph,
-        cluster_aware=cluster_aware,
+        expand_graph=effective_expand_graph,
+        cluster_aware=effective_cluster_aware,
         retrieval_query_contract=retrieval_query_contract,
         interactive=interactive,
         message_history_enabled=message_history is not None,
@@ -564,8 +585,8 @@ def _run_retrieval_and_qa_impl(
         config=config,
         question=question,
         base=base,
-        expand_graph=expand_graph,
-        cluster_aware=cluster_aware,
+        expand_graph=effective_expand_graph,
+        cluster_aware=effective_cluster_aware,
         all_runs=all_runs,
         logger=_logger,
     )
@@ -583,7 +604,7 @@ def _run_retrieval_and_qa_impl(
         run_id=run_id,
         source_uri=source_uri,
         all_runs=all_runs,
-        cluster_aware=cluster_aware,
+        cluster_aware=effective_cluster_aware,
         build_query_params=_build_query_params,
         run_id_error_message=(
             "run_id is required for live retrieval. "
@@ -646,8 +667,8 @@ def _run_retrieval_and_qa_impl(
         session_warnings=session_warnings,
         session_citation_warnings=session_citation_warnings,
         all_runs=all_runs,
-        expand_graph=expand_graph,
-        cluster_aware=cluster_aware,
+        expand_graph=effective_expand_graph,
+        cluster_aware=effective_cluster_aware,
         citation_token_example=citation_token_example,
         citation_object_example=citation_object_example,
         fallback_preview_max_len=_FALLBACK_PREVIEW_MAX_LEN,
@@ -672,8 +693,8 @@ def _run_interactive_qa_impl(
     source_uri: str | None = None,
     top_k: int = _DEFAULT_TOP_K,
     index_name: str | None = None,
-    expand_graph: bool = False,
-    cluster_aware: bool = False,
+    expand_graph: bool | None = None,
+    cluster_aware: bool | None = None,
     all_runs: bool = False,
     debug: bool = False,
     pipeline_contract: PipelineContractSnapshot | None = None,
@@ -732,12 +753,16 @@ def _run_interactive_qa_impl(
         Optional explicit Neo4j settings. RequestContext-driven calls should
         provide this so live retrieval does not depend on config-shape fallback.
     """
+    effective_expand_graph, effective_cluster_aware = _resolve_retrieval_traversal_options(
+        expand_graph=expand_graph,
+        cluster_aware=cluster_aware,
+    )
     execution_context = prepare_retrieval_execution_context(
         config=config,
         pipeline_contract=pipeline_contract,
         index_name=index_name,
-        expand_graph=expand_graph,
-        cluster_aware=cluster_aware,
+        expand_graph=effective_expand_graph,
+        cluster_aware=effective_cluster_aware,
         all_runs=all_runs,
         resolve_pipeline_contract=_resolve_pipeline_contract,
         pipeline_contract_value=_pipeline_contract_value,
@@ -751,7 +776,7 @@ def _run_interactive_qa_impl(
         run_id=run_id,
         source_uri=source_uri,
         all_runs=all_runs,
-        cluster_aware=cluster_aware,
+        cluster_aware=effective_cluster_aware,
         build_query_params=_build_query_params,
         run_id_error_message=(
             "run_id is required for interactive retrieval. "
@@ -812,8 +837,8 @@ def run_interactive_qa_request_context(
     *,
     top_k: int = _DEFAULT_TOP_K,
     index_name: str | None = None,
-    expand_graph: bool = False,
-    cluster_aware: bool = False,
+    expand_graph: bool | None = None,
+    cluster_aware: bool | None = None,
     all_runs: bool | None = None,
     debug: bool = False,
 ) -> None:

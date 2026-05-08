@@ -26,6 +26,8 @@ class RetrievalPolicy:
     ontology: RetrievalOntology
     qa_prompt_id: str
     rag_template: RagTemplate
+    default_expand_graph: bool = False
+    default_cluster_aware: bool = False
 
 
 POWER_ATLAS_RETRIEVAL_ONTOLOGY = RetrievalOntology()

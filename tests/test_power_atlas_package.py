@@ -124,6 +124,8 @@ def test_default_retrieval_policy_matches_existing_power_atlas_defaults() -> Non
     assert retrieval_policy.rag_template is POWER_ATLAS_RAG_TEMPLATE
     assert retrieval_policy.ontology.claim_label == "ExtractedClaim"
     assert retrieval_policy.ontology.aligned_with_relationship == "ALIGNED_WITH"
+    assert retrieval_policy.default_expand_graph is False
+    assert retrieval_policy.default_cluster_aware is False
 
 
 def test_build_runtime_config_from_settings() -> None:
