@@ -326,6 +326,12 @@ graph writes during a pipeline run.
 | [`demo/tests/contract_fixtures/`](demo/tests/contract_fixtures/) | YAML fixtures for citation contract scenarios |
 | [`tests/`](tests/) | Repository-level integration tests (PDF ingest helpers, vendor sync) |
 
+At the current Phase 7 checkpoint, benchmark- and diagnostics-named tests
+under `demo/tests/` remain active correctness coverage when they verify stage
+logic, CLI contracts, or supported inspection surfaces. No obsolete-test
+quarantine or broader first-party CI narrowing is currently recorded for these
+roots.
+
 ### `ask --run-id` dataset-ownership validation
 
 When `ask` is called with an explicit `--run-id` alongside a dataset selection
