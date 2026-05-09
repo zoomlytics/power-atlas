@@ -8,6 +8,8 @@ from typing import Any
 from unittest.mock import MagicMock, call, patch
 
 from power_atlas.contracts import Config
+from power_atlas.contracts import POWER_ATLAS_ENTITY_TYPE_NORMALIZATION_POLICY
+from power_atlas.contracts import build_entity_type_cypher_case
 from power_atlas.contracts.pipeline import (
     get_pipeline_contract_config_data,
     get_pipeline_contract_snapshot,
@@ -27,10 +29,8 @@ from demo.stages.graph_health import (
     build_graph_health_artifact,
     run_graph_health_diagnostics,
 )
-from demo.stages.entity_resolution import (
-    _ENTITY_TYPE_SYNONYMS,
-    build_entity_type_cypher_case,
-)
+
+_ENTITY_TYPE_SYNONYMS = POWER_ATLAS_ENTITY_TYPE_NORMALIZATION_POLICY.synonyms
 
 
 # ---------------------------------------------------------------------------

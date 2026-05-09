@@ -59,13 +59,13 @@ from typing import Any
 
 from power_atlas.context import RequestContext
 from power_atlas.contracts import EntityTypeNormalizationPolicy
+from power_atlas.contracts import build_entity_type_cypher_case as _build_entity_type_cypher_case
 from power_atlas.graph_health_queries import CANONICAL_CHAIN_HEALTH_LIMIT as _CANONICAL_CHAIN_HEALTH_LIMIT
 from power_atlas.graph_health_queries import PER_CANONICAL_ALIGNMENT_LIMIT as _PER_CANONICAL_ALIGNMENT_LIMIT
 from power_atlas.graph_health_queries import build_cluster_type_fragmentation_query
 from power_atlas.graph_health_queries import build_graph_health_query_specs
 from power_atlas.graph_health_queries import fetch_graph_health_query_rows
 from power_atlas.settings import Neo4jSettings
-from demo.stages.entity_resolution import build_entity_type_cypher_case as _build_entity_type_cypher_case
 
 _logger = logging.getLogger(__name__)
 
