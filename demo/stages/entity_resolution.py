@@ -217,13 +217,7 @@ Recommended metrics per mode
 """
 from __future__ import annotations
 
-import json
-import re
-from datetime import UTC, datetime
-from difflib import SequenceMatcher
-from pathlib import Path
 from typing import Any
-from urllib.parse import quote as _pct_encode
 
 import neo4j
 
@@ -242,10 +236,23 @@ from power_atlas.entity_resolution_queries import (
     fetch_entity_mentions,
     fetch_member_of_coverage,
 )
+from power_atlas.entity_resolution_clustering import _FUZZY_REVIEW_THRESHOLD
+from power_atlas.entity_resolution_clustering import _cluster_mentions_unstructured_only
+from power_atlas.entity_resolution_clustering import _compute_initials
+from power_atlas.entity_resolution_clustering import _fuzzy_ratio
+from power_atlas.entity_resolution_clustering import _is_abbreviation
+from power_atlas.entity_resolution_clustering import _make_cluster_id
+from power_atlas.entity_resolution_clustering import _membership_score
+from power_atlas.entity_resolution_clustering import _membership_status
 from power_atlas.entity_resolution_resolver import _build_lookup_tables
 from power_atlas.entity_resolution_resolver import _resolve_mention
 from power_atlas.entity_resolution_resolver import _split_aliases
 from power_atlas.entity_resolution_runtime import run_entity_resolution_live
+from power_atlas.entity_resolution_runner import run_entity_resolution_runtime as _run_entity_resolution_runtime_impl
+from power_atlas.entity_resolution_runner import write_alignment_results as _write_alignment_results_impl
+from power_atlas.entity_resolution_runner import write_cluster_memberships as _write_cluster_memberships_impl
+from power_atlas.entity_resolution_runner import write_resolution_results as _write_resolution_results_impl
+from power_atlas.entity_resolution_runner import write_resolved_mentions as _write_resolved_mentions_impl
 from power_atlas.entity_resolution_writes import (
     write_alignment_results as _write_alignment_results_live,
     write_cluster_memberships as _write_cluster_memberships_live,
@@ -266,19 +273,9 @@ _CLUSTER_VERSION = "v1.3"
 # Fuzzy SequenceMatcher ratio at-or-above which a fuzzy cluster match is classified
 # as "provisional" (high-confidence minor surface variant) rather than
 # "review_required" (borderline ambiguous match that warrants human review).
-_FUZZY_REVIEW_THRESHOLD = 0.92
 
-_QID_PATTERN = re.compile(r"^Q\d+$")
-
-# Strips everything that is not a lowercase ASCII letter. Intended to be used
-# on already-normalized (lowercased) text to normalize abbreviated forms like
-# "f.b.i." → "fbi" and "fbi," → "fbi" so that _is_abbreviation() works on
-# typical extracted text.
-_RE_NON_ALPHA = re.compile(r"[^a-z]")
-
-# Normalisation function used throughout this module.  Defined in
-# :mod:`demo.text_utils` and imported here as a module-private alias so that
-# call-sites within this file do not need to change.
+# Normalisation function used throughout this module. Kept as a compatibility
+# alias because tests and neighboring helpers import it from the stage.
 _normalize = normalize_mention_text
 
 # Supported resolution mode identifiers.
@@ -387,8 +384,7 @@ def _normalize_entity_type(
 
     All other non-empty labels are returned with whitespace stripped but
     otherwise unchanged.  ``None``, ``''``, and whitespace-only strings all
-    return ``None`` (the caller of :func:`_make_cluster_id` maps ``None``
-    to an empty string, preserving the existing ``None``/``''`` equivalence).
+    return ``None``.
     """
     return normalize_entity_type_from_policy(entity_type, entity_type_policy)
 
@@ -398,62 +394,7 @@ def build_entity_type_cypher_case(
     unknown_label: str = "UNKNOWN",
     entity_type_policy: EntityTypeNormalizationPolicy | None = None,
 ) -> str:
-    """Return a Cypher CASE expression that mirrors :func:`_normalize_entity_type`.
-
-    The generated expression is derived directly from :data:`_ENTITY_TYPE_SYNONYMS`
-    and therefore reflects the same normalization policy that determines cluster
-    identity during entity resolution.  Use this whenever a Cypher query needs
-    to apply entity-type normalization (e.g. graph-health type-fragmentation
-    diagnostics) so that the Cypher semantics stay automatically in sync with
-    the Python policy.
-
-    Matching is **case-sensitive** and applies ``trim()`` to strip leading/trailing
-    whitespace before comparison, mirroring the ``.strip()`` applied by
-    :func:`_normalize_entity_type`.  ``NULL``, whitespace-only strings, and
-    empty strings all resolve to *unknown_label*.
-
-    Parameters
-    ----------
-    var:
-        The Cypher variable or property expression whose value is the raw
-        ``entity_type`` string, e.g. ``"m.entity_type"``.  Must be a
-        dot-separated sequence of valid identifiers
-        (``[A-Za-z_][A-Za-z0-9_]*``); trailing dots and empty segments are
-        rejected to prevent Cypher injection.
-    unknown_label:
-        The literal string to emit when *var* is ``NULL``, the empty string,
-        or a whitespace-only string (i.e. when :func:`_normalize_entity_type`
-        would return ``None``).
-        Defaults to ``"UNKNOWN"``.  Single-quotes are escaped automatically.
-
-    Returns
-    -------
-    A Cypher expression string (without a trailing newline) suitable for use
-    in a ``WITH`` or ``RETURN`` clause.
-
-    Raises
-    ------
-    ValueError
-        If *var* does not match the safe allowlist pattern
-        ``[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*``
-        (dot-separated identifier segments; trailing dots and empty segments
-        are rejected).
-
-    Example
-    -------
-    With the default synonym table the expression produced for
-    ``var="m.entity_type"`` is equivalent to::
-
-        CASE
-          WHEN m.entity_type IS NULL OR trim(m.entity_type) = '' THEN 'UNKNOWN'
-          WHEN trim(m.entity_type) = 'ORG' THEN 'Organization'
-          WHEN trim(m.entity_type) = 'Company' THEN 'Organization'
-          WHEN trim(m.entity_type) = 'organization' THEN 'Organization'
-          WHEN trim(m.entity_type) = 'PERSON' THEN 'Person'
-          WHEN trim(m.entity_type) = 'person' THEN 'Person'
-          ELSE trim(m.entity_type)
-        END
-    """
+    """Compatibility wrapper over the package-owned Cypher normalization helper."""
     return build_entity_type_cypher_case_from_policy(
         var,
         unknown_label,
@@ -568,442 +509,9 @@ def _build_entity_type_report(
     }
 
 
-def _make_cluster_id(
-    run_id: str,
-    entity_type: str | None,
-    normalized_text: str,
-    entity_type_policy: EntityTypeNormalizationPolicy | None = None,
-) -> str:
-    """Compute a scoped cluster_id for a :ResolvedEntityCluster node.
-
-    The cluster_id encodes three identity dimensions so that clusters are never
-    unintentionally merged across runs, entity types, or normalized texts:
-
-    * **run_id** — prevents cross-run collision when the same text appears in
-      multiple independent processing runs.
-    * **entity_type** — prevents merging semantically distinct clusters that
-      share a normalized text but belong to different entity types (e.g. "IBM"
-      as an ORG vs "IBM" as a PRODUCT).
-    * **normalized_text** — the canonical text of the cluster representative.
-
-    ``source_uri`` is intentionally **not** part of cluster identity.  Mentions
-    from different source documents within the same run that refer to the same
-    entity type and normalized text are considered the same cluster; this allows
-    cross-document clustering within a run.  ``source_uri`` is still propagated
-    as provenance on ``MEMBER_OF``, ``RESOLVES_TO``, and ``ALIGNED_WITH`` edges
-    so that per-mention origin tracking is preserved without forcing
-    source-partitioned cluster identity.
-
-    Format: ``cluster::<run_id_enc>::<entity_type_enc>::<normalized_text_enc>``
-
-    Each component is percent-encoded (RFC 3986, ``safe=''``) before joining
-    so that a component containing the ``::`` delimiter cannot produce a
-    cluster_id that collides with a legitimately different tuple.
-
-    ``entity_type=None`` is treated as an empty string before encoding, so
-    ``None`` and ``""`` produce the same cluster_id for that dimension.  An
-    empty *normalized_text* is accepted and yields a deterministic ID.  A
-    non-empty *run_id* is required; passing an empty string raises
-    :exc:`ValueError` because it would produce IDs indistinguishable across
-    runs.
-
-    *entity_type* is normalized via :func:`_normalize_entity_type` before
-    encoding so that synonymous labels (``'ORG'``/``'Organization'``,
-    ``'PERSON'``/``'Person'``, ``'Company'``/``'Organization'``) produce the
-    same cluster_id and are never split into unintended separate clusters.
-    """
-    if not run_id:
-        raise ValueError("run_id must be a non-empty string")
-    run_id_enc = _pct_encode(run_id, safe="")
-    entity_type_enc = _pct_encode(
-        _normalize_entity_type(entity_type, entity_type_policy) or "",
-        safe="",
-    )
-    normalized_text_enc = _pct_encode(normalized_text, safe="")
-    return f"cluster::{run_id_enc}::{entity_type_enc}::{normalized_text_enc}"
-
-
 # ---------------------------------------------------------------------------
 # Helpers for unstructured_only resolution
 # ---------------------------------------------------------------------------
-
-# Common articles/prepositions that are typically skipped when forming initialisms.
-_INITIALISM_STOP_WORDS = frozenset({"of", "the", "and", "for", "in", "on", "at", "to", "a", "an"})
-
-
-def _compute_initials(text: str) -> str | None:
-    """Return the initialism formed by the significant words in *text*.
-
-    The input is lowercased, and each word token is stripped of non-alphabetic
-    characters before stop-word filtering and initial extraction, so tokens like
-    ``"Of,"``/``"of,"`` or ``"The."``/``"the."`` are treated identically to their
-    clean equivalents.
-
-    Returns ``None`` when *text* has fewer than two significant words (i.e.
-    it would not produce a meaningful abbreviation).
-    """
-    significant: list[str] = []
-    for w in text.split():
-        w_lower = w.lower()
-        alpha = _RE_NON_ALPHA.sub("", w_lower)
-        if alpha and alpha not in _INITIALISM_STOP_WORDS:
-            significant.append(alpha)
-    if len(significant) < 2:
-        return None
-    return "".join(w[0] for w in significant)
-
-
-def _is_abbreviation(short: str, long_form: str) -> bool:
-    """Return True if *short* looks like an initialism of *long_form*.
-
-    Example: ``"fbi"`` is an initialism of ``"federal bureau of investigation"``
-    (skipping the stop word ``"of"``).  Inputs are case-normalized internally.
-    The *short* token is further stripped of non-alphabetic characters so forms
-    like ``"F.B.I."`` and ``"fbi,"`` still match the same initialism as
-    ``"fbi"``.  Each word in *long_form* is likewise stripped of punctuation
-    before stop-word filtering and initial extraction, so tokens like
-    ``"Investigation,"``/``"investigation,"`` are handled correctly.
-    """
-    short_alpha = _RE_NON_ALPHA.sub("", short.lower())
-    if not short_alpha:
-        return False
-    initials = _compute_initials(long_form.lower())
-    if initials is None:
-        return False
-    return short_alpha == initials
-
-
-def _fuzzy_ratio(a: str, b: str) -> float:
-    """Return the SequenceMatcher similarity ratio for two strings."""
-    return SequenceMatcher(None, a, b).ratio()
-
-
-def _membership_score(method: str, resolution_confidence: float) -> float:
-    """Return the MEMBER_OF edge score for a given cluster assignment method.
-
-    ``resolution_confidence`` from :func:`_resolve_mention` is a match-quality
-    score, not a membership certainty score.  Deterministic cluster assignments
-    (``label_cluster``, ``normalized_exact``) have certainty 1.0 even though
-    their match confidence may be stored as 0.0 on the unresolved-row.  Fuzzy
-    matches use the actual SequenceMatcher ratio as the membership score.
-    """
-    if method in ("label_cluster", "normalized_exact"):
-        return 1.0
-    if method == "abbreviation":
-        return 0.75
-    # fuzzy: use the actual similarity ratio stored in resolution_confidence.
-    return resolution_confidence
-
-
-def _membership_status(method: str, score: float) -> str:
-    """Return the MEMBER_OF edge status for a given cluster assignment method and score.
-
-    Status values reflect the confidence and ambiguity of the membership:
-
-    - ``"accepted"`` — deterministic assignment (``label_cluster``,
-      ``normalized_exact``); high-confidence, no review needed.
-    - ``"provisional"`` — high-confidence probabilistic fuzzy match
-      (SequenceMatcher ratio ≥ :data:`_FUZZY_REVIEW_THRESHOLD`); minor
-      surface-form variant, review is optional.
-    - ``"candidate"`` — abbreviation/initialism match; identity is plausible
-      but the abbreviated form is inherently ambiguous, so human review adds
-      value.  Explicit :data:`CANDIDATE_MATCH` edges are also written for
-      these memberships.
-    - ``"review_required"`` — borderline fuzzy match (ratio below
-      :data:`_FUZZY_REVIEW_THRESHOLD`); the relationship is tentative and
-      should be verified before being relied upon.  Explicit
-      :data:`CANDIDATE_MATCH` edges are also written for these memberships.
-    """
-    if method in ("label_cluster", "normalized_exact"):
-        return "accepted"
-    if method == "abbreviation":
-        return "candidate"
-    if method == "fuzzy":
-        return "provisional" if score >= _FUZZY_REVIEW_THRESHOLD else "review_required"
-    # Fallback for any future methods not yet mapped.
-    return "provisional"
-
-
-def _cluster_mentions_unstructured_only(
-    mentions: list[dict[str, Any]],
-    *,
-    fuzzy_threshold: float = 0.85,
-    entity_type_policy: EntityTypeNormalizationPolicy | None = None,
-) -> list[dict[str, Any]]:
-    """Cluster *mentions* against each other without relying on canonical entities.
-
-    Strategies applied in priority order:
-
-    1. **normalized_exact** — identical normalized text → same cluster (type-agnostic).
-    2. **abbreviation** — a mention that is an initialism of another mention's
-       normalized text (within the same ``entity_type``) is placed into that
-       mention's cluster.  O(1) per mention via per-type initialism indices.
-    3. **fuzzy** — mentions with SequenceMatcher ratio ≥ *fuzzy_threshold*
-       (within the same ``entity_type``) are placed in the same cluster as the
-       first sufficiently similar mention.
-    4. **label_cluster** — fallback; singleton cluster keyed by the mention's
-       own normalized text.
-
-    Abbreviation and fuzzy comparisons are scoped to mentions sharing the same
-    ``entity_type`` value (including ``None``).  This acts as a blocking step
-    that avoids cross-type spurious matches and bounds each per-mention scan
-    to same-type cluster representatives.
-
-    Returns a list of dicts with keys: ``mention_id``, ``mention_name``,
-    ``normalized_text``, ``entity_type``, ``resolution_method``,
-    ``resolution_confidence``, ``resolved`` (always ``False``), and
-    ``source_uri``. ``entity_type`` is normalized so that ``None`` and
-    ``""`` both appear as ``None`` on output rows (matching the identity
-    scope of :func:`_make_cluster_id`).
-    """
-    # mention_id → cluster key
-    mention_to_cluster: dict[str, str] = {}
-    # mention_id → (resolution_method, resolution_confidence)
-    mention_to_method: dict[str, tuple[str, float]] = {}
-    # mention_id → entity_type  (required to scope re-key operations correctly)
-    mention_to_type: dict[str, str | None] = {}
-
-    # All registered cluster keys, type-agnostic (for O(1) normalized_exact check).
-    seen_keys: set[str] = set()
-
-    # cluster_key → [mention_ids]  Reverse index enabling O(cluster_size) remap
-    # during re-keying instead of scanning all mentions seen so far.
-    cluster_to_mentions: dict[str, list[str]] = {}
-
-    # Per-type abbreviation indices (both O(1)):
-    #   initials_to_long_by_type:  initials_str → long_form_cluster_key
-    #     Forward check: is the current text's alpha form an initialism of some
-    #     already-registered long-form cluster?
-    initials_to_long_by_type: dict[str | None, dict[str, str]] = {}
-    #   abbrev_alpha_by_type:  alpha_of_cluster_key → list[cluster_key]
-    #     Reverse check: which existing cluster keys look like abbreviations of
-    #     the current text (i.e. their alpha-stripped form equals the current
-    #     text's initials)?  A list is used so that multiple abbreviation variants
-    #     sharing the same alpha (e.g. "fbi" and "f.b.i.") are *all* promoted when
-    #     a long form is encountered, rather than only the last-registered one.
-    abbrev_alpha_by_type: dict[str | None, dict[str, list[str]]] = {}
-
-    # Per-type ordered list of cluster representatives (for fuzzy scan).
-    seen_texts_by_type: dict[str | None, list[str]] = {}
-
-    def _register_new_cluster(cluster_key: str, etype: str | None) -> None:
-        """Add a brand-new cluster key to every per-type index."""
-        seen_keys.add(cluster_key)
-        seen_texts_by_type.setdefault(etype, []).append(cluster_key)
-        abbrev_alpha_by_type.setdefault(etype, {}).setdefault(
-            _RE_NON_ALPHA.sub("", cluster_key), []
-        ).append(cluster_key)
-        initials = _compute_initials(cluster_key)
-        if initials is not None:
-            initials_to_long_by_type.setdefault(etype, {})[initials] = cluster_key
-
-    def _register_cluster_for_type(cluster_key: str, etype: str | None) -> None:
-        """Ensure cluster_key is visible in the per-type indices for etype.
-
-        Called when a normalized_exact match joins a cluster that was first
-        introduced by a different entity_type.  This ensures later same-type
-        fuzzy/abbreviation matching can still find the cluster without
-        disturbing existing assignments.  Uses setdefault so that existing
-        entries for this type are never overwritten.
-        """
-        type_texts = seen_texts_by_type.setdefault(etype, [])
-        if cluster_key not in type_texts:
-            type_texts.append(cluster_key)
-        alpha = _RE_NON_ALPHA.sub("", cluster_key)
-        bucket = abbrev_alpha_by_type.setdefault(etype, {}).setdefault(alpha, [])
-        if cluster_key not in bucket:
-            bucket.append(cluster_key)
-        initials = _compute_initials(cluster_key)
-        if initials is not None:
-            initials_to_long_by_type.setdefault(etype, {}).setdefault(initials, cluster_key)
-
-    def _promote_long_form(short_key: str, long_key: str, etype: str | None) -> None:
-        """Re-key same-*etype* mentions from short_key to long_key.
-
-        Mentions of a *different* entity_type that share ``short_key`` via
-        ``normalized_exact`` are intentionally left in place so that cross-type
-        clustering is never disturbed by an abbreviation relationship found in
-        another type.
-        """
-        # Always register long_key in the global key set.
-        seen_keys.add(long_key)
-
-        # Update per-type text list (swap short → long for this type).
-        type_texts = seen_texts_by_type.get(etype, [])
-        if short_key in type_texts:
-            # Replace the short form with the long form for this type.
-            type_texts[type_texts.index(short_key)] = long_key
-            # De-duplicate representatives for this type (preserve order).
-            seen_for_type: set[str] = set()
-            deduped_type_texts: list[str] = []
-            for t in type_texts:
-                if t not in seen_for_type:
-                    seen_for_type.add(t)
-                    deduped_type_texts.append(t)
-            if len(deduped_type_texts) != len(type_texts):
-                seen_texts_by_type[etype] = deduped_type_texts
-
-        # Update abbreviation indices for this type.
-        old_alpha = _RE_NON_ALPHA.sub("", short_key)
-        type_abbrev = abbrev_alpha_by_type.get(etype, {})
-        bucket = type_abbrev.get(old_alpha, [])
-        if short_key in bucket:
-            bucket.remove(short_key)
-        if not bucket:
-            type_abbrev.pop(old_alpha, None)
-        # Add long_key to its own alpha bucket.
-        long_alpha = _RE_NON_ALPHA.sub("", long_key)
-        long_bucket = abbrev_alpha_by_type.setdefault(etype, {}).setdefault(long_alpha, [])
-        if long_key not in long_bucket:
-            long_bucket.append(long_key)
-        # Remove any longform-initials entry that pointed to short_key.
-        initials_map = initials_to_long_by_type.get(etype, {})
-        for k in [k for k, v in initials_map.items() if v == short_key]:
-            del initials_map[k]
-        # Register long_key's own initials (it may in turn be a long form).
-        long_initials = _compute_initials(long_key)
-        if long_initials is not None:
-            initials_to_long_by_type.setdefault(etype, {})[long_initials] = long_key
-
-        # Remap only same-type members using the reverse index (O(cluster_size)).
-        new_members: list[str] = []
-        remaining: list[str] = []
-        for prior_mid in cluster_to_mentions.get(short_key, []):
-            if mention_to_type.get(prior_mid) == etype:
-                mention_to_cluster[prior_mid] = long_key
-                mention_to_method[prior_mid] = ("abbreviation", 0.75)
-                new_members.append(prior_mid)
-            else:
-                remaining.append(prior_mid)
-        cluster_to_mentions.setdefault(long_key, []).extend(new_members)
-        if remaining:
-            cluster_to_mentions[short_key] = remaining
-        elif short_key in cluster_to_mentions:
-            del cluster_to_mentions[short_key]
-
-        # Only remove short_key from seen_keys when no cross-type mentions
-        # remain on it; otherwise Strategy 1 (normalized_exact) must still be
-        # able to match future mentions of those other types.
-        if not remaining:
-            seen_keys.discard(short_key)
-
-    for mention in mentions:
-        name = (mention.get("name") or "").strip()
-        normalized = _normalize(name)
-        mid = mention["mention_id"]
-        entity_type: str | None = _normalize_entity_type(
-            mention.get("entity_type") or None,
-            entity_type_policy,
-        )
-        short_alpha = _RE_NON_ALPHA.sub("", normalized)
-
-        # Strategy 1: normalized_exact (type-agnostic).
-        if normalized in seen_keys:
-            # IMPORTANT: If this normalized key is a known short-form whose
-            # initials have been promoted to a different long-form cluster for
-            # this entity_type, prefer the long-form cluster instead of
-            # re-attaching to the short-form key. This preserves the invariant
-            # that abbreviation promotion yields a stable long-form cluster key
-            # per entity_type, even though short-form keys remain in seen_keys
-            # for cross-type mentions.
-            mapped_long = initials_to_long_by_type.get(entity_type, {}).get(short_alpha)
-            if mapped_long is not None and mapped_long != normalized:
-                mention_to_cluster[mid] = mapped_long
-                mention_to_method[mid] = ("abbreviation", 0.75)
-                mention_to_type[mid] = entity_type
-                cluster_to_mentions.setdefault(mapped_long, []).append(mid)
-                continue
-
-            mention_to_cluster[mid] = normalized
-            mention_to_method[mid] = ("normalized_exact", 1.0)
-            mention_to_type[mid] = entity_type
-            cluster_to_mentions.setdefault(normalized, []).append(mid)
-            # Ensure the cluster is visible in the per-type indices so later
-            # same-type mentions can still fuzzy/abbreviation-match against it
-            # even if the cluster was first introduced by a different entity_type.
-            _register_cluster_for_type(normalized, entity_type)
-            continue
-
-        # Strategy 2: abbreviation (type-scoped, O(1) via index).
-
-        # Forward: is current text an abbreviation of an existing long-form cluster?
-        existing_long = initials_to_long_by_type.get(entity_type, {}).get(short_alpha)
-        if existing_long is not None:
-            mention_to_cluster[mid] = existing_long
-            mention_to_method[mid] = ("abbreviation", 0.75)
-            mention_to_type[mid] = entity_type
-            cluster_to_mentions.setdefault(existing_long, []).append(mid)
-            continue
-
-        # Reverse: is current text a long form whose initials match existing
-        # cluster keys (which would then be abbreviations)?  Multiple variants
-        # sharing the same alpha (e.g. "fbi" and "f.b.i.") must ALL be promoted
-        # to avoid orphaned abbreviation clusters.
-        current_initials = _compute_initials(normalized)
-        abbrev_cluster_keys: list[str] = []
-        if current_initials is not None:
-            abbrev_cluster_keys = list(
-                abbrev_alpha_by_type.get(entity_type, {}).get(current_initials, [])
-            )
-        if abbrev_cluster_keys:
-            for abbrev_key in abbrev_cluster_keys:
-                _promote_long_form(abbrev_key, normalized, entity_type)
-            mention_to_cluster[mid] = normalized
-            mention_to_method[mid] = ("label_cluster", 1.0)
-            mention_to_type[mid] = entity_type
-            cluster_to_mentions.setdefault(normalized, []).append(mid)
-            continue
-
-        # Strategy 3: fuzzy (type-scoped, with length-ratio prefilter).
-        norm_len = len(normalized)
-        fuzzy_target: str | None = None
-        fuzzy_score: float = 0.0
-        for existing in seen_texts_by_type.get(entity_type, []):
-            ex_len = len(existing)
-            if ex_len == 0 and norm_len == 0:
-                fuzzy_target = existing
-                fuzzy_score = 1.0
-                break
-            if ex_len == 0 or norm_len == 0:
-                continue
-            min_len = min(norm_len, ex_len)
-            max_len = max(norm_len, ex_len)
-            # Upper bound on SequenceMatcher ratio; skip if it can't reach threshold.
-            if 2 * min_len / (min_len + max_len) < fuzzy_threshold:
-                continue
-            ratio = _fuzzy_ratio(normalized, existing)
-            if ratio >= fuzzy_threshold:
-                fuzzy_target = existing
-                fuzzy_score = ratio
-                break
-        if fuzzy_target is not None:
-            mention_to_cluster[mid] = fuzzy_target
-            mention_to_method[mid] = ("fuzzy", fuzzy_score)
-            mention_to_type[mid] = entity_type
-            cluster_to_mentions.setdefault(fuzzy_target, []).append(mid)
-            continue
-
-        # Strategy 4: label_cluster fallback — new singleton cluster.
-        _register_new_cluster(normalized, entity_type)
-        mention_to_cluster[mid] = normalized
-        mention_to_method[mid] = ("label_cluster", 1.0)
-        mention_to_type[mid] = entity_type
-        cluster_to_mentions.setdefault(normalized, []).append(mid)
-
-    return [
-        {
-            "mention_id": mention["mention_id"],
-            "mention_name": (mention.get("name") or "").strip(),
-            "normalized_text": mention_to_cluster[mention["mention_id"]],
-            "entity_type": mention_to_type[mention["mention_id"]],
-            "source_uri": mention.get("source_uri") or None,
-            "resolution_method": mention_to_method[mention["mention_id"]][0],
-            "resolution_confidence": mention_to_method[mention["mention_id"]][1],
-            "resolved": False,
-        }
-        for mention in mentions
-    ]
-
 
 def _write_resolution_results(
     driver: "neo4j.Driver",  # type: ignore[name-defined]  # noqa: F821
@@ -1014,81 +522,22 @@ def _write_resolution_results(
     unresolved_rows: list[dict[str, Any]],
     neo4j_database: str,
 ) -> None:
-    """Persist RESOLVES_TO edges and ResolvedEntityCluster nodes to Neo4j.
-
-    Resolved mentions receive a ``RESOLVES_TO`` edge pointing at the matched
-    :CanonicalEntity.
-
-    Unresolved mentions are grouped into :ResolvedEntityCluster nodes keyed by
-    ``(run_id, entity_type, normalized_text)``.  ``source_uri`` is **not** part
-    of cluster identity — mentions from different source documents within the
-    same run that share the same entity type and normalized text map to the same
-    cluster, enabling cross-document clustering.  Each mention receives a
-    ``MEMBER_OF`` edge carrying per-mention provenance metadata: ``score``,
-    ``method``, ``resolver_version``, ``run_id``, ``source_uri``, and
-    ``status``.  The ``source_uri`` on the edge is taken from the per-mention
-    value propagated from the EntityMention node in the DB.
-    """
-    _write_resolved_mentions(
+    _write_resolution_results_impl(
         driver,
         run_id=run_id,
         source_uri=source_uri,
         resolved_rows=resolved_rows,
+        unresolved_rows=unresolved_rows,
         neo4j_database=neo4j_database,
+        make_cluster_id=lambda current_run_id, current_entity_type, normalized_text: _make_cluster_id(
+            current_run_id,
+            current_entity_type,
+            normalized_text,
+        ),
+        membership_score=_membership_score,
+        membership_status=_membership_status,
+        cluster_version=_CLUSTER_VERSION,
     )
-
-    if unresolved_rows:
-        created_at = datetime.now(UTC).isoformat()
-        # Build per-mention rows for the cluster MERGE + MEMBER_OF edge.
-        # Use per-row resolution_method for accurate provenance and compute the
-        # MEMBER_OF score via _membership_score so deterministic cluster
-        # assignments (label_cluster, normalized_exact) always get score=1.0,
-        # regardless of any match-quality confidence on the unresolved row.
-        # The cluster_id is scoped by (run_id, entity_type, normalized_text) to
-        # prevent unintentional merging across runs or entity types.
-        # source_uri is NOT part of cluster identity; it is carried per-mention
-        # as provenance on the MEMBER_OF edge so cross-document clustering
-        # within the same run is supported.
-        #
-        # NOTE — cluster_id scheme compatibility: if the cluster_id format
-        # changes (e.g. due to a future schema upgrade) any previously-written
-        # ResolvedEntityCluster nodes for the same run_id will become orphaned
-        # (old MEMBER_OF edges won't be touched and old cluster nodes will
-        # remain). The demo DB is assumed to be cleanly reset before each run,
-        # so this is not a concern for the demo workflow. For production use
-        # cases that retain DB state across upgrades, callers should delete
-        # all MEMBER_OF and ResolvedEntityCluster nodes for the affected run_id
-        # before re-running entity resolution with the new scheme.
-        cluster_rows = []
-        for row in unresolved_rows:
-            method = row.get("resolution_method", "label_cluster")
-            entity_type = row.get("entity_type")
-            row_source_uri = row.get("source_uri")
-            score = _membership_score(method, row.get("resolution_confidence", 1.0))
-            cluster_rows.append({
-                "mention_id": row["mention_id"],
-                "cluster_id": _make_cluster_id(run_id, entity_type, row["normalized_text"]),
-                # Use a deterministic canonical name derived from the normalized text
-                "canonical_name": row["normalized_text"].title(),
-                "normalized_text": row["normalized_text"],
-                "entity_type": entity_type,
-                "source_uri": row_source_uri,
-                "score": score,
-                "method": method,
-                # Status encodes ambiguity level for downstream consumers and reviewers:
-                # "accepted"        — deterministic assignments (label_cluster, normalized_exact)
-                # "provisional"     — high-confidence fuzzy match (ratio ≥ _FUZZY_REVIEW_THRESHOLD)
-                # "candidate"       — abbreviation/initialism match (plausible but ambiguous)
-                # "review_required" — borderline fuzzy match (ratio < _FUZZY_REVIEW_THRESHOLD)
-                "status": _membership_status(method, score),
-            })
-        _write_cluster_memberships(
-            driver,
-            run_id=run_id,
-            cluster_rows=cluster_rows,
-            neo4j_database=neo4j_database,
-            created_at=created_at,
-        )
 
 
 def _write_cluster_memberships(
@@ -1099,12 +548,12 @@ def _write_cluster_memberships(
     neo4j_database: str,
     created_at: str,
 ) -> None:
-    _write_cluster_memberships_live(
+    _write_cluster_memberships_impl(
         driver,
         run_id=run_id,
         cluster_rows=cluster_rows,
         neo4j_database=neo4j_database,
-        resolver_version=_CLUSTER_VERSION,
+        cluster_version=_CLUSTER_VERSION,
         created_at=created_at,
     )
 
@@ -1117,7 +566,7 @@ def _write_resolved_mentions(
     resolved_rows: list[dict[str, Any]],
     neo4j_database: str,
 ) -> None:
-    _write_resolved_mentions_live(
+    _write_resolved_mentions_impl(
         driver,
         run_id=run_id,
         source_uri=source_uri,
@@ -1201,17 +650,7 @@ def _write_alignment_results(
     alignment_rows: list[dict[str, Any]],
     neo4j_database: str,
 ) -> None:
-    """Persist ALIGNED_WITH edges from :ResolvedEntityCluster to :CanonicalEntity.
-
-    Each matched cluster receives a non-destructive ``ALIGNED_WITH`` edge
-    carrying alignment provenance metadata: ``alignment_method``,
-    ``alignment_score``, ``alignment_status``, ``alignment_version``,
-    ``run_id``, and ``source_uri``.  The function-level ``source_uri``
-    argument is used as a fallback; it is normalized to ``None`` for empty
-    strings so that blank values are not persisted as a distinct provenance.
-    Existing cluster nodes and ``MEMBER_OF`` edges are never modified.
-    """
-    _write_alignment_results_live(
+    _write_alignment_results_impl(
         driver,
         run_id=run_id,
         source_uri=source_uri,
@@ -1331,92 +770,24 @@ def _run_entity_resolution_runtime(
     neo4j_settings: Neo4jSettings,
     entity_type_policy: EntityTypeNormalizationPolicy | None = None,
 ) -> dict[str, Any]:
-
-    resolved_at = datetime.now(UTC).isoformat()
-
-    # Ensure the run directory is always a descendant of <output_dir>/runs and that
-    # run_id cannot be used for path traversal or absolute path escape.
-    runs_root = (config.output_dir / "runs").resolve()
-    run_id_path = Path(run_id)
-    if run_id_path.is_absolute() or ".." in run_id_path.parts or run_id_path.name != run_id:
-        raise ValueError(
-            f"Invalid run_id {run_id!r}: must be a simple relative name without path separators or '..'."
-        )
-    run_root = (runs_root / run_id_path).resolve()
-    # Reject run_ids that resolve to the runs_root itself (e.g. "" or ".") or that
-    # escape it (e.g. via symlinks after the parts-level '..' check above).
-    if run_root == runs_root or runs_root not in run_root.parents:
-        raise ValueError(
-            f"Invalid run_id {run_id!r}: must resolve to a subdirectory of the runs directory."
-        )
-
-    artifact_subdir_path = Path(artifact_subdir)
-    # Prevent path traversal and absolute paths in artifact_subdir to keep writes
-    # confined under the run_root directory.
-    if artifact_subdir_path.is_absolute() or ".." in artifact_subdir_path.parts:
-        raise ValueError(f"Invalid artifact_subdir {artifact_subdir!r}: must be a relative path without '..'.")
-
-    resolution_dir = (run_root / artifact_subdir_path).resolve()
-    # Reject subdirs that resolve to run_root itself (e.g. "" or ".") or that escape it
-    # (e.g. via symlinks after the parts-level ".." check above).
-    if resolution_dir == run_root or run_root not in resolution_dir.parents:
-        raise ValueError(f"Invalid artifact_subdir {artifact_subdir!r}: must resolve to a subdirectory of the run directory.")
-
-    resolution_dir.mkdir(parents=True, exist_ok=True)
-    summary_path = resolution_dir / "entity_resolution_summary.json"
-    unresolved_path = resolution_dir / "unresolved_mentions.json"
-
-    if config.dry_run:
-        if resolution_mode == _RESOLUTION_MODE_UNSTRUCTURED_ONLY:
-            resolver_method = "unstructured_clustering"
-        elif resolution_mode == _RESOLUTION_MODE_HYBRID:
-            resolver_method = "unstructured_clustering_with_canonical_alignment"
-        else:
-            resolver_method = "canonical_exact_match"
-        summary: dict[str, Any] = {
-            "status": "dry_run",
-            "run_id": run_id,
-            "source_uri": source_uri,
-            "resolution_mode": resolution_mode,
-            "dataset_id": effective_dataset_id,
-            "resolver_method": resolver_method,
-            "resolver_version": _RESOLVER_VERSION,
-            "cluster_version": _CLUSTER_VERSION,
-            "mentions_total": 0,
-            "resolved": 0,
-            "unresolved": 0,
-            "clusters_created": 0,
-            "resolution_breakdown": {},
-            "entity_type_report": _build_entity_type_report([], entity_type_policy),
-            "warnings": ["entity resolution skipped in dry_run mode"],
-        }
-        if resolution_mode in (_RESOLUTION_MODE_UNSTRUCTURED_ONLY, _RESOLUTION_MODE_HYBRID):
-            summary["mentions_clustered"] = 0
-            summary["mentions_unclustered"] = 0
-        if resolution_mode == _RESOLUTION_MODE_HYBRID:
-            summary["alignment_version"] = _ALIGNMENT_VERSION
-            summary["aligned_clusters"] = 0
-            summary["alignment_breakdown"] = {}
-            summary["distinct_canonical_entities_aligned"] = 0
-            summary["mentions_in_aligned_clusters"] = 0
-            summary["clusters_pending_alignment"] = 0
-        summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
-        unresolved_path.write_text(json.dumps([], indent=2), encoding="utf-8")
-        return summary
-
-    live_result = run_entity_resolution_live(
-        neo4j_settings,
+    return _run_entity_resolution_runtime_impl(
+        config=config,
         run_id=run_id,
         source_uri=source_uri,
         resolution_mode=resolution_mode,
+        artifact_subdir=artifact_subdir,
         effective_dataset_id=effective_dataset_id,
+        neo4j_settings=neo4j_settings,
+        entity_type_policy=entity_type_policy,
+        resolver_version=_RESOLVER_VERSION,
+        cluster_version=_CLUSTER_VERSION,
         alignment_version=_ALIGNMENT_VERSION,
-        neo4j_database=neo4j_settings.database,
-        fetch_mentions=fetch_entity_mentions,
+        build_entity_type_report=_build_entity_type_report,
         cluster_mentions=lambda mentions: _cluster_mentions_unstructured_only(
             mentions,
             entity_type_policy=entity_type_policy,
         ),
+        fetch_mentions=fetch_entity_mentions,
         fetch_canonicals=fetch_canonical_entities,
         build_lookup_tables=_build_lookup_tables,
         make_cluster_id=lambda current_run_id, current_entity_type, normalized_text: _make_cluster_id(
@@ -1437,101 +808,10 @@ def _run_entity_resolution_runtime(
         write_alignment_results=_write_alignment_results,
         fetch_member_of_coverage=fetch_member_of_coverage,
         fetch_alignment_coverage=fetch_alignment_coverage,
+        resolution_mode_structured_anchor=_RESOLUTION_MODE_STRUCTURED_ANCHOR,
+        resolution_mode_unstructured_only=_RESOLUTION_MODE_UNSTRUCTURED_ONLY,
+        resolution_mode_hybrid=_RESOLUTION_MODE_HYBRID,
     )
-
-    mentions = live_result.mentions
-    resolved_rows = live_result.resolved_rows
-    unresolved_rows = live_result.unresolved_rows
-    resolution_breakdown = live_result.resolution_breakdown
-    _graph_mentions_clustered = live_result.graph_mentions_clustered
-    _graph_mentions_unclustered = live_result.graph_mentions_unclustered
-    _graph_total_clusters = live_result.graph_total_clusters
-    _graph_aligned_clusters = live_result.graph_aligned_clusters
-    _graph_distinct_canonical_entities = live_result.graph_distinct_canonical_entities
-    _graph_mentions_in_aligned = live_result.graph_mentions_in_aligned
-    _graph_alignment_breakdown = live_result.graph_alignment_breakdown
-    _stage_warnings = live_result.warnings
-
-    # 4. Write artifacts.
-    unresolved_list = [
-        {
-            "mention_id": row["mention_id"],
-            "mention_name": row["mention_name"],
-            "normalized_text": row["normalized_text"],
-            "entity_type": row.get("entity_type") or None,
-            "cluster_id": _make_cluster_id(
-                run_id,
-                row.get("entity_type"),
-                row["normalized_text"],
-                entity_type_policy,
-            ),
-        }
-        for row in unresolved_rows
-    ]
-    unresolved_path.write_text(json.dumps(unresolved_list, indent=2), encoding="utf-8")
-
-    # Count unique clusters — one cluster per unique (entity_type, normalized_text)
-    # pair, matching the scoped identity enforced by _make_cluster_id.
-    # Normalize entity_type with `or ""` to match _make_cluster_id's
-    # treatment of None and empty string as equivalent (both produce an empty segment).
-    clusters_created = len({
-        (row.get("entity_type") or "", row["normalized_text"]) for row in unresolved_rows
-    })
-
-    if resolution_mode == _RESOLUTION_MODE_UNSTRUCTURED_ONLY:
-        live_resolver_method = "unstructured_clustering"
-    elif resolution_mode == _RESOLUTION_MODE_HYBRID:
-        live_resolver_method = "unstructured_clustering_with_canonical_alignment"
-    else:
-        live_resolver_method = "canonical_exact_match"
-
-    # Build entity_type_report and propagate any sentinel_label_warnings into the
-    # stage warnings list so they surface at orchestration boundaries.
-    _entity_type_report = _build_entity_type_report(mentions, entity_type_policy)
-    _stage_warnings.extend(_entity_type_report.get("sentinel_label_warnings") or [])
-
-    summary = {
-        "status": "live",
-        "run_id": run_id,
-        "source_uri": source_uri,
-        "resolution_mode": resolution_mode,
-        "dataset_id": effective_dataset_id,
-        "resolver_method": live_resolver_method,
-        "resolver_version": _RESOLVER_VERSION,
-        "cluster_version": _CLUSTER_VERSION,
-        "resolved_at": resolved_at,
-        "mentions_total": len(mentions),
-        "resolved": len(resolved_rows),
-        "unresolved": len(unresolved_rows),
-        "clusters_created": clusters_created,
-        "resolution_breakdown": resolution_breakdown,
-        "entity_type_report": _entity_type_report,
-        "entity_resolution_summary_path": str(summary_path),
-        "unresolved_mentions_path": str(unresolved_path),
-        "warnings": list(_stage_warnings),
-    }
-    if resolution_mode in (_RESOLUTION_MODE_UNSTRUCTURED_ONLY, _RESOLUTION_MODE_HYBRID):
-        # Use graph-queried counts (set above) so the metrics reflect actual
-        # MEMBER_OF edges that were persisted, not just in-memory row counts.
-        summary["mentions_clustered"] = _graph_mentions_clustered
-        summary["mentions_unclustered"] = _graph_mentions_unclustered
-        if _graph_mentions_unclustered:
-            summary["warnings"].append(
-                f"{_graph_mentions_unclustered} mentions were not assigned to any cluster"
-            )
-    if resolution_mode == _RESOLUTION_MODE_HYBRID:
-        summary["alignment_version"] = _ALIGNMENT_VERSION
-        summary["aligned_clusters"] = _graph_aligned_clusters
-        summary["alignment_breakdown"] = _graph_alignment_breakdown
-        summary["distinct_canonical_entities_aligned"] = _graph_distinct_canonical_entities
-        summary["mentions_in_aligned_clusters"] = _graph_mentions_in_aligned
-        # Derive pending count from graph totals so the subtraction is consistent.
-        # Clamp at 0 to guard against stale edges on a reused run_id.
-        summary["clusters_pending_alignment"] = max(
-            0, _graph_total_clusters - _graph_aligned_clusters
-        )
-    summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
-    return summary
 
 
 def run_entity_resolution_request_context(
