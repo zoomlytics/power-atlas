@@ -242,6 +242,9 @@ from power_atlas.entity_resolution_queries import (
     fetch_entity_mentions,
     fetch_member_of_coverage,
 )
+from power_atlas.entity_resolution_resolver import _build_lookup_tables
+from power_atlas.entity_resolution_resolver import _resolve_mention
+from power_atlas.entity_resolution_resolver import _split_aliases
 from power_atlas.entity_resolution_runtime import run_entity_resolution_live
 from power_atlas.entity_resolution_writes import (
     write_alignment_results as _write_alignment_results_live,
@@ -618,50 +621,6 @@ def _make_cluster_id(
     )
     normalized_text_enc = _pct_encode(normalized_text, safe="")
     return f"cluster::{run_id_enc}::{entity_type_enc}::{normalized_text_enc}"
-
-
-def _split_aliases(raw: Any) -> list[str]:
-    """Parse a pipe- or comma-separated alias string into normalised tokens.
-
-    Each token is processed through :func:`_normalize` so that alias lookup
-    keys are consistent with the normalisation applied to mention text.  This
-    ensures that aliases containing diacritics, Unicode dashes, curly
-    apostrophes, or non-ASCII casing (e.g. ``"Müller"``, ``"naïve"``,
-    ``"state\u2013of"``) resolve correctly against normalised mention names.
-    """
-    if not raw or not isinstance(raw, str):
-        return []
-    sep = "|" if "|" in raw else ","
-    return [n for tok in raw.split(sep) if (n := _normalize(tok))]
-
-
-def _build_lookup_tables(
-    canonical_nodes: list[dict[str, Any]],
-) -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any]], dict[str, dict[str, Any]]]:
-    """Build three lookup dicts for fast resolution.
-
-    Returns:
-        by_qid:   entity_id  → canonical row
-        by_label: normalized_name → canonical row (first match wins)
-        by_alias: normalized_alias → canonical row (first match wins)
-    """
-    by_qid: dict[str, dict[str, Any]] = {}
-    by_label: dict[str, dict[str, Any]] = {}
-    by_alias: dict[str, dict[str, Any]] = {}
-
-    for row in canonical_nodes:
-        eid = (row.get("entity_id") or "").strip()
-        name = (row.get("name") or "").strip()
-        if eid and eid not in by_qid:
-            by_qid[eid] = row
-        norm_name = _normalize(name)
-        if norm_name and norm_name not in by_label:
-            by_label[norm_name] = row
-        for alias in _split_aliases(row.get("aliases")):
-            if alias and alias not in by_alias:
-                by_alias[alias] = row
-
-    return by_qid, by_label, by_alias
 
 
 # ---------------------------------------------------------------------------
@@ -1044,91 +1003,6 @@ def _cluster_mentions_unstructured_only(
         }
         for mention in mentions
     ]
-
-
-def _resolve_mention(
-    mention: dict[str, Any],
-    by_qid: dict[str, dict[str, Any]],
-    by_label: dict[str, dict[str, Any]],
-    by_alias: dict[str, dict[str, Any]],
-    entity_type_policy: EntityTypeNormalizationPolicy | None = None,
-) -> dict[str, Any]:
-    """Apply resolution strategies and return a resolution record."""
-    name = (mention.get("name") or "").strip()
-    normalized = _normalize(name)
-
-    # Strategy 1: exact QID match
-    if _QID_PATTERN.match(name):
-        canonical = by_qid.get(name)
-        if canonical:
-            return {
-                "mention_id": mention["mention_id"],
-                "canonical_entity_id": canonical["entity_id"],
-                "canonical_run_id": canonical["run_id"],
-                "resolution_method": "qid_exact",
-                "resolution_confidence": 1.0,
-                "candidate_ids": [canonical["entity_id"]],
-                "resolved": True,
-            }
-        # Name looks like a QID but no canonical QID match exists:
-        # treat as a provisional cluster rather than falling through to
-        # label/alias strategies.
-        return {
-            "mention_id": mention["mention_id"],
-            "normalized_text": normalized,
-            "mention_name": name,
-            "entity_type": _normalize_entity_type(
-                mention.get("entity_type") or None,
-                entity_type_policy,
-            ),
-            "source_uri": mention.get("source_uri") or None,
-            "resolution_method": "label_cluster",
-            "resolution_confidence": 0.0,
-            "candidate_ids": [],
-            "resolved": False,
-        }
-
-    # Strategy 2: exact label match
-    canonical = by_label.get(normalized)
-    if canonical:
-        return {
-            "mention_id": mention["mention_id"],
-            "canonical_entity_id": canonical["entity_id"],
-            "canonical_run_id": canonical["run_id"],
-            "resolution_method": "label_exact",
-            "resolution_confidence": 0.9,
-            "candidate_ids": [canonical["entity_id"]],
-            "resolved": True,
-        }
-
-    # Strategy 3: alias match
-    canonical = by_alias.get(normalized)
-    if canonical:
-        return {
-            "mention_id": mention["mention_id"],
-            "canonical_entity_id": canonical["entity_id"],
-            "canonical_run_id": canonical["run_id"],
-            "resolution_method": "alias_exact",
-            "resolution_confidence": 0.8,
-            "candidate_ids": [canonical["entity_id"]],
-            "resolved": True,
-        }
-
-    # Strategy 4: label_cluster — group into a provisional ResolvedEntityCluster
-    return {
-        "mention_id": mention["mention_id"],
-        "normalized_text": normalized,
-        "mention_name": name,
-        "entity_type": _normalize_entity_type(
-            mention.get("entity_type") or None,
-            entity_type_policy,
-        ),
-        "source_uri": mention.get("source_uri") or None,
-        "resolution_method": "label_cluster",
-        "resolution_confidence": 0.0,
-        "candidate_ids": [],
-        "resolved": False,
-    }
 
 
 def _write_resolution_results(
