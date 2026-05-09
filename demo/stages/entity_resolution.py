@@ -234,8 +234,8 @@ from power_atlas.entity_resolution_entrypoint import (
     RESOLUTION_MODE_STRUCTURED_ANCHOR as _ENTRYPOINT_RESOLUTION_MODE_STRUCTURED_ANCHOR,
     RESOLUTION_MODE_UNSTRUCTURED_ONLY as _ENTRYPOINT_RESOLUTION_MODE_UNSTRUCTURED_ONLY,
     VALID_RESOLUTION_MODES as _ENTRYPOINT_VALID_RESOLUTION_MODES,
-    neo4j_settings_from_config as _neo4j_settings_from_config_impl,
-    resolve_effective_dataset_id as _resolve_effective_dataset_id_impl,
+    neo4j_settings_from_config as _neo4j_settings_from_config,
+    resolve_effective_dataset_id as _resolve_effective_dataset_id,
     run_entity_resolution as _run_entity_resolution_impl_entrypoint,
     run_entity_resolution_request_context as _run_entity_resolution_request_context_impl,
 )
@@ -254,10 +254,10 @@ from power_atlas.entity_resolution_clustering import _make_cluster_id
 from power_atlas.entity_resolution_clustering import _membership_score
 from power_atlas.entity_resolution_clustering import _membership_status
 from power_atlas.entity_resolution_alignment import (
-    align_clusters_to_canonical as _align_clusters_to_canonical_impl,
+    align_clusters_to_canonical as _align_clusters_to_canonical,
 )
 from power_atlas.entity_resolution_reporting import (
-    build_entity_type_report as _build_entity_type_report_impl,
+    build_entity_type_report as _build_entity_type_report,
 )
 from power_atlas.entity_resolution_resolver import _build_lookup_tables
 from power_atlas.entity_resolution_resolver import _resolve_mention
@@ -324,35 +324,6 @@ _VALID_RESOLUTION_MODES = _ENTRYPOINT_VALID_RESOLUTION_MODES
 #     correctly even though no explicit entry exists for the padded form.
 _ENTITY_TYPE_SYNONYMS: dict[str, str] = POWER_ATLAS_ENTITY_TYPE_NORMALIZATION_POLICY.synonyms
 
-# Reserved sentinel key used in entity_type_report dicts to represent absent or
-# empty entity_type values (None / "").  The decorated name is chosen to make
-# it unlikely (but not impossible) for a real NLP extractor to emit this label
-# accidentally; if it does, collisions are detected and reported via
-# sentinel_label_warnings.  Do NOT change this value without also updating any
-# consumers of entity_type_report summaries/artifacts that rely on this sentinel.
-_ENTITY_TYPE_NULL_SENTINEL = POWER_ATLAS_ENTITY_TYPE_NORMALIZATION_POLICY.null_sentinel
-
-
-def _neo4j_settings_from_config(
-    config: object,
-    neo4j_settings: Neo4jSettings | None = None,
-) -> Neo4jSettings:
-    return _neo4j_settings_from_config_impl(config, neo4j_settings)
-
-
-def _resolve_effective_dataset_id(
-    config: Any,
-    dataset_id: str | None,
-    *,
-    dataset_name: str | None = None,
-) -> str:
-    return _resolve_effective_dataset_id_impl(
-        config,
-        dataset_id,
-        dataset_name=dataset_name,
-    )
-
-
 def _normalize_entity_type(
     entity_type: str | None,
     entity_type_policy: EntityTypeNormalizationPolicy | None = None,
@@ -389,16 +360,6 @@ def build_entity_type_cypher_case(
     return build_entity_type_cypher_case_from_policy(
         var,
         unknown_label,
-        entity_type_policy=entity_type_policy,
-    )
-
-
-def _build_entity_type_report(
-    mentions: list[dict[str, Any]],
-    entity_type_policy: EntityTypeNormalizationPolicy | None = None,
-) -> dict[str, Any]:
-    return _build_entity_type_report_impl(
-        mentions,
         entity_type_policy=entity_type_policy,
     )
 
@@ -467,16 +428,6 @@ def _write_resolved_mentions(
         resolved_rows=resolved_rows,
         neo4j_database=neo4j_database,
     )
-
-
-
-def _align_clusters_to_canonical(
-    clusters: list[dict[str, Any]],
-    by_label: dict[str, dict[str, Any]],
-    by_alias: dict[str, dict[str, Any]],
-) -> list[dict[str, Any]]:
-    return _align_clusters_to_canonical_impl(clusters, by_label, by_alias)
-
 
 def _write_alignment_results(
     driver: "neo4j.Driver",  # type: ignore[name-defined]  # noqa: F821
