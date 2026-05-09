@@ -15,6 +15,18 @@ def test_package_modules_import() -> None:
     orchestration_module = importlib.import_module("power_atlas.orchestration")
     settings_module = importlib.import_module("power_atlas.settings")
     bootstrap_module = importlib.import_module("power_atlas.bootstrap")
+    entity_resolution_alignment_module = importlib.import_module(
+        "power_atlas.entity_resolution_alignment"
+    )
+    entity_resolution_entrypoint_module = importlib.import_module(
+        "power_atlas.entity_resolution_entrypoint"
+    )
+    entity_resolution_reporting_module = importlib.import_module(
+        "power_atlas.entity_resolution_reporting"
+    )
+    entity_resolution_runner_module = importlib.import_module(
+        "power_atlas.entity_resolution_runner"
+    )
     llm_utils_module = importlib.import_module("power_atlas.llm_utils")
     text_utils_module = importlib.import_module("power_atlas.text_utils")
 
@@ -77,6 +89,28 @@ def test_package_modules_import() -> None:
     assert package.build_default_app_policies is context_module.build_default_app_policies
     assert package.build_openai_llm is llm_utils_module.build_openai_llm
     assert package.normalize_mention_text is text_utils_module.normalize_mention_text
+    assert callable(entity_resolution_alignment_module.align_clusters_to_canonical)
+    assert callable(entity_resolution_entrypoint_module.neo4j_settings_from_config)
+    assert callable(entity_resolution_entrypoint_module.resolve_effective_dataset_id)
+    assert callable(entity_resolution_entrypoint_module.run_entity_resolution)
+    assert callable(entity_resolution_entrypoint_module.run_entity_resolution_request_context)
+    assert (
+        entity_resolution_entrypoint_module.RESOLUTION_MODE_STRUCTURED_ANCHOR
+        == "structured_anchor"
+    )
+    assert (
+        entity_resolution_entrypoint_module.RESOLUTION_MODE_UNSTRUCTURED_ONLY
+        == "unstructured_only"
+    )
+    assert entity_resolution_entrypoint_module.RESOLUTION_MODE_HYBRID == "hybrid"
+    assert callable(entity_resolution_reporting_module.build_entity_type_report)
+    assert (
+        entity_resolution_reporting_module.ENTITY_TYPE_NULL_SENTINEL
+        == contracts_module.POWER_ATLAS_ENTITY_TYPE_NORMALIZATION_POLICY.null_sentinel
+    )
+    assert callable(entity_resolution_runner_module.write_cluster_memberships)
+    assert callable(entity_resolution_runner_module.write_resolution_results)
+    assert callable(entity_resolution_runner_module.run_entity_resolution_runtime)
     assert not hasattr(pipeline_module, "DATASET_ID")
     assert not hasattr(pipeline_module, "get_dataset_id")
     assert not hasattr(pipeline_module, "set_dataset_id")
