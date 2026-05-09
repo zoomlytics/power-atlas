@@ -390,22 +390,6 @@ def _normalize_entity_type(
     return normalize_entity_type_from_policy(entity_type, entity_type_policy)
 
 
-# Allowlist for the `var` parameter of build_entity_type_cypher_case.
-# A safe Cypher variable reference consists of alphanumeric characters,
-# underscores, and dots (for property access, e.g. "m.entity_type").
-_SAFE_CYPHER_VAR_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$")
-
-
-def _escape_cypher_string(value: str) -> str:
-    """Escape a string value for embedding in a single-quoted Cypher literal.
-
-    Replaces each ``'`` with ``''`` (the Cypher escaping convention) so that
-    the caller can safely wrap the result in single quotes without producing
-    invalid Cypher or enabling injection.
-    """
-    return value.replace("'", "''")
-
-
 def build_entity_type_cypher_case(
     var: str,
     unknown_label: str = "UNKNOWN",
@@ -1688,9 +1672,13 @@ def run_entity_resolution_request_context(
     if effective_resolution_mode is None:
         effective_resolution_mode = getattr(request_context.config, "resolution_mode", None)
 
+    run_id = request_context.run_id
+    if not isinstance(run_id, str) or not run_id:
+        raise ValueError("Entity resolution requires request_context.run_id")
+
     return _run_entity_resolution_impl(
         request_context.config,
-        run_id=request_context.run_id,
+        run_id=run_id,
         source_uri=request_context.source_uri,
         resolution_mode=effective_resolution_mode,
         artifact_subdir=artifact_subdir,
