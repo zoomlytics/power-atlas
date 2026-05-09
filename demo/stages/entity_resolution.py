@@ -253,6 +253,12 @@ from power_atlas.entity_resolution_clustering import _is_abbreviation
 from power_atlas.entity_resolution_clustering import _make_cluster_id
 from power_atlas.entity_resolution_clustering import _membership_score
 from power_atlas.entity_resolution_clustering import _membership_status
+from power_atlas.entity_resolution_alignment import (
+    align_clusters_to_canonical as _align_clusters_to_canonical_impl,
+)
+from power_atlas.entity_resolution_reporting import (
+    build_entity_type_report as _build_entity_type_report_impl,
+)
 from power_atlas.entity_resolution_resolver import _build_lookup_tables
 from power_atlas.entity_resolution_resolver import _resolve_mention
 from power_atlas.entity_resolution_resolver import _split_aliases
@@ -391,107 +397,10 @@ def _build_entity_type_report(
     mentions: list[dict[str, Any]],
     entity_type_policy: EntityTypeNormalizationPolicy | None = None,
 ) -> dict[str, Any]:
-    """Build a per-run summary of observed raw ``entity_type`` values.
-
-    Iterates over *mentions* (each a ``dict`` with an optional ``"entity_type"``
-    key) and produces a structured diagnostic report that surfaces:
-
-    * **raw_counts** — ``{raw_label: count}`` for every distinct raw value seen,
-      including the reserved sentinel key ``"__null__"`` for absent/empty labels.
-    * **normalized_counts** — ``{canonical_label: count}`` after applying
-      :func:`_normalize_entity_type`; absent/empty values are represented as
-      the reserved sentinel key ``"__null__"`` so the mapping is JSON-serializable.
-    * **mapped_variants** — ``{raw_label: canonical_label}`` for synonym mappings
-      (i.e. ``_ENTITY_TYPE_SYNONYMS`` entries) that were actually observed this run.
-    * **passthrough_labels** — sorted list of non-empty labels that are *not* in
-      the synonym table and are therefore returned unchanged by normalization.
-    * **null_or_empty_count** — number of mentions with ``None``, ``""``, or
-      whitespace-only ``entity_type`` (they produce ``None`` after normalization).
-    * **sentinel_label_warnings** — list of human-readable warning strings (normally
-      empty).  A non-empty entry means an upstream extractor emitted the literal
-      string ``"__null__"``, which is the reserved sentinel; its counts are merged
-      with the null/empty bucket in both ``raw_counts`` and ``normalized_counts``
-      and cannot be distinguished retroactively.
-
-    This report is embedded in the entity-resolution summary so that each run
-    produces a repeatable, reviewable record of the raw type-label distribution.
-    Unexpected new labels (potential upstream drift) appear in
-    ``passthrough_labels`` and can be compared across runs to detect whether a
-    new extractor variant would reintroduce cluster fragmentation.
-
-    The report is **diagnostic only**; it does not alter any mention, cluster, or
-    graph state.
-    """
-    raw_counts: dict[str | None, int] = {}
-    normalized_counts: dict[str, int] = {}
-    mapped_variants: dict[str, str] = {}
-    passthrough_labels: set[str] = set()
-    null_or_empty_count = 0
-    raw_null_sentinel_seen = False  # tracks whether extractor emitted literal "__null__"
-
-    for mention in mentions:
-        raw = mention.get("entity_type")
-        if isinstance(raw, str) and raw.strip() == _ENTITY_TYPE_NULL_SENTINEL:
-            raw_null_sentinel_seen = True
-        # Normalise empty and whitespace-only strings to None so counts are
-        # consistent with how _normalize_entity_type treats them: both are
-        # stripped to "" and return None.
-        if isinstance(raw, str) and not raw.strip():
-            raw = None
-
-        raw_counts[raw] = raw_counts.get(raw, 0) + 1
-
-        if raw is None:
-            null_or_empty_count += 1
-            norm_key = _ENTITY_TYPE_NULL_SENTINEL
-        else:
-            normalized = _normalize_entity_type(raw, entity_type_policy)
-            if normalized is None:
-                null_or_empty_count += 1
-                norm_key = _ENTITY_TYPE_NULL_SENTINEL
-            else:
-                norm_key = normalized
-                if normalized != raw:
-                    mapped_variants[raw] = normalized
-                elif raw != _ENTITY_TYPE_NULL_SENTINEL:
-                    passthrough_labels.add(raw)
-        normalized_counts[norm_key] = normalized_counts.get(norm_key, 0) + 1
-
-    # Serialise raw_counts so None keys become the reserved sentinel "__null__"
-    # for JSON safety.  Counts are summed in the unlikely event that an upstream
-    # extractor also emits the literal string "__null__"; that collision is
-    # surfaced in sentinel_label_warnings below.
-    serialized_raw_counts: dict[str, int] = {}
-    for k, v in raw_counts.items():
-        # Collapse None, exact sentinel, and padded-sentinel (e.g. " __null__ ")
-        # into a single "__null__" bucket so raw_counts is collision-free.
-        if k is None or (isinstance(k, str) and k.strip() == _ENTITY_TYPE_NULL_SENTINEL):
-            key = _ENTITY_TYPE_NULL_SENTINEL
-        else:
-            key = k
-        serialized_raw_counts[key] = serialized_raw_counts.get(key, 0) + v
-
-    sentinel_label_warnings: list[str] = []
-    if raw_null_sentinel_seen and null_or_empty_count > 0:
-        sentinel_label_warnings.append(
-            f"Upstream extractor emitted the reserved sentinel label "
-            f"{_ENTITY_TYPE_NULL_SENTINEL!r}; "
-            "its counts are merged with the absent/empty bucket in raw_counts "
-            "and normalized_counts and cannot be distinguished retroactively."
-        )
-
-    return {
-        "raw_counts": dict(
-            sorted(serialized_raw_counts.items(), key=lambda t: (-t[1], t[0]))
-        ),
-        "normalized_counts": dict(
-            sorted(normalized_counts.items(), key=lambda t: (-t[1], t[0]))
-        ),
-        "mapped_variants": dict(sorted(mapped_variants.items())),
-        "passthrough_labels": sorted(passthrough_labels),
-        "null_or_empty_count": null_or_empty_count,
-        "sentinel_label_warnings": sentinel_label_warnings,
-    }
+    return _build_entity_type_report_impl(
+        mentions,
+        entity_type_policy=entity_type_policy,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -566,65 +475,7 @@ def _align_clusters_to_canonical(
     by_label: dict[str, dict[str, Any]],
     by_alias: dict[str, dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    """Align :ResolvedEntityCluster nodes to :CanonicalEntity nodes.
-
-    For each unique cluster applies label-exact then alias-exact lookup against
-    the pre-built lookup tables.  Returns one alignment row per cluster that
-    matched a canonical entity.
-
-    Alignment strategies applied in priority order:
-
-    1. **label_exact** — cluster's normalized text matches a CanonicalEntity
-       by its normalized label.
-    2. **alias_exact** — cluster's normalized text appears in a CanonicalEntity's
-       alias list.
-
-    Args:
-        clusters: Unique clusters to align.  Each element must be a dict with
-            at least ``cluster_id`` (the scoped identity key produced by
-            :func:`_make_cluster_id`) and ``normalized_text`` (used for
-            label/alias lookup).
-        by_label: Mapping of normalized canonical label → canonical row.
-        by_alias:  Mapping of normalized alias → canonical row.
-
-    Returns:
-        A list of alignment row dicts with keys: ``cluster_id``,
-        ``canonical_entity_id``, ``canonical_run_id``, ``alignment_method``,
-        ``alignment_score``, ``alignment_status``, and ``source_uri``
-        (carried forward from the cluster dict for per-cluster edge provenance).
-    """
-    rows: list[dict[str, Any]] = []
-    for cluster in clusters:
-        cluster_id = cluster["cluster_id"]
-        normalized_text = cluster["normalized_text"]
-        cluster_source_uri = cluster.get("source_uri")
-
-        canonical = by_label.get(normalized_text)
-        if canonical:
-            rows.append({
-                "cluster_id": cluster_id,
-                "canonical_entity_id": canonical["entity_id"],
-                "canonical_run_id": canonical["run_id"],
-                "alignment_method": "label_exact",
-                "alignment_score": 0.9,
-                "alignment_status": "aligned",
-                "source_uri": cluster_source_uri,
-            })
-            continue
-
-        canonical = by_alias.get(normalized_text)
-        if canonical:
-            rows.append({
-                "cluster_id": cluster_id,
-                "canonical_entity_id": canonical["entity_id"],
-                "canonical_run_id": canonical["run_id"],
-                "alignment_method": "alias_exact",
-                "alignment_score": 0.8,
-                "alignment_status": "aligned",
-                "source_uri": cluster_source_uri,
-            })
-
-    return rows
+    return _align_clusters_to_canonical_impl(clusters, by_label, by_alias)
 
 
 def _write_alignment_results(
