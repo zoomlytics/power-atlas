@@ -227,9 +227,18 @@ from power_atlas.contracts import (
     POWER_ATLAS_ENTITY_TYPE_NORMALIZATION_POLICY,
     build_entity_type_cypher_case as build_entity_type_cypher_case_from_policy,
     normalize_entity_type as normalize_entity_type_from_policy,
-    resolve_dataset_root,
 )
 from power_atlas.contracts.resolution import ALIGNMENT_VERSION as _ALIGNMENT_VERSION
+from power_atlas.entity_resolution_entrypoint import (
+    RESOLUTION_MODE_HYBRID as _ENTRYPOINT_RESOLUTION_MODE_HYBRID,
+    RESOLUTION_MODE_STRUCTURED_ANCHOR as _ENTRYPOINT_RESOLUTION_MODE_STRUCTURED_ANCHOR,
+    RESOLUTION_MODE_UNSTRUCTURED_ONLY as _ENTRYPOINT_RESOLUTION_MODE_UNSTRUCTURED_ONLY,
+    VALID_RESOLUTION_MODES as _ENTRYPOINT_VALID_RESOLUTION_MODES,
+    neo4j_settings_from_config as _neo4j_settings_from_config_impl,
+    resolve_effective_dataset_id as _resolve_effective_dataset_id_impl,
+    run_entity_resolution as _run_entity_resolution_impl_entrypoint,
+    run_entity_resolution_request_context as _run_entity_resolution_request_context_impl,
+)
 from power_atlas.entity_resolution_queries import (
     fetch_alignment_coverage,
     fetch_canonical_entities,
@@ -247,17 +256,11 @@ from power_atlas.entity_resolution_clustering import _membership_status
 from power_atlas.entity_resolution_resolver import _build_lookup_tables
 from power_atlas.entity_resolution_resolver import _resolve_mention
 from power_atlas.entity_resolution_resolver import _split_aliases
-from power_atlas.entity_resolution_runtime import run_entity_resolution_live
 from power_atlas.entity_resolution_runner import run_entity_resolution_runtime as _run_entity_resolution_runtime_impl
 from power_atlas.entity_resolution_runner import write_alignment_results as _write_alignment_results_impl
 from power_atlas.entity_resolution_runner import write_cluster_memberships as _write_cluster_memberships_impl
 from power_atlas.entity_resolution_runner import write_resolution_results as _write_resolution_results_impl
 from power_atlas.entity_resolution_runner import write_resolved_mentions as _write_resolved_mentions_impl
-from power_atlas.entity_resolution_writes import (
-    write_alignment_results as _write_alignment_results_live,
-    write_cluster_memberships as _write_cluster_memberships_live,
-    write_resolved_mentions as _write_resolved_mentions_live,
-)
 from power_atlas.settings import Neo4jSettings
 from power_atlas.text_utils import normalize_mention_text
 
@@ -279,14 +282,10 @@ _CLUSTER_VERSION = "v1.3"
 _normalize = normalize_mention_text
 
 # Supported resolution mode identifiers.
-_RESOLUTION_MODE_STRUCTURED_ANCHOR = "structured_anchor"
-_RESOLUTION_MODE_UNSTRUCTURED_ONLY = "unstructured_only"
-_RESOLUTION_MODE_HYBRID = "hybrid"
-_VALID_RESOLUTION_MODES = frozenset({
-    _RESOLUTION_MODE_STRUCTURED_ANCHOR,
-    _RESOLUTION_MODE_UNSTRUCTURED_ONLY,
-    _RESOLUTION_MODE_HYBRID,
-})
+_RESOLUTION_MODE_STRUCTURED_ANCHOR = _ENTRYPOINT_RESOLUTION_MODE_STRUCTURED_ANCHOR
+_RESOLUTION_MODE_UNSTRUCTURED_ONLY = _ENTRYPOINT_RESOLUTION_MODE_UNSTRUCTURED_ONLY
+_RESOLUTION_MODE_HYBRID = _ENTRYPOINT_RESOLUTION_MODE_HYBRID
+_VALID_RESOLUTION_MODES = _ENTRYPOINT_VALID_RESOLUTION_MODES
 
 # Mapping of synonymous/variant entity-type labels to their canonical forms.
 # This table is the single authoritative source of truth for entity-type
@@ -332,16 +331,7 @@ def _neo4j_settings_from_config(
     config: object,
     neo4j_settings: Neo4jSettings | None = None,
 ) -> Neo4jSettings:
-    if neo4j_settings is not None:
-        return neo4j_settings
-    config_settings = getattr(config, "settings", None)
-    settings_neo4j = getattr(config_settings, "neo4j", None)
-    if isinstance(settings_neo4j, Neo4jSettings):
-        return settings_neo4j
-    raise ValueError(
-        "Live entity resolution requires config.settings.neo4j or an explicit "
-        "neo4j_settings argument from RequestContext/AppContext-backed config"
-    )
+    return _neo4j_settings_from_config_impl(config, neo4j_settings)
 
 
 def _resolve_effective_dataset_id(
@@ -350,15 +340,10 @@ def _resolve_effective_dataset_id(
     *,
     dataset_name: str | None = None,
 ) -> str:
-    if isinstance(dataset_id, str) and dataset_id:
-        return dataset_id
-
-    configured_dataset_name = dataset_name or getattr(config, "dataset_name", None)
-    if isinstance(configured_dataset_name, str) and configured_dataset_name:
-        return resolve_dataset_root(configured_dataset_name).dataset_id
-    raise ValueError(
-        "Entity resolution requires an explicit dataset_id or config.dataset_name from "
-        "RequestContext/AppContext-backed config"
+    return _resolve_effective_dataset_id_impl(
+        config,
+        dataset_id,
+        dataset_name=dataset_name,
     )
 
 
@@ -672,90 +657,19 @@ def _run_entity_resolution_impl(
     dataset_name: str | None = None,
     entity_type_policy: EntityTypeNormalizationPolicy | None = None,
 ) -> dict[str, Any]:
-    """Resolve or cluster :EntityMention nodes scoped to *run_id*.
-
-    Behaviour depends on *resolution_mode*:
-
-    * ``"structured_anchor"`` — resolves mentions against
-      :CanonicalEntity nodes using QID, label-exact, and alias-exact strategies.
-      Mentions that cannot be matched are grouped into provisional
-      :ResolvedEntityCluster nodes via ``MEMBER_OF`` edges.
-
-    * ``"unstructured_only"`` — clusters mentions against each other without
-      any :CanonicalEntity lookup.  All mentions produce ``MEMBER_OF`` edges to
-      :ResolvedEntityCluster nodes; no ``RESOLVES_TO`` edges are created.
-
-    * ``"hybrid"`` — runs the full unstructured clustering pass first (identical
-      to ``unstructured_only``), then optionally enriches resulting
-      :ResolvedEntityCluster nodes with ``ALIGNED_WITH`` edges to any matching
-      :CanonicalEntity nodes.  Structured ingest is not required; when no
-      :CanonicalEntity nodes are present the mode degrades gracefully to pure
-      unstructured clustering.
-
-    All resolution is **non-destructive**: existing nodes are never mutated;
-    only ``RESOLVES_TO``, ``MEMBER_OF``, and ``ALIGNED_WITH`` relationship edges
-    are added.
-
-    Args:
-        config:          :class:`~power_atlas.contracts.runtime.Config`.
-        run_id:          The run_id whose EntityMention nodes are to be resolved.
-                         Must match the run_id used during PDF ingest / claim extraction.
-        source_uri:      Provenance URI for the source document.
-        resolution_mode: One of ``"structured_anchor"``, ``"unstructured_only"``, or
-                         ``"hybrid"``. When ``None``, the effective mode is resolved as:
-                         explicit argument (if provided) > ``config.resolution_mode``
-                         (if present and truthy, typically defaulting to ``"unstructured_only"``)
-                         > ``"structured_anchor"`` as a final fallback.
-        artifact_subdir: Subdirectory under ``runs/<run_id>/`` where artifacts are
-                         written.  Defaults to ``"entity_resolution"``.  Pass a
-                         mode-specific name (e.g. ``"entity_resolution_unstructured_only"``
-                         or ``"entity_resolution_hybrid"``) when calling the function
-                         multiple times for the same *run_id* to avoid overwriting
-                         artifacts from an earlier pass.
-        dataset_id:      Dataset identifier used to scope :CanonicalEntity lookups to
-                 the active dataset. When ``None``, the stage resolves scope
-                 from ``config.dataset_name`` and then falls back to the demo's
-                 historical default dataset for compatibility with direct callers.
-                 Pass this explicitly when calling from an orchestrated pipeline
-                 stage to avoid relying on implicit defaults.
-
-    Returns:
-        A summary dict with counts, resolution breakdown, ``resolution_mode``,
-        and artifact paths.  See the module-level "Summary JSON metrics" section
-        for a full description of every field and which modes emit each one.
-        In brief: ``"unstructured_only"`` and ``"hybrid"`` modes add
-        ``mentions_clustered`` / ``mentions_unclustered``; ``"hybrid"`` mode
-        further adds ``aligned_clusters``, ``alignment_breakdown``,
-        ``alignment_version``, ``distinct_canonical_entities_aligned``,
-        ``mentions_in_aligned_clusters``, and ``clusters_pending_alignment``.
-    """
-    # Resolve the effective mode: explicit arg > config attribute > default.
-    if resolution_mode is None:
-        resolution_mode = getattr(config, "resolution_mode", _RESOLUTION_MODE_STRUCTURED_ANCHOR) or _RESOLUTION_MODE_STRUCTURED_ANCHOR
-    if resolution_mode not in _VALID_RESOLUTION_MODES:
-        raise ValueError(
-            f"Unknown resolution_mode {resolution_mode!r}. "
-            f"Valid modes: {sorted(_VALID_RESOLUTION_MODES)}"
-        )
-
-    # Resolve the effective dataset_id for scoping CanonicalEntity lookups.
-    # Explicit parameter takes precedence; otherwise use config.dataset_name when
-    # available and finally the historical demo default dataset for compatibility.
-    effective_dataset_id: str = _resolve_effective_dataset_id(
+    return _run_entity_resolution_impl_entrypoint(
         config,
-        dataset_id,
-        dataset_name=dataset_name,
-    )
-    resolved_neo4j_settings = _neo4j_settings_from_config(config, neo4j_settings)
-    return _run_entity_resolution_runtime(
-        config=config,
         run_id=run_id,
         source_uri=source_uri,
         resolution_mode=resolution_mode,
         artifact_subdir=artifact_subdir,
-        effective_dataset_id=effective_dataset_id,
-        neo4j_settings=resolved_neo4j_settings,
+        dataset_id=dataset_id,
+        neo4j_settings=neo4j_settings,
+        dataset_name=dataset_name,
         entity_type_policy=entity_type_policy,
+        runtime_runner=_run_entity_resolution_runtime,
+        default_resolution_mode=_RESOLUTION_MODE_STRUCTURED_ANCHOR,
+        valid_resolution_modes=_VALID_RESOLUTION_MODES,
     )
 
 
@@ -822,24 +736,12 @@ def run_entity_resolution_request_context(
     dataset_id: str | None = None,
 ) -> dict[str, Any]:
     """Run entity resolution using request-scoped context as the primary input."""
-    effective_resolution_mode = resolution_mode
-    if effective_resolution_mode is None:
-        effective_resolution_mode = getattr(request_context.config, "resolution_mode", None)
-
-    run_id = request_context.run_id
-    if not isinstance(run_id, str) or not run_id:
-        raise ValueError("Entity resolution requires request_context.run_id")
-
-    return _run_entity_resolution_impl(
-        request_context.config,
-        run_id=run_id,
-        source_uri=request_context.source_uri,
-        resolution_mode=effective_resolution_mode,
+    return _run_entity_resolution_request_context_impl(
+        request_context,
+        resolution_mode=resolution_mode,
         artifact_subdir=artifact_subdir,
         dataset_id=dataset_id,
-        neo4j_settings=request_context.settings.neo4j,
-        dataset_name=request_context.settings.dataset_name,
-        entity_type_policy=request_context.policies.entity_type_normalization,
+        config_runner=_run_entity_resolution_impl,
     )
 
 
