@@ -15,6 +15,12 @@ def test_package_modules_import() -> None:
     orchestration_module = importlib.import_module("power_atlas.orchestration")
     settings_module = importlib.import_module("power_atlas.settings")
     bootstrap_module = importlib.import_module("power_atlas.bootstrap")
+    claim_extraction_entrypoint_module = importlib.import_module(
+        "power_atlas.claim_extraction_entrypoint"
+    )
+    claim_extraction_runtime_module = importlib.import_module(
+        "power_atlas.claim_extraction_runtime"
+    )
     claim_participation_edges_module = importlib.import_module(
         "power_atlas.claim_participation_edges"
     )
@@ -95,6 +101,13 @@ def test_package_modules_import() -> None:
     assert package.build_default_app_policies is context_module.build_default_app_policies
     assert package.build_openai_llm is llm_utils_module.build_openai_llm
     assert package.normalize_mention_text is text_utils_module.normalize_mention_text
+    assert callable(claim_extraction_entrypoint_module.resolve_claim_extraction_policy)
+    assert callable(claim_extraction_entrypoint_module.resolve_pipeline_contract)
+    assert callable(claim_extraction_entrypoint_module.neo4j_settings_from_config)
+    assert callable(claim_extraction_entrypoint_module.openai_model_from_config)
+    assert callable(claim_extraction_entrypoint_module.run_claim_extraction)
+    assert callable(claim_extraction_entrypoint_module.run_claim_extraction_request_context)
+    assert callable(claim_extraction_runtime_module.run_claim_extraction_live)
     assert claim_participation_edges_module.EDGE_TYPE_HAS_PARTICIPANT == "HAS_PARTICIPANT"
     assert claim_participation_edges_module.ROLE_SUBJECT == "subject"
     assert claim_participation_edges_module.ROLE_OBJECT == "object"

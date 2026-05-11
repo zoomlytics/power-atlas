@@ -5,65 +5,20 @@ from typing import Any
 
 from power_atlas.adapters.llm import build_llm as build_openai_llm
 from power_atlas.bootstrap import require_openai_api_key
+from power_atlas.claim_extraction_entrypoint import (
+    neo4j_settings_from_config as _neo4j_settings_from_config,
+    openai_model_from_config as _openai_model_from_config,
+    resolve_claim_extraction_policy as _resolve_claim_extraction_policy,
+    resolve_pipeline_contract as _resolve_pipeline_contract,
+    run_claim_extraction as _run_claim_extraction_impl_entrypoint,
+    run_claim_extraction_request_context as _run_claim_extraction_request_context_impl,
+)
 from power_atlas.context import RequestContext
 from power_atlas.contracts import ClaimExtractionPolicy, get_default_claim_extraction_policy
 from power_atlas.contracts.pipeline import PipelineContractSnapshot, is_pipeline_contract_snapshot
 from power_atlas.contracts.prompts import PROMPT_IDS
 from power_atlas.claim_extraction_runtime import run_claim_extraction_live
 from power_atlas.settings import Neo4jSettings
-
-
-def _resolve_claim_extraction_policy(
-    claim_extraction_policy: ClaimExtractionPolicy | None,
-) -> ClaimExtractionPolicy:
-    return get_default_claim_extraction_policy() if claim_extraction_policy is None else claim_extraction_policy
-
-
-def _resolve_pipeline_contract(
-    config: Any,
-    pipeline_contract: PipelineContractSnapshot | None,
-) -> PipelineContractSnapshot:
-    if pipeline_contract is not None:
-        return pipeline_contract
-    config_pipeline_contract = getattr(config, "pipeline_contract", None)
-    if is_pipeline_contract_snapshot(config_pipeline_contract):
-        return config_pipeline_contract
-    raise ValueError(
-        "claim extraction requires a pipeline contract from RequestContext/AppContext-backed config or an explicit pipeline_contract argument"
-    )
-
-
-def _neo4j_settings_from_config(
-    config: object,
-    neo4j_settings: Neo4jSettings | None = None,
-) -> Neo4jSettings:
-    if neo4j_settings is not None:
-        return neo4j_settings
-    config_settings = getattr(config, "settings", None)
-    settings_neo4j = getattr(config_settings, "neo4j", None)
-    if isinstance(settings_neo4j, Neo4jSettings):
-        return settings_neo4j
-    raise ValueError(
-        "Live claim extraction requires config.settings.neo4j or an explicit "
-        "neo4j_settings argument from RequestContext/AppContext-backed config"
-    )
-
-
-def _openai_model_from_config(
-    config: object,
-    model_name: str | None = None,
-) -> str:
-    if isinstance(model_name, str) and model_name:
-        return model_name
-    config_settings = getattr(config, "settings", None)
-    settings_openai_model = getattr(config_settings, "openai_model", None)
-    if isinstance(settings_openai_model, str) and settings_openai_model:
-        return settings_openai_model
-    raise ValueError(
-        "Claim extraction requires config.settings.openai_model or an explicit "
-        "model_name argument from RequestContext/AppContext-backed config"
-    )
-
 
 async def _async_read_chunks_and_extract(
     driver: "neo4j.Driver",  # type: ignore[name-defined]  # noqa: F821
@@ -127,17 +82,15 @@ def _run_claim_and_mention_extraction_impl(
     neo4j_settings: Neo4jSettings | None = None,
     model_name: str | None = None,
 ) -> dict[str, Any]:
-    resolved_pipeline_contract = _resolve_pipeline_contract(config, pipeline_contract)
-    resolved_model_name = _openai_model_from_config(config, model_name)
-    resolved_neo4j_settings = _neo4j_settings_from_config(config, neo4j_settings)
-    return _run_claim_and_mention_extraction_runtime(
-        config=config,
+    return _run_claim_extraction_impl_entrypoint(
+        config,
         run_id=run_id,
         source_uri=source_uri,
-        pipeline_contract=resolved_pipeline_contract,
-        claim_extraction_policy=_resolve_claim_extraction_policy(claim_extraction_policy),
-        neo4j_settings=resolved_neo4j_settings,
-        model_name=resolved_model_name,
+        pipeline_contract=pipeline_contract,
+        claim_extraction_policy=claim_extraction_policy,
+        neo4j_settings=neo4j_settings,
+        model_name=model_name,
+        runtime_runner=_run_claim_and_mention_extraction_runtime,
     )
 
 
@@ -241,14 +194,9 @@ def _run_claim_and_mention_extraction_runtime(
 
 def run_claim_and_mention_extraction_request_context(request_context: RequestContext) -> dict[str, Any]:
     """Run claim extraction using request-scoped context as the primary input."""
-    return _run_claim_and_mention_extraction_impl(
-        request_context.config,
-        run_id=request_context.run_id,
-        source_uri=request_context.source_uri,
-        pipeline_contract=request_context.pipeline_contract,
-        claim_extraction_policy=request_context.policies.claim_extraction,
-        neo4j_settings=request_context.settings.neo4j,
-        model_name=request_context.settings.openai_model,
+    return _run_claim_extraction_request_context_impl(
+        request_context,
+        config_runner=_run_claim_and_mention_extraction_impl,
     )
 
 
