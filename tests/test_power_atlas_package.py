@@ -158,6 +158,8 @@ def test_package_modules_import() -> None:
     assert not hasattr(package, "reset_demo_entrypoint")
     assert not hasattr(package, "smoke_test_entrypoint")
     assert not hasattr(package, "sync_vendor_version_entrypoint")
+    assert not hasattr(package, "create_backend_app")
+    assert not hasattr(package, "backend_router")
     assert callable(claim_extraction_entrypoint_module.resolve_claim_extraction_policy)
     assert callable(claim_extraction_entrypoint_module.resolve_pipeline_contract)
     assert callable(claim_extraction_entrypoint_module.neo4j_settings_from_config)

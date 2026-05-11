@@ -274,6 +274,11 @@ The executable adapter modules under `power_atlas.interfaces.cli.*` remain a
 deeper import surface on purpose: they are script/CLI wiring helpers rather
 than part of the root library namespace contract.
 
+The same rule currently applies to `power_atlas.interfaces.api`: the FastAPI
+adapter surface (`power_atlas.interfaces.api.create_backend_app` and
+`power_atlas.interfaces.api.backend_router`) is intentionally namespaced under
+`interfaces.api` instead of being promoted to root `power_atlas.*` exports.
+
 `power_atlas.claim_extraction_entrypoint.run_claim_extraction(...)` /
 `run_claim_extraction_request_context(...)` and
 `power_atlas.entity_resolution_entrypoint.run_entity_resolution(...)` /
