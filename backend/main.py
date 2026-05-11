@@ -8,7 +8,7 @@ SRC_ROOT = REPO_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from power_atlas.interfaces.api import create_backend_app
+from power_atlas.api import create_backend_app
 
 
 app = create_backend_app()

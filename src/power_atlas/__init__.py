@@ -8,6 +8,7 @@ _EXPORTS = {
     "ALIGNMENT_VERSION": ("power_atlas.contracts", "ALIGNMENT_VERSION"),
     "ARTIFACTS_DIR": ("power_atlas.contracts", "ARTIFACTS_DIR"),
     "AmbiguousDatasetError": ("power_atlas.contracts", "AmbiguousDatasetError"),
+    "api": ("power_atlas.api", None),
     "AppBootstrap": ("power_atlas.bootstrap", "AppBootstrap"),
     "AppContext": ("power_atlas.context", "AppContext"),
     "AppPolicies": ("power_atlas.context", "AppPolicies"),

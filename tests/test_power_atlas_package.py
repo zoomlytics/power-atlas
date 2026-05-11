@@ -9,6 +9,7 @@ import pytest
 
 def test_package_modules_import() -> None:
     package = importlib.import_module("power_atlas")
+    api_module = importlib.import_module("power_atlas.api")
     context_module = importlib.import_module("power_atlas.context")
     contracts_module = importlib.import_module("power_atlas.contracts")
     pipeline_module = importlib.import_module("power_atlas.contracts.pipeline")
@@ -69,6 +70,7 @@ def test_package_modules_import() -> None:
     assert package.ALIGNMENT_VERSION is contracts_module.ALIGNMENT_VERSION
     assert package.AmbiguousDatasetError is contracts_module.AmbiguousDatasetError
     assert package.ARTIFACTS_DIR == contracts_module.ARTIFACTS_DIR
+    assert package.api is api_module
     assert package.build_batch_manifest is contracts_module.build_batch_manifest
     assert package.build_stage_manifest is contracts_module.build_stage_manifest
     assert package.claim_extraction_lexical_config is contracts_module.claim_extraction_lexical_config
@@ -160,6 +162,8 @@ def test_package_modules_import() -> None:
     assert not hasattr(package, "sync_vendor_version_entrypoint")
     assert not hasattr(package, "create_backend_app")
     assert not hasattr(package, "backend_router")
+    assert callable(api_module.create_backend_app)
+    assert api_module.backend_router is not None
     assert callable(claim_extraction_entrypoint_module.resolve_claim_extraction_policy)
     assert callable(claim_extraction_entrypoint_module.resolve_pipeline_contract)
     assert callable(claim_extraction_entrypoint_module.neo4j_settings_from_config)
