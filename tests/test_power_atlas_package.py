@@ -18,6 +18,9 @@ def test_package_modules_import() -> None:
     claim_extraction_entrypoint_module = importlib.import_module(
         "power_atlas.claim_extraction_entrypoint"
     )
+    claim_extraction_runner_module = importlib.import_module(
+        "power_atlas.claim_extraction_runner"
+    )
     claim_extraction_runtime_module = importlib.import_module(
         "power_atlas.claim_extraction_runtime"
     )
@@ -140,6 +143,9 @@ def test_package_modules_import() -> None:
     assert callable(claim_extraction_entrypoint_module.openai_model_from_config)
     assert callable(claim_extraction_entrypoint_module.run_claim_extraction)
     assert callable(claim_extraction_entrypoint_module.run_claim_extraction_request_context)
+    assert callable(claim_extraction_runner_module.read_chunks_and_extract)
+    assert callable(claim_extraction_runner_module.run_claim_extraction_runtime)
+    assert callable(claim_extraction_runner_module.run_claim_extraction_runtime_default)
     assert callable(claim_extraction_runtime_module.run_claim_extraction_live)
     assert claim_participation_edges_module.EDGE_TYPE_HAS_PARTICIPANT == "HAS_PARTICIPANT"
     assert claim_participation_edges_module.ROLE_SUBJECT == "subject"
@@ -229,6 +235,85 @@ def test_build_settings_from_env_mapping() -> None:
     assert app.settings.embedder_model == "text-embedding-3-large"
     assert app.settings.output_dir == Path("build/power-atlas")
     assert app.settings.dataset_name == "demo_dataset_v1"
+
+
+def test_claim_extraction_entrypoint_uses_package_default_runtime_runner() -> None:
+    from power_atlas import entity_resolution_entrypoint  # noqa: F401
+    from power_atlas.claim_extraction_entrypoint import (
+        _default_runtime_runner,
+        run_claim_extraction,
+    )
+    from power_atlas.contracts import get_default_claim_extraction_policy
+    from power_atlas.contracts.pipeline import PipelineContractSnapshot
+    from power_atlas.settings import Neo4jSettings
+
+    result_payload = {"status": "ok"}
+
+    with mock.patch(
+        "power_atlas.claim_extraction_entrypoint._default_runtime_runner"
+    ) as default_runtime_runner:
+        default_runtime_runner.return_value = mock.Mock(return_value=result_payload)
+
+        result = run_claim_extraction(
+            object(),
+            run_id="run-123",
+            source_uri="file:///example/doc.pdf",
+            pipeline_contract=PipelineContractSnapshot(
+                chunk_embedding_index_name="ignored_index",
+                chunk_embedding_label="Chunk",
+                chunk_embedding_property="embedding",
+                chunk_embedding_dimensions=1536,
+                embedder_model_name="text-embedding-3-small",
+                chunk_fallback_stride=1000,
+            ),
+            claim_extraction_policy=get_default_claim_extraction_policy(),
+            neo4j_settings=Neo4jSettings(),
+            model_name="gpt-5.4",
+        )
+
+    assert result == result_payload
+    default_runtime_runner.assert_called_once_with()
+
+
+def test_claim_extraction_request_context_uses_package_default_config_runner() -> None:
+    from power_atlas.bootstrap import bootstrap_app, build_request_context
+    from power_atlas.claim_extraction_entrypoint import run_claim_extraction_request_context
+
+    app = bootstrap_app(
+        {
+            "NEO4J_URI": "bolt://example.test:7687",
+            "NEO4J_USERNAME": "atlas",
+            "NEO4J_PASSWORD": "secret",
+            "NEO4J_DATABASE": "analytics",
+            "OPENAI_MODEL": "gpt-5.4",
+            "POWER_ATLAS_DATASET": "demo_dataset_v1",
+        }
+    )
+    request_context = build_request_context(
+        app.app_context,
+        command="extract-claims",
+        dry_run=False,
+        run_id="run-123",
+        source_uri="file:///example/doc.pdf",
+    )
+    result_payload = {"status": "ok"}
+
+    with mock.patch(
+        "power_atlas.claim_extraction_entrypoint._default_config_runner",
+        return_value=result_payload,
+    ) as default_config_runner:
+        result = run_claim_extraction_request_context(request_context)
+
+    assert result == result_payload
+    default_config_runner.assert_called_once_with(
+        request_context.config,
+        run_id="run-123",
+        source_uri="file:///example/doc.pdf",
+        pipeline_contract=request_context.pipeline_contract,
+        claim_extraction_policy=request_context.policies.claim_extraction,
+        neo4j_settings=request_context.settings.neo4j,
+        model_name=request_context.settings.openai_model,
+    )
 
 
 def test_entity_resolution_entrypoint_uses_package_default_runtime_runner() -> None:

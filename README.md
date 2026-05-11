@@ -264,8 +264,13 @@ package now also exposes these package-native entrypoint modules as namespace
 attributes (for example, `power_atlas.claim_extraction_entrypoint` and
 `power_atlas.pdf_ingest_entrypoint`). The root package intentionally does **not**
 flatten most of their `run_*` helper callables into top-level names, because
-several of those helpers still preserve injected callback seams used by the
-retained compatibility shells.
+the package surface is still being graduated selectively. In particular,
+`power_atlas.claim_extraction_entrypoint.run_claim_extraction(...)` /
+`run_claim_extraction_request_context(...)` and
+`power_atlas.entity_resolution_entrypoint.run_entity_resolution(...)` /
+`run_entity_resolution_request_context(...)` now own package-default runtime
+bindings at the module level, while remaining intentionally unflattened from
+the root package namespace.
 
 ### Data contracts — `src/power_atlas/contracts/`
 

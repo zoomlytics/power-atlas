@@ -67,6 +67,33 @@ def openai_model_from_config(
     )
 
 
+def _default_runtime_runner() -> Callable[..., dict[str, Any]]:
+    from power_atlas.claim_extraction_runner import run_claim_extraction_runtime_default
+
+    return run_claim_extraction_runtime_default
+
+
+def _default_config_runner(
+    config: Any,
+    *,
+    run_id: str,
+    source_uri: str | None,
+    pipeline_contract: PipelineContractSnapshot | None = None,
+    claim_extraction_policy: ClaimExtractionPolicy | None = None,
+    neo4j_settings: Neo4jSettings | None = None,
+    model_name: str | None = None,
+) -> dict[str, Any]:
+    return run_claim_extraction(
+        config,
+        run_id=run_id,
+        source_uri=source_uri,
+        pipeline_contract=pipeline_contract,
+        claim_extraction_policy=claim_extraction_policy,
+        neo4j_settings=neo4j_settings,
+        model_name=model_name,
+    )
+
+
 def run_claim_extraction(
     config: Any,
     *,
@@ -76,12 +103,13 @@ def run_claim_extraction(
     claim_extraction_policy: ClaimExtractionPolicy | None = None,
     neo4j_settings: Neo4jSettings | None = None,
     model_name: str | None = None,
-    runtime_runner: Callable[..., dict[str, Any]],
+    runtime_runner: Callable[..., dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     resolved_pipeline_contract = resolve_pipeline_contract(config, pipeline_contract)
     resolved_model_name = openai_model_from_config(config, model_name)
     resolved_neo4j_settings = neo4j_settings_from_config(config, neo4j_settings)
-    return runtime_runner(
+    resolved_runtime_runner = runtime_runner or _default_runtime_runner()
+    return resolved_runtime_runner(
         config=config,
         run_id=run_id,
         source_uri=source_uri,
@@ -95,9 +123,10 @@ def run_claim_extraction(
 def run_claim_extraction_request_context(
     request_context: RequestContext,
     *,
-    config_runner: Callable[..., dict[str, Any]],
+    config_runner: Callable[..., dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    return config_runner(
+    resolved_config_runner = config_runner or _default_config_runner
+    return resolved_config_runner(
         request_context.config,
         run_id=request_context.run_id,
         source_uri=request_context.source_uri,
