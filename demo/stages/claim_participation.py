@@ -94,65 +94,16 @@ from power_atlas.claim_participation_edges import (
     split_slot_text,
 )
 from power_atlas.claim_participation_runner import (
-    neo4j_settings_from_config as _neo4j_settings_from_config_impl,
+    neo4j_settings_from_config as _neo4j_settings_from_config,
+    run_claim_participation_request_context,
+    write_participation_edges,
 )
-from power_atlas.claim_participation_runner import (
-    run_claim_participation_request_context as _run_claim_participation_request_context_impl,
-)
-from power_atlas.claim_participation_runner import (
-    write_participation_edges as _write_participation_edges_impl,
-)
-from power_atlas.context import RequestContext
-from power_atlas.settings import Neo4jSettings
 
 # Private alias kept for backwards compatibility.
 _MATCH_OUTCOME_AMBIGUOUS = MATCH_OUTCOME_AMBIGUOUS
 
-
-def _neo4j_settings_from_config(config: object) -> Neo4jSettings:
-    return _neo4j_settings_from_config_impl(config)
-
 # The pure matching helpers are package-owned and re-exported from this stage
 # to preserve the existing demo import surface for tests and callers.
-
-
-# ---------------------------------------------------------------------------
-# Neo4j writer
-# ---------------------------------------------------------------------------
-
-
-def write_participation_edges(
-    driver: neo4j.Driver,
-    *,
-    neo4j_database: str,
-    edge_rows: list[dict[str, Any]],
-) -> None:
-    """Write :HAS_PARTICIPANT edges to Neo4j (v0.3 model).
-
-    Uses MERGE so that re-running the stage is idempotent.  The ``role``
-    property (``"subject"``, ``"object"``, etc.) is part of the MERGE key,
-    so a claim with both a subject and an object argument gets two distinct
-    edges.  Only edges whose claim/mention nodes already exist in the graph
-    are written (the MATCH clauses ensure this without raising an error for
-    missing nodes).
-
-    See ``docs/architecture/claim-argument-model-v0.3.md`` for the decision
-    record explaining the migration from v0.2 dual-edge types.
-
-    Parameters
-    ----------
-    driver:
-        An open :class:`neo4j.Driver` instance.
-    neo4j_database:
-        Neo4j database name (e.g. ``"neo4j"``).
-    edge_rows:
-        Edge rows returned by :func:`build_participation_edges`.
-    """
-    _write_participation_edges_impl(
-        driver,
-        neo4j_database=neo4j_database,
-        edge_rows=edge_rows,
-    )
 
 __all__ = [
     "MATCH_METHOD_RAW_EXACT",
@@ -171,13 +122,4 @@ __all__ = [
     "write_participation_edges",
     "run_claim_participation_request_context",
 ]
-
-
-# ---------------------------------------------------------------------------
-# Pipeline stage entry point
-# ---------------------------------------------------------------------------
-
-
-def run_claim_participation_request_context(request_context: RequestContext) -> dict[str, Any]:
-    return _run_claim_participation_request_context_impl(request_context)
 

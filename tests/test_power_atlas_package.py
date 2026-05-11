@@ -15,6 +15,12 @@ def test_package_modules_import() -> None:
     orchestration_module = importlib.import_module("power_atlas.orchestration")
     settings_module = importlib.import_module("power_atlas.settings")
     bootstrap_module = importlib.import_module("power_atlas.bootstrap")
+    claim_participation_edges_module = importlib.import_module(
+        "power_atlas.claim_participation_edges"
+    )
+    claim_participation_runner_module = importlib.import_module(
+        "power_atlas.claim_participation_runner"
+    )
     entity_resolution_alignment_module = importlib.import_module(
         "power_atlas.entity_resolution_alignment"
     )
@@ -89,6 +95,16 @@ def test_package_modules_import() -> None:
     assert package.build_default_app_policies is context_module.build_default_app_policies
     assert package.build_openai_llm is llm_utils_module.build_openai_llm
     assert package.normalize_mention_text is text_utils_module.normalize_mention_text
+    assert claim_participation_edges_module.EDGE_TYPE_HAS_PARTICIPANT == "HAS_PARTICIPANT"
+    assert claim_participation_edges_module.ROLE_SUBJECT == "subject"
+    assert claim_participation_edges_module.ROLE_OBJECT == "object"
+    assert callable(claim_participation_edges_module.split_slot_text)
+    assert callable(claim_participation_edges_module.match_slot_to_mention)
+    assert callable(claim_participation_edges_module.build_participation_edges)
+    assert callable(claim_participation_edges_module.build_participation_edges_with_metrics)
+    assert callable(claim_participation_runner_module.neo4j_settings_from_config)
+    assert callable(claim_participation_runner_module.write_participation_edges)
+    assert callable(claim_participation_runner_module.run_claim_participation_request_context)
     assert callable(entity_resolution_alignment_module.align_clusters_to_canonical)
     assert callable(entity_resolution_entrypoint_module.neo4j_settings_from_config)
     assert callable(entity_resolution_entrypoint_module.resolve_effective_dataset_id)
