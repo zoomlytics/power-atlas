@@ -122,6 +122,18 @@ def test_package_modules_import() -> None:
         is retrieval_request_context_adapters_module
     )
     assert package.structured_ingest_entrypoint is structured_ingest_entrypoint_module
+    assert not hasattr(package, "run_claim_extraction")
+    assert not hasattr(package, "run_claim_extraction_request_context")
+    assert not hasattr(package, "run_entity_resolution")
+    assert not hasattr(package, "run_entity_resolution_request_context")
+    assert not hasattr(package, "run_pdf_ingest")
+    assert not hasattr(package, "run_pdf_ingest_request_context")
+    assert not hasattr(package, "run_structured_ingest")
+    assert not hasattr(package, "run_structured_ingest_request_context")
+    assert not hasattr(package, "run_retrieval_benchmark")
+    assert not hasattr(package, "run_retrieval_benchmark_request_context")
+    assert not hasattr(package, "run_retrieval_request_context")
+    assert not hasattr(package, "run_interactive_request_context")
     assert callable(claim_extraction_entrypoint_module.resolve_claim_extraction_policy)
     assert callable(claim_extraction_entrypoint_module.resolve_pipeline_contract)
     assert callable(claim_extraction_entrypoint_module.neo4j_settings_from_config)
