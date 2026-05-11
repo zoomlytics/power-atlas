@@ -271,6 +271,8 @@ the package surface is still being graduated selectively. In particular,
 `run_entity_resolution_request_context(...)`, plus
 `power_atlas.pdf_ingest_entrypoint.run_pdf_ingest(...)` /
 `run_pdf_ingest_request_context(...)`, plus
+`power_atlas.retrieval_benchmark_entrypoint.run_retrieval_benchmark(...)` /
+`run_retrieval_benchmark_request_context(...)`, plus
 `power_atlas.structured_ingest_entrypoint.run_structured_ingest(...)` /
 `run_structured_ingest_request_context(...)`, now own package-default runtime
 bindings at the module level, while remaining intentionally unflattened from

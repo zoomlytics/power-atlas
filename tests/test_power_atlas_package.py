@@ -52,6 +52,9 @@ def test_package_modules_import() -> None:
     retrieval_benchmark_entrypoint_module = importlib.import_module(
         "power_atlas.retrieval_benchmark_entrypoint"
     )
+    retrieval_benchmark_runner_module = importlib.import_module(
+        "power_atlas.retrieval_benchmark_runner"
+    )
     retrieval_request_context_adapters_module = importlib.import_module(
         "power_atlas.retrieval_request_context_adapters"
     )
@@ -200,6 +203,11 @@ def test_package_modules_import() -> None:
     assert callable(retrieval_benchmark_entrypoint_module.neo4j_settings_from_request_context)
     assert callable(retrieval_benchmark_entrypoint_module.run_retrieval_benchmark)
     assert callable(retrieval_benchmark_entrypoint_module.run_retrieval_benchmark_request_context)
+    assert retrieval_benchmark_runner_module.BENCHMARK_CASES
+    assert callable(retrieval_benchmark_runner_module.build_benchmark_case_result)
+    assert callable(retrieval_benchmark_runner_module.build_benchmark_artifact)
+    assert callable(retrieval_benchmark_runner_module.run_retrieval_benchmark_runtime)
+    assert callable(retrieval_benchmark_runner_module.run_retrieval_benchmark_runtime_default)
     assert callable(retrieval_request_context_adapters_module.run_retrieval_request_context)
     assert callable(retrieval_request_context_adapters_module.run_interactive_request_context)
     assert callable(structured_ingest_entrypoint_module.neo4j_settings_from_config)
@@ -469,6 +477,64 @@ def test_pdf_ingest_request_context_uses_package_default_config_runner() -> None
         neo4j_settings=request_context.settings.neo4j,
         openai_model=request_context.settings.openai_model,
         dataset_name=request_context.settings.dataset_name,
+    )
+
+
+def test_retrieval_benchmark_entrypoint_uses_package_default_impl_runner() -> None:
+    from power_atlas.retrieval_benchmark_entrypoint import run_retrieval_benchmark
+
+    output_root = Path("build/test-retrieval-benchmark")
+    config = mock.Mock(output_dir=output_root, dry_run=True)
+
+    result = run_retrieval_benchmark(
+        config,
+        run_id="run-123",
+        dataset_id="demo_dataset_v1",
+        alignment_version="v1.0",
+    )
+
+    assert result["status"] == "dry_run"
+    assert result["run_id"] == "run-123"
+    assert result["dataset_id"] == "demo_dataset_v1"
+    assert result["alignment_version"] == "v1.0"
+    assert result["artifact_path"].endswith(
+        "build/test-retrieval-benchmark/runs/run-123/retrieval_benchmark/retrieval_benchmark.json"
+    )
+
+
+def test_retrieval_benchmark_request_context_uses_package_default_impl_runner() -> None:
+    from power_atlas.bootstrap import bootstrap_app, build_request_context
+    from power_atlas.retrieval_benchmark_entrypoint import run_retrieval_benchmark_request_context
+
+    app = bootstrap_app(
+        {
+            "NEO4J_URI": "bolt://example.test:7687",
+            "NEO4J_USERNAME": "atlas",
+            "NEO4J_PASSWORD": "secret",
+            "NEO4J_DATABASE": "analytics",
+            "OPENAI_MODEL": "gpt-5.4",
+            "POWER_ATLAS_OUTPUT_DIR": "build/test-retrieval-benchmark-context",
+            "POWER_ATLAS_DATASET": "demo_dataset_v1",
+        }
+    )
+    request_context = build_request_context(
+        app.app_context,
+        command="retrieval-benchmark",
+        dry_run=True,
+        run_id="run-123",
+    )
+
+    result = run_retrieval_benchmark_request_context(
+        request_context,
+        alignment_version="v1.0",
+    )
+
+    assert result["status"] == "dry_run"
+    assert result["run_id"] == "run-123"
+    assert result["dataset_id"] == "demo_dataset_v1"
+    assert result["alignment_version"] == "v1.0"
+    assert result["artifact_path"].endswith(
+        "build/test-retrieval-benchmark-context/runs/run-123/retrieval_benchmark/retrieval_benchmark.json"
     )
 
 

@@ -7,6 +7,12 @@ from power_atlas.context import RequestContext
 from power_atlas.settings import Neo4jSettings
 
 
+def _default_impl_runner() -> Callable[..., dict[str, Any]]:
+    from power_atlas.retrieval_benchmark_runner import run_retrieval_benchmark_runtime_default
+
+    return run_retrieval_benchmark_runtime_default
+
+
 def neo4j_settings_from_config(
     config: object,
     neo4j_settings: Neo4jSettings | None = None,
@@ -39,12 +45,13 @@ def run_retrieval_benchmark(
     output_dir: Path | None = None,
     benchmark_cases: list[Any] | None = None,
     suppress_alignment_version_warning: bool = False,
-    impl_runner: Callable[..., dict[str, Any]],
+    impl_runner: Callable[..., dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     resolved_output_dir = Path(output_dir if output_dir is not None else config.output_dir)
     dry_run = bool(getattr(config, "dry_run", False))
     resolved_neo4j_settings = None if dry_run else neo4j_settings_from_config(config)
-    return impl_runner(
+    resolved_impl_runner = impl_runner or _default_impl_runner()
+    return resolved_impl_runner(
         dry_run=dry_run,
         output_dir=resolved_output_dir,
         neo4j_settings=resolved_neo4j_settings,
@@ -64,7 +71,7 @@ def run_retrieval_benchmark_request_context(
     output_dir: Path | None = None,
     benchmark_cases: list[Any] | None = None,
     suppress_alignment_version_warning: bool = False,
-    impl_runner: Callable[..., dict[str, Any]],
+    impl_runner: Callable[..., dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     resolved_output_dir = Path(
         output_dir if output_dir is not None else request_context.config.output_dir
@@ -73,7 +80,8 @@ def run_retrieval_benchmark_request_context(
     resolved_neo4j_settings = None if dry_run else neo4j_settings_from_request_context(
         request_context
     )
-    return impl_runner(
+    resolved_impl_runner = impl_runner or _default_impl_runner()
+    return resolved_impl_runner(
         dry_run=dry_run,
         output_dir=resolved_output_dir,
         neo4j_settings=resolved_neo4j_settings,
