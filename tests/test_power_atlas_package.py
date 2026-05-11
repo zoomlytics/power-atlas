@@ -46,6 +46,9 @@ def test_package_modules_import() -> None:
     pdf_ingest_entrypoint_module = importlib.import_module(
         "power_atlas.pdf_ingest_entrypoint"
     )
+    pdf_ingest_runner_module = importlib.import_module(
+        "power_atlas.pdf_ingest_runner"
+    )
     retrieval_benchmark_entrypoint_module = importlib.import_module(
         "power_atlas.retrieval_benchmark_entrypoint"
     )
@@ -187,6 +190,12 @@ def test_package_modules_import() -> None:
     assert callable(pdf_ingest_entrypoint_module.openai_model_from_config)
     assert callable(pdf_ingest_entrypoint_module.run_pdf_ingest)
     assert callable(pdf_ingest_entrypoint_module.run_pdf_ingest_request_context)
+    assert callable(pdf_ingest_runner_module.resolve_pdf_dataset)
+    assert callable(pdf_ingest_runner_module.sha256_file)
+    assert callable(pdf_ingest_runner_module.require_positive_int)
+    assert callable(pdf_ingest_runner_module.run_pipeline_with_cleanup)
+    assert callable(pdf_ingest_runner_module.run_pdf_ingest_runtime)
+    assert callable(pdf_ingest_runner_module.run_pdf_ingest_runtime_default)
     assert callable(retrieval_benchmark_entrypoint_module.neo4j_settings_from_config)
     assert callable(retrieval_benchmark_entrypoint_module.neo4j_settings_from_request_context)
     assert callable(retrieval_benchmark_entrypoint_module.run_retrieval_benchmark)
@@ -380,6 +389,86 @@ def test_structured_ingest_request_context_uses_package_default_config_runner() 
         fixtures_dir=None,
         dataset_id=None,
         neo4j_settings=request_context.settings.neo4j,
+    )
+
+
+def test_pdf_ingest_entrypoint_uses_package_default_runtime_runner() -> None:
+    from power_atlas.contracts.pipeline import PipelineContractSnapshot
+    from power_atlas.pdf_ingest_entrypoint import run_pdf_ingest
+    from power_atlas.settings import Neo4jSettings
+
+    result_payload = {"status": "ok"}
+
+    with mock.patch(
+        "power_atlas.pdf_ingest_entrypoint._default_runtime_runner"
+    ) as default_runtime_runner:
+        default_runtime_runner.return_value = mock.Mock(return_value=result_payload)
+
+        result = run_pdf_ingest(
+            object(),
+            "run-123",
+            pipeline_contract=PipelineContractSnapshot(
+                chunk_embedding_index_name="pdf_index",
+                chunk_embedding_label="Chunk",
+                chunk_embedding_property="embedding",
+                chunk_embedding_dimensions=1536,
+                embedder_model_name="text-embedding-3-small",
+                chunk_fallback_stride=1000,
+            ),
+            neo4j_settings=Neo4jSettings(),
+            openai_model="gpt-5.4",
+            dataset_name="demo_dataset_v1",
+        )
+
+    assert result == result_payload
+    default_runtime_runner.assert_called_once_with()
+
+
+def test_pdf_ingest_request_context_uses_package_default_config_runner() -> None:
+    from power_atlas.bootstrap import bootstrap_app, build_request_context
+    from power_atlas.pdf_ingest_entrypoint import run_pdf_ingest_request_context
+
+    app = bootstrap_app(
+        {
+            "NEO4J_URI": "bolt://example.test:7687",
+            "NEO4J_USERNAME": "atlas",
+            "NEO4J_PASSWORD": "secret",
+            "NEO4J_DATABASE": "analytics",
+            "OPENAI_MODEL": "gpt-5.4",
+            "POWER_ATLAS_DATASET": "demo_dataset_v1",
+        }
+    )
+    request_context = build_request_context(
+        app.app_context,
+        command="ingest-pdf",
+        dry_run=False,
+        run_id="run-123",
+    )
+    result_payload = {"status": "ok"}
+
+    with mock.patch(
+        "power_atlas.pdf_ingest_entrypoint._default_config_runner",
+        return_value=result_payload,
+    ) as default_config_runner:
+        result = run_pdf_ingest_request_context(request_context)
+
+    assert result == result_payload
+    default_config_runner.assert_called_once_with(
+        request_context.config,
+        "run-123",
+        fixtures_dir=None,
+        pdf_filename=None,
+        dataset_id=None,
+        index_name=request_context.pipeline_contract.chunk_embedding_index_name,
+        chunk_label=request_context.pipeline_contract.chunk_embedding_label,
+        embedding_property=request_context.pipeline_contract.chunk_embedding_property,
+        embedding_dimensions=request_context.pipeline_contract.chunk_embedding_dimensions,
+        embedder_model=request_context.pipeline_contract.embedder_model_name,
+        chunk_stride=request_context.pipeline_contract.chunk_fallback_stride,
+        pipeline_contract=request_context.pipeline_contract,
+        neo4j_settings=request_context.settings.neo4j,
+        openai_model=request_context.settings.openai_model,
+        dataset_name=request_context.settings.dataset_name,
     )
 
 

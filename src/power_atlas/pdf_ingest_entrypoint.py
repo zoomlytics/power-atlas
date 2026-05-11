@@ -11,6 +11,49 @@ from power_atlas.contracts.pipeline import (
 from power_atlas.settings import Neo4jSettings
 
 
+def _default_runtime_runner() -> Callable[..., dict[str, Any]]:
+    from power_atlas.pdf_ingest_runner import run_pdf_ingest_runtime_default
+
+    return run_pdf_ingest_runtime_default
+
+
+def _default_config_runner(
+    config: Any,
+    run_id: str | None = None,
+    *,
+    fixtures_dir: Path | None = None,
+    pdf_filename: str | None = None,
+    dataset_id: str | None = None,
+    index_name: str | None = None,
+    chunk_label: str | None = None,
+    embedding_property: str | None = None,
+    embedding_dimensions: int | None = None,
+    embedder_model: str | None = None,
+    chunk_stride: int | None = None,
+    pipeline_contract: PipelineContractSnapshot | None = None,
+    neo4j_settings: Neo4jSettings | None = None,
+    openai_model: str | None = None,
+    dataset_name: str | None = None,
+) -> dict[str, Any]:
+    return run_pdf_ingest(
+        config,
+        run_id,
+        fixtures_dir=fixtures_dir,
+        pdf_filename=pdf_filename,
+        dataset_id=dataset_id,
+        index_name=index_name,
+        chunk_label=chunk_label,
+        embedding_property=embedding_property,
+        embedding_dimensions=embedding_dimensions,
+        embedder_model=embedder_model,
+        chunk_stride=chunk_stride,
+        pipeline_contract=pipeline_contract,
+        neo4j_settings=neo4j_settings,
+        openai_model=openai_model,
+        dataset_name=dataset_name,
+    )
+
+
 def resolve_pipeline_contract(
     config: Any,
     pipeline_contract: PipelineContractSnapshot | None,
@@ -74,7 +117,7 @@ def run_pdf_ingest(
     neo4j_settings: Neo4jSettings | None = None,
     openai_model: str | None = None,
     dataset_name: str | None = None,
-    runtime_runner: Callable[..., dict[str, Any]],
+    runtime_runner: Callable[..., dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     resolved_pipeline_contract = resolve_pipeline_contract(config, pipeline_contract)
     resolved_openai_model = openai_model_from_config(config, openai_model)
@@ -86,7 +129,8 @@ def run_pdf_ingest(
             dataset_name = settings_dataset_name
         else:
             dataset_name = getattr(config, "dataset_name", None)
-    return runtime_runner(
+    resolved_runtime_runner = runtime_runner or _default_runtime_runner()
+    return resolved_runtime_runner(
         config=config,
         run_id=run_id,
         fixtures_dir=fixtures_dir,
@@ -117,10 +161,11 @@ def run_pdf_ingest_request_context(
     embedding_dimensions: int | None = None,
     embedder_model: str | None = None,
     chunk_stride: int | None = None,
-    config_runner: Callable[..., dict[str, Any]],
+    config_runner: Callable[..., dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     pipeline_contract = request_context.pipeline_contract
-    return config_runner(
+    resolved_config_runner = config_runner or _default_config_runner
+    return resolved_config_runner(
         request_context.config,
         request_context.run_id,
         fixtures_dir=fixtures_dir,
