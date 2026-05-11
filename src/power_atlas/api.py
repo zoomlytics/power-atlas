@@ -1,14 +1,16 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Callable, Mapping
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 
-from fastapi import APIRouter, FastAPI, Response
+from fastapi import APIRouter, FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+from power_atlas.bootstrap import build_app_context
+from power_atlas.context import AppContext
 from power_atlas.graph_status import GraphStatusResult, resolve_graph_status
 from power_atlas.graph_summary import GraphSummaryCounts, GraphSummaryResult, resolve_graph_summary
 
@@ -60,6 +62,43 @@ class RootResponse(BaseModel):
 
 
 @dataclass(frozen=True, slots=True)
+class BackendRuntime:
+	app_context: AppContext
+	graph_status_resolver: Callable[[AppContext], GraphStatusResult]
+	graph_summary_resolver: Callable[[AppContext], GraphSummaryResult]
+
+
+def build_backend_runtime(
+	*,
+	app_context: AppContext | None = None,
+	environ: Mapping[str, str] | None = None,
+	graph_status_resolver: Callable[[AppContext], GraphStatusResult] | None = None,
+	graph_summary_resolver: Callable[[AppContext], GraphSummaryResult] | None = None,
+) -> BackendRuntime:
+	resolved_app_context = (
+		build_app_context(environ=environ) if app_context is None else app_context
+	)
+	return BackendRuntime(
+		app_context=resolved_app_context,
+		graph_status_resolver=(
+			graph_status_resolver
+			or (lambda runtime_app_context: resolve_graph_status(settings=runtime_app_context.settings))
+		),
+		graph_summary_resolver=(
+			graph_summary_resolver
+			or (lambda runtime_app_context: resolve_graph_summary(settings=runtime_app_context.settings))
+		),
+	)
+
+
+def get_backend_runtime(app: FastAPI) -> BackendRuntime:
+	runtime = getattr(app.state, "backend_runtime", None)
+	if isinstance(runtime, BackendRuntime):
+		return runtime
+	raise RuntimeError("Backend runtime is not configured on the FastAPI app state")
+
+
+@dataclass(frozen=True, slots=True)
 class BackendAppOptions:
 	title: str = DEFAULT_API_TITLE
 	description: str = DEFAULT_API_DESCRIPTION
@@ -79,12 +118,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 def build_backend_router(
 	*,
 	version: str = DEFAULT_API_VERSION,
-	graph_status_resolver: Callable[[], GraphStatusResult] | None = None,
-	graph_summary_resolver: Callable[[], GraphSummaryResult] | None = None,
 ) -> APIRouter:
 	router = APIRouter()
-	resolved_graph_status = graph_status_resolver or resolve_graph_status
-	resolved_graph_summary = graph_summary_resolver or resolve_graph_summary
 
 	@router.get("/health", response_model=HealthResponse)
 	async def health_check() -> HealthResponse:
@@ -95,8 +130,9 @@ def build_backend_router(
 		response_model=GraphStatusResponse,
 		responses={503: {"description": "Graph integration is not configured yet"}},
 	)
-	async def graph_status(response: Response) -> GraphStatusResponse:
-		probe = resolved_graph_status()
+	async def graph_status(request: Request, response: Response) -> GraphStatusResponse:
+		runtime = get_backend_runtime(request.app)
+		probe = runtime.graph_status_resolver(runtime.app_context)
 		response.status_code = probe.http_status_code
 		return GraphStatusResponse(
 			status=probe.status,
@@ -110,8 +146,9 @@ def build_backend_router(
 		response_model=GraphSummaryResponse,
 		responses={503: {"description": "Graph summary is unavailable"}},
 	)
-	async def graph_summary(response: Response) -> GraphSummaryResponse:
-		probe = resolved_graph_summary()
+	async def graph_summary(request: Request, response: Response) -> GraphSummaryResponse:
+		runtime = get_backend_runtime(request.app)
+		probe = runtime.graph_summary_resolver(runtime.app_context)
 		response.status_code = probe.http_status_code
 		counts = None
 		if probe.counts is not None:
@@ -149,23 +186,20 @@ def create_backend_app(
 	options: BackendAppOptions | None = None,
 	*,
 	router: APIRouter | None = None,
-	graph_status_resolver: Callable[[], GraphStatusResult] | None = None,
-	graph_summary_resolver: Callable[[], GraphSummaryResult] | None = None,
+	runtime: BackendRuntime | None = None,
+	app_context: AppContext | None = None,
+	environ: Mapping[str, str] | None = None,
+	graph_status_resolver: Callable[[AppContext], GraphStatusResult] | None = None,
+	graph_summary_resolver: Callable[[AppContext], GraphSummaryResult] | None = None,
 ) -> FastAPI:
 	app_options = options or BackendAppOptions()
-	selected_router = router
-	if selected_router is None:
-		selected_router = (
-			backend_router
-			if app_options.version == DEFAULT_API_VERSION
-			and graph_status_resolver is None
-			and graph_summary_resolver is None
-			else build_backend_router(
-				version=app_options.version,
-				graph_status_resolver=graph_status_resolver,
-				graph_summary_resolver=graph_summary_resolver,
-			)
-		)
+	resolved_runtime = runtime or build_backend_runtime(
+		app_context=app_context,
+		environ=environ,
+		graph_status_resolver=graph_status_resolver,
+		graph_summary_resolver=graph_summary_resolver,
+	)
+	selected_router = router or build_backend_router(version=app_options.version)
 
 	app = FastAPI(
 		title=app_options.title,
@@ -182,6 +216,7 @@ def create_backend_app(
 		allow_headers=["*"],
 	)
 
+	app.state.backend_runtime = resolved_runtime
 	app.include_router(selected_router)
 
 	return app
@@ -189,6 +224,7 @@ def create_backend_app(
 
 __all__ = [
 	"BackendAppOptions",
+	"BackendRuntime",
 	"DEFAULT_API_DESCRIPTION",
 	"DEFAULT_API_TITLE",
 	"DEFAULT_API_VERSION",
@@ -199,7 +235,9 @@ __all__ = [
 	"HealthResponse",
 	"RootResponse",
 	"backend_router",
+	"build_backend_runtime",
 	"build_backend_router",
 	"create_backend_app",
+	"get_backend_runtime",
 	"lifespan",
 ]

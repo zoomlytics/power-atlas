@@ -163,8 +163,11 @@ def test_package_modules_import() -> None:
     assert not hasattr(package, "create_backend_app")
     assert not hasattr(package, "backend_router")
     assert api_module.BackendAppOptions.__name__ == "BackendAppOptions"
+    assert api_module.BackendRuntime.__name__ == "BackendRuntime"
+    assert callable(api_module.build_backend_runtime)
     assert callable(api_module.build_backend_router)
     assert callable(api_module.create_backend_app)
+    assert callable(api_module.get_backend_runtime)
     assert api_module.backend_router is not None
     assert callable(claim_extraction_entrypoint_module.resolve_claim_extraction_policy)
     assert callable(claim_extraction_entrypoint_module.resolve_pipeline_contract)
