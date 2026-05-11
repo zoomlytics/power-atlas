@@ -54,6 +54,37 @@ def resolve_effective_dataset_id(
     )
 
 
+def _default_runtime_runner() -> Callable[..., dict[str, Any]]:
+    from power_atlas.entity_resolution_runner import run_entity_resolution_runtime_default
+
+    return run_entity_resolution_runtime_default
+
+
+def _default_config_runner(
+    config: Any,
+    *,
+    run_id: str,
+    source_uri: str | None,
+    resolution_mode: str | None = None,
+    artifact_subdir: str = "entity_resolution",
+    dataset_id: str | None = None,
+    neo4j_settings: Neo4jSettings | None = None,
+    dataset_name: str | None = None,
+    entity_type_policy: Any = None,
+) -> dict[str, Any]:
+    return run_entity_resolution(
+        config,
+        run_id=run_id,
+        source_uri=source_uri,
+        resolution_mode=resolution_mode,
+        artifact_subdir=artifact_subdir,
+        dataset_id=dataset_id,
+        neo4j_settings=neo4j_settings,
+        dataset_name=dataset_name,
+        entity_type_policy=entity_type_policy,
+    )
+
+
 def run_entity_resolution(
     config: Any,
     *,
@@ -65,7 +96,7 @@ def run_entity_resolution(
     neo4j_settings: Neo4jSettings | None = None,
     dataset_name: str | None = None,
     entity_type_policy: Any = None,
-    runtime_runner: Callable[..., dict[str, Any]],
+    runtime_runner: Callable[..., dict[str, Any]] | None = None,
     default_resolution_mode: str = RESOLUTION_MODE_STRUCTURED_ANCHOR,
     valid_resolution_modes: frozenset[str] = VALID_RESOLUTION_MODES,
 ) -> dict[str, Any]:
@@ -87,7 +118,8 @@ def run_entity_resolution(
         dataset_name=dataset_name,
     )
     resolved_neo4j_settings = neo4j_settings_from_config(config, neo4j_settings)
-    return runtime_runner(
+    resolved_runtime_runner = runtime_runner or _default_runtime_runner()
+    return resolved_runtime_runner(
         config=config,
         run_id=run_id,
         source_uri=source_uri,
@@ -105,13 +137,14 @@ def run_entity_resolution_request_context(
     resolution_mode: str | None = None,
     artifact_subdir: str = "entity_resolution",
     dataset_id: str | None = None,
-    config_runner: Callable[..., dict[str, Any]],
+    config_runner: Callable[..., dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     run_id = request_context.run_id
     if not isinstance(run_id, str) or not run_id:
         raise ValueError("Entity resolution requires request_context.run_id")
 
-    return config_runner(
+    resolved_config_runner = config_runner or _default_config_runner
+    return resolved_config_runner(
         request_context.config,
         run_id=run_id,
         source_uri=request_context.source_uri,

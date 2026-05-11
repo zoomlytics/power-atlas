@@ -259,6 +259,7 @@ from power_atlas.entity_resolution_alignment import (
 from power_atlas.entity_resolution_reporting import (
     build_entity_type_report as _build_entity_type_report,
 )
+from power_atlas.entity_resolution_runtime import run_entity_resolution_live
 from power_atlas.entity_resolution_resolver import _build_lookup_tables
 from power_atlas.entity_resolution_resolver import _resolve_mention
 from power_atlas.entity_resolution_resolver import _split_aliases
@@ -527,6 +528,7 @@ def _run_entity_resolution_runtime(
         resolution_mode_structured_anchor=_RESOLUTION_MODE_STRUCTURED_ANCHOR,
         resolution_mode_unstructured_only=_RESOLUTION_MODE_UNSTRUCTURED_ONLY,
         resolution_mode_hybrid=_RESOLUTION_MODE_HYBRID,
+        live_runner=run_entity_resolution_live,
     )
 
 

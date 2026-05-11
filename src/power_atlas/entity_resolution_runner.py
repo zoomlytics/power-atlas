@@ -18,6 +18,9 @@ WriteResolutionResults = Callable[[
     Any,
 ], None]
 
+DEFAULT_RESOLVER_VERSION = "v1.2"
+DEFAULT_CLUSTER_VERSION = "v1.3"
+
 
 def write_cluster_memberships(
     driver: Any,
@@ -158,6 +161,7 @@ def run_entity_resolution_runtime(
     resolution_mode_structured_anchor: str,
     resolution_mode_unstructured_only: str,
     resolution_mode_hybrid: str,
+    live_runner: Callable[..., Any] = run_entity_resolution_live,
 ) -> dict[str, Any]:
     resolved_at = datetime.now(UTC).isoformat()
 
@@ -227,7 +231,7 @@ def run_entity_resolution_runtime(
         unresolved_path.write_text(json.dumps([], indent=2), encoding="utf-8")
         return summary
 
-    live_result = run_entity_resolution_live(
+    live_result = live_runner(
         neo4j_settings,
         run_id=run_id,
         source_uri=source_uri,
@@ -331,7 +335,132 @@ def run_entity_resolution_runtime(
     return summary
 
 
+def run_entity_resolution_runtime_default(
+    *,
+    config: Any,
+    run_id: str,
+    source_uri: str | None,
+    resolution_mode: str,
+    artifact_subdir: str,
+    effective_dataset_id: str,
+    neo4j_settings: Neo4jSettings,
+    entity_type_policy: Any = None,
+) -> dict[str, Any]:
+    from power_atlas.contracts.resolution import ALIGNMENT_VERSION
+    from power_atlas.entity_resolution_alignment import align_clusters_to_canonical
+    from power_atlas.entity_resolution_clustering import (
+        _cluster_mentions_unstructured_only,
+        _make_cluster_id,
+        _membership_score,
+        _membership_status,
+    )
+    from power_atlas.entity_resolution_entrypoint import (
+        RESOLUTION_MODE_HYBRID,
+        RESOLUTION_MODE_STRUCTURED_ANCHOR,
+        RESOLUTION_MODE_UNSTRUCTURED_ONLY,
+    )
+    from power_atlas.entity_resolution_queries import (
+        fetch_alignment_coverage,
+        fetch_canonical_entities,
+        fetch_entity_mentions,
+        fetch_member_of_coverage,
+    )
+    from power_atlas.entity_resolution_reporting import build_entity_type_report
+    from power_atlas.entity_resolution_resolver import _build_lookup_tables, _resolve_mention
+
+    def _default_make_cluster_id(
+        current_run_id: str,
+        current_entity_type: str | None,
+        normalized_text: str,
+    ) -> str:
+        return _make_cluster_id(
+            current_run_id,
+            current_entity_type,
+            normalized_text,
+            entity_type_policy,
+        )
+
+    def _default_write_resolution_results(
+        driver: Any,
+        *,
+        run_id: str,
+        source_uri: str | None,
+        resolved_rows: list[dict[str, Any]],
+        unresolved_rows: list[dict[str, Any]],
+        neo4j_database: str,
+    ) -> None:
+        write_resolution_results(
+            driver,
+            run_id=run_id,
+            source_uri=source_uri,
+            resolved_rows=resolved_rows,
+            unresolved_rows=unresolved_rows,
+            neo4j_database=neo4j_database,
+            make_cluster_id=_default_make_cluster_id,
+            membership_score=_membership_score,
+            membership_status=_membership_status,
+            cluster_version=DEFAULT_CLUSTER_VERSION,
+        )
+
+    def _default_write_alignment_results(
+        driver: Any,
+        *,
+        run_id: str,
+        source_uri: str | None,
+        alignment_rows: list[dict[str, Any]],
+        neo4j_database: str,
+    ) -> None:
+        write_alignment_results(
+            driver,
+            run_id=run_id,
+            source_uri=source_uri,
+            alignment_rows=alignment_rows,
+            neo4j_database=neo4j_database,
+            alignment_version=ALIGNMENT_VERSION,
+        )
+
+    return run_entity_resolution_runtime(
+        config=config,
+        run_id=run_id,
+        source_uri=source_uri,
+        resolution_mode=resolution_mode,
+        artifact_subdir=artifact_subdir,
+        effective_dataset_id=effective_dataset_id,
+        neo4j_settings=neo4j_settings,
+        entity_type_policy=entity_type_policy,
+        resolver_version=DEFAULT_RESOLVER_VERSION,
+        cluster_version=DEFAULT_CLUSTER_VERSION,
+        alignment_version=ALIGNMENT_VERSION,
+        build_entity_type_report=build_entity_type_report,
+        cluster_mentions=lambda mentions: _cluster_mentions_unstructured_only(
+            mentions,
+            entity_type_policy=entity_type_policy,
+        ),
+        fetch_mentions=fetch_entity_mentions,
+        fetch_canonicals=fetch_canonical_entities,
+        build_lookup_tables=_build_lookup_tables,
+        make_cluster_id=_default_make_cluster_id,
+        align_clusters_to_canonical=align_clusters_to_canonical,
+        resolve_mention=lambda mention, by_qid, by_label, by_alias: _resolve_mention(
+            mention,
+            by_qid,
+            by_label,
+            by_alias,
+            entity_type_policy,
+        ),
+        write_resolution_results=_default_write_resolution_results,
+        write_alignment_results=_default_write_alignment_results,
+        fetch_member_of_coverage=fetch_member_of_coverage,
+        fetch_alignment_coverage=fetch_alignment_coverage,
+        resolution_mode_structured_anchor=RESOLUTION_MODE_STRUCTURED_ANCHOR,
+        resolution_mode_unstructured_only=RESOLUTION_MODE_UNSTRUCTURED_ONLY,
+        resolution_mode_hybrid=RESOLUTION_MODE_HYBRID,
+    )
+
+
 __all__ = [
+    "DEFAULT_CLUSTER_VERSION",
+    "DEFAULT_RESOLVER_VERSION",
     "run_entity_resolution_runtime",
     "write_alignment_results",
     "write_cluster_memberships",
