@@ -262,9 +262,14 @@ modules.
 For discovery from an installed package, the root [`power_atlas`](src/power_atlas/__init__.py)
 package now also exposes these package-native entrypoint modules as namespace
 attributes (for example, `power_atlas.claim_extraction_entrypoint` and
-`power_atlas.pdf_ingest_entrypoint`). The root package intentionally does **not**
-flatten most of their `run_*` helper callables into top-level names, because
-the package surface is still being graduated selectively. In particular,
+`power_atlas.pdf_ingest_entrypoint`). It also exposes the corresponding
+package-owned runner modules as namespace attributes (for example,
+`power_atlas.claim_extraction_runner`, `power_atlas.pdf_ingest_runner`, and
+`power_atlas.retrieval_benchmark_runner`) for callers that want the lower-level
+runtime/helper surface without importing deep module paths. The root package
+intentionally does **not** flatten most of their `run_*` helper callables into
+top-level names, because the package surface is still being graduated
+selectively. In particular,
 `power_atlas.claim_extraction_entrypoint.run_claim_extraction(...)` /
 `run_claim_extraction_request_context(...)` and
 `power_atlas.entity_resolution_entrypoint.run_entity_resolution(...)` /

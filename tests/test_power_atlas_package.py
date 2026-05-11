@@ -126,14 +126,19 @@ def test_package_modules_import() -> None:
     assert package.build_openai_llm is llm_utils_module.build_openai_llm
     assert package.normalize_mention_text is text_utils_module.normalize_mention_text
     assert package.claim_extraction_entrypoint is claim_extraction_entrypoint_module
+    assert package.claim_extraction_runner is claim_extraction_runner_module
     assert package.entity_resolution_entrypoint is entity_resolution_entrypoint_module
+    assert package.entity_resolution_runner is entity_resolution_runner_module
     assert package.pdf_ingest_entrypoint is pdf_ingest_entrypoint_module
+    assert package.pdf_ingest_runner is pdf_ingest_runner_module
     assert package.retrieval_benchmark_entrypoint is retrieval_benchmark_entrypoint_module
+    assert package.retrieval_benchmark_runner is retrieval_benchmark_runner_module
     assert (
         package.retrieval_request_context_adapters
         is retrieval_request_context_adapters_module
     )
     assert package.structured_ingest_entrypoint is structured_ingest_entrypoint_module
+    assert package.structured_ingest_runner is structured_ingest_runner_module
     assert not hasattr(package, "run_claim_extraction")
     assert not hasattr(package, "run_claim_extraction_request_context")
     assert not hasattr(package, "run_entity_resolution")
