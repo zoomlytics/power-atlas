@@ -274,10 +274,13 @@ The executable adapter modules under `power_atlas.interfaces.cli.*` remain a
 deeper import surface on purpose: they are script/CLI wiring helpers rather
 than part of the root library namespace contract.
 
-The backend API surface now has a first-class namespace facade at
-`power_atlas.api`, which re-exports the FastAPI adapter helpers from
-`power_atlas.interfaces.api`. Individual helpers still remain off the root
-package itself, so callers use `power_atlas.api.create_backend_app(...)`
+The backend API surface now has a first-class owning facade at
+`power_atlas.api`. That module now owns the backend app contract, including
+typed response models plus app-construction helpers such as
+`BackendAppOptions`, `build_backend_router(...)`, and
+`create_backend_app(...)`, while `power_atlas.interfaces.api` remains as the
+deeper compatibility import layer. Individual helpers still remain off the
+root package itself, so callers use `power_atlas.api.create_backend_app(...)`
 rather than root `power_atlas.create_backend_app(...)`.
 
 `power_atlas.claim_extraction_entrypoint.run_claim_extraction(...)` /

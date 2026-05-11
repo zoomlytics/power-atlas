@@ -3,8 +3,10 @@ from __future__ import annotations
 import asyncio
 
 import httpx
+from fastapi.middleware.cors import CORSMiddleware
 
 from backend.main import app
+from power_atlas.api import BackendAppOptions, create_backend_app
 
 
 def test_backend_root_health_and_graph_status_contract() -> None:
@@ -36,3 +38,23 @@ def test_backend_root_health_and_graph_status_contract() -> None:
             }
 
     asyncio.run(_exercise_app())
+
+
+def test_create_backend_app_accepts_options() -> None:
+    custom_app = create_backend_app(
+        BackendAppOptions(
+            title="Atlas Test API",
+            description="Test backend facade",
+            version="9.9.9",
+            cors_allow_origins=("https://atlas.example",),
+        )
+    )
+
+    assert custom_app.title == "Atlas Test API"
+    assert custom_app.description == "Test backend facade"
+    assert custom_app.version == "9.9.9"
+    assert any(
+        middleware.cls is CORSMiddleware
+        and middleware.kwargs["allow_origins"] == ["https://atlas.example"]
+        for middleware in custom_app.user_middleware
+    )
