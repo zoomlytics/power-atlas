@@ -113,6 +113,15 @@ def test_package_modules_import() -> None:
     assert package.build_default_app_policies is context_module.build_default_app_policies
     assert package.build_openai_llm is llm_utils_module.build_openai_llm
     assert package.normalize_mention_text is text_utils_module.normalize_mention_text
+    assert package.claim_extraction_entrypoint is claim_extraction_entrypoint_module
+    assert package.entity_resolution_entrypoint is entity_resolution_entrypoint_module
+    assert package.pdf_ingest_entrypoint is pdf_ingest_entrypoint_module
+    assert package.retrieval_benchmark_entrypoint is retrieval_benchmark_entrypoint_module
+    assert (
+        package.retrieval_request_context_adapters
+        is retrieval_request_context_adapters_module
+    )
+    assert package.structured_ingest_entrypoint is structured_ingest_entrypoint_module
     assert callable(claim_extraction_entrypoint_module.resolve_claim_extraction_policy)
     assert callable(claim_extraction_entrypoint_module.resolve_pipeline_contract)
     assert callable(claim_extraction_entrypoint_module.neo4j_settings_from_config)

@@ -259,6 +259,14 @@ intentionally retains a small set of local default/validation helpers while the
 meaningful request-context and live-preflight seams already live in package
 modules.
 
+For discovery from an installed package, the root [`power_atlas`](src/power_atlas/__init__.py)
+package now also exposes these package-native entrypoint modules as namespace
+attributes (for example, `power_atlas.claim_extraction_entrypoint` and
+`power_atlas.pdf_ingest_entrypoint`). The root package intentionally does **not**
+flatten most of their `run_*` helper callables into top-level names, because
+several of those helpers still preserve injected callback seams used by the
+retained compatibility shells.
+
 ### Data contracts — `src/power_atlas/contracts/`
 
 The package-owned contract implementations live under

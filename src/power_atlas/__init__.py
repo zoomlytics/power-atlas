@@ -56,17 +56,26 @@ _EXPORTS = {
     "build_stage_manifest": ("power_atlas.contracts", "build_stage_manifest"),
     "claim_extraction_lexical_config": ("power_atlas.contracts", "claim_extraction_lexical_config"),
     "claim_extraction_schema": ("power_atlas.contracts", "claim_extraction_schema"),
+    "claim_extraction_entrypoint": ("power_atlas.claim_extraction_entrypoint", None),
     "create_neo4j_driver": ("power_atlas.bootstrap", "create_neo4j_driver"),
+    "entity_resolution_entrypoint": ("power_atlas.entity_resolution_entrypoint", None),
     "get_default_claim_extraction_policy": ("power_atlas.contracts", "get_default_claim_extraction_policy"),
     "get_default_entity_type_normalization_policy": ("power_atlas.contracts", "get_default_entity_type_normalization_policy"),
     "list_available_datasets": ("power_atlas.contracts", "list_available_datasets"),
     "make_run_id": ("power_atlas.contracts", "make_run_id"),
     "normalize_entity_type": ("power_atlas.contracts", "normalize_entity_type"),
     "normalize_mention_text": ("power_atlas.text_utils", "normalize_mention_text"),
+    "pdf_ingest_entrypoint": ("power_atlas.pdf_ingest_entrypoint", None),
     "resolve_dataset_root": ("power_atlas.contracts", "resolve_dataset_root"),
     "resolve_early_return_rule": ("power_atlas.contracts", "resolve_early_return_rule"),
     "get_default_retrieval_policy": ("power_atlas.contracts", "get_default_retrieval_policy"),
+    "retrieval_benchmark_entrypoint": ("power_atlas.retrieval_benchmark_entrypoint", None),
+    "retrieval_request_context_adapters": (
+        "power_atlas.retrieval_request_context_adapters",
+        None,
+    ),
     "resolution_layer_schema": ("power_atlas.contracts", "resolution_layer_schema"),
+    "structured_ingest_entrypoint": ("power_atlas.structured_ingest_entrypoint", None),
     "timestamp": ("power_atlas.contracts", "timestamp"),
     "write_manifest": ("power_atlas.contracts", "write_manifest"),
     "write_manifest_md": ("power_atlas.contracts", "write_manifest_md"),
@@ -79,7 +88,7 @@ def __getattr__(name: str) -> Any:
     if name in _EXPORTS:
         module_name, attr_name = _EXPORTS[name]
         module = import_module(module_name)
-        value = getattr(module, attr_name)
+        value = module if attr_name is None else getattr(module, attr_name)
         globals()[name] = value
         return value
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
