@@ -236,6 +236,29 @@ Manual validation checklist: [`demo/VALIDATION_RUNBOOK.md`](demo/VALIDATION_RUNB
 package code no longer needs a package-owned bridge that imports
 `demo.stages.*` directly.
 
+### Package-native stage entrypoints — `src/power_atlas/`
+
+For installed-package callers, the package-native config and request-context
+seams now live under `src/power_atlas/` rather than in `demo/stages/`.
+
+| Module | Purpose |
+|--------|---------|
+| [`claim_extraction_entrypoint.py`](src/power_atlas/claim_extraction_entrypoint.py) | Package-owned config/request-context entrypoint for claim extraction |
+| [`entity_resolution_entrypoint.py`](src/power_atlas/entity_resolution_entrypoint.py) | Package-owned config/request-context entrypoint for entity resolution |
+| [`pdf_ingest_entrypoint.py`](src/power_atlas/pdf_ingest_entrypoint.py) | Package-owned config/request-context entrypoint for PDF ingest |
+| [`structured_ingest_entrypoint.py`](src/power_atlas/structured_ingest_entrypoint.py) | Package-owned config/request-context entrypoint for structured ingest |
+| [`retrieval_benchmark_entrypoint.py`](src/power_atlas/retrieval_benchmark_entrypoint.py) | Package-owned config/request-context entrypoint for retrieval benchmarking |
+| [`retrieval_request_context_adapters.py`](src/power_atlas/retrieval_request_context_adapters.py) | Package-owned request-context adapters for single-shot and interactive retrieval |
+| [`retrieval_live_preflight.py`](src/power_atlas/retrieval_live_preflight.py) | Package-owned live retrieval preflight for Neo4j/OpenAI requirements |
+
+The remaining `demo/stages` surfaces are intentionally narrower than they were
+earlier in the migration. In particular, [`demo/stages/graph_health.py`](demo/stages/graph_health.py)
+remains an accepted standalone analysis surface with a canonical
+`RequestContext` path, and [`demo/stages/retrieval_and_qa.py`](demo/stages/retrieval_and_qa.py)
+intentionally retains a small set of local default/validation helpers while the
+meaningful request-context and live-preflight seams already live in package
+modules.
+
 ### Data contracts — `src/power_atlas/contracts/`
 
 The package-owned contract implementations live under
