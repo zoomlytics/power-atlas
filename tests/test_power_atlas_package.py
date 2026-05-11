@@ -40,6 +40,9 @@ def test_package_modules_import() -> None:
         "power_atlas.entity_resolution_runner"
     )
     llm_utils_module = importlib.import_module("power_atlas.llm_utils")
+    retrieval_request_context_adapters_module = importlib.import_module(
+        "power_atlas.retrieval_request_context_adapters"
+    )
     text_utils_module = importlib.import_module("power_atlas.text_utils")
 
     assert package.ALIGNMENT_VERSION is contracts_module.ALIGNMENT_VERSION
@@ -140,6 +143,8 @@ def test_package_modules_import() -> None:
     assert callable(entity_resolution_runner_module.write_cluster_memberships)
     assert callable(entity_resolution_runner_module.write_resolution_results)
     assert callable(entity_resolution_runner_module.run_entity_resolution_runtime)
+    assert callable(retrieval_request_context_adapters_module.run_retrieval_request_context)
+    assert callable(retrieval_request_context_adapters_module.run_interactive_request_context)
     assert not hasattr(pipeline_module, "DATASET_ID")
     assert not hasattr(pipeline_module, "get_dataset_id")
     assert not hasattr(pipeline_module, "set_dataset_id")
