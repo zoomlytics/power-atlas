@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from backend.main import app
 from power_atlas.api import BackendAppOptions, create_backend_app
 from power_atlas.graph_status import DEFAULT_UNCONFIGURED_DETAIL, GraphStatusResult
+from power_atlas.graph_summary import GraphSummaryCounts, GraphSummaryResult
 
 
 def test_backend_root_health_and_graph_status_contract(monkeypatch) -> None:
@@ -42,6 +43,16 @@ def test_backend_root_health_and_graph_status_contract(monkeypatch) -> None:
                 "detail": DEFAULT_UNCONFIGURED_DETAIL,
                 "neo4j_uri": "neo4j://localhost:7687",
                 "database": "neo4j",
+            }
+
+            graph_summary_response = await client.get("/graph/summary")
+            assert graph_summary_response.status_code == 503
+            assert graph_summary_response.json() == {
+                "status": "not_configured",
+                "detail": DEFAULT_UNCONFIGURED_DETAIL,
+                "neo4j_uri": "neo4j://localhost:7687",
+                "database": "neo4j",
+                "counts": None,
             }
 
     asyncio.run(_exercise_app())
@@ -91,6 +102,51 @@ def test_create_backend_app_accepts_graph_status_resolver() -> None:
                 "detail": "Neo4j graph is reachable",
                 "neo4j_uri": "neo4j://graph.example:7687",
                 "database": "atlas",
+            }
+
+    asyncio.run(_exercise_app())
+
+
+def test_create_backend_app_accepts_graph_summary_resolver() -> None:
+    custom_app = create_backend_app(
+        graph_summary_resolver=lambda: GraphSummaryResult(
+            http_status_code=200,
+            status="available",
+            detail="Graph summary retrieved successfully",
+            neo4j_uri="neo4j://graph.example:7687",
+            database="atlas",
+            counts=GraphSummaryCounts(
+                document_count=4,
+                chunk_count=12,
+                claim_count=9,
+                mention_count=27,
+                cluster_count=8,
+                canonical_entity_count=5,
+            ),
+        )
+    )
+
+    async def _exercise_app() -> None:
+        transport = httpx.ASGITransport(app=custom_app)
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="http://testserver",
+        ) as client:
+            graph_summary_response = await client.get("/graph/summary")
+            assert graph_summary_response.status_code == 200
+            assert graph_summary_response.json() == {
+                "status": "available",
+                "detail": "Graph summary retrieved successfully",
+                "neo4j_uri": "neo4j://graph.example:7687",
+                "database": "atlas",
+                "counts": {
+                    "document_count": 4,
+                    "chunk_count": 12,
+                    "claim_count": 9,
+                    "mention_count": 27,
+                    "cluster_count": 8,
+                    "canonical_entity_count": 5,
+                },
             }
 
     asyncio.run(_exercise_app())

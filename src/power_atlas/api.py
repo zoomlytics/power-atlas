@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from power_atlas.graph_status import GraphStatusResult, resolve_graph_status
+from power_atlas.graph_summary import GraphSummaryCounts, GraphSummaryResult, resolve_graph_summary
 
 DEFAULT_API_TITLE = "Power Atlas API"
 DEFAULT_API_DESCRIPTION = "Backend API for Power Atlas"
@@ -33,6 +34,23 @@ class GraphStatusResponse(BaseModel):
 	detail: str
 	neo4j_uri: str | None = None
 	database: str | None = None
+
+
+class GraphSummaryCountsResponse(BaseModel):
+	document_count: int
+	chunk_count: int
+	claim_count: int
+	mention_count: int
+	cluster_count: int
+	canonical_entity_count: int
+
+
+class GraphSummaryResponse(BaseModel):
+	status: str
+	detail: str
+	neo4j_uri: str | None = None
+	database: str | None = None
+	counts: GraphSummaryCountsResponse | None = None
 
 
 class RootResponse(BaseModel):
@@ -62,9 +80,11 @@ def build_backend_router(
 	*,
 	version: str = DEFAULT_API_VERSION,
 	graph_status_resolver: Callable[[], GraphStatusResult] | None = None,
+	graph_summary_resolver: Callable[[], GraphSummaryResult] | None = None,
 ) -> APIRouter:
 	router = APIRouter()
 	resolved_graph_status = graph_status_resolver or resolve_graph_status
+	resolved_graph_summary = graph_summary_resolver or resolve_graph_summary
 
 	@router.get("/health", response_model=HealthResponse)
 	async def health_check() -> HealthResponse:
@@ -83,6 +103,32 @@ def build_backend_router(
 			detail=probe.detail,
 			neo4j_uri=probe.neo4j_uri,
 			database=probe.database,
+		)
+
+	@router.get(
+		"/graph/summary",
+		response_model=GraphSummaryResponse,
+		responses={503: {"description": "Graph summary is unavailable"}},
+	)
+	async def graph_summary(response: Response) -> GraphSummaryResponse:
+		probe = resolved_graph_summary()
+		response.status_code = probe.http_status_code
+		counts = None
+		if probe.counts is not None:
+			counts = GraphSummaryCountsResponse(
+				document_count=probe.counts.document_count,
+				chunk_count=probe.counts.chunk_count,
+				claim_count=probe.counts.claim_count,
+				mention_count=probe.counts.mention_count,
+				cluster_count=probe.counts.cluster_count,
+				canonical_entity_count=probe.counts.canonical_entity_count,
+			)
+		return GraphSummaryResponse(
+			status=probe.status,
+			detail=probe.detail,
+			neo4j_uri=probe.neo4j_uri,
+			database=probe.database,
+			counts=counts,
 		)
 
 	@router.get("/", response_model=RootResponse)
@@ -104,6 +150,7 @@ def create_backend_app(
 	*,
 	router: APIRouter | None = None,
 	graph_status_resolver: Callable[[], GraphStatusResult] | None = None,
+	graph_summary_resolver: Callable[[], GraphSummaryResult] | None = None,
 ) -> FastAPI:
 	app_options = options or BackendAppOptions()
 	selected_router = router
@@ -112,9 +159,11 @@ def create_backend_app(
 			backend_router
 			if app_options.version == DEFAULT_API_VERSION
 			and graph_status_resolver is None
+			and graph_summary_resolver is None
 			else build_backend_router(
 				version=app_options.version,
 				graph_status_resolver=graph_status_resolver,
+				graph_summary_resolver=graph_summary_resolver,
 			)
 		)
 
@@ -144,6 +193,8 @@ __all__ = [
 	"DEFAULT_API_TITLE",
 	"DEFAULT_API_VERSION",
 	"DEFAULT_CORS_ALLOW_ORIGINS",
+	"GraphSummaryCountsResponse",
+	"GraphSummaryResponse",
 	"GraphStatusResponse",
 	"HealthResponse",
 	"RootResponse",
