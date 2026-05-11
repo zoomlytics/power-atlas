@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 
-from fastapi import APIRouter, FastAPI
+from fastapi import APIRouter, FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+
+from power_atlas.graph_status import GraphStatusResult, resolve_graph_status
 
 DEFAULT_API_TITLE = "Power Atlas API"
 DEFAULT_API_DESCRIPTION = "Backend API for Power Atlas"
@@ -27,7 +29,10 @@ class HealthResponse(BaseModel):
 
 
 class GraphStatusResponse(BaseModel):
+	status: str
 	detail: str
+	neo4j_uri: str | None = None
+	database: str | None = None
 
 
 class RootResponse(BaseModel):
@@ -53,8 +58,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 	yield
 
 
-def build_backend_router(*, version: str = DEFAULT_API_VERSION) -> APIRouter:
+def build_backend_router(
+	*,
+	version: str = DEFAULT_API_VERSION,
+	graph_status_resolver: Callable[[], GraphStatusResult] | None = None,
+) -> APIRouter:
 	router = APIRouter()
+	resolved_graph_status = graph_status_resolver or resolve_graph_status
 
 	@router.get("/health", response_model=HealthResponse)
 	async def health_check() -> HealthResponse:
@@ -63,11 +73,17 @@ def build_backend_router(*, version: str = DEFAULT_API_VERSION) -> APIRouter:
 	@router.get(
 		"/graph/status",
 		response_model=GraphStatusResponse,
-		status_code=503,
 		responses={503: {"description": "Graph integration is not configured yet"}},
 	)
-	async def graph_status() -> GraphStatusResponse:
-		return GraphStatusResponse(detail="Graph integration is not configured yet")
+	async def graph_status(response: Response) -> GraphStatusResponse:
+		probe = resolved_graph_status()
+		response.status_code = probe.http_status_code
+		return GraphStatusResponse(
+			status=probe.status,
+			detail=probe.detail,
+			neo4j_uri=probe.neo4j_uri,
+			database=probe.database,
+		)
 
 	@router.get("/", response_model=RootResponse)
 	async def root() -> RootResponse:
@@ -87,6 +103,7 @@ def create_backend_app(
 	options: BackendAppOptions | None = None,
 	*,
 	router: APIRouter | None = None,
+	graph_status_resolver: Callable[[], GraphStatusResult] | None = None,
 ) -> FastAPI:
 	app_options = options or BackendAppOptions()
 	selected_router = router
@@ -94,7 +111,11 @@ def create_backend_app(
 		selected_router = (
 			backend_router
 			if app_options.version == DEFAULT_API_VERSION
-			else build_backend_router(version=app_options.version)
+			and graph_status_resolver is None
+			else build_backend_router(
+				version=app_options.version,
+				graph_status_resolver=graph_status_resolver,
+			)
 		)
 
 	app = FastAPI(

@@ -7,9 +7,13 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from backend.main import app
 from power_atlas.api import BackendAppOptions, create_backend_app
+from power_atlas.graph_status import DEFAULT_UNCONFIGURED_DETAIL, GraphStatusResult
 
 
-def test_backend_root_health_and_graph_status_contract() -> None:
+def test_backend_root_health_and_graph_status_contract(monkeypatch) -> None:
+    for env_name in ("NEO4J_URI", "NEO4J_USERNAME", "NEO4J_PASSWORD", "NEO4J_DATABASE"):
+        monkeypatch.delenv(env_name, raising=False)
+
     async def _exercise_app() -> None:
         transport = httpx.ASGITransport(app=app)
         async with httpx.AsyncClient(
@@ -34,7 +38,10 @@ def test_backend_root_health_and_graph_status_contract() -> None:
             graph_status_response = await client.get("/graph/status")
             assert graph_status_response.status_code == 503
             assert graph_status_response.json() == {
-                "detail": "Graph integration is not configured yet"
+                "status": "not_configured",
+                "detail": DEFAULT_UNCONFIGURED_DETAIL,
+                "neo4j_uri": "neo4j://localhost:7687",
+                "database": "neo4j",
             }
 
     asyncio.run(_exercise_app())
@@ -58,3 +65,32 @@ def test_create_backend_app_accepts_options() -> None:
         and middleware.kwargs["allow_origins"] == ["https://atlas.example"]
         for middleware in custom_app.user_middleware
     )
+
+
+def test_create_backend_app_accepts_graph_status_resolver() -> None:
+    custom_app = create_backend_app(
+        graph_status_resolver=lambda: GraphStatusResult(
+            http_status_code=200,
+            status="available",
+            detail="Neo4j graph is reachable",
+            neo4j_uri="neo4j://graph.example:7687",
+            database="atlas",
+        )
+    )
+
+    async def _exercise_app() -> None:
+        transport = httpx.ASGITransport(app=custom_app)
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="http://testserver",
+        ) as client:
+            graph_status_response = await client.get("/graph/status")
+            assert graph_status_response.status_code == 200
+            assert graph_status_response.json() == {
+                "status": "available",
+                "detail": "Neo4j graph is reachable",
+                "neo4j_uri": "neo4j://graph.example:7687",
+                "database": "atlas",
+            }
+
+    asyncio.run(_exercise_app())
