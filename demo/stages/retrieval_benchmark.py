@@ -90,6 +90,12 @@ from pathlib import Path
 from typing import Any
 
 from power_atlas.context import RequestContext
+from power_atlas.retrieval_benchmark_entrypoint import (
+    neo4j_settings_from_config as _neo4j_settings_from_config,
+    neo4j_settings_from_request_context as _neo4j_settings_from_request_context,
+    run_retrieval_benchmark as _run_retrieval_benchmark,
+    run_retrieval_benchmark_request_context as _run_retrieval_benchmark_request_context,
+)
 from power_atlas.retrieval_benchmark_queries import Q_CANONICAL_SINGLE as _Q_CANONICAL_SINGLE
 from power_atlas.retrieval_benchmark_queries import Q_CATALOG_EXISTENCE_CHECK as _Q_CATALOG_EXISTENCE_CHECK
 from power_atlas.retrieval_benchmark_queries import Q_LOWER_LAYER_CHAIN as _Q_LOWER_LAYER_CHAIN
@@ -100,24 +106,6 @@ from power_atlas.retrieval_benchmark_queries import fetch_retrieval_benchmark_qu
 from power_atlas.settings import Neo4jSettings
 
 _logger = logging.getLogger(__name__)
-
-
-def _neo4j_settings_from_config(config) -> Neo4jSettings:
-    config_settings = getattr(config, "settings", None)
-    settings_neo4j = getattr(config_settings, "neo4j", None)
-    if isinstance(settings_neo4j, Neo4jSettings):
-        return settings_neo4j
-    raise ValueError(
-        "Retrieval benchmark requires config.settings.neo4j from "
-        "RequestContext/AppContext-backed config"
-    )
-
-
-def _neo4j_settings_from_request_context(request_context: RequestContext) -> Neo4jSettings:
-    request_settings_neo4j = getattr(request_context.settings, "neo4j", None)
-    if isinstance(request_settings_neo4j, Neo4jSettings):
-        return request_settings_neo4j
-    return _neo4j_settings_from_config(request_context.config)
 
 __all__ = [
     "BENCHMARK_CASES",
@@ -1305,18 +1293,15 @@ def run_retrieval_benchmark(
     each one via its own logger so they are visible in CLI output without
     double-logging.
     """
-    resolved_output_dir = Path(output_dir if output_dir is not None else config.output_dir)
-    dry_run = bool(getattr(config, "dry_run", False))
-    resolved_neo4j_settings = None if dry_run else _neo4j_settings_from_config(config)
-    return _run_retrieval_benchmark_impl(
-        dry_run=dry_run,
-        output_dir=resolved_output_dir,
-        neo4j_settings=resolved_neo4j_settings,
+    return _run_retrieval_benchmark(
+        config,
         run_id=run_id,
         dataset_id=dataset_id,
         alignment_version=alignment_version,
         benchmark_cases=benchmark_cases,
         suppress_alignment_version_warning=suppress_alignment_version_warning,
+        output_dir=output_dir,
+        impl_runner=_run_retrieval_benchmark_impl,
     )
 
 
@@ -1330,24 +1315,12 @@ def run_retrieval_benchmark_request_context(
     suppress_alignment_version_warning: bool = False,
 ) -> dict[str, Any]:
     """Run the retrieval benchmark using RequestContext-owned run scope."""
-    resolved_output_dir = Path(
-        output_dir if output_dir is not None else request_context.config.output_dir
-    )
-    dry_run = bool(getattr(request_context.config, "dry_run", False))
-    resolved_neo4j_settings = None if dry_run else _neo4j_settings_from_request_context(
-        request_context
-    )
-    return _run_retrieval_benchmark_impl(
-        dry_run=dry_run,
-        output_dir=resolved_output_dir,
-        neo4j_settings=resolved_neo4j_settings,
-        run_id=request_context.run_id,
-        dataset_id=(
-            dataset_id
-            if dataset_id is not None
-            else getattr(request_context.config, "dataset_name", None)
-        ),
+    return _run_retrieval_benchmark_request_context(
+        request_context,
+        dataset_id=dataset_id,
         alignment_version=alignment_version,
+        output_dir=output_dir,
         benchmark_cases=benchmark_cases,
         suppress_alignment_version_warning=suppress_alignment_version_warning,
+        impl_runner=_run_retrieval_benchmark_impl,
     )

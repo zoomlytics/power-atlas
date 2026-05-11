@@ -19,6 +19,11 @@ from power_atlas.contracts import (
     resolve_dataset_root,
 )
 from power_atlas.settings import Neo4jSettings
+from power_atlas.structured_ingest_entrypoint import (
+    neo4j_settings_from_config as _neo4j_settings_from_config,
+    run_structured_ingest as _run_structured_ingest,
+    run_structured_ingest_request_context as _run_structured_ingest_request_context,
+)
 from power_atlas.structured_ingest_runtime import run_structured_ingest_live
 from power_atlas.structured_ingest_writes import write_structured_ingest_graph
 
@@ -30,16 +35,6 @@ def load_csv_rows(path: Path) -> list[dict[str, str]]:
 
 def _timestamp() -> str:
     return datetime.now(UTC).isoformat()
-
-
-def _neo4j_settings_from_config(config: object) -> Neo4jSettings:
-    config_settings = getattr(config, "settings", None)
-    settings_neo4j = getattr(config_settings, "neo4j", None)
-    if isinstance(settings_neo4j, Neo4jSettings):
-        return settings_neo4j
-    raise ValueError(
-        "Live structured ingest requires config.settings.neo4j to be configured"
-    )
 
 
 def _dataset_id_from_fixtures_root(fixtures_root: Path) -> str:
@@ -318,15 +313,32 @@ def lint_and_clean_structured_csvs(run_id: str, output_dir: Path, fixtures_dir: 
     }
 
 
-def run_structured_ingest_request_context(
-    request_context: RequestContext,
+def _run_structured_ingest_impl(
+    config: object,
     *,
+    run_id: str,
     fixtures_dir: Path | None = None,
     dataset_id: str | None = None,
+    neo4j_settings: Neo4jSettings | None = None,
 ) -> dict[str, Any]:
-    """Run structured ingest using request-scoped context as the primary input."""
-    config = request_context.config
-    run_id = request_context.run_id
+    return _run_structured_ingest(
+        config,
+        run_id=run_id,
+        fixtures_dir=fixtures_dir,
+        dataset_id=dataset_id,
+        neo4j_settings=neo4j_settings,
+        runtime_runner=_run_structured_ingest_runtime,
+    )
+
+
+def _run_structured_ingest_runtime(
+    *,
+    config: object,
+    run_id: str,
+    fixtures_dir: Path | None = None,
+    dataset_id: str | None = None,
+    neo4j_settings: Neo4jSettings,
+) -> dict[str, Any]:
     fixtures_root, effective_dataset_id = _resolve_structured_dataset(fixtures_dir, dataset_id)
     lint_output = lint_and_clean_structured_csvs(
         run_id=run_id,
@@ -386,7 +398,6 @@ def run_structured_ingest_request_context(
             "validation_warnings_path": str(validation_warnings_path),
             "validation_warning_count": len(validation_warnings),
         }
-    neo4j_settings = _neo4j_settings_from_config(config)
     run_structured_ingest_live(
         neo4j_settings,
         run_id=run_id,
@@ -421,6 +432,21 @@ def run_structured_ingest_request_context(
             "retrieved_at": ingested_at,
         },
     }
+
+
+def run_structured_ingest_request_context(
+    request_context: RequestContext,
+    *,
+    fixtures_dir: Path | None = None,
+    dataset_id: str | None = None,
+) -> dict[str, Any]:
+    """Run structured ingest using request-scoped context as the primary input."""
+    return _run_structured_ingest_request_context(
+        request_context,
+        fixtures_dir=fixtures_dir,
+        dataset_id=dataset_id,
+        config_runner=_run_structured_ingest_impl,
+    )
 
 
 __all__ = [
