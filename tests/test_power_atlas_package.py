@@ -52,6 +52,9 @@ def test_package_modules_import() -> None:
     retrieval_request_context_adapters_module = importlib.import_module(
         "power_atlas.retrieval_request_context_adapters"
     )
+    structured_ingest_runner_module = importlib.import_module(
+        "power_atlas.structured_ingest_runner"
+    )
     structured_ingest_entrypoint_module = importlib.import_module(
         "power_atlas.structured_ingest_entrypoint"
     )
@@ -193,6 +196,10 @@ def test_package_modules_import() -> None:
     assert callable(structured_ingest_entrypoint_module.neo4j_settings_from_config)
     assert callable(structured_ingest_entrypoint_module.run_structured_ingest)
     assert callable(structured_ingest_entrypoint_module.run_structured_ingest_request_context)
+    assert callable(structured_ingest_runner_module.load_csv_rows)
+    assert callable(structured_ingest_runner_module.lint_and_clean_structured_csvs)
+    assert callable(structured_ingest_runner_module.run_structured_ingest_runtime)
+    assert callable(structured_ingest_runner_module.run_structured_ingest_runtime_default)
     assert not hasattr(pipeline_module, "DATASET_ID")
     assert not hasattr(pipeline_module, "get_dataset_id")
     assert not hasattr(pipeline_module, "set_dataset_id")
@@ -313,6 +320,66 @@ def test_claim_extraction_request_context_uses_package_default_config_runner() -
         claim_extraction_policy=request_context.policies.claim_extraction,
         neo4j_settings=request_context.settings.neo4j,
         model_name=request_context.settings.openai_model,
+    )
+
+
+def test_structured_ingest_entrypoint_uses_package_default_runtime_runner() -> None:
+    from power_atlas.structured_ingest_entrypoint import run_structured_ingest
+    from power_atlas.settings import Neo4jSettings
+
+    result_payload = {"status": "ok"}
+
+    with mock.patch(
+        "power_atlas.structured_ingest_entrypoint._default_runtime_runner"
+    ) as default_runtime_runner:
+        default_runtime_runner.return_value = mock.Mock(return_value=result_payload)
+
+        result = run_structured_ingest(
+            object(),
+            run_id="run-123",
+            dataset_id="demo_dataset_v1",
+            neo4j_settings=Neo4jSettings(),
+        )
+
+    assert result == result_payload
+    default_runtime_runner.assert_called_once_with()
+
+
+def test_structured_ingest_request_context_uses_package_default_config_runner() -> None:
+    from power_atlas.bootstrap import bootstrap_app, build_request_context
+    from power_atlas.structured_ingest_entrypoint import run_structured_ingest_request_context
+
+    app = bootstrap_app(
+        {
+            "NEO4J_URI": "bolt://example.test:7687",
+            "NEO4J_USERNAME": "atlas",
+            "NEO4J_PASSWORD": "secret",
+            "NEO4J_DATABASE": "analytics",
+            "OPENAI_MODEL": "gpt-5.4",
+            "POWER_ATLAS_DATASET": "demo_dataset_v1",
+        }
+    )
+    request_context = build_request_context(
+        app.app_context,
+        command="ingest-structured",
+        dry_run=False,
+        run_id="run-123",
+    )
+    result_payload = {"status": "ok"}
+
+    with mock.patch(
+        "power_atlas.structured_ingest_entrypoint._default_config_runner",
+        return_value=result_payload,
+    ) as default_config_runner:
+        result = run_structured_ingest_request_context(request_context)
+
+    assert result == result_payload
+    default_config_runner.assert_called_once_with(
+        request_context.config,
+        run_id="run-123",
+        fixtures_dir=None,
+        dataset_id=None,
+        neo4j_settings=request_context.settings.neo4j,
     )
 
 

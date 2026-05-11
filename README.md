@@ -268,7 +268,9 @@ the package surface is still being graduated selectively. In particular,
 `power_atlas.claim_extraction_entrypoint.run_claim_extraction(...)` /
 `run_claim_extraction_request_context(...)` and
 `power_atlas.entity_resolution_entrypoint.run_entity_resolution(...)` /
-`run_entity_resolution_request_context(...)` now own package-default runtime
+`run_entity_resolution_request_context(...)`, plus
+`power_atlas.structured_ingest_entrypoint.run_structured_ingest(...)` /
+`run_structured_ingest_request_context(...)`, now own package-default runtime
 bindings at the module level, while remaining intentionally unflattened from
 the root package namespace.
 

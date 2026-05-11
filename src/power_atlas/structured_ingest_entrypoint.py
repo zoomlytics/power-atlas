@@ -7,6 +7,29 @@ from power_atlas.context import RequestContext
 from power_atlas.settings import Neo4jSettings
 
 
+def _default_runtime_runner() -> Callable[..., dict[str, Any]]:
+    from power_atlas.structured_ingest_runner import run_structured_ingest_runtime_default
+
+    return run_structured_ingest_runtime_default
+
+
+def _default_config_runner(
+    config: Any,
+    *,
+    run_id: str,
+    fixtures_dir: Path | None = None,
+    dataset_id: str | None = None,
+    neo4j_settings: Neo4jSettings | None = None,
+) -> dict[str, Any]:
+    return run_structured_ingest(
+        config,
+        run_id=run_id,
+        fixtures_dir=fixtures_dir,
+        dataset_id=dataset_id,
+        neo4j_settings=neo4j_settings,
+    )
+
+
 def neo4j_settings_from_config(
     config: object,
     neo4j_settings: Neo4jSettings | None = None,
@@ -29,9 +52,10 @@ def run_structured_ingest(
     fixtures_dir: Path | None = None,
     dataset_id: str | None = None,
     neo4j_settings: Neo4jSettings | None = None,
-    runtime_runner: Callable[..., dict[str, Any]],
+    runtime_runner: Callable[..., dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    return runtime_runner(
+    resolved_runtime_runner = runtime_runner or _default_runtime_runner()
+    return resolved_runtime_runner(
         config=config,
         run_id=run_id,
         fixtures_dir=fixtures_dir,
@@ -45,9 +69,10 @@ def run_structured_ingest_request_context(
     *,
     fixtures_dir: Path | None = None,
     dataset_id: str | None = None,
-    config_runner: Callable[..., dict[str, Any]],
+    config_runner: Callable[..., dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    return config_runner(
+    resolved_config_runner = config_runner or _default_config_runner
+    return resolved_config_runner(
         request_context.config,
         run_id=request_context.run_id,
         fixtures_dir=fixtures_dir,
