@@ -272,6 +272,51 @@ the package surface is still being graduated selectively. In particular,
 bindings at the module level, while remaining intentionally unflattened from
 the root package namespace.
 
+Example installed-package usage:
+
+```python
+from power_atlas import (
+  bootstrap_app,
+  build_request_context,
+  claim_extraction_entrypoint,
+  entity_resolution_entrypoint,
+)
+
+app = bootstrap_app(
+  {
+    "NEO4J_URI": "bolt://localhost:7687",
+    "NEO4J_USERNAME": "neo4j",
+    "NEO4J_PASSWORD": "<password>",
+    "NEO4J_DATABASE": "neo4j",
+    "OPENAI_MODEL": "gpt-5.4",
+    "POWER_ATLAS_DATASET": "demo_dataset_v1",
+  }
+)
+
+claim_request = build_request_context(
+  app.app_context,
+  command="extract-claims",
+  dry_run=False,
+  run_id="unstructured_ingest-20260511T000000Z-abcd1234",
+  source_uri="file:///absolute/path/to/source.pdf",
+)
+claim_summary = claim_extraction_entrypoint.run_claim_extraction_request_context(
+  claim_request,
+)
+
+resolution_request = build_request_context(
+  app.app_context,
+  command="resolve-entities",
+  dry_run=False,
+  run_id="unstructured_ingest-20260511T000000Z-abcd1234",
+  source_uri="file:///absolute/path/to/source.pdf",
+  resolution_mode="hybrid",
+)
+resolution_summary = entity_resolution_entrypoint.run_entity_resolution_request_context(
+  resolution_request,
+)
+```
+
 ### Data contracts — `src/power_atlas/contracts/`
 
 The package-owned contract implementations live under
