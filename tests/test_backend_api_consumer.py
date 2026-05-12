@@ -427,6 +427,15 @@ def test_backend_api_guarded_app_example_script_runs() -> None:
             },
             "status_code": 200,
         },
+        "authorized_run_detail": {
+            "run_id": "unstructured_ingest-20260512T000100Z-b",
+            "run_stage_names": ["claim_extraction", "pdf_ingest"],
+            "stages": ["claim_extraction"],
+        },
+        "authorized_runs": {
+            "run_ids": ["unstructured_ingest-20260512T000100Z-b"],
+            "stage_names": [["claim_extraction", "pdf_ingest"]],
+        },
         "host_info": {
             "host": "backend_api_guarded_app",
             "host_title": "Guarded Host Application",

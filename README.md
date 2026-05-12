@@ -343,7 +343,7 @@ filtered mounted `/atlas/runs` snapshot, lives in
 [`examples/backend_api_composed_app.py`](examples/backend_api_composed_app.py).
 
 A fourth example that adds host-level request guarding around the mounted
-`/atlas` router lives in
+`/atlas` router, including an authorized filtered mounted run query, lives in
 [`examples/backend_api_guarded_app.py`](examples/backend_api_guarded_app.py).
 
 `power_atlas.claim_extraction_entrypoint.run_claim_extraction(...)` /
