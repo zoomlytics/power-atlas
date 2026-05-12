@@ -94,3 +94,51 @@ def test_backend_run_details_returns_stage_manifests(tmp_path: Path) -> None:
 def test_resolve_run_root_rejects_path_traversal(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="must be a simple relative name"):
         resolve_run_root(tmp_path, "../escape")
+
+
+def test_backend_run_catalog_filters_by_dataset_and_stage(tmp_path: Path) -> None:
+    first_run_root = tmp_path / "runs" / "unstructured_ingest-20260512T000000Z-a"
+    first_manifest_path = first_run_root / "pdf_ingest" / "manifest.json"
+    first_manifest_path.parent.mkdir(parents=True)
+    first_manifest_path.write_text(
+        json.dumps(
+            {
+                "run_id": first_run_root.name,
+                "dataset_id": "demo_dataset_v1",
+                "stages": {"pdf_ingest": {"status": "live"}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    (first_run_root / "claim_extraction").mkdir()
+
+    second_run_root = tmp_path / "runs" / "structured_ingest-20260512T000000Z-b"
+    second_manifest_path = second_run_root / "structured_ingest" / "manifest.json"
+    second_manifest_path.parent.mkdir(parents=True)
+    second_manifest_path.write_text(
+        json.dumps(
+            {
+                "run_id": second_run_root.name,
+                "dataset_id": "demo_dataset_v2",
+                "stages": {"structured_ingest": {"status": "live"}},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    settings = AppSettings(
+        neo4j=Neo4jSettings(password="secret"),
+        output_dir=tmp_path,
+    )
+
+    dataset_filtered = resolve_backend_run_catalog(settings, dataset_id="demo_dataset_v1")
+    stage_filtered = resolve_backend_run_catalog(settings, stage_name="structured_ingest")
+    combined_filtered = resolve_backend_run_catalog(
+        settings,
+        dataset_id="demo_dataset_v2",
+        stage_name="structured_ingest",
+    )
+
+    assert [run.run_id for run in dataset_filtered.runs] == [first_run_root.name]
+    assert [run.run_id for run in stage_filtered.runs] == [second_run_root.name]
+    assert [run.run_id for run in combined_filtered.runs] == [second_run_root.name]

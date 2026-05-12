@@ -303,6 +303,10 @@ backed by a package-owned catalog over the configured `output_dir / runs` root,
 and the typed graph routes are backed by package-owned request/response models
 and runtime services.
 
+`/runs` also accepts optional `dataset_id` and `stage_name` query parameters so
+consumers can narrow the run catalog without reproducing filesystem filtering in
+their own host app.
+
 Example backend consumer usage:
 
 ```python

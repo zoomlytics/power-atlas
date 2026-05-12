@@ -176,9 +176,15 @@ def build_backend_router(
         )
 
     @router.get("/runs", response_model=RunsResponse)
-    async def runs(request: Request) -> RunsResponse:
+    async def runs(
+        request: Request,
+        dataset_id: str | None = None,
+        stage_name: str | None = None,
+    ) -> RunsResponse:
         run_catalog = resolve_backend_run_catalog(
-            get_backend_runtime(request.app).app_context.settings
+            get_backend_runtime(request.app).app_context.settings,
+            dataset_id=dataset_id,
+            stage_name=stage_name,
         )
         return RunsResponse(
             output_dir=run_catalog.output_dir,

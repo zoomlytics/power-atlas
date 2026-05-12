@@ -128,7 +128,12 @@ def resolve_backend_run_details(settings: AppSettings, run_id: str) -> RunDetail
     )
 
 
-def resolve_backend_run_catalog(settings: AppSettings) -> RunCatalogResult:
+def resolve_backend_run_catalog(
+    settings: AppSettings,
+    *,
+    dataset_id: str | None = None,
+    stage_name: str | None = None,
+) -> RunCatalogResult:
     output_dir = settings.output_dir.resolve()
     runs_root = resolve_runs_root(output_dir)
 
@@ -145,10 +150,15 @@ def resolve_backend_run_catalog(settings: AppSettings) -> RunCatalogResult:
         key=lambda child: child.name,
         reverse=True,
     )
+    runs = [_build_run_entry(run_dir) for run_dir in run_dirs]
+    if dataset_id is not None:
+        runs = [run for run in runs if run.dataset_id == dataset_id]
+    if stage_name is not None:
+        runs = [run for run in runs if stage_name in run.stage_names]
     return RunCatalogResult(
         output_dir=str(output_dir),
         runs_root=str(runs_root),
-        runs=[_build_run_entry(run_dir) for run_dir in run_dirs],
+        runs=runs,
     )
 
 
