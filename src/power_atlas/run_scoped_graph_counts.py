@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any
 
@@ -78,6 +78,8 @@ def _build_counts(record: Any) -> RunScopedGraphCounts:
 def resolve_run_scoped_graph_counts(
     app_context: AppContext,
     request: RunScopedGraphCountsRequest,
+    *,
+    driver_factory: Callable[[object], Any] = create_neo4j_driver,
 ) -> RunScopedGraphCountsResult:
     neo4j_settings = app_context.settings.neo4j
 
@@ -92,7 +94,7 @@ def resolve_run_scoped_graph_counts(
         )
 
     try:
-        with create_neo4j_driver(app_context.settings) as driver:
+        with driver_factory(app_context.settings) as driver:
             records, _, _ = driver.execute_query(
                 DEFAULT_RUN_SCOPED_GRAPH_COUNTS_QUERY,
                 parameters_={"run_id": request.run_id},

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from power_atlas.context import AppContext
@@ -116,6 +117,8 @@ def compute_alignment_summary(
 def resolve_graph_health_summary(
     app_context: AppContext,
     request: GraphHealthSummaryRequest,
+    *,
+    query_rows_fetcher: Callable[..., dict[str, list[dict[str, object]]]] = fetch_graph_health_query_rows,
 ) -> GraphHealthSummaryResult:
     neo4j_settings = app_context.settings.neo4j
 
@@ -131,7 +134,7 @@ def resolve_graph_health_summary(
         )
 
     try:
-        rows = fetch_graph_health_query_rows(
+        rows = query_rows_fetcher(
             neo4j_settings,
             neo4j_settings.database,
             run_id=request.run_id,
