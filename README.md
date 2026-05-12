@@ -30,7 +30,10 @@ the maintained demo/CLI shell over that package core rather than as a separate
 product root. The `backend/` and `frontend/` directories are intentionally
 retained placeholder shells and are **not connected to the pipeline**; within
 that stub surface, `backend/main.py` remains the stable launch seam for the
-placeholder API app (see [Current Status](#current-status)).
+package-owned backend facade (see [Current Status](#current-status)). For
+backend consumers, [`power_atlas.api`](src/power_atlas/api.py) is the supported
+import surface; the deeper `power_atlas.backend_*` modules are implementation
+seams, and `power_atlas.interfaces.api` remains a compatibility alias.
 
 ---
 
@@ -76,7 +79,7 @@ Run this once after installation to confirm the new installed-package path is
 working before you start the live pipeline:
 
 ```bash
-python -m pytest tests/test_power_atlas_package.py
+python -m pytest tests/test_power_atlas_package.py tests/test_interfaces_api_compatibility.py tests/test_backend_api_consumer.py
 ```
 
 ### 4. Start Neo4j
@@ -134,7 +137,7 @@ Refer to [`demo/VALIDATION_RUNBOOK.md`](demo/VALIDATION_RUNBOOK.md) for a step-b
 |---------|--------|
 | **`demo/` pipeline** | ✅ Operational — `unstructured_only` and `hybrid` modes working end-to-end |
 | **`pipelines/`** | ✅ Operational — ingest/query/experiment scripts + run artifacts |
-| **`backend/`** | 🚧 Disconnected scaffold — FastAPI stub with `/health`, a package-owned Neo4j readiness probe at `/graph/status`, a read-only graph summary endpoint at `/graph/summary`, and typed scoped graph queries at `/graph/run-scoped-counts` and `/graph/health-summary`; not connected to the GraphRAG pipeline yet, while `backend/main.py` remains the accepted launch seam for that backend surface |
+| **`backend/`** | 🚧 Disconnected scaffold — FastAPI surface assembled through the public package facade [`power_atlas.api`](src/power_atlas/api.py), with `/health`, `/graph/status`, `/graph/summary`, `POST /graph/run-scoped-counts`, and `POST /graph/health-summary`; not connected to the GraphRAG pipeline yet, while `backend/main.py` remains the accepted launch seam for that backend surface |
 | **`frontend/`** | 🚧 Disconnected scaffold — Next.js stub; not connected to the pipeline or backend |
 | **`_archive/`** | 📦 Historical material — retained for reference only; not part of the active product or pipeline surface |
 | **Temporal modeling** | 📋 Planned — Architecture drafted ([`docs/architecture/temporal-modeling-v0.1.md`](docs/architecture/temporal-modeling-v0.1.md)) — not yet implemented in pipeline |
