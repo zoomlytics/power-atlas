@@ -297,6 +297,22 @@ query endpoints: `POST /graph/run-scoped-counts` and
 `POST /graph/health-summary`. Both typed routes are backed by package-owned
 request/response models and runtime services.
 
+Example backend consumer usage:
+
+```python
+from power_atlas.api import BackendAppOptions, create_backend_app
+
+app = create_backend_app(
+  BackendAppOptions(version="0.1.0-consumer"),
+  environ={
+    "NEO4J_URI": "neo4j://localhost:7687",
+    "NEO4J_USERNAME": "neo4j",
+    "NEO4J_PASSWORD": "<password>",
+    "NEO4J_DATABASE": "neo4j",
+  },
+)
+```
+
 `power_atlas.claim_extraction_entrypoint.run_claim_extraction(...)` /
 `run_claim_extraction_request_context(...)` and
 `power_atlas.entity_resolution_entrypoint.run_entity_resolution(...)` /
