@@ -12,6 +12,7 @@ import httpx
 import pytest
 
 from power_atlas.api import BackendAppOptions, create_backend_app
+from power_atlas.contracts import resolve_dataset_root
 
 
 def test_public_api_facade_supports_consumer_app_smoke() -> None:
@@ -39,6 +40,27 @@ def test_public_api_facade_supports_consumer_app_smoke() -> None:
             assert health_response.json() == {
                 "status": "ok",
                 "message": "Backend is healthy",
+            }
+
+            datasets_response = await client.get("/datasets")
+            assert datasets_response.status_code == 200
+            expected_datasets = []
+            for dataset_name in ("demo_dataset_v1", "demo_dataset_v2"):
+                dataset_root = resolve_dataset_root(dataset_name, environ={})
+                expected_datasets.append(
+                    {
+                        "dataset_id": dataset_root.dataset_id,
+                        "manifest_path": str(dataset_root.manifest_path),
+                        "name": dataset_name,
+                        "pdf_filename": dataset_root.pdf_filename,
+                        "root_path": str(dataset_root.root),
+                    }
+                )
+            assert datasets_response.json() == {
+                "datasets": expected_datasets,
+                "detail": "Multiple datasets are available. Set POWER_ATLAS_DATASET or FIXTURE_DATASET to select one explicitly.",
+                "selected_dataset": None,
+                "selection_mode": "ambiguous",
             }
 
             graph_status_response = await client.get("/graph/status")
@@ -92,7 +114,7 @@ def test_public_api_facade_imports_from_outside_repo_when_installed(tmp_path: Pa
             "    'paths': sorted(",
             "        route.path",
             "        for route in app.routes",
-            "        if getattr(route, 'path', None) in {'/', '/health', '/graph/status'}",
+            "        if getattr(route, 'path', None) in {'/', '/datasets', '/health', '/graph/status'}",
             "    ),",
             "}",
             "print(json.dumps(payload, sort_keys=True))",
@@ -111,7 +133,7 @@ def test_public_api_facade_imports_from_outside_repo_when_installed(tmp_path: Pa
     assert json.loads(completed.stdout) == {
         "title": "Power Atlas API",
         "version": "3.0.0-installed-test",
-        "paths": ["/", "/graph/status", "/health"],
+        "paths": ["/", "/datasets", "/graph/status", "/health"],
     }
 
 
@@ -128,7 +150,7 @@ def test_backend_api_consumer_example_script_runs() -> None:
     assert json.loads(completed.stdout) == {
         "title": "Power Atlas Consumer Example",
         "version": "0.1.0-example",
-        "paths": ["/", "/consumer-info", "/graph/status", "/health"],
+        "paths": ["/", "/consumer-info", "/datasets", "/graph/status", "/health"],
     }
 
 
@@ -190,6 +212,11 @@ def test_backend_api_composed_app_example_script_runs() -> None:
     )
 
     assert json.loads(completed.stdout) == {
+        "backend_datasets": {
+            "dataset_names": ["demo_dataset_v1", "demo_dataset_v2"],
+            "selected_dataset_name": None,
+            "selection_mode": "ambiguous",
+        },
         "backend_graph_status": {
             "database": "neo4j",
             "detail": "Neo4j password is not configured",

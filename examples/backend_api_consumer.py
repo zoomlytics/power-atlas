@@ -51,7 +51,7 @@ if __name__ == "__main__":
                     route.path
                     for route in app.routes
                     if getattr(route, "path", None)
-                    in {"/", "/health", "/graph/status", "/consumer-info"}
+                    in {"/", "/datasets", "/health", "/graph/status", "/consumer-info"}
                 ),
             },
             sort_keys=True,

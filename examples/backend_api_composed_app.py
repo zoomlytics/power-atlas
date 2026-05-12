@@ -30,11 +30,24 @@ async def _snapshot_app(app: FastAPI) -> dict[str, object]:
     async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
         host_info = await client.get("/host-info")
         backend_root = await client.get("/atlas/")
+        backend_datasets = await client.get("/atlas/datasets")
         backend_health = await client.get("/atlas/health")
         backend_graph_status = await client.get("/atlas/graph/status")
+    datasets_payload = backend_datasets.json()
     return {
         "host_info": host_info.json(),
         "backend_root": backend_root.json(),
+        "backend_datasets": {
+            "dataset_names": [
+                dataset["name"] for dataset in datasets_payload["datasets"]
+            ],
+            "selected_dataset_name": (
+                None
+                if datasets_payload["selected_dataset"] is None
+                else datasets_payload["selected_dataset"]["name"]
+            ),
+            "selection_mode": datasets_payload["selection_mode"],
+        },
         "backend_health": backend_health.json(),
         "backend_graph_status": backend_graph_status.json(),
     }
