@@ -311,7 +311,10 @@ def test_build_settings_from_env_mapping() -> None:
     assert app.settings.dataset_name == "demo_dataset_v1"
 
 
-def test_public_api_facade_supports_filtered_run_queries(tmp_path: Path) -> None:
+def test_public_api_facade_supports_filtered_run_queries(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     from power_atlas.api import BackendAppOptions, create_backend_app
 
     older_run_root = tmp_path / "runs" / "unstructured_ingest-20260512T000000Z-a"
@@ -347,16 +350,34 @@ def test_public_api_facade_supports_filtered_run_queries(tmp_path: Path) -> None
         json.dumps(
             {
                 "run_id": newer_run_root.name,
-                "dataset_id": "demo_dataset_v1",
+                "dataset_id": "resolved-demo-dataset",
                 "stages": {"claim_extraction": {"status": "live"}},
             }
         ),
         encoding="utf-8",
     )
 
+    monkeypatch.setattr(
+        "power_atlas.backend_run_catalog.resolve_backend_dataset_catalog",
+        lambda settings: importlib.import_module("power_atlas.backend_dataset_catalog").DatasetCatalogResult(
+            datasets=[],
+            selected_dataset=importlib.import_module("power_atlas.backend_dataset_catalog").DatasetCatalogEntry(
+                name="demo_dataset_v1",
+                dataset_id="resolved-demo-dataset",
+                pdf_filename="example.pdf",
+                manifest_path="/tmp/manifest.json",
+                root_path="/tmp/dataset",
+            ),
+            selection_mode="configured",
+        ),
+    )
+
     app = create_backend_app(
         BackendAppOptions(version="4.0.0-run-filters"),
-        environ={"POWER_ATLAS_OUTPUT_DIR": str(tmp_path)},
+        environ={
+            "POWER_ATLAS_OUTPUT_DIR": str(tmp_path),
+            "POWER_ATLAS_DATASET": "demo_dataset_v1",
+        },
     )
 
     async def _exercise_app() -> None:
@@ -367,7 +388,6 @@ def test_public_api_facade_supports_filtered_run_queries(tmp_path: Path) -> None
         ) as client:
             current_runs = await client.get(
                 "/runs/current",
-                params={"dataset_id": "demo_dataset_v1"},
             )
             assert current_runs.status_code == 200
             assert [run["run_id"] for run in current_runs.json()["runs"]] == [
@@ -376,10 +396,7 @@ def test_public_api_facade_supports_filtered_run_queries(tmp_path: Path) -> None
 
             current_run_detail = await client.get(
                 "/runs/current/unstructured_ingest",
-                params={
-                    "dataset_id": "demo_dataset_v1",
-                    "stage_name": "claim_extraction",
-                },
+                params={"stage_name": "claim_extraction"},
             )
             assert current_run_detail.status_code == 200
             detail_payload = current_run_detail.json()
@@ -391,7 +408,7 @@ def test_public_api_facade_supports_filtered_run_queries(tmp_path: Path) -> None
             latest_per_prefix = await client.get(
                 "/runs",
                 params={
-                    "dataset_id": "demo_dataset_v1",
+                    "dataset_id": "resolved-demo-dataset",
                     "latest_per_stage_prefix": "true",
                 },
             )

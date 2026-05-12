@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from power_atlas.backend_dataset_catalog import DatasetCatalogEntry, DatasetCatalogResult
 from power_atlas.backend_run_catalog import (
     extract_run_stage_prefix,
     resolve_backend_current_run_catalog,
@@ -292,6 +293,63 @@ def test_backend_current_run_catalog_applies_latest_per_prefix_with_filters(tmp_
     )
 
     assert [run.run_id for run in result.runs] == [newer_run_root.name]
+
+
+def test_backend_current_run_catalog_defaults_to_configured_selected_dataset(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    newer_selected_run_root = tmp_path / "runs" / "unstructured_ingest-20260512T000100Z-b"
+    newer_selected_manifest_path = newer_selected_run_root / "claim_extraction" / "manifest.json"
+    newer_selected_manifest_path.parent.mkdir(parents=True)
+    newer_selected_manifest_path.write_text(
+        json.dumps(
+            {
+                "run_id": newer_selected_run_root.name,
+                "dataset_id": "resolved-demo-dataset",
+                "stages": {"claim_extraction": {"status": "live"}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    other_run_root = tmp_path / "runs" / "structured_ingest-20260512T000050Z-c"
+    other_manifest_path = other_run_root / "structured_ingest" / "manifest.json"
+    other_manifest_path.parent.mkdir(parents=True)
+    other_manifest_path.write_text(
+        json.dumps(
+            {
+                "run_id": other_run_root.name,
+                "dataset_id": "demo_dataset_v2",
+                "stages": {"structured_ingest": {"status": "live"}},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        "power_atlas.backend_run_catalog.resolve_backend_dataset_catalog",
+        lambda settings: DatasetCatalogResult(
+            datasets=[],
+            selected_dataset=DatasetCatalogEntry(
+                name="demo_dataset_v1",
+                dataset_id="resolved-demo-dataset",
+                pdf_filename="example.pdf",
+                manifest_path="/tmp/manifest.json",
+                root_path="/tmp/dataset",
+            ),
+            selection_mode="configured",
+        ),
+    )
+
+    settings = AppSettings(
+        neo4j=Neo4jSettings(password="secret"),
+        output_dir=tmp_path,
+        dataset_name="demo_dataset_v1",
+    )
+
+    result = resolve_backend_current_run_catalog(settings)
+
+    assert [run.run_id for run in result.runs] == [newer_selected_run_root.name]
 
 
 def test_backend_current_run_details_returns_latest_matching_prefix(tmp_path: Path) -> None:
