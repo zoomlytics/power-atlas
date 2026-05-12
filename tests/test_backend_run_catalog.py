@@ -92,6 +92,45 @@ def test_backend_run_details_returns_stage_manifests(tmp_path: Path) -> None:
     assert result.stages[0].manifest["dataset_id"] == "demo_dataset_v1"
 
 
+def test_backend_run_details_filters_stage_manifests(tmp_path: Path) -> None:
+    run_root = tmp_path / "runs" / "unstructured_ingest-20260512T000000Z-test"
+    pdf_manifest_path = run_root / "pdf_ingest" / "manifest.json"
+    pdf_manifest_path.parent.mkdir(parents=True)
+    pdf_manifest_path.write_text(
+        json.dumps(
+            {
+                "run_id": run_root.name,
+                "dataset_id": "demo_dataset_v1",
+                "stages": {"pdf_ingest": {"status": "live"}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    claim_manifest_path = run_root / "claim_extraction" / "manifest.json"
+    claim_manifest_path.parent.mkdir(parents=True)
+    claim_manifest_path.write_text(
+        json.dumps(
+            {
+                "run_id": run_root.name,
+                "dataset_id": "demo_dataset_v1",
+                "stages": {"claim_extraction": {"status": "live"}},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    settings = AppSettings(
+        neo4j=Neo4jSettings(password="secret"),
+        output_dir=tmp_path,
+    )
+
+    result = resolve_backend_run_details(settings, run_root.name, stage_name="claim_extraction")
+
+    assert result.run.run_id == run_root.name
+    assert result.run.stage_names == ["claim_extraction", "pdf_ingest"]
+    assert [stage.stage_name for stage in result.stages] == ["claim_extraction"]
+
+
 def test_resolve_run_root_rejects_path_traversal(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="must be a simple relative name"):
         resolve_run_root(tmp_path, "../escape")

@@ -325,6 +325,60 @@ def test_create_backend_app_exposes_run_detail_endpoint(tmp_path) -> None:
     asyncio.run(_exercise_app())
 
 
+def test_create_backend_app_filters_run_detail_endpoint_stages(tmp_path) -> None:
+        run_root = tmp_path / "runs" / "unstructured_ingest-20260512T000000Z-test"
+        pdf_manifest_path = run_root / "pdf_ingest" / "manifest.json"
+        pdf_manifest_path.parent.mkdir(parents=True)
+        pdf_manifest_path.write_text(
+                """
+{
+    "run_id": "unstructured_ingest-20260512T000000Z-test",
+    "dataset_id": "demo_dataset_v1",
+    "stages": {
+        "pdf_ingest": {
+            "status": "live"
+        }
+    }
+}
+""".strip(),
+                encoding="utf-8",
+        )
+        claim_manifest_path = run_root / "claim_extraction" / "manifest.json"
+        claim_manifest_path.parent.mkdir(parents=True)
+        claim_manifest_path.write_text(
+                """
+{
+    "run_id": "unstructured_ingest-20260512T000000Z-test",
+    "dataset_id": "demo_dataset_v1",
+    "stages": {
+        "claim_extraction": {
+            "status": "live"
+        }
+    }
+}
+""".strip(),
+                encoding="utf-8",
+        )
+        custom_app = create_backend_app(environ={"POWER_ATLAS_OUTPUT_DIR": str(tmp_path)})
+
+        async def _exercise_app() -> None:
+                transport = httpx.ASGITransport(app=custom_app)
+                async with httpx.AsyncClient(
+                        transport=transport,
+                        base_url="http://testserver",
+                ) as client:
+                        response = await client.get(
+                                f"/runs/{run_root.name}",
+                                params={"stage_name": "claim_extraction"},
+                        )
+                        assert response.status_code == 200
+                        payload = response.json()
+                        assert payload["run"]["stage_names"] == ["claim_extraction", "pdf_ingest"]
+                        assert [stage["stage_name"] for stage in payload["stages"]] == ["claim_extraction"]
+
+        asyncio.run(_exercise_app())
+
+
 def test_create_backend_app_filters_runs_endpoint(tmp_path) -> None:
         first_run_root = tmp_path / "runs" / "unstructured_ingest-20260512T000000Z-a"
         first_manifest_path = first_run_root / "pdf_ingest" / "manifest.json"

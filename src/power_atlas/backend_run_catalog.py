@@ -117,7 +117,12 @@ def extract_run_stage_prefix(run_id: str) -> str:
     return run_id
 
 
-def resolve_backend_run_details(settings: AppSettings, run_id: str) -> RunDetailResult:
+def resolve_backend_run_details(
+    settings: AppSettings,
+    run_id: str,
+    *,
+    stage_name: str | None = None,
+) -> RunDetailResult:
     output_dir = settings.output_dir.resolve()
     runs_root = resolve_runs_root(output_dir)
     run_root = resolve_run_root(output_dir, run_id)
@@ -127,6 +132,8 @@ def resolve_backend_run_details(settings: AppSettings, run_id: str) -> RunDetail
     stage_dirs = sorted(
         child for child in run_root.iterdir() if child.is_dir() and not child.name.startswith(".")
     )
+    if stage_name is not None:
+        stage_dirs = [stage_dir for stage_dir in stage_dirs if stage_dir.name == stage_name]
     return RunDetailResult(
         output_dir=str(output_dir),
         runs_root=str(runs_root),

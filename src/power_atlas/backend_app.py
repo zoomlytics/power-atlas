@@ -206,11 +206,16 @@ def build_backend_router(
         )
 
     @router.get("/runs/{run_id}", response_model=RunDetailResponse)
-    async def run_detail(run_id: str, request: Request) -> RunDetailResponse:
+    async def run_detail(
+        run_id: str,
+        request: Request,
+        stage_name: str | None = None,
+    ) -> RunDetailResponse:
         try:
             run_detail_result = resolve_backend_run_details(
                 get_backend_runtime(request.app).app_context.settings,
                 run_id,
+                stage_name=stage_name,
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc

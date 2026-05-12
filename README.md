@@ -311,6 +311,9 @@ It also accepts `latest_per_stage_prefix=true` to keep only the newest run for
 each `make_run_id(scope)` prefix, which is useful when callers want one current
 run per stage family instead of the full history.
 
+`/runs/{run_id}` accepts an optional `stage_name` query parameter to return only
+the matching stage manifest entries while preserving the full run summary.
+
 Example backend consumer usage:
 
 ```python
