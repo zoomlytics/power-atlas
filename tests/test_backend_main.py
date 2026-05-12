@@ -77,6 +77,17 @@ def test_backend_root_health_and_graph_status_contract(monkeypatch) -> None:
                 "unresolved",
             }
 
+            runs_response = await client.get("/runs")
+            assert runs_response.status_code == 200
+            runs_payload = runs_response.json()
+            assert set(runs_payload) == {
+                "output_dir",
+                "runs_root",
+                "runs",
+                "detail",
+            }
+            assert isinstance(runs_payload["runs"], list)
+
             graph_status_response = await client.get("/graph/status")
             assert graph_status_response.status_code == 503
             assert graph_status_response.json() == {

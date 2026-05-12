@@ -31,9 +31,11 @@ async def _snapshot_app(app: FastAPI) -> dict[str, object]:
         host_info = await client.get("/host-info")
         backend_root = await client.get("/atlas/")
         backend_datasets = await client.get("/atlas/datasets")
+        backend_runs = await client.get("/atlas/runs")
         backend_health = await client.get("/atlas/health")
         backend_graph_status = await client.get("/atlas/graph/status")
     datasets_payload = backend_datasets.json()
+    runs_payload = backend_runs.json()
     return {
         "host_info": host_info.json(),
         "backend_root": backend_root.json(),
@@ -47,6 +49,10 @@ async def _snapshot_app(app: FastAPI) -> dict[str, object]:
                 else datasets_payload["selected_dataset"]["name"]
             ),
             "selection_mode": datasets_payload["selection_mode"],
+        },
+        "backend_runs": {
+            "run_ids": [run["run_id"] for run in runs_payload["runs"]],
+            "runs_root": runs_payload["runs_root"],
         },
         "backend_health": backend_health.json(),
         "backend_graph_status": backend_graph_status.json(),

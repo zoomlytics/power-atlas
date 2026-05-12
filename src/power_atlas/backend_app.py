@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from power_atlas.backend_dataset_catalog import resolve_backend_dataset_catalog
 from power_atlas.backend_graph import BackendGraphQueryService, build_backend_graph_query_service
 from power_atlas.backend_graph_router import build_backend_graph_router
+from power_atlas.backend_run_catalog import resolve_backend_run_catalog
 from power_atlas.bootstrap import build_app_context
 from power_atlas.context import AppContext
 
@@ -50,6 +51,22 @@ class DatasetsResponse(BaseModel):
     datasets: list[DatasetResponse]
     selected_dataset: DatasetResponse | None = None
     selection_mode: str
+    detail: str | None = None
+
+
+class RunResponse(BaseModel):
+    run_id: str
+    dataset_id: str | None = None
+    started_at: str | None = None
+    finished_at: str | None = None
+    stage_names: list[str]
+    root_path: str
+
+
+class RunsResponse(BaseModel):
+    output_dir: str
+    runs_root: str
+    runs: list[RunResponse]
     detail: str | None = None
 
 
@@ -143,6 +160,28 @@ def build_backend_router(
             detail=dataset_catalog.detail,
         )
 
+    @router.get("/runs", response_model=RunsResponse)
+    async def runs(request: Request) -> RunsResponse:
+        run_catalog = resolve_backend_run_catalog(
+            get_backend_runtime(request.app).app_context.settings
+        )
+        return RunsResponse(
+            output_dir=run_catalog.output_dir,
+            runs_root=run_catalog.runs_root,
+            runs=[
+                RunResponse(
+                    run_id=run.run_id,
+                    dataset_id=run.dataset_id,
+                    started_at=run.started_at,
+                    finished_at=run.finished_at,
+                    stage_names=run.stage_names,
+                    root_path=run.root_path,
+                )
+                for run in run_catalog.runs
+            ],
+            detail=run_catalog.detail,
+        )
+
     @router.get("/", response_model=RootResponse)
     async def root() -> RootResponse:
         return RootResponse(
@@ -206,7 +245,9 @@ __all__ = [
     "DatasetResponse",
     "DatasetsResponse",
     "HealthResponse",
+    "RunResponse",
     "RootResponse",
+    "RunsResponse",
     "backend_router",
     "build_backend_graph_query_service",
     "build_backend_runtime",
