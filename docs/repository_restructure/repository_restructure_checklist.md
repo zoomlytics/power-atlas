@@ -281,7 +281,8 @@ result: no obsolete-test quarantine or CI-scope change is warranted yet.
 ### Exit criteria
 
 - CLI lives under `interfaces/cli`,
-- API lives under `interfaces/api`,
+- API is exposed through `power_atlas.api`, with `interfaces/api` retained only
+	as transitional compatibility wiring,
 - transport concerns are separated from orchestration,
 - worker interfaces are added only if explicitly approved.
 
@@ -299,7 +300,7 @@ result: no obsolete-test quarantine or CI-scope change is warranted yet.
 **Status:** completed  
 **Owner:**  
 **Blockers:**  
-**Notes:** Frontend positioning is now explicit at the current checkpoint. The in-repo `frontend/` package remains a transitional/non-core Next.js shell rather than the primary product execution surface. Its current backend dependency is intentionally narrow: `frontend/app/page.tsx` reads `NEXT_PUBLIC_BACKEND_URL` and calls `GET /health`, while the backend API remains a stub surface exposing `GET /`, `GET /health`, and placeholder `GET /graph/status` from `src/power_atlas/interfaces/api/backend_routes.py`. That is sufficient to treat the frontend as intentionally deferred from the main graph-product lane rather than unresolved. Backend contract expectations are therefore documented as placeholder-only for now, and formal schema-versioning work remains deferred until the backend exposes non-placeholder graph operations that a frontend is expected to consume materially.  
+**Notes:** Frontend positioning is now explicit at the current checkpoint. The in-repo `frontend/` package remains a transitional/non-core Next.js shell rather than the primary product execution surface. Its current backend dependency is intentionally narrow: `frontend/app/page.tsx` reads `NEXT_PUBLIC_BACKEND_URL` and calls `GET /health`, while the backend API remains a stub surface exposing `GET /`, `GET /health`, and `GET /graph/status` through the public `power_atlas.api` facade. That is sufficient to treat the frontend as intentionally deferred from the main graph-product lane rather than unresolved. Backend contract expectations are therefore documented as placeholder-only for now, and formal schema-versioning work remains deferred until the backend exposes non-placeholder graph operations that a frontend is expected to consume materially.  
 
 ### Exit criteria
 

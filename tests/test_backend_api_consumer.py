@@ -113,3 +113,20 @@ def test_public_api_facade_imports_from_outside_repo_when_installed(tmp_path: Pa
         "version": "3.0.0-installed-test",
         "paths": ["/", "/graph/status", "/health"],
     }
+
+
+def test_backend_api_consumer_example_script_runs() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    completed = subprocess.run(
+        [sys.executable, str(repo_root / "examples" / "backend_api_consumer.py")],
+        cwd=repo_root,
+        capture_output=True,
+        check=True,
+        text=True,
+    )
+
+    assert json.loads(completed.stdout) == {
+        "title": "Power Atlas Consumer Example",
+        "version": "0.1.0-example",
+        "paths": ["/", "/consumer-info", "/graph/status", "/health"],
+    }

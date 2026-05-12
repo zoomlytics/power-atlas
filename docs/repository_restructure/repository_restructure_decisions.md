@@ -420,7 +420,7 @@ If the repository exposes API boundaries consumed by other interfaces such as `w
 
 - The repository currently contains a minimal Next.js frontend under `frontend/`, but it is not yet the primary product surface for graph workflows.
 - The current frontend-to-backend contract is intentionally narrow: `frontend/app/page.tsx` reads `NEXT_PUBLIC_BACKEND_URL` and performs a simple health check against `GET /health` on the backend API.
-- The backend contract exposed to that frontend is currently limited to the existing stub endpoints in `src/power_atlas/interfaces/api/backend_routes.py`: `GET /`, `GET /health`, and placeholder `GET /graph/status`.
+- The backend contract exposed to that frontend is currently limited to the existing stub endpoints exposed through `power_atlas.api`: `GET /`, `GET /health`, and placeholder `GET /graph/status`.
 - This means the frontend is best classified at this checkpoint as a transitional/non-core interface shell rather than a stabilized product UI. It is allowed to exist in-repo, but it should not drive backend contract design ahead of the package-first restructure.
 - Formal schema versioning is therefore still deferred for the current placeholder API surface. The next contract-bearing decision should happen only when the backend exposes non-placeholder graph operations that the frontend is expected to consume beyond health/status checks.
 
@@ -718,9 +718,11 @@ rather than being retired in the current Phase 10 lane.
 - treat `backend/main.py` as an accepted defer-in-place shell,
 - do not open a deletion lane for it until the backend container entrypoint and
 	test seam are intentionally migrated,
-- keep the package-owned API app factory under
-	`src/power_atlas/interfaces/api/` as the authoritative implementation while
-	`backend/main.py` remains the stable outer seam.
+- keep `power_atlas.api` as the authoritative public backend surface while the
+	owning implementation lives under `src/power_atlas/backend_app.py`,
+	`src/power_atlas/backend_graph_router.py`, and adjacent package modules,
+	and let `src/power_atlas/interfaces/api/` remain transitional compatibility
+	wiring while `backend/main.py` stays the stable outer seam.
 
 ### Open Questions
 
