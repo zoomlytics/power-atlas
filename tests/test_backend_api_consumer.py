@@ -464,16 +464,16 @@ def test_backend_api_composed_app_example_script_runs() -> None:
     assert payload == {
         "backend_datasets": {
             "dataset_names": ["demo_dataset_v1", "demo_dataset_v2"],
-            "selected_dataset_name": None,
-            "selection_mode": "ambiguous",
+            "selected_dataset_name": "demo_dataset_v1",
+            "selection_mode": "configured",
         },
         "backend_current_runs": {
             "detail": None,
-            "run_ids": ["unstructured_ingest-20260512T000100Z-b"],
+            "run_ids": ["unstructured_ingest-20260512T000000Z-a"],
             "runs_root": payload["backend_current_runs"]["runs_root"],
         },
         "backend_current_run_detail": {
-            "run_id": "unstructured_ingest-20260512T000100Z-b",
+            "run_id": "unstructured_ingest-20260512T000000Z-a",
             "run_stage_names": ["claim_extraction", "pdf_ingest"],
             "stages": ["claim_extraction"],
         },

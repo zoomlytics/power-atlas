@@ -9,6 +9,7 @@ import httpx
 from fastapi import FastAPI
 
 from power_atlas.api import build_backend_router, build_backend_runtime
+from power_atlas.contracts import resolve_dataset_root
 
 
 def _write_manifest(manifest_path: Path, payload: dict[str, object]) -> None:
@@ -17,6 +18,7 @@ def _write_manifest(manifest_path: Path, payload: dict[str, object]) -> None:
 
 
 def _seed_example_runs(output_dir: Path) -> tuple[str, str, str]:
+    selected_dataset_id = resolve_dataset_root("demo_dataset_v1", environ={}).dataset_id
     older_run_id = "unstructured_ingest-20260512T000000Z-a"
     newer_run_id = "unstructured_ingest-20260512T000100Z-b"
     structured_run_id = "structured_ingest-20260512T000050Z-c"
@@ -25,15 +27,23 @@ def _seed_example_runs(output_dir: Path) -> tuple[str, str, str]:
         output_dir / "runs" / older_run_id / "pdf_ingest" / "manifest.json",
         {
             "run_id": older_run_id,
-            "dataset_id": "demo_dataset_v1",
+            "dataset_id": selected_dataset_id,
             "stages": {"pdf_ingest": {"status": "live"}},
+        },
+    )
+    _write_manifest(
+        output_dir / "runs" / older_run_id / "claim_extraction" / "manifest.json",
+        {
+            "run_id": older_run_id,
+            "dataset_id": selected_dataset_id,
+            "stages": {"claim_extraction": {"status": "live"}},
         },
     )
     _write_manifest(
         output_dir / "runs" / newer_run_id / "pdf_ingest" / "manifest.json",
         {
             "run_id": newer_run_id,
-            "dataset_id": "demo_dataset_v1",
+            "dataset_id": "demo_dataset_v2",
             "stages": {"pdf_ingest": {"status": "live"}},
         },
     )
@@ -41,7 +51,7 @@ def _seed_example_runs(output_dir: Path) -> tuple[str, str, str]:
         output_dir / "runs" / newer_run_id / "claim_extraction" / "manifest.json",
         {
             "run_id": newer_run_id,
-            "dataset_id": "demo_dataset_v1",
+            "dataset_id": "demo_dataset_v2",
             "stages": {"claim_extraction": {"status": "live"}},
         },
     )
@@ -78,13 +88,10 @@ async def _snapshot_app(app: FastAPI) -> dict[str, object]:
         host_info = await client.get("/host-info")
         backend_root = await client.get("/atlas/")
         backend_datasets = await client.get("/atlas/datasets")
-        backend_current_runs = await client.get(
-            "/atlas/runs/current",
-            params={"dataset_id": "demo_dataset_v1"},
-        )
+        backend_current_runs = await client.get("/atlas/runs/current")
         backend_current_run_detail = await client.get(
             "/atlas/runs/current/unstructured_ingest",
-            params={"dataset_id": "demo_dataset_v1", "stage_name": "claim_extraction"},
+            params={"stage_name": "claim_extraction"},
         )
         backend_health = await client.get("/atlas/health")
         backend_graph_status = await client.get("/atlas/graph/status")
@@ -127,5 +134,10 @@ if __name__ == "__main__":
     with TemporaryDirectory() as temp_dir:
         output_dir = Path(temp_dir)
         _seed_example_runs(output_dir)
-        example_app = build_example_app(environ={"POWER_ATLAS_OUTPUT_DIR": str(output_dir)})
+        example_app = build_example_app(
+            environ={
+                "POWER_ATLAS_OUTPUT_DIR": str(output_dir),
+                "POWER_ATLAS_DATASET": "demo_dataset_v1",
+            }
+        )
         print(json.dumps(asyncio.run(_snapshot_app(example_app)), sort_keys=True))

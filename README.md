@@ -354,7 +354,8 @@ facade lives in
 A third example that composes the backend router into a larger FastAPI app via
 `build_backend_runtime(...)` and `build_backend_router(...)`, including a
 mounted `/atlas/runs/current` snapshot plus mounted
-`/atlas/runs/current/{stage_prefix}` detail, lives in
+`/atlas/runs/current/{stage_prefix}` detail while relying on configured dataset
+selection, lives in
 [`examples/backend_api_composed_app.py`](examples/backend_api_composed_app.py).
 
 A fourth example that adds host-level request guarding around the mounted
