@@ -134,7 +134,7 @@ Refer to [`demo/VALIDATION_RUNBOOK.md`](demo/VALIDATION_RUNBOOK.md) for a step-b
 |---------|--------|
 | **`demo/` pipeline** | ✅ Operational — `unstructured_only` and `hybrid` modes working end-to-end |
 | **`pipelines/`** | ✅ Operational — ingest/query/experiment scripts + run artifacts |
-| **`backend/`** | 🚧 Disconnected scaffold — FastAPI stub with `/health`, a package-owned Neo4j readiness probe at `/graph/status`, a read-only graph summary endpoint at `/graph/summary`, and a typed scoped counts query at `/graph/run-scoped-counts`; not connected to the GraphRAG pipeline yet, while `backend/main.py` remains the accepted launch seam for that backend surface |
+| **`backend/`** | 🚧 Disconnected scaffold — FastAPI stub with `/health`, a package-owned Neo4j readiness probe at `/graph/status`, a read-only graph summary endpoint at `/graph/summary`, and typed scoped graph queries at `/graph/run-scoped-counts` and `/graph/health-summary`; not connected to the GraphRAG pipeline yet, while `backend/main.py` remains the accepted launch seam for that backend surface |
 | **`frontend/`** | 🚧 Disconnected scaffold — Next.js stub; not connected to the pipeline or backend |
 | **`_archive/`** | 📦 Historical material — retained for reference only; not part of the active product or pipeline surface |
 | **Temporal modeling** | 📋 Planned — Architecture drafted ([`docs/architecture/temporal-modeling-v0.1.md`](docs/architecture/temporal-modeling-v0.1.md)) — not yet implemented in pipeline |
@@ -287,8 +287,9 @@ use `power_atlas.api.create_backend_app(...)` rather than root
 `power_atlas.create_backend_app(...)`.
 
 The current backend surface exposed through that facade includes two zero-arg
-read-only probes (`/graph/status` and `/graph/summary`) plus one typed scoped
-query endpoint (`POST /graph/run-scoped-counts`) backed by package-owned
+read-only probes (`/graph/status` and `/graph/summary`) plus two typed scoped
+query endpoints: `POST /graph/run-scoped-counts` and
+`POST /graph/health-summary`. Both typed routes are backed by package-owned
 request/response models and runtime services.
 
 `power_atlas.claim_extraction_entrypoint.run_claim_extraction(...)` /

@@ -9,6 +9,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from power_atlas.api import BackendAppOptions, create_backend_app, get_backend_runtime
 from power_atlas.context import AppContext
 from power_atlas.graph_status import DEFAULT_UNCONFIGURED_DETAIL, GraphStatusResult
+from power_atlas.graph_health_summary import (
+    GraphHealthAlignmentSummary,
+    GraphHealthMentionSummary,
+    GraphHealthParticipationSummary,
+    GraphHealthSummaryRequest,
+    GraphHealthSummaryResult,
+)
 from power_atlas.graph_summary import GraphSummaryCounts, GraphSummaryResult
 from power_atlas.run_scoped_graph_counts import (
     RunScopedGraphCounts,
@@ -63,6 +70,23 @@ def test_backend_root_health_and_graph_status_contract(monkeypatch) -> None:
                 "neo4j_uri": "neo4j://localhost:7687",
                 "database": "neo4j",
                 "counts": None,
+            }
+
+            graph_health_summary_response = await client.post(
+                "/graph/health-summary",
+                json={"run_id": "unstructured_ingest-test-run", "alignment_version": "v1"},
+            )
+            assert graph_health_summary_response.status_code == 503
+            assert graph_health_summary_response.json() == {
+                "status": "not_configured",
+                "detail": DEFAULT_UNCONFIGURED_DETAIL,
+                "run_id": "unstructured_ingest-test-run",
+                "alignment_version": "v1",
+                "neo4j_uri": "neo4j://localhost:7687",
+                "database": "neo4j",
+                "participation_summary": None,
+                "mention_summary": None,
+                "alignment_summary": None,
             }
 
             run_scoped_counts_response = await client.post(
@@ -273,6 +297,88 @@ def test_create_backend_app_accepts_run_scoped_graph_counts_resolver() -> None:
                     "claim_count": 7,
                     "mention_count": 21,
                     "cluster_count": 6,
+                },
+            }
+
+    asyncio.run(_exercise_app())
+
+
+def test_create_backend_app_accepts_graph_health_summary_resolver() -> None:
+    custom_app = create_backend_app(
+        graph_health_summary_resolver=lambda app_context, request: GraphHealthSummaryResult(
+            http_status_code=200,
+            status="available",
+            detail="Graph health summary retrieved successfully",
+            run_id=request.run_id,
+            alignment_version=request.alignment_version,
+            neo4j_uri=app_context.settings.neo4j.uri,
+            database=app_context.settings.neo4j.database,
+            participation_summary=GraphHealthParticipationSummary(
+                total_edges=14,
+                edges_by_role={"subject": 9, "object": 5},
+                total_claims=6,
+                claims_with_zero_edges=1,
+                claim_coverage_pct=83.33,
+            ),
+            mention_summary=GraphHealthMentionSummary(
+                total_mentions=10,
+                clustered_mentions=8,
+                unclustered_mentions=2,
+                unresolved_rate_pct=20.0,
+            ),
+            alignment_summary=GraphHealthAlignmentSummary(
+                total_clusters=5,
+                aligned_clusters=4,
+                unaligned_clusters=1,
+                alignment_coverage_pct=80.0,
+            ),
+        ),
+        environ={
+            "NEO4J_URI": "neo4j://graph.example:7687",
+            "NEO4J_PASSWORD": "secret",
+            "NEO4J_DATABASE": "atlas",
+        },
+    )
+
+    async def _exercise_app() -> None:
+        transport = httpx.ASGITransport(app=custom_app)
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="http://testserver",
+        ) as client:
+            response = await client.post(
+                "/graph/health-summary",
+                json={
+                    "run_id": "unstructured_ingest-20260511T000000Z-test",
+                    "alignment_version": "v1",
+                },
+            )
+            assert response.status_code == 200
+            assert response.json() == {
+                "status": "available",
+                "detail": "Graph health summary retrieved successfully",
+                "run_id": "unstructured_ingest-20260511T000000Z-test",
+                "alignment_version": "v1",
+                "neo4j_uri": "neo4j://graph.example:7687",
+                "database": "atlas",
+                "participation_summary": {
+                    "total_edges": 14,
+                    "edges_by_role": {"subject": 9, "object": 5},
+                    "total_claims": 6,
+                    "claims_with_zero_edges": 1,
+                    "claim_coverage_pct": 83.33,
+                },
+                "mention_summary": {
+                    "total_mentions": 10,
+                    "clustered_mentions": 8,
+                    "unclustered_mentions": 2,
+                    "unresolved_rate_pct": 20.0,
+                },
+                "alignment_summary": {
+                    "total_clusters": 5,
+                    "aligned_clusters": 4,
+                    "unaligned_clusters": 1,
+                    "alignment_coverage_pct": 80.0,
                 },
             }
 

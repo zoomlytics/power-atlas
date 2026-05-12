@@ -12,6 +12,14 @@ from pydantic import BaseModel, Field
 from power_atlas.bootstrap import build_app_context
 from power_atlas.context import AppContext
 from power_atlas.graph_status import GraphStatusResult, resolve_graph_status
+from power_atlas.graph_health_summary import (
+	GraphHealthAlignmentSummary,
+	GraphHealthMentionSummary,
+	GraphHealthParticipationSummary,
+	GraphHealthSummaryRequest,
+	GraphHealthSummaryResult,
+	resolve_graph_health_summary,
+)
 from power_atlas.graph_summary import GraphSummaryCounts, GraphSummaryResult, resolve_graph_summary
 from power_atlas.run_scoped_graph_counts import (
 	RunScopedGraphCounts,
@@ -81,6 +89,45 @@ class RunScopedGraphCountsResponse(BaseModel):
 	counts: RunScopedGraphCountsResponseBody | None = None
 
 
+class GraphHealthSummaryRequestBody(BaseModel):
+	run_id: str = Field(min_length=1)
+	alignment_version: str | None = None
+
+
+class GraphHealthParticipationSummaryResponse(BaseModel):
+	total_edges: int
+	edges_by_role: dict[str, int]
+	total_claims: int
+	claims_with_zero_edges: int
+	claim_coverage_pct: float | None
+
+
+class GraphHealthMentionSummaryResponse(BaseModel):
+	total_mentions: int
+	clustered_mentions: int
+	unclustered_mentions: int
+	unresolved_rate_pct: float | None
+
+
+class GraphHealthAlignmentSummaryResponse(BaseModel):
+	total_clusters: int
+	aligned_clusters: int
+	unaligned_clusters: int
+	alignment_coverage_pct: float | None
+
+
+class GraphHealthSummaryResponse(BaseModel):
+	status: str
+	detail: str
+	run_id: str
+	alignment_version: str | None
+	neo4j_uri: str
+	database: str
+	participation_summary: GraphHealthParticipationSummaryResponse | None = None
+	mention_summary: GraphHealthMentionSummaryResponse | None = None
+	alignment_summary: GraphHealthAlignmentSummaryResponse | None = None
+
+
 class RootResponse(BaseModel):
 	message: str
 	version: str
@@ -91,6 +138,7 @@ class RootResponse(BaseModel):
 class BackendRuntime:
 	app_context: AppContext
 	graph_status_resolver: Callable[[AppContext], GraphStatusResult]
+	graph_health_summary_resolver: Callable[[AppContext, GraphHealthSummaryRequest], GraphHealthSummaryResult]
 	graph_summary_resolver: Callable[[AppContext], GraphSummaryResult]
 	run_scoped_graph_counts_resolver: Callable[[AppContext, RunScopedGraphCountsRequest], RunScopedGraphCountsResult]
 
@@ -100,6 +148,7 @@ def build_backend_runtime(
 	app_context: AppContext | None = None,
 	environ: Mapping[str, str] | None = None,
 	graph_status_resolver: Callable[[AppContext], GraphStatusResult] | None = None,
+	graph_health_summary_resolver: Callable[[AppContext, GraphHealthSummaryRequest], GraphHealthSummaryResult] | None = None,
 	graph_summary_resolver: Callable[[AppContext], GraphSummaryResult] | None = None,
 	run_scoped_graph_counts_resolver: Callable[[AppContext, RunScopedGraphCountsRequest], RunScopedGraphCountsResult] | None = None,
 ) -> BackendRuntime:
@@ -111,6 +160,9 @@ def build_backend_runtime(
 		graph_status_resolver=(
 			graph_status_resolver
 			or (lambda runtime_app_context: resolve_graph_status(settings=runtime_app_context.settings))
+		),
+		graph_health_summary_resolver=(
+			graph_health_summary_resolver or resolve_graph_health_summary
 		),
 		graph_summary_resolver=(
 			graph_summary_resolver
@@ -200,6 +252,62 @@ def build_backend_router(
 		)
 
 	@router.post(
+		"/graph/health-summary",
+		response_model=GraphHealthSummaryResponse,
+		responses={404: {"description": "Graph health data was not found"}, 503: {"description": "Graph health summary is unavailable"}},
+	)
+	async def graph_health_summary(
+		request: Request,
+		response: Response,
+		body: GraphHealthSummaryRequestBody,
+	) -> GraphHealthSummaryResponse:
+		runtime = get_backend_runtime(request.app)
+		probe = runtime.graph_health_summary_resolver(
+			runtime.app_context,
+			GraphHealthSummaryRequest(
+				run_id=body.run_id,
+				alignment_version=body.alignment_version,
+			),
+		)
+		response.status_code = probe.http_status_code
+		participation_summary = None
+		mention_summary = None
+		alignment_summary = None
+		if probe.participation_summary is not None:
+			participation_summary = GraphHealthParticipationSummaryResponse(
+				total_edges=probe.participation_summary.total_edges,
+				edges_by_role=probe.participation_summary.edges_by_role,
+				total_claims=probe.participation_summary.total_claims,
+				claims_with_zero_edges=probe.participation_summary.claims_with_zero_edges,
+				claim_coverage_pct=probe.participation_summary.claim_coverage_pct,
+			)
+		if probe.mention_summary is not None:
+			mention_summary = GraphHealthMentionSummaryResponse(
+				total_mentions=probe.mention_summary.total_mentions,
+				clustered_mentions=probe.mention_summary.clustered_mentions,
+				unclustered_mentions=probe.mention_summary.unclustered_mentions,
+				unresolved_rate_pct=probe.mention_summary.unresolved_rate_pct,
+			)
+		if probe.alignment_summary is not None:
+			alignment_summary = GraphHealthAlignmentSummaryResponse(
+				total_clusters=probe.alignment_summary.total_clusters,
+				aligned_clusters=probe.alignment_summary.aligned_clusters,
+				unaligned_clusters=probe.alignment_summary.unaligned_clusters,
+				alignment_coverage_pct=probe.alignment_summary.alignment_coverage_pct,
+			)
+		return GraphHealthSummaryResponse(
+			status=probe.status,
+			detail=probe.detail,
+			run_id=probe.run_id,
+			alignment_version=probe.alignment_version,
+			neo4j_uri=probe.neo4j_uri,
+			database=probe.database,
+			participation_summary=participation_summary,
+			mention_summary=mention_summary,
+			alignment_summary=alignment_summary,
+		)
+
+	@router.post(
 		"/graph/run-scoped-counts",
 		response_model=RunScopedGraphCountsResponse,
 		responses={404: {"description": "Run-scoped graph data was not found"}, 503: {"description": "Run-scoped graph counts are unavailable"}},
@@ -254,6 +362,7 @@ def create_backend_app(
 	app_context: AppContext | None = None,
 	environ: Mapping[str, str] | None = None,
 	graph_status_resolver: Callable[[AppContext], GraphStatusResult] | None = None,
+	graph_health_summary_resolver: Callable[[AppContext, GraphHealthSummaryRequest], GraphHealthSummaryResult] | None = None,
 	graph_summary_resolver: Callable[[AppContext], GraphSummaryResult] | None = None,
 	run_scoped_graph_counts_resolver: Callable[[AppContext, RunScopedGraphCountsRequest], RunScopedGraphCountsResult] | None = None,
 ) -> FastAPI:
@@ -262,6 +371,7 @@ def create_backend_app(
 		app_context=app_context,
 		environ=environ,
 		graph_status_resolver=graph_status_resolver,
+		graph_health_summary_resolver=graph_health_summary_resolver,
 		graph_summary_resolver=graph_summary_resolver,
 		run_scoped_graph_counts_resolver=run_scoped_graph_counts_resolver,
 	)
@@ -295,6 +405,11 @@ __all__ = [
 	"DEFAULT_API_TITLE",
 	"DEFAULT_API_VERSION",
 	"DEFAULT_CORS_ALLOW_ORIGINS",
+	"GraphHealthAlignmentSummaryResponse",
+	"GraphHealthMentionSummaryResponse",
+	"GraphHealthParticipationSummaryResponse",
+	"GraphHealthSummaryRequestBody",
+	"GraphHealthSummaryResponse",
 	"GraphSummaryCountsResponse",
 	"GraphSummaryResponse",
 	"GraphStatusResponse",

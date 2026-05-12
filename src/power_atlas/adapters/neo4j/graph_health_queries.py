@@ -147,6 +147,15 @@ LIMIT {canonical_chain_health_limit}
     ]
 
 
+def build_graph_health_summary_query_specs() -> list[GraphHealthQuerySpec]:
+    return [
+        ("role_dist", "participation role distribution", _Q_PARTICIPATION_ROLE_DIST),
+        ("edge_coverage", "claim edge coverage", _Q_CLAIM_EDGE_COVERAGE),
+        ("mention_clustering", "mention clustering", _Q_MENTION_CLUSTERING),
+        ("alignment_coverage", "alignment coverage", _Q_ALIGNMENT_COVERAGE),
+    ]
+
+
 def fetch_graph_health_query_rows(
     neo4j_settings: Neo4jSettings,
     neo4j_database: str,
@@ -180,5 +189,6 @@ __all__ = [
     "PER_CANONICAL_ALIGNMENT_LIMIT",
     "build_cluster_type_fragmentation_query",
     "build_graph_health_query_specs",
+    "build_graph_health_summary_query_specs",
     "fetch_graph_health_query_rows",
 ]

@@ -164,6 +164,8 @@ def test_package_modules_import() -> None:
     assert not hasattr(package, "backend_router")
     assert api_module.BackendAppOptions.__name__ == "BackendAppOptions"
     assert api_module.BackendRuntime.__name__ == "BackendRuntime"
+    assert api_module.GraphHealthSummaryRequestBody.__name__ == "GraphHealthSummaryRequestBody"
+    assert api_module.GraphHealthSummaryResponse.__name__ == "GraphHealthSummaryResponse"
     assert api_module.RunScopedGraphCountsRequestBody.__name__ == "RunScopedGraphCountsRequestBody"
     assert api_module.RunScopedGraphCountsResponse.__name__ == "RunScopedGraphCountsResponse"
     assert callable(api_module.build_backend_runtime)
