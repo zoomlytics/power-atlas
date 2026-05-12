@@ -35,7 +35,8 @@ backend consumers, [`power_atlas.api`](src/power_atlas/api.py) is the supported
 import surface; the deeper `power_atlas.backend_*` modules are implementation
 seams, and `power_atlas.interfaces.api` remains a transitional compatibility
 alias until external callers are migrated rather than a supported import path
-for new callers.
+for new callers. Those compatibility imports now emit `DeprecationWarning` to
+make that migration boundary explicit.
 
 ---
 
