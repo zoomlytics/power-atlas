@@ -138,7 +138,7 @@ Refer to [`demo/VALIDATION_RUNBOOK.md`](demo/VALIDATION_RUNBOOK.md) for a step-b
 |---------|--------|
 | **`demo/` pipeline** | ✅ Operational — `unstructured_only` and `hybrid` modes working end-to-end |
 | **`pipelines/`** | ✅ Operational — ingest/query/experiment scripts + run artifacts |
-| **`backend/`** | 🚧 Disconnected scaffold — FastAPI surface assembled through the public package facade [`power_atlas.api`](src/power_atlas/api.py), with `/health`, `/datasets`, `/runs`, `/runs/current`, `/runs/{run_id}`, `/graph/status`, `/graph/summary`, `POST /graph/run-scoped-counts`, and `POST /graph/health-summary`; not connected to the GraphRAG pipeline yet, while `backend/main.py` remains the accepted launch seam for that backend surface |
+| **`backend/`** | 🚧 Disconnected scaffold — FastAPI surface assembled through the public package facade [`power_atlas.api`](src/power_atlas/api.py), with `/health`, `/datasets`, `/runs`, `/runs/current`, `/runs/current/{stage_prefix}`, `/runs/{run_id}`, `/graph/status`, `/graph/summary`, `POST /graph/run-scoped-counts`, and `POST /graph/health-summary`; not connected to the GraphRAG pipeline yet, while `backend/main.py` remains the accepted launch seam for that backend surface |
 | **`frontend/`** | 🚧 Disconnected scaffold — Next.js stub; not connected to the pipeline or backend |
 | **`_archive/`** | 📦 Historical material — retained for reference only; not part of the active product or pipeline surface |
 | **Temporal modeling** | 📋 Planned — Architecture drafted ([`docs/architecture/temporal-modeling-v0.1.md`](docs/architecture/temporal-modeling-v0.1.md)) — not yet implemented in pipeline |
@@ -295,7 +295,8 @@ remain off the root package itself, so callers use
 
 The current backend surface exposed through that facade includes two package
 discovery endpoints (`/datasets` and `/runs`), one convenience current-runs
-endpoint (`/runs/current`), one per-run manifest detail endpoint
+endpoint (`/runs/current`), one convenience current-run-detail endpoint
+(`/runs/current/{stage_prefix}`), one per-run manifest detail endpoint
 (`/runs/{run_id}`), two zero-arg read-only graph probes
 (`/graph/status` and `/graph/summary`), and two typed scoped query endpoints:
 `POST /graph/run-scoped-counts` and `POST /graph/health-summary`. The dataset
@@ -315,6 +316,11 @@ run per stage family instead of the full history.
 `/runs/current` is a convenience alias for that current-run view and accepts the
 same optional `dataset_id` and `stage_name` query parameters without requiring
 callers to opt into `latest_per_stage_prefix=true` themselves.
+
+`/runs/current/{stage_prefix}` is the matching current-detail convenience route.
+It selects the newest run whose `make_run_id(scope)` prefix matches
+`stage_prefix`, accepts an optional `dataset_id` filter when choosing that run,
+and accepts the same optional `stage_name` detail filter as `/runs/{run_id}`.
 
 `/runs/{run_id}` accepts an optional `stage_name` query parameter to return only
 the matching stage manifest entries while preserving the full run summary.

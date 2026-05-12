@@ -618,6 +618,83 @@ def test_create_backend_app_exposes_current_runs_endpoint(tmp_path) -> None:
         asyncio.run(_exercise_app())
 
 
+def test_create_backend_app_exposes_current_run_detail_endpoint(tmp_path) -> None:
+        older_run_root = tmp_path / "runs" / "unstructured_ingest-20260512T000000Z-a"
+        older_manifest_path = older_run_root / "pdf_ingest" / "manifest.json"
+        older_manifest_path.parent.mkdir(parents=True)
+        older_manifest_path.write_text(
+                """
+{
+    "run_id": "unstructured_ingest-20260512T000000Z-a",
+    "dataset_id": "demo_dataset_v1",
+    "stages": {
+        "pdf_ingest": {
+            "status": "live"
+        }
+    }
+}
+""".strip(),
+                encoding="utf-8",
+        )
+        newer_run_root = tmp_path / "runs" / "unstructured_ingest-20260512T000100Z-b"
+        newer_pdf_manifest_path = newer_run_root / "pdf_ingest" / "manifest.json"
+        newer_pdf_manifest_path.parent.mkdir(parents=True)
+        newer_pdf_manifest_path.write_text(
+                """
+{
+    "run_id": "unstructured_ingest-20260512T000100Z-b",
+    "dataset_id": "demo_dataset_v1",
+    "stages": {
+        "pdf_ingest": {
+            "status": "live"
+        }
+    }
+}
+""".strip(),
+                encoding="utf-8",
+        )
+        newer_claim_manifest_path = newer_run_root / "claim_extraction" / "manifest.json"
+        newer_claim_manifest_path.parent.mkdir(parents=True)
+        newer_claim_manifest_path.write_text(
+                """
+{
+    "run_id": "unstructured_ingest-20260512T000100Z-b",
+    "dataset_id": "demo_dataset_v1",
+    "stages": {
+        "claim_extraction": {
+            "status": "live"
+        }
+    }
+}
+""".strip(),
+                encoding="utf-8",
+        )
+        custom_app = create_backend_app(environ={"POWER_ATLAS_OUTPUT_DIR": str(tmp_path)})
+
+        async def _exercise_app() -> None:
+                transport = httpx.ASGITransport(app=custom_app)
+                async with httpx.AsyncClient(
+                        transport=transport,
+                        base_url="http://testserver",
+                ) as client:
+                        response = await client.get(
+                                "/runs/current/unstructured_ingest",
+                                params={
+                                        "dataset_id": "demo_dataset_v1",
+                                        "stage_name": "claim_extraction",
+                                },
+                        )
+                        assert response.status_code == 200
+                        payload = response.json()
+                        assert payload["run"]["run_id"] == newer_run_root.name
+                        assert payload["run"]["stage_names"] == ["claim_extraction", "pdf_ingest"]
+                        assert [stage["stage_name"] for stage in payload["stages"]] == [
+                                "claim_extraction"
+                        ]
+
+        asyncio.run(_exercise_app())
+
+
 def test_create_backend_app_accepts_run_scoped_graph_counts_resolver() -> None:
     app_context = build_app_context(
         environ={

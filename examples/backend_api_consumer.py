@@ -56,6 +56,7 @@ if __name__ == "__main__":
                         "/datasets",
                         "/runs",
                         "/runs/current",
+                        "/runs/current/{stage_prefix}",
                         "/runs/{run_id}",
                         "/health",
                         "/graph/status",

@@ -374,6 +374,20 @@ def test_public_api_facade_supports_filtered_run_queries(tmp_path: Path) -> None
                 newer_run_root.name
             ]
 
+            current_run_detail = await client.get(
+                "/runs/current/unstructured_ingest",
+                params={
+                    "dataset_id": "demo_dataset_v1",
+                    "stage_name": "claim_extraction",
+                },
+            )
+            assert current_run_detail.status_code == 200
+            detail_payload = current_run_detail.json()
+            assert detail_payload["run"]["run_id"] == newer_run_root.name
+            assert [stage["stage_name"] for stage in detail_payload["stages"]] == [
+                "claim_extraction"
+            ]
+
             latest_per_prefix = await client.get(
                 "/runs",
                 params={

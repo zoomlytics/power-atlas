@@ -15,6 +15,7 @@ from power_atlas.backend_graph import BackendGraphQueryService, build_backend_gr
 from power_atlas.backend_graph_router import build_backend_graph_router
 from power_atlas.backend_run_catalog import (
     resolve_backend_current_run_catalog,
+    resolve_backend_current_run_details,
     resolve_backend_run_catalog,
     resolve_backend_run_details,
 )
@@ -235,6 +236,47 @@ def build_backend_router(
                 for run in run_catalog.runs
             ],
             detail=run_catalog.detail,
+        )
+
+    @router.get("/runs/current/{stage_prefix}", response_model=RunDetailResponse)
+    async def current_run_detail(
+        stage_prefix: str,
+        request: Request,
+        dataset_id: str | None = None,
+        stage_name: str | None = None,
+    ) -> RunDetailResponse:
+        try:
+            run_detail_result = resolve_backend_current_run_details(
+                get_backend_runtime(request.app).app_context.settings,
+                stage_prefix,
+                dataset_id=dataset_id,
+                stage_name=stage_name,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+        return RunDetailResponse(
+            output_dir=run_detail_result.output_dir,
+            runs_root=run_detail_result.runs_root,
+            run=RunResponse(
+                run_id=run_detail_result.run.run_id,
+                dataset_id=run_detail_result.run.dataset_id,
+                started_at=run_detail_result.run.started_at,
+                finished_at=run_detail_result.run.finished_at,
+                stage_names=run_detail_result.run.stage_names,
+                root_path=run_detail_result.run.root_path,
+            ),
+            stages=[
+                RunStageResponse(
+                    stage_name=stage.stage_name,
+                    status=stage.status,
+                    manifest_path=stage.manifest_path,
+                    manifest=stage.manifest,
+                )
+                for stage in run_detail_result.stages
+            ],
         )
 
     @router.get("/runs/{run_id}", response_model=RunDetailResponse)

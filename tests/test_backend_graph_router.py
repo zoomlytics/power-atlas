@@ -24,5 +24,6 @@ def test_build_backend_router_composes_core_and_graph_routes() -> None:
         "/": {"GET"},
         "/runs": {"GET"},
         "/runs/current": {"GET"},
+        "/runs/current/{stage_prefix}": {"GET"},
         "/runs/{run_id}": {"GET"},
     }

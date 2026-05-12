@@ -201,6 +201,32 @@ def resolve_backend_current_run_catalog(
     )
 
 
+def resolve_backend_current_run_details(
+    settings: AppSettings,
+    stage_prefix: str,
+    *,
+    dataset_id: str | None = None,
+    stage_name: str | None = None,
+) -> RunDetailResult:
+    run_catalog = resolve_backend_current_run_catalog(
+        settings,
+        dataset_id=dataset_id,
+    )
+    matching_run = next(
+        (run for run in run_catalog.runs if extract_run_stage_prefix(run.run_id) == stage_prefix),
+        None,
+    )
+    if matching_run is None:
+        raise FileNotFoundError(
+            f"Current run for stage_prefix {stage_prefix!r} was not found under {run_catalog.runs_root}."
+        )
+    return resolve_backend_run_details(
+        settings,
+        matching_run.run_id,
+        stage_name=stage_name,
+    )
+
+
 __all__ = [
     "RunCatalogEntry",
     "RunDetailResult",
@@ -208,6 +234,7 @@ __all__ = [
     "RunStageDetailEntry",
     "extract_run_stage_prefix",
     "resolve_backend_current_run_catalog",
+    "resolve_backend_current_run_details",
     "resolve_backend_run_details",
     "resolve_backend_run_catalog",
     "resolve_run_root",
