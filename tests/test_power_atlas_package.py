@@ -10,6 +10,7 @@ import pytest
 def test_package_modules_import() -> None:
     package = importlib.import_module("power_atlas")
     api_module = importlib.import_module("power_atlas.api")
+    backend_graph_module = importlib.import_module("power_atlas.backend_graph")
     context_module = importlib.import_module("power_atlas.context")
     contracts_module = importlib.import_module("power_atlas.contracts")
     pipeline_module = importlib.import_module("power_atlas.contracts.pipeline")
@@ -169,7 +170,9 @@ def test_package_modules_import() -> None:
     assert api_module.GraphHealthSummaryResponse.__name__ == "GraphHealthSummaryResponse"
     assert api_module.RunScopedGraphCountsRequestBody.__name__ == "RunScopedGraphCountsRequestBody"
     assert api_module.RunScopedGraphCountsResponse.__name__ == "RunScopedGraphCountsResponse"
+    assert callable(backend_graph_module.build_backend_graph_query_service)
     assert callable(api_module.build_backend_graph_query_service)
+    assert api_module.build_backend_graph_query_service is backend_graph_module.build_backend_graph_query_service
     assert callable(api_module.build_backend_runtime)
     assert callable(api_module.build_backend_router)
     assert callable(api_module.create_backend_app)
