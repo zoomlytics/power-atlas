@@ -3,6 +3,7 @@ from __future__ import annotations
 from power_atlas.backend_graph_query_service import build_backend_graph_query_service
 from power_atlas.bootstrap import build_app_context
 from power_atlas.graph_health_summary import GraphHealthSummaryRequest, resolve_graph_health_summary
+from power_atlas.graph_summary import DEFAULT_GRAPH_SUMMARY_QUERY, resolve_graph_summary
 from power_atlas.graph_status import DEFAULT_GRAPH_STATUS_QUERY, resolve_graph_status
 from power_atlas.run_scoped_graph_counts import (
     DEFAULT_RUN_SCOPED_GRAPH_COUNTS_QUERY,
@@ -54,6 +55,50 @@ def test_backend_graph_query_service_graph_status_uses_fake_driver_seam() -> Non
     assert result.neo4j_uri == "neo4j://graph.example:7687"
     assert result.database == "atlas"
     assert fake_driver.seen_query == DEFAULT_GRAPH_STATUS_QUERY
+    assert fake_driver.seen_database == "atlas"
+
+
+def test_backend_graph_query_service_graph_summary_uses_fake_driver_seam() -> None:
+    app_context = build_app_context(
+        environ={
+            "NEO4J_URI": "neo4j://graph.example:7687",
+            "NEO4J_PASSWORD": "secret",
+            "NEO4J_DATABASE": "atlas",
+        }
+    )
+    fake_driver = _FakeDriver(
+        records=[
+            {
+                "document_count": 3,
+                "chunk_count": 11,
+                "claim_count": 7,
+                "mention_count": 21,
+                "cluster_count": 6,
+                "canonical_entity_count": 4,
+            }
+        ]
+    )
+
+    graph_queries = build_backend_graph_query_service(
+        app_context,
+        graph_summary_resolver=lambda runtime_app_context: resolve_graph_summary(
+            settings=runtime_app_context.settings,
+            driver_factory=lambda settings: fake_driver,
+        ),
+    )
+
+    result = graph_queries.graph_summary()
+
+    assert result.http_status_code == 200
+    assert result.status == "available"
+    assert result.counts is not None
+    assert result.counts.document_count == 3
+    assert result.counts.chunk_count == 11
+    assert result.counts.claim_count == 7
+    assert result.counts.mention_count == 21
+    assert result.counts.cluster_count == 6
+    assert result.counts.canonical_entity_count == 4
+    assert fake_driver.seen_query == DEFAULT_GRAPH_SUMMARY_QUERY
     assert fake_driver.seen_database == "atlas"
 
 
