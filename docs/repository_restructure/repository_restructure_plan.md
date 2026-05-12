@@ -890,9 +890,7 @@ Organize around practical behavior and workflow, not just abstract layering.
 #### Deliverables
 
 - CLI moved under `interfaces/cli`,
-- backend/API exposed through the public `power_atlas.api` facade, with
-  `interfaces/api` retained only as transitional compatibility wiring until
-  external callers are migrated,
+- backend/API exposed through the public `power_atlas.api` facade,
 - worker interfaces added only if real job execution is already in scope.
 
 #### Exit criteria

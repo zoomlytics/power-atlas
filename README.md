@@ -33,10 +33,8 @@ that stub surface, `backend/main.py` remains the stable launch seam for the
 package-owned backend facade (see [Current Status](#current-status)). For
 backend consumers, [`power_atlas.api`](src/power_atlas/api.py) is the supported
 import surface; the deeper `power_atlas.backend_*` modules are implementation
-seams, and `power_atlas.interfaces.api` remains a transitional compatibility
-alias until external callers are migrated rather than a supported import path
-for new callers. Those compatibility imports now emit `DeprecationWarning` to
-make that migration boundary explicit.
+seams, and the earlier `power_atlas.interfaces.api` compatibility alias has
+now been retired.
 
 ---
 
@@ -82,7 +80,7 @@ Run this once after installation to confirm the new installed-package path is
 working before you start the live pipeline:
 
 ```bash
-python -m pytest tests/test_power_atlas_package.py tests/test_interfaces_api_compatibility.py tests/test_backend_api_consumer.py
+python -m pytest tests/test_power_atlas_package.py tests/test_backend_api_consumer.py
 ```
 
 ### 4. Start Neo4j
@@ -289,11 +287,10 @@ typed response models plus app-construction helpers such as
 the backend's shared package `AppContext` bootstrap plus a package graph query
 service so graph routes reuse app-owned settings and one consolidated service
 interface instead of resolving env state ad hoc per request or carrying one
-resolver seam per route, while `power_atlas.interfaces.api` remains only as a
-transitional compatibility import layer for legacy callers and should be kept
-only until external callers migrate. New code should use `power_atlas.api`
-directly. Individual helpers still remain off the root package itself, so
-callers use `power_atlas.api.create_backend_app(...)` rather than root
+resolver seam per route. The earlier `power_atlas.interfaces.api`
+compatibility import layer has now been retired. Individual helpers still
+remain off the root package itself, so callers use
+`power_atlas.api.create_backend_app(...)` rather than root
 `power_atlas.create_backend_app(...)`.
 
 The current backend surface exposed through that facade includes two zero-arg

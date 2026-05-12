@@ -164,6 +164,8 @@ def test_package_modules_import() -> None:
     assert not hasattr(package, "sync_vendor_version_entrypoint")
     assert not hasattr(package, "create_backend_app")
     assert not hasattr(package, "backend_router")
+    with pytest.raises(ModuleNotFoundError):
+        importlib.import_module("power_atlas.interfaces.api")
     assert api_module.BackendAppOptions.__name__ == "BackendAppOptions"
     assert api_module.BackendGraphQueryService.__name__ == "BackendGraphQueryService"
     assert api_module.BackendRuntime.__name__ == "BackendRuntime"

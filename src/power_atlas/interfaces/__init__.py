@@ -1,1 +1,1 @@
-"""Interface-layer modules for CLI and API entrypoints."""
+"""Interface-layer modules for CLI entrypoints and retained compatibility seams."""
