@@ -5,10 +5,11 @@ from collections.abc import AsyncIterator, Mapping
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 
-from fastapi import APIRouter, FastAPI
+from fastapi import APIRouter, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+from power_atlas.backend_dataset_catalog import resolve_backend_dataset_catalog
 from power_atlas.backend_graph import BackendGraphQueryService, build_backend_graph_query_service
 from power_atlas.backend_graph_router import build_backend_graph_router
 from power_atlas.bootstrap import build_app_context
@@ -35,6 +36,21 @@ class RootResponse(BaseModel):
     message: str
     version: str
     docs: str
+
+
+class DatasetResponse(BaseModel):
+    name: str
+    dataset_id: str
+    pdf_filename: str
+    manifest_path: str
+    root_path: str
+
+
+class DatasetsResponse(BaseModel):
+    datasets: list[DatasetResponse]
+    selected_dataset: DatasetResponse | None = None
+    selection_mode: str
+    detail: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -97,6 +113,36 @@ def build_backend_router(
     async def health_check() -> HealthResponse:
         return HealthResponse(status="ok", message="Backend is healthy")
 
+    @router.get("/datasets", response_model=DatasetsResponse)
+    async def datasets(request: Request) -> DatasetsResponse:
+        dataset_catalog = resolve_backend_dataset_catalog(
+            get_backend_runtime(request.app).app_context.settings
+        )
+        selected_dataset = None
+        if dataset_catalog.selected_dataset is not None:
+            selected_dataset = DatasetResponse(
+                name=dataset_catalog.selected_dataset.name,
+                dataset_id=dataset_catalog.selected_dataset.dataset_id,
+                pdf_filename=dataset_catalog.selected_dataset.pdf_filename,
+                manifest_path=dataset_catalog.selected_dataset.manifest_path,
+                root_path=dataset_catalog.selected_dataset.root_path,
+            )
+        return DatasetsResponse(
+            datasets=[
+                DatasetResponse(
+                    name=dataset.name,
+                    dataset_id=dataset.dataset_id,
+                    pdf_filename=dataset.pdf_filename,
+                    manifest_path=dataset.manifest_path,
+                    root_path=dataset.root_path,
+                )
+                for dataset in dataset_catalog.datasets
+            ],
+            selected_dataset=selected_dataset,
+            selection_mode=dataset_catalog.selection_mode,
+            detail=dataset_catalog.detail,
+        )
+
     @router.get("/", response_model=RootResponse)
     async def root() -> RootResponse:
         return RootResponse(
@@ -157,6 +203,8 @@ __all__ = [
     "DEFAULT_API_TITLE",
     "DEFAULT_API_VERSION",
     "DEFAULT_CORS_ALLOW_ORIGINS",
+    "DatasetResponse",
+    "DatasetsResponse",
     "HealthResponse",
     "RootResponse",
     "backend_router",

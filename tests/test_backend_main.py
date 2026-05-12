@@ -59,6 +59,24 @@ def test_backend_root_health_and_graph_status_contract(monkeypatch) -> None:
                 "message": "Backend is healthy",
             }
 
+            datasets_response = await client.get("/datasets")
+            assert datasets_response.status_code == 200
+            datasets_payload = datasets_response.json()
+            assert set(datasets_payload) == {
+                "datasets",
+                "selected_dataset",
+                "selection_mode",
+                "detail",
+            }
+            assert isinstance(datasets_payload["datasets"], list)
+            assert datasets_payload["selection_mode"] in {
+                "configured",
+                "auto_discovered",
+                "ambiguous",
+                "legacy_fallback",
+                "unresolved",
+            }
+
             graph_status_response = await client.get("/graph/status")
             assert graph_status_response.status_code == 503
             assert graph_status_response.json() == {

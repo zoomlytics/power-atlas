@@ -3,6 +3,8 @@ from __future__ import annotations
 from power_atlas.backend_app import (
 	BackendAppOptions,
 	BackendRuntime,
+	DatasetResponse,
+	DatasetsResponse,
 	DEFAULT_API_DESCRIPTION,
 	DEFAULT_API_TITLE,
 	DEFAULT_API_VERSION,
@@ -40,6 +42,8 @@ __all__ = [
 	"DEFAULT_API_TITLE",
 	"DEFAULT_API_VERSION",
 	"DEFAULT_CORS_ALLOW_ORIGINS",
+	"DatasetResponse",
+	"DatasetsResponse",
 	"GraphHealthAlignmentSummaryResponse",
 	"GraphHealthMentionSummaryResponse",
 	"GraphHealthParticipationSummaryResponse",

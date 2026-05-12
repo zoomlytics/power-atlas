@@ -169,6 +169,8 @@ def test_package_modules_import() -> None:
     assert api_module.BackendAppOptions.__name__ == "BackendAppOptions"
     assert api_module.BackendGraphQueryService.__name__ == "BackendGraphQueryService"
     assert api_module.BackendRuntime.__name__ == "BackendRuntime"
+    assert api_module.DatasetResponse.__name__ == "DatasetResponse"
+    assert api_module.DatasetsResponse.__name__ == "DatasetsResponse"
     assert api_module.GraphHealthSummaryRequestBody.__name__ == "GraphHealthSummaryRequestBody"
     assert api_module.GraphHealthSummaryResponse.__name__ == "GraphHealthSummaryResponse"
     assert api_module.RunScopedGraphCountsRequestBody.__name__ == "RunScopedGraphCountsRequestBody"

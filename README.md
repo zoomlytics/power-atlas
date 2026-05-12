@@ -138,7 +138,7 @@ Refer to [`demo/VALIDATION_RUNBOOK.md`](demo/VALIDATION_RUNBOOK.md) for a step-b
 |---------|--------|
 | **`demo/` pipeline** | ✅ Operational — `unstructured_only` and `hybrid` modes working end-to-end |
 | **`pipelines/`** | ✅ Operational — ingest/query/experiment scripts + run artifacts |
-| **`backend/`** | 🚧 Disconnected scaffold — FastAPI surface assembled through the public package facade [`power_atlas.api`](src/power_atlas/api.py), with `/health`, `/graph/status`, `/graph/summary`, `POST /graph/run-scoped-counts`, and `POST /graph/health-summary`; not connected to the GraphRAG pipeline yet, while `backend/main.py` remains the accepted launch seam for that backend surface |
+| **`backend/`** | 🚧 Disconnected scaffold — FastAPI surface assembled through the public package facade [`power_atlas.api`](src/power_atlas/api.py), with `/health`, `/datasets`, `/graph/status`, `/graph/summary`, `POST /graph/run-scoped-counts`, and `POST /graph/health-summary`; not connected to the GraphRAG pipeline yet, while `backend/main.py` remains the accepted launch seam for that backend surface |
 | **`frontend/`** | 🚧 Disconnected scaffold — Next.js stub; not connected to the pipeline or backend |
 | **`_archive/`** | 📦 Historical material — retained for reference only; not part of the active product or pipeline surface |
 | **Temporal modeling** | 📋 Planned — Architecture drafted ([`docs/architecture/temporal-modeling-v0.1.md`](docs/architecture/temporal-modeling-v0.1.md)) — not yet implemented in pipeline |
@@ -293,11 +293,13 @@ remain off the root package itself, so callers use
 `power_atlas.api.create_backend_app(...)` rather than root
 `power_atlas.create_backend_app(...)`.
 
-The current backend surface exposed through that facade includes two zero-arg
-read-only probes (`/graph/status` and `/graph/summary`) plus two typed scoped
-query endpoints: `POST /graph/run-scoped-counts` and
-`POST /graph/health-summary`. Both typed routes are backed by package-owned
-request/response models and runtime services.
+The current backend surface exposed through that facade includes one package
+discovery endpoint (`/datasets`), two zero-arg read-only graph probes
+(`/graph/status` and `/graph/summary`), and two typed scoped query endpoints:
+`POST /graph/run-scoped-counts` and `POST /graph/health-summary`. The dataset
+route is backed by package-owned dataset selection helpers, and the typed graph
+routes are backed by package-owned request/response models and runtime
+services.
 
 Example backend consumer usage:
 
