@@ -16,6 +16,12 @@ from power_atlas.backend_graph import (
 	RunScopedGraphCountsRequest,
 	build_backend_graph_query_service,
 )
+from power_atlas.backend_graph_response_adapters import (
+	build_graph_health_summary_response_payload,
+	build_graph_status_response_payload,
+	build_graph_summary_response_payload,
+	build_run_scoped_graph_counts_response_payload,
+)
 from power_atlas.bootstrap import build_app_context
 from power_atlas.context import AppContext
 
@@ -192,12 +198,7 @@ def build_backend_router(
 		runtime = get_backend_runtime(request.app)
 		probe = runtime.graph_queries.graph_status()
 		response.status_code = probe.http_status_code
-		return GraphStatusResponse(
-			status=probe.status,
-			detail=probe.detail,
-			neo4j_uri=probe.neo4j_uri,
-			database=probe.database,
-		)
+		return GraphStatusResponse(**build_graph_status_response_payload(probe))
 
 	@router.get(
 		"/graph/summary",
@@ -208,23 +209,7 @@ def build_backend_router(
 		runtime = get_backend_runtime(request.app)
 		probe = runtime.graph_queries.graph_summary()
 		response.status_code = probe.http_status_code
-		counts = None
-		if probe.counts is not None:
-			counts = GraphSummaryCountsResponse(
-				document_count=probe.counts.document_count,
-				chunk_count=probe.counts.chunk_count,
-				claim_count=probe.counts.claim_count,
-				mention_count=probe.counts.mention_count,
-				cluster_count=probe.counts.cluster_count,
-				canonical_entity_count=probe.counts.canonical_entity_count,
-			)
-		return GraphSummaryResponse(
-			status=probe.status,
-			detail=probe.detail,
-			neo4j_uri=probe.neo4j_uri,
-			database=probe.database,
-			counts=counts,
-		)
+		return GraphSummaryResponse(**build_graph_summary_response_payload(probe))
 
 	@router.post(
 		"/graph/health-summary",
@@ -244,41 +229,8 @@ def build_backend_router(
 			),
 		)
 		response.status_code = probe.http_status_code
-		participation_summary = None
-		mention_summary = None
-		alignment_summary = None
-		if probe.participation_summary is not None:
-			participation_summary = GraphHealthParticipationSummaryResponse(
-				total_edges=probe.participation_summary.total_edges,
-				edges_by_role=probe.participation_summary.edges_by_role,
-				total_claims=probe.participation_summary.total_claims,
-				claims_with_zero_edges=probe.participation_summary.claims_with_zero_edges,
-				claim_coverage_pct=probe.participation_summary.claim_coverage_pct,
-			)
-		if probe.mention_summary is not None:
-			mention_summary = GraphHealthMentionSummaryResponse(
-				total_mentions=probe.mention_summary.total_mentions,
-				clustered_mentions=probe.mention_summary.clustered_mentions,
-				unclustered_mentions=probe.mention_summary.unclustered_mentions,
-				unresolved_rate_pct=probe.mention_summary.unresolved_rate_pct,
-			)
-		if probe.alignment_summary is not None:
-			alignment_summary = GraphHealthAlignmentSummaryResponse(
-				total_clusters=probe.alignment_summary.total_clusters,
-				aligned_clusters=probe.alignment_summary.aligned_clusters,
-				unaligned_clusters=probe.alignment_summary.unaligned_clusters,
-				alignment_coverage_pct=probe.alignment_summary.alignment_coverage_pct,
-			)
 		return GraphHealthSummaryResponse(
-			status=probe.status,
-			detail=probe.detail,
-			run_id=probe.run_id,
-			alignment_version=probe.alignment_version,
-			neo4j_uri=probe.neo4j_uri,
-			database=probe.database,
-			participation_summary=participation_summary,
-			mention_summary=mention_summary,
-			alignment_summary=alignment_summary,
+			**build_graph_health_summary_response_payload(probe)
 		)
 
 	@router.post(
@@ -296,21 +248,8 @@ def build_backend_router(
 			RunScopedGraphCountsRequest(run_id=body.run_id),
 		)
 		response.status_code = probe.http_status_code
-		counts = None
-		if probe.counts is not None:
-			counts = RunScopedGraphCountsResponseBody(
-				chunk_count=probe.counts.chunk_count,
-				claim_count=probe.counts.claim_count,
-				mention_count=probe.counts.mention_count,
-				cluster_count=probe.counts.cluster_count,
-			)
 		return RunScopedGraphCountsResponse(
-			status=probe.status,
-			detail=probe.detail,
-			run_id=probe.run_id,
-			neo4j_uri=probe.neo4j_uri,
-			database=probe.database,
-			counts=counts,
+			**build_run_scoped_graph_counts_response_payload(probe)
 		)
 
 	@router.get("/", response_model=RootResponse)
