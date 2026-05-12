@@ -126,7 +126,7 @@ def test_public_api_facade_imports_from_outside_repo_when_installed(tmp_path: Pa
             "    'paths': sorted(",
             "        route.path",
             "        for route in app.routes",
-            "        if getattr(route, 'path', None) in {'/', '/datasets', '/runs', '/runs/{run_id}', '/health', '/graph/status'}",
+            "        if getattr(route, 'path', None) in {'/', '/datasets', '/runs', '/runs/current', '/runs/{run_id}', '/health', '/graph/status'}",
             "    ),",
             "}",
             "print(json.dumps(payload, sort_keys=True))",
@@ -145,7 +145,7 @@ def test_public_api_facade_imports_from_outside_repo_when_installed(tmp_path: Pa
     assert json.loads(completed.stdout) == {
         "title": "Power Atlas API",
         "version": "3.0.0-installed-test",
-        "paths": ["/", "/datasets", "/graph/status", "/health", "/runs", "/runs/{run_id}"],
+        "paths": ["/", "/datasets", "/graph/status", "/health", "/runs", "/runs/current", "/runs/{run_id}"],
     }
 
 
@@ -162,7 +162,7 @@ def test_backend_api_consumer_example_script_runs() -> None:
     assert json.loads(completed.stdout) == {
         "title": "Power Atlas Consumer Example",
         "version": "0.1.0-example",
-        "paths": ["/", "/consumer-info", "/datasets", "/graph/status", "/health", "/runs", "/runs/{run_id}"],
+        "paths": ["/", "/consumer-info", "/datasets", "/graph/status", "/health", "/runs", "/runs/current", "/runs/{run_id}"],
     }
 
 

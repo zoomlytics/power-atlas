@@ -187,12 +187,27 @@ def resolve_backend_run_catalog(
     )
 
 
+def resolve_backend_current_run_catalog(
+    settings: AppSettings,
+    *,
+    dataset_id: str | None = None,
+    stage_name: str | None = None,
+) -> RunCatalogResult:
+    return resolve_backend_run_catalog(
+        settings,
+        dataset_id=dataset_id,
+        stage_name=stage_name,
+        latest_per_stage_prefix=True,
+    )
+
+
 __all__ = [
     "RunCatalogEntry",
     "RunDetailResult",
     "RunCatalogResult",
     "RunStageDetailEntry",
     "extract_run_stage_prefix",
+    "resolve_backend_current_run_catalog",
     "resolve_backend_run_details",
     "resolve_backend_run_catalog",
     "resolve_run_root",

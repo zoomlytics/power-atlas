@@ -7,6 +7,7 @@ import pytest
 
 from power_atlas.backend_run_catalog import (
     extract_run_stage_prefix,
+    resolve_backend_current_run_catalog,
     resolve_backend_run_catalog,
     resolve_backend_run_details,
     resolve_run_root,
@@ -235,3 +236,58 @@ def test_backend_run_catalog_keeps_latest_run_per_stage_prefix(tmp_path: Path) -
     assert [run.run_id for run in result.runs] == [newer_run_root.name, structured_run_root.name]
     assert extract_run_stage_prefix(newer_run_root.name) == "unstructured_ingest"
     assert extract_run_stage_prefix(structured_run_root.name) == "structured_ingest"
+
+
+def test_backend_current_run_catalog_applies_latest_per_prefix_with_filters(tmp_path: Path) -> None:
+    older_run_root = tmp_path / "runs" / "unstructured_ingest-20260512T000000Z-a"
+    older_manifest_path = older_run_root / "pdf_ingest" / "manifest.json"
+    older_manifest_path.parent.mkdir(parents=True)
+    older_manifest_path.write_text(
+        json.dumps(
+            {
+                "run_id": older_run_root.name,
+                "dataset_id": "demo_dataset_v1",
+                "stages": {"pdf_ingest": {"status": "live"}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    newer_run_root = tmp_path / "runs" / "unstructured_ingest-20260512T000100Z-b"
+    newer_manifest_path = newer_run_root / "claim_extraction" / "manifest.json"
+    newer_manifest_path.parent.mkdir(parents=True)
+    newer_manifest_path.write_text(
+        json.dumps(
+            {
+                "run_id": newer_run_root.name,
+                "dataset_id": "demo_dataset_v1",
+                "stages": {"claim_extraction": {"status": "live"}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    structured_run_root = tmp_path / "runs" / "structured_ingest-20260512T000050Z-c"
+    structured_manifest_path = structured_run_root / "structured_ingest" / "manifest.json"
+    structured_manifest_path.parent.mkdir(parents=True)
+    structured_manifest_path.write_text(
+        json.dumps(
+            {
+                "run_id": structured_run_root.name,
+                "dataset_id": "demo_dataset_v2",
+                "stages": {"structured_ingest": {"status": "live"}},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    settings = AppSettings(
+        neo4j=Neo4jSettings(password="secret"),
+        output_dir=tmp_path,
+    )
+
+    result = resolve_backend_current_run_catalog(
+        settings,
+        dataset_id="demo_dataset_v1",
+        stage_name="claim_extraction",
+    )
+
+    assert [run.run_id for run in result.runs] == [newer_run_root.name]

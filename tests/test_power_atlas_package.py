@@ -365,6 +365,15 @@ def test_public_api_facade_supports_filtered_run_queries(tmp_path: Path) -> None
             transport=transport,
             base_url="http://testserver",
         ) as client:
+            current_runs = await client.get(
+                "/runs/current",
+                params={"dataset_id": "demo_dataset_v1"},
+            )
+            assert current_runs.status_code == 200
+            assert [run["run_id"] for run in current_runs.json()["runs"]] == [
+                newer_run_root.name
+            ]
+
             latest_per_prefix = await client.get(
                 "/runs",
                 params={

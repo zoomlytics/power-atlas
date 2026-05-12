@@ -55,6 +55,7 @@ if __name__ == "__main__":
                         "/",
                         "/datasets",
                         "/runs",
+                        "/runs/current",
                         "/runs/{run_id}",
                         "/health",
                         "/graph/status",
