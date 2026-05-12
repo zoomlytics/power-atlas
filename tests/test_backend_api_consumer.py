@@ -364,15 +364,23 @@ def test_backend_api_composed_app_example_script_runs() -> None:
         text=True,
     )
 
-    assert json.loads(completed.stdout) == {
+    payload = json.loads(completed.stdout)
+
+    assert payload == {
         "backend_datasets": {
             "dataset_names": ["demo_dataset_v1", "demo_dataset_v2"],
             "selected_dataset_name": None,
             "selection_mode": "ambiguous",
         },
+        "backend_run_detail": {
+            "run_id": "unstructured_ingest-20260512T000100Z-b",
+            "run_stage_names": ["claim_extraction", "pdf_ingest"],
+            "stages": ["claim_extraction"],
+        },
         "backend_runs": {
-            "run_ids": [],
-            "runs_root": str((repo_root / "artifacts" / "runs").resolve()),
+            "detail": None,
+            "run_ids": ["unstructured_ingest-20260512T000100Z-b"],
+            "runs_root": payload["backend_runs"]["runs_root"],
         },
         "backend_graph_status": {
             "database": "neo4j",
@@ -395,6 +403,7 @@ def test_backend_api_composed_app_example_script_runs() -> None:
             "host_version": "1.0.0-host",
         },
     }
+    assert payload["backend_runs"]["runs_root"].endswith("/runs")
 
 
 def test_backend_api_guarded_app_example_script_runs() -> None:

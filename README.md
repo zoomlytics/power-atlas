@@ -338,7 +338,8 @@ facade lives in
 [`examples/backend_api_custom_graph_queries.py`](examples/backend_api_custom_graph_queries.py).
 
 A third example that composes the backend router into a larger FastAPI app via
-`build_backend_runtime(...)` and `build_backend_router(...)` lives in
+`build_backend_runtime(...)` and `build_backend_router(...)`, including a
+filtered mounted `/atlas/runs` snapshot, lives in
 [`examples/backend_api_composed_app.py`](examples/backend_api_composed_app.py).
 
 A fourth example that adds host-level request guarding around the mounted
