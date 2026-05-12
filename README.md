@@ -324,6 +324,10 @@ A second example that injects a custom graph query service through the same
 facade lives in
 [`examples/backend_api_custom_graph_queries.py`](examples/backend_api_custom_graph_queries.py).
 
+A third example that composes the backend router into a larger FastAPI app via
+`build_backend_runtime(...)` and `build_backend_router(...)` lives in
+[`examples/backend_api_composed_app.py`](examples/backend_api_composed_app.py).
+
 `power_atlas.claim_extraction_entrypoint.run_claim_extraction(...)` /
 `run_claim_extraction_request_context(...)` and
 `power_atlas.entity_resolution_entrypoint.run_entity_resolution(...)` /

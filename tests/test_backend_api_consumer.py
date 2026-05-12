@@ -174,3 +174,40 @@ def test_backend_api_custom_graph_queries_example_script_runs() -> None:
         "title": "Power Atlas Custom Graph Example",
         "version": "0.1.0-custom-example",
     }
+
+
+def test_backend_api_composed_app_example_script_runs() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(repo_root / "examples" / "backend_api_composed_app.py"),
+        ],
+        cwd=repo_root,
+        capture_output=True,
+        check=True,
+        text=True,
+    )
+
+    assert json.loads(completed.stdout) == {
+        "backend_graph_status": {
+            "database": "neo4j",
+            "detail": "Neo4j password is not configured",
+            "neo4j_uri": "neo4j://localhost:7687",
+            "status": "not_configured",
+        },
+        "backend_health": {
+            "message": "Backend is healthy",
+            "status": "ok",
+        },
+        "backend_root": {
+            "docs": "/docs",
+            "message": "Power Atlas API",
+            "version": "0.1.0-mounted",
+        },
+        "host_info": {
+            "host": "backend_api_composed_app",
+            "host_title": "Host Application",
+            "host_version": "1.0.0-host",
+        },
+    }

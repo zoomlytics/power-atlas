@@ -1,0 +1,47 @@
+from __future__ import annotations
+
+import asyncio
+import json
+
+import httpx
+from fastapi import FastAPI
+
+from power_atlas.api import build_backend_router, build_backend_runtime
+
+
+def build_example_app() -> FastAPI:
+    app = FastAPI(title="Host Application", version="1.0.0-host")
+    app.state.backend_runtime = build_backend_runtime(environ={})
+    app.include_router(build_backend_router(version="0.1.0-mounted"), prefix="/atlas")
+
+    @app.get("/host-info")
+    async def host_info() -> dict[str, object]:
+        return {
+            "host": "backend_api_composed_app",
+            "host_title": app.title,
+            "host_version": app.version,
+        }
+
+    return app
+
+
+async def _snapshot_app(app: FastAPI) -> dict[str, object]:
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+        host_info = await client.get("/host-info")
+        backend_root = await client.get("/atlas/")
+        backend_health = await client.get("/atlas/health")
+        backend_graph_status = await client.get("/atlas/graph/status")
+    return {
+        "host_info": host_info.json(),
+        "backend_root": backend_root.json(),
+        "backend_health": backend_health.json(),
+        "backend_graph_status": backend_graph_status.json(),
+    }
+
+
+app = build_example_app()
+
+
+if __name__ == "__main__":
+    print(json.dumps(asyncio.run(_snapshot_app(app)), sort_keys=True))
