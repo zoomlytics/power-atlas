@@ -9,6 +9,10 @@ from fastapi import APIRouter, FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+from power_atlas.backend_graph_query_service import (
+	BackendGraphQueryService,
+	build_backend_graph_query_service,
+)
 from power_atlas.bootstrap import build_app_context
 from power_atlas.context import AppContext
 from power_atlas.graph_status import GraphStatusResult, resolve_graph_status
@@ -137,39 +141,23 @@ class RootResponse(BaseModel):
 @dataclass(frozen=True, slots=True)
 class BackendRuntime:
 	app_context: AppContext
-	graph_status_resolver: Callable[[AppContext], GraphStatusResult]
-	graph_health_summary_resolver: Callable[[AppContext, GraphHealthSummaryRequest], GraphHealthSummaryResult]
-	graph_summary_resolver: Callable[[AppContext], GraphSummaryResult]
-	run_scoped_graph_counts_resolver: Callable[[AppContext, RunScopedGraphCountsRequest], RunScopedGraphCountsResult]
+	graph_queries: BackendGraphQueryService
 
 
 def build_backend_runtime(
 	*,
 	app_context: AppContext | None = None,
 	environ: Mapping[str, str] | None = None,
-	graph_status_resolver: Callable[[AppContext], GraphStatusResult] | None = None,
-	graph_health_summary_resolver: Callable[[AppContext, GraphHealthSummaryRequest], GraphHealthSummaryResult] | None = None,
-	graph_summary_resolver: Callable[[AppContext], GraphSummaryResult] | None = None,
-	run_scoped_graph_counts_resolver: Callable[[AppContext, RunScopedGraphCountsRequest], RunScopedGraphCountsResult] | None = None,
+	graph_queries: BackendGraphQueryService | None = None,
 ) -> BackendRuntime:
 	resolved_app_context = (
 		build_app_context(environ=environ) if app_context is None else app_context
 	)
 	return BackendRuntime(
 		app_context=resolved_app_context,
-		graph_status_resolver=(
-			graph_status_resolver
-			or (lambda runtime_app_context: resolve_graph_status(settings=runtime_app_context.settings))
-		),
-		graph_health_summary_resolver=(
-			graph_health_summary_resolver or resolve_graph_health_summary
-		),
-		graph_summary_resolver=(
-			graph_summary_resolver
-			or (lambda runtime_app_context: resolve_graph_summary(settings=runtime_app_context.settings))
-		),
-		run_scoped_graph_counts_resolver=(
-			run_scoped_graph_counts_resolver or resolve_run_scoped_graph_counts
+		graph_queries=(
+			graph_queries
+			or build_backend_graph_query_service(resolved_app_context)
 		),
 	)
 
@@ -215,7 +203,7 @@ def build_backend_router(
 	)
 	async def graph_status(request: Request, response: Response) -> GraphStatusResponse:
 		runtime = get_backend_runtime(request.app)
-		probe = runtime.graph_status_resolver(runtime.app_context)
+		probe = runtime.graph_queries.graph_status()
 		response.status_code = probe.http_status_code
 		return GraphStatusResponse(
 			status=probe.status,
@@ -231,7 +219,7 @@ def build_backend_router(
 	)
 	async def graph_summary(request: Request, response: Response) -> GraphSummaryResponse:
 		runtime = get_backend_runtime(request.app)
-		probe = runtime.graph_summary_resolver(runtime.app_context)
+		probe = runtime.graph_queries.graph_summary()
 		response.status_code = probe.http_status_code
 		counts = None
 		if probe.counts is not None:
@@ -262,8 +250,7 @@ def build_backend_router(
 		body: GraphHealthSummaryRequestBody,
 	) -> GraphHealthSummaryResponse:
 		runtime = get_backend_runtime(request.app)
-		probe = runtime.graph_health_summary_resolver(
-			runtime.app_context,
+		probe = runtime.graph_queries.graph_health_summary(
 			GraphHealthSummaryRequest(
 				run_id=body.run_id,
 				alignment_version=body.alignment_version,
@@ -318,8 +305,7 @@ def build_backend_router(
 		body: RunScopedGraphCountsRequestBody,
 	) -> RunScopedGraphCountsResponse:
 		runtime = get_backend_runtime(request.app)
-		probe = runtime.run_scoped_graph_counts_resolver(
-			runtime.app_context,
+		probe = runtime.graph_queries.run_scoped_graph_counts(
 			RunScopedGraphCountsRequest(run_id=body.run_id),
 		)
 		response.status_code = probe.http_status_code
@@ -361,19 +347,13 @@ def create_backend_app(
 	runtime: BackendRuntime | None = None,
 	app_context: AppContext | None = None,
 	environ: Mapping[str, str] | None = None,
-	graph_status_resolver: Callable[[AppContext], GraphStatusResult] | None = None,
-	graph_health_summary_resolver: Callable[[AppContext, GraphHealthSummaryRequest], GraphHealthSummaryResult] | None = None,
-	graph_summary_resolver: Callable[[AppContext], GraphSummaryResult] | None = None,
-	run_scoped_graph_counts_resolver: Callable[[AppContext, RunScopedGraphCountsRequest], RunScopedGraphCountsResult] | None = None,
+	graph_queries: BackendGraphQueryService | None = None,
 ) -> FastAPI:
 	app_options = options or BackendAppOptions()
 	resolved_runtime = runtime or build_backend_runtime(
 		app_context=app_context,
 		environ=environ,
-		graph_status_resolver=graph_status_resolver,
-		graph_health_summary_resolver=graph_health_summary_resolver,
-		graph_summary_resolver=graph_summary_resolver,
-		run_scoped_graph_counts_resolver=run_scoped_graph_counts_resolver,
+		graph_queries=graph_queries,
 	)
 	selected_router = router or build_backend_router(version=app_options.version)
 
@@ -400,6 +380,7 @@ def create_backend_app(
 
 __all__ = [
 	"BackendAppOptions",
+	"BackendGraphQueryService",
 	"BackendRuntime",
 	"DEFAULT_API_DESCRIPTION",
 	"DEFAULT_API_TITLE",
@@ -419,6 +400,7 @@ __all__ = [
 	"RunScopedGraphCountsResponseBody",
 	"RootResponse",
 	"backend_router",
+	"build_backend_graph_query_service",
 	"build_backend_runtime",
 	"build_backend_router",
 	"create_backend_app",

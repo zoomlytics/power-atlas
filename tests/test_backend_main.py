@@ -6,7 +6,13 @@ import importlib
 import httpx
 from fastapi.middleware.cors import CORSMiddleware
 
-from power_atlas.api import BackendAppOptions, create_backend_app, get_backend_runtime
+from power_atlas.api import (
+    BackendAppOptions,
+    build_backend_graph_query_service,
+    create_backend_app,
+    get_backend_runtime,
+)
+from power_atlas.bootstrap import build_app_context
 from power_atlas.context import AppContext
 from power_atlas.graph_status import DEFAULT_UNCONFIGURED_DETAIL, GraphStatusResult
 from power_atlas.graph_health_summary import (
@@ -127,20 +133,25 @@ def test_create_backend_app_accepts_options() -> None:
 
 
 def test_create_backend_app_accepts_graph_status_resolver() -> None:
-    custom_app = create_backend_app(
-        graph_status_resolver=lambda app_context: GraphStatusResult(
-            http_status_code=200,
-            status="available",
-            detail="Neo4j graph is reachable",
-            neo4j_uri=app_context.settings.neo4j.uri,
-            database=app_context.settings.neo4j.database,
-        )
-        ,
+    app_context = build_app_context(
         environ={
             "NEO4J_URI": "neo4j://graph.example:7687",
             "NEO4J_PASSWORD": "secret",
             "NEO4J_DATABASE": "atlas",
-        },
+        }
+    )
+    custom_app = create_backend_app(
+        app_context=app_context,
+        graph_queries=build_backend_graph_query_service(
+            app_context,
+            graph_status_resolver=lambda runtime_app_context: GraphStatusResult(
+                http_status_code=200,
+                status="available",
+                detail="Neo4j graph is reachable",
+                neo4j_uri=runtime_app_context.settings.neo4j.uri,
+                database=runtime_app_context.settings.neo4j.database,
+            ),
+        ),
     )
 
     async def _exercise_app() -> None:
@@ -162,27 +173,33 @@ def test_create_backend_app_accepts_graph_status_resolver() -> None:
 
 
 def test_create_backend_app_accepts_graph_summary_resolver() -> None:
-    custom_app = create_backend_app(
-        graph_summary_resolver=lambda app_context: GraphSummaryResult(
-            http_status_code=200,
-            status="available",
-            detail="Graph summary retrieved successfully",
-            neo4j_uri=app_context.settings.neo4j.uri,
-            database=app_context.settings.neo4j.database,
-            counts=GraphSummaryCounts(
-                document_count=4,
-                chunk_count=12,
-                claim_count=9,
-                mention_count=27,
-                cluster_count=8,
-                canonical_entity_count=5,
-            ),
-        ),
+    app_context = build_app_context(
         environ={
             "NEO4J_URI": "neo4j://graph.example:7687",
             "NEO4J_PASSWORD": "secret",
             "NEO4J_DATABASE": "atlas",
-        },
+        }
+    )
+    custom_app = create_backend_app(
+        app_context=app_context,
+        graph_queries=build_backend_graph_query_service(
+            app_context,
+            graph_summary_resolver=lambda runtime_app_context: GraphSummaryResult(
+                http_status_code=200,
+                status="available",
+                detail="Graph summary retrieved successfully",
+                neo4j_uri=runtime_app_context.settings.neo4j.uri,
+                database=runtime_app_context.settings.neo4j.database,
+                counts=GraphSummaryCounts(
+                    document_count=4,
+                    chunk_count=12,
+                    claim_count=9,
+                    mention_count=27,
+                    cluster_count=8,
+                    canonical_entity_count=5,
+                ),
+            ),
+        ),
     )
 
     async def _exercise_app() -> None:
@@ -217,12 +234,15 @@ def test_create_backend_app_bootstraps_shared_app_context_from_environment(monke
     monkeypatch.setenv("NEO4J_DATABASE", "bootstrap")
 
     custom_app = create_backend_app(
-        graph_status_resolver=lambda app_context: GraphStatusResult(
-            http_status_code=200,
-            status="available",
-            detail="Neo4j graph is reachable",
-            neo4j_uri=app_context.settings.neo4j.uri,
-            database=app_context.settings.neo4j.database,
+        graph_queries=build_backend_graph_query_service(
+            build_app_context(),
+            graph_status_resolver=lambda runtime_app_context: GraphStatusResult(
+                http_status_code=200,
+                status="available",
+                detail="Neo4j graph is reachable",
+                neo4j_uri=runtime_app_context.settings.neo4j.uri,
+                database=runtime_app_context.settings.neo4j.database,
+            ),
         )
     )
 
@@ -253,26 +273,32 @@ def test_create_backend_app_bootstraps_shared_app_context_from_environment(monke
 
 
 def test_create_backend_app_accepts_run_scoped_graph_counts_resolver() -> None:
-    custom_app = create_backend_app(
-        run_scoped_graph_counts_resolver=lambda app_context, request: RunScopedGraphCountsResult(
-            http_status_code=200,
-            status="available",
-            detail="Run-scoped graph counts retrieved successfully",
-            run_id=request.run_id,
-            neo4j_uri=app_context.settings.neo4j.uri,
-            database=app_context.settings.neo4j.database,
-            counts=RunScopedGraphCounts(
-                chunk_count=11,
-                claim_count=7,
-                mention_count=21,
-                cluster_count=6,
-            ),
-        ),
+    app_context = build_app_context(
         environ={
             "NEO4J_URI": "neo4j://graph.example:7687",
             "NEO4J_PASSWORD": "secret",
             "NEO4J_DATABASE": "atlas",
-        },
+        }
+    )
+    custom_app = create_backend_app(
+        app_context=app_context,
+        graph_queries=build_backend_graph_query_service(
+            app_context,
+            run_scoped_graph_counts_resolver=lambda runtime_app_context, request: RunScopedGraphCountsResult(
+                http_status_code=200,
+                status="available",
+                detail="Run-scoped graph counts retrieved successfully",
+                run_id=request.run_id,
+                neo4j_uri=runtime_app_context.settings.neo4j.uri,
+                database=runtime_app_context.settings.neo4j.database,
+                counts=RunScopedGraphCounts(
+                    chunk_count=11,
+                    claim_count=7,
+                    mention_count=21,
+                    cluster_count=6,
+                ),
+            ),
+        ),
     )
 
     async def _exercise_app() -> None:
@@ -304,40 +330,46 @@ def test_create_backend_app_accepts_run_scoped_graph_counts_resolver() -> None:
 
 
 def test_create_backend_app_accepts_graph_health_summary_resolver() -> None:
-    custom_app = create_backend_app(
-        graph_health_summary_resolver=lambda app_context, request: GraphHealthSummaryResult(
-            http_status_code=200,
-            status="available",
-            detail="Graph health summary retrieved successfully",
-            run_id=request.run_id,
-            alignment_version=request.alignment_version,
-            neo4j_uri=app_context.settings.neo4j.uri,
-            database=app_context.settings.neo4j.database,
-            participation_summary=GraphHealthParticipationSummary(
-                total_edges=14,
-                edges_by_role={"subject": 9, "object": 5},
-                total_claims=6,
-                claims_with_zero_edges=1,
-                claim_coverage_pct=83.33,
-            ),
-            mention_summary=GraphHealthMentionSummary(
-                total_mentions=10,
-                clustered_mentions=8,
-                unclustered_mentions=2,
-                unresolved_rate_pct=20.0,
-            ),
-            alignment_summary=GraphHealthAlignmentSummary(
-                total_clusters=5,
-                aligned_clusters=4,
-                unaligned_clusters=1,
-                alignment_coverage_pct=80.0,
-            ),
-        ),
+    app_context = build_app_context(
         environ={
             "NEO4J_URI": "neo4j://graph.example:7687",
             "NEO4J_PASSWORD": "secret",
             "NEO4J_DATABASE": "atlas",
-        },
+        }
+    )
+    custom_app = create_backend_app(
+        app_context=app_context,
+        graph_queries=build_backend_graph_query_service(
+            app_context,
+            graph_health_summary_resolver=lambda runtime_app_context, request: GraphHealthSummaryResult(
+                http_status_code=200,
+                status="available",
+                detail="Graph health summary retrieved successfully",
+                run_id=request.run_id,
+                alignment_version=request.alignment_version,
+                neo4j_uri=runtime_app_context.settings.neo4j.uri,
+                database=runtime_app_context.settings.neo4j.database,
+                participation_summary=GraphHealthParticipationSummary(
+                    total_edges=14,
+                    edges_by_role={"subject": 9, "object": 5},
+                    total_claims=6,
+                    claims_with_zero_edges=1,
+                    claim_coverage_pct=83.33,
+                ),
+                mention_summary=GraphHealthMentionSummary(
+                    total_mentions=10,
+                    clustered_mentions=8,
+                    unclustered_mentions=2,
+                    unresolved_rate_pct=20.0,
+                ),
+                alignment_summary=GraphHealthAlignmentSummary(
+                    total_clusters=5,
+                    aligned_clusters=4,
+                    unaligned_clusters=1,
+                    alignment_coverage_pct=80.0,
+                ),
+            ),
+        ),
     )
 
     async def _exercise_app() -> None:

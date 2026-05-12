@@ -277,14 +277,16 @@ than part of the root library namespace contract.
 The backend API surface now has a first-class owning facade at
 `power_atlas.api`. That module now owns the backend app contract, including
 typed response models plus app-construction helpers such as
-`BackendAppOptions`, `BackendRuntime`, `build_backend_runtime(...)`,
+`BackendAppOptions`, `BackendGraphQueryService`, `BackendRuntime`,
+`build_backend_graph_query_service(...)`, `build_backend_runtime(...)`,
 `build_backend_router(...)`, and `create_backend_app(...)`. It also now owns
-the backend's shared package `AppContext` bootstrap so read-only graph routes
-reuse app-owned settings instead of resolving env state ad hoc per request,
-while `power_atlas.interfaces.api` remains as the deeper compatibility import
-layer. Individual helpers still remain off the root package itself, so callers
-use `power_atlas.api.create_backend_app(...)` rather than root
-`power_atlas.create_backend_app(...)`.
+the backend's shared package `AppContext` bootstrap plus a package graph query
+service so graph routes reuse app-owned settings and one consolidated service
+interface instead of resolving env state ad hoc per request or carrying one
+resolver seam per route, while `power_atlas.interfaces.api` remains as the
+deeper compatibility import layer. Individual helpers still remain off the
+root package itself, so callers use `power_atlas.api.create_backend_app(...)`
+rather than root `power_atlas.create_backend_app(...)`.
 
 The current backend surface exposed through that facade includes two zero-arg
 read-only probes (`/graph/status` and `/graph/summary`) plus two typed scoped
