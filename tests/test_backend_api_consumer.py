@@ -211,3 +211,36 @@ def test_backend_api_composed_app_example_script_runs() -> None:
             "host_version": "1.0.0-host",
         },
     }
+
+
+def test_backend_api_guarded_app_example_script_runs() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(repo_root / "examples" / "backend_api_guarded_app.py"),
+        ],
+        cwd=repo_root,
+        capture_output=True,
+        check=True,
+        text=True,
+    )
+
+    assert json.loads(completed.stdout) == {
+        "authorized_health": {
+            "body": {
+                "message": "Backend is healthy",
+                "status": "ok",
+            },
+            "status_code": 200,
+        },
+        "host_info": {
+            "host": "backend_api_guarded_app",
+            "host_title": "Guarded Host Application",
+            "host_version": "1.0.0-guarded",
+        },
+        "unauthorized_health": {
+            "body": {"detail": "Missing or invalid atlas token"},
+            "status_code": 401,
+        },
+    }
