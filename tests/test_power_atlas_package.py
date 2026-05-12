@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import asyncio
 import importlib
+import json
 from pathlib import Path
 from unittest import mock
 
+import httpx
 import pytest
 
 
@@ -306,6 +309,86 @@ def test_build_settings_from_env_mapping() -> None:
     assert app.settings.embedder_model == "text-embedding-3-large"
     assert app.settings.output_dir == Path("build/power-atlas")
     assert app.settings.dataset_name == "demo_dataset_v1"
+
+
+def test_public_api_facade_supports_filtered_run_queries(tmp_path: Path) -> None:
+    from power_atlas.api import BackendAppOptions, create_backend_app
+
+    older_run_root = tmp_path / "runs" / "unstructured_ingest-20260512T000000Z-a"
+    older_manifest_path = older_run_root / "pdf_ingest" / "manifest.json"
+    older_manifest_path.parent.mkdir(parents=True)
+    older_manifest_path.write_text(
+        json.dumps(
+            {
+                "run_id": older_run_root.name,
+                "dataset_id": "demo_dataset_v1",
+                "stages": {"pdf_ingest": {"status": "live"}},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    newer_run_root = tmp_path / "runs" / "unstructured_ingest-20260512T000100Z-b"
+    newer_pdf_manifest_path = newer_run_root / "pdf_ingest" / "manifest.json"
+    newer_pdf_manifest_path.parent.mkdir(parents=True)
+    newer_pdf_manifest_path.write_text(
+        json.dumps(
+            {
+                "run_id": newer_run_root.name,
+                "dataset_id": "demo_dataset_v1",
+                "stages": {"pdf_ingest": {"status": "live"}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    newer_claim_manifest_path = newer_run_root / "claim_extraction" / "manifest.json"
+    newer_claim_manifest_path.parent.mkdir(parents=True)
+    newer_claim_manifest_path.write_text(
+        json.dumps(
+            {
+                "run_id": newer_run_root.name,
+                "dataset_id": "demo_dataset_v1",
+                "stages": {"claim_extraction": {"status": "live"}},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    app = create_backend_app(
+        BackendAppOptions(version="4.0.0-run-filters"),
+        environ={"POWER_ATLAS_OUTPUT_DIR": str(tmp_path)},
+    )
+
+    async def _exercise_app() -> None:
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="http://testserver",
+        ) as client:
+            latest_per_prefix = await client.get(
+                "/runs",
+                params={
+                    "dataset_id": "demo_dataset_v1",
+                    "latest_per_stage_prefix": "true",
+                },
+            )
+            assert latest_per_prefix.status_code == 200
+            assert [run["run_id"] for run in latest_per_prefix.json()["runs"]] == [
+                newer_run_root.name
+            ]
+
+            detail_by_stage = await client.get(
+                f"/runs/{newer_run_root.name}",
+                params={"stage_name": "claim_extraction"},
+            )
+            assert detail_by_stage.status_code == 200
+            detail_payload = detail_by_stage.json()
+            assert detail_payload["run"]["run_id"] == newer_run_root.name
+            assert [stage["stage_name"] for stage in detail_payload["stages"]] == [
+                "claim_extraction"
+            ]
+
+    asyncio.run(_exercise_app())
 
 
 def test_claim_extraction_entrypoint_uses_package_default_runtime_runner() -> None:

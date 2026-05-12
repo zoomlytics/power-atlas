@@ -204,6 +204,109 @@ def test_public_api_facade_supports_run_detail_endpoint_when_output_dir_has_runs
     asyncio.run(_exercise_app())
 
 
+def test_public_api_facade_supports_filtered_run_queries_when_output_dir_has_runs(
+    tmp_path: Path,
+) -> None:
+    older_run_root = tmp_path / "runs" / "unstructured_ingest-20260512T000000Z-a"
+    older_manifest_path = older_run_root / "pdf_ingest" / "manifest.json"
+    older_manifest_path.parent.mkdir(parents=True)
+    older_manifest_path.write_text(
+        json.dumps(
+            {
+                "run_id": older_run_root.name,
+                "dataset_id": "demo_dataset_v1",
+                "stages": {"pdf_ingest": {"status": "live"}},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    newer_run_root = tmp_path / "runs" / "unstructured_ingest-20260512T000100Z-b"
+    newer_pdf_manifest_path = newer_run_root / "pdf_ingest" / "manifest.json"
+    newer_pdf_manifest_path.parent.mkdir(parents=True)
+    newer_pdf_manifest_path.write_text(
+        json.dumps(
+            {
+                "run_id": newer_run_root.name,
+                "dataset_id": "demo_dataset_v1",
+                "stages": {"pdf_ingest": {"status": "live"}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    newer_claim_manifest_path = newer_run_root / "claim_extraction" / "manifest.json"
+    newer_claim_manifest_path.parent.mkdir(parents=True)
+    newer_claim_manifest_path.write_text(
+        json.dumps(
+            {
+                "run_id": newer_run_root.name,
+                "dataset_id": "demo_dataset_v1",
+                "stages": {"claim_extraction": {"status": "live"}},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    structured_run_root = tmp_path / "runs" / "structured_ingest-20260512T000050Z-c"
+    structured_manifest_path = structured_run_root / "structured_ingest" / "manifest.json"
+    structured_manifest_path.parent.mkdir(parents=True)
+    structured_manifest_path.write_text(
+        json.dumps(
+            {
+                "run_id": structured_run_root.name,
+                "dataset_id": "demo_dataset_v2",
+                "stages": {"structured_ingest": {"status": "live"}},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    consumer_app = create_backend_app(
+        BackendAppOptions(version="2.2.0-test"),
+        environ={"POWER_ATLAS_OUTPUT_DIR": str(tmp_path)},
+    )
+
+    async def _exercise_app() -> None:
+        transport = httpx.ASGITransport(app=consumer_app)
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="http://testserver",
+        ) as client:
+            by_dataset = await client.get("/runs", params={"dataset_id": "demo_dataset_v1"})
+            assert by_dataset.status_code == 200
+            assert [run["run_id"] for run in by_dataset.json()["runs"]] == [
+                newer_run_root.name,
+                older_run_root.name,
+            ]
+
+            by_stage = await client.get("/runs", params={"stage_name": "claim_extraction"})
+            assert by_stage.status_code == 200
+            assert [run["run_id"] for run in by_stage.json()["runs"]] == [newer_run_root.name]
+
+            latest_per_prefix = await client.get(
+                "/runs",
+                params={"latest_per_stage_prefix": "true"},
+            )
+            assert latest_per_prefix.status_code == 200
+            assert [run["run_id"] for run in latest_per_prefix.json()["runs"]] == [
+                newer_run_root.name,
+                structured_run_root.name,
+            ]
+
+            detail_by_stage = await client.get(
+                f"/runs/{newer_run_root.name}",
+                params={"stage_name": "claim_extraction"},
+            )
+            assert detail_by_stage.status_code == 200
+            detail_payload = detail_by_stage.json()
+            assert detail_payload["run"]["stage_names"] == ["claim_extraction", "pdf_ingest"]
+            assert [stage["stage_name"] for stage in detail_payload["stages"]] == [
+                "claim_extraction"
+            ]
+
+    asyncio.run(_exercise_app())
+
+
 def test_backend_api_custom_graph_queries_example_script_runs() -> None:
     repo_root = Path(__file__).resolve().parents[1]
     completed = subprocess.run(
