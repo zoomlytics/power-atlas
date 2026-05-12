@@ -76,8 +76,8 @@ async def _snapshot_app(app: FastAPI) -> dict[str, object]:
             "/atlas/health",
             headers={ATLAS_TOKEN_HEADER: ATLAS_TOKEN_VALUE},
         )
-        authorized_runs = await client.get(
-            "/atlas/runs",
+        authorized_current_runs = await client.get(
+            "/atlas/runs/current",
             params={"dataset_id": "demo_dataset_v1", "stage_name": "claim_extraction"},
             headers={ATLAS_TOKEN_HEADER: ATLAS_TOKEN_VALUE},
         )
@@ -86,7 +86,7 @@ async def _snapshot_app(app: FastAPI) -> dict[str, object]:
             params={"stage_name": "claim_extraction"},
             headers={ATLAS_TOKEN_HEADER: ATLAS_TOKEN_VALUE},
         )
-    runs_payload = authorized_runs.json()
+    current_runs_payload = authorized_current_runs.json()
     run_detail_payload = authorized_run_detail.json()
     return {
         "host_info": host_info.json(),
@@ -98,9 +98,9 @@ async def _snapshot_app(app: FastAPI) -> dict[str, object]:
             "status_code": authorized_health.status_code,
             "body": authorized_health.json(),
         },
-        "authorized_runs": {
-            "run_ids": [run["run_id"] for run in runs_payload["runs"]],
-            "stage_names": [run["stage_names"] for run in runs_payload["runs"]],
+        "authorized_current_runs": {
+            "run_ids": [run["run_id"] for run in current_runs_payload["runs"]],
+            "stage_names": [run["stage_names"] for run in current_runs_payload["runs"]],
         },
         "authorized_run_detail": {
             "run_id": run_detail_payload["run"]["run_id"],

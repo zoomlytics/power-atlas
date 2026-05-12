@@ -78,9 +78,9 @@ async def _snapshot_app(app: FastAPI) -> dict[str, object]:
         host_info = await client.get("/host-info")
         backend_root = await client.get("/atlas/")
         backend_datasets = await client.get("/atlas/datasets")
-        backend_runs = await client.get(
-            "/atlas/runs",
-            params={"dataset_id": "demo_dataset_v1", "latest_per_stage_prefix": "true"},
+        backend_current_runs = await client.get(
+            "/atlas/runs/current",
+            params={"dataset_id": "demo_dataset_v1"},
         )
         backend_run_detail = await client.get(
             "/atlas/runs/unstructured_ingest-20260512T000100Z-b",
@@ -89,7 +89,7 @@ async def _snapshot_app(app: FastAPI) -> dict[str, object]:
         backend_health = await client.get("/atlas/health")
         backend_graph_status = await client.get("/atlas/graph/status")
     datasets_payload = backend_datasets.json()
-    runs_payload = backend_runs.json()
+    current_runs_payload = backend_current_runs.json()
     run_detail_payload = backend_run_detail.json()
     return {
         "host_info": host_info.json(),
@@ -105,10 +105,10 @@ async def _snapshot_app(app: FastAPI) -> dict[str, object]:
             ),
             "selection_mode": datasets_payload["selection_mode"],
         },
-        "backend_runs": {
-            "run_ids": [run["run_id"] for run in runs_payload["runs"]],
-            "detail": runs_payload["detail"],
-            "runs_root": runs_payload["runs_root"],
+        "backend_current_runs": {
+            "run_ids": [run["run_id"] for run in current_runs_payload["runs"]],
+            "detail": current_runs_payload["detail"],
+            "runs_root": current_runs_payload["runs_root"],
         },
         "backend_run_detail": {
             "run_id": run_detail_payload["run"]["run_id"],

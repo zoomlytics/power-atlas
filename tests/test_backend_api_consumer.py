@@ -372,15 +372,15 @@ def test_backend_api_composed_app_example_script_runs() -> None:
             "selected_dataset_name": None,
             "selection_mode": "ambiguous",
         },
+        "backend_current_runs": {
+            "detail": None,
+            "run_ids": ["unstructured_ingest-20260512T000100Z-b"],
+            "runs_root": payload["backend_current_runs"]["runs_root"],
+        },
         "backend_run_detail": {
             "run_id": "unstructured_ingest-20260512T000100Z-b",
             "run_stage_names": ["claim_extraction", "pdf_ingest"],
             "stages": ["claim_extraction"],
-        },
-        "backend_runs": {
-            "detail": None,
-            "run_ids": ["unstructured_ingest-20260512T000100Z-b"],
-            "runs_root": payload["backend_runs"]["runs_root"],
         },
         "backend_graph_status": {
             "database": "neo4j",
@@ -403,7 +403,7 @@ def test_backend_api_composed_app_example_script_runs() -> None:
             "host_version": "1.0.0-host",
         },
     }
-    assert payload["backend_runs"]["runs_root"].endswith("/runs")
+    assert payload["backend_current_runs"]["runs_root"].endswith("/runs")
 
 
 def test_backend_api_guarded_app_example_script_runs() -> None:
@@ -432,7 +432,7 @@ def test_backend_api_guarded_app_example_script_runs() -> None:
             "run_stage_names": ["claim_extraction", "pdf_ingest"],
             "stages": ["claim_extraction"],
         },
-        "authorized_runs": {
+        "authorized_current_runs": {
             "run_ids": ["unstructured_ingest-20260512T000100Z-b"],
             "stage_names": [["claim_extraction", "pdf_ingest"]],
         },
