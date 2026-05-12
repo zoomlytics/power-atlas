@@ -130,3 +130,47 @@ def test_backend_api_consumer_example_script_runs() -> None:
         "version": "0.1.0-example",
         "paths": ["/", "/consumer-info", "/graph/status", "/health"],
     }
+
+
+def test_backend_api_custom_graph_queries_example_script_runs() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(repo_root / "examples" / "backend_api_custom_graph_queries.py"),
+        ],
+        cwd=repo_root,
+        capture_output=True,
+        check=True,
+        text=True,
+    )
+
+    assert json.loads(completed.stdout) == {
+        "consumer_info": {
+            "backend_title": "Power Atlas Custom Graph Example",
+            "backend_version": "0.1.0-custom-example",
+            "consumer": "backend_api_custom_graph_queries",
+        },
+        "graph_status": {
+            "database": "example",
+            "detail": "Example consumer graph service is active",
+            "neo4j_uri": "neo4j://example-consumer:7687",
+            "status": "available",
+        },
+        "graph_summary": {
+            "counts": {
+                "canonical_entity_count": 1,
+                "chunk_count": 4,
+                "claim_count": 3,
+                "cluster_count": 2,
+                "document_count": 2,
+                "mention_count": 8,
+            },
+            "database": "example",
+            "detail": "Example consumer summary is active",
+            "neo4j_uri": "neo4j://example-consumer:7687",
+            "status": "available",
+        },
+        "title": "Power Atlas Custom Graph Example",
+        "version": "0.1.0-custom-example",
+    }

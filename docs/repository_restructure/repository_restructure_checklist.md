@@ -282,7 +282,7 @@ result: no obsolete-test quarantine or CI-scope change is warranted yet.
 
 - CLI lives under `interfaces/cli`,
 - API is exposed through `power_atlas.api`, with `interfaces/api` retained only
-	as transitional compatibility wiring,
+	as transitional compatibility wiring until external callers are migrated,
 - transport concerns are separated from orchestration,
 - worker interfaces are added only if explicitly approved.
 

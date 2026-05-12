@@ -34,7 +34,8 @@ package-owned backend facade (see [Current Status](#current-status)). For
 backend consumers, [`power_atlas.api`](src/power_atlas/api.py) is the supported
 import surface; the deeper `power_atlas.backend_*` modules are implementation
 seams, and `power_atlas.interfaces.api` remains a transitional compatibility
-alias rather than a supported import path for new callers.
+alias until external callers are migrated rather than a supported import path
+for new callers.
 
 ---
 
@@ -288,10 +289,11 @@ the backend's shared package `AppContext` bootstrap plus a package graph query
 service so graph routes reuse app-owned settings and one consolidated service
 interface instead of resolving env state ad hoc per request or carrying one
 resolver seam per route, while `power_atlas.interfaces.api` remains only as a
-transitional compatibility import layer for legacy callers. New code should use
-`power_atlas.api` directly. Individual helpers still remain off the root
-package itself, so callers use `power_atlas.api.create_backend_app(...)`
-rather than root `power_atlas.create_backend_app(...)`.
+transitional compatibility import layer for legacy callers and should be kept
+only until external callers migrate. New code should use `power_atlas.api`
+directly. Individual helpers still remain off the root package itself, so
+callers use `power_atlas.api.create_backend_app(...)` rather than root
+`power_atlas.create_backend_app(...)`.
 
 The current backend surface exposed through that facade includes two zero-arg
 read-only probes (`/graph/status` and `/graph/summary`) plus two typed scoped
@@ -317,6 +319,10 @@ app = create_backend_app(
 
 A slightly richer consumer example that adds its own route lives in
 [`examples/backend_api_consumer.py`](examples/backend_api_consumer.py).
+
+A second example that injects a custom graph query service through the same
+facade lives in
+[`examples/backend_api_custom_graph_queries.py`](examples/backend_api_custom_graph_queries.py).
 
 `power_atlas.claim_extraction_entrypoint.run_claim_extraction(...)` /
 `run_claim_extraction_request_context(...)` and
