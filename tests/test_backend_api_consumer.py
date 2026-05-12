@@ -307,6 +307,101 @@ def test_public_api_facade_supports_filtered_run_queries_when_output_dir_has_run
     asyncio.run(_exercise_app())
 
 
+def test_public_api_facade_defaults_current_run_queries_to_configured_dataset(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    older_run_root = tmp_path / "runs" / "unstructured_ingest-20260512T000000Z-a"
+    older_manifest_path = older_run_root / "pdf_ingest" / "manifest.json"
+    older_manifest_path.parent.mkdir(parents=True)
+    older_manifest_path.write_text(
+        json.dumps(
+            {
+                "run_id": older_run_root.name,
+                "dataset_id": "demo_dataset_v1",
+                "stages": {"pdf_ingest": {"status": "live"}},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    newer_run_root = tmp_path / "runs" / "unstructured_ingest-20260512T000100Z-b"
+    newer_claim_manifest_path = newer_run_root / "claim_extraction" / "manifest.json"
+    newer_claim_manifest_path.parent.mkdir(parents=True)
+    newer_claim_manifest_path.write_text(
+        json.dumps(
+            {
+                "run_id": newer_run_root.name,
+                "dataset_id": "resolved-demo-dataset",
+                "stages": {"claim_extraction": {"status": "live"}},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    structured_run_root = tmp_path / "runs" / "structured_ingest-20260512T000050Z-c"
+    structured_manifest_path = structured_run_root / "structured_ingest" / "manifest.json"
+    structured_manifest_path.parent.mkdir(parents=True)
+    structured_manifest_path.write_text(
+        json.dumps(
+            {
+                "run_id": structured_run_root.name,
+                "dataset_id": "demo_dataset_v2",
+                "stages": {"structured_ingest": {"status": "live"}},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        "power_atlas.backend_run_catalog.resolve_backend_dataset_catalog",
+        lambda settings: importlib.import_module("power_atlas.backend_dataset_catalog").DatasetCatalogResult(
+            datasets=[],
+            selected_dataset=importlib.import_module("power_atlas.backend_dataset_catalog").DatasetCatalogEntry(
+                name="demo_dataset_v1",
+                dataset_id="resolved-demo-dataset",
+                pdf_filename="example.pdf",
+                manifest_path="/tmp/manifest.json",
+                root_path="/tmp/dataset",
+            ),
+            selection_mode="configured",
+        ),
+    )
+
+    consumer_app = create_backend_app(
+        BackendAppOptions(version="2.3.0-test"),
+        environ={
+            "POWER_ATLAS_OUTPUT_DIR": str(tmp_path),
+            "POWER_ATLAS_DATASET": "demo_dataset_v1",
+        },
+    )
+
+    async def _exercise_app() -> None:
+        transport = httpx.ASGITransport(app=consumer_app)
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="http://testserver",
+        ) as client:
+            current_runs = await client.get("/runs/current")
+            assert current_runs.status_code == 200
+            assert [run["run_id"] for run in current_runs.json()["runs"]] == [
+                newer_run_root.name
+            ]
+
+            current_run_detail = await client.get(
+                "/runs/current/unstructured_ingest",
+                params={"stage_name": "claim_extraction"},
+            )
+            assert current_run_detail.status_code == 200
+            detail_payload = current_run_detail.json()
+            assert detail_payload["run"]["run_id"] == newer_run_root.name
+            assert [stage["stage_name"] for stage in detail_payload["stages"]] == [
+                "claim_extraction"
+            ]
+
+    asyncio.run(_exercise_app())
+
+
 def test_backend_api_custom_graph_queries_example_script_runs() -> None:
     repo_root = Path(__file__).resolve().parents[1]
     completed = subprocess.run(
