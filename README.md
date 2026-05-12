@@ -360,7 +360,8 @@ selection, lives in
 
 A fourth example that adds host-level request guarding around the mounted
 `/atlas` router, including authorized mounted `/atlas/runs/current` and
-`/atlas/runs/current/{stage_prefix}` calls, lives in
+`/atlas/runs/current/{stage_prefix}` calls while relying on configured dataset
+selection, lives in
 [`examples/backend_api_guarded_app.py`](examples/backend_api_guarded_app.py).
 
 `power_atlas.claim_extraction_entrypoint.run_claim_extraction(...)` /

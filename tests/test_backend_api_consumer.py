@@ -523,12 +523,12 @@ def test_backend_api_guarded_app_example_script_runs() -> None:
             "status_code": 200,
         },
         "authorized_current_run_detail": {
-            "run_id": "unstructured_ingest-20260512T000100Z-b",
+            "run_id": "unstructured_ingest-20260512T000000Z-a",
             "run_stage_names": ["claim_extraction", "pdf_ingest"],
             "stages": ["claim_extraction"],
         },
         "authorized_current_runs": {
-            "run_ids": ["unstructured_ingest-20260512T000100Z-b"],
+            "run_ids": ["unstructured_ingest-20260512T000000Z-a"],
             "stage_names": [["claim_extraction", "pdf_ingest"]],
         },
         "host_info": {
