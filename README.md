@@ -350,12 +350,13 @@ facade lives in
 
 A third example that composes the backend router into a larger FastAPI app via
 `build_backend_runtime(...)` and `build_backend_router(...)`, including a
-mounted `/atlas/runs/current` snapshot plus filtered run detail, lives in
+mounted `/atlas/runs/current` snapshot plus mounted
+`/atlas/runs/current/{stage_prefix}` detail, lives in
 [`examples/backend_api_composed_app.py`](examples/backend_api_composed_app.py).
 
 A fourth example that adds host-level request guarding around the mounted
-`/atlas` router, including an authorized mounted `/atlas/runs/current` query,
-lives in
+`/atlas` router, including authorized mounted `/atlas/runs/current` and
+`/atlas/runs/current/{stage_prefix}` calls, lives in
 [`examples/backend_api_guarded_app.py`](examples/backend_api_guarded_app.py).
 
 `power_atlas.claim_extraction_entrypoint.run_claim_extraction(...)` /

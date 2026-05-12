@@ -82,15 +82,15 @@ async def _snapshot_app(app: FastAPI) -> dict[str, object]:
             "/atlas/runs/current",
             params={"dataset_id": "demo_dataset_v1"},
         )
-        backend_run_detail = await client.get(
-            "/atlas/runs/unstructured_ingest-20260512T000100Z-b",
-            params={"stage_name": "claim_extraction"},
+        backend_current_run_detail = await client.get(
+            "/atlas/runs/current/unstructured_ingest",
+            params={"dataset_id": "demo_dataset_v1", "stage_name": "claim_extraction"},
         )
         backend_health = await client.get("/atlas/health")
         backend_graph_status = await client.get("/atlas/graph/status")
     datasets_payload = backend_datasets.json()
     current_runs_payload = backend_current_runs.json()
-    run_detail_payload = backend_run_detail.json()
+    current_run_detail_payload = backend_current_run_detail.json()
     return {
         "host_info": host_info.json(),
         "backend_root": backend_root.json(),
@@ -110,10 +110,10 @@ async def _snapshot_app(app: FastAPI) -> dict[str, object]:
             "detail": current_runs_payload["detail"],
             "runs_root": current_runs_payload["runs_root"],
         },
-        "backend_run_detail": {
-            "run_id": run_detail_payload["run"]["run_id"],
-            "run_stage_names": run_detail_payload["run"]["stage_names"],
-            "stages": [stage["stage_name"] for stage in run_detail_payload["stages"]],
+        "backend_current_run_detail": {
+            "run_id": current_run_detail_payload["run"]["run_id"],
+            "run_stage_names": current_run_detail_payload["run"]["stage_names"],
+            "stages": [stage["stage_name"] for stage in current_run_detail_payload["stages"]],
         },
         "backend_health": backend_health.json(),
         "backend_graph_status": backend_graph_status.json(),

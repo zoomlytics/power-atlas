@@ -377,7 +377,7 @@ def test_backend_api_composed_app_example_script_runs() -> None:
             "run_ids": ["unstructured_ingest-20260512T000100Z-b"],
             "runs_root": payload["backend_current_runs"]["runs_root"],
         },
-        "backend_run_detail": {
+        "backend_current_run_detail": {
             "run_id": "unstructured_ingest-20260512T000100Z-b",
             "run_stage_names": ["claim_extraction", "pdf_ingest"],
             "stages": ["claim_extraction"],
@@ -427,7 +427,7 @@ def test_backend_api_guarded_app_example_script_runs() -> None:
             },
             "status_code": 200,
         },
-        "authorized_run_detail": {
+        "authorized_current_run_detail": {
             "run_id": "unstructured_ingest-20260512T000100Z-b",
             "run_stage_names": ["claim_extraction", "pdf_ingest"],
             "stages": ["claim_extraction"],
