@@ -88,6 +88,10 @@ def test_backend_root_health_and_graph_status_contract(monkeypatch) -> None:
             }
             assert isinstance(runs_payload["runs"], list)
 
+            missing_run_response = await client.get("/runs/unstructured_ingest-test-run")
+            assert missing_run_response.status_code == 404
+            assert "was not found" in missing_run_response.json()["detail"]
+
             graph_status_response = await client.get("/graph/status")
             assert graph_status_response.status_code == 503
             assert graph_status_response.json() == {
@@ -252,6 +256,70 @@ def test_create_backend_app_accepts_graph_summary_resolver() -> None:
                     "cluster_count": 8,
                     "canonical_entity_count": 5,
                 },
+            }
+
+    asyncio.run(_exercise_app())
+
+
+def test_create_backend_app_exposes_run_detail_endpoint(tmp_path) -> None:
+    run_root = tmp_path / "runs" / "unstructured_ingest-20260512T000000Z-test"
+    manifest_path = run_root / "pdf_ingest" / "manifest.json"
+    manifest_path.parent.mkdir(parents=True)
+    manifest_path.write_text(
+        """
+{
+  "run_id": "unstructured_ingest-20260512T000000Z-test",
+  "dataset_id": "demo_dataset_v1",
+  "started_at": "2026-05-12T00:00:00+00:00",
+  "finished_at": "2026-05-12T00:01:00+00:00",
+  "stages": {
+    "pdf_ingest": {
+      "status": "live"
+    }
+  }
+}
+""".strip(),
+        encoding="utf-8",
+    )
+    custom_app = create_backend_app(environ={"POWER_ATLAS_OUTPUT_DIR": str(tmp_path)})
+
+    async def _exercise_app() -> None:
+        transport = httpx.ASGITransport(app=custom_app)
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="http://testserver",
+        ) as client:
+            response = await client.get(f"/runs/{run_root.name}")
+            assert response.status_code == 200
+            assert response.json() == {
+                "output_dir": str(tmp_path.resolve()),
+                "runs_root": str((tmp_path / "runs").resolve()),
+                "run": {
+                    "run_id": run_root.name,
+                    "dataset_id": "demo_dataset_v1",
+                    "started_at": "2026-05-12T00:00:00+00:00",
+                    "finished_at": "2026-05-12T00:01:00+00:00",
+                    "stage_names": ["pdf_ingest"],
+                    "root_path": str(run_root.resolve()),
+                },
+                "stages": [
+                    {
+                        "stage_name": "pdf_ingest",
+                        "status": "live",
+                        "manifest_path": str(manifest_path.resolve()),
+                        "manifest": {
+                            "run_id": run_root.name,
+                            "dataset_id": "demo_dataset_v1",
+                            "started_at": "2026-05-12T00:00:00+00:00",
+                            "finished_at": "2026-05-12T00:01:00+00:00",
+                            "stages": {
+                                "pdf_ingest": {
+                                    "status": "live",
+                                }
+                            },
+                        },
+                    }
+                ],
             }
 
     asyncio.run(_exercise_app())

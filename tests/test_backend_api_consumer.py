@@ -71,6 +71,10 @@ def test_public_api_facade_supports_consumer_app_smoke() -> None:
             assert runs_payload["output_dir"] == str(Path("artifacts").resolve())
             assert runs_payload["runs_root"] == str((Path("artifacts") / "runs").resolve())
 
+            missing_run_response = await client.get("/runs/unstructured_ingest-test-run")
+            assert missing_run_response.status_code == 404
+            assert "was not found" in missing_run_response.json()["detail"]
+
             graph_status_response = await client.get("/graph/status")
             assert graph_status_response.status_code == 503
             assert graph_status_response.json() == {
@@ -122,7 +126,7 @@ def test_public_api_facade_imports_from_outside_repo_when_installed(tmp_path: Pa
             "    'paths': sorted(",
             "        route.path",
             "        for route in app.routes",
-            "        if getattr(route, 'path', None) in {'/', '/datasets', '/runs', '/health', '/graph/status'}",
+            "        if getattr(route, 'path', None) in {'/', '/datasets', '/runs', '/runs/{run_id}', '/health', '/graph/status'}",
             "    ),",
             "}",
             "print(json.dumps(payload, sort_keys=True))",
@@ -141,7 +145,7 @@ def test_public_api_facade_imports_from_outside_repo_when_installed(tmp_path: Pa
     assert json.loads(completed.stdout) == {
         "title": "Power Atlas API",
         "version": "3.0.0-installed-test",
-        "paths": ["/", "/datasets", "/graph/status", "/health", "/runs"],
+        "paths": ["/", "/datasets", "/graph/status", "/health", "/runs", "/runs/{run_id}"],
     }
 
 
@@ -158,8 +162,46 @@ def test_backend_api_consumer_example_script_runs() -> None:
     assert json.loads(completed.stdout) == {
         "title": "Power Atlas Consumer Example",
         "version": "0.1.0-example",
-        "paths": ["/", "/consumer-info", "/datasets", "/graph/status", "/health", "/runs"],
+        "paths": ["/", "/consumer-info", "/datasets", "/graph/status", "/health", "/runs", "/runs/{run_id}"],
     }
+
+
+def test_public_api_facade_supports_run_detail_endpoint_when_output_dir_has_runs(tmp_path: Path) -> None:
+    run_root = tmp_path / "runs" / "unstructured_ingest-20260512T000000Z-test"
+    manifest_path = run_root / "pdf_ingest" / "manifest.json"
+    manifest_path.parent.mkdir(parents=True)
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "run_id": run_root.name,
+                "dataset_id": "demo_dataset_v1",
+                "started_at": "2026-05-12T00:00:00+00:00",
+                "finished_at": "2026-05-12T00:01:00+00:00",
+                "stages": {"pdf_ingest": {"status": "live"}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    consumer_app = create_backend_app(
+        BackendAppOptions(version="2.1.0-test"),
+        environ={"POWER_ATLAS_OUTPUT_DIR": str(tmp_path)},
+    )
+
+    async def _exercise_app() -> None:
+        transport = httpx.ASGITransport(app=consumer_app)
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="http://testserver",
+        ) as client:
+            response = await client.get(f"/runs/{run_root.name}")
+            assert response.status_code == 200
+            payload = response.json()
+            assert payload["run"]["run_id"] == run_root.name
+            assert payload["run"]["dataset_id"] == "demo_dataset_v1"
+            assert payload["stages"][0]["stage_name"] == "pdf_ingest"
+            assert payload["stages"][0]["manifest_path"] == str(manifest_path.resolve())
+
+    asyncio.run(_exercise_app())
 
 
 def test_backend_api_custom_graph_queries_example_script_runs() -> None:

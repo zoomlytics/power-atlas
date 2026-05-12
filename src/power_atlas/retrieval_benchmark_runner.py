@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from power_atlas.backend_run_catalog import resolve_run_root, resolve_runs_root
 from power_atlas.retrieval_benchmark_queries import Q_CANONICAL_SINGLE as _Q_CANONICAL_SINGLE
 from power_atlas.retrieval_benchmark_queries import Q_CATALOG_EXISTENCE_CHECK as _Q_CATALOG_EXISTENCE_CHECK
 from power_atlas.retrieval_benchmark_queries import Q_LOWER_LAYER_CHAIN as _Q_LOWER_LAYER_CHAIN
@@ -476,7 +477,7 @@ def run_retrieval_benchmark_runtime(
     active_logger = _logger if logger is None else logger
     cases = benchmark_cases if benchmark_cases is not None else BENCHMARK_CASES
     effective_output_dir = Path(output_dir)
-    runs_root = (effective_output_dir / "runs").resolve()
+    runs_root = resolve_runs_root(effective_output_dir)
 
     if run_id == "":
         raise ValueError("run_id must be None or a non-empty string.")
@@ -485,16 +486,7 @@ def run_retrieval_benchmark_runtime(
         raise ValueError("dataset_id must be None or a non-empty string.")
 
     if run_id is not None:
-        run_id_path = Path(run_id)
-        if run_id_path.is_absolute() or ".." in run_id_path.parts or run_id_path.name != run_id:
-            raise ValueError(
-                f"Invalid run_id {run_id!r}: must be a simple relative name without path separators or '..'."
-            )
-        run_root = (runs_root / run_id_path).resolve()
-        if run_root == runs_root or runs_root not in run_root.parents:
-            raise ValueError(
-                f"Invalid run_id {run_id!r}: must resolve to a subdirectory of the runs directory."
-            )
+        run_root = resolve_run_root(effective_output_dir, run_id)
         artifact_dir = run_root / "retrieval_benchmark"
     else:
         artifact_dir = runs_root / "retrieval_benchmark"

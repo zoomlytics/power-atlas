@@ -3,7 +3,13 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from power_atlas.backend_run_catalog import resolve_backend_run_catalog
+import pytest
+
+from power_atlas.backend_run_catalog import (
+    resolve_backend_run_catalog,
+    resolve_backend_run_details,
+    resolve_run_root,
+)
 from power_atlas.settings import AppSettings, Neo4jSettings
 
 
@@ -51,3 +57,40 @@ def test_backend_run_catalog_reports_missing_runs_root(tmp_path: Path) -> None:
 
     assert result.runs == []
     assert result.detail == "No run directories were found under the configured output directory."
+
+
+def test_backend_run_details_returns_stage_manifests(tmp_path: Path) -> None:
+    run_root = tmp_path / "runs" / "structured_ingest-20260512T000000Z-test"
+    manifest_path = run_root / "structured_ingest" / "manifest.json"
+    manifest_path.parent.mkdir(parents=True)
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "run_id": run_root.name,
+                "dataset_id": "demo_dataset_v1",
+                "started_at": "2026-05-12T00:00:00+00:00",
+                "finished_at": "2026-05-12T00:01:00+00:00",
+                "stages": {"structured_ingest": {"status": "live", "claims": 4}},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    settings = AppSettings(
+        neo4j=Neo4jSettings(password="secret"),
+        output_dir=tmp_path,
+    )
+
+    result = resolve_backend_run_details(settings, run_root.name)
+
+    assert result.run.run_id == run_root.name
+    assert len(result.stages) == 1
+    assert result.stages[0].stage_name == "structured_ingest"
+    assert result.stages[0].status == "live"
+    assert result.stages[0].manifest is not None
+    assert result.stages[0].manifest["dataset_id"] == "demo_dataset_v1"
+
+
+def test_resolve_run_root_rejects_path_traversal(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="must be a simple relative name"):
+        resolve_run_root(tmp_path, "../escape")

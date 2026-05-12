@@ -15,10 +15,13 @@ def test_build_backend_router_composes_core_and_graph_routes() -> None:
     }
 
     assert route_methods_by_path == {
+        "/datasets": {"GET"},
         "/graph/status": {"GET"},
         "/graph/summary": {"GET"},
         "/graph/health-summary": {"POST"},
         "/graph/run-scoped-counts": {"POST"},
         "/health": {"GET"},
         "/": {"GET"},
+        "/runs": {"GET"},
+        "/runs/{run_id}": {"GET"},
     }

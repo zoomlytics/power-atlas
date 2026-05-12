@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Callable
 
+from power_atlas.backend_run_catalog import resolve_run_root
 from power_atlas.entity_resolution_runtime import run_entity_resolution_live
 from power_atlas.entity_resolution_writes import (
     write_alignment_results as _write_alignment_results_live,
@@ -165,17 +166,7 @@ def run_entity_resolution_runtime(
 ) -> dict[str, Any]:
     resolved_at = datetime.now(UTC).isoformat()
 
-    runs_root = (config.output_dir / "runs").resolve()
-    run_id_path = Path(run_id)
-    if run_id_path.is_absolute() or ".." in run_id_path.parts or run_id_path.name != run_id:
-        raise ValueError(
-            f"Invalid run_id {run_id!r}: must be a simple relative name without path separators or '..'."
-        )
-    run_root = (runs_root / run_id_path).resolve()
-    if run_root == runs_root or runs_root not in run_root.parents:
-        raise ValueError(
-            f"Invalid run_id {run_id!r}: must resolve to a subdirectory of the runs directory."
-        )
+    run_root = resolve_run_root(config.output_dir, run_id)
 
     artifact_subdir_path = Path(artifact_subdir)
     if artifact_subdir_path.is_absolute() or ".." in artifact_subdir_path.parts:

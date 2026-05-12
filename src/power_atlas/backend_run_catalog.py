@@ -26,12 +26,65 @@ class RunCatalogResult:
     detail: str | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class RunStageDetailEntry:
+    stage_name: str
+    status: str | None
+    manifest_path: str | None
+    manifest: dict[str, Any] | None
+
+
+@dataclass(frozen=True, slots=True)
+class RunDetailResult:
+    output_dir: str
+    runs_root: str
+    run: RunCatalogEntry
+    stages: list[RunStageDetailEntry]
+
+
 def _read_manifest(manifest_path: Path) -> dict[str, Any] | None:
     try:
         data = json.loads(manifest_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return None
     return data if isinstance(data, dict) else None
+
+
+def resolve_runs_root(output_dir: Path) -> Path:
+    return (Path(output_dir).resolve() / "runs").resolve()
+
+
+def resolve_run_root(output_dir: Path, run_id: str) -> Path:
+    runs_root = resolve_runs_root(output_dir)
+    run_id_path = Path(run_id)
+    if (
+        not run_id
+        or run_id_path.is_absolute()
+        or ".." in run_id_path.parts
+        or run_id_path.name != run_id
+    ):
+        raise ValueError(
+            f"Invalid run_id {run_id!r}: must be a simple relative name without path separators or '..'."
+        )
+    run_root = (runs_root / run_id_path).resolve()
+    if run_root == runs_root or runs_root not in run_root.parents:
+        raise ValueError(
+            f"Invalid run_id {run_id!r}: must resolve to a subdirectory of the runs directory."
+        )
+    return run_root
+
+
+def _build_run_stage_entry(stage_dir: Path) -> RunStageDetailEntry:
+    manifest_path = stage_dir / "manifest.json"
+    manifest = _read_manifest(manifest_path) if manifest_path.is_file() else None
+    stage_manifest = None if manifest is None else manifest.get("stages", {}).get(stage_dir.name)
+    status = stage_manifest.get("status") if isinstance(stage_manifest, dict) else None
+    return RunStageDetailEntry(
+        stage_name=stage_dir.name,
+        status=status if isinstance(status, str) else None,
+        manifest_path=(str(manifest_path) if manifest_path.is_file() else None),
+        manifest=manifest,
+    )
 
 
 def _build_run_entry(run_dir: Path) -> RunCatalogEntry:
@@ -57,9 +110,27 @@ def _build_run_entry(run_dir: Path) -> RunCatalogEntry:
     )
 
 
+def resolve_backend_run_details(settings: AppSettings, run_id: str) -> RunDetailResult:
+    output_dir = settings.output_dir.resolve()
+    runs_root = resolve_runs_root(output_dir)
+    run_root = resolve_run_root(output_dir, run_id)
+    if not run_root.is_dir():
+        raise FileNotFoundError(f"Run {run_id!r} was not found under {runs_root}.")
+
+    stage_dirs = sorted(
+        child for child in run_root.iterdir() if child.is_dir() and not child.name.startswith(".")
+    )
+    return RunDetailResult(
+        output_dir=str(output_dir),
+        runs_root=str(runs_root),
+        run=_build_run_entry(run_root),
+        stages=[_build_run_stage_entry(stage_dir) for stage_dir in stage_dirs],
+    )
+
+
 def resolve_backend_run_catalog(settings: AppSettings) -> RunCatalogResult:
     output_dir = settings.output_dir.resolve()
-    runs_root = (output_dir / "runs").resolve()
+    runs_root = resolve_runs_root(output_dir)
 
     if not runs_root.is_dir():
         return RunCatalogResult(
@@ -83,6 +154,11 @@ def resolve_backend_run_catalog(settings: AppSettings) -> RunCatalogResult:
 
 __all__ = [
     "RunCatalogEntry",
+    "RunDetailResult",
     "RunCatalogResult",
+    "RunStageDetailEntry",
+    "resolve_backend_run_details",
     "resolve_backend_run_catalog",
+    "resolve_run_root",
+    "resolve_runs_root",
 ]

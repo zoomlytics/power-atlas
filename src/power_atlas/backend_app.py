@@ -4,15 +4,16 @@ import logging
 from collections.abc import AsyncIterator, Mapping
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
+from typing import Any
 
-from fastapi import APIRouter, FastAPI, Request
+from fastapi import APIRouter, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from power_atlas.backend_dataset_catalog import resolve_backend_dataset_catalog
 from power_atlas.backend_graph import BackendGraphQueryService, build_backend_graph_query_service
 from power_atlas.backend_graph_router import build_backend_graph_router
-from power_atlas.backend_run_catalog import resolve_backend_run_catalog
+from power_atlas.backend_run_catalog import resolve_backend_run_catalog, resolve_backend_run_details
 from power_atlas.bootstrap import build_app_context
 from power_atlas.context import AppContext
 
@@ -68,6 +69,20 @@ class RunsResponse(BaseModel):
     runs_root: str
     runs: list[RunResponse]
     detail: str | None = None
+
+
+class RunStageResponse(BaseModel):
+    stage_name: str
+    status: str | None = None
+    manifest_path: str | None = None
+    manifest: dict[str, Any] | None = None
+
+
+class RunDetailResponse(BaseModel):
+    output_dir: str
+    runs_root: str
+    run: RunResponse
+    stages: list[RunStageResponse]
 
 
 @dataclass(frozen=True, slots=True)
@@ -182,6 +197,40 @@ def build_backend_router(
             detail=run_catalog.detail,
         )
 
+    @router.get("/runs/{run_id}", response_model=RunDetailResponse)
+    async def run_detail(run_id: str, request: Request) -> RunDetailResponse:
+        try:
+            run_detail_result = resolve_backend_run_details(
+                get_backend_runtime(request.app).app_context.settings,
+                run_id,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+        return RunDetailResponse(
+            output_dir=run_detail_result.output_dir,
+            runs_root=run_detail_result.runs_root,
+            run=RunResponse(
+                run_id=run_detail_result.run.run_id,
+                dataset_id=run_detail_result.run.dataset_id,
+                started_at=run_detail_result.run.started_at,
+                finished_at=run_detail_result.run.finished_at,
+                stage_names=run_detail_result.run.stage_names,
+                root_path=run_detail_result.run.root_path,
+            ),
+            stages=[
+                RunStageResponse(
+                    stage_name=stage.stage_name,
+                    status=stage.status,
+                    manifest_path=stage.manifest_path,
+                    manifest=stage.manifest,
+                )
+                for stage in run_detail_result.stages
+            ],
+        )
+
     @router.get("/", response_model=RootResponse)
     async def root() -> RootResponse:
         return RootResponse(
@@ -245,8 +294,10 @@ __all__ = [
     "DatasetResponse",
     "DatasetsResponse",
     "HealthResponse",
+    "RunDetailResponse",
     "RunResponse",
     "RootResponse",
+    "RunStageResponse",
     "RunsResponse",
     "backend_router",
     "build_backend_graph_query_service",
