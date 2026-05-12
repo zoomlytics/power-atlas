@@ -10,6 +10,11 @@ from power_atlas.api import BackendAppOptions, create_backend_app, get_backend_r
 from power_atlas.context import AppContext
 from power_atlas.graph_status import DEFAULT_UNCONFIGURED_DETAIL, GraphStatusResult
 from power_atlas.graph_summary import GraphSummaryCounts, GraphSummaryResult
+from power_atlas.run_scoped_graph_counts import (
+    RunScopedGraphCounts,
+    RunScopedGraphCountsRequest,
+    RunScopedGraphCountsResult,
+)
 
 
 def test_backend_root_health_and_graph_status_contract(monkeypatch) -> None:
@@ -55,6 +60,20 @@ def test_backend_root_health_and_graph_status_contract(monkeypatch) -> None:
             assert graph_summary_response.json() == {
                 "status": "not_configured",
                 "detail": DEFAULT_UNCONFIGURED_DETAIL,
+                "neo4j_uri": "neo4j://localhost:7687",
+                "database": "neo4j",
+                "counts": None,
+            }
+
+            run_scoped_counts_response = await client.post(
+                "/graph/run-scoped-counts",
+                json={"run_id": "unstructured_ingest-test-run"},
+            )
+            assert run_scoped_counts_response.status_code == 503
+            assert run_scoped_counts_response.json() == {
+                "status": "not_configured",
+                "detail": DEFAULT_UNCONFIGURED_DETAIL,
+                "run_id": "unstructured_ingest-test-run",
                 "neo4j_uri": "neo4j://localhost:7687",
                 "database": "neo4j",
                 "counts": None,
@@ -204,6 +223,57 @@ def test_create_backend_app_bootstraps_shared_app_context_from_environment(monke
                 "detail": "Neo4j graph is reachable",
                 "neo4j_uri": "neo4j://bootstrap.example:7687",
                 "database": "bootstrap",
+            }
+
+    asyncio.run(_exercise_app())
+
+
+def test_create_backend_app_accepts_run_scoped_graph_counts_resolver() -> None:
+    custom_app = create_backend_app(
+        run_scoped_graph_counts_resolver=lambda app_context, request: RunScopedGraphCountsResult(
+            http_status_code=200,
+            status="available",
+            detail="Run-scoped graph counts retrieved successfully",
+            run_id=request.run_id,
+            neo4j_uri=app_context.settings.neo4j.uri,
+            database=app_context.settings.neo4j.database,
+            counts=RunScopedGraphCounts(
+                chunk_count=11,
+                claim_count=7,
+                mention_count=21,
+                cluster_count=6,
+            ),
+        ),
+        environ={
+            "NEO4J_URI": "neo4j://graph.example:7687",
+            "NEO4J_PASSWORD": "secret",
+            "NEO4J_DATABASE": "atlas",
+        },
+    )
+
+    async def _exercise_app() -> None:
+        transport = httpx.ASGITransport(app=custom_app)
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="http://testserver",
+        ) as client:
+            response = await client.post(
+                "/graph/run-scoped-counts",
+                json={"run_id": "unstructured_ingest-20260511T000000Z-test"},
+            )
+            assert response.status_code == 200
+            assert response.json() == {
+                "status": "available",
+                "detail": "Run-scoped graph counts retrieved successfully",
+                "run_id": "unstructured_ingest-20260511T000000Z-test",
+                "neo4j_uri": "neo4j://graph.example:7687",
+                "database": "atlas",
+                "counts": {
+                    "chunk_count": 11,
+                    "claim_count": 7,
+                    "mention_count": 21,
+                    "cluster_count": 6,
+                },
             }
 
     asyncio.run(_exercise_app())

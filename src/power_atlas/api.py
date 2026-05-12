@@ -7,12 +7,18 @@ from dataclasses import dataclass, field
 
 from fastapi import APIRouter, FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from power_atlas.bootstrap import build_app_context
 from power_atlas.context import AppContext
 from power_atlas.graph_status import GraphStatusResult, resolve_graph_status
 from power_atlas.graph_summary import GraphSummaryCounts, GraphSummaryResult, resolve_graph_summary
+from power_atlas.run_scoped_graph_counts import (
+	RunScopedGraphCounts,
+	RunScopedGraphCountsRequest,
+	RunScopedGraphCountsResult,
+	resolve_run_scoped_graph_counts,
+)
 
 DEFAULT_API_TITLE = "Power Atlas API"
 DEFAULT_API_DESCRIPTION = "Backend API for Power Atlas"
@@ -55,6 +61,26 @@ class GraphSummaryResponse(BaseModel):
 	counts: GraphSummaryCountsResponse | None = None
 
 
+class RunScopedGraphCountsRequestBody(BaseModel):
+	run_id: str = Field(min_length=1)
+
+
+class RunScopedGraphCountsResponseBody(BaseModel):
+	chunk_count: int
+	claim_count: int
+	mention_count: int
+	cluster_count: int
+
+
+class RunScopedGraphCountsResponse(BaseModel):
+	status: str
+	detail: str
+	run_id: str
+	neo4j_uri: str
+	database: str
+	counts: RunScopedGraphCountsResponseBody | None = None
+
+
 class RootResponse(BaseModel):
 	message: str
 	version: str
@@ -66,6 +92,7 @@ class BackendRuntime:
 	app_context: AppContext
 	graph_status_resolver: Callable[[AppContext], GraphStatusResult]
 	graph_summary_resolver: Callable[[AppContext], GraphSummaryResult]
+	run_scoped_graph_counts_resolver: Callable[[AppContext, RunScopedGraphCountsRequest], RunScopedGraphCountsResult]
 
 
 def build_backend_runtime(
@@ -74,6 +101,7 @@ def build_backend_runtime(
 	environ: Mapping[str, str] | None = None,
 	graph_status_resolver: Callable[[AppContext], GraphStatusResult] | None = None,
 	graph_summary_resolver: Callable[[AppContext], GraphSummaryResult] | None = None,
+	run_scoped_graph_counts_resolver: Callable[[AppContext, RunScopedGraphCountsRequest], RunScopedGraphCountsResult] | None = None,
 ) -> BackendRuntime:
 	resolved_app_context = (
 		build_app_context(environ=environ) if app_context is None else app_context
@@ -87,6 +115,9 @@ def build_backend_runtime(
 		graph_summary_resolver=(
 			graph_summary_resolver
 			or (lambda runtime_app_context: resolve_graph_summary(settings=runtime_app_context.settings))
+		),
+		run_scoped_graph_counts_resolver=(
+			run_scoped_graph_counts_resolver or resolve_run_scoped_graph_counts
 		),
 	)
 
@@ -168,6 +199,39 @@ def build_backend_router(
 			counts=counts,
 		)
 
+	@router.post(
+		"/graph/run-scoped-counts",
+		response_model=RunScopedGraphCountsResponse,
+		responses={404: {"description": "Run-scoped graph data was not found"}, 503: {"description": "Run-scoped graph counts are unavailable"}},
+	)
+	async def run_scoped_graph_counts(
+		request: Request,
+		response: Response,
+		body: RunScopedGraphCountsRequestBody,
+	) -> RunScopedGraphCountsResponse:
+		runtime = get_backend_runtime(request.app)
+		probe = runtime.run_scoped_graph_counts_resolver(
+			runtime.app_context,
+			RunScopedGraphCountsRequest(run_id=body.run_id),
+		)
+		response.status_code = probe.http_status_code
+		counts = None
+		if probe.counts is not None:
+			counts = RunScopedGraphCountsResponseBody(
+				chunk_count=probe.counts.chunk_count,
+				claim_count=probe.counts.claim_count,
+				mention_count=probe.counts.mention_count,
+				cluster_count=probe.counts.cluster_count,
+			)
+		return RunScopedGraphCountsResponse(
+			status=probe.status,
+			detail=probe.detail,
+			run_id=probe.run_id,
+			neo4j_uri=probe.neo4j_uri,
+			database=probe.database,
+			counts=counts,
+		)
+
 	@router.get("/", response_model=RootResponse)
 	async def root() -> RootResponse:
 		return RootResponse(
@@ -191,6 +255,7 @@ def create_backend_app(
 	environ: Mapping[str, str] | None = None,
 	graph_status_resolver: Callable[[AppContext], GraphStatusResult] | None = None,
 	graph_summary_resolver: Callable[[AppContext], GraphSummaryResult] | None = None,
+	run_scoped_graph_counts_resolver: Callable[[AppContext, RunScopedGraphCountsRequest], RunScopedGraphCountsResult] | None = None,
 ) -> FastAPI:
 	app_options = options or BackendAppOptions()
 	resolved_runtime = runtime or build_backend_runtime(
@@ -198,6 +263,7 @@ def create_backend_app(
 		environ=environ,
 		graph_status_resolver=graph_status_resolver,
 		graph_summary_resolver=graph_summary_resolver,
+		run_scoped_graph_counts_resolver=run_scoped_graph_counts_resolver,
 	)
 	selected_router = router or build_backend_router(version=app_options.version)
 
@@ -233,6 +299,9 @@ __all__ = [
 	"GraphSummaryResponse",
 	"GraphStatusResponse",
 	"HealthResponse",
+	"RunScopedGraphCountsRequestBody",
+	"RunScopedGraphCountsResponse",
+	"RunScopedGraphCountsResponseBody",
 	"RootResponse",
 	"backend_router",
 	"build_backend_runtime",
