@@ -110,6 +110,13 @@ def _build_run_entry(run_dir: Path) -> RunCatalogEntry:
     )
 
 
+def extract_run_stage_prefix(run_id: str) -> str:
+    parts = run_id.rsplit("-", 2)
+    if len(parts) == 3 and all(parts):
+        return parts[0]
+    return run_id
+
+
 def resolve_backend_run_details(settings: AppSettings, run_id: str) -> RunDetailResult:
     output_dir = settings.output_dir.resolve()
     runs_root = resolve_runs_root(output_dir)
@@ -133,6 +140,7 @@ def resolve_backend_run_catalog(
     *,
     dataset_id: str | None = None,
     stage_name: str | None = None,
+    latest_per_stage_prefix: bool = False,
 ) -> RunCatalogResult:
     output_dir = settings.output_dir.resolve()
     runs_root = resolve_runs_root(output_dir)
@@ -155,6 +163,16 @@ def resolve_backend_run_catalog(
         runs = [run for run in runs if run.dataset_id == dataset_id]
     if stage_name is not None:
         runs = [run for run in runs if stage_name in run.stage_names]
+    if latest_per_stage_prefix:
+        seen_prefixes: set[str] = set()
+        latest_runs: list[RunCatalogEntry] = []
+        for run in runs:
+            prefix = extract_run_stage_prefix(run.run_id)
+            if prefix in seen_prefixes:
+                continue
+            seen_prefixes.add(prefix)
+            latest_runs.append(run)
+        runs = latest_runs
     return RunCatalogResult(
         output_dir=str(output_dir),
         runs_root=str(runs_root),
@@ -167,6 +185,7 @@ __all__ = [
     "RunDetailResult",
     "RunCatalogResult",
     "RunStageDetailEntry",
+    "extract_run_stage_prefix",
     "resolve_backend_run_details",
     "resolve_backend_run_catalog",
     "resolve_run_root",

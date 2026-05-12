@@ -307,6 +307,10 @@ and runtime services.
 consumers can narrow the run catalog without reproducing filesystem filtering in
 their own host app.
 
+It also accepts `latest_per_stage_prefix=true` to keep only the newest run for
+each `make_run_id(scope)` prefix, which is useful when callers want one current
+run per stage family instead of the full history.
+
 Example backend consumer usage:
 
 ```python

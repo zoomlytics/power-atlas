@@ -180,11 +180,13 @@ def build_backend_router(
         request: Request,
         dataset_id: str | None = None,
         stage_name: str | None = None,
+        latest_per_stage_prefix: bool = False,
     ) -> RunsResponse:
         run_catalog = resolve_backend_run_catalog(
             get_backend_runtime(request.app).app_context.settings,
             dataset_id=dataset_id,
             stage_name=stage_name,
+            latest_per_stage_prefix=latest_per_stage_prefix,
         )
         return RunsResponse(
             output_dir=run_catalog.output_dir,

@@ -422,6 +422,76 @@ def test_create_backend_app_bootstraps_shared_app_context_from_environment(monke
     asyncio.run(_exercise_app())
 
 
+def test_create_backend_app_filters_runs_to_latest_stage_prefix(tmp_path) -> None:
+        older_run_root = tmp_path / "runs" / "unstructured_ingest-20260512T000000Z-a"
+        older_manifest_path = older_run_root / "pdf_ingest" / "manifest.json"
+        older_manifest_path.parent.mkdir(parents=True)
+        older_manifest_path.write_text(
+                """
+{
+    "run_id": "unstructured_ingest-20260512T000000Z-a",
+    "dataset_id": "demo_dataset_v1",
+    "stages": {
+        "pdf_ingest": {
+            "status": "live"
+        }
+    }
+}
+""".strip(),
+                encoding="utf-8",
+        )
+        newer_run_root = tmp_path / "runs" / "unstructured_ingest-20260512T000100Z-b"
+        newer_manifest_path = newer_run_root / "pdf_ingest" / "manifest.json"
+        newer_manifest_path.parent.mkdir(parents=True)
+        newer_manifest_path.write_text(
+                """
+{
+    "run_id": "unstructured_ingest-20260512T000100Z-b",
+    "dataset_id": "demo_dataset_v1",
+    "stages": {
+        "pdf_ingest": {
+            "status": "live"
+        }
+    }
+}
+""".strip(),
+                encoding="utf-8",
+        )
+        structured_run_root = tmp_path / "runs" / "structured_ingest-20260512T000050Z-c"
+        structured_manifest_path = structured_run_root / "structured_ingest" / "manifest.json"
+        structured_manifest_path.parent.mkdir(parents=True)
+        structured_manifest_path.write_text(
+                """
+{
+    "run_id": "structured_ingest-20260512T000050Z-c",
+    "dataset_id": "demo_dataset_v2",
+    "stages": {
+        "structured_ingest": {
+            "status": "live"
+        }
+    }
+}
+""".strip(),
+                encoding="utf-8",
+        )
+        custom_app = create_backend_app(environ={"POWER_ATLAS_OUTPUT_DIR": str(tmp_path)})
+
+        async def _exercise_app() -> None:
+                transport = httpx.ASGITransport(app=custom_app)
+                async with httpx.AsyncClient(
+                        transport=transport,
+                        base_url="http://testserver",
+                ) as client:
+                        response = await client.get("/runs", params={"latest_per_stage_prefix": "true"})
+                        assert response.status_code == 200
+                        assert [run["run_id"] for run in response.json()["runs"]] == [
+                                newer_run_root.name,
+                                structured_run_root.name,
+                        ]
+
+        asyncio.run(_exercise_app())
+
+
 def test_create_backend_app_accepts_run_scoped_graph_counts_resolver() -> None:
     app_context = build_app_context(
         environ={
