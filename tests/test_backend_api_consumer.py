@@ -191,6 +191,38 @@ def test_retrieval_policy_consumer_example_script_runs() -> None:
     }
 
 
+def test_market_trade_retrieval_policy_consumer_example_script_runs() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(repo_root / "examples" / "market_trade_retrieval_policy_consumer.py"),
+        ],
+        cwd=repo_root,
+        capture_output=True,
+        check=True,
+        text=True,
+    )
+
+    assert json.loads(completed.stdout) == {
+        "all_runs": False,
+        "consumer": "market_trade_retrieval_policy_consumer",
+        "ontology": {
+            "canonical_label": "Security",
+            "claim_label": "MarketClaim",
+            "mentioned_in_relationship": "MENTIONED_IN_MARKET_SOURCE",
+        },
+        "qa_prompt_id": "market_trade_qa_v1",
+        "question": "Which market/trade retrieval policy was forwarded?",
+        "run_id": "market-trade-run-id",
+        "source_uri": "file:///market/trade/source.pdf",
+        "traversal_defaults": {
+            "cluster_aware": True,
+            "expand_graph": True,
+        },
+    }
+
+
 def test_public_api_facade_supports_run_detail_endpoint_when_output_dir_has_runs(tmp_path: Path) -> None:
     run_root = tmp_path / "runs" / "unstructured_ingest-20260512T000000Z-test"
     manifest_path = run_root / "pdf_ingest" / "manifest.json"

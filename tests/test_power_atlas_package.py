@@ -16,6 +16,10 @@ def test_package_modules_import() -> None:
     backend_app_module = importlib.import_module("power_atlas.backend_app")
     backend_graph_module = importlib.import_module("power_atlas.backend_graph")
     context_module = importlib.import_module("power_atlas.context")
+    policy_packs_module = importlib.import_module("power_atlas.policy_packs")
+    market_trade_policy_module = importlib.import_module(
+        "power_atlas.policy_packs.market_trade"
+    )
     contracts_module = importlib.import_module("power_atlas.contracts")
     pipeline_module = importlib.import_module("power_atlas.contracts.pipeline")
     orchestration_module = importlib.import_module("power_atlas.orchestration")
@@ -125,6 +129,18 @@ def test_package_modules_import() -> None:
     assert package.timestamp is contracts_module.timestamp
     assert package.write_manifest is contracts_module.write_manifest
     assert package.write_manifest_md is contracts_module.write_manifest_md
+    assert (
+        policy_packs_module.MARKET_TRADE_RETRIEVAL_POLICY
+        is market_trade_policy_module.MARKET_TRADE_RETRIEVAL_POLICY
+    )
+    assert (
+        policy_packs_module.MARKET_TRADE_RETRIEVAL_ONTOLOGY
+        is market_trade_policy_module.MARKET_TRADE_RETRIEVAL_ONTOLOGY
+    )
+    assert (
+        policy_packs_module.get_market_trade_retrieval_policy()
+        is market_trade_policy_module.MARKET_TRADE_RETRIEVAL_POLICY
+    )
     assert package.AppSettings is settings_module.AppSettings
     assert package.build_settings is bootstrap_module.build_settings
     assert package.build_app_context is bootstrap_module.build_app_context
