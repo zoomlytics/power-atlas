@@ -6,6 +6,7 @@
 **Related documents:**
 - `docs/repository_restructure/repository_restructure_generic_research_runner_feasibility.md`
 - `docs/repository_restructure/repository_restructure_reusable_core_boundary.md`
+- `docs/repository_restructure/repository_restructure_second_domain_gap_inventory.md`
 - `README.md`
 
 ## Purpose
@@ -136,6 +137,9 @@ following:
    retrieval policy,
 4. confirmation that no shared runtime module had to be copied to support the
    pilot.
+
+The current gap inventory now lives in
+`docs/repository_restructure/repository_restructure_second_domain_gap_inventory.md`.
 
 ## Acceptance criteria
 

@@ -9,6 +9,7 @@
 - `docs/repository_restructure/repository_restructure_decisions.md`
 - `docs/repository_restructure/repository_restructure_generic_research_runner_feasibility.md`
 - `docs/repository_restructure/repository_restructure_second_domain_pilot_contract.md`
+- `docs/repository_restructure/repository_restructure_second_domain_gap_inventory.md`
 
 ## Purpose
 
