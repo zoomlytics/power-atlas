@@ -107,6 +107,7 @@ _EXPORTS = {
     "build_settings": ("power_atlas.bootstrap", "build_settings"),
     "build_stage_manifest": ("power_atlas.contracts", "build_stage_manifest"),
     "claim_extraction_lexical_config": ("power_atlas.contracts", "claim_extraction_lexical_config"),
+    "claim_extraction_diagnostics": ("power_atlas.claim_extraction_diagnostics", None),
     "claim_extraction_schema": ("power_atlas.contracts", "claim_extraction_schema"),
     "claim_extraction_entrypoint": ("power_atlas.claim_extraction_entrypoint", None),
     "claim_extraction_runner": ("power_atlas.claim_extraction_runner", None),

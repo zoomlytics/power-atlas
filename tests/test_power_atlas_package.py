@@ -27,8 +27,14 @@ def test_package_modules_import() -> None:
     orchestration_module = importlib.import_module("power_atlas.orchestration")
     settings_module = importlib.import_module("power_atlas.settings")
     bootstrap_module = importlib.import_module("power_atlas.bootstrap")
+    claim_extraction_diagnostics_module = importlib.import_module(
+        "power_atlas.claim_extraction_diagnostics"
+    )
     claim_extraction_entrypoint_module = importlib.import_module(
         "power_atlas.claim_extraction_entrypoint"
+    )
+    claim_extraction_query_specs_module = importlib.import_module(
+        "power_atlas.claim_extraction_query_specs"
     )
     claim_extraction_runner_module = importlib.import_module(
         "power_atlas.claim_extraction_runner"
@@ -238,6 +244,7 @@ def test_package_modules_import() -> None:
     assert package.build_default_app_policies is context_module.build_default_app_policies
     assert package.build_openai_llm is llm_utils_module.build_openai_llm
     assert package.normalize_mention_text is text_utils_module.normalize_mention_text
+    assert package.claim_extraction_diagnostics is claim_extraction_diagnostics_module
     assert package.claim_extraction_entrypoint is claim_extraction_entrypoint_module
     assert package.claim_extraction_runner is claim_extraction_runner_module
     assert package.entity_resolution_entrypoint is entity_resolution_entrypoint_module
@@ -304,12 +311,24 @@ def test_package_modules_import() -> None:
     assert callable(api_module.get_backend_runtime)
     assert api_module.get_backend_runtime is backend_app_module.get_backend_runtime
     assert api_module.backend_router is not None
+    assert callable(claim_extraction_diagnostics_module.neo4j_settings_from_config)
+    assert callable(claim_extraction_diagnostics_module.neo4j_settings_from_request_context)
+    assert callable(claim_extraction_diagnostics_module.run_claim_extraction_diagnostics)
+    assert callable(
+        claim_extraction_diagnostics_module.run_claim_extraction_diagnostics_request_context
+    )
     assert callable(claim_extraction_entrypoint_module.resolve_claim_extraction_policy)
     assert callable(claim_extraction_entrypoint_module.resolve_pipeline_contract)
     assert callable(claim_extraction_entrypoint_module.neo4j_settings_from_config)
     assert callable(claim_extraction_entrypoint_module.openai_model_from_config)
     assert callable(claim_extraction_entrypoint_module.run_claim_extraction)
     assert callable(claim_extraction_entrypoint_module.run_claim_extraction_request_context)
+    assert callable(
+        claim_extraction_query_specs_module.build_claim_extraction_diagnostic_query_specs
+    )
+    assert callable(
+        claim_extraction_query_specs_module.fetch_claim_extraction_diagnostic_rows
+    )
     assert callable(claim_extraction_runner_module.read_chunks_and_extract)
     assert callable(claim_extraction_runner_module.run_claim_extraction_runtime)
     assert callable(claim_extraction_runner_module.run_claim_extraction_runtime_default)
@@ -1060,6 +1079,152 @@ def test_retrieval_benchmark_request_context_uses_package_default_impl_runner() 
     assert result["artifact_path"].endswith(
         "build/test-retrieval-benchmark-context/runs/run-123/retrieval_benchmark/retrieval_benchmark.json"
     )
+
+
+def test_claim_extraction_diagnostics_entrypoint_uses_package_default_impl_runner() -> None:
+    from power_atlas import claim_extraction_diagnostics
+
+    output_root = Path("build/test-claim-extraction-diagnostics")
+    config = mock.Mock(output_dir=output_root, dry_run=True)
+    result_payload = {"status": "ok"}
+
+    with mock.patch.object(
+        claim_extraction_diagnostics,
+        "_default_impl_runner",
+    ) as default_impl_runner:
+        default_impl_runner.return_value = mock.Mock(return_value=result_payload)
+
+        result = claim_extraction_diagnostics.run_claim_extraction_diagnostics(
+            config,
+            run_id="run-123",
+            source_uri="file:///example/doc.pdf",
+        )
+
+    assert result == result_payload
+    default_impl_runner.assert_called_once_with()
+
+
+def test_claim_extraction_diagnostics_request_context_uses_package_default_impl_runner() -> None:
+    from power_atlas import claim_extraction_diagnostics
+    from power_atlas.bootstrap import bootstrap_app, build_request_context
+
+    app = bootstrap_app(
+        {
+            "NEO4J_URI": "bolt://example.test:7687",
+            "NEO4J_USERNAME": "atlas",
+            "NEO4J_PASSWORD": "secret",
+            "NEO4J_DATABASE": "analytics",
+            "OPENAI_MODEL": "gpt-5.4",
+            "POWER_ATLAS_OUTPUT_DIR": "build/test-claim-extraction-diagnostics-context",
+            "POWER_ATLAS_DATASET": "demo_dataset_v1",
+        }
+    )
+    request_context = build_request_context(
+        app.app_context,
+        command="claim-extraction-diagnostics",
+        dry_run=True,
+        run_id="run-123",
+        source_uri="file:///example/doc.pdf",
+    )
+
+    result = claim_extraction_diagnostics.run_claim_extraction_diagnostics_request_context(
+        request_context,
+    )
+
+    assert result["status"] == "dry_run"
+    assert result["run_id"] == "run-123"
+    assert result["source_uri"] == "file:///example/doc.pdf"
+    assert result["artifact_path"].endswith(
+        "build/test-claim-extraction-diagnostics-context/runs/run-123/claim_extraction_diagnostics/claim_extraction_diagnostics.json"
+    )
+
+
+def test_claim_extraction_diagnostics_runtime_writes_stable_dry_run_artifact(tmp_path: Path) -> None:
+    from power_atlas.claim_extraction_diagnostics_runner import (
+        run_claim_extraction_diagnostics_runtime_default,
+    )
+
+    result = run_claim_extraction_diagnostics_runtime_default(
+        dry_run=True,
+        output_dir=tmp_path,
+        neo4j_settings=None,
+        run_id="run-123",
+        source_uri="file:///example/doc.pdf",
+    )
+
+    artifact_path = (
+        tmp_path
+        / "runs"
+        / "run-123"
+        / "claim_extraction_diagnostics"
+        / "claim_extraction_diagnostics.json"
+    )
+    artifact = json.loads(artifact_path.read_text(encoding="utf-8"))
+
+    assert result["status"] == "dry_run"
+    assert artifact["status"] == "dry_run"
+    assert artifact["run_id"] == "run-123"
+    assert artifact["source_uri"] == "file:///example/doc.pdf"
+    assert artifact["participation_summary"] == {
+        "total_edges": 0,
+        "edges_by_role": {},
+        "total_claims": 0,
+        "claims_with_zero_edges": 0,
+        "claim_coverage_pct": None,
+    }
+    assert artifact["match_summary"] == {
+        "total_edges_with_match_method": 0,
+        "edges_by_match_method": {},
+    }
+    assert artifact["warnings"] == [
+        "claim extraction diagnostics skipped in dry_run mode"
+    ]
+
+
+def test_claim_extraction_diagnostics_runtime_computes_live_summary_from_query_rows(tmp_path: Path) -> None:
+    from power_atlas.claim_extraction_diagnostics_runner import (
+        run_claim_extraction_diagnostics_runtime_default,
+    )
+    from power_atlas.settings import Neo4jSettings
+
+    result = run_claim_extraction_diagnostics_runtime_default(
+        dry_run=False,
+        output_dir=tmp_path,
+        neo4j_settings=Neo4jSettings(),
+        run_id="run-123",
+        source_uri="file:///example/doc.pdf",
+        query_specs_builder=lambda: [("role_dist", "role dist", "RETURN 1")],
+        query_rows_fetcher=lambda *args, **kwargs: {
+            "role_dist": [
+                {"role": "subject", "total": 3},
+                {"role": "object", "total": 1},
+            ],
+            "edge_coverage": [
+                {"participant_edges": 0, "claim_count": 1},
+                {"participant_edges": 2, "claim_count": 4},
+            ],
+            "match_method_dist": [
+                {"match_method": "normalized_exact", "total": 2},
+                {"match_method": "list_split", "total": 1},
+            ],
+        },
+    )
+
+    assert result["status"] == "live"
+    assert result["participation_summary"] == {
+        "total_edges": 4,
+        "edges_by_role": {"subject": 3, "object": 1},
+        "total_claims": 5,
+        "claims_with_zero_edges": 1,
+        "claim_coverage_pct": 80.0,
+    }
+    assert result["match_summary"] == {
+        "total_edges_with_match_method": 3,
+        "edges_by_match_method": {
+            "normalized_exact": 2,
+            "list_split": 1,
+        },
+    }
 
 
 def test_entity_resolution_entrypoint_uses_package_default_runtime_runner() -> None:

@@ -247,6 +247,7 @@ seams now live under `src/power_atlas/` rather than in `demo/stages/`.
 
 | Module | Purpose |
 |--------|---------|
+| [`claim_extraction_diagnostics.py`](src/power_atlas/claim_extraction_diagnostics.py) | Package-owned config/request-context entrypoint for run-scoped claim extraction diagnostics |
 | [`claim_extraction_entrypoint.py`](src/power_atlas/claim_extraction_entrypoint.py) | Package-owned config/request-context entrypoint for claim extraction |
 | [`entity_resolution_entrypoint.py`](src/power_atlas/entity_resolution_entrypoint.py) | Package-owned config/request-context entrypoint for entity resolution |
 | [`pdf_ingest_entrypoint.py`](src/power_atlas/pdf_ingest_entrypoint.py) | Package-owned config/request-context entrypoint for PDF ingest |
@@ -265,7 +266,8 @@ modules.
 
 For discovery from an installed package, the root [`power_atlas`](src/power_atlas/__init__.py)
 package now also exposes these package-native entrypoint modules as namespace
-attributes (for example, `power_atlas.claim_extraction_entrypoint` and
+attributes (for example, `power_atlas.claim_extraction_diagnostics`,
+`power_atlas.claim_extraction_entrypoint`, and
 `power_atlas.pdf_ingest_entrypoint`). It also exposes the corresponding
 package-owned runner modules as namespace attributes (for example,
 `power_atlas.claim_extraction_runner`, `power_atlas.pdf_ingest_runner`, and
@@ -406,6 +408,8 @@ plugin loader or a second runtime layer.
 
 `power_atlas.claim_extraction_entrypoint.run_claim_extraction(...)` /
 `run_claim_extraction_request_context(...)` and
+`power_atlas.claim_extraction_diagnostics.run_claim_extraction_diagnostics(...)` /
+`run_claim_extraction_diagnostics_request_context(...)`, plus
 `power_atlas.entity_resolution_entrypoint.run_entity_resolution(...)` /
 `run_entity_resolution_request_context(...)`, plus
 `power_atlas.pdf_ingest_entrypoint.run_pdf_ingest(...)` /
