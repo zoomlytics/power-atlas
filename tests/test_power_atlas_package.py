@@ -1077,6 +1077,91 @@ def test_run_interactive_request_context_forwards_request_owned_retrieval_policy
     assert captured["debug"] is True
 
 
+def test_package_cli_ask_prep_preserves_retrieval_policy_for_retrieval_adapter() -> None:
+    from argparse import Namespace
+    from dataclasses import replace
+
+    from neo4j_graphrag.generation import RagTemplate
+
+    from power_atlas.bootstrap import build_app_context, build_request_context
+    from power_atlas.contracts import RetrievalOntology, RetrievalPolicy
+    from power_atlas.interfaces.cli.run_demo_entrypoint import (
+        prepare_run_demo_ask_request_context,
+    )
+    from power_atlas.retrieval_request_context_adapters import run_retrieval_request_context
+
+    alternate_policy = RetrievalPolicy(
+        ontology=RetrievalOntology(
+            claim_label="CliPreparedClaim",
+            mention_label="CliPreparedMention",
+            cluster_label="CliPreparedCluster",
+            canonical_label="CliPreparedCanonical",
+            supported_by_relationship="SUPPORTED_EXTERNALLY_BY",
+            mentioned_in_relationship="OBSERVED_WITHIN",
+            has_participant_relationship="HAS_INTERACTOR",
+            resolves_to_relationship="NORMALIZES_TO",
+            member_of_relationship="CLUSTERED_IN",
+            aligned_with_relationship="ALIGNS_EXTERNALLY_WITH",
+        ),
+        qa_prompt_id="cli_prepared_alt_qa_v1",
+        rag_template=RagTemplate(
+            template="Context:\n{context}\nExamples:\n{examples}\nQuestion:\n{query_text}\nAnswer:",
+            system_instructions="CLI ask-prep alternate retrieval policy prompt",
+        ),
+    )
+    app_context = build_app_context(environ={})
+    app_context = replace(
+        app_context,
+        policies=replace(app_context.policies, retrieval=alternate_policy),
+    )
+    request_context = build_request_context(
+        app_context,
+        command="ask",
+        dry_run=True,
+        question="Which prepared policy survives?",
+        run_id="seed-run-id",
+        source_uri="file:///seed-source.pdf",
+    )
+
+    prepared_request_context = prepare_run_demo_ask_request_context(
+        Namespace(command="ask"),
+        request_context,
+        resolve_ask_scope=lambda args, request_context: ("prepared-run-id", True),
+        resolve_ask_source_uri=lambda request_context: (
+            f"file:///prepared/{request_context.run_id}.pdf"
+        ),
+    )
+    captured: dict[str, object] = {}
+
+    def _fake_run_impl(config: object, **kwargs: object) -> dict[str, object]:
+        captured["config"] = config
+        captured.update(kwargs)
+        return {"status": "prepared-ok"}
+
+    result = run_retrieval_request_context(
+        prepared_request_context,
+        top_k=3,
+        index_name=None,
+        question=None,
+        expand_graph=False,
+        cluster_aware=False,
+        message_history=None,
+        interactive=False,
+        run_impl=_fake_run_impl,
+    )
+
+    assert result == {"status": "prepared-ok"}
+    assert prepared_request_context.app is request_context.app
+    assert prepared_request_context.policies.retrieval is alternate_policy
+    assert prepared_request_context.run_id == "prepared-run-id"
+    assert prepared_request_context.all_runs is True
+    assert prepared_request_context.source_uri == "file:///prepared/prepared-run-id.pdf"
+    assert captured["retrieval_policy"] is alternate_policy
+    assert captured["run_id"] == "prepared-run-id"
+    assert captured["all_runs"] is True
+    assert captured["source_uri"] == "file:///prepared/prepared-run-id.pdf"
+
+
 def test_default_entity_type_normalization_policy_matches_power_atlas_defaults() -> None:
     from power_atlas.contracts import (
         POWER_ATLAS_ENTITY_TYPE_NORMALIZATION_POLICY,
