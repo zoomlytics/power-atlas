@@ -31,9 +31,29 @@ At this checkpoint:
   proofs,
 - the public backend import surface now exists through `power_atlas.api`,
 - the remaining work for reuse is no longer packaging cleanup,
-- the remaining work for reuse is policy-boundary extraction.
+- the original policy-boundary extraction phase has now produced concrete
+  package-owned seams plus a package-only second-domain proof,
+- the next reuse step is to turn those seams into a coherent domain
+  contribution model rather than continue abstracting one contract at a time.
 
 This document defines the minimum extraction boundary for that next phase.
+
+## Updated checkpoint direction
+
+The repo is no longer missing a single obvious seam. Retrieval policy,
+structured ingest contracts, entity-resolution graph shape, canonical lookup,
+alignment strategy, and dataset selection now have package-owned seams and a
+package-only market/trade proof.
+
+That changes the next recommendation.
+
+The next high-value implementation slice is not another narrow seam. The next
+high-value slice is a first-class domain contribution model that makes those
+already-extracted seams legible as one package-owned unit.
+
+The current proposed anchor is a lightweight `DomainPackDescriptor` in
+`power_atlas.bootstrap`, with `src/power_atlas/policy_packs/market_trade.py`
+serving as the first concrete descriptor-backed pack.
 
 ## Boundary defined in this checkpoint
 
@@ -102,93 +122,88 @@ proves that the same exact semantics should be shared.
   documentation posture
 - domain framing and editorial voice in the current docs set
 
-## First seam recommendation
+## First composition recommendation
 
-The first extraction seam should be **retrieval expansion policy**.
+The first post-seam composition slice should be **domain-pack formalization**.
 
-This is the highest-leverage next slice because it sits at the center of the
-repo's current reusable value while also remaining one of the clearest places
-where Power Atlas semantics still shape package behavior.
+This is the highest-leverage next slice because it turns the extracted seams
+into something a new research-heavy project can actually understand and adopt.
 
-### Why this seam is the right first slice
+### Why this composition slice is the right next slice
 
-- it affects core runtime behavior rather than branding alone,
-- it is already partially isolated,
-- it can be proven with focused tests before any broader package split,
-- it avoids introducing a broad plugin framework before a second app exists.
+- it does not require inventing a second runtime layer,
+- it makes the current reusable posture legible without another domain
+  implementation,
+- it can be proven with focused package tests and the existing market/trade
+  examples,
+- it avoids introducing dynamic plugin discovery before the descriptor shape is
+  stable.
 
 ### Evidence from the current code
 
-The repo already has a partial retrieval-policy boundary:
+The repo now has the pieces of a domain contribution model, but not yet the
+model itself:
 
-- `power_atlas.contracts.retrieval_policy` defines `RetrievalOntology` and
-  `RetrievalPolicy`
-- `power_atlas.retrieval_query_builders` already accepts a
-  `retrieval_ontology` parameter and can build queries from non-default labels
-  and relationships
+- `src/power_atlas/policy_packs/market_trade.py` already acts like a pack,
+  but currently only exposes raw policy objects,
+- `examples/market_trade_retrieval_policy_consumer.py` and
+  `examples/market_trade_entity_resolution_consumer.py` already prove that a
+  second-domain consumer can compose package-owned seams,
+- the package root, bootstrap layer, and tests now have enough stable surface
+  area to describe a domain contribution explicitly.
 
-But the seam is not yet a complete reusable policy surface:
+What is still missing is a single package-owned descriptor that says, in one
+place, what a domain contributes.
 
-- the default retrieval policy is still the Power Atlas policy object,
-- request-context and stage/runtime paths already accept and forward explicit
-  retrieval policy objects, but that boundary is still concentrated in the
-  current Power Atlas retrieval flow rather than locked as a broader reusable
-  package contract,
-- some runtime call paths still rely on Power Atlas defaults when no explicit
-  policy is supplied,
-- the current proof posture is still stronger in demo-stage coverage than in
-  shared-package extraction coverage,
-- there is not yet a second-app or second-domain proof showing that the same
-  policy surface is sufficient outside the current Power Atlas retrieval stack.
+The `DomainPackDescriptor` slice should remain intentionally small:
 
-## Acceptance criteria for this first seam
+- metadata only,
+- explicit pack name and version,
+- explicit list of provided seams,
+- explicit example entrypoints that prove the pack is consumable.
 
-The retrieval expansion policy slice should be considered complete only when:
+## Acceptance criteria for this first composition slice
 
-- retrieval runtime entrypoints accept an explicit retrieval policy or provider
-  from app/request-owned context and keep that behavior locked at the package
-  seam rather than only in demo-stage coverage,
-- retrieval query construction uses that injected policy end to end,
-- prompt/template selection for retrieval also follows the same injected policy
-  path,
-- at least one alternate test policy can be exercised through the shared
-  package-owned retrieval seam without monkeypatching implementation modules,
-- existing Power Atlas retrieval behavior remains unchanged when the default
-  Power Atlas policy is supplied.
+The `DomainPackDescriptor` slice should be considered complete only when:
+
+- the descriptor lives in a package-owned composition surface rather than in
+  runtime modules,
+- `market_trade` exports a real descriptor instance,
+- package import tests pin the descriptor shape,
+- the existing market/trade consumer proofs continue to run unchanged.
 
 ## Non-goals for this checkpoint
 
 This boundary does **not** authorize the following yet:
 
 - renaming `power_atlas` as if it were already a generic package,
-- splitting files into a new shared namespace before one explicit policy seam is
-  proven,
-- introducing a large plugin system across prompts, ontology, extraction,
-  entity resolution, and structured ingest all at once,
+- splitting files into a new shared namespace before the descriptor and starter
+  path prove their value,
+- introducing a dynamic plugin loader or registry framework,
 - genericizing Power Atlas-specific docs or operator flows prematurely,
-- treating the existence of `RetrievalPolicy` as proof that the broader reuse
-  extraction is already done.
+- treating the existence of many seams as proof that the broader reuse story is
+  already coherent.
 
 ## Immediate sequence
 
 The next bounded steps should proceed in this order:
 
 1. treat this document as the working extraction boundary,
-2. lock the current runtime/provider boundary around retrieval expansion policy
-  with focused package-level proofs,
-3. define the constrained second-domain pilot contract for the first non-Power
-  Atlas proof target,
-4. close any remaining implicit-default gaps in retrieval policy threading that
-  those focused proofs or pilot work uncover,
-5. re-evaluate whether the shared-core namespace split is justified after that
-   proof exists.
+2. formalize the domain contribution model with a lightweight
+  `DomainPackDescriptor`,
+3. retrofit the market/trade pack as the first descriptor-backed pack,
+4. add one starter/adoption path that shows how a new project would define its
+  own pack without `demo.*`,
+5. only then re-evaluate whether the shared-core namespace split is justified.
 
 ## Success condition for the broader reuse plan
 
 The repo should be considered ready for a shared-kernel extraction only after:
 
-- at least one policy seam has been made explicit and proven,
+- the current seam set is described through an explicit domain contribution
+  model,
 - the reusable-core candidates above no longer depend implicitly on Power Atlas
-  policy defaults,
-- a second app or constrained second-domain pilot can consume the shared runtime
-  without copying the current Power Atlas runtime modules.
+  defaults,
+- at least one non-`demo` consumer proof continues to work through that model,
+- the follow-on starter/diagnostics path suggests real user leverage rather
+  than abstract cleanliness alone.

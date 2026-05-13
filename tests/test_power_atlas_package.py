@@ -90,6 +90,7 @@ def test_package_modules_import() -> None:
     assert package.EARLY_RETURN_PRECEDENCE is contracts_module.EARLY_RETURN_PRECEDENCE
     assert package.EARLY_RETURN_RULE_BY_NAME is contracts_module.EARLY_RETURN_RULE_BY_NAME
     assert package.DatasetIdSelector is contracts_module.DatasetIdSelector
+    assert package.DomainPackDescriptor is bootstrap_module.DomainPackDescriptor
     assert (
         package.EntityResolutionAlignmentContract
         is contracts_module.EntityResolutionAlignmentContract
@@ -200,6 +201,10 @@ def test_package_modules_import() -> None:
     assert package.write_manifest is contracts_module.write_manifest
     assert package.write_manifest_md is contracts_module.write_manifest_md
     assert (
+        policy_packs_module.MARKET_TRADE_DOMAIN_PACK
+        is market_trade_policy_module.MARKET_TRADE_DOMAIN_PACK
+    )
+    assert (
         policy_packs_module.MARKET_TRADE_RETRIEVAL_POLICY
         is market_trade_policy_module.MARKET_TRADE_RETRIEVAL_POLICY
     )
@@ -210,6 +215,21 @@ def test_package_modules_import() -> None:
     assert (
         policy_packs_module.get_market_trade_retrieval_policy()
         is market_trade_policy_module.MARKET_TRADE_RETRIEVAL_POLICY
+    )
+    assert market_trade_policy_module.MARKET_TRADE_DOMAIN_PACK == bootstrap_module.DomainPackDescriptor(
+        name="market_trade",
+        version="v1",
+        provides=(
+            "retrieval_policy",
+            "entity_resolution_graph_contract",
+            "entity_resolution_canonical_lookup_contract",
+            "entity_resolution_alignment_contract",
+            "entity_resolution_dataset_selection_contract",
+        ),
+        examples=(
+            "examples/market_trade_retrieval_policy_consumer.py",
+            "examples/market_trade_entity_resolution_consumer.py",
+        ),
     )
     assert package.AppSettings is settings_module.AppSettings
     assert package.build_settings is bootstrap_module.build_settings

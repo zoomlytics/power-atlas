@@ -388,6 +388,14 @@ graph, canonical-lookup, alignment, and dataset-selection contracts, and
 delegates into the package-owned entity-resolution entrypoint through an
 injected consumer runtime.
 
+These examples are now mirrored by a lightweight domain contribution model.
+`src/power_atlas/policy_packs/market_trade.py` exports
+`MARKET_TRADE_DOMAIN_PACK`, a package-owned descriptor that records the
+market/trade pack name, version, provided seams, and example entrypoints.
+The descriptor lives in `power_atlas.bootstrap.DomainPackDescriptor` and is the
+first step toward making domain contribution explicit without introducing a
+plugin loader or a second runtime layer.
+
 `power_atlas.claim_extraction_entrypoint.run_claim_extraction(...)` /
 `run_claim_extraction_request_context(...)` and
 `power_atlas.entity_resolution_entrypoint.run_entity_resolution(...)` /

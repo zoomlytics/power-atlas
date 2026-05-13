@@ -62,6 +62,10 @@ The following second-domain proof now exists:
   `EntityResolutionDatasetSelectionContract`, and the package dataset-selection
   entrypoint path accepts it through
   `power_atlas.entity_resolution_entrypoint`,
+- `src/power_atlas/bootstrap/domain_pack.py` now defines a package-owned
+  `DomainPackDescriptor`, and
+  `src/power_atlas/policy_packs/market_trade.py` exports
+  `MARKET_TRADE_DOMAIN_PACK` as the first descriptor-backed domain pack,
 - `examples/market_trade_entity_resolution_consumer.py` now proves a
   package-only second-domain entity-resolution consumer can compose the
   market/trade graph, canonical-lookup, alignment, and dataset-selection
@@ -170,9 +174,9 @@ RequestContext/AppContext-backed configuration.
 This closes the last concrete hardcoded seam named in this gap inventory, and a
 package-only second-domain entity-resolution consumer proof now exists.
 The next question is no longer whether the current seam set can support a
-package-only second-domain consumer. The next question is whether the current
-seam set is already sufficient to pause extraction and evaluate a broader
-shared-kernel split.
+package-only second-domain consumer. The next question is whether those seams
+are now coherent enough, via a descriptor-backed domain contribution model, to
+pause extraction and evaluate a broader shared-kernel split.
 
 ## What is not a blocker at this checkpoint
 
@@ -189,6 +193,7 @@ The following are **not** currently the first blockers:
 - canonical id/run/name/aliases field names,
 - ordered alignment steps and emitted alignment metadata,
 - entity-resolution dataset selection strategy,
+- first-class domain pack metadata for the market/trade proof,
 - exact-match method names and confidence defaults,
 - package-owned retrieval request-context consumption.
 

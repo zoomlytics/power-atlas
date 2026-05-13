@@ -22,6 +22,7 @@ _EXPORTS = {
     "DatasetIdSelector": ("power_atlas.contracts", "DatasetIdSelector"),
     "DATASETS_CONTAINER_DIR": ("power_atlas.contracts", "DATASETS_CONTAINER_DIR"),
     "DatasetRoot": ("power_atlas.contracts", "DatasetRoot"),
+    "DomainPackDescriptor": ("power_atlas.bootstrap", "DomainPackDescriptor"),
     "EARLY_RETURN_PRECEDENCE": ("power_atlas.contracts", "EARLY_RETURN_PRECEDENCE"),
     "EARLY_RETURN_RULE_BY_NAME": ("power_atlas.contracts", "EARLY_RETURN_RULE_BY_NAME"),
     "EarlyReturnRule": ("power_atlas.contracts", "EarlyReturnRule"),

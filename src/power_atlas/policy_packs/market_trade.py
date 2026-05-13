@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from neo4j_graphrag.generation import RagTemplate
 
+from power_atlas.bootstrap import DomainPackDescriptor
 from power_atlas.contracts import RetrievalOntology, RetrievalPolicy
 
 
@@ -42,7 +43,25 @@ def get_market_trade_retrieval_policy() -> RetrievalPolicy:
     return MARKET_TRADE_RETRIEVAL_POLICY
 
 
+MARKET_TRADE_DOMAIN_PACK = DomainPackDescriptor(
+    name="market_trade",
+    version="v1",
+    provides=(
+        "retrieval_policy",
+        "entity_resolution_graph_contract",
+        "entity_resolution_canonical_lookup_contract",
+        "entity_resolution_alignment_contract",
+        "entity_resolution_dataset_selection_contract",
+    ),
+    examples=(
+        "examples/market_trade_retrieval_policy_consumer.py",
+        "examples/market_trade_entity_resolution_consumer.py",
+    ),
+)
+
+
 __all__ = [
+    "MARKET_TRADE_DOMAIN_PACK",
     "MARKET_TRADE_RETRIEVAL_ONTOLOGY",
     "MARKET_TRADE_RETRIEVAL_POLICY",
     "get_market_trade_retrieval_policy",

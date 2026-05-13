@@ -15,6 +15,7 @@ from power_atlas.bootstrap.clients import (
 	build_llm_for_settings,
 	create_neo4j_driver,
 )
+from power_atlas.bootstrap.domain_pack import DomainPackDescriptor
 
 __all__ = [
 	"AppBootstrap",
@@ -27,6 +28,7 @@ __all__ = [
 	"build_settings",
 	"create_neo4j_driver",
 	"dataset_env_selection",
+	"DomainPackDescriptor",
 	"has_openai_api_key",
 	"require_openai_api_key",
 	"temporary_environment",
