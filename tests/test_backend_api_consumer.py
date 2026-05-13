@@ -6,6 +6,7 @@ import json
 import os
 import subprocess
 import sys
+import textwrap
 from pathlib import Path
 
 import httpx
@@ -151,6 +152,258 @@ def test_public_api_facade_imports_from_outside_repo_when_installed(tmp_path: Pa
         "title": "Power Atlas API",
         "version": "3.0.0-installed-test",
         "paths": ["/", "/datasets", "/graph/status", "/health", "/runs", "/runs/current", "/runs/current/{stage_prefix}", "/runs/{run_id}"],
+    }
+
+
+def test_reusable_core_domain_pack_runs_from_outside_repo_when_installed(
+    tmp_path: Path,
+) -> None:
+    try:
+        importlib.metadata.version("power-atlas")
+    except importlib.metadata.PackageNotFoundError:
+        pytest.skip("requires power-atlas to be installed in the active environment")
+
+    repo_root = Path(__file__).resolve().parents[1]
+    env = _env_without_repo_pythonpath(repo_root)
+    script_path = tmp_path / "installed_domain_pack_consumer.py"
+    script_path.write_text(
+        textwrap.dedent(
+            """
+            from __future__ import annotations
+
+            import json
+            import re
+            from dataclasses import replace
+
+            from neo4j_graphrag.generation import RagTemplate
+
+            from power_atlas.bootstrap import DomainPackDescriptor, build_app_context, build_request_context
+            from power_atlas.contracts import (
+                EntityResolutionAlignmentContract,
+                EntityResolutionAlignmentStep,
+                EntityResolutionCanonicalLookupContract,
+                EntityResolutionDatasetSelectionContract,
+                EntityResolutionGraphContract,
+                RetrievalOntology,
+                RetrievalPolicy,
+            )
+            from power_atlas.entity_resolution_entrypoint import (
+                RESOLUTION_MODE_HYBRID,
+                run_entity_resolution,
+                run_entity_resolution_request_context,
+            )
+            from power_atlas.retrieval_request_context_adapters import run_retrieval_request_context
+
+
+            domain_pack = DomainPackDescriptor(
+                name="installed_research",
+                version="v1",
+                provides=(
+                    "retrieval_policy",
+                    "entity_resolution_graph_contract",
+                    "entity_resolution_canonical_lookup_contract",
+                    "entity_resolution_alignment_contract",
+                    "entity_resolution_dataset_selection_contract",
+                ),
+                examples=("consumer/installed_domain_pack_consumer.py",),
+            )
+
+            retrieval_policy = RetrievalPolicy(
+                ontology=RetrievalOntology(
+                    claim_label="InstalledClaim",
+                    mention_label="InstalledMention",
+                    cluster_label="InstalledCluster",
+                    canonical_label="InstalledEntity",
+                    supported_by_relationship="SUPPORTED_BY_INSTALLED_SOURCE",
+                    mentioned_in_relationship="MENTIONED_IN_INSTALLED_SOURCE",
+                    has_participant_relationship="HAS_INSTALLED_PARTICIPANT",
+                    resolves_to_relationship="RESOLVES_TO_INSTALLED_ENTITY",
+                    member_of_relationship="MEMBER_OF_INSTALLED_CLUSTER",
+                    aligned_with_relationship="ALIGNED_WITH_INSTALLED_ENTITY",
+                ),
+                qa_prompt_id="installed_qa_v1",
+                rag_template=RagTemplate(
+                    template=(
+                        "Installed context:\\n{context}\\n"
+                        "Examples:\\n{examples}\\n"
+                        "Question:\\n{query_text}\\n"
+                    ),
+                    system_instructions="Answer with installed research evidence.",
+                ),
+                default_expand_graph=True,
+                default_cluster_aware=True,
+            )
+            graph_contract = EntityResolutionGraphContract(
+                mention_label="InstalledMention",
+                canonical_label="InstalledEntity",
+                cluster_label="InstalledCluster",
+                resolves_to_relationship="RESOLVES_TO_INSTALLED_ENTITY",
+                member_of_relationship="MEMBER_OF_INSTALLED_CLUSTER",
+                candidate_match_relationship="CANDIDATE_INSTALLED_MATCH",
+                aligned_with_relationship="ALIGNED_WITH_INSTALLED_ENTITY",
+            )
+            canonical_lookup = EntityResolutionCanonicalLookupContract(
+                canonical_entity_id_field="installed_id",
+                canonical_run_id_field="installed_run_id",
+                canonical_name_field="installed_name",
+                canonical_aliases_field="installed_aliases",
+                qid_pattern=re.compile(r"^IR\\d+$"),
+                qid_exact_method="installed_id_exact",
+                label_exact_method="installed_label_exact",
+                alias_exact_method="installed_alias_exact",
+                unresolved_method="installed_cluster",
+                aligned_status="aligned",
+            )
+            alignment_contract = EntityResolutionAlignmentContract(
+                steps=(
+                    EntityResolutionAlignmentStep(
+                        lookup_table="alias",
+                        cluster_keys=lambda cluster: (cluster["normalized_text"].removeprefix("memo:"),),
+                        method="installed_alias",
+                        score=0.96,
+                        status="aligned",
+                    ),
+                    EntityResolutionAlignmentStep(
+                        lookup_table="label",
+                        method="installed_label_exact",
+                        score=0.9,
+                        status="tentative",
+                    ),
+                )
+            )
+            dataset_selection = EntityResolutionDatasetSelectionContract(
+                select_dataset_id=lambda config, dataset_id, dataset_name: (
+                    dataset_id
+                    or f"installed-canonicals::{dataset_name or getattr(config, 'dataset_name', 'missing')}"
+                )
+            )
+
+            app_context = build_app_context(environ={"POWER_ATLAS_DATASET": "installed_dataset_v1"})
+            app_context = replace(
+                app_context,
+                policies=replace(app_context.policies, retrieval=retrieval_policy),
+            )
+
+            retrieval_request_context = build_request_context(
+                app_context,
+                command="ask",
+                dry_run=True,
+                question="Which installed retrieval policy was forwarded?",
+                run_id="installed-retrieval-run",
+                source_uri="file:///installed/source.pdf",
+            )
+            entity_resolution_request_context = build_request_context(
+                app_context,
+                command="resolve",
+                dry_run=True,
+                resolution_mode=RESOLUTION_MODE_HYBRID,
+                run_id="installed-resolution-run",
+                source_uri="file:///installed/source.pdf",
+            )
+
+            retrieval_result = run_retrieval_request_context(
+                retrieval_request_context,
+                top_k=2,
+                index_name=None,
+                question=None,
+                expand_graph=None,
+                cluster_aware=None,
+                message_history=None,
+                interactive=False,
+                run_impl=lambda config, **kwargs: {
+                    "question": kwargs["question"],
+                    "run_id": kwargs["run_id"],
+                    "qa_prompt_id": kwargs["retrieval_policy"].qa_prompt_id,
+                    "claim_label": kwargs["retrieval_policy"].ontology.claim_label,
+                    "cluster_aware": kwargs["retrieval_policy"].default_cluster_aware,
+                },
+            )
+
+            def _runtime_runner(**kwargs: object) -> dict[str, object]:
+                runtime_graph = kwargs["entity_resolution_graph"]
+                runtime_lookup = kwargs["entity_resolution_canonical_lookup"]
+                runtime_alignment = kwargs["entity_resolution_alignment"]
+                return {
+                    "run_id": kwargs["run_id"],
+                    "resolution_mode": kwargs["resolution_mode"],
+                    "effective_dataset_id": kwargs["effective_dataset_id"],
+                    "canonical_label": runtime_graph.canonical_label,
+                    "entity_id_field": runtime_lookup.canonical_entity_id_field,
+                    "alignment_methods": [step.method for step in runtime_alignment.steps],
+                }
+
+            def _config_runner(config: object, **kwargs: object) -> dict[str, object]:
+                return run_entity_resolution(
+                    config,
+                    runtime_runner=_runtime_runner,
+                    **kwargs,
+                )
+
+            entity_resolution_result = run_entity_resolution_request_context(
+                entity_resolution_request_context,
+                resolution_mode=RESOLUTION_MODE_HYBRID,
+                entity_resolution_dataset_selection=dataset_selection,
+                entity_resolution_alignment=alignment_contract,
+                entity_resolution_canonical_lookup=canonical_lookup,
+                entity_resolution_graph=graph_contract,
+                config_runner=_config_runner,
+            )
+
+            print(
+                json.dumps(
+                    {
+                        "domain_pack": {
+                            "name": domain_pack.name,
+                            "version": domain_pack.version,
+                            "provides": list(domain_pack.provides),
+                        },
+                        "retrieval": retrieval_result,
+                        "entity_resolution": entity_resolution_result,
+                    },
+                    sort_keys=True,
+                )
+            )
+            """
+        ).lstrip(),
+        encoding="utf-8",
+    )
+
+    completed = subprocess.run(
+        [sys.executable, str(script_path)],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        check=True,
+        text=True,
+    )
+
+    assert json.loads(completed.stdout) == {
+        "domain_pack": {
+            "name": "installed_research",
+            "provides": [
+                "retrieval_policy",
+                "entity_resolution_graph_contract",
+                "entity_resolution_canonical_lookup_contract",
+                "entity_resolution_alignment_contract",
+                "entity_resolution_dataset_selection_contract",
+            ],
+            "version": "v1",
+        },
+        "entity_resolution": {
+            "alignment_methods": ["installed_alias", "installed_label_exact"],
+            "canonical_label": "InstalledEntity",
+            "effective_dataset_id": "installed-canonicals::installed_dataset_v1",
+            "entity_id_field": "installed_id",
+            "resolution_mode": "hybrid",
+            "run_id": "installed-resolution-run",
+        },
+        "retrieval": {
+            "claim_label": "InstalledClaim",
+            "cluster_aware": True,
+            "qa_prompt_id": "installed_qa_v1",
+            "question": "Which installed retrieval policy was forwarded?",
+            "run_id": "installed-retrieval-run",
+        },
     }
 
 
