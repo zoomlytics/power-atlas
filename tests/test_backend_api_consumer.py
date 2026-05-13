@@ -15,6 +15,30 @@ from power_atlas.api import BackendAppOptions, create_backend_app
 from power_atlas.contracts import resolve_dataset_root
 
 
+def _env_without_repo_pythonpath(repo_root: Path) -> dict[str, str]:
+    repo_src = repo_root / "src"
+    env = os.environ.copy()
+    pythonpath = env.get("PYTHONPATH")
+    if pythonpath:
+        filtered_entries = []
+        for raw_entry in pythonpath.split(os.pathsep):
+            if not raw_entry:
+                continue
+            try:
+                resolved_entry = Path(raw_entry).resolve()
+            except OSError:
+                filtered_entries.append(raw_entry)
+                continue
+            if resolved_entry in {repo_root.resolve(), repo_src.resolve()}:
+                continue
+            filtered_entries.append(raw_entry)
+        if filtered_entries:
+            env["PYTHONPATH"] = os.pathsep.join(filtered_entries)
+        else:
+            env.pop("PYTHONPATH", None)
+    return env
+
+
 def test_public_api_facade_supports_consumer_app_smoke() -> None:
     consumer_app = create_backend_app(
         BackendAppOptions(version="2.0.0-test"),
@@ -94,26 +118,7 @@ def test_public_api_facade_imports_from_outside_repo_when_installed(tmp_path: Pa
         pytest.skip("requires power-atlas to be installed in the active environment")
 
     repo_root = Path(__file__).resolve().parents[1]
-    repo_src = repo_root / "src"
-    env = os.environ.copy()
-    pythonpath = env.get("PYTHONPATH")
-    if pythonpath:
-        filtered_entries = []
-        for raw_entry in pythonpath.split(os.pathsep):
-            if not raw_entry:
-                continue
-            try:
-                resolved_entry = Path(raw_entry).resolve()
-            except OSError:
-                filtered_entries.append(raw_entry)
-                continue
-            if resolved_entry in {repo_root.resolve(), repo_src.resolve()}:
-                continue
-            filtered_entries.append(raw_entry)
-        if filtered_entries:
-            env["PYTHONPATH"] = os.pathsep.join(filtered_entries)
-        else:
-            env.pop("PYTHONPATH", None)
+    env = _env_without_repo_pythonpath(repo_root)
 
     script = "\n".join(
         [
@@ -149,6 +154,25 @@ def test_public_api_facade_imports_from_outside_repo_when_installed(tmp_path: Pa
     }
 
 
+def test_installed_console_script_set_matches_public_cli_contract() -> None:
+    try:
+        distribution = importlib.metadata.distribution("power-atlas")
+    except importlib.metadata.PackageNotFoundError:
+        pytest.skip("requires power-atlas to be installed in the active environment")
+
+    console_scripts = sorted(
+        entry_point.name
+        for entry_point in distribution.entry_points
+        if entry_point.group == "console_scripts"
+    )
+
+    assert console_scripts == [
+        "power-atlas-claim-diagnostics-report",
+        "power-atlas-graph-health-diagnostics",
+        "power-atlas-retrieval-benchmark",
+    ]
+
+
 def test_graph_health_cli_runs_from_outside_repo_when_installed(tmp_path: Path) -> None:
     try:
         importlib.metadata.version("power-atlas")
@@ -156,26 +180,7 @@ def test_graph_health_cli_runs_from_outside_repo_when_installed(tmp_path: Path) 
         pytest.skip("requires power-atlas to be installed in the active environment")
 
     repo_root = Path(__file__).resolve().parents[1]
-    repo_src = repo_root / "src"
-    env = os.environ.copy()
-    pythonpath = env.get("PYTHONPATH")
-    if pythonpath:
-        filtered_entries = []
-        for raw_entry in pythonpath.split(os.pathsep):
-            if not raw_entry:
-                continue
-            try:
-                resolved_entry = Path(raw_entry).resolve()
-            except OSError:
-                filtered_entries.append(raw_entry)
-                continue
-            if resolved_entry in {repo_root.resolve(), repo_src.resolve()}:
-                continue
-            filtered_entries.append(raw_entry)
-        if filtered_entries:
-            env["PYTHONPATH"] = os.pathsep.join(filtered_entries)
-        else:
-            env.pop("PYTHONPATH", None)
+    env = _env_without_repo_pythonpath(repo_root)
 
     completed = subprocess.run(
         ["power-atlas-graph-health-diagnostics", "--help"],
@@ -189,6 +194,56 @@ def test_graph_health_cli_runs_from_outside_repo_when_installed(tmp_path: Path) 
     assert "Generate a repeatable graph-health diagnostics artifact." in completed.stdout
     assert "--alignment-version" in completed.stdout
     assert "--neo4j-password" in completed.stdout
+
+
+def test_retrieval_benchmark_cli_runs_from_outside_repo_when_installed(
+    tmp_path: Path,
+) -> None:
+    try:
+        importlib.metadata.version("power-atlas")
+    except importlib.metadata.PackageNotFoundError:
+        pytest.skip("requires power-atlas to be installed in the active environment")
+
+    repo_root = Path(__file__).resolve().parents[1]
+    env = _env_without_repo_pythonpath(repo_root)
+
+    completed = subprocess.run(
+        ["power-atlas-retrieval-benchmark", "--help"],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        check=True,
+        text=True,
+    )
+
+    assert "Run the post-hybrid retrieval benchmark and write a JSON artifact." in completed.stdout
+    assert "--dataset-id" in completed.stdout
+    assert "--neo4j-password" in completed.stdout
+
+
+def test_claim_diagnostics_cli_runs_from_outside_repo_when_installed(
+    tmp_path: Path,
+) -> None:
+    try:
+        importlib.metadata.version("power-atlas")
+    except importlib.metadata.PackageNotFoundError:
+        pytest.skip("requires power-atlas to be installed in the active environment")
+
+    repo_root = Path(__file__).resolve().parents[1]
+    env = _env_without_repo_pythonpath(repo_root)
+
+    completed = subprocess.run(
+        ["power-atlas-claim-diagnostics-report", "--help"],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        check=True,
+        text=True,
+    )
+
+    assert "Read and format a persisted claim-extraction diagnostics artifact." in completed.stdout
+    assert "--current" in completed.stdout
+    assert "--output-dir" in completed.stdout
 
 
 def test_backend_api_consumer_example_script_runs() -> None:
