@@ -149,6 +149,48 @@ def test_public_api_facade_imports_from_outside_repo_when_installed(tmp_path: Pa
     }
 
 
+def test_graph_health_cli_runs_from_outside_repo_when_installed(tmp_path: Path) -> None:
+    try:
+        importlib.metadata.version("power-atlas")
+    except importlib.metadata.PackageNotFoundError:
+        pytest.skip("requires power-atlas to be installed in the active environment")
+
+    repo_root = Path(__file__).resolve().parents[1]
+    repo_src = repo_root / "src"
+    env = os.environ.copy()
+    pythonpath = env.get("PYTHONPATH")
+    if pythonpath:
+        filtered_entries = []
+        for raw_entry in pythonpath.split(os.pathsep):
+            if not raw_entry:
+                continue
+            try:
+                resolved_entry = Path(raw_entry).resolve()
+            except OSError:
+                filtered_entries.append(raw_entry)
+                continue
+            if resolved_entry in {repo_root.resolve(), repo_src.resolve()}:
+                continue
+            filtered_entries.append(raw_entry)
+        if filtered_entries:
+            env["PYTHONPATH"] = os.pathsep.join(filtered_entries)
+        else:
+            env.pop("PYTHONPATH", None)
+
+    completed = subprocess.run(
+        ["power-atlas-graph-health-diagnostics", "--help"],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        check=True,
+        text=True,
+    )
+
+    assert "Generate a repeatable graph-health diagnostics artifact." in completed.stdout
+    assert "--alignment-version" in completed.stdout
+    assert "--neo4j-password" in completed.stdout
+
+
 def test_backend_api_consumer_example_script_runs() -> None:
     repo_root = Path(__file__).resolve().parents[1]
     completed = subprocess.run(

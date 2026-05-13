@@ -299,6 +299,22 @@ the installable wrapper [`graph_health_diagnostics.py`](src/power_atlas/cli/grap
 the console command `power-atlas-graph-health-diagnostics`, and the retained
 repo-local script [`pipelines/query/graph_health_diagnostics.py`](pipelines/query/graph_health_diagnostics.py).
 
+### Public CLI contract
+
+The current public CLI contract is intentionally flat: each installable
+capability gets one explicit `power-atlas-<capability>` console command rather
+than a single multi-command dispatcher. The commands added so far are:
+
+- `power-atlas-claim-diagnostics-report`
+- `power-atlas-graph-health-diagnostics`
+- `power-atlas-retrieval-benchmark`
+
+This naming pattern is the supported installed-package surface for now. The
+matching `pipelines/query/*.py` scripts remain accepted repo-local operator
+shims for users working inside this checkout, but new package-consumer docs and
+tests should prefer the installable `power-atlas-*` commands unless a workflow
+specifically depends on repo-relative paths.
+
 The backend API surface now has a first-class owning facade at
 `power_atlas.api`. That module now owns the backend app contract, including
 typed response models plus app-construction helpers such as
