@@ -80,6 +80,35 @@ class EntityResolutionAlignmentContract:
 POWER_ATLAS_ENTITY_RESOLUTION_ALIGNMENT_CONTRACT = EntityResolutionAlignmentContract()
 
 
+DatasetIdSelector = Callable[[Any, str | None, str | None], str | None]
+
+
+def _default_select_dataset_id(
+	config: Any,
+	dataset_id: str | None,
+	dataset_name: str | None,
+) -> str | None:
+	if isinstance(dataset_id, str) and dataset_id:
+		return dataset_id
+
+	configured_dataset_name = dataset_name or getattr(config, "dataset_name", None)
+	if isinstance(configured_dataset_name, str) and configured_dataset_name:
+		from power_atlas.contracts.paths import resolve_dataset_root
+
+		return resolve_dataset_root(configured_dataset_name).dataset_id
+	return None
+
+
+@dataclass(frozen=True)
+class EntityResolutionDatasetSelectionContract:
+	select_dataset_id: DatasetIdSelector = _default_select_dataset_id
+
+
+POWER_ATLAS_ENTITY_RESOLUTION_DATASET_SELECTION_CONTRACT = (
+	EntityResolutionDatasetSelectionContract()
+)
+
+
 def get_default_entity_resolution_graph_contract() -> EntityResolutionGraphContract:
 	return POWER_ATLAS_ENTITY_RESOLUTION_GRAPH_CONTRACT
 
@@ -92,17 +121,25 @@ def get_default_entity_resolution_alignment_contract() -> EntityResolutionAlignm
 	return POWER_ATLAS_ENTITY_RESOLUTION_ALIGNMENT_CONTRACT
 
 
+def get_default_entity_resolution_dataset_selection_contract() -> EntityResolutionDatasetSelectionContract:
+	return POWER_ATLAS_ENTITY_RESOLUTION_DATASET_SELECTION_CONTRACT
+
+
 __all__ = [
 	"ALIGNMENT_VERSION",
 	"AlignmentKeyBuilder",
+	"DatasetIdSelector",
 	"EntityResolutionAlignmentContract",
 	"EntityResolutionAlignmentStep",
 	"EntityResolutionCanonicalLookupContract",
+	"EntityResolutionDatasetSelectionContract",
 	"EntityResolutionGraphContract",
 	"POWER_ATLAS_ENTITY_RESOLUTION_ALIGNMENT_CONTRACT",
 	"POWER_ATLAS_ENTITY_RESOLUTION_CANONICAL_LOOKUP_CONTRACT",
+	"POWER_ATLAS_ENTITY_RESOLUTION_DATASET_SELECTION_CONTRACT",
 	"POWER_ATLAS_ENTITY_RESOLUTION_GRAPH_CONTRACT",
 	"get_default_entity_resolution_alignment_contract",
 	"get_default_entity_resolution_canonical_lookup_contract",
+	"get_default_entity_resolution_dataset_selection_contract",
 	"get_default_entity_resolution_graph_contract",
 ]

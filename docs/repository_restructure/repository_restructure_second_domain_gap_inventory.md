@@ -57,6 +57,10 @@ The following second-domain proof now exists:
   runtime, and entrypoint paths accept it through
   `power_atlas.entity_resolution_alignment`,
   `power_atlas.entity_resolution_runner`, and
+  `power_atlas.entity_resolution_entrypoint`,
+- `src/power_atlas/contracts/resolution.py` now also defines a package-owned
+  `EntityResolutionDatasetSelectionContract`, and the package dataset-selection
+  entrypoint path accepts it through
   `power_atlas.entity_resolution_entrypoint`.
 
 That proof is sufficient to close the question of whether a second-domain
@@ -146,17 +150,23 @@ That reduces the remaining blocker again: alternate domains can now change the
 package-owned alignment strategy without editing shared alignment code, as long
 as the strategy can be expressed in terms of lookup-table steps.
 
-### 4. Dataset selection is still fixed to the current package flow
+### 4. Dataset selection is now configurable at the entity-resolution entrypoint
 
-`src/power_atlas/entity_resolution_entrypoint.py` still resolves the effective
-dataset through the current dataset-root path, and
-`src/power_atlas/entity_resolution_runtime.py` still assumes canonical lookup is
-performed against dataset-scoped canonical rows selected through the current
-dataset-resolution flow.
+`EntityResolutionDatasetSelectionContract` now externalizes the dataset-id
+selection function used by `power_atlas.entity_resolution_entrypoint` before the
+runtime is invoked.
 
-That means a second domain can now rename both the graph vocabulary and the
-canonical lookup field surface, but it still cannot replace the dataset
-selection strategy itself without editing shared implementation code.
+That means a second domain can now choose how canonical lookup datasets are
+selected without editing shared implementation code. A domain can keep the
+current dataset-root behavior, provide a different mapping from dataset name to
+canonical dataset id, or source the canonical dataset id from some other
+RequestContext/AppContext-backed configuration.
+
+This closes the last concrete hardcoded seam named in this gap inventory.
+The next question is no longer which adjacent contract is fixed. The next
+question is whether the second-domain pilot now warrants a package-only
+entity-resolution consumer proof, or whether the current seam set is already
+sufficient to pause extraction and evaluate a broader shared-kernel split.
 
 ## What is not a blocker at this checkpoint
 
@@ -172,6 +182,7 @@ The following are **not** currently the first blockers:
 - entity-resolution labels and relationship types,
 - canonical id/run/name/aliases field names,
 - ordered alignment steps and emitted alignment metadata,
+- entity-resolution dataset selection strategy,
 - exact-match method names and confidence defaults,
 - package-owned retrieval request-context consumption.
 
@@ -182,17 +193,18 @@ pilot proof plus the structured ingest contracts.
 
 The next extraction slices should proceed in this order:
 
-1. decide whether dataset selection should also become an explicit package
-  contract,
+1. decide whether the second-domain pilot now needs a package-only
+  entity-resolution consumer proof,
 2. only then decide whether the second-domain pilot warrants a broader shared
   kernel namespace split.
 
 ## Minimum acceptance for the next slice
 
-The next reuse slice should be considered sufficient only if it decides whether
-dataset selection should become a package-owned contract rather than remaining
-tied to the current dataset-root resolution path.
+The next reuse slice should be considered sufficient only if it proves whether
+the existing package seams are enough for a package-only second-domain
+entity-resolution consumer.
 
 The structured ingest layer, entity-resolution graph vocabulary, and canonical
-lookup and alignment strategy surfaces are now materially improved. The next
-meaningful reduction is dataset selection if the second-domain pilot requires it.
+lookup, alignment strategy, and dataset-selection surfaces are now materially
+improved. The next meaningful step is a package-only second-domain proof, then
+a decision about whether further kernel splitting is warranted.

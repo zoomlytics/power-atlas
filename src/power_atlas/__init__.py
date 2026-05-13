@@ -19,6 +19,7 @@ _EXPORTS = {
     "CONFIG_DIR": ("power_atlas.contracts", "CONFIG_DIR"),
     "CSV_FIRST_DATA_ROW": ("power_atlas.contracts", "CSV_FIRST_DATA_ROW"),
     "Config": ("power_atlas.contracts", "Config"),
+    "DatasetIdSelector": ("power_atlas.contracts", "DatasetIdSelector"),
     "DATASETS_CONTAINER_DIR": ("power_atlas.contracts", "DATASETS_CONTAINER_DIR"),
     "DatasetRoot": ("power_atlas.contracts", "DatasetRoot"),
     "EARLY_RETURN_PRECEDENCE": ("power_atlas.contracts", "EARLY_RETURN_PRECEDENCE"),
@@ -35,6 +36,10 @@ _EXPORTS = {
     "EntityResolutionCanonicalLookupContract": (
         "power_atlas.contracts",
         "EntityResolutionCanonicalLookupContract",
+    ),
+    "EntityResolutionDatasetSelectionContract": (
+        "power_atlas.contracts",
+        "EntityResolutionDatasetSelectionContract",
     ),
     "EntityResolutionGraphContract": (
         "power_atlas.contracts",
@@ -55,6 +60,10 @@ _EXPORTS = {
     "POWER_ATLAS_ENTITY_RESOLUTION_CANONICAL_LOOKUP_CONTRACT": (
         "power_atlas.contracts",
         "POWER_ATLAS_ENTITY_RESOLUTION_CANONICAL_LOOKUP_CONTRACT",
+    ),
+    "POWER_ATLAS_ENTITY_RESOLUTION_DATASET_SELECTION_CONTRACT": (
+        "power_atlas.contracts",
+        "POWER_ATLAS_ENTITY_RESOLUTION_DATASET_SELECTION_CONTRACT",
     ),
     "POWER_ATLAS_ENTITY_RESOLUTION_GRAPH_CONTRACT": (
         "power_atlas.contracts",
@@ -111,6 +120,10 @@ _EXPORTS = {
     "get_default_entity_resolution_canonical_lookup_contract": (
         "power_atlas.contracts",
         "get_default_entity_resolution_canonical_lookup_contract",
+    ),
+    "get_default_entity_resolution_dataset_selection_contract": (
+        "power_atlas.contracts",
+        "get_default_entity_resolution_dataset_selection_contract",
     ),
     "get_default_entity_resolution_graph_contract": (
         "power_atlas.contracts",

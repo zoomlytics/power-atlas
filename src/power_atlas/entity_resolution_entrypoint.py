@@ -6,8 +6,9 @@ from power_atlas.context import RequestContext
 from power_atlas.contracts import (
     EntityResolutionAlignmentContract,
     EntityResolutionCanonicalLookupContract,
+    EntityResolutionDatasetSelectionContract,
     EntityResolutionGraphContract,
-    resolve_dataset_root,
+    get_default_entity_resolution_dataset_selection_contract,
 )
 from power_atlas.settings import Neo4jSettings
 
@@ -46,13 +47,20 @@ def resolve_effective_dataset_id(
     dataset_id: str | None,
     *,
     dataset_name: str | None = None,
+    entity_resolution_dataset_selection: EntityResolutionDatasetSelectionContract | None = None,
 ) -> str:
-    if isinstance(dataset_id, str) and dataset_id:
-        return dataset_id
-
-    configured_dataset_name = dataset_name or getattr(config, "dataset_name", None)
-    if isinstance(configured_dataset_name, str) and configured_dataset_name:
-        return resolve_dataset_root(configured_dataset_name).dataset_id
+    resolved_dataset_selection = (
+        get_default_entity_resolution_dataset_selection_contract()
+        if entity_resolution_dataset_selection is None
+        else entity_resolution_dataset_selection
+    )
+    effective_dataset_id = resolved_dataset_selection.select_dataset_id(
+        config,
+        dataset_id,
+        dataset_name,
+    )
+    if isinstance(effective_dataset_id, str) and effective_dataset_id:
+        return effective_dataset_id
     raise ValueError(
         "Entity resolution requires an explicit dataset_id or config.dataset_name from "
         "RequestContext/AppContext-backed config"
@@ -76,6 +84,7 @@ def _default_config_runner(
     neo4j_settings: Neo4jSettings | None = None,
     dataset_name: str | None = None,
     entity_type_policy: Any = None,
+    entity_resolution_dataset_selection: EntityResolutionDatasetSelectionContract | None = None,
     entity_resolution_alignment: EntityResolutionAlignmentContract | None = None,
     entity_resolution_canonical_lookup: EntityResolutionCanonicalLookupContract | None = None,
     entity_resolution_graph: EntityResolutionGraphContract | None = None,
@@ -90,6 +99,7 @@ def _default_config_runner(
         neo4j_settings=neo4j_settings,
         dataset_name=dataset_name,
         entity_type_policy=entity_type_policy,
+        entity_resolution_dataset_selection=entity_resolution_dataset_selection,
         entity_resolution_alignment=entity_resolution_alignment,
         entity_resolution_canonical_lookup=entity_resolution_canonical_lookup,
         entity_resolution_graph=entity_resolution_graph,
@@ -107,6 +117,7 @@ def run_entity_resolution(
     neo4j_settings: Neo4jSettings | None = None,
     dataset_name: str | None = None,
     entity_type_policy: Any = None,
+    entity_resolution_dataset_selection: EntityResolutionDatasetSelectionContract | None = None,
     entity_resolution_alignment: EntityResolutionAlignmentContract | None = None,
     entity_resolution_canonical_lookup: EntityResolutionCanonicalLookupContract | None = None,
     entity_resolution_graph: EntityResolutionGraphContract | None = None,
@@ -130,6 +141,7 @@ def run_entity_resolution(
         config,
         dataset_id,
         dataset_name=dataset_name,
+        entity_resolution_dataset_selection=entity_resolution_dataset_selection,
     )
     resolved_neo4j_settings = neo4j_settings_from_config(config, neo4j_settings)
     resolved_runtime_runner = runtime_runner or _default_runtime_runner()
@@ -154,6 +166,7 @@ def run_entity_resolution_request_context(
     resolution_mode: str | None = None,
     artifact_subdir: str = "entity_resolution",
     dataset_id: str | None = None,
+    entity_resolution_dataset_selection: EntityResolutionDatasetSelectionContract | None = None,
     entity_resolution_alignment: EntityResolutionAlignmentContract | None = None,
     entity_resolution_canonical_lookup: EntityResolutionCanonicalLookupContract | None = None,
     entity_resolution_graph: EntityResolutionGraphContract | None = None,
@@ -174,6 +187,7 @@ def run_entity_resolution_request_context(
         neo4j_settings=request_context.settings.neo4j,
         dataset_name=request_context.settings.dataset_name,
         entity_type_policy=request_context.policies.entity_type_normalization,
+        entity_resolution_dataset_selection=entity_resolution_dataset_selection,
         entity_resolution_alignment=entity_resolution_alignment,
         entity_resolution_canonical_lookup=entity_resolution_canonical_lookup,
         entity_resolution_graph=entity_resolution_graph,

@@ -89,6 +89,7 @@ def test_package_modules_import() -> None:
     assert package.EarlyReturnRule is contracts_module.EarlyReturnRule
     assert package.EARLY_RETURN_PRECEDENCE is contracts_module.EARLY_RETURN_PRECEDENCE
     assert package.EARLY_RETURN_RULE_BY_NAME is contracts_module.EARLY_RETURN_RULE_BY_NAME
+    assert package.DatasetIdSelector is contracts_module.DatasetIdSelector
     assert (
         package.EntityResolutionAlignmentContract
         is contracts_module.EntityResolutionAlignmentContract
@@ -100,6 +101,10 @@ def test_package_modules_import() -> None:
     assert (
         package.EntityResolutionCanonicalLookupContract
         is contracts_module.EntityResolutionCanonicalLookupContract
+    )
+    assert (
+        package.EntityResolutionDatasetSelectionContract
+        is contracts_module.EntityResolutionDatasetSelectionContract
     )
     assert package.EntityResolutionGraphContract is contracts_module.EntityResolutionGraphContract
     assert package.EntityTypeNormalizationPolicy is contracts_module.EntityTypeNormalizationPolicy
@@ -140,6 +145,10 @@ def test_package_modules_import() -> None:
         is contracts_module.POWER_ATLAS_ENTITY_RESOLUTION_CANONICAL_LOOKUP_CONTRACT
     )
     assert (
+        package.POWER_ATLAS_ENTITY_RESOLUTION_DATASET_SELECTION_CONTRACT
+        is contracts_module.POWER_ATLAS_ENTITY_RESOLUTION_DATASET_SELECTION_CONTRACT
+    )
+    assert (
         package.POWER_ATLAS_ENTITY_RESOLUTION_GRAPH_CONTRACT
         is contracts_module.POWER_ATLAS_ENTITY_RESOLUTION_GRAPH_CONTRACT
     )
@@ -165,6 +174,10 @@ def test_package_modules_import() -> None:
     assert (
         package.get_default_entity_resolution_canonical_lookup_contract
         is contracts_module.get_default_entity_resolution_canonical_lookup_contract
+    )
+    assert (
+        package.get_default_entity_resolution_dataset_selection_contract
+        is contracts_module.get_default_entity_resolution_dataset_selection_contract
     )
     assert (
         package.get_default_entity_resolution_graph_contract
@@ -545,6 +558,36 @@ def test_claim_extraction_entrypoint_uses_package_default_runtime_runner() -> No
 
     assert result == result_payload
     default_runtime_runner.assert_called_once_with()
+
+
+def test_run_entity_resolution_accepts_custom_dataset_selection_contract() -> None:
+    from power_atlas import entity_resolution_entrypoint
+    from power_atlas.contracts import EntityResolutionDatasetSelectionContract
+    from power_atlas.settings import Neo4jSettings
+
+    dataset_selection = EntityResolutionDatasetSelectionContract(
+        select_dataset_id=lambda config, dataset_id, dataset_name: (
+            f"market::{dataset_name or getattr(config, 'dataset_name', 'missing')}::canonicals"
+        )
+    )
+    runtime_runner = mock.Mock(return_value={"status": "ok"})
+    config = SimpleNamespace(dataset_name="demo_dataset_v1")
+
+    result = entity_resolution_entrypoint.run_entity_resolution(
+        config,
+        run_id="run-123",
+        source_uri="file:///example/doc.pdf",
+        resolution_mode=entity_resolution_entrypoint.RESOLUTION_MODE_HYBRID,
+        dataset_name="market_trade_dataset_v1",
+        neo4j_settings=Neo4jSettings(),
+        entity_resolution_dataset_selection=dataset_selection,
+        runtime_runner=runtime_runner,
+    )
+
+    assert result == {"status": "ok"}
+    assert runtime_runner.call_args.kwargs["effective_dataset_id"] == (
+        "market::market_trade_dataset_v1::canonicals"
+    )
 
 
 def test_claim_extraction_request_context_uses_package_default_config_runner() -> None:
@@ -1069,10 +1112,31 @@ def test_entity_resolution_request_context_uses_package_default_config_runner() 
         neo4j_settings=request_context.settings.neo4j,
         dataset_name="demo_dataset_v1",
         entity_type_policy=request_context.policies.entity_type_normalization,
+        entity_resolution_dataset_selection=None,
         entity_resolution_alignment=None,
         entity_resolution_canonical_lookup=None,
         entity_resolution_graph=None,
     )
+
+
+def test_resolve_effective_dataset_id_accepts_custom_dataset_selection_contract() -> None:
+    from power_atlas.contracts import EntityResolutionDatasetSelectionContract
+    from power_atlas.entity_resolution_entrypoint import resolve_effective_dataset_id
+
+    dataset_selection = EntityResolutionDatasetSelectionContract(
+        select_dataset_id=lambda config, dataset_id, dataset_name: (
+            f"custom::{dataset_name or getattr(config, 'dataset_name', 'missing')}"
+        )
+    )
+
+    result = resolve_effective_dataset_id(
+        SimpleNamespace(dataset_name="demo_dataset_v1"),
+        None,
+        dataset_name="market_trade_dataset_v1",
+        entity_resolution_dataset_selection=dataset_selection,
+    )
+
+    assert result == "custom::market_trade_dataset_v1"
 
 
 def test_fetch_canonical_entities_accepts_custom_entity_resolution_canonical_lookup_contract() -> None:
