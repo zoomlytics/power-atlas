@@ -132,6 +132,7 @@ _EXPORTS = {
         "get_default_entity_resolution_graph_contract",
     ),
     "get_default_entity_type_normalization_policy": ("power_atlas.contracts", "get_default_entity_type_normalization_policy"),
+    "graph_health_diagnostics": ("power_atlas.graph_health_diagnostics", None),
     "list_available_datasets": ("power_atlas.contracts", "list_available_datasets"),
     "make_run_id": ("power_atlas.contracts", "make_run_id"),
     "normalize_entity_type": ("power_atlas.contracts", "normalize_entity_type"),

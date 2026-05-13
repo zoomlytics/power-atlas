@@ -50,7 +50,9 @@ from power_atlas.interfaces.cli.graph_health_diagnostics_support import (  # noq
 from power_atlas.interfaces.cli.graph_health_diagnostics_entrypoint import (  # noqa: E402
     run_graph_health_diagnostics_main,
 )
-from demo.stages.graph_health import run_graph_health_diagnostics_request_context  # noqa: E402
+from power_atlas.graph_health_diagnostics import (  # noqa: E402
+    run_graph_health_diagnostics_request_context,
+)
 
 # Base output directory — the parent of `runs/`, matching Config.output_dir conventions.
 # Artifacts land in <_PIPELINES_DIR>/runs/<run_id>/graph_health/ by default.

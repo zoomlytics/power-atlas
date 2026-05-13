@@ -181,6 +181,21 @@ def test_retrieval_benchmark_package_module_help_runs() -> None:
     assert "--neo4j-password" in completed.stdout
 
 
+def test_graph_health_diagnostics_package_module_help_runs() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    completed = subprocess.run(
+        [sys.executable, "-m", "power_atlas.cli.graph_health_diagnostics", "--help"],
+        cwd=repo_root,
+        capture_output=True,
+        check=True,
+        text=True,
+    )
+
+    assert "Generate a repeatable graph-health diagnostics artifact." in completed.stdout
+    assert "--alignment-version" in completed.stdout
+    assert "--neo4j-password" in completed.stdout
+
+
 def test_retrieval_policy_consumer_example_script_runs() -> None:
     repo_root = Path(__file__).resolve().parents[1]
     completed = subprocess.run(

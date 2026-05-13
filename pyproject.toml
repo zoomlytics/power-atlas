@@ -27,6 +27,7 @@ dev = [
 
 [project.scripts]
 power-atlas-claim-diagnostics-report = "power_atlas.cli.claim_extraction_diagnostics_report:main"
+power-atlas-graph-health-diagnostics = "power_atlas.cli.graph_health_diagnostics:main"
 power-atlas-retrieval-benchmark = "power_atlas.cli.retrieval_benchmark:main"
 
 [tool.setuptools.package-dir]

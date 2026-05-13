@@ -1553,6 +1553,10 @@ tool. Running the documented manual diagnostics CLI seam
 in one pass and writes a scoped JSON artifact to disk that can be committed,
 compared across runs, and used for regression tracking.
 
+Installed-package callers can use the `power-atlas-graph-health-diagnostics`
+console command; the examples below stay focused on the repo-local
+`pipelines/query` path.
+
 ### Generating the artifact
 
 ```bash

@@ -30,6 +30,9 @@ def test_package_modules_import() -> None:
     claim_extraction_diagnostics_module = importlib.import_module(
         "power_atlas.claim_extraction_diagnostics"
     )
+    graph_health_diagnostics_module = importlib.import_module(
+        "power_atlas.graph_health_diagnostics"
+    )
     claim_extraction_entrypoint_module = importlib.import_module(
         "power_atlas.claim_extraction_entrypoint"
     )
@@ -75,6 +78,9 @@ def test_package_modules_import() -> None:
     )
     claim_extraction_diagnostics_package_cli_module = importlib.import_module(
         "power_atlas.cli.claim_extraction_diagnostics_report"
+    )
+    graph_health_diagnostics_package_cli_module = importlib.import_module(
+        "power_atlas.cli.graph_health_diagnostics"
     )
     claim_extraction_diagnostics_report_support_module = importlib.import_module(
         "power_atlas.interfaces.cli.claim_extraction_diagnostics_report_support"
@@ -323,16 +329,20 @@ def test_package_modules_import() -> None:
     assert callable(api_module.get_backend_runtime)
     assert api_module.get_backend_runtime is backend_app_module.get_backend_runtime
     assert api_module.backend_router is not None
+    assert package.graph_health_diagnostics is graph_health_diagnostics_module
     assert callable(claim_extraction_diagnostics_module.neo4j_settings_from_config)
     assert callable(claim_extraction_diagnostics_module.neo4j_settings_from_request_context)
     assert callable(claim_extraction_diagnostics_module.run_claim_extraction_diagnostics)
     assert callable(
         claim_extraction_diagnostics_module.run_claim_extraction_diagnostics_request_context
     )
+    assert callable(graph_health_diagnostics_module.run_graph_health_diagnostics)
+    assert callable(graph_health_diagnostics_module.run_graph_health_diagnostics_request_context)
     assert callable(
         claim_extraction_diagnostics_cli_module.run_claim_extraction_diagnostics_report_main
     )
     assert callable(claim_extraction_diagnostics_package_cli_module.main)
+    assert callable(graph_health_diagnostics_package_cli_module.main)
     assert callable(
         claim_extraction_diagnostics_report_support_module.build_claim_extraction_diagnostics_report_settings
     )
@@ -1119,6 +1129,26 @@ def test_retrieval_benchmark_package_cli_main_delegates_to_entrypoint() -> None:
         parse_args=retrieval_benchmark._parse_args,
         build_cli_request_context=retrieval_benchmark.build_retrieval_benchmark_cli_request_context,
         run_retrieval_benchmark_request_context=retrieval_benchmark.run_retrieval_benchmark_request_context,
+        warn=mock.ANY,
+        argv=argv,
+    )
+
+
+def test_graph_health_diagnostics_package_cli_main_delegates_to_entrypoint() -> None:
+    from power_atlas.cli import graph_health_diagnostics
+
+    argv = ["--run-id", "run-123", "--neo4j-password", "secret"]
+
+    with mock.patch.object(
+        graph_health_diagnostics,
+        "run_graph_health_diagnostics_main",
+    ) as run_main:
+        graph_health_diagnostics.main(argv)
+
+    run_main.assert_called_once_with(
+        parse_args=graph_health_diagnostics._parse_args,
+        build_cli_request_context=graph_health_diagnostics.build_graph_health_cli_request_context,
+        run_graph_health_diagnostics_request_context=graph_health_diagnostics.run_graph_health_diagnostics_request_context,
         warn=mock.ANY,
         argv=argv,
     )

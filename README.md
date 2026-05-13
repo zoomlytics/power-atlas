@@ -248,6 +248,7 @@ seams now live under `src/power_atlas/` rather than in `demo/stages/`.
 | Module | Purpose |
 |--------|---------|
 | [`claim_extraction_diagnostics.py`](src/power_atlas/claim_extraction_diagnostics.py) | Package-owned config/request-context entrypoint for run-scoped claim extraction diagnostics |
+| [`graph_health_diagnostics.py`](src/power_atlas/graph_health_diagnostics.py) | Package-owned config/request-context entrypoint for graph-health diagnostics |
 | [`claim_extraction_entrypoint.py`](src/power_atlas/claim_extraction_entrypoint.py) | Package-owned config/request-context entrypoint for claim extraction |
 | [`entity_resolution_entrypoint.py`](src/power_atlas/entity_resolution_entrypoint.py) | Package-owned config/request-context entrypoint for entity resolution |
 | [`pdf_ingest_entrypoint.py`](src/power_atlas/pdf_ingest_entrypoint.py) | Package-owned config/request-context entrypoint for PDF ingest |
@@ -258,8 +259,8 @@ seams now live under `src/power_atlas/` rather than in `demo/stages/`.
 
 The remaining `demo/stages` surfaces are intentionally narrower than they were
 earlier in the migration. In particular, [`demo/stages/graph_health.py`](demo/stages/graph_health.py)
-remains an accepted standalone analysis surface with a canonical
-`RequestContext` path, and [`demo/stages/retrieval_and_qa.py`](demo/stages/retrieval_and_qa.py)
+is now a compatibility shim over the package-owned graph-health runtime, and
+[`demo/stages/retrieval_and_qa.py`](demo/stages/retrieval_and_qa.py)
 intentionally retains a small set of local default/validation helpers while the
 meaningful request-context and live-preflight seams already live in package
 modules.
@@ -267,7 +268,7 @@ modules.
 For discovery from an installed package, the root [`power_atlas`](src/power_atlas/__init__.py)
 package now also exposes these package-native entrypoint modules as namespace
 attributes (for example, `power_atlas.claim_extraction_diagnostics`,
-`power_atlas.claim_extraction_entrypoint`, and
+`power_atlas.graph_health_diagnostics`, `power_atlas.claim_extraction_entrypoint`, and
 `power_atlas.pdf_ingest_entrypoint`). It also exposes the corresponding
 package-owned runner modules as namespace attributes (for example,
 `power_atlas.claim_extraction_runner`, `power_atlas.pdf_ingest_runner`, and
@@ -292,7 +293,11 @@ or current-run reporting without rerunning the diagnostics stage. The same
 pattern now also exists for retrieval benchmarking through the installable
 wrapper [`retrieval_benchmark.py`](src/power_atlas/cli/retrieval_benchmark.py),
 the console command `power-atlas-retrieval-benchmark`, and the retained
-repo-local script [`pipelines/query/retrieval_benchmark.py`](pipelines/query/retrieval_benchmark.py).
+repo-local script [`pipelines/query/retrieval_benchmark.py`](pipelines/query/retrieval_benchmark.py). Graph-health diagnostics now follow the same package-owned pattern through
+[`graph_health_diagnostics.py`](src/power_atlas/graph_health_diagnostics.py),
+the installable wrapper [`graph_health_diagnostics.py`](src/power_atlas/cli/graph_health_diagnostics.py),
+the console command `power-atlas-graph-health-diagnostics`, and the retained
+repo-local script [`pipelines/query/graph_health_diagnostics.py`](pipelines/query/graph_health_diagnostics.py).
 
 The backend API surface now has a first-class owning facade at
 `power_atlas.api`. That module now owns the backend app contract, including

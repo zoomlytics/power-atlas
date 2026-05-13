@@ -33,6 +33,7 @@ src/power_atlas/entity_resolution_runtime.py
 src/power_atlas/entity_resolution_writes.py
 src/power_atlas/extraction_rows.py
 src/power_atlas/extraction_writes.py
+src/power_atlas/graph_health_diagnostics.py
 src/power_atlas/graph_health_queries.py
 src/power_atlas/graph_health_summary.py
 src/power_atlas/graph_status.py
@@ -98,6 +99,7 @@ src/power_atlas/bootstrap/clients.py
 src/power_atlas/bootstrap/domain_pack.py
 src/power_atlas/cli/__init__.py
 src/power_atlas/cli/claim_extraction_diagnostics_report.py
+src/power_atlas/cli/graph_health_diagnostics.py
 src/power_atlas/cli/retrieval_benchmark.py
 src/power_atlas/contracts/__init__.py
 src/power_atlas/contracts/claim_extraction_policy.py
