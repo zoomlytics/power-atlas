@@ -630,6 +630,13 @@ def test_backend_api_composed_app_example_script_runs() -> None:
     payload = json.loads(completed.stdout)
 
     assert payload == {
+        "backend_current_claim_diagnostics": {
+            "inferred_dataset_id": "demo_dataset_v1",
+            "run_id": "unstructured_ingest-20260512T000000Z-a",
+            "source_uri": "file:///mounted/source.pdf",
+            "status": "dry_run",
+            "warnings": ["claim extraction diagnostics skipped in dry_run mode"],
+        },
         "backend_datasets": {
             "dataset_names": ["demo_dataset_v1", "demo_dataset_v2"],
             "selected_dataset_name": "demo_dataset_v1",
@@ -644,7 +651,11 @@ def test_backend_api_composed_app_example_script_runs() -> None:
         "backend_current_run_detail": {
             "inferred_dataset_id": "demo_dataset_v1",
             "run_id": "unstructured_ingest-20260512T000000Z-a",
-            "run_stage_names": ["claim_extraction", "pdf_ingest"],
+            "run_stage_names": [
+                "claim_extraction",
+                "claim_extraction_diagnostics",
+                "pdf_ingest",
+            ],
             "stages": ["claim_extraction"],
         },
         "backend_graph_status": {

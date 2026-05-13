@@ -17,6 +17,11 @@ def _write_manifest(manifest_path: Path, payload: dict[str, object]) -> None:
     manifest_path.write_text(json.dumps(payload), encoding="utf-8")
 
 
+def _write_json_artifact(artifact_path: Path, payload: dict[str, object]) -> None:
+    artifact_path.parent.mkdir(parents=True, exist_ok=True)
+    artifact_path.write_text(json.dumps(payload), encoding="utf-8")
+
+
 def _seed_example_runs(output_dir: Path) -> tuple[str, str, str]:
     selected_dataset_id = resolve_dataset_root("demo_dataset_v1", environ={}).dataset_id
     older_run_id = "unstructured_ingest-20260512T000000Z-a"
@@ -37,6 +42,32 @@ def _seed_example_runs(output_dir: Path) -> tuple[str, str, str]:
             "run_id": older_run_id,
             "dataset_id": selected_dataset_id,
             "stages": {"claim_extraction": {"status": "live"}},
+        },
+    )
+    _write_json_artifact(
+        output_dir
+        / "runs"
+        / older_run_id
+        / "claim_extraction_diagnostics"
+        / "claim_extraction_diagnostics.json",
+        {
+            "status": "dry_run",
+            "generated_at": "2026-05-13T12:00:00+00:00",
+            "run_id": older_run_id,
+            "source_uri": "file:///mounted/source.pdf",
+            "artifact_path": "ignored-by-reader",
+            "participation_summary": {
+                "total_edges": 0,
+                "edges_by_role": {},
+                "total_claims": 0,
+                "claims_with_zero_edges": 0,
+                "claim_coverage_pct": None,
+            },
+            "match_summary": {
+                "total_edges_with_match_method": 0,
+                "edges_by_match_method": {},
+            },
+            "warnings": ["claim extraction diagnostics skipped in dry_run mode"],
         },
     )
     _write_manifest(
@@ -93,11 +124,15 @@ async def _snapshot_app(app: FastAPI) -> dict[str, object]:
             "/atlas/runs/current/unstructured_ingest",
             params={"stage_name": "claim_extraction"},
         )
+        backend_current_claim_diagnostics = await client.get(
+            "/atlas/runs/current/unstructured_ingest/claim-extraction-diagnostics"
+        )
         backend_health = await client.get("/atlas/health")
         backend_graph_status = await client.get("/atlas/graph/status")
     datasets_payload = backend_datasets.json()
     current_runs_payload = backend_current_runs.json()
     current_run_detail_payload = backend_current_run_detail.json()
+    current_claim_diagnostics_payload = backend_current_claim_diagnostics.json()
     return {
         "host_info": host_info.json(),
         "backend_root": backend_root.json(),
@@ -123,6 +158,13 @@ async def _snapshot_app(app: FastAPI) -> dict[str, object]:
             "run_id": current_run_detail_payload["run"]["run_id"],
             "run_stage_names": current_run_detail_payload["run"]["stage_names"],
             "stages": [stage["stage_name"] for stage in current_run_detail_payload["stages"]],
+        },
+        "backend_current_claim_diagnostics": {
+            "inferred_dataset_id": current_claim_diagnostics_payload["inferred_dataset_id"],
+            "run_id": current_claim_diagnostics_payload["run_id"],
+            "source_uri": current_claim_diagnostics_payload["source_uri"],
+            "status": current_claim_diagnostics_payload["status"],
+            "warnings": current_claim_diagnostics_payload["warnings"],
         },
         "backend_health": backend_health.json(),
         "backend_graph_status": backend_graph_status.json(),
