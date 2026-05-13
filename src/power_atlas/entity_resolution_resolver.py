@@ -3,7 +3,11 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from power_atlas.contracts import EntityResolutionCanonicalLookupContract
 from power_atlas.contracts import EntityTypeNormalizationPolicy
+from power_atlas.contracts import (
+    get_default_entity_resolution_canonical_lookup_contract,
+)
 from power_atlas.contracts import normalize_entity_type as normalize_entity_type_from_policy
 from power_atlas.text_utils import normalize_mention_text
 
@@ -11,21 +15,35 @@ _QID_PATTERN = re.compile(r"^Q\d+$")
 _normalize = normalize_mention_text
 
 
-def _split_aliases(raw: Any) -> list[str]:
+def _split_aliases(
+    raw: Any,
+    canonical_lookup_contract: EntityResolutionCanonicalLookupContract | None = None,
+) -> list[str]:
     """Parse a pipe- or comma-separated alias string into normalised tokens.
 
     Each token is processed through normalize_mention_text so that alias lookup
     keys are consistent with the normalisation applied to mention text.
     """
+    resolved_lookup = (
+        get_default_entity_resolution_canonical_lookup_contract()
+        if canonical_lookup_contract is None
+        else canonical_lookup_contract
+    )
     if not raw or not isinstance(raw, str):
         return []
-    separator = "|" if "|" in raw else ","
-    return [normalized for token in raw.split(separator) if (normalized := _normalize(token))]
+    delimiters = [re.escape(delimiter) for delimiter in resolved_lookup.alias_delimiters]
+    separator_pattern = "|".join(delimiters) if delimiters else re.escape("|")
+    return [
+        normalized
+        for token in re.split(separator_pattern, raw)
+        if (normalized := _normalize(token))
+    ]
 
 
 
 def _build_lookup_tables(
     canonical_nodes: list[dict[str, Any]],
+    canonical_lookup_contract: EntityResolutionCanonicalLookupContract | None = None,
 ) -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any]], dict[str, dict[str, Any]]]:
     """Build three lookup dicts for fast resolution.
 
@@ -34,19 +52,27 @@ def _build_lookup_tables(
         by_label: normalized_name -> canonical row (first match wins)
         by_alias: normalized_alias -> canonical row (first match wins)
     """
+    resolved_lookup = (
+        get_default_entity_resolution_canonical_lookup_contract()
+        if canonical_lookup_contract is None
+        else canonical_lookup_contract
+    )
     by_qid: dict[str, dict[str, Any]] = {}
     by_label: dict[str, dict[str, Any]] = {}
     by_alias: dict[str, dict[str, Any]] = {}
 
     for row in canonical_nodes:
-        entity_id = (row.get("entity_id") or "").strip()
-        name = (row.get("name") or "").strip()
+        entity_id = (row.get(resolved_lookup.canonical_entity_id_field) or "").strip()
+        name = (row.get(resolved_lookup.canonical_name_field) or "").strip()
         if entity_id and entity_id not in by_qid:
             by_qid[entity_id] = row
         normalized_name = _normalize(name)
         if normalized_name and normalized_name not in by_label:
             by_label[normalized_name] = row
-        for alias in _split_aliases(row.get("aliases")):
+        for alias in _split_aliases(
+            row.get(resolved_lookup.canonical_aliases_field),
+            canonical_lookup_contract=resolved_lookup,
+        ):
             if alias and alias not in by_alias:
                 by_alias[alias] = row
 
@@ -60,21 +86,34 @@ def _resolve_mention(
     by_label: dict[str, dict[str, Any]],
     by_alias: dict[str, dict[str, Any]],
     entity_type_policy: EntityTypeNormalizationPolicy | None = None,
+    canonical_lookup_contract: EntityResolutionCanonicalLookupContract | None = None,
 ) -> dict[str, Any]:
     """Apply resolution strategies and return a resolution record."""
+    resolved_lookup = (
+        get_default_entity_resolution_canonical_lookup_contract()
+        if canonical_lookup_contract is None
+        else canonical_lookup_contract
+    )
     name = (mention.get("name") or "").strip()
     normalized = _normalize(name)
 
-    if _QID_PATTERN.match(name):
+    qid_pattern = resolved_lookup.qid_pattern or _QID_PATTERN
+    if qid_pattern.match(name):
         canonical = by_qid.get(name)
         if canonical:
             return {
                 "mention_id": mention["mention_id"],
-                "canonical_entity_id": canonical["entity_id"],
-                "canonical_run_id": canonical["run_id"],
-                "resolution_method": "qid_exact",
-                "resolution_confidence": 1.0,
-                "candidate_ids": [canonical["entity_id"]],
+                "canonical_entity_id": canonical[
+                    resolved_lookup.canonical_entity_id_field
+                ],
+                "canonical_run_id": canonical[
+                    resolved_lookup.canonical_run_id_field
+                ],
+                "resolution_method": resolved_lookup.qid_exact_method,
+                "resolution_confidence": resolved_lookup.qid_exact_confidence,
+                "candidate_ids": [
+                    canonical[resolved_lookup.canonical_entity_id_field]
+                ],
                 "resolved": True,
             }
         return {
@@ -86,7 +125,7 @@ def _resolve_mention(
                 entity_type_policy,
             ),
             "source_uri": mention.get("source_uri") or None,
-            "resolution_method": "label_cluster",
+            "resolution_method": resolved_lookup.unresolved_method,
             "resolution_confidence": 0.0,
             "candidate_ids": [],
             "resolved": False,
@@ -96,11 +135,15 @@ def _resolve_mention(
     if canonical:
         return {
             "mention_id": mention["mention_id"],
-            "canonical_entity_id": canonical["entity_id"],
-            "canonical_run_id": canonical["run_id"],
-            "resolution_method": "label_exact",
-            "resolution_confidence": 0.9,
-            "candidate_ids": [canonical["entity_id"]],
+            "canonical_entity_id": canonical[
+                resolved_lookup.canonical_entity_id_field
+            ],
+            "canonical_run_id": canonical[
+                resolved_lookup.canonical_run_id_field
+            ],
+            "resolution_method": resolved_lookup.label_exact_method,
+            "resolution_confidence": resolved_lookup.label_exact_confidence,
+            "candidate_ids": [canonical[resolved_lookup.canonical_entity_id_field]],
             "resolved": True,
         }
 
@@ -108,11 +151,15 @@ def _resolve_mention(
     if canonical:
         return {
             "mention_id": mention["mention_id"],
-            "canonical_entity_id": canonical["entity_id"],
-            "canonical_run_id": canonical["run_id"],
-            "resolution_method": "alias_exact",
-            "resolution_confidence": 0.8,
-            "candidate_ids": [canonical["entity_id"]],
+            "canonical_entity_id": canonical[
+                resolved_lookup.canonical_entity_id_field
+            ],
+            "canonical_run_id": canonical[
+                resolved_lookup.canonical_run_id_field
+            ],
+            "resolution_method": resolved_lookup.alias_exact_method,
+            "resolution_confidence": resolved_lookup.alias_exact_confidence,
+            "candidate_ids": [canonical[resolved_lookup.canonical_entity_id_field]],
             "resolved": True,
         }
 
@@ -125,7 +172,7 @@ def _resolve_mention(
             entity_type_policy,
         ),
         "source_uri": mention.get("source_uri") or None,
-        "resolution_method": "label_cluster",
+        "resolution_method": resolved_lookup.unresolved_method,
         "resolution_confidence": 0.0,
         "candidate_ids": [],
         "resolved": False,

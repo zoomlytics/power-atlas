@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
+from dataclasses import field
 
 
 ALIGNMENT_VERSION: str = "v1.0"
@@ -22,13 +24,43 @@ class EntityResolutionGraphContract:
 POWER_ATLAS_ENTITY_RESOLUTION_GRAPH_CONTRACT = EntityResolutionGraphContract()
 
 
+@dataclass(frozen=True)
+class EntityResolutionCanonicalLookupContract:
+	canonical_entity_id_field: str = "entity_id"
+	canonical_run_id_field: str = "run_id"
+	canonical_name_field: str = "name"
+	canonical_aliases_field: str = "aliases"
+	qid_pattern: re.Pattern[str] = field(default_factory=lambda: re.compile(r"^Q\d+$"))
+	alias_delimiters: tuple[str, ...] = ("|", ",")
+	qid_exact_method: str = "qid_exact"
+	label_exact_method: str = "label_exact"
+	alias_exact_method: str = "alias_exact"
+	unresolved_method: str = "label_cluster"
+	qid_exact_confidence: float = 1.0
+	label_exact_confidence: float = 0.9
+	alias_exact_confidence: float = 0.8
+	aligned_status: str = "aligned"
+
+
+POWER_ATLAS_ENTITY_RESOLUTION_CANONICAL_LOOKUP_CONTRACT = (
+	EntityResolutionCanonicalLookupContract()
+)
+
+
 def get_default_entity_resolution_graph_contract() -> EntityResolutionGraphContract:
 	return POWER_ATLAS_ENTITY_RESOLUTION_GRAPH_CONTRACT
 
 
+def get_default_entity_resolution_canonical_lookup_contract() -> EntityResolutionCanonicalLookupContract:
+	return POWER_ATLAS_ENTITY_RESOLUTION_CANONICAL_LOOKUP_CONTRACT
+
+
 __all__ = [
 	"ALIGNMENT_VERSION",
+	"EntityResolutionCanonicalLookupContract",
 	"EntityResolutionGraphContract",
+	"POWER_ATLAS_ENTITY_RESOLUTION_CANONICAL_LOOKUP_CONTRACT",
 	"POWER_ATLAS_ENTITY_RESOLUTION_GRAPH_CONTRACT",
+	"get_default_entity_resolution_canonical_lookup_contract",
 	"get_default_entity_resolution_graph_contract",
 ]

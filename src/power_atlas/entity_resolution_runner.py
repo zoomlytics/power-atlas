@@ -7,7 +7,9 @@ from typing import Any, Callable
 
 from power_atlas.backend_run_catalog import resolve_run_root
 from power_atlas.contracts import (
+    EntityResolutionCanonicalLookupContract,
     EntityResolutionGraphContract,
+    get_default_entity_resolution_canonical_lookup_contract,
     get_default_entity_resolution_graph_contract,
 )
 from power_atlas.entity_resolution_runtime import run_entity_resolution_live
@@ -157,6 +159,7 @@ def run_entity_resolution_runtime(
     effective_dataset_id: str,
     neo4j_settings: Neo4jSettings,
     entity_type_policy: Any = None,
+    entity_resolution_canonical_lookup: EntityResolutionCanonicalLookupContract | None = None,
     entity_resolution_graph: EntityResolutionGraphContract | None = None,
     resolver_version: str,
     cluster_version: str,
@@ -178,6 +181,11 @@ def run_entity_resolution_runtime(
     resolution_mode_hybrid: str,
     live_runner: Callable[..., Any] = run_entity_resolution_live,
 ) -> dict[str, Any]:
+    resolved_entity_resolution_canonical_lookup = (
+        get_default_entity_resolution_canonical_lookup_contract()
+        if entity_resolution_canonical_lookup is None
+        else entity_resolution_canonical_lookup
+    )
     resolved_entity_resolution_graph = (
         get_default_entity_resolution_graph_contract()
         if entity_resolution_graph is None
@@ -249,6 +257,7 @@ def run_entity_resolution_runtime(
         effective_dataset_id=effective_dataset_id,
         alignment_version=alignment_version,
         neo4j_database=neo4j_settings.database,
+        entity_resolution_canonical_lookup=resolved_entity_resolution_canonical_lookup,
         entity_resolution_graph=resolved_entity_resolution_graph,
         fetch_mentions=fetch_mentions,
         cluster_mentions=cluster_mentions,
@@ -356,6 +365,7 @@ def run_entity_resolution_runtime_default(
     effective_dataset_id: str,
     neo4j_settings: Neo4jSettings,
     entity_type_policy: Any = None,
+    entity_resolution_canonical_lookup: EntityResolutionCanonicalLookupContract | None = None,
     entity_resolution_graph: EntityResolutionGraphContract | None = None,
 ) -> dict[str, Any]:
     from power_atlas.contracts.resolution import ALIGNMENT_VERSION
@@ -379,6 +389,12 @@ def run_entity_resolution_runtime_default(
     )
     from power_atlas.entity_resolution_reporting import build_entity_type_report
     from power_atlas.entity_resolution_resolver import _build_lookup_tables, _resolve_mention
+
+    resolved_entity_resolution_canonical_lookup = (
+        get_default_entity_resolution_canonical_lookup_contract()
+        if entity_resolution_canonical_lookup is None
+        else entity_resolution_canonical_lookup
+    )
 
     def _default_make_cluster_id(
         current_run_id: str,
@@ -444,6 +460,7 @@ def run_entity_resolution_runtime_default(
         effective_dataset_id=effective_dataset_id,
         neo4j_settings=neo4j_settings,
         entity_type_policy=entity_type_policy,
+        entity_resolution_canonical_lookup=resolved_entity_resolution_canonical_lookup,
         entity_resolution_graph=entity_resolution_graph,
         resolver_version=DEFAULT_RESOLVER_VERSION,
         cluster_version=DEFAULT_CLUSTER_VERSION,
@@ -455,15 +472,24 @@ def run_entity_resolution_runtime_default(
         ),
         fetch_mentions=fetch_entity_mentions,
         fetch_canonicals=fetch_canonical_entities,
-        build_lookup_tables=_build_lookup_tables,
+        build_lookup_tables=lambda canonical_nodes: _build_lookup_tables(
+            canonical_nodes,
+            canonical_lookup_contract=resolved_entity_resolution_canonical_lookup,
+        ),
         make_cluster_id=_default_make_cluster_id,
-        align_clusters_to_canonical=align_clusters_to_canonical,
+        align_clusters_to_canonical=lambda clusters, by_label, by_alias: align_clusters_to_canonical(
+            clusters,
+            by_label,
+            by_alias,
+            canonical_lookup_contract=resolved_entity_resolution_canonical_lookup,
+        ),
         resolve_mention=lambda mention, by_qid, by_label, by_alias: _resolve_mention(
             mention,
             by_qid,
             by_label,
             by_alias,
             entity_type_policy,
+            canonical_lookup_contract=resolved_entity_resolution_canonical_lookup,
         ),
         write_resolution_results=_default_write_resolution_results,
         write_alignment_results=_default_write_alignment_results,

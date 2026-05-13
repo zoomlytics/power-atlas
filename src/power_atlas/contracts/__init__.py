@@ -69,8 +69,11 @@ from power_atlas.contracts.structured import (
 )
 from power_atlas.contracts.resolution import (
 	ALIGNMENT_VERSION,
+	EntityResolutionCanonicalLookupContract,
 	EntityResolutionGraphContract,
+	POWER_ATLAS_ENTITY_RESOLUTION_CANONICAL_LOOKUP_CONTRACT,
 	POWER_ATLAS_ENTITY_RESOLUTION_GRAPH_CONTRACT,
+	get_default_entity_resolution_canonical_lookup_contract,
 	get_default_entity_resolution_graph_contract,
 )
 
@@ -98,6 +101,7 @@ __all__ = [
 	"CSV_FIRST_DATA_ROW",
 	"DATASETS_CONTAINER_DIR",
 	"DatasetRoot",
+	"EntityResolutionCanonicalLookupContract",
 	"EntityResolutionGraphContract",
 	"EntityTypeNormalizationPolicy",
 	"FIXTURES_DIR",
@@ -105,6 +109,7 @@ __all__ = [
 	"POWER_ATLAS_ENTITY_TYPE_NORMALIZATION_POLICY",
 	"POWER_ATLAS_CLAIM_EXTRACTION_ONTOLOGY",
 	"POWER_ATLAS_CLAIM_EXTRACTION_POLICY",
+	"POWER_ATLAS_ENTITY_RESOLUTION_CANONICAL_LOOKUP_CONTRACT",
 	"POWER_ATLAS_ENTITY_RESOLUTION_GRAPH_CONTRACT",
 	"POWER_ATLAS_RAG_TEMPLATE",
 	"POWER_ATLAS_RETRIEVAL_ONTOLOGY",
@@ -124,6 +129,7 @@ __all__ = [
 	"get_default_structured_graph_shape_contract",
 	"get_default_retrieval_policy",
 	"get_default_claim_extraction_policy",
+	"get_default_entity_resolution_canonical_lookup_contract",
 	"get_default_entity_resolution_graph_contract",
 	"get_default_structured_schema_contract",
 	"get_default_entity_type_normalization_policy",

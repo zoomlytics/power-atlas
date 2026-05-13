@@ -89,6 +89,10 @@ def test_package_modules_import() -> None:
     assert package.EarlyReturnRule is contracts_module.EarlyReturnRule
     assert package.EARLY_RETURN_PRECEDENCE is contracts_module.EARLY_RETURN_PRECEDENCE
     assert package.EARLY_RETURN_RULE_BY_NAME is contracts_module.EARLY_RETURN_RULE_BY_NAME
+    assert (
+        package.EntityResolutionCanonicalLookupContract
+        is contracts_module.EntityResolutionCanonicalLookupContract
+    )
     assert package.EntityResolutionGraphContract is contracts_module.EntityResolutionGraphContract
     assert package.EntityTypeNormalizationPolicy is contracts_module.EntityTypeNormalizationPolicy
     assert package.CONFIG_DIR == contracts_module.CONFIG_DIR
@@ -120,6 +124,10 @@ def test_package_modules_import() -> None:
     assert package.POWER_ATLAS_CLAIM_EXTRACTION_ONTOLOGY is contracts_module.POWER_ATLAS_CLAIM_EXTRACTION_ONTOLOGY
     assert package.POWER_ATLAS_CLAIM_EXTRACTION_POLICY is contracts_module.POWER_ATLAS_CLAIM_EXTRACTION_POLICY
     assert (
+        package.POWER_ATLAS_ENTITY_RESOLUTION_CANONICAL_LOOKUP_CONTRACT
+        is contracts_module.POWER_ATLAS_ENTITY_RESOLUTION_CANONICAL_LOOKUP_CONTRACT
+    )
+    assert (
         package.POWER_ATLAS_ENTITY_RESOLUTION_GRAPH_CONTRACT
         is contracts_module.POWER_ATLAS_ENTITY_RESOLUTION_GRAPH_CONTRACT
     )
@@ -138,6 +146,10 @@ def test_package_modules_import() -> None:
     assert package.resolve_dataset_root is contracts_module.resolve_dataset_root
     assert package.resolve_early_return_rule is contracts_module.resolve_early_return_rule
     assert package.get_default_retrieval_policy is contracts_module.get_default_retrieval_policy
+    assert (
+        package.get_default_entity_resolution_canonical_lookup_contract
+        is contracts_module.get_default_entity_resolution_canonical_lookup_contract
+    )
     assert (
         package.get_default_entity_resolution_graph_contract
         is contracts_module.get_default_entity_resolution_graph_contract
@@ -1041,7 +1053,174 @@ def test_entity_resolution_request_context_uses_package_default_config_runner() 
         neo4j_settings=request_context.settings.neo4j,
         dataset_name="demo_dataset_v1",
         entity_type_policy=request_context.policies.entity_type_normalization,
+        entity_resolution_canonical_lookup=None,
         entity_resolution_graph=None,
+    )
+
+
+def test_fetch_canonical_entities_accepts_custom_entity_resolution_canonical_lookup_contract() -> None:
+    from power_atlas.contracts import EntityResolutionCanonicalLookupContract
+    from power_atlas.entity_resolution_queries import fetch_canonical_entities
+
+    lookup_contract = EntityResolutionCanonicalLookupContract(
+        canonical_entity_id_field="security_id",
+        canonical_run_id_field="security_run_id",
+        canonical_name_field="security_name",
+        canonical_aliases_field="ticker_aliases",
+    )
+    driver = mock.Mock()
+    driver.execute_query.return_value = (
+        [
+            {
+                "security_id": "SEC1",
+                "security_run_id": "structured-1",
+                "security_name": "Acme Corp",
+                "ticker_aliases": "ACME|ACM",
+            }
+        ],
+        None,
+        None,
+    )
+
+    result = fetch_canonical_entities(
+        driver,
+        dataset_id="market_trade_dataset_v1",
+        neo4j_database="neo4j",
+        entity_resolution_canonical_lookup=lookup_contract,
+    )
+
+    rendered_query = driver.execute_query.call_args.args[0]
+    assert result == [
+        {
+            "security_id": "SEC1",
+            "security_run_id": "structured-1",
+            "security_name": "Acme Corp",
+            "ticker_aliases": "ACME|ACM",
+        }
+    ]
+    assert "`security_id`" in rendered_query
+    assert "`security_run_id`" in rendered_query
+    assert "`security_name`" in rendered_query
+    assert "`ticker_aliases`" in rendered_query
+
+
+def test_resolve_mention_accepts_custom_entity_resolution_canonical_lookup_contract() -> None:
+    from power_atlas.contracts import EntityResolutionCanonicalLookupContract
+    from power_atlas.entity_resolution_resolver import _build_lookup_tables, _resolve_mention
+
+    lookup_contract = EntityResolutionCanonicalLookupContract(
+        canonical_entity_id_field="security_id",
+        canonical_run_id_field="security_run_id",
+        canonical_name_field="security_name",
+        canonical_aliases_field="ticker_aliases",
+        qid_pattern=re.compile(r"^SEC\d+$"),
+        qid_exact_method="security_id_exact",
+        unresolved_method="security_cluster",
+    )
+    by_qid, by_label, by_alias = _build_lookup_tables(
+        [
+            {
+                "security_id": "SEC1",
+                "security_run_id": "structured-1",
+                "security_name": "Acme Corp",
+                "ticker_aliases": "ACME|ACM",
+            }
+        ],
+        canonical_lookup_contract=lookup_contract,
+    )
+
+    resolved = _resolve_mention(
+        {"mention_id": "m-1", "name": "SEC1", "entity_type": "Company"},
+        by_qid,
+        by_label,
+        by_alias,
+        canonical_lookup_contract=lookup_contract,
+    )
+    aligned = _resolve_mention(
+        {"mention_id": "m-2", "name": "ACME", "entity_type": "Company"},
+        by_qid,
+        by_label,
+        by_alias,
+        canonical_lookup_contract=lookup_contract,
+    )
+
+    assert resolved["canonical_entity_id"] == "SEC1"
+    assert resolved["canonical_run_id"] == "structured-1"
+    assert resolved["resolution_method"] == "security_id_exact"
+    assert aligned["resolution_method"] == lookup_contract.alias_exact_method
+
+
+def test_entity_resolution_runtime_forwards_custom_canonical_lookup_contract() -> None:
+    from power_atlas.contracts import EntityResolutionCanonicalLookupContract
+    from power_atlas.entity_resolution_runner import run_entity_resolution_runtime
+    from power_atlas.settings import Neo4jSettings
+
+    lookup_contract = EntityResolutionCanonicalLookupContract(
+        canonical_entity_id_field="security_id"
+    )
+    config = mock.Mock(output_dir=Path("build/test-entity-resolution-lookup"), dry_run=False)
+    live_runner = mock.Mock(
+        return_value=SimpleNamespace(
+            mentions=[],
+            resolved_rows=[],
+            unresolved_rows=[],
+            resolution_breakdown={},
+            graph_mentions_clustered=0,
+            graph_mentions_unclustered=0,
+            graph_total_clusters=0,
+            graph_aligned_clusters=0,
+            graph_distinct_canonical_entities=0,
+            graph_mentions_in_aligned=0,
+            graph_alignment_breakdown={},
+            warnings=[],
+        )
+    )
+
+    result = run_entity_resolution_runtime(
+        config=config,
+        run_id="run-123",
+        source_uri="file:///example/doc.pdf",
+        resolution_mode="hybrid",
+        artifact_subdir="entity_resolution",
+        effective_dataset_id="market_trade_dataset_v1",
+        neo4j_settings=Neo4jSettings(),
+        entity_resolution_canonical_lookup=lookup_contract,
+        resolver_version="v1",
+        cluster_version="v1",
+        alignment_version="v1",
+        build_entity_type_report=mock.Mock(return_value={}),
+        cluster_mentions=mock.Mock(return_value=[]),
+        fetch_mentions=mock.Mock(return_value=[]),
+        fetch_canonicals=mock.Mock(return_value=[]),
+        build_lookup_tables=mock.Mock(return_value=({}, {}, {})),
+        make_cluster_id=mock.Mock(return_value="cluster-1"),
+        align_clusters_to_canonical=mock.Mock(return_value=[]),
+        resolve_mention=mock.Mock(),
+        write_resolution_results=mock.Mock(),
+        write_alignment_results=mock.Mock(),
+        fetch_member_of_coverage=mock.Mock(
+            return_value=SimpleNamespace(mentions_clustered=0, mentions_unclustered=0)
+        ),
+        fetch_alignment_coverage=mock.Mock(
+            return_value=SimpleNamespace(
+                total_clusters=0,
+                aligned_clusters=0,
+                distinct_canonical_entities_aligned=0,
+                mentions_in_aligned=0,
+                alignment_breakdown={},
+            )
+        ),
+        resolution_mode_structured_anchor="structured_anchor",
+        resolution_mode_unstructured_only="unstructured_only",
+        resolution_mode_hybrid="hybrid",
+        live_runner=live_runner,
+    )
+
+    assert result["status"] == "live"
+    live_runner.assert_called_once()
+    assert (
+        live_runner.call_args.kwargs["entity_resolution_canonical_lookup"]
+        is lookup_contract
     )
 
 

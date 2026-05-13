@@ -42,6 +42,15 @@ The following second-domain proof now exists:
   `power_atlas.entity_resolution_queries`,
   `power_atlas.entity_resolution_writes`,
   `power_atlas.entity_resolution_runner`, and
+  `power_atlas.entity_resolution_entrypoint`,
+- `src/power_atlas/contracts/resolution.py` now also defines a package-owned
+  `EntityResolutionCanonicalLookupContract`, and the package canonical fetch,
+  lookup-table build, mention resolution, cluster alignment, runtime, and
+  entrypoint paths accept it through
+  `power_atlas.entity_resolution_queries`,
+  `power_atlas.entity_resolution_resolver`,
+  `power_atlas.entity_resolution_alignment`,
+  `power_atlas.entity_resolution_runner`, and
   `power_atlas.entity_resolution_entrypoint`.
 
 That proof is sufficient to close the question of whether a second-domain
@@ -88,7 +97,7 @@ shape.
 This still does **not** solve the next blocker, which is entity-resolution and
 canonical alignment over a fixed graph model.
 
-### 3. Entity-resolution graph contract is extracted, but not the alignment strategy
+### 3. Entity-resolution graph contract is extracted, and canonical lookup is now configurable
 
 `src/power_atlas/entity_resolution_entrypoint.py` already forwards
 `request_context.policies.entity_type_normalization`, which means the package
@@ -108,8 +117,20 @@ That reduces the next second-domain blocker: alternate domains no longer have
 to reuse the exact Power Atlas entity-resolution graph vocabulary to run the
 package-owned resolution flow.
 
-This still does **not** solve the remaining blocker, which is how canonical
-lookup and alignment are decided.
+`EntityResolutionCanonicalLookupContract` now externalizes:
+
+- canonical id/run/name/aliases field names,
+- alias delimiters,
+- qid-pattern matching,
+- exact-match method names and confidence values,
+- the unresolved-method label used when exact lookup misses.
+
+That reduces the next second-domain blocker again: alternate domains no longer
+have to reuse the exact Power Atlas canonical property names or the exact `Q...`
+identifier convention to participate in the package-owned lookup flow.
+
+This still does **not** solve the remaining blocker, which is the alignment
+strategy itself beyond the current exact label/alias matching defaults.
 
 ### 4. Canonical alignment strategy is fixed to exact label/alias matching
 
@@ -128,12 +149,12 @@ supplying an alternate package contract.
 `src/power_atlas/entity_resolution_entrypoint.py` still resolves the effective
 dataset through the current dataset-root path, and
 `src/power_atlas/entity_resolution_runtime.py` still assumes canonical lookup is
-performed against dataset-scoped canonical rows with the current `entity_id`,
-`run_id`, `name`, and `aliases` shape.
+performed against dataset-scoped canonical rows selected through the current
+dataset-resolution flow.
 
-That means a second domain can now rename the graph vocabulary, but it still
-cannot replace the canonical lookup contract itself without editing shared
-implementation code.
+That means a second domain can now rename both the graph vocabulary and the
+canonical lookup field surface, but it still cannot replace the dataset
+selection strategy itself without editing shared implementation code.
 
 ## What is not a blocker at this checkpoint
 
@@ -147,6 +168,8 @@ The following are **not** currently the first blockers:
 - structured file names, headers, identifier patterns, and value-type rules,
 - structured ingest write labels and relationship types,
 - entity-resolution labels and relationship types,
+- canonical id/run/name/aliases field names,
+- exact-match method names and confidence defaults,
 - package-owned retrieval request-context consumption.
 
 Those are already covered by the retrieval policy seam and the market/trade
@@ -156,16 +179,18 @@ pilot proof plus the structured ingest contracts.
 
 The next extraction slices should proceed in this order:
 
-1. externalize the canonical lookup and alignment-strategy contract,
-2. only then decide whether the second-domain pilot warrants a broader shared
+1. externalize the alignment-strategy contract beyond exact label/alias lookup,
+2. decide whether dataset selection should also become an explicit package
+  contract,
+3. only then decide whether the second-domain pilot warrants a broader shared
   kernel namespace split.
 
 ## Minimum acceptance for the next slice
 
 The next reuse slice should be considered sufficient only if it introduces a
-package-owned canonical lookup and alignment contract that lets a second domain
-change more than labels and relationship names.
+package-owned alignment-strategy contract that lets a second domain change more
+than the current exact label/alias matching behavior.
 
-The structured ingest layer and entity-resolution graph vocabulary are now
-materially improved. The next meaningful reduction is the alignment and
-canonical lookup contract.
+The structured ingest layer, entity-resolution graph vocabulary, and canonical
+lookup field surface are now materially improved. The next meaningful reduction
+is the alignment strategy, followed by dataset selection if needed.

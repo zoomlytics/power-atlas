@@ -6,7 +6,9 @@ from typing import Any
 import neo4j
 
 from power_atlas.contracts import (
+    EntityResolutionCanonicalLookupContract,
     EntityResolutionGraphContract,
+    get_default_entity_resolution_canonical_lookup_contract,
     get_default_entity_resolution_graph_contract,
 )
 
@@ -61,8 +63,14 @@ def fetch_canonical_entities(
     *,
     dataset_id: str,
     neo4j_database: str,
+    entity_resolution_canonical_lookup: EntityResolutionCanonicalLookupContract | None = None,
     entity_resolution_graph: EntityResolutionGraphContract | None = None,
 ) -> list[dict[str, Any]]:
+    resolved_lookup = (
+        get_default_entity_resolution_canonical_lookup_contract()
+        if entity_resolution_canonical_lookup is None
+        else entity_resolution_canonical_lookup
+    )
     resolved_graph = (
         get_default_entity_resolution_graph_contract()
         if entity_resolution_graph is None
@@ -72,13 +80,37 @@ def fetch_canonical_entities(
         """
         MATCH (canonical:{canonical_label})
         WHERE canonical.dataset_id = $dataset_id
-        RETURN canonical.entity_id AS entity_id,
-               canonical.run_id AS run_id,
-               canonical.name AS name,
-               canonical.aliases AS aliases
-        ORDER BY canonical.entity_id
+        RETURN canonical.{entity_id_field} AS {entity_id_alias},
+               canonical.{run_id_field} AS {run_id_alias},
+               canonical.{name_field} AS {name_alias},
+               canonical.{aliases_field} AS {aliases_alias}
+        ORDER BY canonical.{entity_id_field}
         """.format(
-            canonical_label=_escape_cypher_identifier(resolved_graph.canonical_label)
+            canonical_label=_escape_cypher_identifier(resolved_graph.canonical_label),
+            entity_id_field=_escape_cypher_identifier(
+                resolved_lookup.canonical_entity_id_field
+            ),
+            run_id_field=_escape_cypher_identifier(
+                resolved_lookup.canonical_run_id_field
+            ),
+            name_field=_escape_cypher_identifier(
+                resolved_lookup.canonical_name_field
+            ),
+            aliases_field=_escape_cypher_identifier(
+                resolved_lookup.canonical_aliases_field
+            ),
+            entity_id_alias=_escape_cypher_identifier(
+                resolved_lookup.canonical_entity_id_field
+            ),
+            run_id_alias=_escape_cypher_identifier(
+                resolved_lookup.canonical_run_id_field
+            ),
+            name_alias=_escape_cypher_identifier(
+                resolved_lookup.canonical_name_field
+            ),
+            aliases_alias=_escape_cypher_identifier(
+                resolved_lookup.canonical_aliases_field
+            ),
         ),
         parameters_={"dataset_id": dataset_id},
         database_=neo4j_database,
@@ -86,13 +118,23 @@ def fetch_canonical_entities(
     )
     return [
         {
-            "entity_id": record["entity_id"],
-            "run_id": record["run_id"],
-            "name": record["name"] or "",
-            "aliases": record["aliases"],
+            resolved_lookup.canonical_entity_id_field: record[
+                resolved_lookup.canonical_entity_id_field
+            ],
+            resolved_lookup.canonical_run_id_field: record[
+                resolved_lookup.canonical_run_id_field
+            ],
+            resolved_lookup.canonical_name_field: record[
+                resolved_lookup.canonical_name_field
+            ]
+            or "",
+            resolved_lookup.canonical_aliases_field: record[
+                resolved_lookup.canonical_aliases_field
+            ],
         }
         for record in canonical_result
-        if record["entity_id"] and record["run_id"]
+        if record[resolved_lookup.canonical_entity_id_field]
+        and record[resolved_lookup.canonical_run_id_field]
     ]
 
 
