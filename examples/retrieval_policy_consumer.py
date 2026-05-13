@@ -1,0 +1,80 @@
+from __future__ import annotations
+
+import json
+from dataclasses import replace
+
+from neo4j_graphrag.generation import RagTemplate
+
+from power_atlas.bootstrap import build_app_context, build_request_context
+from power_atlas.contracts import RetrievalOntology, RetrievalPolicy
+from power_atlas.retrieval_request_context_adapters import run_retrieval_request_context
+
+
+def build_example_payload() -> dict[str, object]:
+    alternate_policy = RetrievalPolicy(
+        ontology=RetrievalOntology(
+            claim_label="ConsumerClaim",
+            mention_label="ConsumerMention",
+            cluster_label="ConsumerCluster",
+            canonical_label="ConsumerCanonical",
+            supported_by_relationship="SUPPORTED_EXTERNALLY_BY",
+            mentioned_in_relationship="OBSERVED_WITHIN",
+            has_participant_relationship="HAS_INTERACTOR",
+            resolves_to_relationship="NORMALIZES_TO",
+            member_of_relationship="CLUSTERED_IN",
+            aligned_with_relationship="ALIGNS_EXTERNALLY_WITH",
+        ),
+        qa_prompt_id="consumer_alt_qa_v1",
+        rag_template=RagTemplate(
+            template="Context:\n{context}\nExamples:\n{examples}\nQuestion:\n{query_text}\nAnswer:",
+            system_instructions="Consumer retrieval policy prompt",
+        ),
+        default_expand_graph=True,
+        default_cluster_aware=False,
+    )
+    app_context = build_app_context(environ={})
+    app_context = replace(
+        app_context,
+        policies=replace(app_context.policies, retrieval=alternate_policy),
+    )
+    request_context = build_request_context(
+        app_context,
+        command="ask",
+        dry_run=True,
+        question="Which retrieval policy was forwarded?",
+        run_id="consumer-run-id",
+        source_uri="file:///consumer/source.pdf",
+    )
+
+    def _run_impl(config: object, **kwargs: object) -> dict[str, object]:
+        retrieval_policy = kwargs["retrieval_policy"]
+        assert isinstance(retrieval_policy, RetrievalPolicy)
+        return {
+            "consumer": "retrieval_policy_consumer",
+            "question": kwargs["question"],
+            "run_id": kwargs["run_id"],
+            "source_uri": kwargs["source_uri"],
+            "all_runs": kwargs["all_runs"],
+            "qa_prompt_id": retrieval_policy.qa_prompt_id,
+            "ontology": {
+                "claim_label": retrieval_policy.ontology.claim_label,
+                "mentioned_in_relationship": retrieval_policy.ontology.mentioned_in_relationship,
+                "supported_by_relationship": retrieval_policy.ontology.supported_by_relationship,
+            },
+        }
+
+    return run_retrieval_request_context(
+        request_context,
+        top_k=4,
+        index_name=None,
+        question=None,
+        expand_graph=None,
+        cluster_aware=None,
+        message_history=None,
+        interactive=False,
+        run_impl=_run_impl,
+    )
+
+
+if __name__ == "__main__":
+    print(json.dumps(build_example_payload(), sort_keys=True))

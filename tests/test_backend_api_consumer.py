@@ -166,6 +166,31 @@ def test_backend_api_consumer_example_script_runs() -> None:
     }
 
 
+def test_retrieval_policy_consumer_example_script_runs() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    completed = subprocess.run(
+        [sys.executable, str(repo_root / "examples" / "retrieval_policy_consumer.py")],
+        cwd=repo_root,
+        capture_output=True,
+        check=True,
+        text=True,
+    )
+
+    assert json.loads(completed.stdout) == {
+        "all_runs": False,
+        "consumer": "retrieval_policy_consumer",
+        "ontology": {
+            "claim_label": "ConsumerClaim",
+            "mentioned_in_relationship": "OBSERVED_WITHIN",
+            "supported_by_relationship": "SUPPORTED_EXTERNALLY_BY",
+        },
+        "qa_prompt_id": "consumer_alt_qa_v1",
+        "question": "Which retrieval policy was forwarded?",
+        "run_id": "consumer-run-id",
+        "source_uri": "file:///consumer/source.pdf",
+    }
+
+
 def test_public_api_facade_supports_run_detail_endpoint_when_output_dir_has_runs(tmp_path: Path) -> None:
     run_root = tmp_path / "runs" / "unstructured_ingest-20260512T000000Z-test"
     manifest_path = run_root / "pdf_ingest" / "manifest.json"

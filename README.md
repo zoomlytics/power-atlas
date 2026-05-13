@@ -367,6 +367,13 @@ A fourth example that adds host-level request guarding around the mounted
 selection, lives in
 [`examples/backend_api_guarded_app.py`](examples/backend_api_guarded_app.py).
 
+A fifth example that stays entirely outside `demo/` and shows a thin consumer
+over the package-owned retrieval policy seam lives in
+[`examples/retrieval_policy_consumer.py`](examples/retrieval_policy_consumer.py).
+It builds an alternate `RetrievalPolicy`, attaches it to `AppContext.policies`,
+and runs the package-owned retrieval request-context adapter through an injected
+consumer implementation.
+
 `power_atlas.claim_extraction_entrypoint.run_claim_extraction(...)` /
 `run_claim_extraction_request_context(...)` and
 `power_atlas.entity_resolution_entrypoint.run_entity_resolution(...)` /
