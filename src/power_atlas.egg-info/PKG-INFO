@@ -42,7 +42,17 @@ The pipeline supports three entity resolution modes:
 - **`hybrid`** — runs `ingest-structured` first to create `CanonicalEntity` nodes from a CSV catalog, then runs `resolve-entities --resolution-mode hybrid` to enrich existing `ResolvedEntityCluster` nodes with `ALIGNED_WITH` edges to matching `CanonicalEntity` nodes, enabling cluster-aware retrieval.
 - **`structured_anchor`** — resolves entity mentions directly against `CanonicalEntity` nodes rather than clustering them against each other first.
 
-The working implementation lives in [`demo/`](demo/). The `backend/` and `frontend/` directories are minimal scaffolding and are **not connected to the pipeline** (see [Current Status](#current-status)).
+The package-owned runtime core now lives under [`src/power_atlas/`](src/power_atlas).
+The primary operator workflow remains [`demo/`](demo/), which should be read as
+the maintained demo/CLI shell over that package core rather than as a separate
+product root. The `backend/` and `frontend/` directories are intentionally
+retained placeholder shells and are **not connected to the pipeline**; within
+that stub surface, `backend/main.py` remains the stable launch seam for the
+package-owned backend facade (see [Current Status](#current-status)). For
+backend consumers, [`power_atlas.api`](src/power_atlas/api.py) is the supported
+import surface; the deeper `power_atlas.backend_*` modules are implementation
+seams, and the earlier `power_atlas.interfaces.api` compatibility alias has
+now been retired.
 
 ---
 
@@ -88,7 +98,7 @@ Run this once after installation to confirm the new installed-package path is
 working before you start the live pipeline:
 
 ```bash
-python -m pytest tests/test_power_atlas_package.py
+python -m pytest tests/test_power_atlas_package.py tests/test_backend_api_consumer.py
 ```
 
 ### 4. Start Neo4j
@@ -146,8 +156,9 @@ Refer to [`demo/VALIDATION_RUNBOOK.md`](demo/VALIDATION_RUNBOOK.md) for a step-b
 |---------|--------|
 | **`demo/` pipeline** | ✅ Operational — `unstructured_only` and `hybrid` modes working end-to-end |
 | **`pipelines/`** | ✅ Operational — ingest/query/experiment scripts + run artifacts |
-| **`backend/`** | 🚧 Disconnected scaffold — FastAPI stub with `/health` and placeholder `/graph/status` (HTTP 503); not connected to the GraphRAG pipeline |
+| **`backend/`** | 🚧 Disconnected scaffold — FastAPI surface assembled through the public package facade [`power_atlas.api`](src/power_atlas/api.py), with `/health`, `/datasets`, `/runs`, `/runs/current`, `/runs/current/{stage_prefix}`, `/runs/current/{stage_prefix}/claim-extraction-diagnostics`, `/runs/{run_id}`, `/runs/{run_id}/claim-extraction-diagnostics`, `/graph/status`, `/graph/summary`, `POST /graph/run-scoped-counts`, and `POST /graph/health-summary`; not connected to the GraphRAG pipeline yet, while `backend/main.py` remains the accepted launch seam for that backend surface |
 | **`frontend/`** | 🚧 Disconnected scaffold — Next.js stub; not connected to the pipeline or backend |
+| **`_archive/`** | 📦 Historical material — retained for reference only; not part of the active product or pipeline surface |
 | **Temporal modeling** | 📋 Planned — Architecture drafted ([`docs/architecture/temporal-modeling-v0.1.md`](docs/architecture/temporal-modeling-v0.1.md)) — not yet implemented in pipeline |
 | **Confidence scoring** | 📋 Planned — Design in progress — not yet implemented |
 | **HITL oversight** | 📋 Planned — Design in progress — not yet implemented |
@@ -156,8 +167,18 @@ Refer to [`demo/VALIDATION_RUNBOOK.md`](demo/VALIDATION_RUNBOOK.md) for a step-b
 
 ## Repository Structure
 
+The stable long-term root should be read in four layers:
+
+- `src/` as the package-owned runtime core,
+- `demo/`, `backend/`, and `frontend/` as retained execution shells,
+- `neo4j/`, `eval/`, `tests/`, and `docs/` as first-class repo boundaries,
+- `artifacts/`, `_archive/`, `studies/`, and vendor roots as evidence,
+  history, and external reference surfaces.
+
 ```
 power-atlas/
+├── src/
+│   └── power_atlas/            # Package-owned runtime core
 ├── demo/                        # Self-contained GraphRAG pipeline (start here)
 │   ├── README.md               # Full pipeline walkthrough and CLI reference
 │   ├── VALIDATION_RUNBOOK.md   # Step-by-step end-to-end validation checklist
@@ -181,14 +202,22 @@ power-atlas/
 │   ├── agents/
 │   ├── governance/
 │   └── risk/
-├── backend/                     # FastAPI stub (disconnected — see Current Status)
+├── neo4j/                       # Graph operational assets (constraints, indexes, migrations, diagnostics)
+├── backend/                     # FastAPI stub + stable launch seam for the disconnected backend API surface
 ├── frontend/                    # Next.js stub (disconnected — see Current Status)
+├── eval/                        # Reserved home for benchmark/evaluation assets as Phase 7 separation proceeds
 ├── tests/                       # Repository-level tests
 ├── scripts/                     # Utility scripts (e.g., vendor sync)
+├── artifacts/                   # Durable verification and restructure evidence
 ├── studies/                     # Historical research and exploratory notes
+├── _archive/                    # Archived experimentation material (non-active reference only)
+├── vendor/                      # Vendored third-party code
+├── vendor-resources/            # Retained vendor reference material
 ├── docker-compose.yml
+├── pyproject.toml
 ├── .env.example
-└── requirements.txt
+├── requirements.txt
+└── requirements-dev.txt
 ```
 
 ---
@@ -214,6 +243,7 @@ Manual validation checklist: [`demo/VALIDATION_RUNBOOK.md`](demo/VALIDATION_RUNB
 
 | Module | Purpose |
 |--------|---------|
+| [`entrypoints.py`](demo/stages/entrypoints.py) | Demo-owned loader for the accepted stage runtime callables used by `demo/run_demo.py` |
 | [`pdf_ingest.py`](demo/stages/pdf_ingest.py) | Ingest PDF sources into `Document` and `Chunk` nodes in the lexical graph |
 | [`claim_extraction.py`](demo/stages/claim_extraction.py) | LLM-driven extraction of `ExtractedClaim` and `EntityMention` nodes |
 | [`claim_participation.py`](demo/stages/claim_participation.py) | Build `HAS_PARTICIPANT` edges linking claims to their entity mentions |
@@ -223,10 +253,274 @@ Manual validation checklist: [`demo/VALIDATION_RUNBOOK.md`](demo/VALIDATION_RUNB
 | [`retrieval_benchmark.py`](demo/stages/retrieval_benchmark.py) | Evaluate retrieval quality against a baseline; produce benchmark artifacts |
 | [`graph_health.py`](demo/stages/graph_health.py) | Run read-only graph diagnostics and emit a scoped health report |
 
+`demo/run_demo.py` now resolves its stage runtime callables through
+[`demo/stages/entrypoints.py`](demo/stages/entrypoints.py), so maintained
+package code no longer needs a package-owned bridge that imports
+`demo.stages.*` directly.
+
+### Package-native stage entrypoints — `src/power_atlas/`
+
+For installed-package callers, the package-native config and request-context
+seams now live under `src/power_atlas/` rather than in `demo/stages/`.
+
+| Module | Purpose |
+|--------|---------|
+| [`claim_extraction_diagnostics.py`](src/power_atlas/claim_extraction_diagnostics.py) | Package-owned config/request-context entrypoint for run-scoped claim extraction diagnostics |
+| [`claim_extraction_entrypoint.py`](src/power_atlas/claim_extraction_entrypoint.py) | Package-owned config/request-context entrypoint for claim extraction |
+| [`entity_resolution_entrypoint.py`](src/power_atlas/entity_resolution_entrypoint.py) | Package-owned config/request-context entrypoint for entity resolution |
+| [`pdf_ingest_entrypoint.py`](src/power_atlas/pdf_ingest_entrypoint.py) | Package-owned config/request-context entrypoint for PDF ingest |
+| [`structured_ingest_entrypoint.py`](src/power_atlas/structured_ingest_entrypoint.py) | Package-owned config/request-context entrypoint for structured ingest |
+| [`retrieval_benchmark_entrypoint.py`](src/power_atlas/retrieval_benchmark_entrypoint.py) | Package-owned config/request-context entrypoint for retrieval benchmarking |
+| [`retrieval_request_context_adapters.py`](src/power_atlas/retrieval_request_context_adapters.py) | Package-owned request-context adapters for single-shot and interactive retrieval |
+| [`retrieval_live_preflight.py`](src/power_atlas/retrieval_live_preflight.py) | Package-owned live retrieval preflight for Neo4j/OpenAI requirements |
+
+The remaining `demo/stages` surfaces are intentionally narrower than they were
+earlier in the migration. In particular, [`demo/stages/graph_health.py`](demo/stages/graph_health.py)
+remains an accepted standalone analysis surface with a canonical
+`RequestContext` path, and [`demo/stages/retrieval_and_qa.py`](demo/stages/retrieval_and_qa.py)
+intentionally retains a small set of local default/validation helpers while the
+meaningful request-context and live-preflight seams already live in package
+modules.
+
+For discovery from an installed package, the root [`power_atlas`](src/power_atlas/__init__.py)
+package now also exposes these package-native entrypoint modules as namespace
+attributes (for example, `power_atlas.claim_extraction_diagnostics`,
+`power_atlas.claim_extraction_entrypoint`, and
+`power_atlas.pdf_ingest_entrypoint`). It also exposes the corresponding
+package-owned runner modules as namespace attributes (for example,
+`power_atlas.claim_extraction_runner`, `power_atlas.pdf_ingest_runner`, and
+`power_atlas.retrieval_benchmark_runner`) for callers that want the lower-level
+runtime/helper surface without importing deep module paths. The root package
+intentionally does **not** flatten most of their `run_*` helper callables into
+top-level names, because the package surface is still being graduated
+selectively. In particular,
+The executable adapter modules under `power_atlas.interfaces.cli.*` remain a
+deeper import surface on purpose: they are script/CLI wiring helpers rather
+than part of the root library namespace contract.
+
+That deeper CLI surface now also includes
+[`claim_extraction_diagnostics_entrypoint.py`](src/power_atlas/interfaces/cli/claim_extraction_diagnostics_entrypoint.py),
+[`claim_extraction_diagnostics_report_support.py`](src/power_atlas/interfaces/cli/claim_extraction_diagnostics_report_support.py),
+the installable package wrapper
+[`claim_extraction_diagnostics_report.py`](src/power_atlas/cli/claim_extraction_diagnostics_report.py),
+the installed console command `power-atlas-claim-diagnostics-report`, and the repo-local script
+[`pipelines/query/claim_extraction_diagnostics_report.py`](pipelines/query/claim_extraction_diagnostics_report.py),
+which format persisted claim-extraction diagnostics artifacts for run-scoped
+or current-run reporting without rerunning the diagnostics stage.
+
+The backend API surface now has a first-class owning facade at
+`power_atlas.api`. That module now owns the backend app contract, including
+typed response models plus app-construction helpers such as
+`BackendAppOptions`, `BackendGraphQueryService`, `BackendRuntime`,
+`build_backend_graph_query_service(...)`, `build_backend_runtime(...)`,
+`build_backend_router(...)`, and `create_backend_app(...)`. It also now owns
+the backend's shared package `AppContext` bootstrap plus a package graph query
+service so graph routes reuse app-owned settings and one consolidated service
+interface instead of resolving env state ad hoc per request or carrying one
+resolver seam per route. The earlier `power_atlas.interfaces.api`
+compatibility import layer has now been retired. Individual helpers still
+remain off the root package itself, so callers use
+`power_atlas.api.create_backend_app(...)` rather than root
+`power_atlas.create_backend_app(...)`.
+
+The current backend surface exposed through that facade includes two package
+discovery endpoints (`/datasets` and `/runs`), one convenience current-runs
+endpoint (`/runs/current`), one convenience current-run-detail endpoint
+(`/runs/current/{stage_prefix}`), one current-run claim-extraction diagnostics
+artifact endpoint (`/runs/current/{stage_prefix}/claim-extraction-diagnostics`),
+one per-run manifest detail endpoint (`/runs/{run_id}`), one per-run
+claim-extraction diagnostics artifact endpoint
+(`/runs/{run_id}/claim-extraction-diagnostics`), and two zero-arg read-only graph probes
+(`/graph/status` and `/graph/summary`), and two typed scoped query endpoints:
+`POST /graph/run-scoped-counts` and `POST /graph/health-summary`. The dataset
+route is backed by package-owned dataset selection helpers, the run routes are
+backed by a package-owned catalog over the configured `output_dir / runs` root,
+the claim-extraction diagnostics routes are backed by a package-owned artifact
+reader over `runs/<run_id>/claim_extraction_diagnostics/claim_extraction_diagnostics.json`,
+and the typed graph routes are backed by package-owned request/response models
+and runtime services.
+
+`/runs` also accepts optional `dataset_id` and `stage_name` query parameters so
+consumers can narrow the run catalog without reproducing filesystem filtering in
+their own host app.
+
+It also accepts `latest_per_stage_prefix=true` to keep only the newest run for
+each `make_run_id(scope)` prefix, which is useful when callers want one current
+run per stage family instead of the full history.
+
+`/runs/current` is a convenience alias for that current-run view and accepts the
+same optional `dataset_id` and `stage_name` query parameters without requiring
+callers to opt into `latest_per_stage_prefix=true` themselves. When
+`dataset_id` is omitted, it defaults to the configured selected dataset when
+one has been explicitly set through backend settings. Its response also now
+includes `inferred_dataset_id` when that defaulting path was used.
+
+`/runs/current/{stage_prefix}` is the matching current-detail convenience route.
+It selects the newest run whose `make_run_id(scope)` prefix matches
+`stage_prefix`, accepts an optional `dataset_id` filter when choosing that run,
+defaults that filter the same way when a configured selected dataset exists,
+and accepts the same optional `stage_name` detail filter as `/runs/{run_id}`.
+Its response also includes `inferred_dataset_id` when configured dataset
+selection supplied the effective dataset id.
+
+`/runs/current/{stage_prefix}/claim-extraction-diagnostics` is the matching
+current artifact convenience route for claim extraction diagnostics. It selects
+the newest run whose `make_run_id(scope)` prefix matches `stage_prefix`,
+accepts the same optional `dataset_id` filter as `/runs/current/{stage_prefix}`,
+and includes `inferred_dataset_id` when configured dataset selection supplied
+the effective dataset id.
+
+`/runs/{run_id}` accepts an optional `stage_name` query parameter to return only
+the matching stage manifest entries while preserving the full run summary.
+
+Example backend consumer usage:
+
+```python
+from power_atlas.api import BackendAppOptions, create_backend_app
+
+app = create_backend_app(
+  BackendAppOptions(version="0.1.0-consumer"),
+  environ={
+    "NEO4J_URI": "neo4j://localhost:7687",
+    "NEO4J_USERNAME": "neo4j",
+    "NEO4J_PASSWORD": "<password>",
+    "NEO4J_DATABASE": "neo4j",
+  },
+)
+```
+
+A slightly richer consumer example that adds its own route lives in
+[`examples/backend_api_consumer.py`](examples/backend_api_consumer.py).
+
+A second example that injects a custom graph query service through the same
+facade lives in
+[`examples/backend_api_custom_graph_queries.py`](examples/backend_api_custom_graph_queries.py).
+
+A third example that composes the backend router into a larger FastAPI app via
+`build_backend_runtime(...)` and `build_backend_router(...)`, including a
+mounted `/atlas/runs/current` snapshot plus mounted
+`/atlas/runs/current/{stage_prefix}` detail and mounted
+`/atlas/runs/current/{stage_prefix}/claim-extraction-diagnostics` artifact
+access while relying on configured dataset selection, lives in
+[`examples/backend_api_composed_app.py`](examples/backend_api_composed_app.py).
+
+A fourth example that adds host-level request guarding around the mounted
+`/atlas` router, including authorized mounted `/atlas/runs/current` and
+`/atlas/runs/current/{stage_prefix}` calls plus authorized mounted
+`/atlas/runs/current/{stage_prefix}/claim-extraction-diagnostics` artifact
+access while relying on configured dataset selection, lives in
+[`examples/backend_api_guarded_app.py`](examples/backend_api_guarded_app.py).
+
+A package-only reporting example for persisted claim-extraction diagnostics
+artifacts lives in
+[`examples/claim_extraction_diagnostics_report_consumer.py`](examples/claim_extraction_diagnostics_report_consumer.py).
+It demonstrates both run-scoped and current-run invocation of the package-owned
+reporting helper without rerunning diagnostics. For installed-package callers,
+prefer the `power-atlas-claim-diagnostics-report` console command. For direct
+repo-local operator use, the same helper is also wired through
+[`pipelines/query/claim_extraction_diagnostics_report.py`](pipelines/query/claim_extraction_diagnostics_report.py).
+
+A fifth example that stays entirely outside `demo/` and shows a thin consumer
+over the package-owned retrieval policy seam lives in
+[`examples/retrieval_policy_consumer.py`](examples/retrieval_policy_consumer.py).
+It builds an alternate `RetrievalPolicy`, attaches it to `AppContext.policies`,
+and runs the package-owned retrieval request-context adapter through an injected
+consumer implementation.
+
+A sixth example moves that same seam one step closer to the second-domain pilot:
+[`examples/market_trade_retrieval_policy_consumer.py`](examples/market_trade_retrieval_policy_consumer.py).
+It consumes the package-owned market/trade policy pack from
+[`src/power_atlas/policy_packs/market_trade.py`](src/power_atlas/policy_packs/market_trade.py)
+rather than defining the alternate policy inline.
+
+A seventh example carries the second-domain proof into package-owned entity
+resolution:
+[`examples/market_trade_entity_resolution_consumer.py`](examples/market_trade_entity_resolution_consumer.py).
+It builds a package request context, supplies market/trade entity-resolution
+graph, canonical-lookup, alignment, and dataset-selection contracts, and
+delegates into the package-owned entity-resolution entrypoint through an
+injected consumer runtime.
+
+An eighth example acts as the starter adoption path for a fresh research
+project:
+[`examples/domain_pack_starter.py`](examples/domain_pack_starter.py).
+It defines a new `DomainPackDescriptor` inline, wires custom retrieval and
+entity-resolution contracts into package request contexts, and proves that a
+new project can adopt the package-owned GraphRAG seams without importing
+`demo.*` or modifying package runtime code.
+
+These examples are now mirrored by a lightweight domain contribution model.
+`src/power_atlas/policy_packs/market_trade.py` exports
+`MARKET_TRADE_DOMAIN_PACK`, a package-owned descriptor that records the
+market/trade pack name, version, provided seams, and example entrypoints.
+The descriptor lives in `power_atlas.bootstrap.DomainPackDescriptor` and is the
+first step toward making domain contribution explicit without introducing a
+plugin loader or a second runtime layer.
+
+`power_atlas.claim_extraction_entrypoint.run_claim_extraction(...)` /
+`run_claim_extraction_request_context(...)` and
+`power_atlas.claim_extraction_diagnostics.run_claim_extraction_diagnostics(...)` /
+`run_claim_extraction_diagnostics_request_context(...)`, plus
+`power_atlas.entity_resolution_entrypoint.run_entity_resolution(...)` /
+`run_entity_resolution_request_context(...)`, plus
+`power_atlas.pdf_ingest_entrypoint.run_pdf_ingest(...)` /
+`run_pdf_ingest_request_context(...)`, plus
+`power_atlas.retrieval_benchmark_entrypoint.run_retrieval_benchmark(...)` /
+`run_retrieval_benchmark_request_context(...)`, plus
+`power_atlas.structured_ingest_entrypoint.run_structured_ingest(...)` /
+`run_structured_ingest_request_context(...)`, now own package-default runtime
+bindings at the module level, while remaining intentionally unflattened from
+the root package namespace.
+
+Example installed-package usage:
+
+```python
+from power_atlas import (
+  bootstrap_app,
+  build_request_context,
+  claim_extraction_entrypoint,
+  entity_resolution_entrypoint,
+)
+
+app = bootstrap_app(
+  {
+    "NEO4J_URI": "bolt://localhost:7687",
+    "NEO4J_USERNAME": "neo4j",
+    "NEO4J_PASSWORD": "<password>",
+    "NEO4J_DATABASE": "neo4j",
+    "OPENAI_MODEL": "gpt-5.4",
+    "POWER_ATLAS_DATASET": "demo_dataset_v1",
+  }
+)
+
+claim_request = build_request_context(
+  app.app_context,
+  command="extract-claims",
+  dry_run=False,
+  run_id="unstructured_ingest-20260511T000000Z-abcd1234",
+  source_uri="file:///absolute/path/to/source.pdf",
+)
+claim_summary = claim_extraction_entrypoint.run_claim_extraction_request_context(
+  claim_request,
+)
+
+resolution_request = build_request_context(
+  app.app_context,
+  command="resolve-entities",
+  dry_run=False,
+  run_id="unstructured_ingest-20260511T000000Z-abcd1234",
+  source_uri="file:///absolute/path/to/source.pdf",
+  resolution_mode="hybrid",
+)
+resolution_summary = entity_resolution_entrypoint.run_entity_resolution_request_context(
+  resolution_request,
+)
+```
+
 ### Data contracts — `src/power_atlas/contracts/`
 
-`demo/contracts/` remains as a compatibility shim layer during the migration, but
-the package-owned implementations now live under `src/power_atlas/contracts/`.
+The package-owned contract implementations live under
+`src/power_atlas/contracts/`.
 
 | Module | Purpose |
 |--------|---------|
@@ -250,8 +544,28 @@ the package-owned implementations now live under `src/power_atlas/contracts/`.
 | [`unstructured-first-entity-resolution-v0.1.md`](docs/architecture/unstructured-first-entity-resolution-v0.1.md) | Entity resolution modes and cluster identity design |
 | [`retrieval-semantics-v0.1.md`](docs/architecture/retrieval-semantics-v0.1.md) | Retrieval design and citation contract |
 | [`retrieval-citation-result-contract-v0.1.md`](docs/architecture/retrieval-citation-result-contract-v0.1.md) | Result contract for citation-grounded Q&A responses |
-| [`retrieval-benchmark-review-rubric-v0.1.md`](docs/architecture/retrieval-benchmark-review-rubric-v0.1.md) | **Benchmark review criteria** — rubric and scoring guidance for regression comparison |
+| [`retrieval-benchmark-review-rubric-v0.1.md`](eval/rubrics/retrieval-benchmark-review-rubric-v0.1.md) | **Benchmark review criteria** — rubric and scoring guidance for regression comparison |
 | [`temporal-modeling-v0.1.md`](docs/architecture/temporal-modeling-v0.1.md) | Temporal relationship modeling (design only; not yet implemented) |
+
+### Neo4j operational assets — `neo4j/`
+
+The top-level `neo4j/` directory is the intended home for graph operational
+assets and lifecycle documentation. Runtime Neo4j access code remains under
+`src/power_atlas/adapters/neo4j/`.
+
+| Path | Purpose |
+|------|---------|
+| [`neo4j/README.md`](neo4j/README.md) | Operational boundary, local/test workflow, and current graph-ops posture |
+| [`neo4j/local_dev_workflow.md`](neo4j/local_dev_workflow.md) | Current Neo4j local/test provisioning and validation workflow |
+| [`neo4j/constraints/`](neo4j/constraints/) | Versioned constraint assets |
+| [`neo4j/indexes/`](neo4j/indexes/) | Versioned index assets |
+| [`neo4j/indexes/demo_chunk_embedding_index.cypher`](neo4j/indexes/demo_chunk_embedding_index.cypher) | Current demo vector-index contract for `:Chunk(embedding)` |
+| [`neo4j/migrations/`](neo4j/migrations/) | Ordered migration assets or manifests |
+| [`neo4j/diagnostics/`](neo4j/diagnostics/) | Repeatable graph diagnostics |
+| [`neo4j/diagnostics/check_demo_chunk_embedding_index.cypher`](neo4j/diagnostics/check_demo_chunk_embedding_index.cypher) | Read-only check for the live demo vector-index contract |
+| [`neo4j/diagnostics/check_demo_reset_scope.cypher`](neo4j/diagnostics/check_demo_reset_scope.cypher) | Read-only check for the live demo reset footprint |
+| [`neo4j/diagnostics/demo_reset_scope.md`](neo4j/diagnostics/demo_reset_scope.md) | Current demo reset wipe/index-drop inventory |
+| [`neo4j/seed/`](neo4j/seed/) | Seed data and seed-loading assets |
 
 ### Fixtures — `demo/fixtures/`
 
@@ -293,6 +607,12 @@ graph writes during a pipeline run.
 | [`demo/tests/contract_fixtures/`](demo/tests/contract_fixtures/) | YAML fixtures for citation contract scenarios |
 | [`tests/`](tests/) | Repository-level integration tests (PDF ingest helpers, vendor sync) |
 
+At the current Phase 7 checkpoint, benchmark- and diagnostics-named tests
+under `demo/tests/` remain active correctness coverage when they verify stage
+logic, CLI contracts, or supported inspection surfaces. No obsolete-test
+quarantine or broader first-party CI narrowing is currently recorded for these
+roots.
+
 ### `ask --run-id` dataset-ownership validation
 
 When `ask` is called with an explicit `--run-id` alongside a dataset selection
@@ -327,7 +647,7 @@ check skipped.
 
 | Asset | Purpose |
 |-------|---------|
-| [`docs/architecture/retrieval-benchmark-review-rubric-v0.1.md`](docs/architecture/retrieval-benchmark-review-rubric-v0.1.md) | **Review criteria** — rubric and scoring guidance for evaluating benchmark regressions |
+| [`eval/rubrics/retrieval-benchmark-review-rubric-v0.1.md`](eval/rubrics/retrieval-benchmark-review-rubric-v0.1.md) | **Review criteria** — rubric and scoring guidance for evaluating benchmark regressions |
 | [`pipelines/query/retrieval_benchmark_example_output.json`](pipelines/query/retrieval_benchmark_example_output.json) | Synthetic example of benchmark output schema (for tooling and training) |
 | [`demo/stages/retrieval_benchmark.py`](demo/stages/retrieval_benchmark.py) | Benchmark stage implementation |
 | `pipelines/runs/<run_id>/retrieval_benchmark/` | Actual run baseline artifacts (gitignored by default; see `.gitignore`) |
@@ -355,16 +675,29 @@ results are not lost and debugging incomplete runs is straightforward.
 
 ## Documentation
 
+Repository restructure status: the package-first migration is functionally
+complete through the 2026-05-07 closure-validation checkpoint. The latest live
+proof point is `make phase1-verify` at commit
+`4666f6ec2b97d9f158737ae537d6a8f2f1481383`, with artifacts under
+`artifacts/repository_restructure/phase1/20260507T063610Z`. Remaining Phase 7
+and Phase 10 items are deliberate follow-up work, not blockers for the current
+runtime boundary posture.
+
 | Document | Purpose |
 |----------|---------|
 | [`demo/README.md`](demo/README.md) | Full pipeline walkthrough, CLI reference, and troubleshooting |
 | [`demo/VALIDATION_RUNBOOK.md`](demo/VALIDATION_RUNBOOK.md) | Manual end-to-end validation checklist |
+| [`artifacts/repository_restructure/phase1/README.md`](artifacts/repository_restructure/phase1/README.md) | Local guide to the retained Phase 1 verification-evidence artifact root |
+| [`frontend/README.md`](frontend/README.md) | Local status note for the retained placeholder frontend surface |
 | [`pipelines/query/README.md`](pipelines/query/README.md) | Neo4j Browser Cypher query workbook (v0.3) |
+| [`docs/repository_restructure/repository_restructure_plan.md`](docs/repository_restructure/repository_restructure_plan.md) | Canonical restructure plan and closure-status narrative |
+| [`docs/repository_restructure/repository_restructure_checklist.md`](docs/repository_restructure/repository_restructure_checklist.md) | Phase-by-phase completion tracker and compatibility-shim inventory |
+| [`docs/repository_restructure/repository_restructure_decisions.md`](docs/repository_restructure/repository_restructure_decisions.md) | Decision register for accepted migration exceptions and defer-in-place surfaces |
 | [`docs/architecture/v0.1.md`](docs/architecture/v0.1.md) | Core architecture design |
 | [`docs/architecture/unstructured-first-entity-resolution-v0.1.md`](docs/architecture/unstructured-first-entity-resolution-v0.1.md) | Entity resolution architecture |
 | [`docs/architecture/claim-argument-model-v0.3.md`](docs/architecture/claim-argument-model-v0.3.md) | Claim and participation model (v0.3) |
 | [`docs/architecture/retrieval-semantics-v0.1.md`](docs/architecture/retrieval-semantics-v0.1.md) | Retrieval design and citation contract |
-| [`docs/architecture/retrieval-benchmark-review-rubric-v0.1.md`](docs/architecture/retrieval-benchmark-review-rubric-v0.1.md) | Benchmark review rubric for regression comparison |
+| [`eval/rubrics/retrieval-benchmark-review-rubric-v0.1.md`](eval/rubrics/retrieval-benchmark-review-rubric-v0.1.md) | Benchmark review rubric for regression comparison |
 | [`docs/architecture/temporal-modeling-v0.1.md`](docs/architecture/temporal-modeling-v0.1.md) | Temporal relationship modeling (design only) |
 | [`docs/ontology/v0.1.md`](docs/ontology/v0.1.md) | Ontology v0.1 |
 | [`docs/provenance/v0.1.md`](docs/provenance/v0.1.md) | Provenance model v0.1 |
@@ -395,7 +728,8 @@ Key environment variables:
 
 ### Vendor metadata sync
 
-When the `vendor/neo4j-graphrag-python` submodule pin changes:
+When the `vendor/neo4j-graphrag-python` submodule pin changes, use the stable
+operator script seam:
 
 ```bash
 python scripts/sync_vendor_version.py
@@ -409,7 +743,7 @@ python scripts/sync_vendor_version.py --check
 # Start Neo4j only (sufficient for the demo pipeline)
 docker compose up -d neo4j
 
-# Start all services (includes disconnected backend/frontend stubs)
+# Start all services (includes disconnected backend/frontend stubs; the backend still launches through backend/main.py)
 docker compose up --build
 
 # Logs

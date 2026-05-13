@@ -1708,7 +1708,9 @@ print(result["artifact"]["participation_summary"])
 When you already have a persisted
 `runs/<run_id>/claim_extraction_diagnostics/claim_extraction_diagnostics.json`
 artifact and only need the formatted summary, use the manual reporting seam
-below instead of rerunning the diagnostics stage:
+below instead of rerunning the diagnostics stage. Installed-package callers can
+use the `power-atlas-claim-diagnostics-report` console command; the examples
+here stay focused on the repo-local `pipelines/query` path:
 
 ```bash
 # Report a specific run-scoped artifact

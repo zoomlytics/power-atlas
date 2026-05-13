@@ -73,6 +73,9 @@ def test_package_modules_import() -> None:
     claim_extraction_diagnostics_cli_module = importlib.import_module(
         "power_atlas.interfaces.cli.claim_extraction_diagnostics_entrypoint"
     )
+    claim_extraction_diagnostics_package_cli_module = importlib.import_module(
+        "power_atlas.cli.claim_extraction_diagnostics_report"
+    )
     claim_extraction_diagnostics_report_support_module = importlib.import_module(
         "power_atlas.interfaces.cli.claim_extraction_diagnostics_report_support"
     )
@@ -326,6 +329,7 @@ def test_package_modules_import() -> None:
     assert callable(
         claim_extraction_diagnostics_cli_module.run_claim_extraction_diagnostics_report_main
     )
+    assert callable(claim_extraction_diagnostics_package_cli_module.main)
     assert callable(
         claim_extraction_diagnostics_report_support_module.build_claim_extraction_diagnostics_report_settings
     )
@@ -1373,6 +1377,27 @@ def test_claim_extraction_diagnostics_report_main_rejects_missing_run_selector()
 
     assert exc_info.value.code == 1
     assert errors == ["ERROR: run_id is required unless --current is used."]
+
+
+def test_claim_extraction_diagnostics_report_package_cli_main_delegates_to_entrypoint() -> None:
+    from power_atlas.cli import claim_extraction_diagnostics_report
+
+    argv = ["--run-id", "run-123"]
+
+    with mock.patch.object(
+        claim_extraction_diagnostics_report,
+        "run_claim_extraction_diagnostics_report_main",
+    ) as run_main:
+        claim_extraction_diagnostics_report.main(argv)
+
+    run_main.assert_called_once_with(
+        parse_args=claim_extraction_diagnostics_report._parse_args,
+        build_settings=claim_extraction_diagnostics_report.build_claim_extraction_diagnostics_report_settings,
+        resolve_artifact=claim_extraction_diagnostics_report.resolve_claim_extraction_diagnostics_artifact,
+        resolve_current_artifact=claim_extraction_diagnostics_report.resolve_current_claim_extraction_diagnostics_artifact,
+        warn=mock.ANY,
+        argv=argv,
+    )
 
 
 def test_entity_resolution_entrypoint_uses_package_default_runtime_runner() -> None:

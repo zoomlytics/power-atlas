@@ -25,6 +25,9 @@ dev = [
     "types-python-dateutil",
 ]
 
+[project.scripts]
+power-atlas-claim-diagnostics-report = "power_atlas.cli.claim_extraction_diagnostics_report:main"
+
 [tool.setuptools.package-dir]
 "" = "src"
 
