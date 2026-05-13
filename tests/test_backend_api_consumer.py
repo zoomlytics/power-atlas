@@ -368,6 +368,113 @@ def test_claim_extraction_diagnostics_report_consumer_example_script_runs() -> N
     }
 
 
+def test_claim_extraction_diagnostics_report_script_runs_for_run_and_current(
+    tmp_path: Path,
+) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    selected_dataset_id = resolve_dataset_root("demo_dataset_v1", environ={}).dataset_id
+    run_id = "unstructured_ingest-20260512T000000Z-a"
+
+    manifest_path = tmp_path / "runs" / run_id / "claim_extraction" / "manifest.json"
+    manifest_path.parent.mkdir(parents=True)
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "run_id": run_id,
+                "dataset_id": selected_dataset_id,
+                "stages": {"claim_extraction": {"status": "live"}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    artifact_path = (
+        tmp_path
+        / "runs"
+        / run_id
+        / "claim_extraction_diagnostics"
+        / "claim_extraction_diagnostics.json"
+    )
+    artifact_path.parent.mkdir(parents=True)
+    artifact_path.write_text(
+        json.dumps(
+            {
+                "status": "dry_run",
+                "generated_at": "2026-05-13T12:00:00+00:00",
+                "run_id": run_id,
+                "source_uri": "file:///script/source.pdf",
+                "artifact_path": "ignored-by-reader",
+                "participation_summary": {
+                    "total_edges": 0,
+                    "edges_by_role": {},
+                    "total_claims": 0,
+                    "claims_with_zero_edges": 0,
+                    "claim_coverage_pct": None,
+                },
+                "match_summary": {
+                    "total_edges_with_match_method": 0,
+                    "edges_by_match_method": {},
+                },
+                "warnings": ["script warning"],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    base_env = os.environ.copy()
+    base_env["POWER_ATLAS_OUTPUT_DIR"] = str(tmp_path)
+    base_env["POWER_ATLAS_DATASET"] = "demo_dataset_v1"
+
+    run_scoped = subprocess.run(
+        [
+            sys.executable,
+            str(repo_root / "pipelines" / "query" / "claim_extraction_diagnostics_report.py"),
+            "--run-id",
+            run_id,
+            "--output-dir",
+            str(tmp_path),
+        ],
+        cwd=repo_root,
+        env=base_env,
+        capture_output=True,
+        check=True,
+        text=True,
+    )
+    current = subprocess.run(
+        [
+            sys.executable,
+            str(repo_root / "pipelines" / "query" / "claim_extraction_diagnostics_report.py"),
+            "--current",
+            "--stage-prefix",
+            "unstructured_ingest",
+            "--output-dir",
+            str(tmp_path),
+        ],
+        cwd=repo_root,
+        env=base_env,
+        capture_output=True,
+        check=True,
+        text=True,
+    )
+
+    run_lines = [line for line in run_scoped.stdout.splitlines() if line]
+    current_lines = [line for line in current.stdout.splitlines() if line]
+    assert "Status        : dry_run" in run_lines
+    assert "Source URI    : file:///script/source.pdf" in run_lines
+    assert json.loads(run_lines[-1]) == {
+        "run_id": run_id,
+        "artifact_path": str(artifact_path.resolve()),
+        "status": "dry_run",
+    }
+    assert "Status        : dry_run" in current_lines
+    assert "Source URI    : file:///script/source.pdf" in current_lines
+    assert json.loads(current_lines[-1]) == {
+        "run_id": run_id,
+        "artifact_path": str(artifact_path.resolve()),
+        "status": "dry_run",
+        "inferred_dataset_id": "demo_dataset_v1",
+    }
+
+
 def test_public_api_facade_supports_run_detail_endpoint_when_output_dir_has_runs(tmp_path: Path) -> None:
     run_root = tmp_path / "runs" / "unstructured_ingest-20260512T000000Z-test"
     manifest_path = run_root / "pdf_ingest" / "manifest.json"

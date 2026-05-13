@@ -1703,6 +1703,30 @@ result = run_graph_health_diagnostics_request_context(
 print(result["artifact"]["participation_summary"])
 ```
 
+### Reporting a persisted claim-extraction diagnostics artifact
+
+When you already have a persisted
+`runs/<run_id>/claim_extraction_diagnostics/claim_extraction_diagnostics.json`
+artifact and only need the formatted summary, use the manual reporting seam
+below instead of rerunning the diagnostics stage:
+
+```bash
+# Report a specific run-scoped artifact
+python pipelines/query/claim_extraction_diagnostics_report.py \
+  --run-id <run-id>
+
+# Resolve the newest run for a stage prefix
+python pipelines/query/claim_extraction_diagnostics_report.py \
+  --current \
+  --stage-prefix unstructured_ingest
+```
+
+Add `--output-dir <dir>` when the artifact root is not `pipelines/`, and add
+`--dataset-id <dataset-id>` to disambiguate `--current` in a multi-dataset
+artifact tree. The script prints a small human-readable report plus a final
+JSON summary line containing the resolved `run_id`, `artifact_path`, and
+`status`.
+
 ---
 
 ## 14. Post-hybrid retrieval benchmark

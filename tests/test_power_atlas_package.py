@@ -73,6 +73,9 @@ def test_package_modules_import() -> None:
     claim_extraction_diagnostics_cli_module = importlib.import_module(
         "power_atlas.interfaces.cli.claim_extraction_diagnostics_entrypoint"
     )
+    claim_extraction_diagnostics_report_support_module = importlib.import_module(
+        "power_atlas.interfaces.cli.claim_extraction_diagnostics_report_support"
+    )
     retrieval_benchmark_runner_module = importlib.import_module(
         "power_atlas.retrieval_benchmark_runner"
     )
@@ -322,6 +325,12 @@ def test_package_modules_import() -> None:
     )
     assert callable(
         claim_extraction_diagnostics_cli_module.run_claim_extraction_diagnostics_report_main
+    )
+    assert callable(
+        claim_extraction_diagnostics_report_support_module.build_claim_extraction_diagnostics_report_settings
+    )
+    assert callable(
+        claim_extraction_diagnostics_report_support_module.parse_claim_extraction_diagnostics_report_args
     )
     assert callable(claim_extraction_entrypoint_module.resolve_claim_extraction_policy)
     assert callable(claim_extraction_entrypoint_module.resolve_pipeline_contract)

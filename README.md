@@ -282,7 +282,10 @@ than part of the root library namespace contract.
 
 That deeper CLI surface now also includes
 [`claim_extraction_diagnostics_entrypoint.py`](src/power_atlas/interfaces/cli/claim_extraction_diagnostics_entrypoint.py),
-which formats persisted claim-extraction diagnostics artifacts for run-scoped
+[`claim_extraction_diagnostics_report_support.py`](src/power_atlas/interfaces/cli/claim_extraction_diagnostics_report_support.py),
+and the operator-facing script
+[`pipelines/query/claim_extraction_diagnostics_report.py`](pipelines/query/claim_extraction_diagnostics_report.py),
+which format persisted claim-extraction diagnostics artifacts for run-scoped
 or current-run reporting without rerunning the diagnostics stage.
 
 The backend API surface now has a first-class owning facade at
@@ -392,7 +395,9 @@ A package-only reporting example for persisted claim-extraction diagnostics
 artifacts lives in
 [`examples/claim_extraction_diagnostics_report_consumer.py`](examples/claim_extraction_diagnostics_report_consumer.py).
 It demonstrates both run-scoped and current-run invocation of the package-owned
-reporting helper without rerunning diagnostics.
+reporting helper without rerunning diagnostics. For direct operator use, the
+same helper is also wired through
+[`pipelines/query/claim_extraction_diagnostics_report.py`](pipelines/query/claim_extraction_diagnostics_report.py).
 
 A fifth example that stays entirely outside `demo/` and shows a thin consumer
 over the package-owned retrieval policy seam lives in
