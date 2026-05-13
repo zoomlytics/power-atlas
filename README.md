@@ -380,6 +380,14 @@ It consumes the package-owned market/trade policy pack from
 [`src/power_atlas/policy_packs/market_trade.py`](src/power_atlas/policy_packs/market_trade.py)
 rather than defining the alternate policy inline.
 
+A seventh example carries the second-domain proof into package-owned entity
+resolution:
+[`examples/market_trade_entity_resolution_consumer.py`](examples/market_trade_entity_resolution_consumer.py).
+It builds a package request context, supplies market/trade entity-resolution
+graph, canonical-lookup, alignment, and dataset-selection contracts, and
+delegates into the package-owned entity-resolution entrypoint through an
+injected consumer runtime.
+
 `power_atlas.claim_extraction_entrypoint.run_claim_extraction(...)` /
 `run_claim_extraction_request_context(...)` and
 `power_atlas.entity_resolution_entrypoint.run_entity_resolution(...)` /

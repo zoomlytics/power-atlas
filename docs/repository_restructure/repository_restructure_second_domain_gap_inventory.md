@@ -61,7 +61,12 @@ The following second-domain proof now exists:
 - `src/power_atlas/contracts/resolution.py` now also defines a package-owned
   `EntityResolutionDatasetSelectionContract`, and the package dataset-selection
   entrypoint path accepts it through
-  `power_atlas.entity_resolution_entrypoint`.
+  `power_atlas.entity_resolution_entrypoint`,
+- `examples/market_trade_entity_resolution_consumer.py` now proves a
+  package-only second-domain entity-resolution consumer can compose the
+  market/trade graph, canonical-lookup, alignment, and dataset-selection
+  contracts through `power_atlas.entity_resolution_entrypoint` without
+  importing `demo.*`.
 
 That proof is sufficient to close the question of whether a second-domain
 retrieval pack can ride the current policy seam.
@@ -162,11 +167,12 @@ current dataset-root behavior, provide a different mapping from dataset name to
 canonical dataset id, or source the canonical dataset id from some other
 RequestContext/AppContext-backed configuration.
 
-This closes the last concrete hardcoded seam named in this gap inventory.
-The next question is no longer which adjacent contract is fixed. The next
-question is whether the second-domain pilot now warrants a package-only
-entity-resolution consumer proof, or whether the current seam set is already
-sufficient to pause extraction and evaluate a broader shared-kernel split.
+This closes the last concrete hardcoded seam named in this gap inventory, and a
+package-only second-domain entity-resolution consumer proof now exists.
+The next question is no longer whether the current seam set can support a
+package-only second-domain consumer. The next question is whether the current
+seam set is already sufficient to pause extraction and evaluate a broader
+shared-kernel split.
 
 ## What is not a blocker at this checkpoint
 
@@ -193,18 +199,16 @@ pilot proof plus the structured ingest contracts.
 
 The next extraction slices should proceed in this order:
 
-1. decide whether the second-domain pilot now needs a package-only
-  entity-resolution consumer proof,
-2. only then decide whether the second-domain pilot warrants a broader shared
+1. decide whether the second-domain pilot now warrants a broader shared
   kernel namespace split.
 
 ## Minimum acceptance for the next slice
 
-The next reuse slice should be considered sufficient only if it proves whether
-the existing package seams are enough for a package-only second-domain
-entity-resolution consumer.
+The next reuse slice should be considered sufficient only if it turns the new
+package-only proof into a decision about whether further reusable-core
+splitting is still justified.
 
 The structured ingest layer, entity-resolution graph vocabulary, and canonical
 lookup, alignment strategy, and dataset-selection surfaces are now materially
-improved. The next meaningful step is a package-only second-domain proof, then
-a decision about whether further kernel splitting is warranted.
+improved. The next meaningful step is deciding whether further kernel splitting
+is warranted now that the package-only second-domain proof exists.

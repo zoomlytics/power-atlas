@@ -223,6 +223,52 @@ def test_market_trade_retrieval_policy_consumer_example_script_runs() -> None:
     }
 
 
+def test_market_trade_entity_resolution_consumer_example_script_runs() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(repo_root / "examples" / "market_trade_entity_resolution_consumer.py"),
+        ],
+        cwd=repo_root,
+        capture_output=True,
+        check=True,
+        text=True,
+    )
+
+    assert json.loads(completed.stdout) == {
+        "alignment_steps": [
+            {
+                "lookup_table": "alias",
+                "method": "ticker_symbol_alias",
+                "score": 0.97,
+                "status": "tentative",
+            },
+            {
+                "lookup_table": "label",
+                "method": "security_label_exact",
+                "score": 0.9,
+                "status": "aligned",
+            },
+        ],
+        "canonical_lookup": {
+            "aliases_field": "ticker_aliases",
+            "entity_id_field": "security_id",
+            "qid_exact_method": "security_id_exact",
+        },
+        "consumer": "market_trade_entity_resolution_consumer",
+        "effective_dataset_id": "market-canonicals::market_trade_dataset_v1",
+        "graph": {
+            "aligned_with_relationship": "ALIGNED_WITH_SECURITY",
+            "canonical_label": "Security",
+            "member_of_relationship": "MEMBER_OF_SECURITY_CLUSTER",
+        },
+        "resolution_mode": "hybrid",
+        "run_id": "market-trade-entity-resolution-run-id",
+        "source_uri": "file:///market/trade/source.pdf",
+    }
+
+
 def test_public_api_facade_supports_run_detail_endpoint_when_output_dir_has_runs(tmp_path: Path) -> None:
     run_root = tmp_path / "runs" / "unstructured_ingest-20260512T000000Z-test"
     manifest_path = run_root / "pdf_ingest" / "manifest.json"
