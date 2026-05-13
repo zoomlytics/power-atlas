@@ -40,6 +40,25 @@ def _env_without_repo_pythonpath(repo_root: Path) -> dict[str, str]:
     return env
 
 
+def _run_example_script_from_outside_repo_when_installed(
+    example_name: str,
+    tmp_path: Path,
+) -> subprocess.CompletedProcess[str]:
+    repo_root = Path(__file__).resolve().parents[1]
+    env = _env_without_repo_pythonpath(repo_root)
+    example_source = repo_root / "examples" / example_name
+    script_path = tmp_path / example_name
+    script_path.write_text(example_source.read_text(encoding="utf-8"), encoding="utf-8")
+    return subprocess.run(
+        [sys.executable, str(script_path)],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        check=True,
+        text=True,
+    )
+
+
 def test_public_api_facade_supports_consumer_app_smoke() -> None:
     consumer_app = create_backend_app(
         BackendAppOptions(version="2.0.0-test"),
@@ -603,6 +622,38 @@ def test_market_trade_retrieval_policy_consumer_example_script_runs() -> None:
     }
 
 
+def test_market_trade_retrieval_policy_consumer_runs_from_outside_repo_when_installed(
+    tmp_path: Path,
+) -> None:
+    try:
+        importlib.metadata.version("power-atlas")
+    except importlib.metadata.PackageNotFoundError:
+        pytest.skip("requires power-atlas to be installed in the active environment")
+
+    completed = _run_example_script_from_outside_repo_when_installed(
+        "market_trade_retrieval_policy_consumer.py",
+        tmp_path,
+    )
+
+    assert json.loads(completed.stdout) == {
+        "all_runs": False,
+        "consumer": "market_trade_retrieval_policy_consumer",
+        "ontology": {
+            "canonical_label": "Security",
+            "claim_label": "MarketClaim",
+            "mentioned_in_relationship": "MENTIONED_IN_MARKET_SOURCE",
+        },
+        "qa_prompt_id": "market_trade_qa_v1",
+        "question": "Which market/trade retrieval policy was forwarded?",
+        "run_id": "market-trade-run-id",
+        "source_uri": "file:///market/trade/source.pdf",
+        "traversal_defaults": {
+            "cluster_aware": True,
+            "expand_graph": True,
+        },
+    }
+
+
 def test_market_trade_entity_resolution_consumer_example_script_runs() -> None:
     repo_root = Path(__file__).resolve().parents[1]
     completed = subprocess.run(
@@ -614,6 +665,52 @@ def test_market_trade_entity_resolution_consumer_example_script_runs() -> None:
         capture_output=True,
         check=True,
         text=True,
+    )
+
+    assert json.loads(completed.stdout) == {
+        "alignment_steps": [
+            {
+                "lookup_table": "alias",
+                "method": "ticker_symbol_alias",
+                "score": 0.97,
+                "status": "tentative",
+            },
+            {
+                "lookup_table": "label",
+                "method": "security_label_exact",
+                "score": 0.9,
+                "status": "aligned",
+            },
+        ],
+        "canonical_lookup": {
+            "aliases_field": "ticker_aliases",
+            "entity_id_field": "security_id",
+            "qid_exact_method": "security_id_exact",
+        },
+        "consumer": "market_trade_entity_resolution_consumer",
+        "effective_dataset_id": "market-canonicals::market_trade_dataset_v1",
+        "graph": {
+            "aligned_with_relationship": "ALIGNED_WITH_SECURITY",
+            "canonical_label": "Security",
+            "member_of_relationship": "MEMBER_OF_SECURITY_CLUSTER",
+        },
+        "resolution_mode": "hybrid",
+        "run_id": "market-trade-entity-resolution-run-id",
+        "source_uri": "file:///market/trade/source.pdf",
+    }
+
+
+def test_market_trade_entity_resolution_consumer_runs_from_outside_repo_when_installed(
+    tmp_path: Path,
+) -> None:
+    try:
+        importlib.metadata.version("power-atlas")
+    except importlib.metadata.PackageNotFoundError:
+        pytest.skip("requires power-atlas to be installed in the active environment")
+
+    completed = _run_example_script_from_outside_repo_when_installed(
+        "market_trade_entity_resolution_consumer.py",
+        tmp_path,
     )
 
     assert json.loads(completed.stdout) == {
@@ -725,6 +822,40 @@ def test_claim_extraction_diagnostics_report_consumer_example_script_runs() -> N
         capture_output=True,
         check=True,
         text=True,
+    )
+
+    assert json.loads(completed.stdout) == {
+        "consumer": "claim_extraction_diagnostics_report_consumer",
+        "current": {
+            "artifact_relative_path": "runs/unstructured_ingest-20260512T000000Z-a/claim_extraction_diagnostics/claim_extraction_diagnostics.json",
+            "inferred_dataset_id": "demo_dataset_v1",
+            "run_id": "unstructured_ingest-20260512T000000Z-a",
+            "source_uri_line": "Source URI    : file:///report/source.pdf",
+            "status": "live",
+            "warnings": ["report warning"],
+        },
+        "run_scoped": {
+            "artifact_relative_path": "runs/unstructured_ingest-20260512T000000Z-a/claim_extraction_diagnostics/claim_extraction_diagnostics.json",
+            "inferred_dataset_id": None,
+            "run_id": "unstructured_ingest-20260512T000000Z-a",
+            "source_uri_line": "Source URI    : file:///report/source.pdf",
+            "status": "live",
+            "warnings": ["report warning"],
+        },
+    }
+
+
+def test_claim_extraction_diagnostics_report_consumer_runs_from_outside_repo_when_installed(
+    tmp_path: Path,
+) -> None:
+    try:
+        importlib.metadata.version("power-atlas")
+    except importlib.metadata.PackageNotFoundError:
+        pytest.skip("requires power-atlas to be installed in the active environment")
+
+    completed = _run_example_script_from_outside_repo_when_installed(
+        "claim_extraction_diagnostics_report_consumer.py",
+        tmp_path,
     )
 
     assert json.loads(completed.stdout) == {
