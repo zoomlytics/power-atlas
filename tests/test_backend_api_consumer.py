@@ -696,6 +696,13 @@ def test_backend_api_guarded_app_example_script_runs() -> None:
     )
 
     assert json.loads(completed.stdout) == {
+        "authorized_current_claim_diagnostics": {
+            "inferred_dataset_id": "demo_dataset_v1",
+            "run_id": "unstructured_ingest-20260512T000000Z-a",
+            "source_uri": "file:///guarded/source.pdf",
+            "status": "dry_run",
+            "warnings": ["claim extraction diagnostics skipped in dry_run mode"],
+        },
         "authorized_health": {
             "body": {
                 "message": "Backend is healthy",
@@ -706,13 +713,21 @@ def test_backend_api_guarded_app_example_script_runs() -> None:
         "authorized_current_run_detail": {
             "inferred_dataset_id": "demo_dataset_v1",
             "run_id": "unstructured_ingest-20260512T000000Z-a",
-            "run_stage_names": ["claim_extraction", "pdf_ingest"],
+            "run_stage_names": [
+                "claim_extraction",
+                "claim_extraction_diagnostics",
+                "pdf_ingest",
+            ],
             "stages": ["claim_extraction"],
         },
         "authorized_current_runs": {
             "inferred_dataset_id": "demo_dataset_v1",
             "run_ids": ["unstructured_ingest-20260512T000000Z-a"],
-            "stage_names": [["claim_extraction", "pdf_ingest"]],
+            "stage_names": [[
+                "claim_extraction",
+                "claim_extraction_diagnostics",
+                "pdf_ingest",
+            ]],
         },
         "host_info": {
             "host": "backend_api_guarded_app",

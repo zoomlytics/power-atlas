@@ -383,8 +383,9 @@ access while relying on configured dataset selection, lives in
 
 A fourth example that adds host-level request guarding around the mounted
 `/atlas` router, including authorized mounted `/atlas/runs/current` and
-`/atlas/runs/current/{stage_prefix}` calls while relying on configured dataset
-selection, lives in
+`/atlas/runs/current/{stage_prefix}` calls plus authorized mounted
+`/atlas/runs/current/{stage_prefix}/claim-extraction-diagnostics` artifact
+access while relying on configured dataset selection, lives in
 [`examples/backend_api_guarded_app.py`](examples/backend_api_guarded_app.py).
 
 A fifth example that stays entirely outside `demo/` and shows a thin consumer
