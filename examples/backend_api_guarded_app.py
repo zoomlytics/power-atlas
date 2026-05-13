@@ -109,10 +109,12 @@ async def _snapshot_app(app: FastAPI) -> dict[str, object]:
             "body": authorized_health.json(),
         },
         "authorized_current_runs": {
+            "inferred_dataset_id": current_runs_payload["inferred_dataset_id"],
             "run_ids": [run["run_id"] for run in current_runs_payload["runs"]],
             "stage_names": [run["stage_names"] for run in current_runs_payload["runs"]],
         },
         "authorized_current_run_detail": {
+            "inferred_dataset_id": current_run_detail_payload["inferred_dataset_id"],
             "run_id": current_run_detail_payload["run"]["run_id"],
             "run_stage_names": current_run_detail_payload["run"]["stage_names"],
             "stages": [stage["stage_name"] for stage in current_run_detail_payload["stages"]],

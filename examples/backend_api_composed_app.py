@@ -115,9 +115,11 @@ async def _snapshot_app(app: FastAPI) -> dict[str, object]:
         "backend_current_runs": {
             "run_ids": [run["run_id"] for run in current_runs_payload["runs"]],
             "detail": current_runs_payload["detail"],
+            "inferred_dataset_id": current_runs_payload["inferred_dataset_id"],
             "runs_root": current_runs_payload["runs_root"],
         },
         "backend_current_run_detail": {
+            "inferred_dataset_id": current_run_detail_payload["inferred_dataset_id"],
             "run_id": current_run_detail_payload["run"]["run_id"],
             "run_stage_names": current_run_detail_payload["run"]["stage_names"],
             "stages": [stage["stage_name"] for stage in current_run_detail_payload["stages"]],

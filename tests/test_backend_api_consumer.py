@@ -469,10 +469,12 @@ def test_backend_api_composed_app_example_script_runs() -> None:
         },
         "backend_current_runs": {
             "detail": None,
+            "inferred_dataset_id": "demo_dataset_v1",
             "run_ids": ["unstructured_ingest-20260512T000000Z-a"],
             "runs_root": payload["backend_current_runs"]["runs_root"],
         },
         "backend_current_run_detail": {
+            "inferred_dataset_id": "demo_dataset_v1",
             "run_id": "unstructured_ingest-20260512T000000Z-a",
             "run_stage_names": ["claim_extraction", "pdf_ingest"],
             "stages": ["claim_extraction"],
@@ -523,11 +525,13 @@ def test_backend_api_guarded_app_example_script_runs() -> None:
             "status_code": 200,
         },
         "authorized_current_run_detail": {
+            "inferred_dataset_id": "demo_dataset_v1",
             "run_id": "unstructured_ingest-20260512T000000Z-a",
             "run_stage_names": ["claim_extraction", "pdf_ingest"],
             "stages": ["claim_extraction"],
         },
         "authorized_current_runs": {
+            "inferred_dataset_id": "demo_dataset_v1",
             "run_ids": ["unstructured_ingest-20260512T000000Z-a"],
             "stage_names": [["claim_extraction", "pdf_ingest"]],
         },
