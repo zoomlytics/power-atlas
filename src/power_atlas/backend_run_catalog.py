@@ -25,6 +25,7 @@ class RunCatalogResult:
     runs_root: str
     runs: list[RunCatalogEntry]
     detail: str | None = None
+    inferred_dataset_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -41,6 +42,7 @@ class RunDetailResult:
     runs_root: str
     run: RunCatalogEntry
     stages: list[RunStageDetailEntry]
+    inferred_dataset_id: str | None = None
 
 
 def _read_manifest(manifest_path: Path) -> dict[str, Any] | None:
@@ -121,16 +123,19 @@ def extract_run_stage_prefix(run_id: str) -> str:
 def _resolve_effective_current_dataset_id(
     settings: AppSettings,
     dataset_id: str | None,
-) -> str | None:
+) -> tuple[str | None, str | None]:
     if dataset_id is not None:
-        return dataset_id
+        return dataset_id, None
     dataset_catalog = resolve_backend_dataset_catalog(settings)
     if (
         dataset_catalog.selection_mode == "configured"
         and dataset_catalog.selected_dataset is not None
     ):
-        return dataset_catalog.selected_dataset.dataset_id
-    return None
+        return (
+            dataset_catalog.selected_dataset.dataset_id,
+            dataset_catalog.selected_dataset.dataset_id,
+        )
+    return None, None
 
 
 def resolve_backend_run_details(
@@ -209,12 +214,22 @@ def resolve_backend_current_run_catalog(
     dataset_id: str | None = None,
     stage_name: str | None = None,
 ) -> RunCatalogResult:
-    effective_dataset_id = _resolve_effective_current_dataset_id(settings, dataset_id)
-    return resolve_backend_run_catalog(
+    effective_dataset_id, inferred_dataset_id = _resolve_effective_current_dataset_id(
+        settings,
+        dataset_id,
+    )
+    result = resolve_backend_run_catalog(
         settings,
         dataset_id=effective_dataset_id,
         stage_name=stage_name,
         latest_per_stage_prefix=True,
+    )
+    return RunCatalogResult(
+        output_dir=result.output_dir,
+        runs_root=result.runs_root,
+        runs=result.runs,
+        detail=result.detail,
+        inferred_dataset_id=inferred_dataset_id,
     )
 
 
@@ -237,10 +252,17 @@ def resolve_backend_current_run_details(
         raise FileNotFoundError(
             f"Current run for stage_prefix {stage_prefix!r} was not found under {run_catalog.runs_root}."
         )
-    return resolve_backend_run_details(
+    result = resolve_backend_run_details(
         settings,
         matching_run.run_id,
         stage_name=stage_name,
+    )
+    return RunDetailResult(
+        output_dir=result.output_dir,
+        runs_root=result.runs_root,
+        run=result.run,
+        stages=result.stages,
+        inferred_dataset_id=run_catalog.inferred_dataset_id,
     )
 
 

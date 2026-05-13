@@ -76,6 +76,10 @@ class RunsResponse(BaseModel):
     detail: str | None = None
 
 
+class CurrentRunsResponse(RunsResponse):
+    inferred_dataset_id: str | None = None
+
+
 class RunStageResponse(BaseModel):
     stage_name: str
     status: str | None = None
@@ -88,6 +92,10 @@ class RunDetailResponse(BaseModel):
     runs_root: str
     run: RunResponse
     stages: list[RunStageResponse]
+
+
+class CurrentRunDetailResponse(RunDetailResponse):
+    inferred_dataset_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -210,18 +218,18 @@ def build_backend_router(
             detail=run_catalog.detail,
         )
 
-    @router.get("/runs/current", response_model=RunsResponse)
+    @router.get("/runs/current", response_model=CurrentRunsResponse)
     async def current_runs(
         request: Request,
         dataset_id: str | None = None,
         stage_name: str | None = None,
-    ) -> RunsResponse:
+    ) -> CurrentRunsResponse:
         run_catalog = resolve_backend_current_run_catalog(
             get_backend_runtime(request.app).app_context.settings,
             dataset_id=dataset_id,
             stage_name=stage_name,
         )
-        return RunsResponse(
+        return CurrentRunsResponse(
             output_dir=run_catalog.output_dir,
             runs_root=run_catalog.runs_root,
             runs=[
@@ -236,15 +244,16 @@ def build_backend_router(
                 for run in run_catalog.runs
             ],
             detail=run_catalog.detail,
+            inferred_dataset_id=run_catalog.inferred_dataset_id,
         )
 
-    @router.get("/runs/current/{stage_prefix}", response_model=RunDetailResponse)
+    @router.get("/runs/current/{stage_prefix}", response_model=CurrentRunDetailResponse)
     async def current_run_detail(
         stage_prefix: str,
         request: Request,
         dataset_id: str | None = None,
         stage_name: str | None = None,
-    ) -> RunDetailResponse:
+    ) -> CurrentRunDetailResponse:
         try:
             run_detail_result = resolve_backend_current_run_details(
                 get_backend_runtime(request.app).app_context.settings,
@@ -257,7 +266,7 @@ def build_backend_router(
         except FileNotFoundError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
 
-        return RunDetailResponse(
+        return CurrentRunDetailResponse(
             output_dir=run_detail_result.output_dir,
             runs_root=run_detail_result.runs_root,
             run=RunResponse(
@@ -277,6 +286,7 @@ def build_backend_router(
                 )
                 for stage in run_detail_result.stages
             ],
+            inferred_dataset_id=run_detail_result.inferred_dataset_id,
         )
 
     @router.get("/runs/{run_id}", response_model=RunDetailResponse)
@@ -374,6 +384,8 @@ __all__ = [
     "BackendAppOptions",
     "BackendGraphQueryService",
     "BackendRuntime",
+    "CurrentRunDetailResponse",
+    "CurrentRunsResponse",
     "DEFAULT_API_DESCRIPTION",
     "DEFAULT_API_TITLE",
     "DEFAULT_API_VERSION",
@@ -381,6 +393,8 @@ __all__ = [
     "DatasetResponse",
     "DatasetsResponse",
     "HealthResponse",
+    "CurrentRunDetailResponse",
+    "CurrentRunsResponse",
     "RunDetailResponse",
     "RunResponse",
     "RootResponse",

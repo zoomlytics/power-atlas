@@ -317,13 +317,16 @@ run per stage family instead of the full history.
 same optional `dataset_id` and `stage_name` query parameters without requiring
 callers to opt into `latest_per_stage_prefix=true` themselves. When
 `dataset_id` is omitted, it defaults to the configured selected dataset when
-one has been explicitly set through backend settings.
+one has been explicitly set through backend settings. Its response also now
+includes `inferred_dataset_id` when that defaulting path was used.
 
 `/runs/current/{stage_prefix}` is the matching current-detail convenience route.
 It selects the newest run whose `make_run_id(scope)` prefix matches
 `stage_prefix`, accepts an optional `dataset_id` filter when choosing that run,
 defaults that filter the same way when a configured selected dataset exists,
 and accepts the same optional `stage_name` detail filter as `/runs/{run_id}`.
+Its response also includes `inferred_dataset_id` when configured dataset
+selection supplied the effective dataset id.
 
 `/runs/{run_id}` accepts an optional `stage_name` query parameter to return only
 the matching stage manifest entries while preserving the full run summary.

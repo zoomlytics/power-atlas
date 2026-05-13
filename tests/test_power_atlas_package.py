@@ -172,6 +172,8 @@ def test_package_modules_import() -> None:
     assert api_module.BackendAppOptions.__name__ == "BackendAppOptions"
     assert api_module.BackendGraphQueryService.__name__ == "BackendGraphQueryService"
     assert api_module.BackendRuntime.__name__ == "BackendRuntime"
+    assert api_module.CurrentRunDetailResponse.__name__ == "CurrentRunDetailResponse"
+    assert api_module.CurrentRunsResponse.__name__ == "CurrentRunsResponse"
     assert api_module.DatasetResponse.__name__ == "DatasetResponse"
     assert api_module.DatasetsResponse.__name__ == "DatasetsResponse"
     assert api_module.RunDetailResponse.__name__ == "RunDetailResponse"
@@ -390,9 +392,11 @@ def test_public_api_facade_supports_filtered_run_queries(
                 "/runs/current",
             )
             assert current_runs.status_code == 200
-            assert [run["run_id"] for run in current_runs.json()["runs"]] == [
+            current_runs_payload = current_runs.json()
+            assert [run["run_id"] for run in current_runs_payload["runs"]] == [
                 newer_run_root.name
             ]
+            assert current_runs_payload["inferred_dataset_id"] == "resolved-demo-dataset"
 
             current_run_detail = await client.get(
                 "/runs/current/unstructured_ingest",
@@ -401,6 +405,7 @@ def test_public_api_facade_supports_filtered_run_queries(
             assert current_run_detail.status_code == 200
             detail_payload = current_run_detail.json()
             assert detail_payload["run"]["run_id"] == newer_run_root.name
+            assert detail_payload["inferred_dataset_id"] == "resolved-demo-dataset"
             assert [stage["stage_name"] for stage in detail_payload["stages"]] == [
                 "claim_extraction"
             ]

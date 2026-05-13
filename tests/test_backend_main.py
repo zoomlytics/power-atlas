@@ -763,9 +763,11 @@ def test_create_backend_app_defaults_current_run_routes_to_configured_dataset(
         ) as client:
             current_runs_response = await client.get("/runs/current")
             assert current_runs_response.status_code == 200
-            assert [run["run_id"] for run in current_runs_response.json()["runs"]] == [
+            current_runs_payload = current_runs_response.json()
+            assert [run["run_id"] for run in current_runs_payload["runs"]] == [
                 selected_run_root.name,
             ]
+            assert current_runs_payload["inferred_dataset_id"] == "resolved-demo-dataset"
 
             current_detail_response = await client.get(
                 "/runs/current/unstructured_ingest",
@@ -774,6 +776,7 @@ def test_create_backend_app_defaults_current_run_routes_to_configured_dataset(
             assert current_detail_response.status_code == 200
             detail_payload = current_detail_response.json()
             assert detail_payload["run"]["run_id"] == selected_run_root.name
+            assert detail_payload["inferred_dataset_id"] == "resolved-demo-dataset"
             assert [stage["stage_name"] for stage in detail_payload["stages"]] == [
                 "claim_extraction"
             ]

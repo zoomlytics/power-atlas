@@ -3,6 +3,8 @@ from __future__ import annotations
 from power_atlas.backend_app import (
 	BackendAppOptions,
 	BackendRuntime,
+	CurrentRunDetailResponse,
+	CurrentRunsResponse,
 	DatasetResponse,
 	DatasetsResponse,
 	DEFAULT_API_DESCRIPTION,
@@ -42,6 +44,8 @@ __all__ = [
 	"BackendAppOptions",
 	"BackendGraphQueryService",
 	"BackendRuntime",
+	"CurrentRunDetailResponse",
+	"CurrentRunsResponse",
 	"DEFAULT_API_DESCRIPTION",
 	"DEFAULT_API_TITLE",
 	"DEFAULT_API_VERSION",

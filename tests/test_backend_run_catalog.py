@@ -293,6 +293,7 @@ def test_backend_current_run_catalog_applies_latest_per_prefix_with_filters(tmp_
     )
 
     assert [run.run_id for run in result.runs] == [newer_run_root.name]
+    assert result.inferred_dataset_id is None
 
 
 def test_backend_current_run_catalog_defaults_to_configured_selected_dataset(
@@ -350,6 +351,7 @@ def test_backend_current_run_catalog_defaults_to_configured_selected_dataset(
     result = resolve_backend_current_run_catalog(settings)
 
     assert [run.run_id for run in result.runs] == [newer_selected_run_root.name]
+    assert result.inferred_dataset_id == "resolved-demo-dataset"
 
 
 def test_backend_current_run_details_returns_latest_matching_prefix(tmp_path: Path) -> None:
@@ -407,3 +409,4 @@ def test_backend_current_run_details_returns_latest_matching_prefix(tmp_path: Pa
     assert result.run.run_id == newer_run_root.name
     assert result.run.stage_names == ["claim_extraction", "pdf_ingest"]
     assert [stage.stage_name for stage in result.stages] == ["claim_extraction"]
+    assert result.inferred_dataset_id is None
