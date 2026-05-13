@@ -315,6 +315,12 @@ shims for users working inside this checkout, but new package-consumer docs and
 tests should prefer the installable `power-atlas-*` commands unless a workflow
 specifically depends on repo-relative paths.
 
+| Installed command | Package wrapper | Repo-local shim | Purpose |
+|-------------------|-----------------|-----------------|---------|
+| `power-atlas-claim-diagnostics-report` | [`src/power_atlas/cli/claim_extraction_diagnostics_report.py`](src/power_atlas/cli/claim_extraction_diagnostics_report.py) | [`pipelines/query/claim_extraction_diagnostics_report.py`](pipelines/query/claim_extraction_diagnostics_report.py) | Format persisted claim-extraction diagnostics artifacts for run-scoped or current-run reporting |
+| `power-atlas-graph-health-diagnostics` | [`src/power_atlas/cli/graph_health_diagnostics.py`](src/power_atlas/cli/graph_health_diagnostics.py) | [`pipelines/query/graph_health_diagnostics.py`](pipelines/query/graph_health_diagnostics.py) | Run graph-health diagnostics and write a repeatable artifact |
+| `power-atlas-retrieval-benchmark` | [`src/power_atlas/cli/retrieval_benchmark.py`](src/power_atlas/cli/retrieval_benchmark.py) | [`pipelines/query/retrieval_benchmark.py`](pipelines/query/retrieval_benchmark.py) | Run the post-hybrid retrieval benchmark and write a repeatable artifact |
+
 The backend API surface now has a first-class owning facade at
 `power_atlas.api`. That module now owns the backend app contract, including
 typed response models plus app-construction helpers such as
