@@ -31,7 +31,11 @@ The following second-domain proof now exists:
 - `src/power_atlas/contracts/structured.py` now defines a package-owned
   `StructuredSchemaContract`, and the package structured-ingest path accepts it
   through `power_atlas.structured_ingest_entrypoint` and
-  `power_atlas.structured_ingest_runner`.
+  `power_atlas.structured_ingest_runner`,
+- `src/power_atlas/contracts/structured.py` now also defines a package-owned
+  `StructuredGraphShapeContract`, and the package structured-ingest write path
+  accepts it through `power_atlas.structured_ingest_writes`,
+  `power_atlas.structured_ingest_runner`, and the live Neo4j adapter.
 
 That proof is sufficient to close the question of whether a second-domain
 retrieval pack can ride the current policy seam.
@@ -57,22 +61,25 @@ That reduces the first second-domain blocker: a market/trade pilot can now
 adopt alternate structured file names and alternate identifier formats through a
 package-owned contract rather than by editing lint/runtime code.
 
-This does **not** yet solve the next blocker, which is the graph shape that the
-structured ingest path writes after those files are read.
+This no longer blocks the second-domain pilot at the file/schema layer.
 
-### 2. Structured ingest writes a fixed Power Atlas graph shape
+### 2. Structured graph-shape contract is extracted for ingest writes
 
-`src/power_atlas/structured_ingest_writes.py` writes a fixed graph model built
-around `CanonicalEntity`, `Fact`, `Relationship`, and `Claim`, using fixed edge
-names such as `ABOUT`, `TARGETS`, `SUPPORTED_BY`, `ASSERTED_IN`, and
-`CITED_FROM`.
+`src/power_atlas/structured_ingest_writes.py` no longer has to be consumed only
+through the fixed Power Atlas labels and relationship types. The package now
+exposes `StructuredGraphShapeContract`, which externalizes:
 
-This is not just a file-schema issue. Even if alternate CSV headers were
-accepted, the write path would still project them into the current Power Atlas
-canonical graph vocabulary.
+- source node label,
+- entity/fact/relationship/claim labels,
+- ingest relationship types such as asserted-in, cited-from, about, targets,
+  supported-by, subject, and object.
 
-For a real second-domain pilot, this surface needs an explicit graph-shape
-contract or policy boundary rather than only alternate input files.
+That reduces the second second-domain blocker: alternate structured inputs no
+longer have to be projected into the exact Power Atlas canonical ingest graph
+shape.
+
+This still does **not** solve the next blocker, which is entity-resolution and
+canonical alignment over a fixed graph model.
 
 ### 3. Entity resolution has a narrow policy seam but a fixed graph model
 
@@ -117,20 +124,20 @@ The following are **not** currently the first blockers:
 - retrieval ontology labels and relationships,
 - retrieval prompt/template selection,
 - retrieval traversal defaults,
+- structured file names, headers, identifier patterns, and value-type rules,
+- structured ingest write labels and relationship types,
 - package-owned retrieval request-context consumption.
 
 Those are already covered by the retrieval policy seam and the market/trade
-pilot proof.
+pilot proof plus the structured ingest contracts.
 
 ## Recommended extraction order
 
 The next extraction slices should proceed in this order:
 
-1. define the graph-shape contract for structured ingest writes so alternate
-   domains are not forced into the current canonical graph vocabulary,
-2. widen entity resolution from entity-type normalization only into an explicit
+1. widen entity resolution from entity-type normalization only into an explicit
    graph-model and alignment-policy seam,
-3. only then decide whether the second-domain pilot warrants a broader shared
+2. only then decide whether the second-domain pilot warrants a broader shared
    kernel namespace split.
 
 ## Minimum acceptance for the next slice
@@ -138,10 +145,9 @@ The next extraction slices should proceed in this order:
 The next reuse slice should be considered sufficient only if it does one of the
 following:
 
-1. introduces a package-owned structured-schema contract that a second-domain
-   pilot can customize without copying Power Atlas ingest/runtime code, or
-2. introduces a package-owned entity-resolution graph/alignment contract that
+1. introduces a package-owned entity-resolution graph/alignment contract that
    makes the current fixed labels and relationships configurable.
 
-The first half of item 1 is now complete for file/schema assumptions. The next
-meaningful reduction is the structured graph-shape contract.
+The structured ingest layer is now materially improved at both the file/schema
+and graph-shape levels. The next meaningful reduction is the entity-resolution
+graph/alignment contract.

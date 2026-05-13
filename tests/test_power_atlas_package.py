@@ -95,6 +95,10 @@ def test_package_modules_import() -> None:
     assert package.POWER_ATLAS_RETRIEVAL_ONTOLOGY is contracts_module.POWER_ATLAS_RETRIEVAL_ONTOLOGY
     assert package.POWER_ATLAS_RETRIEVAL_POLICY is contracts_module.POWER_ATLAS_RETRIEVAL_POLICY
     assert (
+        package.POWER_ATLAS_STRUCTURED_GRAPH_SHAPE_CONTRACT
+        is contracts_module.POWER_ATLAS_STRUCTURED_GRAPH_SHAPE_CONTRACT
+    )
+    assert (
         package.POWER_ATLAS_STRUCTURED_SCHEMA_CONTRACT
         is contracts_module.POWER_ATLAS_STRUCTURED_SCHEMA_CONTRACT
     )
@@ -119,6 +123,7 @@ def test_package_modules_import() -> None:
     assert package.RetrievalMetadataSurface is contracts_module.RetrievalMetadataSurface
     assert package.RetrievalOntology is contracts_module.RetrievalOntology
     assert package.RetrievalPolicy is contracts_module.RetrievalPolicy
+    assert package.StructuredGraphShapeContract is contracts_module.StructuredGraphShapeContract
     assert package.STRUCTURED_FILE_HEADERS is contracts_module.STRUCTURED_FILE_HEADERS
     assert package.StructuredSchemaContract is contracts_module.StructuredSchemaContract
     assert package.VALUE_TYPES is contracts_module.VALUE_TYPES
@@ -127,6 +132,10 @@ def test_package_modules_import() -> None:
     assert package.resolve_dataset_root is contracts_module.resolve_dataset_root
     assert package.resolve_early_return_rule is contracts_module.resolve_early_return_rule
     assert package.get_default_retrieval_policy is contracts_module.get_default_retrieval_policy
+    assert (
+        package.get_default_structured_graph_shape_contract
+        is contracts_module.get_default_structured_graph_shape_contract
+    )
     assert (
         package.get_default_structured_schema_contract
         is contracts_module.get_default_structured_schema_contract
@@ -598,8 +607,96 @@ def test_structured_ingest_request_context_uses_package_default_config_runner() 
         fixtures_dir=None,
         dataset_id=None,
         neo4j_settings=request_context.settings.neo4j,
+        structured_graph_shape=None,
         structured_schema=None,
     )
+
+
+def test_write_structured_ingest_graph_accepts_custom_graph_shape_contract() -> None:
+    from power_atlas.contracts import StructuredGraphShapeContract
+    from power_atlas.structured_ingest_writes import write_structured_ingest_graph
+
+    graph_shape = StructuredGraphShapeContract(
+        source_label="ResearchSource",
+        entity_label="Security",
+        fact_label="SecurityFact",
+        relationship_label="MarketRelationship",
+        claim_label="MarketClaim",
+        asserted_in_relationship="RECORDED_IN",
+        cited_from_relationship="CITED_MARKET_SOURCE",
+        about_relationship="ABOUT_SECURITY",
+        targets_relationship="TARGETS_SECURITY",
+        supported_by_relationship="SUPPORTED_BY_RECORD",
+        subject_relationship="MARKET_SUBJECT",
+        object_relationship="MARKET_OBJECT",
+    )
+
+    session = mock.Mock()
+    session.run.return_value.consume.return_value = None
+
+    write_structured_ingest_graph(
+        session,
+        run_id="run-123",
+        source_uri="file:///market/trade/source.csv",
+        dataset_id="market_trade_dataset_v1",
+        ingested_at="2026-05-12T00:00:00+00:00",
+        entities_rows=[],
+        facts_rows=[],
+        relationship_rows=[],
+        claims_rows=[],
+        graph_shape=graph_shape,
+    )
+
+    rendered_queries = "\n".join(call.args[0] for call in session.run.call_args_list)
+    assert "`ResearchSource`" in rendered_queries
+    assert "`Security`" in rendered_queries
+    assert "`SecurityFact`" in rendered_queries
+    assert "`MarketRelationship`" in rendered_queries
+    assert "`MarketClaim`" in rendered_queries
+    assert "`RECORDED_IN`" in rendered_queries
+    assert "`CITED_MARKET_SOURCE`" in rendered_queries
+    assert "`ABOUT_SECURITY`" in rendered_queries
+    assert "`TARGETS_SECURITY`" in rendered_queries
+    assert "`SUPPORTED_BY_RECORD`" in rendered_queries
+    assert "`MARKET_SUBJECT`" in rendered_queries
+    assert "`MARKET_OBJECT`" in rendered_queries
+
+
+def test_structured_ingest_runtime_forwards_custom_graph_shape_contract() -> None:
+    from power_atlas.contracts import StructuredGraphShapeContract
+    from power_atlas.settings import Neo4jSettings
+    from power_atlas.structured_ingest_runner import run_structured_ingest_runtime
+
+    graph_shape = StructuredGraphShapeContract(entity_label="Security")
+    config = mock.Mock(output_dir=Path("build/test-structured-graph-shape"), dry_run=False)
+    live_runner = mock.Mock()
+
+    result = run_structured_ingest_runtime(
+        config=config,
+        run_id="run-123",
+        dataset_id="market_trade_dataset_v1",
+        neo4j_settings=Neo4jSettings(),
+        structured_graph_shape=graph_shape,
+        resolve_dataset=mock.Mock(
+            return_value=(Path("fixtures/market_trade"), "market_trade_dataset_v1")
+        ),
+        lint_and_clean=mock.Mock(
+            return_value={
+                "structured_clean_dir": "build/test-structured-graph-shape/runs/run-123/structured_clean",
+                "lint_report_path": "build/test-structured-graph-shape/runs/run-123/lint_report.json",
+                "lint_summary": {"status": "ok", "issue_count": 0},
+                "files": {},
+            }
+        ),
+        read_csv_rows=mock.Mock(return_value=[]),
+        timestamp_factory=mock.Mock(return_value="2026-05-12T00:00:00+00:00"),
+        live_runner=live_runner,
+    )
+
+    assert result["status"] == "live"
+    live_runner.assert_called_once()
+    assert live_runner.call_args.kwargs["graph_shape"] is graph_shape
+
 
 
 def test_structured_ingest_runtime_accepts_custom_structured_schema_contract(

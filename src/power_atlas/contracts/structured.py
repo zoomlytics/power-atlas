@@ -111,11 +111,34 @@ class StructuredSchemaContract:
         }
 
 
+@dataclass(frozen=True)
+class StructuredGraphShapeContract:
+    source_label: str = "Source"
+    entity_label: str = "CanonicalEntity"
+    fact_label: str = "Fact"
+    relationship_label: str = "Relationship"
+    claim_label: str = "Claim"
+    asserted_in_relationship: str = "ASSERTED_IN"
+    cited_from_relationship: str = "CITED_FROM"
+    about_relationship: str = "ABOUT"
+    targets_relationship: str = "TARGETS"
+    supported_by_relationship: str = "SUPPORTED_BY"
+    subject_relationship: str = "SUBJECT"
+    object_relationship: str = "OBJECT"
+
+
+POWER_ATLAS_STRUCTURED_GRAPH_SHAPE_CONTRACT = StructuredGraphShapeContract()
+
+
 POWER_ATLAS_STRUCTURED_SCHEMA_CONTRACT = StructuredSchemaContract()
 
 
 def get_default_structured_schema_contract() -> StructuredSchemaContract:
     return POWER_ATLAS_STRUCTURED_SCHEMA_CONTRACT
+
+
+def get_default_structured_graph_shape_contract() -> StructuredGraphShapeContract:
+    return POWER_ATLAS_STRUCTURED_GRAPH_SHAPE_CONTRACT
 
 
 STRUCTURED_FILE_HEADERS: dict[str, list[str]] = {
@@ -133,9 +156,12 @@ __all__ = [
     "COMMON_PREDICATE_LABELS",
     "CSV_FIRST_DATA_ROW",
     "ID_PATTERNS",
+    "POWER_ATLAS_STRUCTURED_GRAPH_SHAPE_CONTRACT",
     "POWER_ATLAS_STRUCTURED_SCHEMA_CONTRACT",
+    "StructuredGraphShapeContract",
     "STRUCTURED_FILE_HEADERS",
     "StructuredSchemaContract",
     "VALUE_TYPES",
+    "get_default_structured_graph_shape_contract",
     "get_default_structured_schema_contract",
 ]

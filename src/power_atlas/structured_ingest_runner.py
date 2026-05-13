@@ -12,9 +12,11 @@ from power_atlas.contracts import (
     CSV_FIRST_DATA_ROW,
     DatasetRoot,
     ID_PATTERNS,
+    StructuredGraphShapeContract,
     StructuredSchemaContract,
     STRUCTURED_FILE_HEADERS,
     VALUE_TYPES,
+    get_default_structured_graph_shape_contract,
     get_default_structured_schema_contract,
     resolve_dataset_root,
 )
@@ -453,6 +455,7 @@ def run_structured_ingest_runtime(
     fixtures_dir: Path | None = None,
     dataset_id: str | None = None,
     neo4j_settings: Neo4jSettings,
+    structured_graph_shape: StructuredGraphShapeContract | None = None,
     structured_schema: StructuredSchemaContract | None = None,
     resolve_dataset: Callable[[Path | None, str | None], tuple[Path, str]] = resolve_structured_dataset,
     lint_and_clean: Callable[..., dict[str, Any]] = lint_and_clean_structured_csvs,
@@ -465,6 +468,11 @@ def run_structured_ingest_runtime(
         get_default_structured_schema_contract()
         if structured_schema is None
         else structured_schema
+    )
+    resolved_structured_graph_shape = (
+        get_default_structured_graph_shape_contract()
+        if structured_graph_shape is None
+        else structured_graph_shape
     )
     fixtures_root, effective_dataset_id = resolve_dataset(fixtures_dir, dataset_id)
     lint_output = lint_and_clean(
@@ -549,6 +557,7 @@ def run_structured_ingest_runtime(
         relationship_rows=relationship_rows,
         claims_rows=claims_rows,
         write_graph=write_graph,
+        graph_shape=resolved_structured_graph_shape,
     )
 
     return {

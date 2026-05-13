@@ -4,6 +4,7 @@ from collections.abc import Callable
 from typing import Any
 
 from power_atlas.bootstrap import create_neo4j_driver
+from power_atlas.contracts import StructuredGraphShapeContract
 from power_atlas.settings import Neo4jSettings
 
 
@@ -19,6 +20,7 @@ def run_structured_ingest_live(
     facts_rows: list[dict[str, str]],
     relationship_rows: list[dict[str, str]],
     claims_rows: list[dict[str, str]],
+    graph_shape: StructuredGraphShapeContract | None,
     write_graph: Callable[..., None],
 ) -> None:
     with create_neo4j_driver(neo4j_settings) as driver:
@@ -33,6 +35,7 @@ def run_structured_ingest_live(
                 facts_rows=facts_rows,
                 relationship_rows=relationship_rows,
                 claims_rows=claims_rows,
+                graph_shape=graph_shape,
             )
 
 

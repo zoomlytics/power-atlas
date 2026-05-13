@@ -36,6 +36,10 @@ _EXPORTS = {
     "POWER_ATLAS_RAG_TEMPLATE": ("power_atlas.contracts", "POWER_ATLAS_RAG_TEMPLATE"),
     "POWER_ATLAS_RETRIEVAL_ONTOLOGY": ("power_atlas.contracts", "POWER_ATLAS_RETRIEVAL_ONTOLOGY"),
     "POWER_ATLAS_RETRIEVAL_POLICY": ("power_atlas.contracts", "POWER_ATLAS_RETRIEVAL_POLICY"),
+    "POWER_ATLAS_STRUCTURED_GRAPH_SHAPE_CONTRACT": (
+        "power_atlas.contracts",
+        "POWER_ATLAS_STRUCTURED_GRAPH_SHAPE_CONTRACT",
+    ),
     "POWER_ATLAS_STRUCTURED_SCHEMA_CONTRACT": (
         "power_atlas.contracts",
         "POWER_ATLAS_STRUCTURED_SCHEMA_CONTRACT",
@@ -47,6 +51,10 @@ _EXPORTS = {
     "RetrievalOntology": ("power_atlas.contracts", "RetrievalOntology"),
     "RetrievalPolicy": ("power_atlas.contracts", "RetrievalPolicy"),
     "STRUCTURED_FILE_HEADERS": ("power_atlas.contracts", "STRUCTURED_FILE_HEADERS"),
+    "StructuredGraphShapeContract": (
+        "power_atlas.contracts",
+        "StructuredGraphShapeContract",
+    ),
     "StructuredSchemaContract": ("power_atlas.contracts", "StructuredSchemaContract"),
     "VALUE_TYPES": ("power_atlas.contracts", "VALUE_TYPES"),
     "bootstrap_app": ("power_atlas.bootstrap", "bootstrap_app"),
@@ -78,6 +86,10 @@ _EXPORTS = {
     "resolve_dataset_root": ("power_atlas.contracts", "resolve_dataset_root"),
     "resolve_early_return_rule": ("power_atlas.contracts", "resolve_early_return_rule"),
     "get_default_retrieval_policy": ("power_atlas.contracts", "get_default_retrieval_policy"),
+    "get_default_structured_graph_shape_contract": (
+        "power_atlas.contracts",
+        "get_default_structured_graph_shape_contract",
+    ),
     "get_default_structured_schema_contract": (
         "power_atlas.contracts",
         "get_default_structured_schema_contract",

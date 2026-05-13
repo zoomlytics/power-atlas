@@ -4,7 +4,10 @@ from pathlib import Path
 from typing import Any, Callable
 
 from power_atlas.context import RequestContext
-from power_atlas.contracts import StructuredSchemaContract
+from power_atlas.contracts import (
+    StructuredGraphShapeContract,
+    StructuredSchemaContract,
+)
 from power_atlas.settings import Neo4jSettings
 
 
@@ -21,6 +24,7 @@ def _default_config_runner(
     fixtures_dir: Path | None = None,
     dataset_id: str | None = None,
     neo4j_settings: Neo4jSettings | None = None,
+    structured_graph_shape: StructuredGraphShapeContract | None = None,
     structured_schema: StructuredSchemaContract | None = None,
 ) -> dict[str, Any]:
     return run_structured_ingest(
@@ -29,6 +33,7 @@ def _default_config_runner(
         fixtures_dir=fixtures_dir,
         dataset_id=dataset_id,
         neo4j_settings=neo4j_settings,
+        structured_graph_shape=structured_graph_shape,
         structured_schema=structured_schema,
     )
 
@@ -55,6 +60,7 @@ def run_structured_ingest(
     fixtures_dir: Path | None = None,
     dataset_id: str | None = None,
     neo4j_settings: Neo4jSettings | None = None,
+    structured_graph_shape: StructuredGraphShapeContract | None = None,
     structured_schema: StructuredSchemaContract | None = None,
     runtime_runner: Callable[..., dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
@@ -65,6 +71,7 @@ def run_structured_ingest(
         fixtures_dir=fixtures_dir,
         dataset_id=dataset_id,
         neo4j_settings=neo4j_settings_from_config(config, neo4j_settings),
+        structured_graph_shape=structured_graph_shape,
         structured_schema=structured_schema,
     )
 
@@ -74,6 +81,7 @@ def run_structured_ingest_request_context(
     *,
     fixtures_dir: Path | None = None,
     dataset_id: str | None = None,
+    structured_graph_shape: StructuredGraphShapeContract | None = None,
     structured_schema: StructuredSchemaContract | None = None,
     config_runner: Callable[..., dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
@@ -84,6 +92,7 @@ def run_structured_ingest_request_context(
         fixtures_dir=fixtures_dir,
         dataset_id=dataset_id,
         neo4j_settings=request_context.settings.neo4j,
+        structured_graph_shape=structured_graph_shape,
         structured_schema=structured_schema,
     )
 
