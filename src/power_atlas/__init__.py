@@ -24,6 +24,14 @@ _EXPORTS = {
     "EARLY_RETURN_PRECEDENCE": ("power_atlas.contracts", "EARLY_RETURN_PRECEDENCE"),
     "EARLY_RETURN_RULE_BY_NAME": ("power_atlas.contracts", "EARLY_RETURN_RULE_BY_NAME"),
     "EarlyReturnRule": ("power_atlas.contracts", "EarlyReturnRule"),
+    "EntityResolutionAlignmentContract": (
+        "power_atlas.contracts",
+        "EntityResolutionAlignmentContract",
+    ),
+    "EntityResolutionAlignmentStep": (
+        "power_atlas.contracts",
+        "EntityResolutionAlignmentStep",
+    ),
     "EntityResolutionCanonicalLookupContract": (
         "power_atlas.contracts",
         "EntityResolutionCanonicalLookupContract",
@@ -40,6 +48,10 @@ _EXPORTS = {
     "PDF_PIPELINE_CONFIG_PATH": ("power_atlas.contracts", "PDF_PIPELINE_CONFIG_PATH"),
     "POWER_ATLAS_CLAIM_EXTRACTION_ONTOLOGY": ("power_atlas.contracts", "POWER_ATLAS_CLAIM_EXTRACTION_ONTOLOGY"),
     "POWER_ATLAS_CLAIM_EXTRACTION_POLICY": ("power_atlas.contracts", "POWER_ATLAS_CLAIM_EXTRACTION_POLICY"),
+    "POWER_ATLAS_ENTITY_RESOLUTION_ALIGNMENT_CONTRACT": (
+        "power_atlas.contracts",
+        "POWER_ATLAS_ENTITY_RESOLUTION_ALIGNMENT_CONTRACT",
+    ),
     "POWER_ATLAS_ENTITY_RESOLUTION_CANONICAL_LOOKUP_CONTRACT": (
         "power_atlas.contracts",
         "POWER_ATLAS_ENTITY_RESOLUTION_CANONICAL_LOOKUP_CONTRACT",
@@ -92,6 +104,10 @@ _EXPORTS = {
     "entity_resolution_entrypoint": ("power_atlas.entity_resolution_entrypoint", None),
     "entity_resolution_runner": ("power_atlas.entity_resolution_runner", None),
     "get_default_claim_extraction_policy": ("power_atlas.contracts", "get_default_claim_extraction_policy"),
+    "get_default_entity_resolution_alignment_contract": (
+        "power_atlas.contracts",
+        "get_default_entity_resolution_alignment_contract",
+    ),
     "get_default_entity_resolution_canonical_lookup_contract": (
         "power_atlas.contracts",
         "get_default_entity_resolution_canonical_lookup_contract",

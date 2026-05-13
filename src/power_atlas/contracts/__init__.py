@@ -69,10 +69,15 @@ from power_atlas.contracts.structured import (
 )
 from power_atlas.contracts.resolution import (
 	ALIGNMENT_VERSION,
+	AlignmentKeyBuilder,
+	EntityResolutionAlignmentContract,
+	EntityResolutionAlignmentStep,
 	EntityResolutionCanonicalLookupContract,
 	EntityResolutionGraphContract,
+	POWER_ATLAS_ENTITY_RESOLUTION_ALIGNMENT_CONTRACT,
 	POWER_ATLAS_ENTITY_RESOLUTION_CANONICAL_LOOKUP_CONTRACT,
 	POWER_ATLAS_ENTITY_RESOLUTION_GRAPH_CONTRACT,
+	get_default_entity_resolution_alignment_contract,
 	get_default_entity_resolution_canonical_lookup_contract,
 	get_default_entity_resolution_graph_contract,
 )
@@ -83,6 +88,7 @@ from power_atlas.contracts.resolution import (
 
 __all__ = [
 	"ALIGNMENT_VERSION",
+	"AlignmentKeyBuilder",
 	"AmbiguousDatasetError",
 	"ARTIFACTS_DIR",
 	"build_batch_manifest",
@@ -101,6 +107,8 @@ __all__ = [
 	"CSV_FIRST_DATA_ROW",
 	"DATASETS_CONTAINER_DIR",
 	"DatasetRoot",
+	"EntityResolutionAlignmentContract",
+	"EntityResolutionAlignmentStep",
 	"EntityResolutionCanonicalLookupContract",
 	"EntityResolutionGraphContract",
 	"EntityTypeNormalizationPolicy",
@@ -109,6 +117,7 @@ __all__ = [
 	"POWER_ATLAS_ENTITY_TYPE_NORMALIZATION_POLICY",
 	"POWER_ATLAS_CLAIM_EXTRACTION_ONTOLOGY",
 	"POWER_ATLAS_CLAIM_EXTRACTION_POLICY",
+	"POWER_ATLAS_ENTITY_RESOLUTION_ALIGNMENT_CONTRACT",
 	"POWER_ATLAS_ENTITY_RESOLUTION_CANONICAL_LOOKUP_CONTRACT",
 	"POWER_ATLAS_ENTITY_RESOLUTION_GRAPH_CONTRACT",
 	"POWER_ATLAS_RAG_TEMPLATE",
@@ -129,6 +138,7 @@ __all__ = [
 	"get_default_structured_graph_shape_contract",
 	"get_default_retrieval_policy",
 	"get_default_claim_extraction_policy",
+	"get_default_entity_resolution_alignment_contract",
 	"get_default_entity_resolution_canonical_lookup_contract",
 	"get_default_entity_resolution_graph_contract",
 	"get_default_structured_schema_contract",

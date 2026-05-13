@@ -51,6 +51,12 @@ The following second-domain proof now exists:
   `power_atlas.entity_resolution_resolver`,
   `power_atlas.entity_resolution_alignment`,
   `power_atlas.entity_resolution_runner`, and
+  `power_atlas.entity_resolution_entrypoint`,
+- `src/power_atlas/contracts/resolution.py` now also defines a package-owned
+  `EntityResolutionAlignmentContract`, and the package cluster-alignment,
+  runtime, and entrypoint paths accept it through
+  `power_atlas.entity_resolution_alignment`,
+  `power_atlas.entity_resolution_runner`, and
   `power_atlas.entity_resolution_entrypoint`.
 
 That proof is sufficient to close the question of whether a second-domain
@@ -129,22 +135,18 @@ That reduces the next second-domain blocker again: alternate domains no longer
 have to reuse the exact Power Atlas canonical property names or the exact `Q...`
 identifier convention to participate in the package-owned lookup flow.
 
-This still does **not** solve the remaining blocker, which is the alignment
-strategy itself beyond the current exact label/alias matching defaults.
+`EntityResolutionAlignmentContract` now externalizes:
 
-### 4. Canonical alignment strategy is fixed to exact label/alias matching
+- the ordered alignment steps,
+- which lookup table each step consults,
+- how candidate cluster keys are derived for each step,
+- emitted method/score/status metadata per step.
 
-`src/power_atlas/entity_resolution_alignment.py` currently aligns clusters to
-canonical entities by exact normalized label or alias lookup.
+That reduces the remaining blocker again: alternate domains can now change the
+package-owned alignment strategy without editing shared alignment code, as long
+as the strategy can be expressed in terms of lookup-table steps.
 
-That may be acceptable for the current domain, but it is not a configurable
-alignment strategy seam. A market/trade pilot may need issuer/security-specific
-matching rules, symbol handling, or event-aware disambiguation.
-
-At the moment, that would require editing shared implementation code rather than
-supplying an alternate package contract.
-
-### 5. Dataset and canonical lookup assumptions remain fixed
+### 4. Dataset selection is still fixed to the current package flow
 
 `src/power_atlas/entity_resolution_entrypoint.py` still resolves the effective
 dataset through the current dataset-root path, and
@@ -169,6 +171,7 @@ The following are **not** currently the first blockers:
 - structured ingest write labels and relationship types,
 - entity-resolution labels and relationship types,
 - canonical id/run/name/aliases field names,
+- ordered alignment steps and emitted alignment metadata,
 - exact-match method names and confidence defaults,
 - package-owned retrieval request-context consumption.
 
@@ -179,18 +182,17 @@ pilot proof plus the structured ingest contracts.
 
 The next extraction slices should proceed in this order:
 
-1. externalize the alignment-strategy contract beyond exact label/alias lookup,
-2. decide whether dataset selection should also become an explicit package
+1. decide whether dataset selection should also become an explicit package
   contract,
-3. only then decide whether the second-domain pilot warrants a broader shared
+2. only then decide whether the second-domain pilot warrants a broader shared
   kernel namespace split.
 
 ## Minimum acceptance for the next slice
 
-The next reuse slice should be considered sufficient only if it introduces a
-package-owned alignment-strategy contract that lets a second domain change more
-than the current exact label/alias matching behavior.
+The next reuse slice should be considered sufficient only if it decides whether
+dataset selection should become a package-owned contract rather than remaining
+tied to the current dataset-root resolution path.
 
 The structured ingest layer, entity-resolution graph vocabulary, and canonical
-lookup field surface are now materially improved. The next meaningful reduction
-is the alignment strategy, followed by dataset selection if needed.
+lookup and alignment strategy surfaces are now materially improved. The next
+meaningful reduction is dataset selection if the second-domain pilot requires it.

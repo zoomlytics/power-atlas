@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from power_atlas.bootstrap import create_neo4j_driver
+from power_atlas.contracts import EntityResolutionAlignmentContract
 from power_atlas.contracts import EntityResolutionCanonicalLookupContract
 from power_atlas.contracts import EntityResolutionGraphContract
 from power_atlas.settings import Neo4jSettings
@@ -35,6 +36,7 @@ def run_entity_resolution_live(
     effective_dataset_id: str,
     alignment_version: str,
     neo4j_database: str | None,
+    entity_resolution_alignment: EntityResolutionAlignmentContract | None,
     entity_resolution_canonical_lookup: EntityResolutionCanonicalLookupContract | None,
     entity_resolution_graph: EntityResolutionGraphContract | None,
     fetch_mentions: Callable[..., list[dict[str, Any]]],

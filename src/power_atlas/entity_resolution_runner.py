@@ -7,8 +7,10 @@ from typing import Any, Callable
 
 from power_atlas.backend_run_catalog import resolve_run_root
 from power_atlas.contracts import (
+    EntityResolutionAlignmentContract,
     EntityResolutionCanonicalLookupContract,
     EntityResolutionGraphContract,
+    get_default_entity_resolution_alignment_contract,
     get_default_entity_resolution_canonical_lookup_contract,
     get_default_entity_resolution_graph_contract,
 )
@@ -159,6 +161,7 @@ def run_entity_resolution_runtime(
     effective_dataset_id: str,
     neo4j_settings: Neo4jSettings,
     entity_type_policy: Any = None,
+    entity_resolution_alignment: EntityResolutionAlignmentContract | None = None,
     entity_resolution_canonical_lookup: EntityResolutionCanonicalLookupContract | None = None,
     entity_resolution_graph: EntityResolutionGraphContract | None = None,
     resolver_version: str,
@@ -181,6 +184,11 @@ def run_entity_resolution_runtime(
     resolution_mode_hybrid: str,
     live_runner: Callable[..., Any] = run_entity_resolution_live,
 ) -> dict[str, Any]:
+    resolved_entity_resolution_alignment = (
+        get_default_entity_resolution_alignment_contract()
+        if entity_resolution_alignment is None
+        else entity_resolution_alignment
+    )
     resolved_entity_resolution_canonical_lookup = (
         get_default_entity_resolution_canonical_lookup_contract()
         if entity_resolution_canonical_lookup is None
@@ -257,6 +265,7 @@ def run_entity_resolution_runtime(
         effective_dataset_id=effective_dataset_id,
         alignment_version=alignment_version,
         neo4j_database=neo4j_settings.database,
+        entity_resolution_alignment=resolved_entity_resolution_alignment,
         entity_resolution_canonical_lookup=resolved_entity_resolution_canonical_lookup,
         entity_resolution_graph=resolved_entity_resolution_graph,
         fetch_mentions=fetch_mentions,
@@ -365,6 +374,7 @@ def run_entity_resolution_runtime_default(
     effective_dataset_id: str,
     neo4j_settings: Neo4jSettings,
     entity_type_policy: Any = None,
+    entity_resolution_alignment: EntityResolutionAlignmentContract | None = None,
     entity_resolution_canonical_lookup: EntityResolutionCanonicalLookupContract | None = None,
     entity_resolution_graph: EntityResolutionGraphContract | None = None,
 ) -> dict[str, Any]:
@@ -394,6 +404,11 @@ def run_entity_resolution_runtime_default(
         get_default_entity_resolution_canonical_lookup_contract()
         if entity_resolution_canonical_lookup is None
         else entity_resolution_canonical_lookup
+    )
+    resolved_entity_resolution_alignment = (
+        get_default_entity_resolution_alignment_contract()
+        if entity_resolution_alignment is None
+        else entity_resolution_alignment
     )
 
     def _default_make_cluster_id(
@@ -460,6 +475,7 @@ def run_entity_resolution_runtime_default(
         effective_dataset_id=effective_dataset_id,
         neo4j_settings=neo4j_settings,
         entity_type_policy=entity_type_policy,
+        entity_resolution_alignment=resolved_entity_resolution_alignment,
         entity_resolution_canonical_lookup=resolved_entity_resolution_canonical_lookup,
         entity_resolution_graph=entity_resolution_graph,
         resolver_version=DEFAULT_RESOLVER_VERSION,
@@ -482,6 +498,7 @@ def run_entity_resolution_runtime_default(
             by_label,
             by_alias,
             canonical_lookup_contract=resolved_entity_resolution_canonical_lookup,
+            entity_resolution_alignment=resolved_entity_resolution_alignment,
         ),
         resolve_mention=lambda mention, by_qid, by_label, by_alias: _resolve_mention(
             mention,
