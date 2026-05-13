@@ -935,6 +935,148 @@ def test_default_app_policies_expose_default_stage_policies() -> None:
     assert policies.entity_type_normalization is POWER_ATLAS_ENTITY_TYPE_NORMALIZATION_POLICY
 
 
+def test_run_retrieval_request_context_forwards_request_owned_retrieval_policy() -> None:
+    from dataclasses import replace
+
+    from neo4j_graphrag.generation import RagTemplate
+
+    from power_atlas.bootstrap import build_app_context, build_request_context
+    from power_atlas.contracts import RetrievalOntology, RetrievalPolicy
+    from power_atlas.retrieval_request_context_adapters import run_retrieval_request_context
+
+    alternate_policy = RetrievalPolicy(
+        ontology=RetrievalOntology(
+            claim_label="ResearchClaim",
+            mention_label="ResearchMention",
+            cluster_label="ResearchCluster",
+            canonical_label="ResearchCanonical",
+            supported_by_relationship="BACKED_BY",
+            mentioned_in_relationship="LOCATED_IN",
+            has_participant_relationship="HAS_ROLE",
+            resolves_to_relationship="MAPS_TO",
+            member_of_relationship="BELONGS_TO",
+            aligned_with_relationship="LINKED_TO",
+        ),
+        qa_prompt_id="alt_qa_v1",
+        rag_template=RagTemplate(
+            template="Context:\n{context}\nExamples:\n{examples}\nQuestion:\n{query_text}\nAnswer:",
+            system_instructions="Alternate retrieval policy prompt",
+        ),
+        default_expand_graph=True,
+        default_cluster_aware=True,
+    )
+    request_context = build_request_context(
+        replace(
+            build_app_context(environ={}),
+            policies=replace(build_app_context(environ={}).policies, retrieval=alternate_policy),
+        ),
+        command="ask",
+        dry_run=True,
+        question="Which policy was forwarded?",
+        run_id="forwarded-policy-run",
+        source_uri="file:///forwarded-policy.pdf",
+    )
+    captured: dict[str, object] = {}
+
+    def _fake_run_impl(config: object, **kwargs: object) -> dict[str, object]:
+        captured["config"] = config
+        captured.update(kwargs)
+        return {"status": "ok"}
+
+    result = run_retrieval_request_context(
+        request_context,
+        top_k=7,
+        index_name=None,
+        question=None,
+        expand_graph=None,
+        cluster_aware=None,
+        message_history=[{"role": "user", "content": "Earlier turn"}],
+        interactive=True,
+        run_impl=_fake_run_impl,
+    )
+
+    assert result == {"status": "ok"}
+    assert captured["config"] is request_context.config
+    assert captured["retrieval_policy"] is alternate_policy
+    assert captured["pipeline_contract"] is request_context.pipeline_contract
+    assert captured["neo4j_settings"] is request_context.settings.neo4j
+    assert captured["index_name"] == request_context.pipeline_contract.chunk_embedding_index_name
+    assert captured["question"] == "Which policy was forwarded?"
+    assert captured["run_id"] == "forwarded-policy-run"
+    assert captured["source_uri"] == "file:///forwarded-policy.pdf"
+    assert captured["all_runs"] is False
+    assert captured["interactive"] is True
+
+
+def test_run_interactive_request_context_forwards_request_owned_retrieval_policy() -> None:
+    from dataclasses import replace
+
+    from neo4j_graphrag.generation import RagTemplate
+
+    from power_atlas.bootstrap import build_app_context, build_request_context
+    from power_atlas.contracts import RetrievalOntology, RetrievalPolicy
+    from power_atlas.retrieval_request_context_adapters import run_interactive_request_context
+
+    alternate_policy = RetrievalPolicy(
+        ontology=RetrievalOntology(
+            claim_label="InteractiveClaim",
+            mention_label="InteractiveMention",
+            cluster_label="InteractiveCluster",
+            canonical_label="InteractiveCanonical",
+            supported_by_relationship="CONFIRMED_BY",
+            mentioned_in_relationship="OBSERVED_IN",
+            has_participant_relationship="HAS_ACTOR",
+            resolves_to_relationship="POINTS_TO",
+            member_of_relationship="GROUPED_WITH",
+            aligned_with_relationship="CROSSWALKS_TO",
+        ),
+        qa_prompt_id="interactive_alt_qa_v1",
+        rag_template=RagTemplate(
+            template="Context:\n{context}\nExamples:\n{examples}\nQuestion:\n{query_text}\nAnswer:",
+            system_instructions="Interactive alternate retrieval policy prompt",
+        ),
+    )
+    request_context = build_request_context(
+        replace(
+            build_app_context(environ={}),
+            policies=replace(build_app_context(environ={}).policies, retrieval=alternate_policy),
+        ),
+        command="ask",
+        dry_run=True,
+        run_id="interactive-policy-run",
+        all_runs=False,
+        source_uri="file:///interactive-policy.pdf",
+    )
+    captured: dict[str, object] = {}
+
+    def _fake_run_impl(config: object, **kwargs: object) -> str:
+        captured["config"] = config
+        captured.update(kwargs)
+        return "interactive-ok"
+
+    result = run_interactive_request_context(
+        request_context,
+        top_k=5,
+        index_name=None,
+        expand_graph=None,
+        cluster_aware=None,
+        all_runs=True,
+        debug=True,
+        run_impl=_fake_run_impl,
+    )
+
+    assert result == "interactive-ok"
+    assert captured["config"] is request_context.config
+    assert captured["retrieval_policy"] is alternate_policy
+    assert captured["pipeline_contract"] is request_context.pipeline_contract
+    assert captured["neo4j_settings"] is request_context.settings.neo4j
+    assert captured["index_name"] == request_context.pipeline_contract.chunk_embedding_index_name
+    assert captured["run_id"] == "interactive-policy-run"
+    assert captured["source_uri"] == "file:///interactive-policy.pdf"
+    assert captured["all_runs"] is True
+    assert captured["debug"] is True
+
+
 def test_default_entity_type_normalization_policy_matches_power_atlas_defaults() -> None:
     from power_atlas.contracts import (
         POWER_ATLAS_ENTITY_TYPE_NORMALIZATION_POLICY,

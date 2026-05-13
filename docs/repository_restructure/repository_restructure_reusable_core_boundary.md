@@ -128,24 +128,29 @@ The repo already has a partial retrieval-policy boundary:
 But the seam is not yet a complete reusable policy surface:
 
 - the default retrieval policy is still the Power Atlas policy object,
-- runtime call paths still rely on those defaults implicitly,
-- the ontology and prompt policy are not yet threaded end-to-end through an
-  explicit request/app-context-owned provider boundary,
-- there is not yet a focused proof showing that an alternate retrieval policy
-  can be swapped in without monkeypatching implementation modules.
+- request-context and stage/runtime paths already accept and forward explicit
+  retrieval policy objects, but that boundary is still concentrated in the
+  current Power Atlas retrieval flow rather than locked as a broader reusable
+  package contract,
+- some runtime call paths still rely on Power Atlas defaults when no explicit
+  policy is supplied,
+- the current proof posture is still stronger in demo-stage coverage than in
+  shared-package extraction coverage,
+- there is not yet a second-app or second-domain proof showing that the same
+  policy surface is sufficient outside the current Power Atlas retrieval stack.
 
 ## Acceptance criteria for this first seam
 
 The retrieval expansion policy slice should be considered complete only when:
 
 - retrieval runtime entrypoints accept an explicit retrieval policy or provider
-  from app/request-owned context rather than silently re-resolving Power Atlas
-  defaults,
+  from app/request-owned context and keep that behavior locked at the package
+  seam rather than only in demo-stage coverage,
 - retrieval query construction uses that injected policy end to end,
 - prompt/template selection for retrieval also follows the same injected policy
   path,
-- at least one alternate test policy can be exercised without monkeypatching
-  implementation modules,
+- at least one alternate test policy can be exercised through the shared
+  package-owned retrieval seam without monkeypatching implementation modules,
 - existing Power Atlas retrieval behavior remains unchanged when the default
   Power Atlas policy is supplied.
 
@@ -167,10 +172,10 @@ This boundary does **not** authorize the following yet:
 The next bounded steps should proceed in this order:
 
 1. treat this document as the working extraction boundary,
-2. implement the missing runtime/provider injection boundary around retrieval
-   expansion policy,
-3. add one alternate retrieval-policy test that exercises the seam without
-   monkeypatching implementation modules,
+2. lock the current runtime/provider boundary around retrieval expansion policy
+  with focused package-level proofs,
+3. close any remaining implicit-default gaps in retrieval policy threading that
+  those focused proofs uncover,
 4. re-evaluate whether the shared-core namespace split is justified after that
    proof exists.
 
