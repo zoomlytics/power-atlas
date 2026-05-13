@@ -55,6 +55,12 @@ The current proposed anchor is a lightweight `DomainPackDescriptor` in
 `power_atlas.bootstrap`, with `src/power_atlas/policy_packs/market_trade.py`
 serving as the first concrete descriptor-backed pack.
 
+That starter adoption path now also has a concrete proof:
+`examples/domain_pack_starter.py` defines a fresh domain pack inline and wires
+it through package-owned retrieval and entity-resolution request-context flows.
+This means the repo now has both a descriptor-backed pack and a starter example
+that shows how a new research-heavy project would begin adopting the package.
+
 ## Boundary defined in this checkpoint
 
 ### 1. Reusable core candidates now
@@ -194,7 +200,8 @@ The next bounded steps should proceed in this order:
 3. retrofit the market/trade pack as the first descriptor-backed pack,
 4. add one starter/adoption path that shows how a new project would define its
   own pack without `demo.*`,
-5. only then re-evaluate whether the shared-core namespace split is justified.
+5. add one reusable operational feature with broad GraphRAG leverage,
+6. only then re-evaluate whether the shared-core namespace split is justified.
 
 ## Success condition for the broader reuse plan
 

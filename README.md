@@ -388,6 +388,14 @@ graph, canonical-lookup, alignment, and dataset-selection contracts, and
 delegates into the package-owned entity-resolution entrypoint through an
 injected consumer runtime.
 
+An eighth example acts as the starter adoption path for a fresh research
+project:
+[`examples/domain_pack_starter.py`](examples/domain_pack_starter.py).
+It defines a new `DomainPackDescriptor` inline, wires custom retrieval and
+entity-resolution contracts into package request contexts, and proves that a
+new project can adopt the package-owned GraphRAG seams without importing
+`demo.*` or modifying package runtime code.
+
 These examples are now mirrored by a lightweight domain contribution model.
 `src/power_atlas/policy_packs/market_trade.py` exports
 `MARKET_TRADE_DOMAIN_PACK`, a package-owned descriptor that records the
