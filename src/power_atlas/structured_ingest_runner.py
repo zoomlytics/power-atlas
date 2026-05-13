@@ -12,8 +12,10 @@ from power_atlas.contracts import (
     CSV_FIRST_DATA_ROW,
     DatasetRoot,
     ID_PATTERNS,
+    StructuredSchemaContract,
     STRUCTURED_FILE_HEADERS,
     VALUE_TYPES,
+    get_default_structured_schema_contract,
     resolve_dataset_root,
 )
 from power_atlas.settings import Neo4jSettings
@@ -110,7 +112,13 @@ def lint_and_clean_structured_csvs(
     fixtures_dir: Path | None = None,
     *,
     dataset_id: str | None = None,
+    structured_schema: StructuredSchemaContract | None = None,
 ) -> dict[str, Any]:
+    resolved_structured_schema = (
+        get_default_structured_schema_contract()
+        if structured_schema is None
+        else structured_schema
+    )
     fixtures_root, effective_dataset_id = resolve_structured_dataset(fixtures_dir, dataset_id)
     structured_dir = fixtures_root / "structured"
     run_root = output_dir / "runs" / run_id
@@ -134,7 +142,7 @@ def lint_and_clean_structured_csvs(
             }
         )
 
-    for file_name, expected_headers in STRUCTURED_FILE_HEADERS.items():
+    for file_name, expected_headers in resolved_structured_schema.file_headers.items():
         source_path = structured_dir / file_name
         rows: list[tuple[int, dict[str, str]]] = []
         dropped_blank_rows = 0
@@ -142,7 +150,7 @@ def lint_and_clean_structured_csvs(
             with source_path.open("r", encoding="utf-8", newline="") as handle:
                 reader = csv.DictReader(handle)
                 actual_headers = reader.fieldnames or []
-                if actual_headers != expected_headers:
+                if actual_headers != list(expected_headers):
                     add_issue(
                         file_name,
                         1,
@@ -196,13 +204,8 @@ def lint_and_clean_structured_csvs(
             deduped, duplicates = deduplicate_rows(rows, expected_headers)
 
         for row_number, row in deduped:
-            id_field = {
-                "entities.csv": "entity_id",
-                "facts.csv": "fact_id",
-                "relationships.csv": "rel_id",
-                "claims.csv": "claim_id",
-            }[file_name]
-            id_pattern = ID_PATTERNS[id_field]
+            id_field = resolved_structured_schema.id_field_by_file_name[file_name]
+            id_pattern = resolved_structured_schema.id_patterns[id_field]
             id_value = (row.get(id_field) or "").strip()
             if not id_pattern.fullmatch(id_value):
                 add_issue(
@@ -214,7 +217,12 @@ def lint_and_clean_structured_csvs(
                 )
 
             predicate_pid = (row.get("predicate_pid") or "").strip()
-            if "predicate_pid" in row and not ID_PATTERNS["predicate_pid"].fullmatch(predicate_pid):
+            if (
+                "predicate_pid" in row
+                and not resolved_structured_schema.id_patterns["predicate_pid"].fullmatch(
+                    predicate_pid
+                )
+            ):
                 add_issue(
                     file_name,
                     row_number,
@@ -222,8 +230,8 @@ def lint_and_clean_structured_csvs(
                     "INVALID_PID",
                     f"Invalid PID: {predicate_pid!r}",
                 )
-            if predicate_pid in COMMON_PREDICATE_LABELS:
-                expected_label = COMMON_PREDICATE_LABELS[predicate_pid]
+            if predicate_pid in resolved_structured_schema.common_predicate_labels:
+                expected_label = resolved_structured_schema.common_predicate_labels[predicate_pid]
                 actual_label = (row.get("predicate_label") or "").strip()
                 if actual_label and actual_label != expected_label:
                     add_issue(
@@ -236,7 +244,7 @@ def lint_and_clean_structured_csvs(
 
             if "value_type" in row:
                 value_type = (row.get("value_type") or "").strip()
-                if value_type not in VALUE_TYPES:
+                if value_type not in resolved_structured_schema.value_types:
                     add_issue(
                         file_name,
                         row_number,
@@ -265,7 +273,12 @@ def lint_and_clean_structured_csvs(
 
             if "subject_id" in row:
                 subject_id = (row.get("subject_id") or "").strip()
-                if subject_id and not ID_PATTERNS["entity_id"].fullmatch(subject_id):
+                if (
+                    subject_id
+                    and not resolved_structured_schema.id_patterns["entity_id"].fullmatch(
+                        subject_id
+                    )
+                ):
                     add_issue(
                         file_name,
                         row_number,
@@ -275,7 +288,12 @@ def lint_and_clean_structured_csvs(
                     )
             if "object_id" in row:
                 object_id = (row.get("object_id") or "").strip()
-                if object_id and not ID_PATTERNS["entity_id"].fullmatch(object_id):
+                if (
+                    object_id
+                    and not resolved_structured_schema.id_patterns["entity_id"].fullmatch(
+                        object_id
+                    )
+                ):
                     add_issue(
                         file_name,
                         row_number,
@@ -319,34 +337,39 @@ def lint_and_clean_structured_csvs(
 
     entity_ids = {
         (row.get("entity_id") or "").strip()
-        for row in cleaned_rows.get("entities.csv", [])
+        for row in cleaned_rows.get(resolved_structured_schema.entity_file_name, [])
         if (row.get("entity_id") or "").strip()
     }
     fact_ids = {
         (row.get("fact_id") or "").strip()
-        for row in cleaned_rows.get("facts.csv", [])
+        for row in cleaned_rows.get(resolved_structured_schema.fact_file_name, [])
         if (row.get("fact_id") or "").strip()
     }
     relationship_ids = {
         (row.get("rel_id") or "").strip()
-        for row in cleaned_rows.get("relationships.csv", [])
+        for row in cleaned_rows.get(resolved_structured_schema.relationship_file_name, [])
         if (row.get("rel_id") or "").strip()
     }
-    claims_rows = cleaned_rows.get("claims.csv", [])
-    claims_row_numbers = cleaned_row_numbers.get("claims.csv", [])
-    can_validate_entities = "entities.csv" not in read_error_files
-    can_validate_facts = "facts.csv" not in read_error_files
-    can_validate_relationships = "relationships.csv" not in read_error_files
+    claims_rows = cleaned_rows.get(resolved_structured_schema.claim_file_name, [])
+    claims_row_numbers = cleaned_row_numbers.get(
+        resolved_structured_schema.claim_file_name,
+        [],
+    )
+    can_validate_entities = resolved_structured_schema.entity_file_name not in read_error_files
+    can_validate_facts = resolved_structured_schema.fact_file_name not in read_error_files
+    can_validate_relationships = (
+        resolved_structured_schema.relationship_file_name not in read_error_files
+    )
     for index, claim in enumerate(claims_rows):
         row_number = (
             claims_row_numbers[index]
             if index < len(claims_row_numbers)
-            else index + CSV_FIRST_DATA_ROW
+            else index + resolved_structured_schema.csv_first_data_row
         )
         subject_id = (claim.get("subject_id") or "").strip()
         if can_validate_entities and subject_id and subject_id not in entity_ids:
             add_issue(
-                "claims.csv",
+                resolved_structured_schema.claim_file_name,
                 row_number,
                 "subject_id",
                 "UNKNOWN_SUBJECT_ID",
@@ -356,7 +379,7 @@ def lint_and_clean_structured_csvs(
         claim_type = (claim.get("claim_type") or "").strip()
         if can_validate_facts and claim_type == "fact" and source_row_id not in fact_ids:
             add_issue(
-                "claims.csv",
+                resolved_structured_schema.claim_file_name,
                 row_number,
                 "source_row_id",
                 "UNKNOWN_FACT_SOURCE_ROW",
@@ -368,14 +391,14 @@ def lint_and_clean_structured_csvs(
             and source_row_id not in relationship_ids
         ):
             add_issue(
-                "claims.csv",
+                resolved_structured_schema.claim_file_name,
                 row_number,
                 "source_row_id",
                 "UNKNOWN_REL_SOURCE_ROW",
                 f"Missing rel_id {source_row_id!r}",
             )
 
-    for file_name, expected_headers in STRUCTURED_FILE_HEADERS.items():
+    for file_name, expected_headers in resolved_structured_schema.file_headers.items():
         output_path = clean_dir / file_name
         with output_path.open("w", encoding="utf-8", newline="") as handle:
             writer = csv.DictWriter(handle, fieldnames=expected_headers)
@@ -430,6 +453,7 @@ def run_structured_ingest_runtime(
     fixtures_dir: Path | None = None,
     dataset_id: str | None = None,
     neo4j_settings: Neo4jSettings,
+    structured_schema: StructuredSchemaContract | None = None,
     resolve_dataset: Callable[[Path | None, str | None], tuple[Path, str]] = resolve_structured_dataset,
     lint_and_clean: Callable[..., dict[str, Any]] = lint_and_clean_structured_csvs,
     read_csv_rows: Callable[[Path], list[dict[str, str]]] = load_csv_rows,
@@ -437,18 +461,32 @@ def run_structured_ingest_runtime(
     live_runner: Callable[..., None] = run_structured_ingest_live,
     write_graph: Callable[..., None] = write_structured_ingest_graph,
 ) -> dict[str, Any]:
+    resolved_structured_schema = (
+        get_default_structured_schema_contract()
+        if structured_schema is None
+        else structured_schema
+    )
     fixtures_root, effective_dataset_id = resolve_dataset(fixtures_dir, dataset_id)
     lint_output = lint_and_clean(
         run_id=run_id,
         output_dir=config.output_dir,
         fixtures_dir=fixtures_root,
         dataset_id=effective_dataset_id,
+        structured_schema=resolved_structured_schema,
     )
     structured_clean_dir = Path(lint_output["structured_clean_dir"])
-    entities_rows = read_csv_rows(structured_clean_dir / "entities.csv")
-    facts_rows = read_csv_rows(structured_clean_dir / "facts.csv")
-    relationship_rows = read_csv_rows(structured_clean_dir / "relationships.csv")
-    claims_rows = read_csv_rows(structured_clean_dir / "claims.csv")
+    entities_rows = read_csv_rows(
+        structured_clean_dir / resolved_structured_schema.entity_file_name
+    )
+    facts_rows = read_csv_rows(
+        structured_clean_dir / resolved_structured_schema.fact_file_name
+    )
+    relationship_rows = read_csv_rows(
+        structured_clean_dir / resolved_structured_schema.relationship_file_name
+    )
+    claims_rows = read_csv_rows(
+        structured_clean_dir / resolved_structured_schema.claim_file_name
+    )
     source_uri = str(fixtures_root / "structured")
     ingested_at = timestamp_factory()
 

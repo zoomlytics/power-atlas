@@ -36,6 +36,10 @@ _EXPORTS = {
     "POWER_ATLAS_RAG_TEMPLATE": ("power_atlas.contracts", "POWER_ATLAS_RAG_TEMPLATE"),
     "POWER_ATLAS_RETRIEVAL_ONTOLOGY": ("power_atlas.contracts", "POWER_ATLAS_RETRIEVAL_ONTOLOGY"),
     "POWER_ATLAS_RETRIEVAL_POLICY": ("power_atlas.contracts", "POWER_ATLAS_RETRIEVAL_POLICY"),
+    "POWER_ATLAS_STRUCTURED_SCHEMA_CONTRACT": (
+        "power_atlas.contracts",
+        "POWER_ATLAS_STRUCTURED_SCHEMA_CONTRACT",
+    ),
     "PROMPT_IDS": ("power_atlas.contracts", "PROMPT_IDS"),
     "RETRIEVAL_METADATA_SURFACE_POLICY": ("power_atlas.contracts", "RETRIEVAL_METADATA_SURFACE_POLICY"),
     "RequestContext": ("power_atlas.context", "RequestContext"),
@@ -43,6 +47,7 @@ _EXPORTS = {
     "RetrievalOntology": ("power_atlas.contracts", "RetrievalOntology"),
     "RetrievalPolicy": ("power_atlas.contracts", "RetrievalPolicy"),
     "STRUCTURED_FILE_HEADERS": ("power_atlas.contracts", "STRUCTURED_FILE_HEADERS"),
+    "StructuredSchemaContract": ("power_atlas.contracts", "StructuredSchemaContract"),
     "VALUE_TYPES": ("power_atlas.contracts", "VALUE_TYPES"),
     "bootstrap_app": ("power_atlas.bootstrap", "bootstrap_app"),
     "build_app_context": ("power_atlas.bootstrap", "build_app_context"),
@@ -73,6 +78,10 @@ _EXPORTS = {
     "resolve_dataset_root": ("power_atlas.contracts", "resolve_dataset_root"),
     "resolve_early_return_rule": ("power_atlas.contracts", "resolve_early_return_rule"),
     "get_default_retrieval_policy": ("power_atlas.contracts", "get_default_retrieval_policy"),
+    "get_default_structured_schema_contract": (
+        "power_atlas.contracts",
+        "get_default_structured_schema_contract",
+    ),
     "retrieval_benchmark_entrypoint": ("power_atlas.retrieval_benchmark_entrypoint", None),
     "retrieval_benchmark_runner": ("power_atlas.retrieval_benchmark_runner", None),
     "retrieval_request_context_adapters": (

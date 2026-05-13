@@ -27,7 +27,11 @@ The following second-domain proof now exists:
   alternate retrieval policy pack,
 - `examples/market_trade_retrieval_policy_consumer.py` proves the package-owned
   retrieval request-context adapter can consume that pack without importing
-  `demo.*`.
+  `demo.*`,
+- `src/power_atlas/contracts/structured.py` now defines a package-owned
+  `StructuredSchemaContract`, and the package structured-ingest path accepts it
+  through `power_atlas.structured_ingest_entrypoint` and
+  `power_atlas.structured_ingest_runner`.
 
 That proof is sufficient to close the question of whether a second-domain
 retrieval pack can ride the current policy seam.
@@ -37,21 +41,24 @@ second domain end-to-end.
 
 ## First seam gaps beyond retrieval policy
 
-### 1. Structured-schema contract is still Power Atlas-specific
+### 1. Structured-schema contract is extracted, but only at the file/schema layer
 
-`src/power_atlas/contracts/structured.py` hardcodes the structured CSV file
-set, column headers, identifier formats, and predicate assumptions for the
-current canonical-data path.
+`src/power_atlas/contracts/structured.py` no longer has to be consumed only as a
+fixed constant set. The package now exposes `StructuredSchemaContract`, which
+externalizes:
 
-The strongest concrete indicators are:
+- structured file names,
+- column headers,
+- identifier patterns,
+- predicate-label assumptions,
+- allowed value types.
 
-- fixed file names such as `entities.csv`, `facts.csv`, `relationships.csv`,
-  and `claims.csv`,
-- Wikidata-shaped identifier expectations such as `Q...` and `P...`,
-- shared predicate-label assumptions through `COMMON_PREDICATE_LABELS`.
+That reduces the first second-domain blocker: a market/trade pilot can now
+adopt alternate structured file names and alternate identifier formats through a
+package-owned contract rather than by editing lint/runtime code.
 
-This means a market/trade pilot cannot adopt alternate canonical source rows or
-identifier formats through a package policy seam today.
+This does **not** yet solve the next blocker, which is the graph shape that the
+structured ingest path writes after those files are read.
 
 ### 2. Structured ingest writes a fixed Power Atlas graph shape
 
@@ -119,13 +126,11 @@ pilot proof.
 
 The next extraction slices should proceed in this order:
 
-1. define a structured-schema policy contract that externalizes file names,
-   identifier patterns, and canonical row expectations,
-2. define the graph-shape contract for structured ingest writes so alternate
+1. define the graph-shape contract for structured ingest writes so alternate
    domains are not forced into the current canonical graph vocabulary,
-3. widen entity resolution from entity-type normalization only into an explicit
+2. widen entity resolution from entity-type normalization only into an explicit
    graph-model and alignment-policy seam,
-4. only then decide whether the second-domain pilot warrants a broader shared
+3. only then decide whether the second-domain pilot warrants a broader shared
    kernel namespace split.
 
 ## Minimum acceptance for the next slice
@@ -138,4 +143,5 @@ following:
 2. introduces a package-owned entity-resolution graph/alignment contract that
    makes the current fixed labels and relationships configurable.
 
-Anything smaller than that risks restating the gap without reducing it.
+The first half of item 1 is now complete for file/schema assumptions. The next
+meaningful reduction is the structured graph-shape contract.

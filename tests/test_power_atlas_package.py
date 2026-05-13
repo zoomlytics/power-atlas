@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import importlib
 import json
+import re
 from pathlib import Path
 from unittest import mock
 
@@ -93,6 +94,10 @@ def test_package_modules_import() -> None:
     assert package.POWER_ATLAS_RAG_TEMPLATE is contracts_module.POWER_ATLAS_RAG_TEMPLATE
     assert package.POWER_ATLAS_RETRIEVAL_ONTOLOGY is contracts_module.POWER_ATLAS_RETRIEVAL_ONTOLOGY
     assert package.POWER_ATLAS_RETRIEVAL_POLICY is contracts_module.POWER_ATLAS_RETRIEVAL_POLICY
+    assert (
+        package.POWER_ATLAS_STRUCTURED_SCHEMA_CONTRACT
+        is contracts_module.POWER_ATLAS_STRUCTURED_SCHEMA_CONTRACT
+    )
     assert package.Config is contracts_module.Config
     assert package.COMMON_PREDICATE_LABELS is contracts_module.COMMON_PREDICATE_LABELS
     assert package.ClaimExtractionOntology is contracts_module.ClaimExtractionOntology
@@ -115,12 +120,17 @@ def test_package_modules_import() -> None:
     assert package.RetrievalOntology is contracts_module.RetrievalOntology
     assert package.RetrievalPolicy is contracts_module.RetrievalPolicy
     assert package.STRUCTURED_FILE_HEADERS is contracts_module.STRUCTURED_FILE_HEADERS
+    assert package.StructuredSchemaContract is contracts_module.StructuredSchemaContract
     assert package.VALUE_TYPES is contracts_module.VALUE_TYPES
     assert package.list_available_datasets is contracts_module.list_available_datasets
     assert package.make_run_id is contracts_module.make_run_id
     assert package.resolve_dataset_root is contracts_module.resolve_dataset_root
     assert package.resolve_early_return_rule is contracts_module.resolve_early_return_rule
     assert package.get_default_retrieval_policy is contracts_module.get_default_retrieval_policy
+    assert (
+        package.get_default_structured_schema_contract
+        is contracts_module.get_default_structured_schema_contract
+    )
     assert package.get_default_claim_extraction_policy is contracts_module.get_default_claim_extraction_policy
     assert package.get_default_entity_type_normalization_policy is contracts_module.get_default_entity_type_normalization_policy
     assert package.build_entity_type_cypher_case is contracts_module.build_entity_type_cypher_case
@@ -588,7 +598,132 @@ def test_structured_ingest_request_context_uses_package_default_config_runner() 
         fixtures_dir=None,
         dataset_id=None,
         neo4j_settings=request_context.settings.neo4j,
+        structured_schema=None,
     )
+
+
+def test_structured_ingest_runtime_accepts_custom_structured_schema_contract(
+    tmp_path: Path,
+) -> None:
+    from power_atlas.contracts import StructuredSchemaContract
+    from power_atlas.settings import Neo4jSettings
+    from power_atlas.structured_ingest_runner import run_structured_ingest_runtime
+
+    fixtures_dir = tmp_path / "fixtures"
+    structured_dir = fixtures_dir / "structured"
+    structured_dir.mkdir(parents=True)
+
+    schema = StructuredSchemaContract(
+        entity_file_name="securities.csv",
+        fact_file_name="security_facts.csv",
+        relationship_file_name="security_relationships.csv",
+        claim_file_name="security_claims.csv",
+        file_headers={
+            "securities.csv": (
+                "entity_id",
+                "name",
+                "entity_type",
+                "aliases",
+                "description",
+                "wikidata_url",
+            ),
+            "security_facts.csv": (
+                "fact_id",
+                "subject_id",
+                "subject_label",
+                "predicate_pid",
+                "predicate_label",
+                "value",
+                "value_type",
+                "source",
+                "source_url",
+                "retrieved_at",
+            ),
+            "security_relationships.csv": (
+                "rel_id",
+                "subject_id",
+                "subject_label",
+                "predicate_pid",
+                "predicate_label",
+                "object_id",
+                "object_label",
+                "object_entity_type",
+                "source",
+                "source_url",
+                "retrieved_at",
+            ),
+            "security_claims.csv": (
+                "claim_id",
+                "claim_type",
+                "subject_id",
+                "subject_label",
+                "predicate_pid",
+                "predicate_label",
+                "object_id",
+                "object_label",
+                "value",
+                "value_type",
+                "claim_text",
+                "confidence",
+                "source",
+                "source_url",
+                "retrieved_at",
+                "source_row_id",
+            ),
+        },
+        id_patterns={
+            "entity_id": re.compile(r"^SEC\d+$"),
+            "fact_id": re.compile(r"^FACT\d+$"),
+            "rel_id": re.compile(r"^REL\d+$"),
+            "claim_id": re.compile(r"^CLM\d+$"),
+            "predicate_pid": re.compile(r"^MP\d+$"),
+        },
+    )
+
+    (structured_dir / schema.entity_file_name).write_text(
+        "entity_id,name,entity_type,aliases,description,wikidata_url\n"
+        "SEC1,Acme Corp,Security,ACME,Example issuer,https://example.test/sec1\n"
+        "SEC2,Example Exchange,Exchange,EXCH,Example venue,https://example.test/sec2\n",
+        encoding="utf-8",
+    )
+    (structured_dir / schema.fact_file_name).write_text(
+        "fact_id,subject_id,subject_label,predicate_pid,predicate_label,value,value_type,source,source_url,retrieved_at\n"
+        "FACT1,SEC1,Acme Corp,MP100,ticker,ACME,string,filing,https://example.test/fact,2026-01-01\n",
+        encoding="utf-8",
+    )
+    (structured_dir / schema.relationship_file_name).write_text(
+        "rel_id,subject_id,subject_label,predicate_pid,predicate_label,object_id,object_label,object_entity_type,source,source_url,retrieved_at\n"
+        "REL1,SEC1,Acme Corp,MP200,listed_on,SEC2,Example Exchange,Exchange,filing,https://example.test/rel,2026-01-01\n",
+        encoding="utf-8",
+    )
+    (structured_dir / schema.claim_file_name).write_text(
+        "claim_id,claim_type,subject_id,subject_label,predicate_pid,predicate_label,object_id,object_label,value,value_type,claim_text,confidence,source,source_url,retrieved_at,source_row_id\n"
+        "CLM1,relationship,SEC1,Acme Corp,MP200,listed_on,SEC2,Example Exchange,,string,Acme Corp is listed on Example Exchange,0.9,filing,https://example.test/claim,2026-01-01,REL1\n",
+        encoding="utf-8",
+    )
+
+    config = mock.Mock(output_dir=tmp_path / "artifacts", dry_run=True)
+
+    result = run_structured_ingest_runtime(
+        config=config,
+        run_id="run-123",
+        fixtures_dir=fixtures_dir,
+        dataset_id="market_trade_dataset_v1",
+        neo4j_settings=Neo4jSettings(),
+        structured_schema=schema,
+    )
+
+    clean_dir = Path(result["structured_clean_dir"])
+    assert result["status"] == "dry_run"
+    assert result["entities"] == 2
+    assert result["facts"] == 1
+    assert result["relationships"] == 1
+    assert result["claims"] == 1
+    assert (clean_dir / "securities.csv").is_file()
+    assert (clean_dir / "security_facts.csv").is_file()
+    assert (clean_dir / "security_relationships.csv").is_file()
+    assert (clean_dir / "security_claims.csv").is_file()
+    assert not (clean_dir / "entities.csv").exists()
 
 
 def test_pdf_ingest_entrypoint_uses_package_default_runtime_runner() -> None:
