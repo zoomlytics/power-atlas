@@ -334,6 +334,40 @@ def test_domain_pack_starter_example_script_runs() -> None:
     }
 
 
+def test_claim_extraction_diagnostics_report_consumer_example_script_runs() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(repo_root / "examples" / "claim_extraction_diagnostics_report_consumer.py"),
+        ],
+        cwd=repo_root,
+        capture_output=True,
+        check=True,
+        text=True,
+    )
+
+    assert json.loads(completed.stdout) == {
+        "consumer": "claim_extraction_diagnostics_report_consumer",
+        "current": {
+            "artifact_relative_path": "runs/unstructured_ingest-20260512T000000Z-a/claim_extraction_diagnostics/claim_extraction_diagnostics.json",
+            "inferred_dataset_id": "demo_dataset_v1",
+            "run_id": "unstructured_ingest-20260512T000000Z-a",
+            "source_uri_line": "Source URI    : file:///report/source.pdf",
+            "status": "live",
+            "warnings": ["report warning"],
+        },
+        "run_scoped": {
+            "artifact_relative_path": "runs/unstructured_ingest-20260512T000000Z-a/claim_extraction_diagnostics/claim_extraction_diagnostics.json",
+            "inferred_dataset_id": None,
+            "run_id": "unstructured_ingest-20260512T000000Z-a",
+            "source_uri_line": "Source URI    : file:///report/source.pdf",
+            "status": "live",
+            "warnings": ["report warning"],
+        },
+    }
+
+
 def test_public_api_facade_supports_run_detail_endpoint_when_output_dir_has_runs(tmp_path: Path) -> None:
     run_root = tmp_path / "runs" / "unstructured_ingest-20260512T000000Z-test"
     manifest_path = run_root / "pdf_ingest" / "manifest.json"

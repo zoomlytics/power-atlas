@@ -388,6 +388,12 @@ A fourth example that adds host-level request guarding around the mounted
 access while relying on configured dataset selection, lives in
 [`examples/backend_api_guarded_app.py`](examples/backend_api_guarded_app.py).
 
+A package-only reporting example for persisted claim-extraction diagnostics
+artifacts lives in
+[`examples/claim_extraction_diagnostics_report_consumer.py`](examples/claim_extraction_diagnostics_report_consumer.py).
+It demonstrates both run-scoped and current-run invocation of the package-owned
+reporting helper without rerunning diagnostics.
+
 A fifth example that stays entirely outside `demo/` and shows a thin consumer
 over the package-owned retrieval policy seam lives in
 [`examples/retrieval_policy_consumer.py`](examples/retrieval_policy_consumer.py).
