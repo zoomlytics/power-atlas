@@ -3,7 +3,10 @@ from __future__ import annotations
 from typing import Any, Callable
 
 from power_atlas.context import RequestContext
-from power_atlas.contracts import resolve_dataset_root
+from power_atlas.contracts import (
+    EntityResolutionGraphContract,
+    resolve_dataset_root,
+)
 from power_atlas.settings import Neo4jSettings
 
 
@@ -71,6 +74,7 @@ def _default_config_runner(
     neo4j_settings: Neo4jSettings | None = None,
     dataset_name: str | None = None,
     entity_type_policy: Any = None,
+    entity_resolution_graph: EntityResolutionGraphContract | None = None,
 ) -> dict[str, Any]:
     return run_entity_resolution(
         config,
@@ -82,6 +86,7 @@ def _default_config_runner(
         neo4j_settings=neo4j_settings,
         dataset_name=dataset_name,
         entity_type_policy=entity_type_policy,
+        entity_resolution_graph=entity_resolution_graph,
     )
 
 
@@ -96,6 +101,7 @@ def run_entity_resolution(
     neo4j_settings: Neo4jSettings | None = None,
     dataset_name: str | None = None,
     entity_type_policy: Any = None,
+    entity_resolution_graph: EntityResolutionGraphContract | None = None,
     runtime_runner: Callable[..., dict[str, Any]] | None = None,
     default_resolution_mode: str = RESOLUTION_MODE_STRUCTURED_ANCHOR,
     valid_resolution_modes: frozenset[str] = VALID_RESOLUTION_MODES,
@@ -128,6 +134,7 @@ def run_entity_resolution(
         effective_dataset_id=effective_dataset_id,
         neo4j_settings=resolved_neo4j_settings,
         entity_type_policy=entity_type_policy,
+        entity_resolution_graph=entity_resolution_graph,
     )
 
 
@@ -137,6 +144,7 @@ def run_entity_resolution_request_context(
     resolution_mode: str | None = None,
     artifact_subdir: str = "entity_resolution",
     dataset_id: str | None = None,
+    entity_resolution_graph: EntityResolutionGraphContract | None = None,
     config_runner: Callable[..., dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     run_id = request_context.run_id
@@ -154,6 +162,7 @@ def run_entity_resolution_request_context(
         neo4j_settings=request_context.settings.neo4j,
         dataset_name=request_context.settings.dataset_name,
         entity_type_policy=request_context.policies.entity_type_normalization,
+        entity_resolution_graph=entity_resolution_graph,
     )
 
 

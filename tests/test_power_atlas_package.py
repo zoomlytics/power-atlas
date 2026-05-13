@@ -5,6 +5,7 @@ import importlib
 import json
 import re
 from pathlib import Path
+from types import SimpleNamespace
 from unittest import mock
 
 import httpx
@@ -88,6 +89,7 @@ def test_package_modules_import() -> None:
     assert package.EarlyReturnRule is contracts_module.EarlyReturnRule
     assert package.EARLY_RETURN_PRECEDENCE is contracts_module.EARLY_RETURN_PRECEDENCE
     assert package.EARLY_RETURN_RULE_BY_NAME is contracts_module.EARLY_RETURN_RULE_BY_NAME
+    assert package.EntityResolutionGraphContract is contracts_module.EntityResolutionGraphContract
     assert package.EntityTypeNormalizationPolicy is contracts_module.EntityTypeNormalizationPolicy
     assert package.CONFIG_DIR == contracts_module.CONFIG_DIR
     assert package.PROMPT_IDS is contracts_module.PROMPT_IDS
@@ -117,6 +119,10 @@ def test_package_modules_import() -> None:
     assert package.PDF_PIPELINE_CONFIG_PATH == contracts_module.PDF_PIPELINE_CONFIG_PATH
     assert package.POWER_ATLAS_CLAIM_EXTRACTION_ONTOLOGY is contracts_module.POWER_ATLAS_CLAIM_EXTRACTION_ONTOLOGY
     assert package.POWER_ATLAS_CLAIM_EXTRACTION_POLICY is contracts_module.POWER_ATLAS_CLAIM_EXTRACTION_POLICY
+    assert (
+        package.POWER_ATLAS_ENTITY_RESOLUTION_GRAPH_CONTRACT
+        is contracts_module.POWER_ATLAS_ENTITY_RESOLUTION_GRAPH_CONTRACT
+    )
     assert package.POWER_ATLAS_ENTITY_TYPE_NORMALIZATION_POLICY is contracts_module.POWER_ATLAS_ENTITY_TYPE_NORMALIZATION_POLICY
     assert package.RETRIEVAL_METADATA_SURFACE_POLICY is contracts_module.RETRIEVAL_METADATA_SURFACE_POLICY
     assert package.RequestContext is context_module.RequestContext
@@ -132,6 +138,10 @@ def test_package_modules_import() -> None:
     assert package.resolve_dataset_root is contracts_module.resolve_dataset_root
     assert package.resolve_early_return_rule is contracts_module.resolve_early_return_rule
     assert package.get_default_retrieval_policy is contracts_module.get_default_retrieval_policy
+    assert (
+        package.get_default_entity_resolution_graph_contract
+        is contracts_module.get_default_entity_resolution_graph_contract
+    )
     assert (
         package.get_default_structured_graph_shape_contract
         is contracts_module.get_default_structured_graph_shape_contract
@@ -1031,7 +1041,151 @@ def test_entity_resolution_request_context_uses_package_default_config_runner() 
         neo4j_settings=request_context.settings.neo4j,
         dataset_name="demo_dataset_v1",
         entity_type_policy=request_context.policies.entity_type_normalization,
+        entity_resolution_graph=None,
     )
+
+
+def test_fetch_alignment_coverage_accepts_custom_entity_resolution_graph_contract() -> None:
+    from power_atlas.contracts import EntityResolutionGraphContract
+    from power_atlas.entity_resolution_queries import fetch_alignment_coverage
+
+    graph_contract = EntityResolutionGraphContract(
+        mention_label="SecurityMention",
+        canonical_label="Security",
+        cluster_label="SecurityCluster",
+        member_of_relationship="MEMBER_OF_SECURITY_CLUSTER",
+        aligned_with_relationship="ALIGNED_WITH_SECURITY",
+    )
+    driver = mock.Mock()
+    driver.execute_query.side_effect = [
+        ([{"total_clusters": 3}], None, None),
+        ([{"aligned_clusters": 2, "distinct_canonical_entities_aligned": 2}], None, None),
+        ([{"alignment_method": "label_exact", "method_count": 2}], None, None),
+        ([{"mentions_in_aligned": 5}], None, None),
+    ]
+
+    result = fetch_alignment_coverage(
+        driver,
+        run_id="run-123",
+        alignment_version="v1",
+        neo4j_database="neo4j",
+        entity_resolution_graph=graph_contract,
+    )
+
+    rendered_queries = "\n".join(call.args[0] for call in driver.execute_query.call_args_list)
+    assert result.total_clusters == 3
+    assert result.aligned_clusters == 2
+    assert "`SecurityMention`" in rendered_queries
+    assert "`SecurityCluster`" in rendered_queries
+    assert "`Security`" in rendered_queries
+    assert "`MEMBER_OF_SECURITY_CLUSTER`" in rendered_queries
+    assert "`ALIGNED_WITH_SECURITY`" in rendered_queries
+
+
+def test_write_alignment_results_accepts_custom_entity_resolution_graph_contract() -> None:
+    from power_atlas.contracts import EntityResolutionGraphContract
+    from power_atlas.entity_resolution_writes import write_alignment_results
+
+    graph_contract = EntityResolutionGraphContract(
+        canonical_label="Security",
+        cluster_label="SecurityCluster",
+        aligned_with_relationship="ALIGNED_WITH_SECURITY",
+    )
+    driver = mock.Mock()
+
+    write_alignment_results(
+        driver,
+        run_id="run-123",
+        source_uri="file:///market/trade/source.pdf",
+        alignment_rows=[
+            {
+                "cluster_id": "cluster-1",
+                "canonical_entity_id": "SEC1",
+                "canonical_run_id": "structured-1",
+                "alignment_method": "label_exact",
+                "alignment_score": 0.9,
+                "alignment_status": "aligned",
+                "source_uri": "file:///market/trade/source.pdf",
+            }
+        ],
+        neo4j_database="neo4j",
+        alignment_version="v1",
+        entity_resolution_graph=graph_contract,
+    )
+
+    rendered_query = driver.execute_query.call_args.args[0]
+    assert "`SecurityCluster`" in rendered_query
+    assert "`Security`" in rendered_query
+    assert "`ALIGNED_WITH_SECURITY`" in rendered_query
+
+
+def test_entity_resolution_runtime_forwards_custom_graph_contract() -> None:
+    from power_atlas.contracts import EntityResolutionGraphContract
+    from power_atlas.entity_resolution_runner import run_entity_resolution_runtime
+    from power_atlas.settings import Neo4jSettings
+
+    graph_contract = EntityResolutionGraphContract(canonical_label="Security")
+    config = mock.Mock(output_dir=Path("build/test-entity-resolution-graph"), dry_run=False)
+    live_runner = mock.Mock(
+        return_value=SimpleNamespace(
+            mentions=[],
+            resolved_rows=[],
+            unresolved_rows=[],
+            resolution_breakdown={},
+            graph_mentions_clustered=0,
+            graph_mentions_unclustered=0,
+            graph_total_clusters=0,
+            graph_aligned_clusters=0,
+            graph_distinct_canonical_entities=0,
+            graph_mentions_in_aligned=0,
+            graph_alignment_breakdown={},
+            warnings=[],
+        )
+    )
+
+    result = run_entity_resolution_runtime(
+        config=config,
+        run_id="run-123",
+        source_uri="file:///example/doc.pdf",
+        resolution_mode="hybrid",
+        artifact_subdir="entity_resolution",
+        effective_dataset_id="market_trade_dataset_v1",
+        neo4j_settings=Neo4jSettings(),
+        entity_resolution_graph=graph_contract,
+        resolver_version="v1",
+        cluster_version="v1",
+        alignment_version="v1",
+        build_entity_type_report=mock.Mock(return_value={}),
+        cluster_mentions=mock.Mock(return_value=[]),
+        fetch_mentions=mock.Mock(return_value=[]),
+        fetch_canonicals=mock.Mock(return_value=[]),
+        build_lookup_tables=mock.Mock(return_value=({}, {}, {})),
+        make_cluster_id=mock.Mock(return_value="cluster-1"),
+        align_clusters_to_canonical=mock.Mock(return_value=[]),
+        resolve_mention=mock.Mock(),
+        write_resolution_results=mock.Mock(),
+        write_alignment_results=mock.Mock(),
+        fetch_member_of_coverage=mock.Mock(
+            return_value=SimpleNamespace(mentions_clustered=0, mentions_unclustered=0)
+        ),
+        fetch_alignment_coverage=mock.Mock(
+            return_value=SimpleNamespace(
+                total_clusters=0,
+                aligned_clusters=0,
+                distinct_canonical_entities_aligned=0,
+                mentions_in_aligned=0,
+                alignment_breakdown={},
+            )
+        ),
+        resolution_mode_structured_anchor="structured_anchor",
+        resolution_mode_unstructured_only="unstructured_only",
+        resolution_mode_hybrid="hybrid",
+        live_runner=live_runner,
+    )
+
+    assert result["status"] == "live"
+    live_runner.assert_called_once()
+    assert live_runner.call_args.kwargs["entity_resolution_graph"] is graph_contract
 
 
 def test_default_retrieval_policy_matches_existing_power_atlas_defaults() -> None:

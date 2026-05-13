@@ -5,6 +5,17 @@ from typing import Any
 
 import neo4j
 
+from power_atlas.contracts import (
+    EntityResolutionGraphContract,
+    get_default_entity_resolution_graph_contract,
+)
+
+
+def _escape_cypher_identifier(value: str) -> str:
+    if not value or "`" in value:
+        raise ValueError(f"Invalid Cypher identifier {value!r}")
+    return f"`{value}`"
+
 
 def fetch_entity_mentions(
     driver: Any,
@@ -12,16 +23,24 @@ def fetch_entity_mentions(
     run_id: str,
     source_uri_fallback: str | None,
     neo4j_database: str,
+    entity_resolution_graph: EntityResolutionGraphContract | None = None,
 ) -> list[dict[str, Any]]:
+    resolved_graph = (
+        get_default_entity_resolution_graph_contract()
+        if entity_resolution_graph is None
+        else entity_resolution_graph
+    )
     mention_result, _, _ = driver.execute_query(
         """
-        MATCH (mention:EntityMention {run_id: $run_id})
+        MATCH (mention:{mention_label} {{run_id: $run_id}})
         RETURN mention.mention_id AS mention_id,
                mention.name AS name,
                mention.entity_type AS entity_type,
                mention.source_uri AS source_uri
         ORDER BY mention.mention_id
-        """,
+        """.format(
+            mention_label=_escape_cypher_identifier(resolved_graph.mention_label)
+        ),
         parameters_={"run_id": run_id},
         database_=neo4j_database,
         routing_=neo4j.RoutingControl.READ,
@@ -42,17 +61,25 @@ def fetch_canonical_entities(
     *,
     dataset_id: str,
     neo4j_database: str,
+    entity_resolution_graph: EntityResolutionGraphContract | None = None,
 ) -> list[dict[str, Any]]:
+    resolved_graph = (
+        get_default_entity_resolution_graph_contract()
+        if entity_resolution_graph is None
+        else entity_resolution_graph
+    )
     canonical_result, _, _ = driver.execute_query(
         """
-        MATCH (canonical:CanonicalEntity)
+        MATCH (canonical:{canonical_label})
         WHERE canonical.dataset_id = $dataset_id
         RETURN canonical.entity_id AS entity_id,
                canonical.run_id AS run_id,
                canonical.name AS name,
                canonical.aliases AS aliases
         ORDER BY canonical.entity_id
-        """,
+        """.format(
+            canonical_label=_escape_cypher_identifier(resolved_graph.canonical_label)
+        ),
         parameters_={"dataset_id": dataset_id},
         database_=neo4j_database,
         routing_=neo4j.RoutingControl.READ,
@@ -80,14 +107,26 @@ def fetch_member_of_coverage(
     *,
     run_id: str,
     neo4j_database: str,
+    entity_resolution_graph: EntityResolutionGraphContract | None = None,
 ) -> EntityResolutionGraphCoverage:
+    resolved_graph = (
+        get_default_entity_resolution_graph_contract()
+        if entity_resolution_graph is None
+        else entity_resolution_graph
+    )
     count_result, _, _ = driver.execute_query(
         """
-        MATCH (m:EntityMention {run_id: $run_id})
-        OPTIONAL MATCH (m)-[:MEMBER_OF]->(c:ResolvedEntityCluster {run_id: $run_id})
+        MATCH (m:{mention_label} {{run_id: $run_id}})
+        OPTIONAL MATCH (m)-[:{member_of_relationship}]->(c:{cluster_label} {{run_id: $run_id}})
         RETURN count(DISTINCT CASE WHEN c IS NOT NULL THEN m END) AS mentions_clustered,
                count(DISTINCT CASE WHEN c IS NULL THEN m END)     AS mentions_unclustered
-        """,
+        """.format(
+            mention_label=_escape_cypher_identifier(resolved_graph.mention_label),
+            member_of_relationship=_escape_cypher_identifier(
+                resolved_graph.member_of_relationship
+            ),
+            cluster_label=_escape_cypher_identifier(resolved_graph.cluster_label),
+        ),
         parameters_={"run_id": run_id},
         database_=neo4j_database,
         routing_=neo4j.RoutingControl.WRITE,
@@ -115,12 +154,20 @@ def fetch_alignment_coverage(
     run_id: str,
     alignment_version: str,
     neo4j_database: str,
+    entity_resolution_graph: EntityResolutionGraphContract | None = None,
 ) -> EntityResolutionAlignmentCoverage:
+    resolved_graph = (
+        get_default_entity_resolution_graph_contract()
+        if entity_resolution_graph is None
+        else entity_resolution_graph
+    )
     total_clusters_q, _, _ = driver.execute_query(
         """
-        MATCH (c:ResolvedEntityCluster {run_id: $run_id})
+        MATCH (c:{cluster_label} {{run_id: $run_id}})
         RETURN count(c) AS total_clusters
-        """,
+        """.format(
+            cluster_label=_escape_cypher_identifier(resolved_graph.cluster_label)
+        ),
         parameters_={"run_id": run_id},
         database_=neo4j_database,
         routing_=neo4j.RoutingControl.WRITE,
@@ -129,12 +176,18 @@ def fetch_alignment_coverage(
 
     aligned_q, _, _ = driver.execute_query(
         """
-        MATCH (c:ResolvedEntityCluster {run_id: $run_id})
-              -[:ALIGNED_WITH {run_id: $run_id, alignment_version: $alignment_version}]->
-              (ce:CanonicalEntity)
+        MATCH (c:{cluster_label} {{run_id: $run_id}})
+              -[:{aligned_with_relationship} {{run_id: $run_id, alignment_version: $alignment_version}}]->
+              (ce:{canonical_label})
         RETURN count(DISTINCT c)  AS aligned_clusters,
                count(DISTINCT ce) AS distinct_canonical_entities_aligned
-        """,
+        """.format(
+            cluster_label=_escape_cypher_identifier(resolved_graph.cluster_label),
+            aligned_with_relationship=_escape_cypher_identifier(
+                resolved_graph.aligned_with_relationship
+            ),
+            canonical_label=_escape_cypher_identifier(resolved_graph.canonical_label),
+        ),
         parameters_={"run_id": run_id, "alignment_version": alignment_version},
         database_=neo4j_database,
         routing_=neo4j.RoutingControl.WRITE,
@@ -146,12 +199,18 @@ def fetch_alignment_coverage(
 
     breakdown_q, _, _ = driver.execute_query(
         """
-        MATCH (:ResolvedEntityCluster {run_id: $run_id})
-              -[r:ALIGNED_WITH {run_id: $run_id, alignment_version: $alignment_version}]->
-              (:CanonicalEntity)
+        MATCH (:{cluster_label} {{run_id: $run_id}})
+              -[r:{aligned_with_relationship} {{run_id: $run_id, alignment_version: $alignment_version}}]->
+              (:{canonical_label})
         RETURN r.alignment_method AS alignment_method,
                count(r)           AS method_count
-        """,
+        """.format(
+            cluster_label=_escape_cypher_identifier(resolved_graph.cluster_label),
+            aligned_with_relationship=_escape_cypher_identifier(
+                resolved_graph.aligned_with_relationship
+            ),
+            canonical_label=_escape_cypher_identifier(resolved_graph.canonical_label),
+        ),
         parameters_={"run_id": run_id, "alignment_version": alignment_version},
         database_=neo4j_database,
         routing_=neo4j.RoutingControl.WRITE,
@@ -163,13 +222,23 @@ def fetch_alignment_coverage(
 
     mentions_in_q, _, _ = driver.execute_query(
         """
-        MATCH (m:EntityMention {run_id: $run_id})
-              -[:MEMBER_OF]->
-              (c:ResolvedEntityCluster {run_id: $run_id})
-              -[:ALIGNED_WITH {run_id: $run_id, alignment_version: $alignment_version}]->
-              (:CanonicalEntity)
+        MATCH (m:{mention_label} {{run_id: $run_id}})
+              -[:{member_of_relationship}]->
+              (c:{cluster_label} {{run_id: $run_id}})
+              -[:{aligned_with_relationship} {{run_id: $run_id, alignment_version: $alignment_version}}]->
+              (:{canonical_label})
         RETURN count(DISTINCT m) AS mentions_in_aligned
-        """,
+        """.format(
+            mention_label=_escape_cypher_identifier(resolved_graph.mention_label),
+            member_of_relationship=_escape_cypher_identifier(
+                resolved_graph.member_of_relationship
+            ),
+            cluster_label=_escape_cypher_identifier(resolved_graph.cluster_label),
+            aligned_with_relationship=_escape_cypher_identifier(
+                resolved_graph.aligned_with_relationship
+            ),
+            canonical_label=_escape_cypher_identifier(resolved_graph.canonical_label),
+        ),
         parameters_={"run_id": run_id, "alignment_version": alignment_version},
         database_=neo4j_database,
         routing_=neo4j.RoutingControl.WRITE,

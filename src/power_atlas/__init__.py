@@ -24,6 +24,10 @@ _EXPORTS = {
     "EARLY_RETURN_PRECEDENCE": ("power_atlas.contracts", "EARLY_RETURN_PRECEDENCE"),
     "EARLY_RETURN_RULE_BY_NAME": ("power_atlas.contracts", "EARLY_RETURN_RULE_BY_NAME"),
     "EarlyReturnRule": ("power_atlas.contracts", "EarlyReturnRule"),
+    "EntityResolutionGraphContract": (
+        "power_atlas.contracts",
+        "EntityResolutionGraphContract",
+    ),
     "EntityTypeNormalizationPolicy": ("power_atlas.contracts", "EntityTypeNormalizationPolicy"),
     "FIXTURES_DIR": ("power_atlas.contracts", "FIXTURES_DIR"),
     "FieldSurfacePolicy": ("power_atlas.contracts", "FieldSurfacePolicy"),
@@ -32,6 +36,10 @@ _EXPORTS = {
     "PDF_PIPELINE_CONFIG_PATH": ("power_atlas.contracts", "PDF_PIPELINE_CONFIG_PATH"),
     "POWER_ATLAS_CLAIM_EXTRACTION_ONTOLOGY": ("power_atlas.contracts", "POWER_ATLAS_CLAIM_EXTRACTION_ONTOLOGY"),
     "POWER_ATLAS_CLAIM_EXTRACTION_POLICY": ("power_atlas.contracts", "POWER_ATLAS_CLAIM_EXTRACTION_POLICY"),
+    "POWER_ATLAS_ENTITY_RESOLUTION_GRAPH_CONTRACT": (
+        "power_atlas.contracts",
+        "POWER_ATLAS_ENTITY_RESOLUTION_GRAPH_CONTRACT",
+    ),
     "POWER_ATLAS_ENTITY_TYPE_NORMALIZATION_POLICY": ("power_atlas.contracts", "POWER_ATLAS_ENTITY_TYPE_NORMALIZATION_POLICY"),
     "POWER_ATLAS_RAG_TEMPLATE": ("power_atlas.contracts", "POWER_ATLAS_RAG_TEMPLATE"),
     "POWER_ATLAS_RETRIEVAL_ONTOLOGY": ("power_atlas.contracts", "POWER_ATLAS_RETRIEVAL_ONTOLOGY"),
@@ -76,6 +84,10 @@ _EXPORTS = {
     "entity_resolution_entrypoint": ("power_atlas.entity_resolution_entrypoint", None),
     "entity_resolution_runner": ("power_atlas.entity_resolution_runner", None),
     "get_default_claim_extraction_policy": ("power_atlas.contracts", "get_default_claim_extraction_policy"),
+    "get_default_entity_resolution_graph_contract": (
+        "power_atlas.contracts",
+        "get_default_entity_resolution_graph_contract",
+    ),
     "get_default_entity_type_normalization_policy": ("power_atlas.contracts", "get_default_entity_type_normalization_policy"),
     "list_available_datasets": ("power_atlas.contracts", "list_available_datasets"),
     "make_run_id": ("power_atlas.contracts", "make_run_id"),

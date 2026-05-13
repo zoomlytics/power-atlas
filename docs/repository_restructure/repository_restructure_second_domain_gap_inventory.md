@@ -36,6 +36,13 @@ The following second-domain proof now exists:
   `StructuredGraphShapeContract`, and the package structured-ingest write path
   accepts it through `power_atlas.structured_ingest_writes`,
   `power_atlas.structured_ingest_runner`, and the live Neo4j adapter.
+- `src/power_atlas/contracts/resolution.py` now defines a package-owned
+  `EntityResolutionGraphContract`, and the package entity-resolution query,
+  write, runtime, and entrypoint paths accept it through
+  `power_atlas.entity_resolution_queries`,
+  `power_atlas.entity_resolution_writes`,
+  `power_atlas.entity_resolution_runner`, and
+  `power_atlas.entity_resolution_entrypoint`.
 
 That proof is sufficient to close the question of whether a second-domain
 retrieval pack can ride the current policy seam.
@@ -81,27 +88,28 @@ shape.
 This still does **not** solve the next blocker, which is entity-resolution and
 canonical alignment over a fixed graph model.
 
-### 3. Entity resolution has a narrow policy seam but a fixed graph model
+### 3. Entity-resolution graph contract is extracted, but not the alignment strategy
 
 `src/power_atlas/entity_resolution_entrypoint.py` already forwards
 `request_context.policies.entity_type_normalization`, which means the package
 has a small existing policy seam for normalizing entity types.
 
-That seam is materially narrower than the retrieval seam.
+That seam is still narrower than the retrieval seam, but the graph vocabulary
+is no longer fully hardcoded.
 
-The owning query and write modules still hardcode the current graph model:
+The package now exposes `EntityResolutionGraphContract`, which externalizes:
 
-- `src/power_atlas/entity_resolution_queries.py` matches
-  `EntityMention`, `CanonicalEntity`, and `ResolvedEntityCluster`, and measures
-  alignment through `MEMBER_OF` and `ALIGNED_WITH`,
-- `src/power_atlas/entity_resolution_writes.py` writes
-  `RESOLVES_TO`, `MEMBER_OF`, `CANDIDATE_MATCH`, and `ALIGNED_WITH` against the
-  same fixed labels,
-- `src/power_atlas/entity_resolution_entrypoint.py` still resolves the
-  effective dataset through the current dataset-root path.
+- mention/canonical/cluster labels,
+- `RESOLVES_TO`, `MEMBER_OF`, `CANDIDATE_MATCH`, and `ALIGNED_WITH`
+  relationship types,
+- entity-resolution graph coverage queries and alignment coverage queries.
 
-This means the second domain cannot yet swap in an alternate canonical node or
-cluster vocabulary without changing shared implementation modules.
+That reduces the next second-domain blocker: alternate domains no longer have
+to reuse the exact Power Atlas entity-resolution graph vocabulary to run the
+package-owned resolution flow.
+
+This still does **not** solve the remaining blocker, which is how canonical
+lookup and alignment are decided.
 
 ### 4. Canonical alignment strategy is fixed to exact label/alias matching
 
@@ -115,6 +123,18 @@ matching rules, symbol handling, or event-aware disambiguation.
 At the moment, that would require editing shared implementation code rather than
 supplying an alternate package contract.
 
+### 5. Dataset and canonical lookup assumptions remain fixed
+
+`src/power_atlas/entity_resolution_entrypoint.py` still resolves the effective
+dataset through the current dataset-root path, and
+`src/power_atlas/entity_resolution_runtime.py` still assumes canonical lookup is
+performed against dataset-scoped canonical rows with the current `entity_id`,
+`run_id`, `name`, and `aliases` shape.
+
+That means a second domain can now rename the graph vocabulary, but it still
+cannot replace the canonical lookup contract itself without editing shared
+implementation code.
+
 ## What is not a blocker at this checkpoint
 
 The gap inventory should stay narrow and not overstate missing work.
@@ -126,6 +146,7 @@ The following are **not** currently the first blockers:
 - retrieval traversal defaults,
 - structured file names, headers, identifier patterns, and value-type rules,
 - structured ingest write labels and relationship types,
+- entity-resolution labels and relationship types,
 - package-owned retrieval request-context consumption.
 
 Those are already covered by the retrieval policy seam and the market/trade
@@ -135,19 +156,16 @@ pilot proof plus the structured ingest contracts.
 
 The next extraction slices should proceed in this order:
 
-1. widen entity resolution from entity-type normalization only into an explicit
-   graph-model and alignment-policy seam,
+1. externalize the canonical lookup and alignment-strategy contract,
 2. only then decide whether the second-domain pilot warrants a broader shared
-   kernel namespace split.
+  kernel namespace split.
 
 ## Minimum acceptance for the next slice
 
-The next reuse slice should be considered sufficient only if it does one of the
-following:
+The next reuse slice should be considered sufficient only if it introduces a
+package-owned canonical lookup and alignment contract that lets a second domain
+change more than labels and relationship names.
 
-1. introduces a package-owned entity-resolution graph/alignment contract that
-   makes the current fixed labels and relationships configurable.
-
-The structured ingest layer is now materially improved at both the file/schema
-and graph-shape levels. The next meaningful reduction is the entity-resolution
-graph/alignment contract.
+The structured ingest layer and entity-resolution graph vocabulary are now
+materially improved. The next meaningful reduction is the alignment and
+canonical lookup contract.

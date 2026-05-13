@@ -6,6 +6,10 @@ from pathlib import Path
 from typing import Any, Callable
 
 from power_atlas.backend_run_catalog import resolve_run_root
+from power_atlas.contracts import (
+    EntityResolutionGraphContract,
+    get_default_entity_resolution_graph_contract,
+)
 from power_atlas.entity_resolution_runtime import run_entity_resolution_live
 from power_atlas.entity_resolution_writes import (
     write_alignment_results as _write_alignment_results_live,
@@ -31,6 +35,7 @@ def write_cluster_memberships(
     neo4j_database: str,
     created_at: str,
     cluster_version: str,
+    entity_resolution_graph: EntityResolutionGraphContract | None = None,
 ) -> None:
     _write_cluster_memberships_live(
         driver,
@@ -39,6 +44,7 @@ def write_cluster_memberships(
         neo4j_database=neo4j_database,
         resolver_version=cluster_version,
         created_at=created_at,
+        entity_resolution_graph=entity_resolution_graph,
     )
 
 
@@ -50,6 +56,7 @@ def write_resolved_mentions(
     source_uri: str | None,
     resolved_rows: list[dict[str, Any]],
     neo4j_database: str,
+    entity_resolution_graph: EntityResolutionGraphContract | None = None,
 ) -> None:
     _write_resolved_mentions_live(
         driver,
@@ -57,6 +64,7 @@ def write_resolved_mentions(
         source_uri=source_uri,
         resolved_rows=resolved_rows,
         neo4j_database=neo4j_database,
+        entity_resolution_graph=entity_resolution_graph,
     )
 
 
@@ -69,6 +77,7 @@ def write_alignment_results(
     alignment_rows: list[dict[str, Any]],
     neo4j_database: str,
     alignment_version: str,
+    entity_resolution_graph: EntityResolutionGraphContract | None = None,
 ) -> None:
     _write_alignment_results_live(
         driver,
@@ -77,6 +86,7 @@ def write_alignment_results(
         alignment_rows=alignment_rows,
         neo4j_database=neo4j_database,
         alignment_version=alignment_version,
+        entity_resolution_graph=entity_resolution_graph,
     )
 
 
@@ -93,6 +103,7 @@ def write_resolution_results(
     membership_score: Callable[[str, float], float],
     membership_status: Callable[[str, float], str],
     cluster_version: str,
+    entity_resolution_graph: EntityResolutionGraphContract | None = None,
 ) -> None:
     write_resolved_mentions(
         driver,
@@ -100,6 +111,7 @@ def write_resolution_results(
         source_uri=source_uri,
         resolved_rows=resolved_rows,
         neo4j_database=neo4j_database,
+        entity_resolution_graph=entity_resolution_graph,
     )
 
     if unresolved_rows:
@@ -130,6 +142,7 @@ def write_resolution_results(
             neo4j_database=neo4j_database,
             cluster_version=cluster_version,
             created_at=created_at,
+            entity_resolution_graph=entity_resolution_graph,
         )
 
 
@@ -144,6 +157,7 @@ def run_entity_resolution_runtime(
     effective_dataset_id: str,
     neo4j_settings: Neo4jSettings,
     entity_type_policy: Any = None,
+    entity_resolution_graph: EntityResolutionGraphContract | None = None,
     resolver_version: str,
     cluster_version: str,
     alignment_version: str,
@@ -164,6 +178,11 @@ def run_entity_resolution_runtime(
     resolution_mode_hybrid: str,
     live_runner: Callable[..., Any] = run_entity_resolution_live,
 ) -> dict[str, Any]:
+    resolved_entity_resolution_graph = (
+        get_default_entity_resolution_graph_contract()
+        if entity_resolution_graph is None
+        else entity_resolution_graph
+    )
     resolved_at = datetime.now(UTC).isoformat()
 
     run_root = resolve_run_root(config.output_dir, run_id)
@@ -230,6 +249,7 @@ def run_entity_resolution_runtime(
         effective_dataset_id=effective_dataset_id,
         alignment_version=alignment_version,
         neo4j_database=neo4j_settings.database,
+        entity_resolution_graph=resolved_entity_resolution_graph,
         fetch_mentions=fetch_mentions,
         cluster_mentions=cluster_mentions,
         fetch_canonicals=fetch_canonicals,
@@ -336,6 +356,7 @@ def run_entity_resolution_runtime_default(
     effective_dataset_id: str,
     neo4j_settings: Neo4jSettings,
     entity_type_policy: Any = None,
+    entity_resolution_graph: EntityResolutionGraphContract | None = None,
 ) -> dict[str, Any]:
     from power_atlas.contracts.resolution import ALIGNMENT_VERSION
     from power_atlas.entity_resolution_alignment import align_clusters_to_canonical
@@ -379,6 +400,7 @@ def run_entity_resolution_runtime_default(
         resolved_rows: list[dict[str, Any]],
         unresolved_rows: list[dict[str, Any]],
         neo4j_database: str,
+            entity_resolution_graph: EntityResolutionGraphContract | None = None,
     ) -> None:
         write_resolution_results(
             driver,
@@ -391,6 +413,7 @@ def run_entity_resolution_runtime_default(
             membership_score=_membership_score,
             membership_status=_membership_status,
             cluster_version=DEFAULT_CLUSTER_VERSION,
+            entity_resolution_graph=entity_resolution_graph,
         )
 
     def _default_write_alignment_results(
@@ -400,6 +423,7 @@ def run_entity_resolution_runtime_default(
         source_uri: str | None,
         alignment_rows: list[dict[str, Any]],
         neo4j_database: str,
+            entity_resolution_graph: EntityResolutionGraphContract | None = None,
     ) -> None:
         write_alignment_results(
             driver,
@@ -408,6 +432,7 @@ def run_entity_resolution_runtime_default(
             alignment_rows=alignment_rows,
             neo4j_database=neo4j_database,
             alignment_version=ALIGNMENT_VERSION,
+            entity_resolution_graph=entity_resolution_graph,
         )
 
     return run_entity_resolution_runtime(
@@ -419,6 +444,7 @@ def run_entity_resolution_runtime_default(
         effective_dataset_id=effective_dataset_id,
         neo4j_settings=neo4j_settings,
         entity_type_policy=entity_type_policy,
+        entity_resolution_graph=entity_resolution_graph,
         resolver_version=DEFAULT_RESOLVER_VERSION,
         cluster_version=DEFAULT_CLUSTER_VERSION,
         alignment_version=ALIGNMENT_VERSION,

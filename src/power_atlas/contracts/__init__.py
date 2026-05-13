@@ -67,7 +67,12 @@ from power_atlas.contracts.structured import (
 	get_default_structured_graph_shape_contract,
 	get_default_structured_schema_contract,
 )
-from power_atlas.contracts.resolution import ALIGNMENT_VERSION
+from power_atlas.contracts.resolution import (
+	ALIGNMENT_VERSION,
+	EntityResolutionGraphContract,
+	POWER_ATLAS_ENTITY_RESOLUTION_GRAPH_CONTRACT,
+	get_default_entity_resolution_graph_contract,
+)
 
 # Keep the stateful pipeline contract submodule-only. Re-exporting mutable
 # pipeline globals from this package root would encourage stale imported
@@ -93,12 +98,14 @@ __all__ = [
 	"CSV_FIRST_DATA_ROW",
 	"DATASETS_CONTAINER_DIR",
 	"DatasetRoot",
+	"EntityResolutionGraphContract",
 	"EntityTypeNormalizationPolicy",
 	"FIXTURES_DIR",
 	"ID_PATTERNS",
 	"POWER_ATLAS_ENTITY_TYPE_NORMALIZATION_POLICY",
 	"POWER_ATLAS_CLAIM_EXTRACTION_ONTOLOGY",
 	"POWER_ATLAS_CLAIM_EXTRACTION_POLICY",
+	"POWER_ATLAS_ENTITY_RESOLUTION_GRAPH_CONTRACT",
 	"POWER_ATLAS_RAG_TEMPLATE",
 	"POWER_ATLAS_RETRIEVAL_ONTOLOGY",
 	"POWER_ATLAS_RETRIEVAL_POLICY",
@@ -117,6 +124,7 @@ __all__ = [
 	"get_default_structured_graph_shape_contract",
 	"get_default_retrieval_policy",
 	"get_default_claim_extraction_policy",
+	"get_default_entity_resolution_graph_contract",
 	"get_default_structured_schema_contract",
 	"get_default_entity_type_normalization_policy",
 	"build_entity_type_cypher_case",

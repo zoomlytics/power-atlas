@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from power_atlas.bootstrap import create_neo4j_driver
+from power_atlas.contracts import EntityResolutionGraphContract
 from power_atlas.settings import Neo4jSettings
 
 
@@ -33,6 +34,7 @@ def run_entity_resolution_live(
     effective_dataset_id: str,
     alignment_version: str,
     neo4j_database: str | None,
+    entity_resolution_graph: EntityResolutionGraphContract | None,
     fetch_mentions: Callable[..., list[dict[str, Any]]],
     cluster_mentions: Callable[[list[dict[str, Any]]], list[dict[str, Any]]],
     fetch_canonicals: Callable[..., list[dict[str, Any]]],
@@ -60,6 +62,7 @@ def run_entity_resolution_live(
             run_id=run_id,
             source_uri_fallback=source_uri,
             neo4j_database=neo4j_database,
+            entity_resolution_graph=entity_resolution_graph,
         )
 
         resolved_rows: list[dict[str, Any]] = []
@@ -84,13 +87,19 @@ def run_entity_resolution_live(
                 driver,
                 dataset_id=effective_dataset_id,
                 neo4j_database=neo4j_database,
+                entity_resolution_graph=entity_resolution_graph,
             )
             if not canonical_nodes:
+                canonical_label = (
+                    entity_resolution_graph.canonical_label
+                    if entity_resolution_graph is not None
+                    else "CanonicalEntity"
+                )
                 stage_warnings.append(
-                    f"CanonicalEntity lookup returned zero rows for dataset_id={effective_dataset_id!r} "
+                    f"{canonical_label} lookup returned zero rows for dataset_id={effective_dataset_id!r} "
                     f"(hybrid alignment skipped); check that structured ingest has run for this dataset "
-                    f"and that CanonicalEntity nodes carry a matching dataset_id property.  "
-                    f"If CanonicalEntity nodes already exist but have dataset_id=null (legacy graph), "
+                    f"and that {canonical_label} nodes carry a matching dataset_id property.  "
+                    f"If {canonical_label} nodes already exist but have dataset_id=null (legacy graph), "
                     f"run the in-place repair Cypher or re-ingest from the structured fixture — "
                     f"see docs/architecture/legacy-dataset-id-migration-v0.1.md."
                 )
@@ -118,13 +127,19 @@ def run_entity_resolution_live(
                 driver,
                 dataset_id=effective_dataset_id,
                 neo4j_database=neo4j_database,
+                entity_resolution_graph=entity_resolution_graph,
             )
             if not canonical_nodes:
+                canonical_label = (
+                    entity_resolution_graph.canonical_label
+                    if entity_resolution_graph is not None
+                    else "CanonicalEntity"
+                )
                 stage_warnings.append(
-                    f"CanonicalEntity lookup returned zero rows for dataset_id={effective_dataset_id!r} "
+                    f"{canonical_label} lookup returned zero rows for dataset_id={effective_dataset_id!r} "
                     f"(all mentions will be unresolved); check that structured ingest has run for this "
-                    f"dataset and that CanonicalEntity nodes carry a matching dataset_id property.  "
-                    f"If CanonicalEntity nodes already exist but have dataset_id=null (legacy graph), "
+                    f"dataset and that {canonical_label} nodes carry a matching dataset_id property.  "
+                    f"If {canonical_label} nodes already exist but have dataset_id=null (legacy graph), "
                     f"run the in-place repair Cypher or re-ingest from the structured fixture — "
                     f"see docs/architecture/legacy-dataset-id-migration-v0.1.md."
                 )
@@ -148,6 +163,7 @@ def run_entity_resolution_live(
             resolved_rows=resolved_rows,
             unresolved_rows=unresolved_rows,
             neo4j_database=neo4j_database,
+            entity_resolution_graph=entity_resolution_graph,
         )
 
         if resolution_mode == "hybrid":
@@ -157,6 +173,7 @@ def run_entity_resolution_live(
                 source_uri=source_uri,
                 alignment_rows=alignment_rows,
                 neo4j_database=neo4j_database,
+                entity_resolution_graph=entity_resolution_graph,
             )
 
         if resolution_mode in ("unstructured_only", "hybrid"):
@@ -164,6 +181,7 @@ def run_entity_resolution_live(
                 driver,
                 run_id=run_id,
                 neo4j_database=neo4j_database,
+                entity_resolution_graph=entity_resolution_graph,
             )
             graph_mentions_clustered = graph_coverage.mentions_clustered
             graph_mentions_unclustered = graph_coverage.mentions_unclustered
@@ -174,6 +192,7 @@ def run_entity_resolution_live(
                 run_id=run_id,
                 alignment_version=alignment_version,
                 neo4j_database=neo4j_database,
+                entity_resolution_graph=entity_resolution_graph,
             )
             graph_total_clusters = alignment_coverage.total_clusters
             graph_aligned_clusters = alignment_coverage.aligned_clusters
