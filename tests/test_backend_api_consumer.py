@@ -535,6 +535,26 @@ def test_backend_api_consumer_example_script_runs() -> None:
     }
 
 
+def test_backend_api_consumer_runs_from_outside_repo_when_installed(
+    tmp_path: Path,
+) -> None:
+    try:
+        importlib.metadata.version("power-atlas")
+    except importlib.metadata.PackageNotFoundError:
+        pytest.skip("requires power-atlas to be installed in the active environment")
+
+    completed = _run_example_script_from_outside_repo_when_installed(
+        "backend_api_consumer.py",
+        tmp_path,
+    )
+
+    assert json.loads(completed.stdout) == {
+        "title": "Power Atlas Consumer Example",
+        "version": "0.1.0-example",
+        "paths": ["/", "/consumer-info", "/datasets", "/graph/status", "/health", "/runs", "/runs/current", "/runs/current/{stage_prefix}", "/runs/{run_id}"],
+    }
+
+
 def test_retrieval_benchmark_package_module_help_runs() -> None:
     repo_root = Path(__file__).resolve().parents[1]
     completed = subprocess.run(
@@ -573,6 +593,34 @@ def test_retrieval_policy_consumer_example_script_runs() -> None:
         capture_output=True,
         check=True,
         text=True,
+    )
+
+    assert json.loads(completed.stdout) == {
+        "all_runs": False,
+        "consumer": "retrieval_policy_consumer",
+        "ontology": {
+            "claim_label": "ConsumerClaim",
+            "mentioned_in_relationship": "OBSERVED_WITHIN",
+            "supported_by_relationship": "SUPPORTED_EXTERNALLY_BY",
+        },
+        "qa_prompt_id": "consumer_alt_qa_v1",
+        "question": "Which retrieval policy was forwarded?",
+        "run_id": "consumer-run-id",
+        "source_uri": "file:///consumer/source.pdf",
+    }
+
+
+def test_retrieval_policy_consumer_runs_from_outside_repo_when_installed(
+    tmp_path: Path,
+) -> None:
+    try:
+        importlib.metadata.version("power-atlas")
+    except importlib.metadata.PackageNotFoundError:
+        pytest.skip("requires power-atlas to be installed in the active environment")
+
+    completed = _run_example_script_from_outside_repo_when_installed(
+        "retrieval_policy_consumer.py",
+        tmp_path,
     )
 
     assert json.loads(completed.stdout) == {
@@ -757,6 +805,71 @@ def test_domain_pack_starter_example_script_runs() -> None:
         capture_output=True,
         check=True,
         text=True,
+    )
+
+    assert json.loads(completed.stdout) == {
+        "consumer": "domain_pack_starter",
+        "domain_pack": {
+            "examples": ["examples/domain_pack_starter.py"],
+            "name": "research_memo",
+            "provides": [
+                "retrieval_policy",
+                "entity_resolution_graph_contract",
+                "entity_resolution_canonical_lookup_contract",
+                "entity_resolution_alignment_contract",
+                "entity_resolution_dataset_selection_contract",
+            ],
+            "version": "v0",
+        },
+        "entity_resolution": {
+            "alignment_steps": [
+                {
+                    "lookup_table": "alias",
+                    "method": "memo_alias",
+                    "score": 0.95,
+                    "status": "aligned",
+                },
+                {
+                    "lookup_table": "label",
+                    "method": "research_label_exact",
+                    "score": 0.88,
+                    "status": "tentative",
+                },
+            ],
+            "canonical_lookup": {
+                "entity_id_field": "research_id",
+                "qid_exact_method": "research_id_exact",
+            },
+            "effective_dataset_id": "research-memo-canonicals::research_memo_dataset_v1",
+            "graph": {
+                "aligned_with_relationship": "ALIGNED_WITH_RESEARCH_ENTITY",
+                "canonical_label": "ResearchEntity",
+            },
+            "resolution_mode": "hybrid",
+            "run_id": "research-memo-entity-resolution-run-id",
+        },
+        "retrieval": {
+            "canonical_label": "ResearchEntity",
+            "claim_label": "ResearchClaim",
+            "cluster_aware": False,
+            "qa_prompt_id": "research_memo_qa_v0",
+            "question": "Which research memo policy was forwarded?",
+            "run_id": "research-memo-retrieval-run-id",
+        },
+    }
+
+
+def test_domain_pack_starter_runs_from_outside_repo_when_installed(
+    tmp_path: Path,
+) -> None:
+    try:
+        importlib.metadata.version("power-atlas")
+    except importlib.metadata.PackageNotFoundError:
+        pytest.skip("requires power-atlas to be installed in the active environment")
+
+    completed = _run_example_script_from_outside_repo_when_installed(
+        "domain_pack_starter.py",
+        tmp_path,
     )
 
     assert json.loads(completed.stdout) == {

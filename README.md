@@ -462,6 +462,11 @@ entity-resolution contracts into package request contexts, and proves that a
 new project can adopt the package-owned GraphRAG seams without importing
 `demo.*` or modifying package runtime code.
 
+These consumer/starter examples are also covered by installed-package
+outside-repo smokes in [`tests/test_backend_api_consumer.py`](tests/test_backend_api_consumer.py),
+so the current examples are verified both as in-repo documentation and as
+copied consumer scripts that run without repo-root imports.
+
 These examples are now mirrored by a lightweight domain contribution model.
 `src/power_atlas/policy_packs/market_trade.py` exports
 `MARKET_TRADE_DOMAIN_PACK`, a package-owned descriptor that records the
