@@ -3,7 +3,12 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 
-from power_atlas.backend_run_catalog import resolve_run_root, resolve_runs_root
+from power_atlas.backend_run_catalog import (
+    extract_run_stage_prefix,
+    resolve_backend_current_run_catalog,
+    resolve_run_root,
+    resolve_runs_root,
+)
 from power_atlas.settings import AppSettings
 
 
@@ -33,6 +38,13 @@ class ClaimExtractionDiagnosticsArtifactResult:
     participation_summary: ClaimExtractionDiagnosticsParticipationSummary | None = None
     match_summary: ClaimExtractionDiagnosticsMatchSummary | None = None
     warnings: list[str] | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class CurrentClaimExtractionDiagnosticsArtifactResult(
+    ClaimExtractionDiagnosticsArtifactResult
+):
+    inferred_dataset_id: str | None = None
 
 
 def _require_dict(value: object, *, context: str) -> dict[str, object]:
@@ -166,9 +178,46 @@ def resolve_claim_extraction_diagnostics_artifact(
     )
 
 
+def resolve_current_claim_extraction_diagnostics_artifact(
+    settings: AppSettings,
+    stage_prefix: str,
+    *,
+    dataset_id: str | None = None,
+) -> CurrentClaimExtractionDiagnosticsArtifactResult:
+    run_catalog = resolve_backend_current_run_catalog(
+        settings,
+        dataset_id=dataset_id,
+    )
+    matching_run = next(
+        (run for run in run_catalog.runs if extract_run_stage_prefix(run.run_id) == stage_prefix),
+        None,
+    )
+    if matching_run is None:
+        raise FileNotFoundError(
+            "Current claim extraction diagnostics artifact for stage_prefix "
+            f"{stage_prefix!r} was not found under {run_catalog.runs_root}."
+        )
+
+    result = resolve_claim_extraction_diagnostics_artifact(settings, matching_run.run_id)
+    return CurrentClaimExtractionDiagnosticsArtifactResult(
+        status=result.status,
+        detail=result.detail,
+        run_id=result.run_id,
+        generated_at=result.generated_at,
+        source_uri=result.source_uri,
+        artifact_path=result.artifact_path,
+        participation_summary=result.participation_summary,
+        match_summary=result.match_summary,
+        warnings=result.warnings,
+        inferred_dataset_id=run_catalog.inferred_dataset_id,
+    )
+
+
 __all__ = [
     "ClaimExtractionDiagnosticsArtifactResult",
     "ClaimExtractionDiagnosticsMatchSummary",
     "ClaimExtractionDiagnosticsParticipationSummary",
+    "CurrentClaimExtractionDiagnosticsArtifactResult",
+    "resolve_current_claim_extraction_diagnostics_artifact",
     "resolve_claim_extraction_diagnostics_artifact",
 ]

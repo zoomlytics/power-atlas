@@ -138,7 +138,7 @@ Refer to [`demo/VALIDATION_RUNBOOK.md`](demo/VALIDATION_RUNBOOK.md) for a step-b
 |---------|--------|
 | **`demo/` pipeline** | ✅ Operational — `unstructured_only` and `hybrid` modes working end-to-end |
 | **`pipelines/`** | ✅ Operational — ingest/query/experiment scripts + run artifacts |
-| **`backend/`** | 🚧 Disconnected scaffold — FastAPI surface assembled through the public package facade [`power_atlas.api`](src/power_atlas/api.py), with `/health`, `/datasets`, `/runs`, `/runs/current`, `/runs/current/{stage_prefix}`, `/runs/{run_id}`, `/runs/{run_id}/claim-extraction-diagnostics`, `/graph/status`, `/graph/summary`, `POST /graph/run-scoped-counts`, and `POST /graph/health-summary`; not connected to the GraphRAG pipeline yet, while `backend/main.py` remains the accepted launch seam for that backend surface |
+| **`backend/`** | 🚧 Disconnected scaffold — FastAPI surface assembled through the public package facade [`power_atlas.api`](src/power_atlas/api.py), with `/health`, `/datasets`, `/runs`, `/runs/current`, `/runs/current/{stage_prefix}`, `/runs/current/{stage_prefix}/claim-extraction-diagnostics`, `/runs/{run_id}`, `/runs/{run_id}/claim-extraction-diagnostics`, `/graph/status`, `/graph/summary`, `POST /graph/run-scoped-counts`, and `POST /graph/health-summary`; not connected to the GraphRAG pipeline yet, while `backend/main.py` remains the accepted launch seam for that backend surface |
 | **`frontend/`** | 🚧 Disconnected scaffold — Next.js stub; not connected to the pipeline or backend |
 | **`_archive/`** | 📦 Historical material — retained for reference only; not part of the active product or pipeline surface |
 | **Temporal modeling** | 📋 Planned — Architecture drafted ([`docs/architecture/temporal-modeling-v0.1.md`](docs/architecture/temporal-modeling-v0.1.md)) — not yet implemented in pipeline |
@@ -280,6 +280,11 @@ The executable adapter modules under `power_atlas.interfaces.cli.*` remain a
 deeper import surface on purpose: they are script/CLI wiring helpers rather
 than part of the root library namespace contract.
 
+That deeper CLI surface now also includes
+[`claim_extraction_diagnostics_entrypoint.py`](src/power_atlas/interfaces/cli/claim_extraction_diagnostics_entrypoint.py),
+which formats persisted claim-extraction diagnostics artifacts for run-scoped
+or current-run reporting without rerunning the diagnostics stage.
+
 The backend API surface now has a first-class owning facade at
 `power_atlas.api`. That module now owns the backend app contract, including
 typed response models plus app-construction helpers such as
@@ -298,14 +303,16 @@ remain off the root package itself, so callers use
 The current backend surface exposed through that facade includes two package
 discovery endpoints (`/datasets` and `/runs`), one convenience current-runs
 endpoint (`/runs/current`), one convenience current-run-detail endpoint
-(`/runs/current/{stage_prefix}`), one per-run manifest detail endpoint
-(`/runs/{run_id}`), one per-run claim-extraction diagnostics artifact endpoint
+(`/runs/current/{stage_prefix}`), one current-run claim-extraction diagnostics
+artifact endpoint (`/runs/current/{stage_prefix}/claim-extraction-diagnostics`),
+one per-run manifest detail endpoint (`/runs/{run_id}`), one per-run
+claim-extraction diagnostics artifact endpoint
 (`/runs/{run_id}/claim-extraction-diagnostics`), and two zero-arg read-only graph probes
 (`/graph/status` and `/graph/summary`), and two typed scoped query endpoints:
 `POST /graph/run-scoped-counts` and `POST /graph/health-summary`. The dataset
 route is backed by package-owned dataset selection helpers, the run routes are
 backed by a package-owned catalog over the configured `output_dir / runs` root,
-the claim-extraction diagnostics route is backed by a package-owned artifact
+the claim-extraction diagnostics routes are backed by a package-owned artifact
 reader over `runs/<run_id>/claim_extraction_diagnostics/claim_extraction_diagnostics.json`,
 and the typed graph routes are backed by package-owned request/response models
 and runtime services.
@@ -332,6 +339,13 @@ defaults that filter the same way when a configured selected dataset exists,
 and accepts the same optional `stage_name` detail filter as `/runs/{run_id}`.
 Its response also includes `inferred_dataset_id` when configured dataset
 selection supplied the effective dataset id.
+
+`/runs/current/{stage_prefix}/claim-extraction-diagnostics` is the matching
+current artifact convenience route for claim extraction diagnostics. It selects
+the newest run whose `make_run_id(scope)` prefix matches `stage_prefix`,
+accepts the same optional `dataset_id` filter as `/runs/current/{stage_prefix}`,
+and includes `inferred_dataset_id` when configured dataset selection supplied
+the effective dataset id.
 
 `/runs/{run_id}` accepts an optional `stage_name` query parameter to return only
 the matching stage manifest entries while preserving the full run summary.

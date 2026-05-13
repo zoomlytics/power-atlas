@@ -787,6 +787,12 @@ def test_create_backend_app_defaults_current_run_routes_to_configured_dataset(
                 "claim_extraction"
             ]
 
+            current_claim_diagnostics_response = await client.get(
+                "/runs/current/unstructured_ingest/claim-extraction-diagnostics"
+            )
+            assert current_claim_diagnostics_response.status_code == 404
+            assert "was not found" in current_claim_diagnostics_response.json()["detail"]
+
     asyncio.run(_exercise_app())
 
 
@@ -1007,6 +1013,115 @@ def test_create_backend_app_exposes_claim_extraction_diagnostics_artifact() -> N
                     },
                 },
                 "warnings": [],
+            }
+
+    asyncio.run(_exercise_app())
+
+
+def test_create_backend_app_exposes_current_claim_extraction_diagnostics_artifact(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    selected_run_root = tmp_path / "runs" / "unstructured_ingest-20260512T000100Z-b"
+    selected_claim_manifest_path = selected_run_root / "claim_extraction" / "manifest.json"
+    selected_claim_manifest_path.parent.mkdir(parents=True)
+    selected_claim_manifest_path.write_text(
+        """
+{
+    "run_id": "unstructured_ingest-20260512T000100Z-b",
+    "dataset_id": "resolved-demo-dataset",
+    "stages": {
+        "claim_extraction": {
+            "status": "live"
+        }
+    }
+}
+""".strip(),
+        encoding="utf-8",
+    )
+    artifact_path = (
+        selected_run_root
+        / "claim_extraction_diagnostics"
+        / "claim_extraction_diagnostics.json"
+    )
+    artifact_path.parent.mkdir(parents=True, exist_ok=True)
+    artifact_path.write_text(
+        """
+{
+  "status": "dry_run",
+  "generated_at": "2026-05-13T12:00:00+00:00",
+  "run_id": "unstructured_ingest-20260512T000100Z-b",
+  "source_uri": "file:///example/doc.pdf",
+  "artifact_path": "ignored-by-reader",
+  "participation_summary": {
+    "total_edges": 0,
+    "edges_by_role": {},
+    "total_claims": 0,
+    "claims_with_zero_edges": 0,
+    "claim_coverage_pct": null
+  },
+  "match_summary": {
+    "total_edges_with_match_method": 0,
+    "edges_by_match_method": {}
+  },
+  "warnings": ["claim extraction diagnostics skipped in dry_run mode"]
+}
+        """.strip(),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        "power_atlas.backend_run_catalog.resolve_backend_dataset_catalog",
+        lambda settings: importlib.import_module("power_atlas.backend_dataset_catalog").DatasetCatalogResult(
+            datasets=[],
+            selected_dataset=importlib.import_module("power_atlas.backend_dataset_catalog").DatasetCatalogEntry(
+                name="demo_dataset_v1",
+                dataset_id="resolved-demo-dataset",
+                pdf_filename="example.pdf",
+                manifest_path="/tmp/manifest.json",
+                root_path="/tmp/dataset",
+            ),
+            selection_mode="configured",
+        ),
+    )
+    custom_app = create_backend_app(
+        environ={
+            "POWER_ATLAS_OUTPUT_DIR": str(tmp_path),
+            "POWER_ATLAS_DATASET": "demo_dataset_v1",
+        }
+    )
+
+    async def _exercise_app() -> None:
+        transport = httpx.ASGITransport(app=custom_app)
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="http://testserver",
+        ) as client:
+            response = await client.get(
+                "/runs/current/unstructured_ingest/claim-extraction-diagnostics"
+            )
+            assert response.status_code == 200
+            assert response.json() == {
+                "status": "dry_run",
+                "detail": "Claim extraction diagnostics artifact retrieved successfully",
+                "run_id": "unstructured_ingest-20260512T000100Z-b",
+                "generated_at": "2026-05-13T12:00:00+00:00",
+                "source_uri": "file:///example/doc.pdf",
+                "artifact_path": str(artifact_path.resolve()),
+                "participation_summary": {
+                    "total_edges": 0,
+                    "edges_by_role": {},
+                    "total_claims": 0,
+                    "claims_with_zero_edges": 0,
+                    "claim_coverage_pct": None,
+                },
+                "match_summary": {
+                    "total_edges_with_match_method": 0,
+                    "edges_by_match_method": {},
+                },
+                "warnings": [
+                    "claim extraction diagnostics skipped in dry_run mode"
+                ],
+                "inferred_dataset_id": "resolved-demo-dataset",
             }
 
     asyncio.run(_exercise_app())

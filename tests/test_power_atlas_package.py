@@ -70,6 +70,9 @@ def test_package_modules_import() -> None:
     retrieval_benchmark_entrypoint_module = importlib.import_module(
         "power_atlas.retrieval_benchmark_entrypoint"
     )
+    claim_extraction_diagnostics_cli_module = importlib.import_module(
+        "power_atlas.interfaces.cli.claim_extraction_diagnostics_entrypoint"
+    )
     retrieval_benchmark_runner_module = importlib.import_module(
         "power_atlas.retrieval_benchmark_runner"
     )
@@ -316,6 +319,9 @@ def test_package_modules_import() -> None:
     assert callable(claim_extraction_diagnostics_module.run_claim_extraction_diagnostics)
     assert callable(
         claim_extraction_diagnostics_module.run_claim_extraction_diagnostics_request_context
+    )
+    assert callable(
+        claim_extraction_diagnostics_cli_module.run_claim_extraction_diagnostics_report_main
     )
     assert callable(claim_extraction_entrypoint_module.resolve_claim_extraction_policy)
     assert callable(claim_extraction_entrypoint_module.resolve_pipeline_contract)
@@ -1225,6 +1231,139 @@ def test_claim_extraction_diagnostics_runtime_computes_live_summary_from_query_r
             "list_split": 1,
         },
     }
+
+
+def test_claim_extraction_diagnostics_report_main_emits_run_scoped_report() -> None:
+    from argparse import Namespace
+
+    from power_atlas.claim_extraction_diagnostics_artifact import (
+        ClaimExtractionDiagnosticsArtifactResult,
+        ClaimExtractionDiagnosticsMatchSummary,
+        ClaimExtractionDiagnosticsParticipationSummary,
+    )
+    from power_atlas.interfaces.cli.claim_extraction_diagnostics_entrypoint import (
+        run_claim_extraction_diagnostics_report_main,
+    )
+
+    lines: list[str] = []
+    warnings: list[str] = []
+
+    run_claim_extraction_diagnostics_report_main(
+        parse_args=lambda argv: Namespace(current=False, run_id="run-123"),
+        build_settings=lambda args: object(),
+        resolve_artifact=lambda settings, run_id: ClaimExtractionDiagnosticsArtifactResult(
+            status="live",
+            detail="ok",
+            run_id=run_id,
+            generated_at="2026-05-13T12:00:00+00:00",
+            source_uri="file:///example/doc.pdf",
+            artifact_path="/tmp/runs/run-123/claim_extraction_diagnostics/claim_extraction_diagnostics.json",
+            participation_summary=ClaimExtractionDiagnosticsParticipationSummary(
+                total_edges=4,
+                edges_by_role={"subject": 3, "object": 1},
+                total_claims=5,
+                claims_with_zero_edges=1,
+                claim_coverage_pct=80.0,
+            ),
+            match_summary=ClaimExtractionDiagnosticsMatchSummary(
+                total_edges_with_match_method=3,
+                edges_by_match_method={"normalized_exact": 2, "list_split": 1},
+            ),
+            warnings=["warn-1"],
+        ),
+        resolve_current_artifact=lambda *args, **kwargs: None,
+        warn=warnings.append,
+        emit=lines.append,
+    )
+
+    assert any("Status        : live" == line for line in lines)
+    assert any("Run ID        : run-123" == line for line in lines)
+    assert any("Artifact path : /tmp/runs/run-123/claim_extraction_diagnostics/claim_extraction_diagnostics.json" == line for line in lines)
+    assert warnings == ["warn-1"]
+    assert json.loads(lines[-1]) == {
+        "run_id": "run-123",
+        "artifact_path": "/tmp/runs/run-123/claim_extraction_diagnostics/claim_extraction_diagnostics.json",
+        "status": "live",
+    }
+
+
+def test_claim_extraction_diagnostics_report_main_emits_current_run_report() -> None:
+    from argparse import Namespace
+
+    from power_atlas.claim_extraction_diagnostics_artifact import (
+        ClaimExtractionDiagnosticsMatchSummary,
+        ClaimExtractionDiagnosticsParticipationSummary,
+        CurrentClaimExtractionDiagnosticsArtifactResult,
+    )
+    from power_atlas.interfaces.cli.claim_extraction_diagnostics_entrypoint import (
+        run_claim_extraction_diagnostics_report_main,
+    )
+
+    lines: list[str] = []
+
+    run_claim_extraction_diagnostics_report_main(
+        parse_args=lambda argv: Namespace(
+            current=True,
+            stage_prefix="unstructured_ingest",
+            dataset_id="demo_dataset_v1",
+        ),
+        build_settings=lambda args: object(),
+        resolve_artifact=lambda *args, **kwargs: None,
+        resolve_current_artifact=lambda settings, stage_prefix, dataset_id=None: CurrentClaimExtractionDiagnosticsArtifactResult(
+            status="dry_run",
+            detail="ok",
+            run_id="unstructured_ingest-20260512T000100Z-b",
+            generated_at="2026-05-13T12:00:00+00:00",
+            source_uri="file:///example/doc.pdf",
+            artifact_path="/tmp/runs/run-123/claim_extraction_diagnostics/claim_extraction_diagnostics.json",
+            participation_summary=ClaimExtractionDiagnosticsParticipationSummary(
+                total_edges=0,
+                edges_by_role={},
+                total_claims=0,
+                claims_with_zero_edges=0,
+                claim_coverage_pct=None,
+            ),
+            match_summary=ClaimExtractionDiagnosticsMatchSummary(
+                total_edges_with_match_method=0,
+                edges_by_match_method={},
+            ),
+            warnings=[],
+            inferred_dataset_id="resolved-demo-dataset",
+        ),
+        warn=lambda warning: None,
+        emit=lines.append,
+    )
+
+    assert any("Status        : dry_run" == line for line in lines)
+    assert json.loads(lines[-1]) == {
+        "run_id": "unstructured_ingest-20260512T000100Z-b",
+        "artifact_path": "/tmp/runs/run-123/claim_extraction_diagnostics/claim_extraction_diagnostics.json",
+        "status": "dry_run",
+        "inferred_dataset_id": "resolved-demo-dataset",
+    }
+
+
+def test_claim_extraction_diagnostics_report_main_rejects_missing_run_selector() -> None:
+    from argparse import Namespace
+
+    from power_atlas.interfaces.cli.claim_extraction_diagnostics_entrypoint import (
+        run_claim_extraction_diagnostics_report_main,
+    )
+
+    errors: list[str] = []
+
+    with pytest.raises(SystemExit) as exc_info:
+        run_claim_extraction_diagnostics_report_main(
+            parse_args=lambda argv: Namespace(current=False, run_id=None),
+            build_settings=lambda args: object(),
+            resolve_artifact=lambda *args, **kwargs: None,
+            resolve_current_artifact=lambda *args, **kwargs: None,
+            warn=lambda warning: None,
+            emit=lambda *args, **kwargs: errors.append(str(args[0])),
+        )
+
+    assert exc_info.value.code == 1
+    assert errors == ["ERROR: run_id is required unless --current is used."]
 
 
 def test_entity_resolution_entrypoint_uses_package_default_runtime_runner() -> None:

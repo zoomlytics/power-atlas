@@ -20,6 +20,7 @@ from power_atlas.backend_run_catalog import (
     resolve_backend_run_details,
 )
 from power_atlas.claim_extraction_diagnostics_artifact import (
+    resolve_current_claim_extraction_diagnostics_artifact,
     resolve_claim_extraction_diagnostics_artifact,
 )
 from power_atlas.bootstrap import build_app_context
@@ -124,6 +125,10 @@ class ClaimExtractionDiagnosticsResponse(BaseModel):
     participation_summary: ClaimExtractionDiagnosticsParticipationSummaryResponse | None = None
     match_summary: ClaimExtractionDiagnosticsMatchSummaryResponse | None = None
     warnings: list[str]
+
+
+class CurrentClaimExtractionDiagnosticsResponse(ClaimExtractionDiagnosticsResponse):
+    inferred_dataset_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -317,6 +322,56 @@ def build_backend_router(
             inferred_dataset_id=run_detail_result.inferred_dataset_id,
         )
 
+    @router.get(
+        "/runs/current/{stage_prefix}/claim-extraction-diagnostics",
+        response_model=CurrentClaimExtractionDiagnosticsResponse,
+    )
+    async def current_claim_extraction_diagnostics(
+        stage_prefix: str,
+        request: Request,
+        dataset_id: str | None = None,
+    ) -> CurrentClaimExtractionDiagnosticsResponse:
+        try:
+            result = resolve_current_claim_extraction_diagnostics_artifact(
+                get_backend_runtime(request.app).app_context.settings,
+                stage_prefix,
+                dataset_id=dataset_id,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+        return CurrentClaimExtractionDiagnosticsResponse(
+            status=result.status,
+            detail=result.detail,
+            run_id=result.run_id,
+            generated_at=result.generated_at,
+            source_uri=result.source_uri,
+            artifact_path=result.artifact_path,
+            participation_summary=(
+                None
+                if result.participation_summary is None
+                else ClaimExtractionDiagnosticsParticipationSummaryResponse(
+                    total_edges=result.participation_summary.total_edges,
+                    edges_by_role=result.participation_summary.edges_by_role,
+                    total_claims=result.participation_summary.total_claims,
+                    claims_with_zero_edges=result.participation_summary.claims_with_zero_edges,
+                    claim_coverage_pct=result.participation_summary.claim_coverage_pct,
+                )
+            ),
+            match_summary=(
+                None
+                if result.match_summary is None
+                else ClaimExtractionDiagnosticsMatchSummaryResponse(
+                    total_edges_with_match_method=result.match_summary.total_edges_with_match_method,
+                    edges_by_match_method=result.match_summary.edges_by_match_method,
+                )
+            ),
+            warnings=[] if result.warnings is None else result.warnings,
+            inferred_dataset_id=result.inferred_dataset_id,
+        )
+
     @router.get("/runs/{run_id}", response_model=RunDetailResponse)
     async def run_detail(
         run_id: str,
@@ -462,6 +517,7 @@ __all__ = [
     "ClaimExtractionDiagnosticsMatchSummaryResponse",
     "ClaimExtractionDiagnosticsParticipationSummaryResponse",
     "ClaimExtractionDiagnosticsResponse",
+    "CurrentClaimExtractionDiagnosticsResponse",
     "CurrentRunDetailResponse",
     "CurrentRunsResponse",
     "DEFAULT_API_DESCRIPTION",
