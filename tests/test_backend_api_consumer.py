@@ -166,6 +166,21 @@ def test_backend_api_consumer_example_script_runs() -> None:
     }
 
 
+def test_retrieval_benchmark_package_module_help_runs() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    completed = subprocess.run(
+        [sys.executable, "-m", "power_atlas.cli.retrieval_benchmark", "--help"],
+        cwd=repo_root,
+        capture_output=True,
+        check=True,
+        text=True,
+    )
+
+    assert "Run the post-hybrid retrieval benchmark and write a JSON artifact." in completed.stdout
+    assert "--dataset-id" in completed.stdout
+    assert "--neo4j-password" in completed.stdout
+
+
 def test_retrieval_policy_consumer_example_script_runs() -> None:
     repo_root = Path(__file__).resolve().parents[1]
     completed = subprocess.run(

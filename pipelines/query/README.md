@@ -1895,7 +1895,9 @@ ORDER BY direction, c.claim_id;
 ### Generating the benchmark artifact
 
 Use the documented manual benchmark CLI seam below when you want to rerun the
-benchmark independently against an existing graph.
+benchmark independently against an existing graph. Installed-package callers
+can use the `power-atlas-retrieval-benchmark` console command; the examples
+below stay focused on the repo-local `pipelines/query` path.
 
 ```bash
 # Set Neo4j connection environment variables

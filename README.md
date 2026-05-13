@@ -288,7 +288,11 @@ the installable package wrapper
 the installed console command `power-atlas-claim-diagnostics-report`, and the repo-local script
 [`pipelines/query/claim_extraction_diagnostics_report.py`](pipelines/query/claim_extraction_diagnostics_report.py),
 which format persisted claim-extraction diagnostics artifacts for run-scoped
-or current-run reporting without rerunning the diagnostics stage.
+or current-run reporting without rerunning the diagnostics stage. The same
+pattern now also exists for retrieval benchmarking through the installable
+wrapper [`retrieval_benchmark.py`](src/power_atlas/cli/retrieval_benchmark.py),
+the console command `power-atlas-retrieval-benchmark`, and the retained
+repo-local script [`pipelines/query/retrieval_benchmark.py`](pipelines/query/retrieval_benchmark.py).
 
 The backend API surface now has a first-class owning facade at
 `power_atlas.api`. That module now owns the backend app contract, including

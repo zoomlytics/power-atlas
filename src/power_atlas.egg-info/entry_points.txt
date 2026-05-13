@@ -1,2 +1,3 @@
 [console_scripts]
 power-atlas-claim-diagnostics-report = power_atlas.cli.claim_extraction_diagnostics_report:main
+power-atlas-retrieval-benchmark = power_atlas.cli.retrieval_benchmark:main

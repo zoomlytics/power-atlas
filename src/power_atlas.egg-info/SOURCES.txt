@@ -98,6 +98,7 @@ src/power_atlas/bootstrap/clients.py
 src/power_atlas/bootstrap/domain_pack.py
 src/power_atlas/cli/__init__.py
 src/power_atlas/cli/claim_extraction_diagnostics_report.py
+src/power_atlas/cli/retrieval_benchmark.py
 src/power_atlas/contracts/__init__.py
 src/power_atlas/contracts/claim_extraction_policy.py
 src/power_atlas/contracts/claim_schema.py

@@ -79,6 +79,9 @@ def test_package_modules_import() -> None:
     claim_extraction_diagnostics_report_support_module = importlib.import_module(
         "power_atlas.interfaces.cli.claim_extraction_diagnostics_report_support"
     )
+    retrieval_benchmark_package_cli_module = importlib.import_module(
+        "power_atlas.cli.retrieval_benchmark"
+    )
     retrieval_benchmark_runner_module = importlib.import_module(
         "power_atlas.retrieval_benchmark_runner"
     )
@@ -399,6 +402,7 @@ def test_package_modules_import() -> None:
     assert callable(retrieval_benchmark_entrypoint_module.neo4j_settings_from_request_context)
     assert callable(retrieval_benchmark_entrypoint_module.run_retrieval_benchmark)
     assert callable(retrieval_benchmark_entrypoint_module.run_retrieval_benchmark_request_context)
+    assert callable(retrieval_benchmark_package_cli_module.main)
     assert retrieval_benchmark_runner_module.BENCHMARK_CASES
     assert callable(retrieval_benchmark_runner_module.build_benchmark_case_result)
     assert callable(retrieval_benchmark_runner_module.build_benchmark_artifact)
@@ -1097,6 +1101,26 @@ def test_retrieval_benchmark_request_context_uses_package_default_impl_runner() 
     assert result["alignment_version"] == "v1.0"
     assert result["artifact_path"].endswith(
         "build/test-retrieval-benchmark-context/runs/run-123/retrieval_benchmark/retrieval_benchmark.json"
+    )
+
+
+def test_retrieval_benchmark_package_cli_main_delegates_to_entrypoint() -> None:
+    from power_atlas.cli import retrieval_benchmark
+
+    argv = ["--run-id", "run-123", "--neo4j-password", "secret"]
+
+    with mock.patch.object(
+        retrieval_benchmark,
+        "run_retrieval_benchmark_main",
+    ) as run_main:
+        retrieval_benchmark.main(argv)
+
+    run_main.assert_called_once_with(
+        parse_args=retrieval_benchmark._parse_args,
+        build_cli_request_context=retrieval_benchmark.build_retrieval_benchmark_cli_request_context,
+        run_retrieval_benchmark_request_context=retrieval_benchmark.run_retrieval_benchmark_request_context,
+        warn=mock.ANY,
+        argv=argv,
     )
 
 
