@@ -8,6 +8,7 @@
 - `docs/repository_restructure/repository_restructure_checklist.md`
 - `docs/repository_restructure/repository_restructure_decisions.md`
 - `docs/repository_restructure/repository_restructure_generic_research_runner_feasibility.md`
+- `docs/repository_restructure/repository_restructure_second_domain_pilot_contract.md`
 
 ## Purpose
 
@@ -174,9 +175,11 @@ The next bounded steps should proceed in this order:
 1. treat this document as the working extraction boundary,
 2. lock the current runtime/provider boundary around retrieval expansion policy
   with focused package-level proofs,
-3. close any remaining implicit-default gaps in retrieval policy threading that
-  those focused proofs uncover,
-4. re-evaluate whether the shared-core namespace split is justified after that
+3. define the constrained second-domain pilot contract for the first non-Power
+  Atlas proof target,
+4. close any remaining implicit-default gaps in retrieval policy threading that
+  those focused proofs or pilot work uncover,
+5. re-evaluate whether the shared-core namespace split is justified after that
    proof exists.
 
 ## Success condition for the broader reuse plan

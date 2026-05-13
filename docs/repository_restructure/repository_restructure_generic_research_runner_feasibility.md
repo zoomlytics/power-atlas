@@ -9,7 +9,9 @@ shared across multiple domain applications.
 The current execution boundary for that follow-up now lives in
 `docs/repository_restructure/repository_restructure_reusable_core_boundary.md`.
 Read this memo as the assessment and that companion document as the active
-boundary for the next extraction slices.
+boundary for the next extraction slices. The concrete proof target for the
+first non-Power-Atlas validation step now also lives in
+`docs/repository_restructure/repository_restructure_second_domain_pilot_contract.md`.
 
 The central question is not whether the repo is already generic. It is not.
 The question is whether the repo has accumulated enough reusable runtime value
