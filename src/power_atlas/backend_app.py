@@ -19,6 +19,9 @@ from power_atlas.backend_run_catalog import (
     resolve_backend_run_catalog,
     resolve_backend_run_details,
 )
+from power_atlas.claim_extraction_diagnostics_artifact import (
+    resolve_claim_extraction_diagnostics_artifact,
+)
 from power_atlas.bootstrap import build_app_context
 from power_atlas.context import AppContext
 
@@ -96,6 +99,31 @@ class RunDetailResponse(BaseModel):
 
 class CurrentRunDetailResponse(RunDetailResponse):
     inferred_dataset_id: str | None = None
+
+
+class ClaimExtractionDiagnosticsParticipationSummaryResponse(BaseModel):
+    total_edges: int
+    edges_by_role: dict[str, int]
+    total_claims: int
+    claims_with_zero_edges: int
+    claim_coverage_pct: float | None
+
+
+class ClaimExtractionDiagnosticsMatchSummaryResponse(BaseModel):
+    total_edges_with_match_method: int
+    edges_by_match_method: dict[str, int]
+
+
+class ClaimExtractionDiagnosticsResponse(BaseModel):
+    status: str
+    detail: str
+    run_id: str
+    generated_at: str | None = None
+    source_uri: str | None = None
+    artifact_path: str
+    participation_summary: ClaimExtractionDiagnosticsParticipationSummaryResponse | None = None
+    match_summary: ClaimExtractionDiagnosticsMatchSummaryResponse | None = None
+    warnings: list[str]
 
 
 @dataclass(frozen=True, slots=True)
@@ -328,6 +356,53 @@ def build_backend_router(
             ],
         )
 
+    @router.get(
+        "/runs/{run_id}/claim-extraction-diagnostics",
+        response_model=ClaimExtractionDiagnosticsResponse,
+    )
+    async def claim_extraction_diagnostics(
+        run_id: str,
+        request: Request,
+    ) -> ClaimExtractionDiagnosticsResponse:
+        try:
+            result = resolve_claim_extraction_diagnostics_artifact(
+                get_backend_runtime(request.app).app_context.settings,
+                run_id,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+        return ClaimExtractionDiagnosticsResponse(
+            status=result.status,
+            detail=result.detail,
+            run_id=result.run_id,
+            generated_at=result.generated_at,
+            source_uri=result.source_uri,
+            artifact_path=result.artifact_path,
+            participation_summary=(
+                None
+                if result.participation_summary is None
+                else ClaimExtractionDiagnosticsParticipationSummaryResponse(
+                    total_edges=result.participation_summary.total_edges,
+                    edges_by_role=result.participation_summary.edges_by_role,
+                    total_claims=result.participation_summary.total_claims,
+                    claims_with_zero_edges=result.participation_summary.claims_with_zero_edges,
+                    claim_coverage_pct=result.participation_summary.claim_coverage_pct,
+                )
+            ),
+            match_summary=(
+                None
+                if result.match_summary is None
+                else ClaimExtractionDiagnosticsMatchSummaryResponse(
+                    total_edges_with_match_method=result.match_summary.total_edges_with_match_method,
+                    edges_by_match_method=result.match_summary.edges_by_match_method,
+                )
+            ),
+            warnings=[] if result.warnings is None else result.warnings,
+        )
+
     @router.get("/", response_model=RootResponse)
     async def root() -> RootResponse:
         return RootResponse(
@@ -384,6 +459,9 @@ __all__ = [
     "BackendAppOptions",
     "BackendGraphQueryService",
     "BackendRuntime",
+    "ClaimExtractionDiagnosticsMatchSummaryResponse",
+    "ClaimExtractionDiagnosticsParticipationSummaryResponse",
+    "ClaimExtractionDiagnosticsResponse",
     "CurrentRunDetailResponse",
     "CurrentRunsResponse",
     "DEFAULT_API_DESCRIPTION",

@@ -92,6 +92,12 @@ def test_backend_root_health_and_graph_status_contract(monkeypatch) -> None:
             assert missing_run_response.status_code == 404
             assert "was not found" in missing_run_response.json()["detail"]
 
+            missing_claim_diagnostics_response = await client.get(
+                "/runs/unstructured_ingest-test-run/claim-extraction-diagnostics"
+            )
+            assert missing_claim_diagnostics_response.status_code == 404
+            assert "was not found" in missing_claim_diagnostics_response.json()["detail"]
+
             graph_status_response = await client.get("/graph/status")
             assert graph_status_response.status_code == 503
             assert graph_status_response.json() == {
@@ -924,6 +930,83 @@ def test_create_backend_app_accepts_graph_health_summary_resolver() -> None:
                     "unaligned_clusters": 1,
                     "alignment_coverage_pct": 80.0,
                 },
+            }
+
+    asyncio.run(_exercise_app())
+
+
+def test_create_backend_app_exposes_claim_extraction_diagnostics_artifact() -> None:
+    app_context = build_app_context(
+        environ={
+            "POWER_ATLAS_OUTPUT_DIR": "/tmp/power-atlas-backend-claim-diagnostics",
+        }
+    )
+    run_root = (
+        app_context.settings.output_dir
+        / "runs"
+        / "unstructured_ingest-20260511T000000Z-test"
+        / "claim_extraction_diagnostics"
+    )
+    run_root.mkdir(parents=True, exist_ok=True)
+    artifact_path = (run_root / "claim_extraction_diagnostics.json").resolve()
+    artifact_path.write_text(
+        """
+{
+  "status": "live",
+  "generated_at": "2026-05-13T12:00:00+00:00",
+  "run_id": "unstructured_ingest-20260511T000000Z-test",
+  "source_uri": "file:///example/doc.pdf",
+  "artifact_path": "ignored-by-reader",
+  "participation_summary": {
+    "total_edges": 4,
+    "edges_by_role": {"subject": 3, "object": 1},
+    "total_claims": 5,
+    "claims_with_zero_edges": 1,
+    "claim_coverage_pct": 80.0
+  },
+  "match_summary": {
+    "total_edges_with_match_method": 3,
+    "edges_by_match_method": {"normalized_exact": 2, "list_split": 1}
+  },
+  "warnings": []
+}
+        """.strip(),
+        encoding="utf-8",
+    )
+    custom_app = create_backend_app(app_context=app_context)
+
+    async def _exercise_app() -> None:
+        transport = httpx.ASGITransport(app=custom_app)
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="http://testserver",
+        ) as client:
+            response = await client.get(
+                "/runs/unstructured_ingest-20260511T000000Z-test/claim-extraction-diagnostics"
+            )
+            assert response.status_code == 200
+            assert response.json() == {
+                "status": "live",
+                "detail": "Claim extraction diagnostics artifact retrieved successfully",
+                "run_id": "unstructured_ingest-20260511T000000Z-test",
+                "generated_at": "2026-05-13T12:00:00+00:00",
+                "source_uri": "file:///example/doc.pdf",
+                "artifact_path": str(artifact_path),
+                "participation_summary": {
+                    "total_edges": 4,
+                    "edges_by_role": {"subject": 3, "object": 1},
+                    "total_claims": 5,
+                    "claims_with_zero_edges": 1,
+                    "claim_coverage_pct": 80.0,
+                },
+                "match_summary": {
+                    "total_edges_with_match_method": 3,
+                    "edges_by_match_method": {
+                        "normalized_exact": 2,
+                        "list_split": 1,
+                    },
+                },
+                "warnings": [],
             }
 
     asyncio.run(_exercise_app())
