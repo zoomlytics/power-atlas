@@ -6,6 +6,11 @@ This memo evaluates whether the current `power-atlas` codebase is a good
 candidate to evolve into a reusable Neo4j-backed research runner that could be
 shared across multiple domain applications.
 
+The current execution boundary for that follow-up now lives in
+`docs/repository_restructure/repository_restructure_reusable_core_boundary.md`.
+Read this memo as the assessment and that companion document as the active
+boundary for the next extraction slices.
+
 The central question is not whether the repo is already generic. It is not.
 The question is whether the repo has accumulated enough reusable runtime value
 above `neo4j-graphrag` that extracting an internal multi-app package would be a
