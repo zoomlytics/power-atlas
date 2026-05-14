@@ -424,6 +424,11 @@ A fourth example that adds host-level request guarding around the mounted
 access while relying on configured dataset selection, lives in
 [`examples/backend_api_guarded_app.py`](examples/backend_api_guarded_app.py).
 
+These backend examples are also mirrored by installed-package outside-repo
+smokes in [`tests/test_backend_api_consumer.py`](tests/test_backend_api_consumer.py),
+so the current backend example-app set is verified both as in-repo examples and
+as copied consumer scripts that run without repo-root imports.
+
 A package-only reporting example for persisted claim-extraction diagnostics
 artifacts lives in
 [`examples/claim_extraction_diagnostics_report_consumer.py`](examples/claim_extraction_diagnostics_report_consumer.py).

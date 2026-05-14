@@ -1488,6 +1488,50 @@ def test_backend_api_custom_graph_queries_example_script_runs() -> None:
     }
 
 
+def test_backend_api_custom_graph_queries_runs_from_outside_repo_when_installed(
+    tmp_path: Path,
+) -> None:
+    try:
+        importlib.metadata.version("power-atlas")
+    except importlib.metadata.PackageNotFoundError:
+        pytest.skip("requires power-atlas to be installed in the active environment")
+
+    completed = _run_example_script_from_outside_repo_when_installed(
+        "backend_api_custom_graph_queries.py",
+        tmp_path,
+    )
+
+    assert json.loads(completed.stdout) == {
+        "consumer_info": {
+            "backend_title": "Power Atlas Custom Graph Example",
+            "backend_version": "0.1.0-custom-example",
+            "consumer": "backend_api_custom_graph_queries",
+        },
+        "graph_status": {
+            "database": "example",
+            "detail": "Example consumer graph service is active",
+            "neo4j_uri": "neo4j://example-consumer:7687",
+            "status": "available",
+        },
+        "graph_summary": {
+            "counts": {
+                "canonical_entity_count": 1,
+                "chunk_count": 4,
+                "claim_count": 3,
+                "cluster_count": 2,
+                "document_count": 2,
+                "mention_count": 8,
+            },
+            "database": "example",
+            "detail": "Example consumer summary is active",
+            "neo4j_uri": "neo4j://example-consumer:7687",
+            "status": "available",
+        },
+        "title": "Power Atlas Custom Graph Example",
+        "version": "0.1.0-custom-example",
+    }
+
+
 def test_backend_api_composed_app_example_script_runs() -> None:
     repo_root = Path(__file__).resolve().parents[1]
     completed = subprocess.run(
@@ -1556,6 +1600,74 @@ def test_backend_api_composed_app_example_script_runs() -> None:
     assert payload["backend_current_runs"]["runs_root"].endswith("/runs")
 
 
+def test_backend_api_composed_app_runs_from_outside_repo_when_installed(
+    tmp_path: Path,
+) -> None:
+    try:
+        importlib.metadata.version("power-atlas")
+    except importlib.metadata.PackageNotFoundError:
+        pytest.skip("requires power-atlas to be installed in the active environment")
+
+    completed = _run_example_script_from_outside_repo_when_installed(
+        "backend_api_composed_app.py",
+        tmp_path,
+    )
+
+    payload = json.loads(completed.stdout)
+
+    assert payload == {
+        "backend_current_claim_diagnostics": {
+            "inferred_dataset_id": "demo_dataset_v1",
+            "run_id": "unstructured_ingest-20260512T000000Z-a",
+            "source_uri": "file:///mounted/source.pdf",
+            "status": "dry_run",
+            "warnings": ["claim extraction diagnostics skipped in dry_run mode"],
+        },
+        "backend_datasets": {
+            "dataset_names": ["demo_dataset_v1", "demo_dataset_v2"],
+            "selected_dataset_name": "demo_dataset_v1",
+            "selection_mode": "configured",
+        },
+        "backend_current_runs": {
+            "detail": None,
+            "inferred_dataset_id": "demo_dataset_v1",
+            "run_ids": ["unstructured_ingest-20260512T000000Z-a"],
+            "runs_root": payload["backend_current_runs"]["runs_root"],
+        },
+        "backend_current_run_detail": {
+            "inferred_dataset_id": "demo_dataset_v1",
+            "run_id": "unstructured_ingest-20260512T000000Z-a",
+            "run_stage_names": [
+                "claim_extraction",
+                "claim_extraction_diagnostics",
+                "pdf_ingest",
+            ],
+            "stages": ["claim_extraction"],
+        },
+        "backend_graph_status": {
+            "database": "neo4j",
+            "detail": "Neo4j password is not configured",
+            "neo4j_uri": "neo4j://localhost:7687",
+            "status": "not_configured",
+        },
+        "backend_health": {
+            "message": "Backend is healthy",
+            "status": "ok",
+        },
+        "backend_root": {
+            "docs": "/docs",
+            "message": "Power Atlas API",
+            "version": "0.1.0-mounted",
+        },
+        "host_info": {
+            "host": "backend_api_composed_app",
+            "host_title": "Host Application",
+            "host_version": "1.0.0-host",
+        },
+    }
+    assert payload["backend_current_runs"]["runs_root"].endswith("/runs")
+
+
 def test_backend_api_guarded_app_example_script_runs() -> None:
     repo_root = Path(__file__).resolve().parents[1]
     completed = subprocess.run(
@@ -1567,6 +1679,65 @@ def test_backend_api_guarded_app_example_script_runs() -> None:
         capture_output=True,
         check=True,
         text=True,
+    )
+
+    assert json.loads(completed.stdout) == {
+        "authorized_current_claim_diagnostics": {
+            "inferred_dataset_id": "demo_dataset_v1",
+            "run_id": "unstructured_ingest-20260512T000000Z-a",
+            "source_uri": "file:///guarded/source.pdf",
+            "status": "dry_run",
+            "warnings": ["claim extraction diagnostics skipped in dry_run mode"],
+        },
+        "authorized_health": {
+            "body": {
+                "message": "Backend is healthy",
+                "status": "ok",
+            },
+            "status_code": 200,
+        },
+        "authorized_current_run_detail": {
+            "inferred_dataset_id": "demo_dataset_v1",
+            "run_id": "unstructured_ingest-20260512T000000Z-a",
+            "run_stage_names": [
+                "claim_extraction",
+                "claim_extraction_diagnostics",
+                "pdf_ingest",
+            ],
+            "stages": ["claim_extraction"],
+        },
+        "authorized_current_runs": {
+            "inferred_dataset_id": "demo_dataset_v1",
+            "run_ids": ["unstructured_ingest-20260512T000000Z-a"],
+            "stage_names": [[
+                "claim_extraction",
+                "claim_extraction_diagnostics",
+                "pdf_ingest",
+            ]],
+        },
+        "host_info": {
+            "host": "backend_api_guarded_app",
+            "host_title": "Guarded Host Application",
+            "host_version": "1.0.0-guarded",
+        },
+        "unauthorized_health": {
+            "body": {"detail": "Missing or invalid atlas token"},
+            "status_code": 401,
+        },
+    }
+
+
+def test_backend_api_guarded_app_runs_from_outside_repo_when_installed(
+    tmp_path: Path,
+) -> None:
+    try:
+        importlib.metadata.version("power-atlas")
+    except importlib.metadata.PackageNotFoundError:
+        pytest.skip("requires power-atlas to be installed in the active environment")
+
+    completed = _run_example_script_from_outside_repo_when_installed(
+        "backend_api_guarded_app.py",
+        tmp_path,
     )
 
     assert json.loads(completed.stdout) == {
