@@ -115,6 +115,10 @@ make installed-package-adoption-only
 This narrow adoption check is also the current lightweight CI gate for the
 installed-package/outside-repo contract.
 
+The same workflow now also runs the broader `make installed-package-adoption`
+target as a companion CI gate, so both the dedicated adoption module and its
+package-smoke companion are exercised in automation.
+
 ### 4. Start Neo4j
 
 ```bash
