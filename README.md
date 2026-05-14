@@ -100,6 +100,18 @@ For a repeatable local entrypoint, you can run:
 make installed-package-adoption
 ```
 
+Use `make installed-package-adoption` when you are checking installability,
+outside-repo execution, CLI packaging, or example-adoption behavior. Use
+`make phase1-verify` when a change can affect live pipeline behavior,
+Neo4j/OpenAI-backed execution, or the broader end-to-end safety harness.
+
+If you want only the dedicated copied-script/adoption module without the
+companion package smoke file, run:
+
+```bash
+make installed-package-adoption-only
+```
+
 ### 4. Start Neo4j
 
 ```bash

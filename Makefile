@@ -3,7 +3,7 @@
 # Phase 1 safety harness targets.
 # See docs/repository_restructure/repository_restructure_phase1_execution_run_log.md
 
-.PHONY: phase1-verify installed-package-adoption
+.PHONY: phase1-verify installed-package-adoption installed-package-adoption-only
 
 ## installed-package-adoption: Run the installed-package adoption proof set.
 ##
@@ -18,6 +18,13 @@
 ##   - editable install completed: python -m pip install -e ".[dev]"
 installed-package-adoption:
 	python -m pytest tests/test_power_atlas_package.py tests/test_installed_package_adoption.py
+
+## installed-package-adoption-only: Run only the dedicated installed-package adoption module.
+##
+## Use this when you want the narrowest outside-repo/adoption proof without the
+## companion package smoke module.
+installed-package-adoption-only:
+	python -m pytest tests/test_installed_package_adoption.py
 
 ## phase1-verify: Run the Phase 1 safety harness verification (reset → baseline → companion isolation → artifact capture).
 ##
