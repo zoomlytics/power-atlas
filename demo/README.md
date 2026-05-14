@@ -8,6 +8,8 @@ Self-contained demo workflow under `demo/` for evidence-driven influence researc
 
 If you are running the demo for the first time, start here.
 
+Maintainer note: if you are validating a change rather than learning the demo for the first time, start with the validation-path selection section in [`demo/VALIDATION_RUNBOOK.md`](./VALIDATION_RUNBOOK.md) to choose between the lightweight installed-package checks and the heavier live demo validation flow.
+
 ### What this demo does
 
 The demo follows an **unstructured-first** approach:
