@@ -125,6 +125,13 @@ package-smoke companion are exercised in automation.
 | `make installed-package-adoption` | Installed-package adoption proof plus companion package smoke coverage | GitHub Actions workflow `Installed package adoption` |
 | `make phase1-verify` | Heavier live safety harness with Neo4j/OpenAI-backed end-to-end validation | Local/manual only |
 
+Contributor shortcut:
+
+- touching packaging metadata, import surfaces, installable CLI wrappers, or copied example-adoption paths: run `make installed-package-adoption-only`
+- changing the installed-package contract more broadly, including package smoke expectations and adoption proofs together: run `make installed-package-adoption`
+- changing live pipeline behavior, Neo4j-backed runtime logic, prompt/extraction flow, or anything that can affect end-to-end execution posture: run `make phase1-verify`
+- touching both packaging/adoption and live runtime behavior: run the relevant installed-package target first, then `make phase1-verify`
+
 ### 4. Start Neo4j
 
 ```bash
