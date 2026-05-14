@@ -832,6 +832,35 @@ def test_backend_api_custom_graph_queries_example_script_runs() -> None:
     }
 
 
+def test_backend_api_runtime_probe_example_script_runs() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(repo_root / "examples" / "backend_api_runtime_probe.py"),
+        ],
+        cwd=repo_root,
+        capture_output=True,
+        check=True,
+        text=True,
+    )
+
+    assert json.loads(completed.stdout) == {
+        "consumer": "backend_api_runtime_probe",
+        "runtime": {
+            "app_context_type": "AppContext",
+            "dataset_name": "demo_dataset_v1",
+            "graph_queries_type": "DefaultBackendGraphQueryService",
+            "neo4j_database": "neo4j",
+            "output_dir_name": "backend-runtime-example",
+            "runtime_on_app_state": True,
+        },
+        "runtime_retrieved_directly": True,
+        "title": "Power Atlas Runtime Probe Example",
+        "version": "0.1.0-runtime-probe",
+    }
+
+
 def test_backend_api_composed_app_example_script_runs() -> None:
     repo_root = Path(__file__).resolve().parents[1]
     completed = subprocess.run(

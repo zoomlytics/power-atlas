@@ -476,6 +476,11 @@ A fourth example that adds host-level request guarding around the mounted
 access while relying on configured dataset selection, lives in
 [`examples/backend_api_guarded_app.py`](examples/backend_api_guarded_app.py).
 
+A fifth example shows how advanced consumers can retrieve the app-owned backend
+runtime through `get_backend_runtime(...)` and inspect its configured settings
+and graph query service without leaving the public facade; it lives in
+[`examples/backend_api_runtime_probe.py`](examples/backend_api_runtime_probe.py).
+
 These backend examples are also mirrored by installed-package outside-repo
 smokes in [`tests/test_installed_package_adoption.py`](tests/test_installed_package_adoption.py),
 so the current backend example-app set is verified both as in-repo examples and

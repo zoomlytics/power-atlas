@@ -683,6 +683,32 @@ def test_backend_api_custom_graph_queries_runs_from_outside_repo_when_installed(
     }
 
 
+def test_backend_api_runtime_probe_runs_from_outside_repo_when_installed(
+    tmp_path: Path,
+) -> None:
+    _require_installed_power_atlas()
+
+    completed = _run_example_script_from_outside_repo_when_installed(
+        "backend_api_runtime_probe.py",
+        tmp_path,
+    )
+
+    assert json.loads(completed.stdout) == {
+        "consumer": "backend_api_runtime_probe",
+        "runtime": {
+            "app_context_type": "AppContext",
+            "dataset_name": "demo_dataset_v1",
+            "graph_queries_type": "DefaultBackendGraphQueryService",
+            "neo4j_database": "neo4j",
+            "output_dir_name": "backend-runtime-example",
+            "runtime_on_app_state": True,
+        },
+        "runtime_retrieved_directly": True,
+        "title": "Power Atlas Runtime Probe Example",
+        "version": "0.1.0-runtime-probe",
+    }
+
+
 def test_backend_api_composed_app_runs_from_outside_repo_when_installed(
     tmp_path: Path,
 ) -> None:
