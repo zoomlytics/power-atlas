@@ -544,19 +544,39 @@ def _build_run_demo_orchestrated_runner_kwargs() -> dict[str, Any]:
     return dict(_base_run_demo_orchestrated_runner_kwargs())
 
 
-def _build_run_demo_independent_stage_runner_kwargs() -> dict[str, Any]:
+@lru_cache(maxsize=1)
+def _base_run_demo_independent_stage_runner_kwargs() -> dict[str, Any]:
     return dict(
         run_independent_stage_request_context=_run_independent_stage_request_context_impl,
-        resolve_ask_source_uri=_resolve_ask_source_uri,
-        resolve_dataset_root=resolve_dataset_root,
-        build_independent_stage_plan=build_independent_stage_plan,
-        stage_specs=_independent_stage_specs(),
-        resolve_stage_run_id=_resolve_independent_stage_run_id,
-        now_iso=_now_iso,
+        resolve_ask_source_uri=lambda: _resolve_ask_source_uri,
+        resolve_dataset_root=lambda: resolve_dataset_root,
+        build_independent_stage_plan=lambda: build_independent_stage_plan,
+        stage_specs=lambda: _independent_stage_specs(),
+        resolve_stage_run_id=lambda: _resolve_independent_stage_run_id,
+        now_iso=lambda: _now_iso,
         write_independent_stage_manifest_impl=_write_independent_stage_manifest_impl,
         build_stage_manifest=build_stage_manifest,
         write_stage_manifest_artifacts=write_stage_manifest_artifacts,
         build_demo_independent_stage_runner_kwargs=build_demo_independent_stage_runner_kwargs,
+    )
+
+
+def _build_run_demo_independent_stage_runner_kwargs() -> dict[str, Any]:
+    kwargs = _base_run_demo_independent_stage_runner_kwargs()
+    return dict(
+        run_independent_stage_request_context=kwargs["run_independent_stage_request_context"],
+        resolve_ask_source_uri=kwargs["resolve_ask_source_uri"](),
+        resolve_dataset_root=kwargs["resolve_dataset_root"](),
+        build_independent_stage_plan=kwargs["build_independent_stage_plan"](),
+        stage_specs=kwargs["stage_specs"](),
+        resolve_stage_run_id=kwargs["resolve_stage_run_id"](),
+        now_iso=kwargs["now_iso"](),
+        write_independent_stage_manifest_impl=kwargs["write_independent_stage_manifest_impl"],
+        build_stage_manifest=kwargs["build_stage_manifest"],
+        write_stage_manifest_artifacts=kwargs["write_stage_manifest_artifacts"],
+        build_demo_independent_stage_runner_kwargs=kwargs[
+            "build_demo_independent_stage_runner_kwargs"
+        ],
     )
 
 

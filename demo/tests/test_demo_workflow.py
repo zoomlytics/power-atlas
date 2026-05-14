@@ -267,6 +267,34 @@ def test_cached_orchestrated_runner_kwargs_track_patched_stage_seams():
         module.run_retrieval_benchmark_request_context = original_benchmark_runner
 
 
+def test_cached_independent_stage_runner_kwargs_track_patched_seams():
+    module = _load_module(RUN_DEMO_PATH, "run_demo_cached_independent_kwargs_test")
+
+    kwargs_before = module._build_run_demo_independent_stage_runner_kwargs()
+
+    fake_resolve_dataset_root = object()
+    fake_resolve_ask_source_uri = object()
+    fake_resolve_stage_run_id = object()
+    original_resolve_dataset_root = module.resolve_dataset_root
+    original_resolve_ask_source_uri = module._resolve_ask_source_uri
+    original_resolve_stage_run_id = module._resolve_independent_stage_run_id
+    try:
+        module.resolve_dataset_root = fake_resolve_dataset_root
+        module._resolve_ask_source_uri = fake_resolve_ask_source_uri
+        module._resolve_independent_stage_run_id = fake_resolve_stage_run_id
+
+        kwargs_after = module._build_run_demo_independent_stage_runner_kwargs()
+
+        assert kwargs_before is not kwargs_after
+        assert kwargs_after["resolve_dataset_root"] is fake_resolve_dataset_root
+        assert kwargs_after["resolve_ask_source_uri"] is fake_resolve_ask_source_uri
+        assert kwargs_after["resolve_stage_run_id"] is fake_resolve_stage_run_id
+    finally:
+        module.resolve_dataset_root = original_resolve_dataset_root
+        module._resolve_ask_source_uri = original_resolve_ask_source_uri
+        module._resolve_independent_stage_run_id = original_resolve_stage_run_id
+
+
 def test_run_independent_structured_ingest_stage_scopes_request_context():
     module = _load_module(RUN_DEMO_PATH, "run_structured_independent_contract_test")
     config = _make_module_config(
