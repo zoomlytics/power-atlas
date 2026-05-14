@@ -522,6 +522,46 @@ def test_package_modules_import() -> None:
     assert not hasattr(orchestration_module, "run_retrieval_and_qa_legacy")
 
 
+def test_api_module_exports_match_backend_facade_policy() -> None:
+    api_module = importlib.import_module("power_atlas.api")
+
+    documented_builder_exports = {
+        "BackendAppOptions",
+        "BackendGraphQueryService",
+        "BackendRuntime",
+        "build_backend_graph_query_service",
+        "build_backend_runtime",
+        "build_backend_router",
+        "create_backend_app",
+        "get_backend_runtime",
+        "backend_router",
+        "lifespan",
+    }
+    typed_graph_contract_exports = {
+        "GraphHealthSummaryRequestBody",
+        "GraphHealthSummaryResponse",
+        "GraphStatusResponse",
+        "GraphSummaryResponse",
+        "RunScopedGraphCountsRequestBody",
+        "RunScopedGraphCountsResponse",
+    }
+    intentionally_internal_backend_names = {
+        "build_backend_graph_router",
+        "resolve_graph_health_summary",
+        "resolve_graph_status",
+        "resolve_graph_summary",
+        "resolve_run_scoped_graph_counts",
+    }
+
+    exported_names = set(api_module.__all__)
+
+    assert documented_builder_exports.issubset(exported_names)
+    assert typed_graph_contract_exports.issubset(exported_names)
+    assert intentionally_internal_backend_names.isdisjoint(exported_names)
+    assert not hasattr(api_module, "build_backend_graph_router")
+    assert not hasattr(api_module, "resolve_graph_status")
+
+
 def test_build_settings_from_env_mapping() -> None:
     from power_atlas.bootstrap import bootstrap_app
 

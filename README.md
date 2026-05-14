@@ -375,7 +375,10 @@ The backend API surface now has a first-class owning facade at
 typed response models plus app-construction helpers such as
 `BackendAppOptions`, `BackendGraphQueryService`, `BackendRuntime`,
 `build_backend_graph_query_service(...)`, `build_backend_runtime(...)`,
-`build_backend_router(...)`, and `create_backend_app(...)`. It also now owns
+`build_backend_router(...)`, and `create_backend_app(...)`. Advanced hosts can
+also use the lower-level runtime hooks `get_backend_runtime(...)`,
+`backend_router`, and `lifespan` from that same facade when they need direct
+router/runtime composition without leaving the supported API surface. It also now owns
 the backend's shared package `AppContext` bootstrap plus a package graph query
 service so graph routes reuse app-owned settings and one consolidated service
 interface instead of resolving env state ad hoc per request or carrying one
