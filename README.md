@@ -80,7 +80,7 @@ Run this once after installation to confirm the new installed-package path is
 working before you start the live pipeline:
 
 ```bash
-python -m pytest tests/test_power_atlas_package.py tests/test_backend_api_consumer.py
+python -m pytest tests/test_power_atlas_package.py tests/test_installed_package_adoption.py
 ```
 
 ### 4. Start Neo4j
@@ -425,7 +425,7 @@ access while relying on configured dataset selection, lives in
 [`examples/backend_api_guarded_app.py`](examples/backend_api_guarded_app.py).
 
 These backend examples are also mirrored by installed-package outside-repo
-smokes in [`tests/test_backend_api_consumer.py`](tests/test_backend_api_consumer.py),
+smokes in [`tests/test_installed_package_adoption.py`](tests/test_installed_package_adoption.py),
 so the current backend example-app set is verified both as in-repo examples and
 as copied consumer scripts that run without repo-root imports.
 
@@ -468,7 +468,7 @@ new project can adopt the package-owned GraphRAG seams without importing
 `demo.*` or modifying package runtime code.
 
 These consumer/starter examples are also covered by installed-package
-outside-repo smokes in [`tests/test_backend_api_consumer.py`](tests/test_backend_api_consumer.py),
+outside-repo smokes in [`tests/test_installed_package_adoption.py`](tests/test_installed_package_adoption.py),
 so the current examples are verified both as in-repo documentation and as
 copied consumer scripts that run without repo-root imports.
 
