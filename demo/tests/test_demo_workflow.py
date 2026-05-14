@@ -236,6 +236,37 @@ def test_run_demo_import_does_not_eagerly_build_independent_stage_specs():
     assert callable(module._run_independent_ask_stage)
 
 
+def test_cached_orchestrated_runner_kwargs_track_patched_stage_seams():
+    module = _load_module(RUN_DEMO_PATH, "run_demo_cached_orchestrated_kwargs_test")
+
+    kwargs_one = module._build_run_demo_orchestrated_runner_kwargs()
+    kwargs_two = module._build_run_demo_orchestrated_runner_kwargs()
+
+    assert kwargs_one is not kwargs_two
+
+    fake_pdf_runner = object()
+    fake_benchmark_runner = object()
+    original_pdf_runner = module._run_pdf_ingest_request_context
+    original_benchmark_runner = module.run_retrieval_benchmark_request_context
+    try:
+        module._run_pdf_ingest_request_context = fake_pdf_runner
+        module.run_retrieval_benchmark_request_context = fake_benchmark_runner
+
+        assert kwargs_one["resolve_run_pdf_ingest_request_context"]() is fake_pdf_runner
+        assert kwargs_two["resolve_run_pdf_ingest_request_context"]() is fake_pdf_runner
+        assert (
+            kwargs_one["resolve_run_retrieval_benchmark_request_context"]()
+            is fake_benchmark_runner
+        )
+        assert (
+            kwargs_two["resolve_run_retrieval_benchmark_request_context"]()
+            is fake_benchmark_runner
+        )
+    finally:
+        module._run_pdf_ingest_request_context = original_pdf_runner
+        module.run_retrieval_benchmark_request_context = original_benchmark_runner
+
+
 def test_run_independent_structured_ingest_stage_scopes_request_context():
     module = _load_module(RUN_DEMO_PATH, "run_structured_independent_contract_test")
     config = _make_module_config(

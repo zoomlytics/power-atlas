@@ -512,7 +512,8 @@ def _run_independent_ask_stage(*args, **kwargs):
     return _independent_stage_specs()["ask"].runner(*args, **kwargs)
 
 
-def _build_run_demo_orchestrated_runner_kwargs() -> dict[str, Any]:
+@lru_cache(maxsize=1)
+def _base_run_demo_orchestrated_runner_kwargs() -> dict[str, Any]:
     return dict(
         run_orchestrated_request_context_impl=_run_orchestrated_request_context_impl,
         build_demo_orchestrated_runner_kwargs=build_demo_orchestrated_runner_kwargs,
@@ -537,6 +538,10 @@ def _build_run_demo_orchestrated_runner_kwargs() -> dict[str, Any]:
         logger=_logger,
         format_traceback=traceback.format_exc,
     )
+
+
+def _build_run_demo_orchestrated_runner_kwargs() -> dict[str, Any]:
+    return dict(_base_run_demo_orchestrated_runner_kwargs())
 
 
 def _build_run_demo_independent_stage_runner_kwargs() -> dict[str, Any]:
