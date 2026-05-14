@@ -214,6 +214,17 @@ def test_run_independent_pdf_ingest_stage_scopes_request_context():
     assert runner.call_args.kwargs["dataset_id"] == resources.dataset_id
 
 
+def test_run_demo_import_does_not_eagerly_load_stage_entrypoints():
+    with mock.patch(
+        "demo.stages.entrypoints.load_demo_stage_entrypoints",
+        side_effect=AssertionError("stage loader should remain lazy during import"),
+    ):
+        module = _load_module(RUN_DEMO_PATH, "run_demo_lazy_stage_loader_test")
+
+    assert callable(module.run_pdf_ingest_request_context)
+    assert callable(module.run_retrieval_and_qa_request_context)
+
+
 def test_run_independent_structured_ingest_stage_scopes_request_context():
     module = _load_module(RUN_DEMO_PATH, "run_structured_independent_contract_test")
     config = _make_module_config(

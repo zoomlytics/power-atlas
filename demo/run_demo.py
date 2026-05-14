@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from functools import lru_cache
 import logging
 import os
 import traceback
@@ -95,25 +96,58 @@ from power_atlas.interfaces.cli.run_demo_entrypoint import (  # noqa: E402
 )
 from demo.stages.entrypoints import load_demo_stage_entrypoints
 
-_STAGE_ENTRYPOINTS = load_demo_stage_entrypoints()
-lint_and_clean_structured_csvs = _STAGE_ENTRYPOINTS.lint_and_clean_structured_csvs
-_format_scope_label = _STAGE_ENTRYPOINTS.format_scope_label
-run_claim_and_mention_extraction_request_context = (
-    _STAGE_ENTRYPOINTS.run_claim_and_mention_extraction_request_context
-)
-run_claim_participation_request_context = (
-    _STAGE_ENTRYPOINTS.run_claim_participation_request_context
-)
-run_entity_resolution_request_context = _STAGE_ENTRYPOINTS.run_entity_resolution_request_context
-run_pdf_ingest_request_context = _STAGE_ENTRYPOINTS.run_pdf_ingest_request_context
-run_structured_ingest_request_context = _STAGE_ENTRYPOINTS.run_structured_ingest_request_context
-run_interactive_qa_request_context = _STAGE_ENTRYPOINTS.run_interactive_qa_request_context
-run_retrieval_and_qa_request_context = _STAGE_ENTRYPOINTS.run_retrieval_and_qa_request_context
-run_retrieval_benchmark = _STAGE_ENTRYPOINTS.run_retrieval_benchmark
-run_retrieval_benchmark_request_context = (
-    _STAGE_ENTRYPOINTS.run_retrieval_benchmark_request_context
-)
-sha256_file = _STAGE_ENTRYPOINTS.sha256_file
+
+@lru_cache(maxsize=1)
+def _stage_entrypoints():
+    return load_demo_stage_entrypoints()
+
+
+def lint_and_clean_structured_csvs(*args, **kwargs):
+    return _stage_entrypoints().lint_and_clean_structured_csvs(*args, **kwargs)
+
+
+def _format_scope_label(*args, **kwargs):
+    return _stage_entrypoints().format_scope_label(*args, **kwargs)
+
+
+def run_claim_and_mention_extraction_request_context(*args, **kwargs):
+    return _stage_entrypoints().run_claim_and_mention_extraction_request_context(*args, **kwargs)
+
+
+def run_claim_participation_request_context(*args, **kwargs):
+    return _stage_entrypoints().run_claim_participation_request_context(*args, **kwargs)
+
+
+def run_entity_resolution_request_context(*args, **kwargs):
+    return _stage_entrypoints().run_entity_resolution_request_context(*args, **kwargs)
+
+
+def run_pdf_ingest_request_context(*args, **kwargs):
+    return _stage_entrypoints().run_pdf_ingest_request_context(*args, **kwargs)
+
+
+def run_structured_ingest_request_context(*args, **kwargs):
+    return _stage_entrypoints().run_structured_ingest_request_context(*args, **kwargs)
+
+
+def run_interactive_qa_request_context(*args, **kwargs):
+    return _stage_entrypoints().run_interactive_qa_request_context(*args, **kwargs)
+
+
+def run_retrieval_and_qa_request_context(*args, **kwargs):
+    return _stage_entrypoints().run_retrieval_and_qa_request_context(*args, **kwargs)
+
+
+def run_retrieval_benchmark(*args, **kwargs):
+    return _stage_entrypoints().run_retrieval_benchmark(*args, **kwargs)
+
+
+def run_retrieval_benchmark_request_context(*args, **kwargs):
+    return _stage_entrypoints().run_retrieval_benchmark_request_context(*args, **kwargs)
+
+
+def sha256_file(*args, **kwargs):
+    return _stage_entrypoints().sha256_file(*args, **kwargs)
 
 _logger = logging.getLogger(__name__)
 _KEEP_REQUEST_CONTEXT_VALUE = object()
