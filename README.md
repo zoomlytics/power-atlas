@@ -112,6 +112,9 @@ companion package smoke file, run:
 make installed-package-adoption-only
 ```
 
+This narrow adoption check is also the current lightweight CI gate for the
+installed-package/outside-repo contract.
+
 ### 4. Start Neo4j
 
 ```bash
