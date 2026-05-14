@@ -861,6 +861,46 @@ def test_backend_api_runtime_probe_example_script_runs() -> None:
     }
 
 
+def test_backend_api_direct_hooks_example_script_runs() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(repo_root / "examples" / "backend_api_direct_hooks.py"),
+        ],
+        cwd=repo_root,
+        capture_output=True,
+        check=True,
+        text=True,
+    )
+
+    assert json.loads(completed.stdout) == {
+        "backend_health": {
+            "message": "Backend is healthy",
+            "status": "ok",
+        },
+        "backend_root": {
+            "docs": "/docs",
+            "message": "Power Atlas API",
+            "version": "0.1.0",
+        },
+        "consumer": "backend_api_direct_hooks",
+        "host_info": {
+            "host": "backend_api_direct_hooks",
+            "host_title": "Power Atlas Direct Hooks Example",
+            "host_version": "0.1.0-direct-hooks",
+        },
+        "runtime": {
+            "dataset_name": "demo_dataset_v1",
+            "graph_queries_type": "DefaultBackendGraphQueryService",
+            "output_dir_name": "backend-direct-hooks",
+            "runtime_on_app_state": True,
+        },
+        "uses_prebuilt_router": True,
+        "uses_public_lifespan_hook": True,
+    }
+
+
 def test_backend_api_composed_app_example_script_runs() -> None:
     repo_root = Path(__file__).resolve().parents[1]
     completed = subprocess.run(

@@ -537,12 +537,39 @@ def test_api_module_exports_match_backend_facade_policy() -> None:
         "backend_router",
         "lifespan",
     }
+    typed_backend_response_exports = {
+        "ClaimExtractionDiagnosticsMatchSummaryResponse",
+        "ClaimExtractionDiagnosticsParticipationSummaryResponse",
+        "ClaimExtractionDiagnosticsResponse",
+        "CurrentClaimExtractionDiagnosticsResponse",
+        "CurrentRunDetailResponse",
+        "CurrentRunsResponse",
+        "DatasetResponse",
+        "DatasetsResponse",
+        "HealthResponse",
+        "RootResponse",
+        "RunDetailResponse",
+        "RunResponse",
+        "RunStageResponse",
+        "RunsResponse",
+    }
+    documented_backend_constant_exports = {
+        "DEFAULT_API_DESCRIPTION",
+        "DEFAULT_API_TITLE",
+        "DEFAULT_API_VERSION",
+        "DEFAULT_CORS_ALLOW_ORIGINS",
+    }
     typed_graph_contract_exports = {
+        "GraphHealthAlignmentSummaryResponse",
+        "GraphHealthMentionSummaryResponse",
+        "GraphHealthParticipationSummaryResponse",
         "GraphHealthSummaryRequestBody",
         "GraphHealthSummaryResponse",
         "GraphStatusResponse",
+        "GraphSummaryCountsResponse",
         "GraphSummaryResponse",
         "RunScopedGraphCountsRequestBody",
+        "RunScopedGraphCountsResponseBody",
         "RunScopedGraphCountsResponse",
     }
     intentionally_internal_backend_names = {
@@ -554,10 +581,16 @@ def test_api_module_exports_match_backend_facade_policy() -> None:
     }
 
     exported_names = set(api_module.__all__)
+    supported_exports = (
+        documented_builder_exports
+        | typed_backend_response_exports
+        | documented_backend_constant_exports
+        | typed_graph_contract_exports
+    )
 
-    assert documented_builder_exports.issubset(exported_names)
-    assert typed_graph_contract_exports.issubset(exported_names)
+    assert exported_names == supported_exports
     assert intentionally_internal_backend_names.isdisjoint(exported_names)
+    assert supported_exports.issubset(set(dir(api_module)))
     assert not hasattr(api_module, "build_backend_graph_router")
     assert not hasattr(api_module, "resolve_graph_status")
 

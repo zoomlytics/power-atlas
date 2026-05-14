@@ -388,6 +388,14 @@ remain off the root package itself, so callers use
 `power_atlas.api.create_backend_app(...)` rather than root
 `power_atlas.create_backend_app(...)`.
 
+Support policy for that backend facade is now explicit: supported backend
+imports are the names exported by `power_atlas.api` itself, including the app
+builders, advanced composition hooks, typed backend responses, shared backend
+constants, and typed graph request/response models listed on that facade.
+Deeper implementation helpers that live in `power_atlas.backend_app` or
+`power_atlas.backend_graph` but are not re-exported from `power_atlas.api`
+remain internal and should not be treated as a stable consumer contract.
+
 The current backend surface exposed through that facade includes two package
 discovery endpoints (`/datasets` and `/runs`), one convenience current-runs
 endpoint (`/runs/current`), one convenience current-run-detail endpoint
@@ -480,6 +488,11 @@ A fifth example shows how advanced consumers can retrieve the app-owned backend
 runtime through `get_backend_runtime(...)` and inspect its configured settings
 and graph query service without leaving the public facade; it lives in
 [`examples/backend_api_runtime_probe.py`](examples/backend_api_runtime_probe.py).
+
+A sixth example shows the lowest-level host composition path that still stays on
+the supported facade by mounting the exported `backend_router` directly and
+passing the exported `lifespan` hook into a host FastAPI app; it lives in
+[`examples/backend_api_direct_hooks.py`](examples/backend_api_direct_hooks.py).
 
 These backend examples are also mirrored by installed-package outside-repo
 smokes in [`tests/test_installed_package_adoption.py`](tests/test_installed_package_adoption.py),

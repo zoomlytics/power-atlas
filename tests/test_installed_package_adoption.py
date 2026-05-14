@@ -709,6 +709,43 @@ def test_backend_api_runtime_probe_runs_from_outside_repo_when_installed(
     }
 
 
+def test_backend_api_direct_hooks_runs_from_outside_repo_when_installed(
+    tmp_path: Path,
+) -> None:
+    _require_installed_power_atlas()
+
+    completed = _run_example_script_from_outside_repo_when_installed(
+        "backend_api_direct_hooks.py",
+        tmp_path,
+    )
+
+    assert json.loads(completed.stdout) == {
+        "backend_health": {
+            "message": "Backend is healthy",
+            "status": "ok",
+        },
+        "backend_root": {
+            "docs": "/docs",
+            "message": "Power Atlas API",
+            "version": "0.1.0",
+        },
+        "consumer": "backend_api_direct_hooks",
+        "host_info": {
+            "host": "backend_api_direct_hooks",
+            "host_title": "Power Atlas Direct Hooks Example",
+            "host_version": "0.1.0-direct-hooks",
+        },
+        "runtime": {
+            "dataset_name": "demo_dataset_v1",
+            "graph_queries_type": "DefaultBackendGraphQueryService",
+            "output_dir_name": "backend-direct-hooks",
+            "runtime_on_app_state": True,
+        },
+        "uses_prebuilt_router": True,
+        "uses_public_lifespan_hook": True,
+    }
+
+
 def test_backend_api_composed_app_runs_from_outside_repo_when_installed(
     tmp_path: Path,
 ) -> None:
