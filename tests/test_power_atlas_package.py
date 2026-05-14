@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import builtins
 import importlib
 import importlib.util
 import json
@@ -12,6 +13,45 @@ from unittest import mock
 
 import httpx
 import pytest
+
+
+def test_root_package_import_is_lazy() -> None:
+    package_path = Path(__file__).resolve().parents[1] / "src" / "power_atlas" / "__init__.py"
+    spec = importlib.util.spec_from_file_location(
+        "power_atlas_root_lazy_import_test",
+        package_path,
+        submodule_search_locations=[str(package_path.parent)],
+    )
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+
+    original_import = __import__
+    blocked_modules = {
+        "power_atlas.api",
+        "power_atlas.bootstrap",
+        "power_atlas.claim_extraction_diagnostics",
+        "power_atlas.contracts",
+        "power_atlas.context",
+        "power_atlas.settings",
+    }
+    loading = True
+
+    def _guarded_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if loading and name in blocked_modules:
+            raise AssertionError(f"root package imported {name} eagerly")
+        return original_import(name, globals, locals, fromlist, level)
+
+    try:
+        builtins.__import__ = _guarded_import
+        sys.modules[spec.name] = module
+        spec.loader.exec_module(module)
+        loading = False
+    finally:
+        builtins.__import__ = original_import
+        sys.modules.pop(spec.name, None)
+
+    assert "PROMPT_IDS" in module.__all__
+    assert module.PROMPT_IDS is importlib.import_module("power_atlas.contracts").PROMPT_IDS
 
 
 def test_api_module_import_is_lazy() -> None:
