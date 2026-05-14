@@ -83,6 +83,23 @@ working before you start the live pipeline:
 python -m pytest tests/test_power_atlas_package.py tests/test_installed_package_adoption.py
 ```
 
+#### Installed-package adoption tests
+
+The dedicated installed-package adoption proof set lives in
+[`tests/test_installed_package_adoption.py`](tests/test_installed_package_adoption.py).
+It currently covers:
+
+- package import and backend facade smokes
+- public console-script contract checks
+- outside-repo copied-script proofs for consumer and starter examples
+- outside-repo copied-script proofs for backend example apps
+
+For a repeatable local entrypoint, you can run:
+
+```bash
+make installed-package-adoption
+```
+
 ### 4. Start Neo4j
 
 ```bash

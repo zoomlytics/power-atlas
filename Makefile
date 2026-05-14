@@ -3,7 +3,21 @@
 # Phase 1 safety harness targets.
 # See docs/repository_restructure/repository_restructure_phase1_execution_run_log.md
 
-.PHONY: phase1-verify
+.PHONY: phase1-verify installed-package-adoption
+
+## installed-package-adoption: Run the installed-package adoption proof set.
+##
+## Covers:
+##   - package import and facade smoke checks
+##   - installed console-script contract checks
+##   - outside-repo copied-script adoption proofs for consumer/starter examples
+##   - outside-repo copied-script adoption proofs for backend example apps
+##
+## Prerequisites:
+##   - .venv activated or present at .venv/
+##   - editable install completed: python -m pip install -e ".[dev]"
+installed-package-adoption:
+	python -m pytest tests/test_power_atlas_package.py tests/test_installed_package_adoption.py
 
 ## phase1-verify: Run the Phase 1 safety harness verification (reset → baseline → companion isolation → artifact capture).
 ##
