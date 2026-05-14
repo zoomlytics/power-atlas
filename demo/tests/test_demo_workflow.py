@@ -225,6 +225,17 @@ def test_run_demo_import_does_not_eagerly_load_stage_entrypoints():
     assert callable(module.run_retrieval_and_qa_request_context)
 
 
+def test_run_demo_import_does_not_eagerly_build_independent_stage_specs():
+    with mock.patch(
+        "power_atlas.orchestration.stage_dependency_registry.build_demo_independent_stage_specs",
+        side_effect=AssertionError("independent stage specs should remain lazy during import"),
+    ):
+        module = _load_module(RUN_DEMO_PATH, "run_demo_lazy_independent_stage_specs_test")
+
+    assert callable(module._run_independent_pdf_ingest_stage)
+    assert callable(module._run_independent_ask_stage)
+
+
 def test_run_independent_structured_ingest_stage_scopes_request_context():
     module = _load_module(RUN_DEMO_PATH, "run_structured_independent_contract_test")
     config = _make_module_config(

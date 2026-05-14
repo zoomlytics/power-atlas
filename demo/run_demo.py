@@ -476,24 +476,40 @@ _run_structured_ingest_request_context = run_structured_ingest_request_context
 _run_retrieval_request_context = run_retrieval_and_qa_request_context
 
 
-_INDEPENDENT_STAGE_SPECS: dict[str, _IndependentStageSpec] = build_demo_independent_stage_specs(
-    run_independent_structured_ingest_stage_impl=_run_independent_structured_ingest_stage_impl,
-    resolve_run_structured_ingest_request_context=lambda: _run_structured_ingest_request_context,
-    run_independent_pdf_ingest_stage_impl=_run_independent_pdf_ingest_stage_impl,
-    resolve_run_pdf_ingest_request_context=lambda: _run_pdf_ingest_request_context,
-    run_independent_claim_extraction_stage_impl=_run_independent_claim_extraction_stage_impl,
-    resolve_run_claim_extraction_request_context=lambda: _run_claim_extraction_request_context,
-    run_independent_entity_resolution_stage_impl=_run_independent_entity_resolution_stage_impl,
-    resolve_run_entity_resolution_request_context=lambda: _run_entity_resolution_request_context,
-    run_independent_ask_stage_impl=_run_independent_ask_stage_impl,
-    resolve_run_ask_request_context=lambda: _run_ask_request_context,
-)
+@lru_cache(maxsize=1)
+def _independent_stage_specs() -> dict[str, _IndependentStageSpec]:
+    return build_demo_independent_stage_specs(
+        run_independent_structured_ingest_stage_impl=_run_independent_structured_ingest_stage_impl,
+        resolve_run_structured_ingest_request_context=lambda: _run_structured_ingest_request_context,
+        run_independent_pdf_ingest_stage_impl=_run_independent_pdf_ingest_stage_impl,
+        resolve_run_pdf_ingest_request_context=lambda: _run_pdf_ingest_request_context,
+        run_independent_claim_extraction_stage_impl=_run_independent_claim_extraction_stage_impl,
+        resolve_run_claim_extraction_request_context=lambda: _run_claim_extraction_request_context,
+        run_independent_entity_resolution_stage_impl=_run_independent_entity_resolution_stage_impl,
+        resolve_run_entity_resolution_request_context=lambda: _run_entity_resolution_request_context,
+        run_independent_ask_stage_impl=_run_independent_ask_stage_impl,
+        resolve_run_ask_request_context=lambda: _run_ask_request_context,
+    )
 
-_run_independent_structured_ingest_stage = _INDEPENDENT_STAGE_SPECS["ingest-structured"].runner
-_run_independent_pdf_ingest_stage = _INDEPENDENT_STAGE_SPECS["ingest-pdf"].runner
-_run_independent_claim_extraction_stage = _INDEPENDENT_STAGE_SPECS["extract-claims"].runner
-_run_independent_entity_resolution_stage = _INDEPENDENT_STAGE_SPECS["resolve-entities"].runner
-_run_independent_ask_stage = _INDEPENDENT_STAGE_SPECS["ask"].runner
+
+def _run_independent_structured_ingest_stage(*args, **kwargs):
+    return _independent_stage_specs()["ingest-structured"].runner(*args, **kwargs)
+
+
+def _run_independent_pdf_ingest_stage(*args, **kwargs):
+    return _independent_stage_specs()["ingest-pdf"].runner(*args, **kwargs)
+
+
+def _run_independent_claim_extraction_stage(*args, **kwargs):
+    return _independent_stage_specs()["extract-claims"].runner(*args, **kwargs)
+
+
+def _run_independent_entity_resolution_stage(*args, **kwargs):
+    return _independent_stage_specs()["resolve-entities"].runner(*args, **kwargs)
+
+
+def _run_independent_ask_stage(*args, **kwargs):
+    return _independent_stage_specs()["ask"].runner(*args, **kwargs)
 
 
 def _build_run_demo_orchestrated_runner_kwargs() -> dict[str, Any]:
@@ -529,7 +545,7 @@ def _build_run_demo_independent_stage_runner_kwargs() -> dict[str, Any]:
         resolve_ask_source_uri=_resolve_ask_source_uri,
         resolve_dataset_root=resolve_dataset_root,
         build_independent_stage_plan=build_independent_stage_plan,
-        stage_specs=_INDEPENDENT_STAGE_SPECS,
+        stage_specs=_independent_stage_specs(),
         resolve_stage_run_id=_resolve_independent_stage_run_id,
         now_iso=_now_iso,
         write_independent_stage_manifest_impl=_write_independent_stage_manifest_impl,
