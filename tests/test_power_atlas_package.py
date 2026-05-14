@@ -2,14 +2,51 @@ from __future__ import annotations
 
 import asyncio
 import importlib
+import importlib.util
 import json
 import re
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
 import httpx
 import pytest
+
+
+def test_api_module_import_is_lazy() -> None:
+    api_path = Path(__file__).resolve().parents[1] / "src" / "power_atlas" / "api.py"
+    spec = importlib.util.spec_from_file_location(
+        "power_atlas_api_lazy_import_test",
+        api_path,
+    )
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+
+    original_import_module = importlib.import_module
+    blocked_modules = {
+        "power_atlas.backend_app",
+        "power_atlas.backend_graph",
+        "power_atlas.backend_graph_api_models",
+    }
+    loading = True
+
+    def _guarded_import_module(name: str, package: str | None = None):
+        if loading and name in blocked_modules:
+            raise AssertionError(f"api facade imported {name} eagerly")
+        return original_import_module(name, package)
+
+    try:
+        importlib.import_module = _guarded_import_module
+        sys.modules[spec.name] = module
+        spec.loader.exec_module(module)
+        loading = False
+    finally:
+        importlib.import_module = original_import_module
+        sys.modules.pop(spec.name, None)
+
+    assert "BackendAppOptions" in module.__all__
+    assert module.BackendAppOptions.__name__ == "BackendAppOptions"
 
 
 def test_package_modules_import() -> None:
