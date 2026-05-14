@@ -22,6 +22,19 @@ For the canonical setup and conceptual background, see:
 
 ---
 
+## Validation path selection
+
+Use the lightest validation that matches the change before starting this manual live runbook:
+
+- packaging, import-surface, CLI, or example-adoption changes: run `make installed-package-adoption-only`
+- broader installed-package contract changes: run `make installed-package-adoption`
+- live pipeline, prompt, extraction, retrieval, or graph-behavior changes: use this runbook and `make phase1-verify`
+- mixed changes that touch both package adoption and live runtime behavior: run an installed-package target first, then complete this runbook or `make phase1-verify`
+
+The root [`README.md`](../README.md) tracks which of these targets are CI-backed. This runbook remains the manual companion for the heavier live Neo4j- and model-backed checks.
+
+---
+
 ## 1. Scope of this runbook
 
 This runbook validates these properties:
