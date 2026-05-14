@@ -119,6 +119,12 @@ The same workflow now also runs the broader `make installed-package-adoption`
 target as a companion CI gate, so both the dedicated adoption module and its
 package-smoke companion are exercised in automation.
 
+| Check | Scope | Automation |
+|-------|-------|------------|
+| `make installed-package-adoption-only` | Narrowest installed-package/outside-repo adoption proof (`tests/test_installed_package_adoption.py`) | GitHub Actions workflow `Installed package adoption` |
+| `make installed-package-adoption` | Installed-package adoption proof plus companion package smoke coverage | GitHub Actions workflow `Installed package adoption` |
+| `make phase1-verify` | Heavier live safety harness with Neo4j/OpenAI-backed end-to-end validation | Local/manual only |
+
 ### 4. Start Neo4j
 
 ```bash
