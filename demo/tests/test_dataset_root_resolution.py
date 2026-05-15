@@ -18,7 +18,9 @@ from power_atlas.contracts.paths import (
     DATASETS_CONTAINER_DIR,
     DatasetRoot,
     FIXTURES_DIR,
+    RepoPaths,
     list_available_datasets,
+    resolve_repo_paths,
     resolve_dataset_root,
 )
 
@@ -38,6 +40,12 @@ class TestDatasetRootResolution(unittest.TestCase):
         datasets = list_available_datasets()
         for name in datasets:
             self.assertFalse(name.startswith("."))
+
+    def test_resolve_repo_paths_matches_existing_constants(self):
+        repo_paths = resolve_repo_paths()
+        self.assertIsInstance(repo_paths, RepoPaths)
+        self.assertEqual(repo_paths.fixtures_dir, FIXTURES_DIR)
+        self.assertEqual(repo_paths.datasets_container_dir, DATASETS_CONTAINER_DIR)
 
     # ------------------------------------------------------------------
     # resolve_dataset_root — explicit name
@@ -180,6 +188,38 @@ class TestDatasetRootResolution(unittest.TestCase):
                     self.assertIn("--dataset", str(ctx.exception))
                 finally:
                     paths_mod.DATASETS_CONTAINER_DIR = original_container
+        finally:
+            if original_env is None:
+                os.environ.pop("FIXTURE_DATASET", None)
+            else:
+                os.environ["FIXTURE_DATASET"] = original_env
+
+    def test_auto_discovery_uses_explicit_repo_paths(self):
+        original_env = os.environ.pop("FIXTURE_DATASET", None)
+        try:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                fake_base = Path(tmpdir) / "research_app"
+                fake_fixtures = fake_base / "fixtures"
+                fake_container = fake_fixtures / "datasets"
+                single_ds = fake_container / "research_dataset_v1"
+                single_ds.mkdir(parents=True)
+                (single_ds / "manifest.json").write_text(
+                    '{"dataset": "research_dataset_v1", "provenance": [{"id": "p", "kind": "pdf", "path": "unstructured/research.pdf"}]}',
+                    encoding="utf-8",
+                )
+
+                repo_paths = resolve_repo_paths(
+                    base_dir=fake_base,
+                    fixtures_dir=fake_fixtures,
+                    datasets_container_dir=fake_container,
+                )
+
+                datasets = list_available_datasets(repo_paths=repo_paths)
+                dr = resolve_dataset_root(repo_paths=repo_paths)
+
+                self.assertEqual(datasets, ["research_dataset_v1"])
+                self.assertEqual(dr.dataset_id, "research_dataset_v1")
+                self.assertEqual(dr.root, single_ds)
         finally:
             if original_env is None:
                 os.environ.pop("FIXTURE_DATASET", None)

@@ -7,6 +7,7 @@ from typing import Any
 _EXPORTS = {
     "ALIGNMENT_VERSION": ("power_atlas.contracts", "ALIGNMENT_VERSION"),
     "ARTIFACTS_DIR": ("power_atlas.contracts", "ARTIFACTS_DIR"),
+    "BASE_DIR": ("power_atlas.contracts", "BASE_DIR"),
     "AmbiguousDatasetError": ("power_atlas.contracts", "AmbiguousDatasetError"),
     "api": ("power_atlas.api", None),
     "AppBootstrap": ("power_atlas.bootstrap", "AppBootstrap"),
@@ -22,6 +23,7 @@ _EXPORTS = {
     "DatasetIdSelector": ("power_atlas.contracts", "DatasetIdSelector"),
     "DATASETS_CONTAINER_DIR": ("power_atlas.contracts", "DATASETS_CONTAINER_DIR"),
     "DatasetRoot": ("power_atlas.contracts", "DatasetRoot"),
+    "RepoPaths": ("power_atlas.contracts", "RepoPaths"),
     "DomainPackDescriptor": ("power_atlas.bootstrap", "DomainPackDescriptor"),
     "EARLY_RETURN_PRECEDENCE": ("power_atlas.contracts", "EARLY_RETURN_PRECEDENCE"),
     "EARLY_RETURN_RULE_BY_NAME": ("power_atlas.contracts", "EARLY_RETURN_RULE_BY_NAME"),
@@ -140,6 +142,7 @@ _EXPORTS = {
     "pdf_ingest_entrypoint": ("power_atlas.pdf_ingest_entrypoint", None),
     "pdf_ingest_runner": ("power_atlas.pdf_ingest_runner", None),
     "resolve_dataset_root": ("power_atlas.contracts", "resolve_dataset_root"),
+    "resolve_repo_paths": ("power_atlas.contracts", "resolve_repo_paths"),
     "resolve_early_return_rule": ("power_atlas.contracts", "resolve_early_return_rule"),
     "get_default_retrieval_policy": ("power_atlas.contracts", "get_default_retrieval_policy"),
     "get_default_structured_graph_shape_contract": (

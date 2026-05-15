@@ -182,6 +182,7 @@ def test_package_modules_import() -> None:
     assert package.ALIGNMENT_VERSION is contracts_module.ALIGNMENT_VERSION
     assert package.AmbiguousDatasetError is contracts_module.AmbiguousDatasetError
     assert package.ARTIFACTS_DIR == contracts_module.ARTIFACTS_DIR
+    assert package.BASE_DIR == contracts_module.BASE_DIR
     assert package.api is api_module
     assert package.build_batch_manifest is contracts_module.build_batch_manifest
     assert package.build_stage_manifest is contracts_module.build_stage_manifest
@@ -230,6 +231,7 @@ def test_package_modules_import() -> None:
     assert package.CSV_FIRST_DATA_ROW is contracts_module.CSV_FIRST_DATA_ROW
     assert package.DATASETS_CONTAINER_DIR == contracts_module.DATASETS_CONTAINER_DIR
     assert package.DatasetRoot is contracts_module.DatasetRoot
+    assert package.RepoPaths is contracts_module.RepoPaths
     assert package.FieldSurfacePolicy is contracts_module.FieldSurfacePolicy
     assert package.FIXTURES_DIR == contracts_module.FIXTURES_DIR
     assert package.ID_PATTERNS is contracts_module.ID_PATTERNS
@@ -267,6 +269,7 @@ def test_package_modules_import() -> None:
     assert package.list_available_datasets is contracts_module.list_available_datasets
     assert package.make_run_id is contracts_module.make_run_id
     assert package.resolve_dataset_root is contracts_module.resolve_dataset_root
+    assert package.resolve_repo_paths is contracts_module.resolve_repo_paths
     assert package.resolve_early_return_rule is contracts_module.resolve_early_return_rule
     assert package.get_default_retrieval_policy is contracts_module.get_default_retrieval_policy
     assert (

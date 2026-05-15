@@ -8,6 +8,66 @@ from typing import Mapping
 
 from power_atlas.settings import AppSettings
 
+_logger = logging.getLogger(__name__)
+
+_DEFAULT_PDF_FILENAME = "chain_of_custody.pdf"
+
+
+@dataclass(frozen=True)
+class RepoPaths:
+    """Explicit descriptor for the repo-scoped default paths used by the app.
+
+    This keeps the current Power Atlas defaults legible as one package-owned
+    unit while still allowing callers and tests to provide an alternate path
+    layout explicitly.
+    """
+
+    base_dir: Path
+    fixtures_dir: Path
+    artifacts_dir: Path
+    config_dir: Path
+    pdf_pipeline_config_path: Path
+    datasets_container_dir: Path
+
+
+def resolve_repo_paths(
+    *,
+    base_dir: Path | None = None,
+    fixtures_dir: Path | None = None,
+    artifacts_dir: Path | None = None,
+    config_dir: Path | None = None,
+    pdf_pipeline_config_path: Path | None = None,
+    datasets_container_dir: Path | None = None,
+) -> RepoPaths:
+    """Return the effective repo path defaults as an explicit descriptor."""
+    resolved_base_dir = Path(BASE_DIR if base_dir is None else base_dir)
+    resolved_fixtures_dir = Path(
+        FIXTURES_DIR if fixtures_dir is None else fixtures_dir
+    )
+    resolved_artifacts_dir = Path(
+        ARTIFACTS_DIR if artifacts_dir is None else artifacts_dir
+    )
+    resolved_config_dir = Path(CONFIG_DIR if config_dir is None else config_dir)
+    resolved_pdf_pipeline_config_path = Path(
+        PDF_PIPELINE_CONFIG_PATH
+        if pdf_pipeline_config_path is None
+        else pdf_pipeline_config_path
+    )
+    resolved_datasets_container_dir = Path(
+        DATASETS_CONTAINER_DIR
+        if datasets_container_dir is None
+        else datasets_container_dir
+    )
+    return RepoPaths(
+        base_dir=resolved_base_dir,
+        fixtures_dir=resolved_fixtures_dir,
+        artifacts_dir=resolved_artifacts_dir,
+        config_dir=resolved_config_dir,
+        pdf_pipeline_config_path=resolved_pdf_pipeline_config_path,
+        datasets_container_dir=resolved_datasets_container_dir,
+    )
+
+
 # Centralized filesystem locations for the demo.
 BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent / "demo"
 FIXTURES_DIR = BASE_DIR / "fixtures"
@@ -17,10 +77,6 @@ PDF_PIPELINE_CONFIG_PATH = CONFIG_DIR / "pdf_simple_kg_pipeline.yaml"
 
 # Container directory that holds all named dataset roots.
 DATASETS_CONTAINER_DIR = FIXTURES_DIR / "datasets"
-
-_logger = logging.getLogger(__name__)
-
-_DEFAULT_PDF_FILENAME = "chain_of_custody.pdf"
 
 
 class AmbiguousDatasetError(ValueError):
@@ -106,6 +162,7 @@ def resolve_dataset_root(
     name: str | None = None,
     *,
     environ: Mapping[str, str] | None = None,
+    repo_paths: RepoPaths | None = None,
 ) -> DatasetRoot:
     """Return the active :class:`DatasetRoot`.
 
@@ -126,6 +183,7 @@ def resolve_dataset_root(
       subdirectories (empty container signals misconfiguration rather than a
       clean legacy layout).
     """
+    effective_repo_paths = resolve_repo_paths() if repo_paths is None else repo_paths
     effective_name: str | None = name or AppSettings.from_env(environ).dataset_name
 
     if effective_name:
@@ -137,45 +195,46 @@ def resolve_dataset_root(
             raise ValueError(
                 f"Dataset name must be a simple directory name without path separators, got {effective_name!r}"
             )
-        candidate = DATASETS_CONTAINER_DIR / effective_name
+        candidate = effective_repo_paths.datasets_container_dir / effective_name
         if candidate.is_dir():
             return _load_dataset_root_from_dir(candidate)
-        available = list_available_datasets()
+        available = list_available_datasets(repo_paths=effective_repo_paths)
         raise ValueError(
-            f"Dataset {effective_name!r} not found under {DATASETS_CONTAINER_DIR}. "
+            f"Dataset {effective_name!r} not found under {effective_repo_paths.datasets_container_dir}. "
             f"Available: {available}"
         )
 
-    if DATASETS_CONTAINER_DIR.is_dir():
+    if effective_repo_paths.datasets_container_dir.is_dir():
         subdirs = [
             d
-            for d in DATASETS_CONTAINER_DIR.iterdir()
+            for d in effective_repo_paths.datasets_container_dir.iterdir()
             if d.is_dir() and not d.name.startswith(".")
         ]
         if len(subdirs) == 1:
             return _load_dataset_root_from_dir(subdirs[0])
         if len(subdirs) > 1:
             raise AmbiguousDatasetError(
-                f"Multiple datasets found under {DATASETS_CONTAINER_DIR}: "
+                f"Multiple datasets found under {effective_repo_paths.datasets_container_dir}: "
                 f"{sorted(d.name for d in subdirs)}. "
                 f"Select one with --dataset <name> or set FIXTURE_DATASET=<name>."
             )
         raise ValueError(
-            f"No dataset directories found under {DATASETS_CONTAINER_DIR}. "
+            f"No dataset directories found under {effective_repo_paths.datasets_container_dir}. "
             f"Create a dataset subdirectory (e.g. demo_dataset_v1/) or remove "
-            f"{DATASETS_CONTAINER_DIR} entirely to use the legacy fixture layout."
+            f"{effective_repo_paths.datasets_container_dir} entirely to use the legacy fixture layout."
         )
 
-    return _load_dataset_root_from_dir(FIXTURES_DIR)
+    return _load_dataset_root_from_dir(effective_repo_paths.fixtures_dir)
 
 
-def list_available_datasets() -> list[str]:
+def list_available_datasets(*, repo_paths: RepoPaths | None = None) -> list[str]:
     """Return the names of all dataset directories under :data:`DATASETS_CONTAINER_DIR`."""
-    if not DATASETS_CONTAINER_DIR.is_dir():
+    effective_repo_paths = resolve_repo_paths() if repo_paths is None else repo_paths
+    if not effective_repo_paths.datasets_container_dir.is_dir():
         return []
     return sorted(
         d.name
-        for d in DATASETS_CONTAINER_DIR.iterdir()
+        for d in effective_repo_paths.datasets_container_dir.iterdir()
         if d.is_dir() and not d.name.startswith(".")
     )
 
@@ -183,11 +242,14 @@ def list_available_datasets() -> list[str]:
 __all__ = [
     "AmbiguousDatasetError",
     "ARTIFACTS_DIR",
+    "BASE_DIR",
     "CONFIG_DIR",
     "DATASETS_CONTAINER_DIR",
     "DatasetRoot",
     "FIXTURES_DIR",
     "PDF_PIPELINE_CONFIG_PATH",
+    "RepoPaths",
     "list_available_datasets",
+    "resolve_repo_paths",
     "resolve_dataset_root",
 ]
