@@ -380,18 +380,6 @@ def test_package_modules_import() -> None:
     assert api_module.BackendAppOptions.__name__ == "BackendAppOptions"
     assert api_module.BackendGraphQueryService.__name__ == "BackendGraphQueryService"
     assert api_module.BackendRuntime.__name__ == "BackendRuntime"
-    assert api_module.CurrentRunDetailResponse.__name__ == "CurrentRunDetailResponse"
-    assert api_module.CurrentRunsResponse.__name__ == "CurrentRunsResponse"
-    assert api_module.DatasetResponse.__name__ == "DatasetResponse"
-    assert api_module.DatasetsResponse.__name__ == "DatasetsResponse"
-    assert api_module.RunDetailResponse.__name__ == "RunDetailResponse"
-    assert api_module.RunResponse.__name__ == "RunResponse"
-    assert api_module.RunStageResponse.__name__ == "RunStageResponse"
-    assert api_module.RunsResponse.__name__ == "RunsResponse"
-    assert api_module.GraphHealthSummaryRequestBody.__name__ == "GraphHealthSummaryRequestBody"
-    assert api_module.GraphHealthSummaryResponse.__name__ == "GraphHealthSummaryResponse"
-    assert api_module.RunScopedGraphCountsRequestBody.__name__ == "RunScopedGraphCountsRequestBody"
-    assert api_module.RunScopedGraphCountsResponse.__name__ == "RunScopedGraphCountsResponse"
     assert callable(backend_app_module.build_backend_runtime)
     assert callable(backend_app_module.create_backend_app)
     assert callable(backend_graph_module.build_backend_graph_query_service)
@@ -537,42 +525,13 @@ def test_api_module_exports_match_backend_facade_policy() -> None:
         "backend_router",
         "lifespan",
     }
-    typed_backend_response_exports = {
-        "ClaimExtractionDiagnosticsMatchSummaryResponse",
-        "ClaimExtractionDiagnosticsParticipationSummaryResponse",
-        "ClaimExtractionDiagnosticsResponse",
-        "CurrentClaimExtractionDiagnosticsResponse",
-        "CurrentRunDetailResponse",
-        "CurrentRunsResponse",
-        "DatasetResponse",
-        "DatasetsResponse",
-        "HealthResponse",
-        "RootResponse",
-        "RunDetailResponse",
-        "RunResponse",
-        "RunStageResponse",
-        "RunsResponse",
-    }
-    documented_backend_constant_exports = {
-        "DEFAULT_API_DESCRIPTION",
-        "DEFAULT_API_TITLE",
-        "DEFAULT_API_VERSION",
-        "DEFAULT_CORS_ALLOW_ORIGINS",
-    }
-    typed_graph_contract_exports = {
-        "GraphHealthAlignmentSummaryResponse",
-        "GraphHealthMentionSummaryResponse",
-        "GraphHealthParticipationSummaryResponse",
-        "GraphHealthSummaryRequestBody",
-        "GraphHealthSummaryResponse",
-        "GraphStatusResponse",
-        "GraphSummaryCountsResponse",
-        "GraphSummaryResponse",
-        "RunScopedGraphCountsRequestBody",
-        "RunScopedGraphCountsResponseBody",
-        "RunScopedGraphCountsResponse",
-    }
     intentionally_internal_backend_names = {
+        "ClaimExtractionDiagnosticsResponse",
+        "CurrentRunDetailResponse",
+        "DEFAULT_API_VERSION",
+        "GraphHealthSummaryRequestBody",
+        "GraphStatusResponse",
+        "RunScopedGraphCountsResponse",
         "build_backend_graph_router",
         "resolve_graph_health_summary",
         "resolve_graph_status",
@@ -581,16 +540,13 @@ def test_api_module_exports_match_backend_facade_policy() -> None:
     }
 
     exported_names = set(api_module.__all__)
-    supported_exports = (
-        documented_builder_exports
-        | typed_backend_response_exports
-        | documented_backend_constant_exports
-        | typed_graph_contract_exports
-    )
+    supported_exports = documented_builder_exports
 
     assert exported_names == supported_exports
     assert intentionally_internal_backend_names.isdisjoint(exported_names)
     assert supported_exports.issubset(set(dir(api_module)))
+    assert not hasattr(api_module, "GraphStatusResponse")
+    assert not hasattr(api_module, "DEFAULT_API_VERSION")
     assert not hasattr(api_module, "build_backend_graph_router")
     assert not hasattr(api_module, "resolve_graph_status")
 

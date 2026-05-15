@@ -372,8 +372,8 @@ specifically depends on repo-relative paths.
 
 The backend API surface now has a first-class owning facade at
 `power_atlas.api`. That module now owns the backend app contract, including
-typed response models plus app-construction helpers such as
-`BackendAppOptions`, `BackendGraphQueryService`, `BackendRuntime`,
+app-construction and composition helpers such as `BackendAppOptions`,
+`BackendGraphQueryService`, `BackendRuntime`,
 `build_backend_graph_query_service(...)`, `build_backend_runtime(...)`,
 `build_backend_router(...)`, and `create_backend_app(...)`. Advanced hosts can
 also use the lower-level runtime hooks `get_backend_runtime(...)`,
@@ -390,11 +390,12 @@ remain off the root package itself, so callers use
 
 Support policy for that backend facade is now explicit: supported backend
 imports are the names exported by `power_atlas.api` itself, including the app
-builders, advanced composition hooks, typed backend responses, shared backend
-constants, and typed graph request/response models listed on that facade.
+builders, advanced composition hooks, and the shared graph-query-service seam
+listed on that facade.
 Deeper implementation helpers that live in `power_atlas.backend_app` or
-`power_atlas.backend_graph` but are not re-exported from `power_atlas.api`
-remain internal and should not be treated as a stable consumer contract.
+`power_atlas.backend_graph` plus backend schema models and default constants
+that are not re-exported from `power_atlas.api` remain internal and should not
+be treated as a stable consumer contract.
 
 The current backend surface exposed through that facade includes two package
 discovery endpoints (`/datasets` and `/runs`), one convenience current-runs
