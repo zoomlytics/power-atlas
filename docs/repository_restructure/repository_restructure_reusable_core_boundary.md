@@ -214,3 +214,59 @@ The repo should be considered ready for a shared-kernel extraction only after:
 - at least one non-`demo` consumer proof continues to work through that model,
 - the follow-on starter/diagnostics path suggests real user leverage rather
   than abstract cleanliness alone.
+
+## 2026-05-15 decision checkpoint
+
+This checkpoint now has enough evidence to answer the namespace-split question.
+
+The answer is: **do not start a broader shared-core namespace split yet**.
+
+The reason is not lack of operational evidence. The repo now has the required
+starter/adoption proof plus a reusable operational feature with broad leverage:
+
+- `examples/domain_pack_starter.py` proves a fresh package-only domain pack can
+  be defined without `demo.*`,
+- the market/trade retrieval and entity-resolution examples continue to prove a
+  second-domain consumer path,
+- `examples/graph_health_diagnostics_consumer.py` and
+  `examples/graph_health_diagnostics_standalone_consumer.py` now prove both the
+  RequestContext-owned and standalone config-owned graph-health diagnostics
+  paths through package surfaces only,
+- installed-package tests now cover those example paths outside the repo root.
+
+That means the “one reusable operational feature” requirement is satisfied.
+Another operational proof is not the highest-value next step.
+
+The remaining blocker is that several reusable-core candidates still encode
+Power Atlas defaults too directly:
+
+- `power_atlas.contracts.paths` still anchors dataset/config roots under the
+  in-repo `demo/` tree,
+- `power_atlas.settings` and orchestration helpers still privilege
+  `POWER_ATLAS_*` / `FIXTURE_DATASET` environment naming as the ambient package
+  configuration model,
+- `power_atlas.contracts.pipeline` still loads its default contract from the
+  Power Atlas PDF pipeline config path and falls back to Power Atlas-shaped
+  embedding/index defaults,
+- `build_app_context(...)` and related bootstrap helpers still auto-load those
+  defaults as the package baseline rather than requiring an explicit host-app
+  runtime descriptor.
+
+Those defaults are acceptable while `power_atlas` remains the application
+package. They are not yet strong evidence that a second shared namespace would
+reduce coupling rather than merely relocate Power Atlas assumptions.
+
+## Consequence for the next slice
+
+The next extraction step should target **default-coupling removal**, not a new
+namespace and not another operational feature.
+
+The strongest next candidate is a small package-owned runtime/defaults seam
+covering one or more of:
+
+- dataset root and fixture/container path resolution,
+- ambient environment variable naming for dataset/output selection,
+- pipeline contract source/default loading.
+
+Only after one of those default-bearing surfaces is externalized should the
+repo re-evaluate whether a broader shared-core namespace split is justified.
