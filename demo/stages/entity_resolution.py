@@ -224,6 +224,10 @@ import neo4j
 from power_atlas.context import RequestContext
 from power_atlas.contracts import (
     EntityTypeNormalizationPolicy,
+    EntityResolutionAlignmentContract,
+    EntityResolutionCanonicalLookupContract,
+    EntityResolutionDatasetSelectionContract,
+    EntityResolutionGraphContract,
     POWER_ATLAS_ENTITY_TYPE_NORMALIZATION_POLICY,
     build_entity_type_cypher_case as build_entity_type_cypher_case_from_policy,
     normalize_entity_type as normalize_entity_type_from_policy,
@@ -459,6 +463,10 @@ def _run_entity_resolution_impl(
     neo4j_settings: Neo4jSettings | None = None,
     dataset_name: str | None = None,
     entity_type_policy: EntityTypeNormalizationPolicy | None = None,
+    entity_resolution_dataset_selection: EntityResolutionDatasetSelectionContract | None = None,
+    entity_resolution_alignment: EntityResolutionAlignmentContract | None = None,
+    entity_resolution_canonical_lookup: EntityResolutionCanonicalLookupContract | None = None,
+    entity_resolution_graph: EntityResolutionGraphContract | None = None,
 ) -> dict[str, Any]:
     return _run_entity_resolution_impl_entrypoint(
         config,
@@ -470,6 +478,10 @@ def _run_entity_resolution_impl(
         neo4j_settings=neo4j_settings,
         dataset_name=dataset_name,
         entity_type_policy=entity_type_policy,
+        entity_resolution_dataset_selection=entity_resolution_dataset_selection,
+        entity_resolution_alignment=entity_resolution_alignment,
+        entity_resolution_canonical_lookup=entity_resolution_canonical_lookup,
+        entity_resolution_graph=entity_resolution_graph,
         runtime_runner=_run_entity_resolution_runtime,
         default_resolution_mode=_RESOLUTION_MODE_STRUCTURED_ANCHOR,
         valid_resolution_modes=_VALID_RESOLUTION_MODES,
@@ -486,6 +498,9 @@ def _run_entity_resolution_runtime(
     effective_dataset_id: str,
     neo4j_settings: Neo4jSettings,
     entity_type_policy: EntityTypeNormalizationPolicy | None = None,
+    entity_resolution_alignment: EntityResolutionAlignmentContract | None = None,
+    entity_resolution_canonical_lookup: EntityResolutionCanonicalLookupContract | None = None,
+    entity_resolution_graph: EntityResolutionGraphContract | None = None,
 ) -> dict[str, Any]:
     return _run_entity_resolution_runtime_impl(
         config=config,
@@ -496,6 +511,9 @@ def _run_entity_resolution_runtime(
         effective_dataset_id=effective_dataset_id,
         neo4j_settings=neo4j_settings,
         entity_type_policy=entity_type_policy,
+        entity_resolution_alignment=entity_resolution_alignment,
+        entity_resolution_canonical_lookup=entity_resolution_canonical_lookup,
+        entity_resolution_graph=entity_resolution_graph,
         resolver_version=_RESOLVER_VERSION,
         cluster_version=_CLUSTER_VERSION,
         alignment_version=_ALIGNMENT_VERSION,
@@ -538,6 +556,10 @@ def run_entity_resolution_request_context(
     resolution_mode: str | None = None,
     artifact_subdir: str = "entity_resolution",
     dataset_id: str | None = None,
+    entity_resolution_dataset_selection: EntityResolutionDatasetSelectionContract | None = None,
+    entity_resolution_alignment: EntityResolutionAlignmentContract | None = None,
+    entity_resolution_canonical_lookup: EntityResolutionCanonicalLookupContract | None = None,
+    entity_resolution_graph: EntityResolutionGraphContract | None = None,
 ) -> dict[str, Any]:
     """Run entity resolution using request-scoped context as the primary input."""
     return _run_entity_resolution_request_context_impl(
@@ -545,6 +567,10 @@ def run_entity_resolution_request_context(
         resolution_mode=resolution_mode,
         artifact_subdir=artifact_subdir,
         dataset_id=dataset_id,
+        entity_resolution_dataset_selection=entity_resolution_dataset_selection,
+        entity_resolution_alignment=entity_resolution_alignment,
+        entity_resolution_canonical_lookup=entity_resolution_canonical_lookup,
+        entity_resolution_graph=entity_resolution_graph,
         config_runner=_run_entity_resolution_impl,
     )
 

@@ -589,6 +589,8 @@ def run_structured_ingest_runtime_default(
     fixtures_dir: Path | None = None,
     dataset_id: str | None = None,
     neo4j_settings: Neo4jSettings,
+    structured_graph_shape: StructuredGraphShapeContract | None = None,
+    structured_schema: StructuredSchemaContract | None = None,
 ) -> dict[str, Any]:
     return run_structured_ingest_runtime(
         config=config,
@@ -596,6 +598,8 @@ def run_structured_ingest_runtime_default(
         fixtures_dir=fixtures_dir,
         dataset_id=dataset_id,
         neo4j_settings=neo4j_settings,
+        structured_graph_shape=structured_graph_shape,
+        structured_schema=structured_schema,
     )
 
 
