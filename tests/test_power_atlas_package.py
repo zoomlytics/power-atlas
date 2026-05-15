@@ -347,11 +347,13 @@ def test_package_modules_import() -> None:
         ),
     )
     assert package.AppSettings is settings_module.AppSettings
+    assert package.AppSettingsEnvNames is settings_module.AppSettingsEnvNames
     assert package.build_settings is bootstrap_module.build_settings
     assert package.build_app_context is bootstrap_module.build_app_context
     assert package.build_request_context is bootstrap_module.build_request_context
     assert package.build_default_app_policies is context_module.build_default_app_policies
     assert package.build_openai_llm is llm_utils_module.build_openai_llm
+    assert package.DEFAULT_APP_SETTINGS_ENV_NAMES is settings_module.DEFAULT_APP_SETTINGS_ENV_NAMES
     assert package.normalize_mention_text is text_utils_module.normalize_mention_text
     assert package.claim_extraction_diagnostics is claim_extraction_diagnostics_module
     assert package.claim_extraction_entrypoint is claim_extraction_entrypoint_module
@@ -610,6 +612,43 @@ def test_build_settings_from_env_mapping() -> None:
     assert app.settings.embedder_model == "text-embedding-3-large"
     assert app.settings.output_dir == Path("build/power-atlas")
     assert app.settings.dataset_name == "demo_dataset_v1"
+
+
+def test_build_settings_supports_explicit_env_names() -> None:
+    from power_atlas.bootstrap import AppSettingsEnvNames, bootstrap_app
+
+    app = bootstrap_app(
+        {
+            "APP_NEO4J_URI": "bolt://custom.test:7687",
+            "APP_NEO4J_USERNAME": "custom-user",
+            "APP_NEO4J_PASSWORD": "custom-secret",
+            "APP_NEO4J_DATABASE": "custom-db",
+            "APP_OPENAI_MODEL": "gpt-5.4",
+            "APP_EMBEDDER_MODEL": "text-embedding-3-large",
+            "APP_OUTPUT_DIR": "build/custom-app",
+            "APP_DATASET": "research_dataset_v1",
+        },
+        env_names=AppSettingsEnvNames(
+            neo4j_uri="APP_NEO4J_URI",
+            neo4j_username="APP_NEO4J_USERNAME",
+            neo4j_password="APP_NEO4J_PASSWORD",
+            neo4j_database="APP_NEO4J_DATABASE",
+            openai_model="APP_OPENAI_MODEL",
+            embedder_model_primary="APP_EMBEDDER_MODEL",
+            output_dir="APP_OUTPUT_DIR",
+            dataset_name_primary="APP_DATASET",
+            dataset_name_fallback="LEGACY_APP_DATASET",
+        ),
+    )
+
+    assert app.settings.neo4j.uri == "bolt://custom.test:7687"
+    assert app.settings.neo4j.username == "custom-user"
+    assert app.settings.neo4j.password == "custom-secret"
+    assert app.settings.neo4j.database == "custom-db"
+    assert app.settings.openai_model == "gpt-5.4"
+    assert app.settings.embedder_model == "text-embedding-3-large"
+    assert app.settings.output_dir == Path("build/custom-app")
+    assert app.settings.dataset_name == "research_dataset_v1"
 
 
 def test_public_api_facade_supports_filtered_run_queries(
@@ -2527,6 +2566,27 @@ def test_dataset_env_selection_uses_fixture_dataset_when_power_atlas_missing() -
     selection = dataset_env_selection({"FIXTURE_DATASET": "demo_dataset_v1"})
 
     assert selection == (None, "demo_dataset_v1", "demo_dataset_v1")
+
+
+def test_dataset_env_selection_supports_explicit_env_names() -> None:
+    from power_atlas.bootstrap import AppSettingsEnvNames, dataset_env_selection
+
+    selection = dataset_env_selection(
+        {
+            "PRIMARY_DATASET": "research_dataset_v2",
+            "SECONDARY_DATASET": "research_dataset_v1",
+        },
+        env_names=AppSettingsEnvNames(
+            dataset_name_primary="PRIMARY_DATASET",
+            dataset_name_fallback="SECONDARY_DATASET",
+        ),
+    )
+
+    assert selection == (
+        "research_dataset_v2",
+        "research_dataset_v1",
+        "research_dataset_v2",
+    )
 
 
 def test_require_openai_api_key_uses_mapping() -> None:

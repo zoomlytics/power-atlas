@@ -9,7 +9,7 @@ import os
 from power_atlas.context import AppContext, AppPolicies, RequestContext, build_default_app_policies
 from power_atlas.contracts.pipeline import get_pipeline_contract_config_data, get_pipeline_contract_snapshot
 from power_atlas.contracts.runtime import Config
-from power_atlas.settings import AppSettings
+from power_atlas.settings import AppSettings, AppSettingsEnvNames
 
 
 @dataclass(frozen=True)
@@ -18,8 +18,12 @@ class AppBootstrap:
     app_context: AppContext
 
 
-def build_settings(environ: Mapping[str, str] | None = None) -> AppSettings:
-    return AppSettings.from_env(environ=environ)
+def build_settings(
+    environ: Mapping[str, str] | None = None,
+    *,
+    env_names: AppSettingsEnvNames | None = None,
+) -> AppSettings:
+    return AppSettings.from_env(environ=environ, env_names=env_names)
 
 
 def build_app_context(
@@ -27,8 +31,13 @@ def build_app_context(
     settings: AppSettings | None = None,
     policies: AppPolicies | None = None,
     environ: Mapping[str, str] | None = None,
+    env_names: AppSettingsEnvNames | None = None,
 ) -> AppContext:
-    resolved_settings = build_settings(environ=environ) if settings is None else settings
+    resolved_settings = (
+        build_settings(environ=environ, env_names=env_names)
+        if settings is None
+        else settings
+    )
     return AppContext(
         settings=resolved_settings,
         pipeline_contract=get_pipeline_contract_snapshot(),
@@ -39,11 +48,14 @@ def build_app_context(
 
 def dataset_env_selection(
     environ: Mapping[str, str] | None = None,
+    *,
+    env_names: AppSettingsEnvNames | None = None,
 ) -> tuple[str | None, str | None, str | None]:
-    settings = build_settings(environ=environ)
+    resolved_env_names = AppSettingsEnvNames() if env_names is None else env_names
+    settings = build_settings(environ=environ, env_names=resolved_env_names)
     env = os.environ if environ is None else environ
-    power_atlas_dataset = env.get("POWER_ATLAS_DATASET") or None
-    fixture_dataset = env.get("FIXTURE_DATASET") or None
+    power_atlas_dataset = env.get(resolved_env_names.dataset_name_primary) or None
+    fixture_dataset = env.get(resolved_env_names.dataset_name_fallback) or None
     return power_atlas_dataset, fixture_dataset, settings.dataset_name
 
 
@@ -138,8 +150,12 @@ def build_request_context(
     )
 
 
-def bootstrap_app(environ: Mapping[str, str] | None = None) -> AppBootstrap:
-    settings = build_settings(environ=environ)
+def bootstrap_app(
+    environ: Mapping[str, str] | None = None,
+    *,
+    env_names: AppSettingsEnvNames | None = None,
+) -> AppBootstrap:
+    settings = build_settings(environ=environ, env_names=env_names)
     return AppBootstrap(settings=settings, app_context=build_app_context(settings=settings))
 
 
