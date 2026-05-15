@@ -651,6 +651,26 @@ def test_build_settings_supports_explicit_env_names() -> None:
     assert app.settings.dataset_name == "research_dataset_v1"
 
 
+def test_build_settings_from_overrides_ignores_ambient_dataset_defaults() -> None:
+    from power_atlas.orchestration.context_builder import build_settings_from_overrides
+
+    settings = build_settings_from_overrides(
+        neo4j_uri="bolt://override.test:7687",
+        neo4j_username="override-user",
+        neo4j_password="override-secret",
+        neo4j_database="override-db",
+        output_dir=Path("build/override-output"),
+        dataset_name="",
+    )
+
+    assert settings.neo4j.uri == "bolt://override.test:7687"
+    assert settings.neo4j.username == "override-user"
+    assert settings.neo4j.password == "override-secret"
+    assert settings.neo4j.database == "override-db"
+    assert settings.output_dir == Path("build/override-output")
+    assert settings.dataset_name is None
+
+
 def test_public_api_facade_supports_filtered_run_queries(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1632,6 +1652,36 @@ def test_claim_extraction_diagnostics_report_package_cli_main_delegates_to_entry
         warn=mock.ANY,
         argv=argv,
     )
+
+
+def test_claim_extraction_diagnostics_report_settings_override_only_cli_fields(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from argparse import Namespace
+
+    from power_atlas.interfaces.cli.claim_extraction_diagnostics_report_support import (
+        build_claim_extraction_diagnostics_report_settings,
+    )
+
+    monkeypatch.setenv("NEO4J_URI", "bolt://ambient.test:7687")
+    monkeypatch.setenv("NEO4J_USERNAME", "ambient-user")
+    monkeypatch.setenv("NEO4J_PASSWORD", "ambient-secret")
+    monkeypatch.setenv("NEO4J_DATABASE", "ambient-db")
+    monkeypatch.setenv("OPENAI_MODEL", "gpt-5.4")
+    monkeypatch.setenv("POWER_ATLAS_DATASET", "ambient_dataset_v1")
+    monkeypatch.setenv("POWER_ATLAS_OUTPUT_DIR", "build/ambient-output")
+
+    settings = build_claim_extraction_diagnostics_report_settings(
+        Namespace(output_dir=Path("build/report-output"), dataset_id=None)
+    )
+
+    assert settings.neo4j.uri == "bolt://ambient.test:7687"
+    assert settings.neo4j.username == "ambient-user"
+    assert settings.neo4j.password == "ambient-secret"
+    assert settings.neo4j.database == "ambient-db"
+    assert settings.openai_model == "gpt-5.4"
+    assert settings.output_dir == Path("build/report-output")
+    assert settings.dataset_name == "ambient_dataset_v1"
 
 
 def test_entity_resolution_entrypoint_uses_package_default_runtime_runner() -> None:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import replace
 import os
 from pathlib import Path
 from typing import Any
@@ -10,9 +11,10 @@ from power_atlas.orchestration.context_builder import build_settings_from_overri
 
 
 def default_narrative_cli_settings():
-    environ = dict(os.environ)
-    environ.setdefault("OPENAI_MODEL", "gpt-4o-mini")
-    return build_settings(environ)
+    settings = build_settings()
+    if "OPENAI_MODEL" in os.environ:
+        return settings
+    return replace(settings, openai_model="gpt-4o-mini")
 
 
 def build_narrative_cli_config(

@@ -6,9 +6,9 @@ from pathlib import Path
 from power_atlas.bootstrap import build_app_context
 from power_atlas.bootstrap import build_request_context
 from power_atlas.bootstrap import build_runtime_config
-from power_atlas.bootstrap import build_settings
 from power_atlas.context import RequestContext
 from power_atlas.contracts.runtime import Config
+from power_atlas.settings import AppSettings, Neo4jSettings
 
 
 def build_settings_from_overrides(
@@ -21,19 +21,17 @@ def build_settings_from_overrides(
     output_dir: Path | None = None,
     dataset_name: str | None = None,
 ):
-    environ = {
-        "NEO4J_URI": neo4j_uri,
-        "NEO4J_USERNAME": neo4j_username,
-        "NEO4J_PASSWORD": neo4j_password,
-        "NEO4J_DATABASE": neo4j_database,
-    }
-    if openai_model is not None:
-        environ["OPENAI_MODEL"] = openai_model
-    if output_dir is not None:
-        environ["POWER_ATLAS_OUTPUT_DIR"] = str(output_dir)
-    if dataset_name is not None:
-        environ["POWER_ATLAS_DATASET"] = dataset_name
-    return build_settings(environ)
+    return AppSettings(
+        neo4j=Neo4jSettings(
+            uri=neo4j_uri,
+            username=neo4j_username,
+            password=neo4j_password,
+            database=neo4j_database,
+        ),
+        openai_model=(AppSettings.openai_model if openai_model is None else openai_model),
+        output_dir=AppSettings.output_dir if output_dir is None else output_dir,
+        dataset_name=dataset_name or None,
+    )
 
 
 def build_request_context_from_config(

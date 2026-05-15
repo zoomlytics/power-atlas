@@ -1,18 +1,19 @@
 from __future__ import annotations
 
 import argparse
-import os
+from dataclasses import replace
 from pathlib import Path
 
 from power_atlas.bootstrap import build_settings
 
 
 def build_claim_extraction_diagnostics_report_settings(args: argparse.Namespace):
-    environ = dict(os.environ)
-    environ["POWER_ATLAS_OUTPUT_DIR"] = str(args.output_dir)
-    if args.dataset_id is not None:
-        environ["POWER_ATLAS_DATASET"] = args.dataset_id
-    return build_settings(environ=environ)
+    settings = build_settings()
+    return replace(
+        settings,
+        output_dir=Path(args.output_dir),
+        dataset_name=settings.dataset_name if args.dataset_id is None else args.dataset_id,
+    )
 
 
 def parse_claim_extraction_diagnostics_report_args(
