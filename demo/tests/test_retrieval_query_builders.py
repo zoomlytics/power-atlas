@@ -143,14 +143,14 @@ class TestBuildCanonicalNamesExpr:
     def test_run_scoped_exact_fragment(self) -> None:
         result = _build_canonical_names_expr(run_scoped=True)
         assert result == (
-            "[(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:RESOLVES_TO]->(canonical)"
+            "[(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:RESOLVES_TO]->(canonical:CanonicalEntity)"
             " WHERE mention.run_id = $run_id | canonical.name] AS canonical_entities"
         )
 
     def test_all_runs_exact_fragment(self) -> None:
         result = _build_canonical_names_expr(run_scoped=False)
         assert result == (
-            "[(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:RESOLVES_TO]->(canonical)"
+            "[(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:RESOLVES_TO]->(canonical:CanonicalEntity)"
             " | canonical.name] AS canonical_entities"
         )
 
@@ -248,7 +248,7 @@ class TestBuildClusterCanonicalAlignmentsExpr:
         result = _build_cluster_canonical_alignments_expr(run_scoped=True)
         assert result == (
             "[(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:MEMBER_OF]"
-            "->(cluster:ResolvedEntityCluster)-[a:ALIGNED_WITH]->(aligned_canonical)"
+            "->(cluster:ResolvedEntityCluster)-[a:ALIGNED_WITH]->(aligned_canonical:CanonicalEntity)"
             " WHERE mention.run_id = $run_id AND a.run_id = $run_id"
             " AND a.alignment_version = $alignment_version"
             " | {canonical_name: aligned_canonical.name, alignment_method: a.alignment_method,"
@@ -259,7 +259,7 @@ class TestBuildClusterCanonicalAlignmentsExpr:
         result = _build_cluster_canonical_alignments_expr(run_scoped=False)
         assert result == (
             "[(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:MEMBER_OF]"
-            "->(cluster:ResolvedEntityCluster)-[a:ALIGNED_WITH]->(aligned_canonical)"
+            "->(cluster:ResolvedEntityCluster)-[a:ALIGNED_WITH]->(aligned_canonical:CanonicalEntity)"
             " WHERE a.run_id = mention.run_id AND a.alignment_version = $alignment_version"
             " | {canonical_name: aligned_canonical.name, alignment_method: a.alignment_method,"
             " alignment_status: a.alignment_status}] AS cluster_canonical_alignments"
@@ -325,7 +325,7 @@ _SNAPSHOT_WITH_EXPANSION = (
     "       score AS similarityScore,\n"
     "       [cd IN claim_details | cd.claim_text] AS claims,\n"
     "       [(c)<-[:MENTIONED_IN]-(mention:EntityMention) WHERE mention.run_id = $run_id | mention.name] AS mentions,\n"
-    "       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:RESOLVES_TO]->(canonical) WHERE mention.run_id = $run_id | canonical.name] AS canonical_entities,\n"
+    "       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:RESOLVES_TO]->(canonical:CanonicalEntity) WHERE mention.run_id = $run_id | canonical.name] AS canonical_entities,\n"
     "       claim_details\n"
 )
 
@@ -350,7 +350,7 @@ _SNAPSHOT_WITH_EXPANSION_ALL_RUNS = (
     "       score AS similarityScore,\n"
     "       [cd IN claim_details | cd.claim_text] AS claims,\n"
     "       [(c)<-[:MENTIONED_IN]-(mention:EntityMention) | mention.name] AS mentions,\n"
-    "       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:RESOLVES_TO]->(canonical) | canonical.name] AS canonical_entities,\n"
+    "       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:RESOLVES_TO]->(canonical:CanonicalEntity) | canonical.name] AS canonical_entities,\n"
     "       claim_details\n"
 )
 
@@ -376,10 +376,10 @@ _SNAPSHOT_WITH_CLUSTER = (
     "       score AS similarityScore,\n"
     "       [cd IN claim_details | cd.claim_text] AS claims,\n"
     "       [(c)<-[:MENTIONED_IN]-(mention:EntityMention) WHERE mention.run_id = $run_id | mention.name] AS mentions,\n"
-    "       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:RESOLVES_TO]->(canonical) WHERE mention.run_id = $run_id | canonical.name] AS canonical_entities,\n"
+    "       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:RESOLVES_TO]->(canonical:CanonicalEntity) WHERE mention.run_id = $run_id | canonical.name] AS canonical_entities,\n"
     "       claim_details,\n"
     "       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[r:MEMBER_OF]->(cluster:ResolvedEntityCluster) WHERE mention.run_id = $run_id | {cluster_id: cluster.cluster_id, cluster_name: cluster.canonical_name, membership_status: r.status, membership_method: r.method}] AS cluster_memberships,\n"
-    "       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:MEMBER_OF]->(cluster:ResolvedEntityCluster)-[a:ALIGNED_WITH]->(aligned_canonical) WHERE mention.run_id = $run_id AND a.run_id = $run_id AND a.alignment_version = $alignment_version | {canonical_name: aligned_canonical.name, alignment_method: a.alignment_method, alignment_status: a.alignment_status}] AS cluster_canonical_alignments\n"
+    "       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:MEMBER_OF]->(cluster:ResolvedEntityCluster)-[a:ALIGNED_WITH]->(aligned_canonical:CanonicalEntity) WHERE mention.run_id = $run_id AND a.run_id = $run_id AND a.alignment_version = $alignment_version | {canonical_name: aligned_canonical.name, alignment_method: a.alignment_method, alignment_status: a.alignment_status}] AS cluster_canonical_alignments\n"
 )
 
 #: Expected text for the all-runs cluster-aware query.
@@ -403,10 +403,10 @@ _SNAPSHOT_WITH_CLUSTER_ALL_RUNS = (
     "       score AS similarityScore,\n"
     "       [cd IN claim_details | cd.claim_text] AS claims,\n"
     "       [(c)<-[:MENTIONED_IN]-(mention:EntityMention) | mention.name] AS mentions,\n"
-    "       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:RESOLVES_TO]->(canonical) | canonical.name] AS canonical_entities,\n"
+    "       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:RESOLVES_TO]->(canonical:CanonicalEntity) | canonical.name] AS canonical_entities,\n"
     "       claim_details,\n"
     "       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[r:MEMBER_OF]->(cluster:ResolvedEntityCluster) | {cluster_id: cluster.cluster_id, cluster_name: cluster.canonical_name, membership_status: r.status, membership_method: r.method}] AS cluster_memberships,\n"
-    "       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:MEMBER_OF]->(cluster:ResolvedEntityCluster)-[a:ALIGNED_WITH]->(aligned_canonical) WHERE a.run_id = mention.run_id AND a.alignment_version = $alignment_version | {canonical_name: aligned_canonical.name, alignment_method: a.alignment_method, alignment_status: a.alignment_status}] AS cluster_canonical_alignments\n"
+    "       [(c)<-[:MENTIONED_IN]-(mention:EntityMention)-[:MEMBER_OF]->(cluster:ResolvedEntityCluster)-[a:ALIGNED_WITH]->(aligned_canonical:CanonicalEntity) WHERE a.run_id = mention.run_id AND a.alignment_version = $alignment_version | {canonical_name: aligned_canonical.name, alignment_method: a.alignment_method, alignment_status: a.alignment_status}] AS cluster_canonical_alignments\n"
 )
 
 

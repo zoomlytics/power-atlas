@@ -151,7 +151,11 @@ class ProvenanceNeo4jWriter(Neo4jWriter):
     """Neo4j writer that applies run_id/dataset_id/source_uri to Document and Chunk nodes before ingest."""
 
     def __init__(self, driver: "neo4j.Driver", neo4j_database: str | None = None, dataset_id: str | None = None) -> None:
-        super().__init__(driver=driver, neo4j_database=neo4j_database)
+        if driver is None:
+            self.driver = None
+            self.neo4j_database = neo4j_database
+        else:
+            super().__init__(driver=driver, neo4j_database=neo4j_database)
         self.dataset_id = dataset_id
 
     def _apply_provenance(self, graph: Neo4jGraph, lexical_graph_config: LexicalGraphConfig, run_id: str | None) -> None:

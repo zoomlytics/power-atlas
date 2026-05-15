@@ -381,6 +381,7 @@ def _write_resolution_results(
     resolved_rows: list[dict[str, Any]],
     unresolved_rows: list[dict[str, Any]],
     neo4j_database: str,
+    entity_resolution_graph: EntityResolutionGraphContract | None = None,
 ) -> None:
     _write_resolution_results_impl(
         driver,
@@ -389,6 +390,7 @@ def _write_resolution_results(
         resolved_rows=resolved_rows,
         unresolved_rows=unresolved_rows,
         neo4j_database=neo4j_database,
+        entity_resolution_graph=entity_resolution_graph,
         make_cluster_id=lambda current_run_id, current_entity_type, normalized_text: _make_cluster_id(
             current_run_id,
             current_entity_type,
@@ -441,6 +443,7 @@ def _write_alignment_results(
     source_uri: str | None,
     alignment_rows: list[dict[str, Any]],
     neo4j_database: str,
+    entity_resolution_graph: EntityResolutionGraphContract | None = None,
 ) -> None:
     _write_alignment_results_impl(
         driver,
@@ -449,6 +452,7 @@ def _write_alignment_results(
         alignment_rows=alignment_rows,
         neo4j_database=neo4j_database,
         alignment_version=_ALIGNMENT_VERSION,
+        entity_resolution_graph=entity_resolution_graph,
     )
 
 
