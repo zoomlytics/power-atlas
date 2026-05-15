@@ -562,12 +562,12 @@ class WorkflowTests(unittest.TestCase):
 
         fake_neo4j = types.ModuleType("neo4j")
         fake_neo4j.GraphDatabase = types.SimpleNamespace(driver=lambda *_args, **_kwargs: _FakeDriver())
-        fake_runner = types.ModuleType("neo4j_graphrag.experimental.pipeline.config.runner")
+        fake_runner = types.ModuleType("power_atlas.adapters.graphrag_components")
         fake_runner.PipelineRunner = _FakePipelineRunner
 
         return {
             "neo4j": fake_neo4j,
-            "neo4j_graphrag.experimental.pipeline.config.runner": fake_runner,
+            "power_atlas.adapters.graphrag_components": fake_runner,
         }
 
     @contextmanager

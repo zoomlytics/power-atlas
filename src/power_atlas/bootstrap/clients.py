@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import neo4j
-from neo4j_graphrag.embeddings.openai import OpenAIEmbeddings
+from power_atlas.adapters.graphrag_retrieval import OpenAIEmbeddings
 
 from power_atlas.adapters.llm import build_embedder as _build_embedder
 from power_atlas.adapters.llm import build_embedder_for_settings as _build_embedder_for_settings

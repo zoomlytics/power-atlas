@@ -2,9 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from neo4j_graphrag.experimental.components.entity_relation_extractor import (
-    LLMEntityRelationExtractor,
-)
+from power_atlas.adapters.graphrag_components import LLMEntityRelationExtractor
 from power_atlas.adapters.graphrag_types import (
     LexicalGraphConfig,
     Neo4jGraph,

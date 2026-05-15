@@ -8,9 +8,12 @@ from collections.abc import Mapping
 from typing import Literal, TypedDict, cast
 
 import neo4j
-from neo4j_graphrag.embeddings.openai import OpenAIEmbeddings
-from neo4j_graphrag.generation import GraphRAG
-from neo4j_graphrag.message_history import InMemoryMessageHistory, MessageHistory
+from power_atlas.adapters.graphrag_retrieval import (
+    GraphRAG,
+    InMemoryMessageHistory,
+    MessageHistory,
+    OpenAIEmbeddings,
+)
 
 from power_atlas.adapters.llm import build_embedder, build_llm as build_openai_llm
 from power_atlas.bootstrap import require_openai_api_key
@@ -103,8 +106,11 @@ from power_atlas.retrieval_runtime import (
     run_live_retrieval_session,
 )
 from power_atlas.settings import Neo4jSettings
-from neo4j_graphrag.retrievers import VectorCypherRetriever
-from neo4j_graphrag.types import LLMMessage, RetrieverResultItem
+from power_atlas.adapters.graphrag_retrieval import (
+    LLMMessage,
+    RetrieverResultItem,
+    VectorCypherRetriever,
+)
 
 from demo.stages.pipeline_contract_compat import get_stage_pipeline_contract_value
 

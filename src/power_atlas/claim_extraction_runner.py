@@ -25,9 +25,7 @@ async def read_chunks_and_extract(
     chunk_reader_cls: type[Any] = RunScopedNeo4jChunkReader,
     llm_builder: Callable[[str], Any] = build_openai_llm,
 ) -> tuple[Any, list[Any], Any]:
-    from neo4j_graphrag.experimental.components.entity_relation_extractor import (
-        LLMEntityRelationExtractor,
-    )
+    from power_atlas.adapters.graphrag_components import LLMEntityRelationExtractor
 
     lexical_config = claim_extraction_lexical_config(
         pipeline_contract,

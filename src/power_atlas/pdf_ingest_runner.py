@@ -261,7 +261,7 @@ def run_pdf_ingest_runtime(
 
     require_openai_api_key_fn("Set OPENAI_API_KEY when using --live ingest-pdf")
 
-    from neo4j_graphrag.experimental.pipeline.config.runner import PipelineRunner
+    from power_atlas.adapters.graphrag_components import PipelineRunner
 
     validate_cypher_identifier_fn(effective_index_name, "index name")
     validate_cypher_identifier_fn(effective_chunk_label, "label")

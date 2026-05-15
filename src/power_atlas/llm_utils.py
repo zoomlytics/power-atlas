@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import re
 
-from neo4j_graphrag.llm import OpenAILLM
+from power_atlas.adapters.graphrag_retrieval import OpenAILLM
 
 _TEMP_NEVER_PATTERNS = [
     re.compile(r"^o\d", re.IGNORECASE),

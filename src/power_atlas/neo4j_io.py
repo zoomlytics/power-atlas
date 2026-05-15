@@ -4,23 +4,17 @@ import logging
 import re
 from typing import TYPE_CHECKING, Any
 
-from neo4j_graphrag.experimental.components.kg_writer import KGWriterModel, Neo4jWriter
-from neo4j_graphrag.experimental.pipeline.types.context import RunContext
+from power_atlas.adapters.graphrag_components import (
+    KGWriterModel,
+    Neo4jChunkReader,
+    Neo4jWriter,
+    RunContext,
+)
 from pydantic import validate_call
 
 from power_atlas.adapters.graphrag_types import LexicalGraphConfig, Neo4jGraph, TextChunk, TextChunks
 
-try:
-    from neo4j_graphrag.experimental.components.neo4j_reader import Neo4jChunkReader
-except ModuleNotFoundError as exc:
-    if exc.name != "neo4j_graphrag.experimental.components.neo4j_reader":
-        raise
 
-    class Neo4jChunkReader:  # type: ignore[no-redef]
-        def __init__(self, *args: Any, **kwargs: Any) -> None:
-            self.driver = kwargs.get("driver") or (args[0] if args else None)
-            self.fetch_embeddings = kwargs.get("fetch_embeddings", False)
-            self.neo4j_database = kwargs.get("neo4j_database")
 
 logger = logging.getLogger(__name__)
 

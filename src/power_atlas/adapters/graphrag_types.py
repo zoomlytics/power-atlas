@@ -6,7 +6,7 @@ from neo4j_graphrag.experimental.components.types import LexicalGraphConfig, Neo
 from neo4j_graphrag.generation import RagTemplate
 
 try:
-    from neo4j_graphrag.experimental.components.types import TextChunk, TextChunks
+    from neo4j_graphrag.experimental.components.types import TextChunk, TextChunks, DocumentInfo, Neo4jNode, Neo4jRelationship, DocumentType, LoadedDocument
 except ModuleNotFoundError:
     class TextChunk:  # type: ignore[no-redef]
         def __init__(self, **kwargs: Any) -> None:
@@ -22,4 +22,9 @@ __all__ = [
     "RagTemplate",
     "TextChunk",
     "TextChunks",
+    "DocumentInfo",
+    "Neo4jNode",
+    "Neo4jRelationship",
+    "DocumentType",
+    "LoadedDocument",
 ]

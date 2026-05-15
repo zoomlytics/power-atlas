@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from neo4j_graphrag.embeddings.openai import OpenAIEmbeddings
+from power_atlas.adapters.graphrag_retrieval import OpenAIEmbeddings
 
 from power_atlas.llm_utils import build_openai_llm
 from power_atlas.settings import AppSettings

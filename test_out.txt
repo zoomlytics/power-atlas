@@ -3,603 +3,17 @@ platform darwin -- Python 3.11.14, pytest-9.0.2, pluggy-1.6.0
 rootdir: /Users/ash/Documents/repos/Zoomlytics/power-atlas
 configfile: pyproject.toml
 plugins: anyio-4.12.1, cov-7.0.0
-collected 2319 items
+collected 234 items
 
-tests/test_backend_api_consumer.py ...................                   [  0%]
-tests/test_backend_dataset_catalog.py ..                                 [  0%]
-tests/test_backend_graph_query_service.py ....                           [  1%]
-tests/test_backend_graph_response_adapters.py ...                        [  1%]
-tests/test_backend_graph_router.py .                                     [  1%]
-tests/test_backend_main.py ................                              [  1%]
-tests/test_backend_run_catalog.py ..........                             [  2%]
-tests/test_demo_run_demo_dry_run.py ...                                  [  2%]
-tests/test_example_synthetic_pdfs.py .                                   [  2%]
-tests/test_installed_package_adoption.py .................               [  3%]
-tests/test_local_pdf_graphrag.py ........                                [  3%]
-tests/test_power_atlas_package.py ...................................... [  5%]
-..........................                                               [  6%]
-tests/test_simple_kg_builder_from_pdf.py ........                        [  6%]
-tests/test_sync_vendor_version.py ..........                             [  7%]
-demo/tests/test_claim_participation.py ................................. [  8%]
-........................................................................ [ 11%]
-........................................................................ [ 14%]
-.............................................                            [ 16%]
-demo/tests/test_claim_participation_integration.py ..................... [ 17%]
-.....                                                                    [ 17%]
-demo/tests/test_dataset_root_resolution.py .....................         [ 18%]
-demo/tests/test_demo_workflow.py ................................F...... [ 20%]
-.....FFFF............................................................... [ 23%]
-.....                                                                    [ 23%]
-demo/tests/test_deprecated_stage_adapter_usage.py ..                     [ 23%]
-demo/tests/test_doc_contract_drift.py ....................               [ 24%]
-demo/tests/test_entity_resolution.py ................................... [ 26%]
-........................................................................ [ 29%]
-........................................................................ [ 32%]
-.......................................................................  [ 35%]
-demo/tests/test_graph_health.py ........................................ [ 37%]
-........                                                                 [ 37%]
-demo/tests/test_graph_health_diagnostics_cli.py ...........              [ 38%]
-demo/tests/test_interactive_debug.py ..........................          [ 39%]
-demo/tests/test_llm_utils.py ........................................... [ 41%]
-.................                                                        [ 41%]
-demo/tests/test_manifest.py ......................................       [ 43%]
-demo/tests/test_narrative_extraction.py ..........                       [ 43%]
-demo/tests/test_orchestrator_modules.py ................................ [ 45%]
-......FFF............................................................... [ 48%]
-........................................................................ [ 51%]
-..........................................................               [ 53%]
-demo/tests/test_pdf_ingest_helpers.py .................................. [ 55%]
-.                                                                        [ 55%]
-demo/tests/test_pipeline_contract.py ..........                          [ 55%]
-demo/tests/test_provenance_writer.py .                                   [ 55%]
-demo/tests/test_retrieval_benchmark.py ................................. [ 57%]
-........................................................................ [ 60%]
-................................                                         [ 61%]
-demo/tests/test_retrieval_benchmark_cli.py ...........                   [ 62%]
-demo/tests/test_retrieval_metadata_policy.py ........................... [ 63%]
-........................................................................ [ 66%]
-............................................................             [ 69%]
-demo/tests/test_retrieval_metadata_projection_parity.py ................ [ 69%]
-........................................................................ [ 72%]
-...............................................................          [ 75%]
-demo/tests/test_retrieval_metadata_taxonomy_drift.py ................... [ 76%]
-.......................                                                  [ 77%]
-demo/tests/test_retrieval_parity.py ....................                 [ 78%]
-demo/tests/test_retrieval_path_diagnostics.py .......................... [ 79%]
-........................................................................ [ 82%]
-......................................................                   [ 84%]
-demo/tests/test_retrieval_query_builders.py ............................ [ 86%]
-...............................................................          [ 88%]
-demo/tests/test_retrieval_result_contract.py ........................... [ 89%]
-........................................................................ [ 93%]
-........................................................................ [ 96%]
-........................................................................ [ 99%]
-...............                                                          [ 99%]
-demo/tests/test_run_scoped_chunk_reader.py ..                            [100%]
+demo/tests/test_orchestrator_modules.py ................................ [ 13%]
+......FFF............................................................... [ 44%]
+........................................................................ [ 75%]
+..........................................................               [100%]
 
 =================================== FAILURES ===================================
-_____ WorkflowTests.test_pdf_ingest_query_payload_prefers_specific_markers _____
-
-self = <test_demo_workflow.WorkflowTests testMethod=test_pdf_ingest_query_payload_prefers_specific_markers>
-
-    def test_pdf_ingest_query_payload_prefers_specific_markers(self):
-        module = _load_module(RUN_DEMO_PATH, "run_marker_test")
-        config = _make_module_config(
-            module,
-            dry_run=False,
-            output_dir=DEMO_DIR / "artifacts",
-        )
-        calls: dict[str, object] = {}
-        injected_modules = self._build_pdf_ingest_test_modules(
-            calls=calls,
-            query_payloads={
-                "missing_page_count": {"missing_page_count": 0},
-                "page_count": {"page_count": 2},
-                "document_count": {"document_count": 1, "chunk_count": 2},
-                "missing_chunk_order_count": {"missing_chunk_order_count": 0},
-                "missing_embedding_count": {"missing_embedding_count": 0},
-                "missing_char_offset_count": {"missing_char_offset_count": 0},
-            },
-        )
-        with self._with_injected_pdf_ingest_modules(injected_modules):
->           _run_pdf_ingest_via_independent_stage(
-                module,
-                config,
-                run_id="unstructured_ingest-test",
-            )
-
-demo/tests/test_demo_workflow.py:1318: 
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
-demo/tests/test_demo_workflow.py:141: in _run_pdf_ingest_via_independent_stage
-    return module._run_independent_pdf_ingest_stage(
-demo/run_demo.py:500: in _run_independent_pdf_ingest_stage
-    return _independent_stage_specs()["ingest-pdf"].runner(*args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-src/power_atlas/orchestration/stage_dependency_registry.py:29: in _runner
-    return impl(
-src/power_atlas/orchestration/independent_stage_runners.py:43: in run_independent_pdf_ingest_stage
-    return run_pdf_ingest_request_context(
-demo/run_demo.py:126: in run_pdf_ingest_request_context
-    return _stage_entrypoints().run_pdf_ingest_request_context(*args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-demo/stages/pdf_ingest.py:134: in run_pdf_ingest_request_context
-    return _run_pdf_ingest_request_context(
-src/power_atlas/pdf_ingest_entrypoint.py:168: in run_pdf_ingest_request_context
-    return resolved_config_runner(
-demo/stages/pdf_ingest.py:58: in _run_pdf_ingest_impl
-    return _run_pdf_ingest(
-src/power_atlas/pdf_ingest_entrypoint.py:133: in run_pdf_ingest
-    return resolved_runtime_runner(
-demo/stages/pdf_ingest.py:96: in _run_pdf_ingest_runtime
-    return _run_pdf_ingest_runtime_impl(
-src/power_atlas/pdf_ingest_runner.py:270: in run_pdf_ingest_runtime
-    live_result = live_runner(
-src/power_atlas/adapters/neo4j/pdf_ingest_runtime.py:78: in run_pdf_ingest_live
-    pipeline = pipeline_runner_cls.from_config_file(pipeline_config_path)
-               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-vendor/neo4j-graphrag-python/src/neo4j_graphrag/experimental/pipeline/config/runner.py:122: in from_config_file
-    return cls.from_config(data, do_cleaning=True)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-vendor/neo4j-graphrag-python/src/neo4j_graphrag/experimental/pipeline/config/runner.py:114: in from_config
-    return cls(wrapper.parse(), config=wrapper.config, do_cleaning=do_cleaning)
-               ^^^^^^^^^^^^^^^
-vendor/neo4j-graphrag-python/src/neo4j_graphrag/experimental/pipeline/config/runner.py:78: in parse
-    return self.config.parse(resolved_data)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-vendor/neo4j-graphrag-python/src/neo4j_graphrag/experimental/pipeline/config/pipeline_config.py:151: in parse
-    components=self._get_components(),
-               ^^^^^^^^^^^^^^^^^^^^^^
-vendor/neo4j-graphrag-python/src/neo4j_graphrag/experimental/pipeline/config/template_pipeline/base.py:57: in _get_components
-    comp = self._get_component(component_name)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-vendor/neo4j-graphrag-python/src/neo4j_graphrag/experimental/pipeline/config/template_pipeline/base.py:41: in _get_component
-    component = method()
-                ^^^^^^^^
-vendor/neo4j-graphrag-python/src/neo4j_graphrag/experimental/pipeline/config/template_pipeline/simple_kg_builder.py:306: in _get_writer
-    return self.kg_writer.parse(self._global_data)  # type: ignore
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-vendor/neo4j-graphrag-python/src/neo4j_graphrag/experimental/pipeline/config/object_config.py:263: in parse
-    return self.root.parse(resolved_data)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-vendor/neo4j-graphrag-python/src/neo4j_graphrag/experimental/pipeline/config/object_config.py:135: in parse
-    obj = klass(**params)
-          ^^^^^^^^^^^^^^^
-src/power_atlas/neo4j_io.py:144: in __init__
-    super().__init__(driver=driver, neo4j_database=neo4j_database)
-vendor/neo4j-graphrag-python/src/neo4j_graphrag/experimental/components/kg_writer.py:201: in __init__
-    self.driver = driver_config.override_user_agent(driver)
-                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
-
-driver = <test_demo_workflow.WorkflowTests._build_pdf_ingest_test_modules.<locals>._FakeDriver object at 0x113c547d0>
-
-    def override_user_agent(driver: neo4j.Driver) -> neo4j.Driver:
->       driver._pool.pool_config.user_agent = f"neo4j-graphrag-python/v{__version__}"
-        ^^^^^^^^^^^^
-E       AttributeError: '_FakeDriver' object has no attribute '_pool'
-
-vendor/neo4j-graphrag-python/src/neo4j_graphrag/utils/driver_config.py:21: AttributeError
-_ WorkflowTests.test_run_pdf_ingest_non_dry_run_always_uses_cypher_index_creation _
-
-self = <test_demo_workflow.WorkflowTests testMethod=test_run_pdf_ingest_non_dry_run_always_uses_cypher_index_creation>
-
-    def test_run_pdf_ingest_non_dry_run_always_uses_cypher_index_creation(self):
-        module = _load_module(RUN_DEMO_PATH, "run_non_dry_cypher_index_test")
-        config = _make_module_config(
-            module,
-            dry_run=False,
-            output_dir=DEMO_DIR / "artifacts",
-        )
-        calls: dict[str, object] = {}
-    
-        injected_modules = self._build_pdf_ingest_test_modules(
-            calls=calls,
-            query_payloads={
-                "document_count": {"document_count": 1, "chunk_count": 2},
-                "missing_chunk_order_count": {"missing_chunk_order_count": 0},
-                "missing_embedding_count": {"missing_embedding_count": 0},
-                "missing_page_count": {"missing_page_count": 0},
-                "missing_char_offset_count": {"missing_char_offset_count": 0},
-            },
-        )
-        with self._with_injected_pdf_ingest_modules(injected_modules):
->           result = _run_pdf_ingest_via_independent_stage(
-                module,
-                config,
-                run_id="unstructured_ingest-test",
-            )
-
-demo/tests/test_demo_workflow.py:1416: 
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
-demo/tests/test_demo_workflow.py:141: in _run_pdf_ingest_via_independent_stage
-    return module._run_independent_pdf_ingest_stage(
-demo/run_demo.py:500: in _run_independent_pdf_ingest_stage
-    return _independent_stage_specs()["ingest-pdf"].runner(*args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-src/power_atlas/orchestration/stage_dependency_registry.py:29: in _runner
-    return impl(
-src/power_atlas/orchestration/independent_stage_runners.py:43: in run_independent_pdf_ingest_stage
-    return run_pdf_ingest_request_context(
-demo/run_demo.py:126: in run_pdf_ingest_request_context
-    return _stage_entrypoints().run_pdf_ingest_request_context(*args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-demo/stages/pdf_ingest.py:134: in run_pdf_ingest_request_context
-    return _run_pdf_ingest_request_context(
-src/power_atlas/pdf_ingest_entrypoint.py:168: in run_pdf_ingest_request_context
-    return resolved_config_runner(
-demo/stages/pdf_ingest.py:58: in _run_pdf_ingest_impl
-    return _run_pdf_ingest(
-src/power_atlas/pdf_ingest_entrypoint.py:133: in run_pdf_ingest
-    return resolved_runtime_runner(
-demo/stages/pdf_ingest.py:96: in _run_pdf_ingest_runtime
-    return _run_pdf_ingest_runtime_impl(
-src/power_atlas/pdf_ingest_runner.py:270: in run_pdf_ingest_runtime
-    live_result = live_runner(
-src/power_atlas/adapters/neo4j/pdf_ingest_runtime.py:78: in run_pdf_ingest_live
-    pipeline = pipeline_runner_cls.from_config_file(pipeline_config_path)
-               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-vendor/neo4j-graphrag-python/src/neo4j_graphrag/experimental/pipeline/config/runner.py:122: in from_config_file
-    return cls.from_config(data, do_cleaning=True)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-vendor/neo4j-graphrag-python/src/neo4j_graphrag/experimental/pipeline/config/runner.py:114: in from_config
-    return cls(wrapper.parse(), config=wrapper.config, do_cleaning=do_cleaning)
-               ^^^^^^^^^^^^^^^
-vendor/neo4j-graphrag-python/src/neo4j_graphrag/experimental/pipeline/config/runner.py:78: in parse
-    return self.config.parse(resolved_data)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-vendor/neo4j-graphrag-python/src/neo4j_graphrag/experimental/pipeline/config/pipeline_config.py:151: in parse
-    components=self._get_components(),
-               ^^^^^^^^^^^^^^^^^^^^^^
-vendor/neo4j-graphrag-python/src/neo4j_graphrag/experimental/pipeline/config/template_pipeline/base.py:57: in _get_components
-    comp = self._get_component(component_name)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-vendor/neo4j-graphrag-python/src/neo4j_graphrag/experimental/pipeline/config/template_pipeline/base.py:41: in _get_component
-    component = method()
-                ^^^^^^^^
-vendor/neo4j-graphrag-python/src/neo4j_graphrag/experimental/pipeline/config/template_pipeline/simple_kg_builder.py:306: in _get_writer
-    return self.kg_writer.parse(self._global_data)  # type: ignore
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-vendor/neo4j-graphrag-python/src/neo4j_graphrag/experimental/pipeline/config/object_config.py:263: in parse
-    return self.root.parse(resolved_data)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-vendor/neo4j-graphrag-python/src/neo4j_graphrag/experimental/pipeline/config/object_config.py:135: in parse
-    obj = klass(**params)
-          ^^^^^^^^^^^^^^^
-src/power_atlas/neo4j_io.py:144: in __init__
-    super().__init__(driver=driver, neo4j_database=neo4j_database)
-vendor/neo4j-graphrag-python/src/neo4j_graphrag/experimental/components/kg_writer.py:201: in __init__
-    self.driver = driver_config.override_user_agent(driver)
-                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
-
-driver = <test_demo_workflow.WorkflowTests._build_pdf_ingest_test_modules.<locals>._FakeDriver object at 0x114c2fe90>
-
-    def override_user_agent(driver: neo4j.Driver) -> neo4j.Driver:
->       driver._pool.pool_config.user_agent = f"neo4j-graphrag-python/v{__version__}"
-        ^^^^^^^^^^^^
-E       AttributeError: '_FakeDriver' object has no attribute '_pool'
-
-vendor/neo4j-graphrag-python/src/neo4j_graphrag/utils/driver_config.py:21: AttributeError
-_ WorkflowTests.test_run_pdf_ingest_non_dry_run_executes_config_pipeline_and_provenance_flow _
-
-self = <test_demo_workflow.WorkflowTests testMethod=test_run_pdf_ingest_non_dry_run_executes_config_pipeline_and_provenance_flow>
-
-    def test_run_pdf_ingest_non_dry_run_executes_config_pipeline_and_provenance_flow(self):
-        module = _load_module(RUN_DEMO_PATH, "run_non_dry_test")
-        config = _make_module_config(
-            module,
-            dry_run=False,
-            output_dir=DEMO_DIR / "artifacts",
-        )
-        calls: dict[str, object] = {}
-    
-        injected_modules = self._build_pdf_ingest_test_modules(
-            calls=calls,
-            query_payloads={
-                "document_count": {"document_count": 1, "chunk_count": 2},
-                "page_count": {"page_count": 2},
-                "missing_chunk_order_count": {"missing_chunk_order_count": 0},
-                "missing_embedding_count": {"missing_embedding_count": 0},
-                "missing_page_count": {"missing_page_count": 0},
-                "missing_char_offset_count": {"missing_char_offset_count": 0},
-            },
-        )
-        expected_fingerprint = module.sha256_file(
-            module.resolve_dataset_root("demo_dataset_v1").pdf_path
-        )
-        initial_openai_state = ("OPENAI_API_KEY" in os.environ, os.environ.get("OPENAI_API_KEY"))
-        initial_bridge_env = {
-            key: (key in os.environ, os.environ.get(key))
-            for key in (
-                "NEO4J_URI",
-                "NEO4J_USERNAME",
-                "NEO4J_PASSWORD",
-                "NEO4J_DATABASE",
-                "OPENAI_MODEL",
-            )
-        }
-        with self._with_injected_pdf_ingest_modules(injected_modules):
->           result = _run_pdf_ingest_via_independent_stage(
-                module,
-                config,
-                run_id="unstructured_ingest-test",
-            )
-
-demo/tests/test_demo_workflow.py:1197: 
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
-demo/tests/test_demo_workflow.py:141: in _run_pdf_ingest_via_independent_stage
-    return module._run_independent_pdf_ingest_stage(
-demo/run_demo.py:500: in _run_independent_pdf_ingest_stage
-    return _independent_stage_specs()["ingest-pdf"].runner(*args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-src/power_atlas/orchestration/stage_dependency_registry.py:29: in _runner
-    return impl(
-src/power_atlas/orchestration/independent_stage_runners.py:43: in run_independent_pdf_ingest_stage
-    return run_pdf_ingest_request_context(
-demo/run_demo.py:126: in run_pdf_ingest_request_context
-    return _stage_entrypoints().run_pdf_ingest_request_context(*args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-demo/stages/pdf_ingest.py:134: in run_pdf_ingest_request_context
-    return _run_pdf_ingest_request_context(
-src/power_atlas/pdf_ingest_entrypoint.py:168: in run_pdf_ingest_request_context
-    return resolved_config_runner(
-demo/stages/pdf_ingest.py:58: in _run_pdf_ingest_impl
-    return _run_pdf_ingest(
-src/power_atlas/pdf_ingest_entrypoint.py:133: in run_pdf_ingest
-    return resolved_runtime_runner(
-demo/stages/pdf_ingest.py:96: in _run_pdf_ingest_runtime
-    return _run_pdf_ingest_runtime_impl(
-src/power_atlas/pdf_ingest_runner.py:270: in run_pdf_ingest_runtime
-    live_result = live_runner(
-src/power_atlas/adapters/neo4j/pdf_ingest_runtime.py:78: in run_pdf_ingest_live
-    pipeline = pipeline_runner_cls.from_config_file(pipeline_config_path)
-               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-vendor/neo4j-graphrag-python/src/neo4j_graphrag/experimental/pipeline/config/runner.py:122: in from_config_file
-    return cls.from_config(data, do_cleaning=True)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-vendor/neo4j-graphrag-python/src/neo4j_graphrag/experimental/pipeline/config/runner.py:114: in from_config
-    return cls(wrapper.parse(), config=wrapper.config, do_cleaning=do_cleaning)
-               ^^^^^^^^^^^^^^^
-vendor/neo4j-graphrag-python/src/neo4j_graphrag/experimental/pipeline/config/runner.py:78: in parse
-    return self.config.parse(resolved_data)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-vendor/neo4j-graphrag-python/src/neo4j_graphrag/experimental/pipeline/config/pipeline_config.py:151: in parse
-    components=self._get_components(),
-               ^^^^^^^^^^^^^^^^^^^^^^
-vendor/neo4j-graphrag-python/src/neo4j_graphrag/experimental/pipeline/config/template_pipeline/base.py:57: in _get_components
-    comp = self._get_component(component_name)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-vendor/neo4j-graphrag-python/src/neo4j_graphrag/experimental/pipeline/config/template_pipeline/base.py:41: in _get_component
-    component = method()
-                ^^^^^^^^
-vendor/neo4j-graphrag-python/src/neo4j_graphrag/experimental/pipeline/config/template_pipeline/simple_kg_builder.py:306: in _get_writer
-    return self.kg_writer.parse(self._global_data)  # type: ignore
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-vendor/neo4j-graphrag-python/src/neo4j_graphrag/experimental/pipeline/config/object_config.py:263: in parse
-    return self.root.parse(resolved_data)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-vendor/neo4j-graphrag-python/src/neo4j_graphrag/experimental/pipeline/config/object_config.py:135: in parse
-    obj = klass(**params)
-          ^^^^^^^^^^^^^^^
-src/power_atlas/neo4j_io.py:144: in __init__
-    super().__init__(driver=driver, neo4j_database=neo4j_database)
-vendor/neo4j-graphrag-python/src/neo4j_graphrag/experimental/components/kg_writer.py:201: in __init__
-    self.driver = driver_config.override_user_agent(driver)
-                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
-
-driver = <test_demo_workflow.WorkflowTests._build_pdf_ingest_test_modules.<locals>._FakeDriver object at 0x114894810>
-
-    def override_user_agent(driver: neo4j.Driver) -> neo4j.Driver:
->       driver._pool.pool_config.user_agent = f"neo4j-graphrag-python/v{__version__}"
-        ^^^^^^^^^^^^
-E       AttributeError: '_FakeDriver' object has no attribute '_pool'
-
-vendor/neo4j-graphrag-python/src/neo4j_graphrag/utils/driver_config.py:21: AttributeError
-_ WorkflowTests.test_run_pdf_ingest_non_dry_run_normalizes_non_json_pipeline_result _
-
-self = <test_demo_workflow.WorkflowTests testMethod=test_run_pdf_ingest_non_dry_run_normalizes_non_json_pipeline_result>
-
-    def test_run_pdf_ingest_non_dry_run_normalizes_non_json_pipeline_result(self):
-        module = _load_module(RUN_DEMO_PATH, "run_result_fallback_test")
-        config = _make_module_config(
-            module,
-            dry_run=False,
-            output_dir=DEMO_DIR / "artifacts",
-        )
-    
-        injected_modules = self._build_pdf_ingest_test_modules(
-            calls={},
-            query_payloads={
-                "document_count": {"document_count": 1, "chunk_count": 1},
-                "missing_chunk_order_count": {"missing_chunk_order_count": 0},
-                "missing_embedding_count": {"missing_embedding_count": 0},
-                "missing_page_count": {"missing_page_count": 0},
-                "missing_char_offset_count": {"missing_char_offset_count": 0},
-            },
-            pipeline_result=lambda _params: object(),
-        )
-        with self._with_injected_pdf_ingest_modules(injected_modules):
->           result = _run_pdf_ingest_via_independent_stage(
-                module,
-                config,
-                run_id="unstructured_ingest-test",
-            )
-
-demo/tests/test_demo_workflow.py:1387: 
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
-demo/tests/test_demo_workflow.py:141: in _run_pdf_ingest_via_independent_stage
-    return module._run_independent_pdf_ingest_stage(
-demo/run_demo.py:500: in _run_independent_pdf_ingest_stage
-    return _independent_stage_specs()["ingest-pdf"].runner(*args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-src/power_atlas/orchestration/stage_dependency_registry.py:29: in _runner
-    return impl(
-src/power_atlas/orchestration/independent_stage_runners.py:43: in run_independent_pdf_ingest_stage
-    return run_pdf_ingest_request_context(
-demo/run_demo.py:126: in run_pdf_ingest_request_context
-    return _stage_entrypoints().run_pdf_ingest_request_context(*args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-demo/stages/pdf_ingest.py:134: in run_pdf_ingest_request_context
-    return _run_pdf_ingest_request_context(
-src/power_atlas/pdf_ingest_entrypoint.py:168: in run_pdf_ingest_request_context
-    return resolved_config_runner(
-demo/stages/pdf_ingest.py:58: in _run_pdf_ingest_impl
-    return _run_pdf_ingest(
-src/power_atlas/pdf_ingest_entrypoint.py:133: in run_pdf_ingest
-    return resolved_runtime_runner(
-demo/stages/pdf_ingest.py:96: in _run_pdf_ingest_runtime
-    return _run_pdf_ingest_runtime_impl(
-src/power_atlas/pdf_ingest_runner.py:270: in run_pdf_ingest_runtime
-    live_result = live_runner(
-src/power_atlas/adapters/neo4j/pdf_ingest_runtime.py:78: in run_pdf_ingest_live
-    pipeline = pipeline_runner_cls.from_config_file(pipeline_config_path)
-               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-vendor/neo4j-graphrag-python/src/neo4j_graphrag/experimental/pipeline/config/runner.py:122: in from_config_file
-    return cls.from_config(data, do_cleaning=True)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-vendor/neo4j-graphrag-python/src/neo4j_graphrag/experimental/pipeline/config/runner.py:114: in from_config
-    return cls(wrapper.parse(), config=wrapper.config, do_cleaning=do_cleaning)
-               ^^^^^^^^^^^^^^^
-vendor/neo4j-graphrag-python/src/neo4j_graphrag/experimental/pipeline/config/runner.py:78: in parse
-    return self.config.parse(resolved_data)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-vendor/neo4j-graphrag-python/src/neo4j_graphrag/experimental/pipeline/config/pipeline_config.py:151: in parse
-    components=self._get_components(),
-               ^^^^^^^^^^^^^^^^^^^^^^
-vendor/neo4j-graphrag-python/src/neo4j_graphrag/experimental/pipeline/config/template_pipeline/base.py:57: in _get_components
-    comp = self._get_component(component_name)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-vendor/neo4j-graphrag-python/src/neo4j_graphrag/experimental/pipeline/config/template_pipeline/base.py:41: in _get_component
-    component = method()
-                ^^^^^^^^
-vendor/neo4j-graphrag-python/src/neo4j_graphrag/experimental/pipeline/config/template_pipeline/simple_kg_builder.py:306: in _get_writer
-    return self.kg_writer.parse(self._global_data)  # type: ignore
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-vendor/neo4j-graphrag-python/src/neo4j_graphrag/experimental/pipeline/config/object_config.py:263: in parse
-    return self.root.parse(resolved_data)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-vendor/neo4j-graphrag-python/src/neo4j_graphrag/experimental/pipeline/config/object_config.py:135: in parse
-    obj = klass(**params)
-          ^^^^^^^^^^^^^^^
-src/power_atlas/neo4j_io.py:144: in __init__
-    super().__init__(driver=driver, neo4j_database=neo4j_database)
-vendor/neo4j-graphrag-python/src/neo4j_graphrag/experimental/components/kg_writer.py:201: in __init__
-    self.driver = driver_config.override_user_agent(driver)
-                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
-
-driver = <test_demo_workflow.WorkflowTests._build_pdf_ingest_test_modules.<locals>._FakeDriver object at 0x114a6d510>
-
-    def override_user_agent(driver: neo4j.Driver) -> neo4j.Driver:
->       driver._pool.pool_config.user_agent = f"neo4j-graphrag-python/v{__version__}"
-        ^^^^^^^^^^^^
-E       AttributeError: '_FakeDriver' object has no attribute '_pool'
-
-vendor/neo4j-graphrag-python/src/neo4j_graphrag/utils/driver_config.py:21: AttributeError
-_ WorkflowTests.test_run_pdf_ingest_non_dry_run_raises_when_no_run_scoped_documents_or_chunks _
-
-self = <test_demo_workflow.WorkflowTests testMethod=test_run_pdf_ingest_non_dry_run_raises_when_no_run_scoped_documents_or_chunks>
-
-    def test_run_pdf_ingest_non_dry_run_raises_when_no_run_scoped_documents_or_chunks(self):
-        module = _load_module(RUN_DEMO_PATH, "run_non_dry_missing_nodes_test")
-        config = _make_module_config(
-            module,
-            dry_run=False,
-            output_dir=DEMO_DIR / "artifacts",
-        )
-    
-        injected_modules = self._build_pdf_ingest_test_modules(
-            calls={},
-            query_payloads={
-                "document_count": {"document_count": 0, "chunk_count": 0},
-                "missing_page_count": {"missing_page_count": 0},
-                "missing_char_offset_count": {"missing_char_offset_count": 0},
-            },
-        )
-        with self._with_injected_pdf_ingest_modules(injected_modules):
-            with self.assertRaisesRegex(
-                ValueError,
-                "expected at least one Document and Chunk for this run",
-            ):
->               _run_pdf_ingest_via_independent_stage(
-                    module,
-                    config,
-                    run_id="unstructured_ingest-test",
-                )
-
-demo/tests/test_demo_workflow.py:1514: 
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
-demo/tests/test_demo_workflow.py:141: in _run_pdf_ingest_via_independent_stage
-    return module._run_independent_pdf_ingest_stage(
-demo/run_demo.py:500: in _run_independent_pdf_ingest_stage
-    return _independent_stage_specs()["ingest-pdf"].runner(*args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-src/power_atlas/orchestration/stage_dependency_registry.py:29: in _runner
-    return impl(
-src/power_atlas/orchestration/independent_stage_runners.py:43: in run_independent_pdf_ingest_stage
-    return run_pdf_ingest_request_context(
-demo/run_demo.py:126: in run_pdf_ingest_request_context
-    return _stage_entrypoints().run_pdf_ingest_request_context(*args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-demo/stages/pdf_ingest.py:134: in run_pdf_ingest_request_context
-    return _run_pdf_ingest_request_context(
-src/power_atlas/pdf_ingest_entrypoint.py:168: in run_pdf_ingest_request_context
-    return resolved_config_runner(
-demo/stages/pdf_ingest.py:58: in _run_pdf_ingest_impl
-    return _run_pdf_ingest(
-src/power_atlas/pdf_ingest_entrypoint.py:133: in run_pdf_ingest
-    return resolved_runtime_runner(
-demo/stages/pdf_ingest.py:96: in _run_pdf_ingest_runtime
-    return _run_pdf_ingest_runtime_impl(
-src/power_atlas/pdf_ingest_runner.py:270: in run_pdf_ingest_runtime
-    live_result = live_runner(
-src/power_atlas/adapters/neo4j/pdf_ingest_runtime.py:78: in run_pdf_ingest_live
-    pipeline = pipeline_runner_cls.from_config_file(pipeline_config_path)
-               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-vendor/neo4j-graphrag-python/src/neo4j_graphrag/experimental/pipeline/config/runner.py:122: in from_config_file
-    return cls.from_config(data, do_cleaning=True)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-vendor/neo4j-graphrag-python/src/neo4j_graphrag/experimental/pipeline/config/runner.py:114: in from_config
-    return cls(wrapper.parse(), config=wrapper.config, do_cleaning=do_cleaning)
-               ^^^^^^^^^^^^^^^
-vendor/neo4j-graphrag-python/src/neo4j_graphrag/experimental/pipeline/config/runner.py:78: in parse
-    return self.config.parse(resolved_data)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-vendor/neo4j-graphrag-python/src/neo4j_graphrag/experimental/pipeline/config/pipeline_config.py:151: in parse
-    components=self._get_components(),
-               ^^^^^^^^^^^^^^^^^^^^^^
-vendor/neo4j-graphrag-python/src/neo4j_graphrag/experimental/pipeline/config/template_pipeline/base.py:57: in _get_components
-    comp = self._get_component(component_name)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-vendor/neo4j-graphrag-python/src/neo4j_graphrag/experimental/pipeline/config/template_pipeline/base.py:41: in _get_component
-    component = method()
-                ^^^^^^^^
-vendor/neo4j-graphrag-python/src/neo4j_graphrag/experimental/pipeline/config/template_pipeline/simple_kg_builder.py:306: in _get_writer
-    return self.kg_writer.parse(self._global_data)  # type: ignore
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-vendor/neo4j-graphrag-python/src/neo4j_graphrag/experimental/pipeline/config/object_config.py:263: in parse
-    return self.root.parse(resolved_data)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-vendor/neo4j-graphrag-python/src/neo4j_graphrag/experimental/pipeline/config/object_config.py:135: in parse
-    obj = klass(**params)
-          ^^^^^^^^^^^^^^^
-src/power_atlas/neo4j_io.py:144: in __init__
-    super().__init__(driver=driver, neo4j_database=neo4j_database)
-vendor/neo4j-graphrag-python/src/neo4j_graphrag/experimental/components/kg_writer.py:201: in __init__
-    self.driver = driver_config.override_user_agent(driver)
-                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
-
-    def override_user_agent(driver: neo4j.Driver) -> neo4j.Driver:
->       driver._pool.pool_config.user_agent = f"neo4j-graphrag-python/v{__version__}"
-        ^^^^^^^^^^^^
-E       AttributeError: '_FakeDriver' object has no attribute '_pool'
-
-vendor/neo4j-graphrag-python/src/neo4j_graphrag/utils/driver_config.py:21: AttributeError
 _______ test_claim_extraction_live_path_uses_create_lexical_graph_false ________
 
-self = <neo4j_graphrag.llm.openai_llm.OpenAILLM object at 0x114924090>
+self = <neo4j_graphrag.llm.openai_llm.OpenAILLM object at 0x10d22ee50>
 input = [{'content': '\nYou are a top-tier algorithm designed for extracting\ninformation in structured formats to build a kno... Property names must be enclosed in double quotes\n\nExamples:\n\n\nInput text:\n\nlive chunk text\n', 'role': 'user'}]
 response_format = <class 'neo4j_graphrag.experimental.components.types.Neo4jGraph'>
 kwargs = {'response_format': {'json_schema': {'name': 'Neo4jGraph', 'schema': {'$defs': {'GeoPoint': {'additionalProperties': F...ionships': {'items': {...}, 'title': 'Relationships', 'type': 'array'}}, ...}, 'strict': True}, 'type': 'json_schema'}}
@@ -677,7 +91,7 @@ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
 
-self = <openai.AsyncOpenAI object at 0x114927710>
+self = <openai.AsyncOpenAI object at 0x10d22ef90>
 cast_to = <class 'openai.types.chat.chat_completion.ChatCompletion'>
 options = FinalRequestOptions(method='post', url='/chat/completions', params={}, headers=NOT_GIVEN, max_retries=NOT_GIVEN, timeo...'title': 'Neo4jGraph', 'type': 'object', 'required': ['nodes', 'relationships']}}}, 'temperature': 0}, extra_json=None)
 
@@ -799,7 +213,7 @@ E               openai.AuthenticationError: Error code: 401 - {'error': {'messag
 
 During handling of the above exception, another exception occurred:
 
-tmp_path = PosixPath('/private/var/folders/d0/l_6cpmd569z0ztzsdwv0skbh0000gn/T/pytest-of-ash/pytest-11/test_claim_extraction_live_pat0')
+tmp_path = PosixPath('/private/var/folders/d0/l_6cpmd569z0ztzsdwv0skbh0000gn/T/pytest-of-ash/pytest-13/test_claim_extraction_live_pat0')
 
     def test_claim_extraction_live_path_uses_create_lexical_graph_false(tmp_path: Path):
         """Verify that _async_read_chunks_and_extract instantiates LLMEntityRelationExtractor
@@ -968,7 +382,7 @@ vendor/neo4j-graphrag-python/src/neo4j_graphrag/utils/rate_limit.py:277: in inne
            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
 
-self = <neo4j_graphrag.llm.openai_llm.OpenAILLM object at 0x114924090>
+self = <neo4j_graphrag.llm.openai_llm.OpenAILLM object at 0x10d22ee50>
 input = [{'content': '\nYou are a top-tier algorithm designed for extracting\ninformation in structured formats to build a kno... Property names must be enclosed in double quotes\n\nExamples:\n\n\nInput text:\n\nlive chunk text\n', 'role': 'user'}]
 response_format = <class 'neo4j_graphrag.experimental.components.types.Neo4jGraph'>
 kwargs = {'response_format': {'json_schema': {'name': 'Neo4jGraph', 'schema': {'$defs': {'GeoPoint': {'additionalProperties': F...ionships': {'items': {...}, 'title': 'Relationships', 'type': 'array'}}, ...}, 'strict': True}, 'type': 'json_schema'}}
@@ -1053,7 +467,7 @@ E           neo4j_graphrag.exceptions.LLMGenerationError: Error code: 401 - {'er
 vendor/neo4j-graphrag-python/src/neo4j_graphrag/llm/openai_llm.py:556: LLMGenerationError
 ____ test_claim_extraction_live_path_uses_claim_extraction_policy_override _____
 
-self = <neo4j_graphrag.llm.openai_llm.OpenAILLM object at 0x115be7bd0>
+self = <neo4j_graphrag.llm.openai_llm.OpenAILLM object at 0x10edea690>
 input = [{'content': '\nYou are a top-tier algorithm designed for extracting\ninformation in structured formats to build a kno...roperty names must be enclosed in double quotes\n\nExamples:\n\n\nInput text:\n\npolicy chunk text\n', 'role': 'user'}]
 response_format = <class 'neo4j_graphrag.experimental.components.types.Neo4jGraph'>
 kwargs = {'response_format': {'json_schema': {'name': 'Neo4jGraph', 'schema': {'$defs': {'GeoPoint': {'additionalProperties': F...ionships': {'items': {...}, 'title': 'Relationships', 'type': 'array'}}, ...}, 'strict': True}, 'type': 'json_schema'}}
@@ -1131,7 +545,7 @@ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
 
-self = <openai.AsyncOpenAI object at 0x115be7a50>
+self = <openai.AsyncOpenAI object at 0x10ede9b50>
 cast_to = <class 'openai.types.chat.chat_completion.ChatCompletion'>
 options = FinalRequestOptions(method='post', url='/chat/completions', params={}, headers=NOT_GIVEN, max_retries=NOT_GIVEN, timeo...'title': 'Neo4jGraph', 'type': 'object', 'required': ['nodes', 'relationships']}}}, 'temperature': 0}, extra_json=None)
 
@@ -1253,7 +667,7 @@ E               openai.AuthenticationError: Error code: 401 - {'error': {'messag
 
 During handling of the above exception, another exception occurred:
 
-tmp_path = PosixPath('/private/var/folders/d0/l_6cpmd569z0ztzsdwv0skbh0000gn/T/pytest-of-ash/pytest-11/test_claim_extraction_live_pat1')
+tmp_path = PosixPath('/private/var/folders/d0/l_6cpmd569z0ztzsdwv0skbh0000gn/T/pytest-of-ash/pytest-13/test_claim_extraction_live_pat1')
 
     def test_claim_extraction_live_path_uses_claim_extraction_policy_override(tmp_path: Path):
         from demo.run_demo import _request_context_from_config
@@ -1436,7 +850,7 @@ vendor/neo4j-graphrag-python/src/neo4j_graphrag/utils/rate_limit.py:277: in inne
            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
 
-self = <neo4j_graphrag.llm.openai_llm.OpenAILLM object at 0x115be7bd0>
+self = <neo4j_graphrag.llm.openai_llm.OpenAILLM object at 0x10edea690>
 input = [{'content': '\nYou are a top-tier algorithm designed for extracting\ninformation in structured formats to build a kno...roperty names must be enclosed in double quotes\n\nExamples:\n\n\nInput text:\n\npolicy chunk text\n', 'role': 'user'}]
 response_format = <class 'neo4j_graphrag.experimental.components.types.Neo4jGraph'>
 kwargs = {'response_format': {'json_schema': {'name': 'Neo4jGraph', 'schema': {'$defs': {'GeoPoint': {'additionalProperties': F...ionships': {'items': {...}, 'title': 'Relationships', 'type': 'array'}}, ...}, 'strict': True}, 'type': 'json_schema'}}
@@ -1521,7 +935,7 @@ E           neo4j_graphrag.exceptions.LLMGenerationError: Error code: 401 - {'er
 vendor/neo4j-graphrag-python/src/neo4j_graphrag/llm/openai_llm.py:556: LLMGenerationError
 __ test_claim_extraction_live_writes_participation_edges_when_mention_matches __
 
-self = <neo4j_graphrag.llm.openai_llm.OpenAILLM object at 0x115816fd0>
+self = <neo4j_graphrag.llm.openai_llm.OpenAILLM object at 0x10f2b70d0>
 input = [{'content': '\nYou are a top-tier algorithm designed for extracting\ninformation in structured formats to build a kno...erty names must be enclosed in double quotes\n\nExamples:\n\n\nInput text:\n\nGoogle earns revenue\n', 'role': 'user'}]
 response_format = <class 'neo4j_graphrag.experimental.components.types.Neo4jGraph'>
 kwargs = {'response_format': {'json_schema': {'name': 'Neo4jGraph', 'schema': {'$defs': {'GeoPoint': {'additionalProperties': F...ionships': {'items': {...}, 'title': 'Relationships', 'type': 'array'}}, ...}, 'strict': True}, 'type': 'json_schema'}}
@@ -1599,7 +1013,7 @@ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
 
-self = <openai.AsyncOpenAI object at 0x1158140d0>
+self = <openai.AsyncOpenAI object at 0x10e35a210>
 cast_to = <class 'openai.types.chat.chat_completion.ChatCompletion'>
 options = FinalRequestOptions(method='post', url='/chat/completions', params={}, headers=NOT_GIVEN, max_retries=NOT_GIVEN, timeo...'title': 'Neo4jGraph', 'type': 'object', 'required': ['nodes', 'relationships']}}}, 'temperature': 0}, extra_json=None)
 
@@ -1721,7 +1135,7 @@ E               openai.AuthenticationError: Error code: 401 - {'error': {'messag
 
 During handling of the above exception, another exception occurred:
 
-tmp_path = PosixPath('/private/var/folders/d0/l_6cpmd569z0ztzsdwv0skbh0000gn/T/pytest-of-ash/pytest-11/test_claim_extraction_live_wri0')
+tmp_path = PosixPath('/private/var/folders/d0/l_6cpmd569z0ztzsdwv0skbh0000gn/T/pytest-of-ash/pytest-13/test_claim_extraction_live_wri0')
 
     def test_claim_extraction_live_writes_participation_edges_when_mention_matches(tmp_path: Path):
         """Participation edges must be written inline when claim slot text matches a mention name."""
@@ -1888,7 +1302,7 @@ vendor/neo4j-graphrag-python/src/neo4j_graphrag/utils/rate_limit.py:277: in inne
            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
 
-self = <neo4j_graphrag.llm.openai_llm.OpenAILLM object at 0x115816fd0>
+self = <neo4j_graphrag.llm.openai_llm.OpenAILLM object at 0x10f2b70d0>
 input = [{'content': '\nYou are a top-tier algorithm designed for extracting\ninformation in structured formats to build a kno...erty names must be enclosed in double quotes\n\nExamples:\n\n\nInput text:\n\nGoogle earns revenue\n', 'role': 'user'}]
 response_format = <class 'neo4j_graphrag.experimental.components.types.Neo4jGraph'>
 kwargs = {'response_format': {'json_schema': {'name': 'Neo4jGraph', 'schema': {'$defs': {'GeoPoint': {'additionalProperties': F...ionships': {'items': {...}, 'title': 'Relationships', 'type': 'array'}}, ...}, 'strict': True}, 'type': 'json_schema'}}
@@ -1971,31 +1385,8 @@ schema = {'$defs': {'GeoPoint': {'additionalProperties': False, 'description': '
 E           neo4j_graphrag.exceptions.LLMGenerationError: Error code: 401 - {'error': {'message': 'Incorrect API key provided: test-key. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}
 
 vendor/neo4j-graphrag-python/src/neo4j_graphrag/llm/openai_llm.py:556: LLMGenerationError
-=============================== warnings summary ===============================
-demo/tests/test_demo_workflow.py::WorkflowTests::test_pdf_ingest_query_payload_prefers_specific_markers
-demo/tests/test_demo_workflow.py::WorkflowTests::test_run_pdf_ingest_non_dry_run_always_uses_cypher_index_creation
-demo/tests/test_demo_workflow.py::WorkflowTests::test_run_pdf_ingest_non_dry_run_executes_config_pipeline_and_provenance_flow
-demo/tests/test_demo_workflow.py::WorkflowTests::test_run_pdf_ingest_non_dry_run_normalizes_non_json_pipeline_result
-demo/tests/test_demo_workflow.py::WorkflowTests::test_run_pdf_ingest_non_dry_run_raises_when_no_run_scoped_documents_or_chunks
-  /Users/ash/Documents/repos/Zoomlytics/power-atlas/.venv/lib/python3.11/site-packages/pydantic/main.py:716: DeprecationWarning: `from_pdf` is deprecated and will be removed in a future version; use `from_file` instead.
-    return cls.__pydantic_validator__.validate_python(
-
-demo/tests/test_demo_workflow.py::WorkflowTests::test_pdf_ingest_query_payload_prefers_specific_markers
-demo/tests/test_demo_workflow.py::WorkflowTests::test_run_pdf_ingest_non_dry_run_always_uses_cypher_index_creation
-demo/tests/test_demo_workflow.py::WorkflowTests::test_run_pdf_ingest_non_dry_run_executes_config_pipeline_and_provenance_flow
-demo/tests/test_demo_workflow.py::WorkflowTests::test_run_pdf_ingest_non_dry_run_normalizes_non_json_pipeline_result
-demo/tests/test_demo_workflow.py::WorkflowTests::test_run_pdf_ingest_non_dry_run_raises_when_no_run_scoped_documents_or_chunks
-  /Users/ash/Documents/repos/Zoomlytics/power-atlas/.venv/lib/python3.11/site-packages/pydantic/main.py:716: DeprecationWarning: `pdf_loader` is deprecated and will be removed in a future version; use `file_loader` instead.
-    return cls.__pydantic_validator__.validate_python(
-
--- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
 =========================== short test summary info ============================
-FAILED demo/tests/test_demo_workflow.py::WorkflowTests::test_pdf_ingest_query_payload_prefers_specific_markers
-FAILED demo/tests/test_demo_workflow.py::WorkflowTests::test_run_pdf_ingest_non_dry_run_always_uses_cypher_index_creation
-FAILED demo/tests/test_demo_workflow.py::WorkflowTests::test_run_pdf_ingest_non_dry_run_executes_config_pipeline_and_provenance_flow
-FAILED demo/tests/test_demo_workflow.py::WorkflowTests::test_run_pdf_ingest_non_dry_run_normalizes_non_json_pipeline_result
-FAILED demo/tests/test_demo_workflow.py::WorkflowTests::test_run_pdf_ingest_non_dry_run_raises_when_no_run_scoped_documents_or_chunks
 FAILED demo/tests/test_orchestrator_modules.py::test_claim_extraction_live_path_uses_create_lexical_graph_false
 FAILED demo/tests/test_orchestrator_modules.py::test_claim_extraction_live_path_uses_claim_extraction_policy_override
 FAILED demo/tests/test_orchestrator_modules.py::test_claim_extraction_live_writes_participation_edges_when_mention_matches
-============ 8 failed, 2311 passed, 10 warnings in 62.58s (0:01:02) ============
+======================== 3 failed, 231 passed in 5.27s =========================

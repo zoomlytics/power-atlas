@@ -23,6 +23,14 @@ def _with_injected_modules(injected: dict[str, types.ModuleType]):
 
 
 def _load_provenance_writer():
+    sys.modules["neo4j_graphrag.experimental.components.data_loader"] = types.ModuleType("neo4j_graphrag.experimental.components.data_loader")
+    sys.modules["neo4j_graphrag.generation"] = types.ModuleType("neo4j_graphrag.generation")
+    sys.modules["neo4j_graphrag.generation"].RagTemplate = dict
+    sys.modules["neo4j_graphrag.experimental.components.text_splitters.fixed_size_splitter"] = types.ModuleType("neo4j_graphrag.experimental.components.text_splitters.fixed_size_splitter")
+    sys.modules["neo4j_graphrag.experimental.components.data_loader"].PdfLoader = dict
+    sys.modules["neo4j_graphrag.experimental.components.data_loader"].is_default_fs = dict
+    sys.modules["neo4j_graphrag.experimental.components.text_splitters.fixed_size_splitter"].FixedSizeSplitter = dict
+    
     class _FakeNeo4jWriter:
         def __init__(self, *args, **kwargs):
             self._init_args = (args, kwargs)
@@ -67,8 +75,23 @@ def _load_provenance_writer():
     fake_types.Node = Node
     fake_types.Relationship = Relationship
     fake_types.Neo4jGraph = Neo4jGraph
+    fake_types.TextChunk = type("TextChunk", (), {})
+    fake_types.TextChunks = type("TextChunks", (), {})
 
+
+    fake_entity_extractor = types.ModuleType("neo4j_graphrag.experimental.components.entity_relation_extractor")
+    fake_schema = types.ModuleType("neo4j_graphrag.experimental.components.schema")
+    fake_runner = types.ModuleType("neo4j_graphrag.experimental.pipeline.config.runner")
+    
+    fake_reader = types.ModuleType("neo4j_graphrag.experimental.components.neo4j_reader")
     fake_kg_writer = types.ModuleType("neo4j_graphrag.experimental.components.kg_writer")
+    fake_entity_extractor.LLMEntityRelationExtractor = type("LLMEntityRelationExtractor", (), {})
+    fake_schema.GraphSchema = type("GraphSchema", (), {})
+    fake_schema.NodeType = type("NodeType", (), {})
+    fake_schema.PropertyType = type("PropertyType", (), {})
+    fake_schema.RelationshipType = type("RelationshipType", (), {})
+    fake_runner.PipelineRunner = type("PipelineRunner", (), {})
+    fake_reader.Neo4jChunkReader = type("Neo4jChunkReader", (), {})
     fake_kg_writer.Neo4jWriter = _FakeNeo4jWriter
     fake_kg_writer.KGWriterModel = dict
 
@@ -104,6 +127,10 @@ def _load_provenance_writer():
         "neo4j_graphrag.experimental": fake_graphrag_experimental,
         "neo4j_graphrag.experimental.components": fake_components,
         "neo4j_graphrag.experimental.components.kg_writer": fake_kg_writer,
+        "neo4j_graphrag.experimental.components.entity_relation_extractor": fake_entity_extractor,
+        "neo4j_graphrag.experimental.components.schema": fake_schema,
+        "neo4j_graphrag.experimental.pipeline.config.runner": fake_runner,
+        "neo4j_graphrag.experimental.components.neo4j_reader": fake_reader,
         "neo4j_graphrag.experimental.components.types": fake_types,
         "neo4j_graphrag.experimental.pipeline": fake_pipeline,
         "neo4j_graphrag.experimental.pipeline.types": fake_pipeline_types,

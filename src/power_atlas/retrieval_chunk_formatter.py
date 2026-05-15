@@ -4,7 +4,7 @@ import logging
 from collections.abc import Callable, Mapping
 
 import neo4j
-from neo4j_graphrag.types import RetrieverResultItem
+from power_atlas.adapters.graphrag_retrieval import RetrieverResultItem
 
 
 def format_cluster_context(

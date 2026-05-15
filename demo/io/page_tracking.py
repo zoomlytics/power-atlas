@@ -22,14 +22,14 @@ from typing import Any, Dict, Optional, Union
 import fsspec
 from fsspec import AbstractFileSystem  # type: ignore[import]
 from fsspec.implementations.local import LocalFileSystem  # type: ignore[import]
-from neo4j_graphrag.experimental.components.data_loader import (
+from power_atlas.adapters.graphrag_components import (
     PdfLoader,
     is_default_fs,
 )
-from neo4j_graphrag.experimental.components.text_splitters.fixed_size_splitter import (
+from power_atlas.adapters.graphrag_components import (
     FixedSizeSplitter,
 )
-from neo4j_graphrag.experimental.components.types import (
+from power_atlas.adapters.graphrag_types import (
     DocumentInfo,
     DocumentType,
     LoadedDocument,

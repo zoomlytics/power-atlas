@@ -1,3 +1,0 @@
-[submodule "vendor/neo4j-graphrag-python"]
-	path = vendor/neo4j-graphrag-python
-	url = https://github.com/neo4j/neo4j-graphrag-python.git

@@ -1091,10 +1091,10 @@ def test_claim_extraction_live_path_uses_create_lexical_graph_false(tmp_path: Pa
     )
 
     with mock.patch(
-        "neo4j_graphrag.experimental.components.entity_relation_extractor.LLMEntityRelationExtractor",
+        "power_atlas.adapters.graphrag_components.LLMEntityRelationExtractor",
         _FakeExtractor,
     ), mock.patch(
-        "neo4j_graphrag.llm.OpenAILLM",
+        "power_atlas.adapters.graphrag_retrieval.OpenAILLM",
         _FakeLLM,
     ), mock.patch(
         "demo.io.RunScopedNeo4jChunkReader",
@@ -1222,10 +1222,10 @@ def test_claim_extraction_live_path_uses_claim_extraction_policy_override(tmp_pa
     )
 
     with mock.patch(
-        "neo4j_graphrag.experimental.components.entity_relation_extractor.LLMEntityRelationExtractor",
+        "power_atlas.adapters.graphrag_components.LLMEntityRelationExtractor",
         _FakeExtractor,
     ), mock.patch(
-        "neo4j_graphrag.llm.OpenAILLM",
+        "power_atlas.adapters.graphrag_retrieval.OpenAILLM",
         _FakeLLM,
     ), mock.patch(
         "demo.io.RunScopedNeo4jChunkReader",
@@ -1325,10 +1325,10 @@ def test_claim_extraction_live_writes_participation_edges_when_mention_matches(t
     )
 
     with mock.patch(
-        "neo4j_graphrag.experimental.components.entity_relation_extractor.LLMEntityRelationExtractor",
+        "power_atlas.adapters.graphrag_components.LLMEntityRelationExtractor",
         _FakeExtractor,
     ), mock.patch(
-        "neo4j_graphrag.llm.OpenAILLM",
+        "power_atlas.adapters.graphrag_retrieval.OpenAILLM",
         _FakeLLM,
     ), mock.patch(
         "demo.io.RunScopedNeo4jChunkReader",
@@ -1491,7 +1491,7 @@ def _make_fake_neo4j_record(**kwargs) -> "dict[str, object]":
 
 def _make_fake_retriever_result_item(content, metadata):
     """Build a RetrieverResultItem-compatible object."""
-    from neo4j_graphrag.types import RetrieverResultItem
+    from power_atlas.adapters.graphrag_retrieval import RetrieverResultItem
 
     return RetrieverResultItem(content=content, metadata=metadata)
 
@@ -3431,7 +3431,7 @@ def test_retrieval_and_qa_live_path_passes_message_history_to_graphrag(tmp_path:
     message_history_enabled must be True in the result."""
     from demo.run_demo import _request_context_from_config
     from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context
-    from neo4j_graphrag.message_history import InMemoryMessageHistory
+    from power_atlas.adapters.graphrag_retrieval import InMemoryMessageHistory
 
     captured_rag_search_args: dict = {}
 
@@ -4068,7 +4068,7 @@ def test_run_interactive_qa_stores_refusal_prefix_in_history(
     turns are not conditioned on under-cited content."""
     from demo.run_demo import _request_context_from_config
     from demo.stages.retrieval_and_qa import run_interactive_qa_request_context, _CITATION_FALLBACK_PREFIX
-    from neo4j_graphrag.message_history import InMemoryMessageHistory
+    from power_atlas.adapters.graphrag_retrieval import InMemoryMessageHistory
 
     uncited_answer = "This claim has no citation and is not grounded."
     captured_history_messages: list = []
