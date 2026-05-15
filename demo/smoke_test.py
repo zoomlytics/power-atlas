@@ -3,10 +3,16 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from power_atlas.bootstrap import build_runtime_config, build_settings
-from power_atlas.contracts.runtime import Config
 from power_atlas.interfaces.cli.smoke_test_entrypoint import run_smoke_test_main
 from power_atlas.interfaces.cli.smoke_test_support import parse_smoke_test_args
+from power_atlas.smoke_test_scenarios import build_smoke_test_config as _build_smoke_test_config_impl
+from power_atlas.smoke_test_scenarios import run_batch_smoke_scenario as _run_batch_smoke_scenario_impl
+from power_atlas.smoke_test_scenarios import (
+    run_structured_smoke_scenario as _run_structured_smoke_scenario_impl,
+)
+from power_atlas.smoke_test_scenarios import (
+    run_unstructured_smoke_scenario as _run_unstructured_smoke_scenario_impl,
+)
 from power_atlas.smoke_test_validation import validate_batch_manifest as _validate_batch_manifest_impl
 from power_atlas.smoke_test_validation import validate_citation_token as _validate_citation_token_impl
 from power_atlas.smoke_test_validation import (
@@ -33,9 +39,8 @@ def _validate_batch_manifest(manifest_path: Path) -> None:
     _validate_batch_manifest_impl(manifest_path)
 
 
-def _build_config(output_dir: Path) -> Config:
-    settings = build_settings()
-    return build_runtime_config(settings, dry_run=True, output_dir=output_dir)
+def _build_config(output_dir: Path):
+    return _build_smoke_test_config_impl(output_dir)
 
 
 def _run_structured_scenario(output_dir: Path) -> Path:
@@ -44,15 +49,13 @@ def _run_structured_scenario(output_dir: Path) -> Path:
     Runs 'ingest-structured' in dry-run mode and validates the resulting
     stage-scoped manifest at runs/<run_id>/structured_ingest/manifest.json.
     """
-    config = _build_config(output_dir)
-    request_context = _request_context_from_config(config, command="ingest-structured")
-    manifest_path = run_independent_demo(request_context, "ingest-structured")
-    _validate_independent_manifest(
-        manifest_path,
-        expected_stage="structured_ingest",
-        expected_run_scope_key="structured_ingest_run_id",
+    return _run_structured_smoke_scenario_impl(
+        output_dir,
+        build_config=_build_config,
+        request_context_from_config=_request_context_from_config,
+        run_independent_demo=run_independent_demo,
+        validate_independent_manifest=_validate_independent_manifest,
     )
-    return manifest_path
 
 
 def _run_unstructured_scenario(output_dir: Path) -> Path:
@@ -61,15 +64,13 @@ def _run_unstructured_scenario(output_dir: Path) -> Path:
     Runs 'ingest-pdf' in dry-run mode and validates the resulting
     stage-scoped manifest at runs/<run_id>/pdf_ingest/manifest.json.
     """
-    config = _build_config(output_dir)
-    request_context = _request_context_from_config(config, command="ingest-pdf")
-    manifest_path = run_independent_demo(request_context, "ingest-pdf")
-    _validate_independent_manifest(
-        manifest_path,
-        expected_stage="pdf_ingest",
-        expected_run_scope_key="unstructured_ingest_run_id",
+    return _run_unstructured_smoke_scenario_impl(
+        output_dir,
+        build_config=_build_config,
+        request_context_from_config=_request_context_from_config,
+        run_independent_demo=run_independent_demo,
+        validate_independent_manifest=_validate_independent_manifest,
     )
-    return manifest_path
 
 
 def _run_batch_scenario(output_dir: Path) -> Path:
@@ -81,11 +82,13 @@ def _run_batch_scenario(output_dir: Path) -> Path:
     - Citation tokens are well-formed per citation contract (#159).
     - QA signals are present and valid.
     """
-    config = _build_config(output_dir)
-    request_context = _request_context_from_config(config, command="ingest")
-    manifest_path = run_demo(request_context)
-    _validate_batch_manifest(manifest_path)
-    return manifest_path
+    return _run_batch_smoke_scenario_impl(
+        output_dir,
+        build_config=_build_config,
+        request_context_from_config=_request_context_from_config,
+        run_demo=run_demo,
+        validate_batch_manifest=_validate_batch_manifest,
+    )
 
 
 # Backward-compatible aliases for scripts and tests that call these directly.
