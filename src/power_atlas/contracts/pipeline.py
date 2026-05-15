@@ -3,13 +3,14 @@ from __future__ import annotations
 from copy import deepcopy
 from dataclasses import dataclass
 import logging
+from pathlib import Path
 import re
 import threading
 from typing import Any
 
 import yaml
 
-from power_atlas.contracts.paths import PDF_PIPELINE_CONFIG_PATH
+from power_atlas.contracts.paths import PDF_PIPELINE_CONFIG_PATH, RepoPaths, resolve_repo_paths
 
 _logger = logging.getLogger(__name__)
 
@@ -37,6 +38,18 @@ class PipelineContractSnapshot:
 
 
 @dataclass(frozen=True)
+class PipelineContractSource:
+    config_path: Path
+
+
+@dataclass(frozen=True)
+class PipelineContractLoadResult:
+    source: PipelineContractSource
+    config_data: dict[str, Any]
+    snapshot: PipelineContractSnapshot
+
+
+@dataclass(frozen=True)
 class _PipelineContractState:
     config_data: dict[str, Any]
     snapshot: PipelineContractSnapshot
@@ -61,6 +74,21 @@ def _default_pipeline_contract_snapshot() -> PipelineContractSnapshot:
         chunk_embedding_dimensions=_DEFAULT_CHUNK_EMBEDDING_DIMENSIONS,
         embedder_model_name=_DEFAULT_EMBEDDER_MODEL_NAME,
         chunk_fallback_stride=max(_DEFAULT_CHUNK_SIZE - _DEFAULT_CHUNK_OVERLAP, 1),
+    )
+
+
+def resolve_pipeline_contract_source(
+    *,
+    config_path: Path | None = None,
+    repo_paths: RepoPaths | None = None,
+) -> PipelineContractSource:
+    resolved_repo_paths = resolve_repo_paths() if repo_paths is None else repo_paths
+    return PipelineContractSource(
+        config_path=Path(
+            resolved_repo_paths.pdf_pipeline_config_path
+            if config_path is None
+            else config_path
+        )
     )
 
 
@@ -170,18 +198,42 @@ def is_pipeline_contract_snapshot(value: object) -> bool:
     return all(hasattr(value, field_name) for field_name in _PIPELINE_CONTRACT_SNAPSHOT_FIELDS)
 
 
+def load_pipeline_contract(
+    *,
+    source: PipelineContractSource | None = None,
+    config_path: Path | None = None,
+    repo_paths: RepoPaths | None = None,
+) -> PipelineContractLoadResult:
+    resolved_source = (
+        resolve_pipeline_contract_source(config_path=config_path, repo_paths=repo_paths)
+        if source is None
+        else source
+    )
+    state = _load_pipeline_contract_from_path(resolved_source.config_path)
+    return PipelineContractLoadResult(
+        source=resolved_source,
+        config_data=deepcopy(state.config_data),
+        snapshot=state.snapshot,
+    )
+
+
 def _load_pipeline_contract() -> _PipelineContractState:
     """Internal helper that reads the pipeline contract from disk and returns a new cached state."""
+    return _load_pipeline_contract_from_path(PDF_PIPELINE_CONFIG_PATH)
+
+
+def _load_pipeline_contract_from_path(config_path: Path) -> _PipelineContractState:
+    """Internal helper that reads the pipeline contract from an explicit config path."""
     config_data: dict[str, Any] = {}
-    if PDF_PIPELINE_CONFIG_PATH.is_file():
+    if config_path.is_file():
         cfg_data: Any = {}
         try:
-            with PDF_PIPELINE_CONFIG_PATH.open("r", encoding="utf-8") as handle:
+            with config_path.open("r", encoding="utf-8") as handle:
                 cfg_data = yaml.safe_load(handle)
         except (OSError, yaml.YAMLError) as exc:
             _logger.warning(
                 "Falling back to default chunk embedding contract; unable to load %s: %s",
-                PDF_PIPELINE_CONFIG_PATH,
+                config_path,
                 exc,
             )
             cfg_data = {}
@@ -189,7 +241,7 @@ def _load_pipeline_contract() -> _PipelineContractState:
         if not cfg_is_mapping:
             _logger.warning(
                 "Falling back to default chunk embedding contract; expected mapping at top-level in %s, got %s",
-                PDF_PIPELINE_CONFIG_PATH,
+                config_path,
                 type(cfg_data).__name__,
             )
             cfg_data = {}
@@ -201,7 +253,7 @@ def _load_pipeline_contract() -> _PipelineContractState:
     elif not isinstance(pipeline_contract, dict):
         _logger.warning(
             "Falling back to default chunk embedding contract; expected mapping for contract in %s, got %s",
-            PDF_PIPELINE_CONFIG_PATH,
+            config_path,
             type(pipeline_contract).__name__,
         )
         pipeline_contract = {}
@@ -212,7 +264,7 @@ def _load_pipeline_contract() -> _PipelineContractState:
     elif not isinstance(chunk_embedding_contract, dict):
         _logger.warning(
             "Falling back to default chunk embedding contract; expected mapping for contract.chunk_embedding in %s, got %s",
-            PDF_PIPELINE_CONFIG_PATH,
+            config_path,
             type(chunk_embedding_contract).__name__,
         )
         chunk_embedding_contract = {}
@@ -290,10 +342,14 @@ def _coerce_identifier(value: Any, default: str, field_name: str) -> str:
     return default
 
 __all__ = [
+    "PipelineContractLoadResult",
+    "PipelineContractSource",
     "PipelineContractSnapshot",
     "ensure_pipeline_contract_loaded",
     "get_pipeline_contract_config_data",
     "get_pipeline_contract_snapshot",
     "is_pipeline_contract_snapshot",
+    "load_pipeline_contract",
     "refresh_pipeline_contract",
+    "resolve_pipeline_contract_source",
 ]

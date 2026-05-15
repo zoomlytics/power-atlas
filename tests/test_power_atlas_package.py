@@ -238,6 +238,9 @@ def test_package_modules_import() -> None:
     assert package.AppContext is context_module.AppContext
     assert package.AppPolicies is context_module.AppPolicies
     assert package.PDF_PIPELINE_CONFIG_PATH == contracts_module.PDF_PIPELINE_CONFIG_PATH
+    assert package.PipelineContractLoadResult is contracts_module.PipelineContractLoadResult
+    assert package.PipelineContractSnapshot is contracts_module.PipelineContractSnapshot
+    assert package.PipelineContractSource is contracts_module.PipelineContractSource
     assert package.POWER_ATLAS_CLAIM_EXTRACTION_ONTOLOGY is contracts_module.POWER_ATLAS_CLAIM_EXTRACTION_ONTOLOGY
     assert package.POWER_ATLAS_CLAIM_EXTRACTION_POLICY is contracts_module.POWER_ATLAS_CLAIM_EXTRACTION_POLICY
     assert (
@@ -298,12 +301,20 @@ def test_package_modules_import() -> None:
     )
     assert package.get_default_claim_extraction_policy is contracts_module.get_default_claim_extraction_policy
     assert package.get_default_entity_type_normalization_policy is contracts_module.get_default_entity_type_normalization_policy
+    assert package.get_pipeline_contract_config_data is contracts_module.get_pipeline_contract_config_data
+    assert package.get_pipeline_contract_snapshot is contracts_module.get_pipeline_contract_snapshot
     assert package.build_entity_type_cypher_case is contracts_module.build_entity_type_cypher_case
+    assert package.is_pipeline_contract_snapshot is contracts_module.is_pipeline_contract_snapshot
+    assert package.load_pipeline_contract is contracts_module.load_pipeline_contract
     assert package.normalize_entity_type is contracts_module.normalize_entity_type
+    assert package.resolve_pipeline_contract_source is contracts_module.resolve_pipeline_contract_source
     assert package.resolution_layer_schema is contracts_module.resolution_layer_schema
+    assert package.refresh_pipeline_contract is contracts_module.refresh_pipeline_contract
     assert package.timestamp is contracts_module.timestamp
     assert package.write_manifest is contracts_module.write_manifest
     assert package.write_manifest_md is contracts_module.write_manifest_md
+    assert contracts_module.resolve_pipeline_contract_source is pipeline_module.resolve_pipeline_contract_source
+    assert contracts_module.load_pipeline_contract is pipeline_module.load_pipeline_contract
     assert (
         policy_packs_module.MARKET_TRADE_DOMAIN_PACK
         is market_trade_policy_module.MARKET_TRADE_DOMAIN_PACK

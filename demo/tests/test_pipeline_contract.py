@@ -8,6 +8,7 @@ import pytest
 import yaml
 
 import power_atlas.contracts.pipeline as pipeline
+from power_atlas.contracts.paths import resolve_repo_paths
 
 
 @pytest.fixture(autouse=True)
@@ -104,6 +105,50 @@ def test_refresh_pipeline_contract_falls_back_on_invalid_types(tmp_path, monkeyp
     assert snapshot.chunk_embedding_dimensions == pipeline._DEFAULT_CHUNK_EMBEDDING_DIMENSIONS
     assert snapshot.embedder_model_name == pipeline._DEFAULT_EMBEDDER_MODEL_NAME
     assert snapshot.chunk_fallback_stride == max(pipeline._DEFAULT_CHUNK_SIZE - pipeline._DEFAULT_CHUNK_OVERLAP, 1)
+
+
+def test_resolve_pipeline_contract_source_uses_explicit_repo_paths(tmp_path):
+    repo_paths = resolve_repo_paths(
+        base_dir=tmp_path / "research_app",
+        config_dir=tmp_path / "research_app" / "config",
+        pdf_pipeline_config_path=tmp_path / "research_app" / "config" / "research_pipeline.yaml",
+    )
+
+    source = pipeline.resolve_pipeline_contract_source(repo_paths=repo_paths)
+
+    assert source.config_path == tmp_path / "research_app" / "config" / "research_pipeline.yaml"
+
+
+def test_load_pipeline_contract_uses_explicit_source(tmp_path):
+    config_path = tmp_path / "external_pipeline.yaml"
+    config_path.write_text(
+        yaml.safe_dump(
+            {
+                "contract": {
+                    "chunk_embedding": {
+                        "index_name": "research_index",
+                        "label": "ResearchChunk",
+                        "embedding_property": "research_embedding",
+                        "dimensions": 1024,
+                    }
+                },
+                "embedder_config": {"params_": {"model": "text-embedding-3-large"}},
+                "text_splitter": {"params_": {"chunk_size": 300, "chunk_overlap": 50}},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = pipeline.load_pipeline_contract(config_path=config_path)
+
+    assert result.source.config_path == config_path
+    assert result.snapshot.chunk_embedding_index_name == "research_index"
+    assert result.snapshot.chunk_embedding_label == "ResearchChunk"
+    assert result.snapshot.chunk_embedding_property == "research_embedding"
+    assert result.snapshot.chunk_embedding_dimensions == 1024
+    assert result.snapshot.embedder_model_name == "text-embedding-3-large"
+    assert result.snapshot.chunk_fallback_stride == 250
+    assert result.config_data["contract"]["chunk_embedding"]["index_name"] == "research_index"
 
 
 def test_pipeline_contract_module_import_is_lazy(monkeypatch):
