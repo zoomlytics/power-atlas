@@ -161,6 +161,8 @@ def run_claim_extraction_runtime_default(
     claim_extraction_policy: ClaimExtractionPolicy,
     neo4j_settings: Neo4jSettings,
     model_name: str,
+    chunk_reader_cls: type[Any] = RunScopedNeo4jChunkReader,
+    llm_builder: Callable[[str], Any] = build_openai_llm,
 ) -> dict[str, Any]:
     from power_atlas.claim_participation_edges import (
         ROLE_OBJECT,
@@ -182,6 +184,8 @@ def run_claim_extraction_runtime_default(
             *args,
             **kwargs,
             claim_extraction_policy=claim_extraction_policy,
+            chunk_reader_cls=chunk_reader_cls,
+            llm_builder=llm_builder,
         ),
         prepare_rows=prepare_extracted_rows,
         build_edges=build_participation_edges,
