@@ -1,0 +1,1383 @@
+.FFFFFFFFFFFFFFFF                                                        [100%]
+=================================== FAILURES ===================================
+_ SimpleKgBuilderFromPdfScriptTests.test_chunk_preparation_keeps_deterministic_ids_and_provenance _
+
+self = <test_simple_kg_builder_from_pdf.SimpleKgBuilderFromPdfScriptTests testMethod=test_chunk_preparation_keeps_deterministic_ids_and_provenance>
+
+    def test_chunk_preparation_keeps_deterministic_ids_and_provenance(self):
+>       module = _load_script_module("simple_kg_builder_from_pdf_chunk_prep")
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_simple_kg_builder_from_pdf.py:103: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_simple_kg_builder_from_pdf.py:21: in _load_script_module
+    spec.loader.exec_module(module)
+<frozen importlib._bootstrap_external>:940: in exec_module
+    ???
+<frozen importlib._bootstrap>:241: in _call_with_frames_removed
+    ???
+examples/build_graph/simple_kg_builder_from_pdf.py:31: in <module>
+    @dataclass(frozen=True)
+     ^^^^^^^^^^^^^^^^^^^^^^
+/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py:1222: in wrap
+    return _process_class(cls, init, repr, eq, order, unsafe_hash,
+/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py:947: in _process_class
+    and _is_type(type, cls, dataclasses, dataclasses.KW_ONLY,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+annotation = 'str'
+cls = <class 'simple_kg_builder_from_pdf_chunk_prep.PropertyType'>
+a_module = <module 'dataclasses' from '/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py'>
+a_type = <dataclasses._KW_ONLY_TYPE object at 0x109c26090>
+is_type_predicate = <function _is_kw_only at 0x109c32f20>
+
+    def _is_type(annotation, cls, a_module, a_type, is_type_predicate):
+        # Given a type annotation string, does it refer to a_type in
+        # a_module?  For example, when checking that annotation denotes a
+        # ClassVar, then a_module is typing, and a_type is
+        # typing.ClassVar.
+    
+        # It's possible to look up a_module given a_type, but it involves
+        # looking in sys.modules (again!), and seems like a waste since
+        # the caller already knows a_module.
+    
+        # - annotation is a string type annotation
+        # - cls is the class that this annotation was found in
+        # - a_module is the module we want to match
+        # - a_type is the type in that module we want to match
+        # - is_type_predicate is a function called with (obj, a_module)
+        #   that determines if obj is of the desired type.
+    
+        # Since this test does not do a local namespace lookup (and
+        # instead only a module (global) lookup), there are some things it
+        # gets wrong.
+    
+        # With string annotations, cv0 will be detected as a ClassVar:
+        #   CV = ClassVar
+        #   @dataclass
+        #   class C0:
+        #     cv0: CV
+    
+        # But in this example cv1 will not be detected as a ClassVar:
+        #   @dataclass
+        #   class C1:
+        #     CV = ClassVar
+        #     cv1: CV
+    
+        # In C1, the code in this function (_is_type) will look up "CV" in
+        # the module and not find it, so it will not consider cv1 as a
+        # ClassVar.  This is a fairly obscure corner case, and the best
+        # way to fix it would be to eval() the string "CV" with the
+        # correct global and local namespaces.  However that would involve
+        # a eval() penalty for every single field of every dataclass
+        # that's defined.  It was judged not worth it.
+    
+        match = _MODULE_IDENTIFIER_RE.match(annotation)
+        if match:
+            ns = None
+            module_name = match.group(1)
+            if not module_name:
+                # No module name, assume the class's module did
+                # "from dataclasses import InitVar".
+>               ns = sys.modules.get(cls.__module__).__dict__
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               AttributeError: 'NoneType' object has no attribute '__dict__'
+
+/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py:712: AttributeError
+_ SimpleKgBuilderFromPdfScriptTests.test_chunk_settings_honor_environment_variables _
+
+self = <test_simple_kg_builder_from_pdf.SimpleKgBuilderFromPdfScriptTests testMethod=test_chunk_settings_honor_environment_variables>
+
+    def test_chunk_settings_honor_environment_variables(self):
+        previous_chunk_size = os.environ.get("CHUNK_SIZE")
+        previous_chunk_overlap = os.environ.get("CHUNK_OVERLAP")
+        try:
+            os.environ["CHUNK_SIZE"] = "256"
+            os.environ["CHUNK_OVERLAP"] = "32"
+>           module = _load_script_module("simple_kg_builder_from_pdf_env_test")
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_simple_kg_builder_from_pdf.py:89: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_simple_kg_builder_from_pdf.py:21: in _load_script_module
+    spec.loader.exec_module(module)
+<frozen importlib._bootstrap_external>:940: in exec_module
+    ???
+<frozen importlib._bootstrap>:241: in _call_with_frames_removed
+    ???
+examples/build_graph/simple_kg_builder_from_pdf.py:31: in <module>
+    @dataclass(frozen=True)
+     ^^^^^^^^^^^^^^^^^^^^^^
+/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py:1222: in wrap
+    return _process_class(cls, init, repr, eq, order, unsafe_hash,
+/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py:947: in _process_class
+    and _is_type(type, cls, dataclasses, dataclasses.KW_ONLY,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+annotation = 'str'
+cls = <class 'simple_kg_builder_from_pdf_env_test.PropertyType'>
+a_module = <module 'dataclasses' from '/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py'>
+a_type = <dataclasses._KW_ONLY_TYPE object at 0x109c26090>
+is_type_predicate = <function _is_kw_only at 0x109c32f20>
+
+    def _is_type(annotation, cls, a_module, a_type, is_type_predicate):
+        # Given a type annotation string, does it refer to a_type in
+        # a_module?  For example, when checking that annotation denotes a
+        # ClassVar, then a_module is typing, and a_type is
+        # typing.ClassVar.
+    
+        # It's possible to look up a_module given a_type, but it involves
+        # looking in sys.modules (again!), and seems like a waste since
+        # the caller already knows a_module.
+    
+        # - annotation is a string type annotation
+        # - cls is the class that this annotation was found in
+        # - a_module is the module we want to match
+        # - a_type is the type in that module we want to match
+        # - is_type_predicate is a function called with (obj, a_module)
+        #   that determines if obj is of the desired type.
+    
+        # Since this test does not do a local namespace lookup (and
+        # instead only a module (global) lookup), there are some things it
+        # gets wrong.
+    
+        # With string annotations, cv0 will be detected as a ClassVar:
+        #   CV = ClassVar
+        #   @dataclass
+        #   class C0:
+        #     cv0: CV
+    
+        # But in this example cv1 will not be detected as a ClassVar:
+        #   @dataclass
+        #   class C1:
+        #     CV = ClassVar
+        #     cv1: CV
+    
+        # In C1, the code in this function (_is_type) will look up "CV" in
+        # the module and not find it, so it will not consider cv1 as a
+        # ClassVar.  This is a fairly obscure corner case, and the best
+        # way to fix it would be to eval() the string "CV" with the
+        # correct global and local namespaces.  However that would involve
+        # a eval() penalty for every single field of every dataclass
+        # that's defined.  It was judged not worth it.
+    
+        match = _MODULE_IDENTIFIER_RE.match(annotation)
+        if match:
+            ns = None
+            module_name = match.group(1)
+            if not module_name:
+                # No module name, assume the class's module did
+                # "from dataclasses import InitVar".
+>               ns = sys.modules.get(cls.__module__).__dict__
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               AttributeError: 'NoneType' object has no attribute '__dict__'
+
+/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py:712: AttributeError
+_ SimpleKgBuilderFromPdfScriptTests.test_document_scoped_filter_query_uses_provenance_pattern _
+
+self = <test_simple_kg_builder_from_pdf.SimpleKgBuilderFromPdfScriptTests testMethod=test_document_scoped_filter_query_uses_provenance_pattern>
+
+    def test_document_scoped_filter_query_uses_provenance_pattern(self):
+>       module = _load_script_module("simple_kg_builder_from_pdf_filter_query_test")
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_simple_kg_builder_from_pdf.py:135: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_simple_kg_builder_from_pdf.py:21: in _load_script_module
+    spec.loader.exec_module(module)
+<frozen importlib._bootstrap_external>:940: in exec_module
+    ???
+<frozen importlib._bootstrap>:241: in _call_with_frames_removed
+    ???
+examples/build_graph/simple_kg_builder_from_pdf.py:31: in <module>
+    @dataclass(frozen=True)
+     ^^^^^^^^^^^^^^^^^^^^^^
+/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py:1222: in wrap
+    return _process_class(cls, init, repr, eq, order, unsafe_hash,
+/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py:947: in _process_class
+    and _is_type(type, cls, dataclasses, dataclasses.KW_ONLY,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+annotation = 'str'
+cls = <class 'simple_kg_builder_from_pdf_filter_query_test.PropertyType'>
+a_module = <module 'dataclasses' from '/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py'>
+a_type = <dataclasses._KW_ONLY_TYPE object at 0x109c26090>
+is_type_predicate = <function _is_kw_only at 0x109c32f20>
+
+    def _is_type(annotation, cls, a_module, a_type, is_type_predicate):
+        # Given a type annotation string, does it refer to a_type in
+        # a_module?  For example, when checking that annotation denotes a
+        # ClassVar, then a_module is typing, and a_type is
+        # typing.ClassVar.
+    
+        # It's possible to look up a_module given a_type, but it involves
+        # looking in sys.modules (again!), and seems like a waste since
+        # the caller already knows a_module.
+    
+        # - annotation is a string type annotation
+        # - cls is the class that this annotation was found in
+        # - a_module is the module we want to match
+        # - a_type is the type in that module we want to match
+        # - is_type_predicate is a function called with (obj, a_module)
+        #   that determines if obj is of the desired type.
+    
+        # Since this test does not do a local namespace lookup (and
+        # instead only a module (global) lookup), there are some things it
+        # gets wrong.
+    
+        # With string annotations, cv0 will be detected as a ClassVar:
+        #   CV = ClassVar
+        #   @dataclass
+        #   class C0:
+        #     cv0: CV
+    
+        # But in this example cv1 will not be detected as a ClassVar:
+        #   @dataclass
+        #   class C1:
+        #     CV = ClassVar
+        #     cv1: CV
+    
+        # In C1, the code in this function (_is_type) will look up "CV" in
+        # the module and not find it, so it will not consider cv1 as a
+        # ClassVar.  This is a fairly obscure corner case, and the best
+        # way to fix it would be to eval() the string "CV" with the
+        # correct global and local namespaces.  However that would involve
+        # a eval() penalty for every single field of every dataclass
+        # that's defined.  It was judged not worth it.
+    
+        match = _MODULE_IDENTIFIER_RE.match(annotation)
+        if match:
+            ns = None
+            module_name = match.group(1)
+            if not module_name:
+                # No module name, assume the class's module did
+                # "from dataclasses import InitVar".
+>               ns = sys.modules.get(cls.__module__).__dict__
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               AttributeError: 'NoneType' object has no attribute '__dict__'
+
+/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py:712: AttributeError
+_ SimpleKgBuilderFromPdfScriptTests.test_documents_and_metadata_are_configured_for_both_synthetic_pdfs _
+
+self = <test_simple_kg_builder_from_pdf.SimpleKgBuilderFromPdfScriptTests testMethod=test_documents_and_metadata_are_configured_for_both_synthetic_pdfs>
+
+    def test_documents_and_metadata_are_configured_for_both_synthetic_pdfs(self):
+>       module = _load_script_module("simple_kg_builder_from_pdf_docs_test")
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_simple_kg_builder_from_pdf.py:27: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_simple_kg_builder_from_pdf.py:21: in _load_script_module
+    spec.loader.exec_module(module)
+<frozen importlib._bootstrap_external>:940: in exec_module
+    ???
+<frozen importlib._bootstrap>:241: in _call_with_frames_removed
+    ???
+examples/build_graph/simple_kg_builder_from_pdf.py:31: in <module>
+    @dataclass(frozen=True)
+     ^^^^^^^^^^^^^^^^^^^^^^
+/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py:1222: in wrap
+    return _process_class(cls, init, repr, eq, order, unsafe_hash,
+/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py:947: in _process_class
+    and _is_type(type, cls, dataclasses, dataclasses.KW_ONLY,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+annotation = 'str'
+cls = <class 'simple_kg_builder_from_pdf_docs_test.PropertyType'>
+a_module = <module 'dataclasses' from '/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py'>
+a_type = <dataclasses._KW_ONLY_TYPE object at 0x109c26090>
+is_type_predicate = <function _is_kw_only at 0x109c32f20>
+
+    def _is_type(annotation, cls, a_module, a_type, is_type_predicate):
+        # Given a type annotation string, does it refer to a_type in
+        # a_module?  For example, when checking that annotation denotes a
+        # ClassVar, then a_module is typing, and a_type is
+        # typing.ClassVar.
+    
+        # It's possible to look up a_module given a_type, but it involves
+        # looking in sys.modules (again!), and seems like a waste since
+        # the caller already knows a_module.
+    
+        # - annotation is a string type annotation
+        # - cls is the class that this annotation was found in
+        # - a_module is the module we want to match
+        # - a_type is the type in that module we want to match
+        # - is_type_predicate is a function called with (obj, a_module)
+        #   that determines if obj is of the desired type.
+    
+        # Since this test does not do a local namespace lookup (and
+        # instead only a module (global) lookup), there are some things it
+        # gets wrong.
+    
+        # With string annotations, cv0 will be detected as a ClassVar:
+        #   CV = ClassVar
+        #   @dataclass
+        #   class C0:
+        #     cv0: CV
+    
+        # But in this example cv1 will not be detected as a ClassVar:
+        #   @dataclass
+        #   class C1:
+        #     CV = ClassVar
+        #     cv1: CV
+    
+        # In C1, the code in this function (_is_type) will look up "CV" in
+        # the module and not find it, so it will not consider cv1 as a
+        # ClassVar.  This is a fairly obscure corner case, and the best
+        # way to fix it would be to eval() the string "CV" with the
+        # correct global and local namespaces.  However that would involve
+        # a eval() penalty for every single field of every dataclass
+        # that's defined.  It was judged not worth it.
+    
+        match = _MODULE_IDENTIFIER_RE.match(annotation)
+        if match:
+            ns = None
+            module_name = match.group(1)
+            if not module_name:
+                # No module name, assume the class's module did
+                # "from dataclasses import InitVar".
+>               ns = sys.modules.get(cls.__module__).__dict__
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               AttributeError: 'NoneType' object has no attribute '__dict__'
+
+/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py:712: AttributeError
+_ SimpleKgBuilderFromPdfScriptTests.test_entity_resolution_uses_label_specific_properties _
+
+self = <test_simple_kg_builder_from_pdf.SimpleKgBuilderFromPdfScriptTests testMethod=test_entity_resolution_uses_label_specific_properties>
+
+    def test_entity_resolution_uses_label_specific_properties(self):
+>       module = _load_script_module("simple_kg_builder_from_pdf_resolution_test")
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_simple_kg_builder_from_pdf.py:73: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_simple_kg_builder_from_pdf.py:21: in _load_script_module
+    spec.loader.exec_module(module)
+<frozen importlib._bootstrap_external>:940: in exec_module
+    ???
+<frozen importlib._bootstrap>:241: in _call_with_frames_removed
+    ???
+examples/build_graph/simple_kg_builder_from_pdf.py:31: in <module>
+    @dataclass(frozen=True)
+     ^^^^^^^^^^^^^^^^^^^^^^
+/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py:1222: in wrap
+    return _process_class(cls, init, repr, eq, order, unsafe_hash,
+/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py:947: in _process_class
+    and _is_type(type, cls, dataclasses, dataclasses.KW_ONLY,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+annotation = 'str'
+cls = <class 'simple_kg_builder_from_pdf_resolution_test.PropertyType'>
+a_module = <module 'dataclasses' from '/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py'>
+a_type = <dataclasses._KW_ONLY_TYPE object at 0x109c26090>
+is_type_predicate = <function _is_kw_only at 0x109c32f20>
+
+    def _is_type(annotation, cls, a_module, a_type, is_type_predicate):
+        # Given a type annotation string, does it refer to a_type in
+        # a_module?  For example, when checking that annotation denotes a
+        # ClassVar, then a_module is typing, and a_type is
+        # typing.ClassVar.
+    
+        # It's possible to look up a_module given a_type, but it involves
+        # looking in sys.modules (again!), and seems like a waste since
+        # the caller already knows a_module.
+    
+        # - annotation is a string type annotation
+        # - cls is the class that this annotation was found in
+        # - a_module is the module we want to match
+        # - a_type is the type in that module we want to match
+        # - is_type_predicate is a function called with (obj, a_module)
+        #   that determines if obj is of the desired type.
+    
+        # Since this test does not do a local namespace lookup (and
+        # instead only a module (global) lookup), there are some things it
+        # gets wrong.
+    
+        # With string annotations, cv0 will be detected as a ClassVar:
+        #   CV = ClassVar
+        #   @dataclass
+        #   class C0:
+        #     cv0: CV
+    
+        # But in this example cv1 will not be detected as a ClassVar:
+        #   @dataclass
+        #   class C1:
+        #     CV = ClassVar
+        #     cv1: CV
+    
+        # In C1, the code in this function (_is_type) will look up "CV" in
+        # the module and not find it, so it will not consider cv1 as a
+        # ClassVar.  This is a fairly obscure corner case, and the best
+        # way to fix it would be to eval() the string "CV" with the
+        # correct global and local namespaces.  However that would involve
+        # a eval() penalty for every single field of every dataclass
+        # that's defined.  It was judged not worth it.
+    
+        match = _MODULE_IDENTIFIER_RE.match(annotation)
+        if match:
+            ns = None
+            module_name = match.group(1)
+            if not module_name:
+                # No module name, assume the class's module did
+                # "from dataclasses import InitVar".
+>               ns = sys.modules.get(cls.__module__).__dict__
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               AttributeError: 'NoneType' object has no attribute '__dict__'
+
+/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py:712: AttributeError
+_ SimpleKgBuilderFromPdfScriptTests.test_lexical_reset_with_entity_pipeline_and_no_entity_reset_warns _
+
+self = <test_simple_kg_builder_from_pdf.SimpleKgBuilderFromPdfScriptTests testMethod=test_lexical_reset_with_entity_pipeline_and_no_entity_reset_warns>
+
+    def test_lexical_reset_with_entity_pipeline_and_no_entity_reset_warns(self):
+        """Default config (RESET_LEXICAL_GRAPH=true, RESET_ENTITY_GRAPH=false) + entity pipeline
+        enabled should emit a warning about potentially orphaned entity nodes."""
+        import asyncio
+        from unittest.mock import AsyncMock, patch
+    
+        env_overrides = {
+            "RUN_LEXICAL_PIPELINE": "true",
+            "RESET_LEXICAL_GRAPH": "true",
+            "RUN_ENTITY_PIPELINE": "true",
+            "RESET_ENTITY_GRAPH": "false",
+        }
+        saved = {k: os.environ.get(k) for k in env_overrides}
+        try:
+            os.environ.update(env_overrides)
+>           module = _load_script_module("simple_kg_builder_from_pdf_orphan_warn_test")
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_simple_kg_builder_from_pdf.py:160: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_simple_kg_builder_from_pdf.py:21: in _load_script_module
+    spec.loader.exec_module(module)
+<frozen importlib._bootstrap_external>:940: in exec_module
+    ???
+<frozen importlib._bootstrap>:241: in _call_with_frames_removed
+    ???
+examples/build_graph/simple_kg_builder_from_pdf.py:31: in <module>
+    @dataclass(frozen=True)
+     ^^^^^^^^^^^^^^^^^^^^^^
+/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py:1222: in wrap
+    return _process_class(cls, init, repr, eq, order, unsafe_hash,
+/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py:947: in _process_class
+    and _is_type(type, cls, dataclasses, dataclasses.KW_ONLY,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+annotation = 'str'
+cls = <class 'simple_kg_builder_from_pdf_orphan_warn_test.PropertyType'>
+a_module = <module 'dataclasses' from '/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py'>
+a_type = <dataclasses._KW_ONLY_TYPE object at 0x109c26090>
+is_type_predicate = <function _is_kw_only at 0x109c32f20>
+
+    def _is_type(annotation, cls, a_module, a_type, is_type_predicate):
+        # Given a type annotation string, does it refer to a_type in
+        # a_module?  For example, when checking that annotation denotes a
+        # ClassVar, then a_module is typing, and a_type is
+        # typing.ClassVar.
+    
+        # It's possible to look up a_module given a_type, but it involves
+        # looking in sys.modules (again!), and seems like a waste since
+        # the caller already knows a_module.
+    
+        # - annotation is a string type annotation
+        # - cls is the class that this annotation was found in
+        # - a_module is the module we want to match
+        # - a_type is the type in that module we want to match
+        # - is_type_predicate is a function called with (obj, a_module)
+        #   that determines if obj is of the desired type.
+    
+        # Since this test does not do a local namespace lookup (and
+        # instead only a module (global) lookup), there are some things it
+        # gets wrong.
+    
+        # With string annotations, cv0 will be detected as a ClassVar:
+        #   CV = ClassVar
+        #   @dataclass
+        #   class C0:
+        #     cv0: CV
+    
+        # But in this example cv1 will not be detected as a ClassVar:
+        #   @dataclass
+        #   class C1:
+        #     CV = ClassVar
+        #     cv1: CV
+    
+        # In C1, the code in this function (_is_type) will look up "CV" in
+        # the module and not find it, so it will not consider cv1 as a
+        # ClassVar.  This is a fairly obscure corner case, and the best
+        # way to fix it would be to eval() the string "CV" with the
+        # correct global and local namespaces.  However that would involve
+        # a eval() penalty for every single field of every dataclass
+        # that's defined.  It was judged not worth it.
+    
+        match = _MODULE_IDENTIFIER_RE.match(annotation)
+        if match:
+            ns = None
+            module_name = match.group(1)
+            if not module_name:
+                # No module name, assume the class's module did
+                # "from dataclasses import InitVar".
+>               ns = sys.modules.get(cls.__module__).__dict__
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               AttributeError: 'NoneType' object has no attribute '__dict__'
+
+/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py:712: AttributeError
+_ SimpleKgBuilderFromPdfScriptTests.test_reset_document_derived_graph_runs_in_single_transaction _
+
+self = <test_simple_kg_builder_from_pdf.SimpleKgBuilderFromPdfScriptTests testMethod=test_reset_document_derived_graph_runs_in_single_transaction>
+
+    def test_reset_document_derived_graph_runs_in_single_transaction(self):
+>       module = _load_script_module("simple_kg_builder_from_pdf_reset_combo_test")
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_simple_kg_builder_from_pdf.py:191: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_simple_kg_builder_from_pdf.py:21: in _load_script_module
+    spec.loader.exec_module(module)
+<frozen importlib._bootstrap_external>:940: in exec_module
+    ???
+<frozen importlib._bootstrap>:241: in _call_with_frames_removed
+    ???
+examples/build_graph/simple_kg_builder_from_pdf.py:31: in <module>
+    @dataclass(frozen=True)
+     ^^^^^^^^^^^^^^^^^^^^^^
+/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py:1222: in wrap
+    return _process_class(cls, init, repr, eq, order, unsafe_hash,
+/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py:947: in _process_class
+    and _is_type(type, cls, dataclasses, dataclasses.KW_ONLY,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+annotation = 'str'
+cls = <class 'simple_kg_builder_from_pdf_reset_combo_test.PropertyType'>
+a_module = <module 'dataclasses' from '/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py'>
+a_type = <dataclasses._KW_ONLY_TYPE object at 0x109c26090>
+is_type_predicate = <function _is_kw_only at 0x109c32f20>
+
+    def _is_type(annotation, cls, a_module, a_type, is_type_predicate):
+        # Given a type annotation string, does it refer to a_type in
+        # a_module?  For example, when checking that annotation denotes a
+        # ClassVar, then a_module is typing, and a_type is
+        # typing.ClassVar.
+    
+        # It's possible to look up a_module given a_type, but it involves
+        # looking in sys.modules (again!), and seems like a waste since
+        # the caller already knows a_module.
+    
+        # - annotation is a string type annotation
+        # - cls is the class that this annotation was found in
+        # - a_module is the module we want to match
+        # - a_type is the type in that module we want to match
+        # - is_type_predicate is a function called with (obj, a_module)
+        #   that determines if obj is of the desired type.
+    
+        # Since this test does not do a local namespace lookup (and
+        # instead only a module (global) lookup), there are some things it
+        # gets wrong.
+    
+        # With string annotations, cv0 will be detected as a ClassVar:
+        #   CV = ClassVar
+        #   @dataclass
+        #   class C0:
+        #     cv0: CV
+    
+        # But in this example cv1 will not be detected as a ClassVar:
+        #   @dataclass
+        #   class C1:
+        #     CV = ClassVar
+        #     cv1: CV
+    
+        # In C1, the code in this function (_is_type) will look up "CV" in
+        # the module and not find it, so it will not consider cv1 as a
+        # ClassVar.  This is a fairly obscure corner case, and the best
+        # way to fix it would be to eval() the string "CV" with the
+        # correct global and local namespaces.  However that would involve
+        # a eval() penalty for every single field of every dataclass
+        # that's defined.  It was judged not worth it.
+    
+        match = _MODULE_IDENTIFIER_RE.match(annotation)
+        if match:
+            ns = None
+            module_name = match.group(1)
+            if not module_name:
+                # No module name, assume the class's module did
+                # "from dataclasses import InitVar".
+>               ns = sys.modules.get(cls.__module__).__dict__
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               AttributeError: 'NoneType' object has no attribute '__dict__'
+
+/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py:712: AttributeError
+_____ SimpleKgBuilderFromPdfScriptTests.test_schema_is_guided_and_not_free _____
+
+self = <test_simple_kg_builder_from_pdf.SimpleKgBuilderFromPdfScriptTests testMethod=test_schema_is_guided_and_not_free>
+
+    def test_schema_is_guided_and_not_free(self):
+>       module = _load_script_module("simple_kg_builder_from_pdf_schema_test")
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_simple_kg_builder_from_pdf.py:48: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_simple_kg_builder_from_pdf.py:21: in _load_script_module
+    spec.loader.exec_module(module)
+<frozen importlib._bootstrap_external>:940: in exec_module
+    ???
+<frozen importlib._bootstrap>:241: in _call_with_frames_removed
+    ???
+examples/build_graph/simple_kg_builder_from_pdf.py:31: in <module>
+    @dataclass(frozen=True)
+     ^^^^^^^^^^^^^^^^^^^^^^
+/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py:1222: in wrap
+    return _process_class(cls, init, repr, eq, order, unsafe_hash,
+/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py:947: in _process_class
+    and _is_type(type, cls, dataclasses, dataclasses.KW_ONLY,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+annotation = 'str'
+cls = <class 'simple_kg_builder_from_pdf_schema_test.PropertyType'>
+a_module = <module 'dataclasses' from '/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py'>
+a_type = <dataclasses._KW_ONLY_TYPE object at 0x109c26090>
+is_type_predicate = <function _is_kw_only at 0x109c32f20>
+
+    def _is_type(annotation, cls, a_module, a_type, is_type_predicate):
+        # Given a type annotation string, does it refer to a_type in
+        # a_module?  For example, when checking that annotation denotes a
+        # ClassVar, then a_module is typing, and a_type is
+        # typing.ClassVar.
+    
+        # It's possible to look up a_module given a_type, but it involves
+        # looking in sys.modules (again!), and seems like a waste since
+        # the caller already knows a_module.
+    
+        # - annotation is a string type annotation
+        # - cls is the class that this annotation was found in
+        # - a_module is the module we want to match
+        # - a_type is the type in that module we want to match
+        # - is_type_predicate is a function called with (obj, a_module)
+        #   that determines if obj is of the desired type.
+    
+        # Since this test does not do a local namespace lookup (and
+        # instead only a module (global) lookup), there are some things it
+        # gets wrong.
+    
+        # With string annotations, cv0 will be detected as a ClassVar:
+        #   CV = ClassVar
+        #   @dataclass
+        #   class C0:
+        #     cv0: CV
+    
+        # But in this example cv1 will not be detected as a ClassVar:
+        #   @dataclass
+        #   class C1:
+        #     CV = ClassVar
+        #     cv1: CV
+    
+        # In C1, the code in this function (_is_type) will look up "CV" in
+        # the module and not find it, so it will not consider cv1 as a
+        # ClassVar.  This is a fairly obscure corner case, and the best
+        # way to fix it would be to eval() the string "CV" with the
+        # correct global and local namespaces.  However that would involve
+        # a eval() penalty for every single field of every dataclass
+        # that's defined.  It was judged not worth it.
+    
+        match = _MODULE_IDENTIFIER_RE.match(annotation)
+        if match:
+            ns = None
+            module_name = match.group(1)
+            if not module_name:
+                # No module name, assume the class's module did
+                # "from dataclasses import InitVar".
+>               ns = sys.modules.get(cls.__module__).__dict__
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               AttributeError: 'NoneType' object has no attribute '__dict__'
+
+/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py:712: AttributeError
+_ LocalPdfGraphRagScriptTests.test_build_query_params_rejects_invalid_doc_type _
+
+self = <test_local_pdf_graphrag.LocalPdfGraphRagScriptTests testMethod=test_build_query_params_rejects_invalid_doc_type>
+
+    def test_build_query_params_rejects_invalid_doc_type(self):
+>       module = _load_script_module("local_pdf_graphrag_invalid_doc_type_test")
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_local_pdf_graphrag.py:37: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_local_pdf_graphrag.py:20: in _load_script_module
+    spec.loader.exec_module(module)
+<frozen importlib._bootstrap_external>:940: in exec_module
+    ???
+<frozen importlib._bootstrap>:241: in _call_with_frames_removed
+    ???
+examples/retrieve/local_pdf_graphrag.py:11: in <module>
+    @dataclass(frozen=True)
+     ^^^^^^^^^^^^^^^^^^^^^^
+/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py:1222: in wrap
+    return _process_class(cls, init, repr, eq, order, unsafe_hash,
+/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py:947: in _process_class
+    and _is_type(type, cls, dataclasses, dataclasses.KW_ONLY,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+annotation = 'str'
+cls = <class 'local_pdf_graphrag_invalid_doc_type_test.PromptTemplate'>
+a_module = <module 'dataclasses' from '/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py'>
+a_type = <dataclasses._KW_ONLY_TYPE object at 0x109c26090>
+is_type_predicate = <function _is_kw_only at 0x109c32f20>
+
+    def _is_type(annotation, cls, a_module, a_type, is_type_predicate):
+        # Given a type annotation string, does it refer to a_type in
+        # a_module?  For example, when checking that annotation denotes a
+        # ClassVar, then a_module is typing, and a_type is
+        # typing.ClassVar.
+    
+        # It's possible to look up a_module given a_type, but it involves
+        # looking in sys.modules (again!), and seems like a waste since
+        # the caller already knows a_module.
+    
+        # - annotation is a string type annotation
+        # - cls is the class that this annotation was found in
+        # - a_module is the module we want to match
+        # - a_type is the type in that module we want to match
+        # - is_type_predicate is a function called with (obj, a_module)
+        #   that determines if obj is of the desired type.
+    
+        # Since this test does not do a local namespace lookup (and
+        # instead only a module (global) lookup), there are some things it
+        # gets wrong.
+    
+        # With string annotations, cv0 will be detected as a ClassVar:
+        #   CV = ClassVar
+        #   @dataclass
+        #   class C0:
+        #     cv0: CV
+    
+        # But in this example cv1 will not be detected as a ClassVar:
+        #   @dataclass
+        #   class C1:
+        #     CV = ClassVar
+        #     cv1: CV
+    
+        # In C1, the code in this function (_is_type) will look up "CV" in
+        # the module and not find it, so it will not consider cv1 as a
+        # ClassVar.  This is a fairly obscure corner case, and the best
+        # way to fix it would be to eval() the string "CV" with the
+        # correct global and local namespaces.  However that would involve
+        # a eval() penalty for every single field of every dataclass
+        # that's defined.  It was judged not worth it.
+    
+        match = _MODULE_IDENTIFIER_RE.match(annotation)
+        if match:
+            ns = None
+            module_name = match.group(1)
+            if not module_name:
+                # No module name, assume the class's module did
+                # "from dataclasses import InitVar".
+>               ns = sys.modules.get(cls.__module__).__dict__
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               AttributeError: 'NoneType' object has no attribute '__dict__'
+
+/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py:712: AttributeError
+_ LocalPdfGraphRagScriptTests.test_build_query_params_supports_all_and_specific_doc_types _
+
+self = <test_local_pdf_graphrag.LocalPdfGraphRagScriptTests testMethod=test_build_query_params_supports_all_and_specific_doc_types>
+
+    def test_build_query_params_supports_all_and_specific_doc_types(self):
+>       module = _load_script_module("local_pdf_graphrag_params_test")
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_local_pdf_graphrag.py:26: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_local_pdf_graphrag.py:20: in _load_script_module
+    spec.loader.exec_module(module)
+<frozen importlib._bootstrap_external>:940: in exec_module
+    ???
+<frozen importlib._bootstrap>:241: in _call_with_frames_removed
+    ???
+examples/retrieve/local_pdf_graphrag.py:11: in <module>
+    @dataclass(frozen=True)
+     ^^^^^^^^^^^^^^^^^^^^^^
+/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py:1222: in wrap
+    return _process_class(cls, init, repr, eq, order, unsafe_hash,
+/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py:947: in _process_class
+    and _is_type(type, cls, dataclasses, dataclasses.KW_ONLY,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+annotation = 'str'
+cls = <class 'local_pdf_graphrag_params_test.PromptTemplate'>
+a_module = <module 'dataclasses' from '/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py'>
+a_type = <dataclasses._KW_ONLY_TYPE object at 0x109c26090>
+is_type_predicate = <function _is_kw_only at 0x109c32f20>
+
+    def _is_type(annotation, cls, a_module, a_type, is_type_predicate):
+        # Given a type annotation string, does it refer to a_type in
+        # a_module?  For example, when checking that annotation denotes a
+        # ClassVar, then a_module is typing, and a_type is
+        # typing.ClassVar.
+    
+        # It's possible to look up a_module given a_type, but it involves
+        # looking in sys.modules (again!), and seems like a waste since
+        # the caller already knows a_module.
+    
+        # - annotation is a string type annotation
+        # - cls is the class that this annotation was found in
+        # - a_module is the module we want to match
+        # - a_type is the type in that module we want to match
+        # - is_type_predicate is a function called with (obj, a_module)
+        #   that determines if obj is of the desired type.
+    
+        # Since this test does not do a local namespace lookup (and
+        # instead only a module (global) lookup), there are some things it
+        # gets wrong.
+    
+        # With string annotations, cv0 will be detected as a ClassVar:
+        #   CV = ClassVar
+        #   @dataclass
+        #   class C0:
+        #     cv0: CV
+    
+        # But in this example cv1 will not be detected as a ClassVar:
+        #   @dataclass
+        #   class C1:
+        #     CV = ClassVar
+        #     cv1: CV
+    
+        # In C1, the code in this function (_is_type) will look up "CV" in
+        # the module and not find it, so it will not consider cv1 as a
+        # ClassVar.  This is a fairly obscure corner case, and the best
+        # way to fix it would be to eval() the string "CV" with the
+        # correct global and local namespaces.  However that would involve
+        # a eval() penalty for every single field of every dataclass
+        # that's defined.  It was judged not worth it.
+    
+        match = _MODULE_IDENTIFIER_RE.match(annotation)
+        if match:
+            ns = None
+            module_name = match.group(1)
+            if not module_name:
+                # No module name, assume the class's module did
+                # "from dataclasses import InitVar".
+>               ns = sys.modules.get(cls.__module__).__dict__
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               AttributeError: 'NoneType' object has no attribute '__dict__'
+
+/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py:712: AttributeError
+_ LocalPdfGraphRagScriptTests.test_build_retriever_filters_skips_empty_values __
+
+self = <test_local_pdf_graphrag.LocalPdfGraphRagScriptTests testMethod=test_build_retriever_filters_skips_empty_values>
+
+    def test_build_retriever_filters_skips_empty_values(self):
+>       module = _load_script_module("local_pdf_graphrag_filters_test")
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_local_pdf_graphrag.py:42: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_local_pdf_graphrag.py:20: in _load_script_module
+    spec.loader.exec_module(module)
+<frozen importlib._bootstrap_external>:940: in exec_module
+    ???
+<frozen importlib._bootstrap>:241: in _call_with_frames_removed
+    ???
+examples/retrieve/local_pdf_graphrag.py:11: in <module>
+    @dataclass(frozen=True)
+     ^^^^^^^^^^^^^^^^^^^^^^
+/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py:1222: in wrap
+    return _process_class(cls, init, repr, eq, order, unsafe_hash,
+/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py:947: in _process_class
+    and _is_type(type, cls, dataclasses, dataclasses.KW_ONLY,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+annotation = 'str'
+cls = <class 'local_pdf_graphrag_filters_test.PromptTemplate'>
+a_module = <module 'dataclasses' from '/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py'>
+a_type = <dataclasses._KW_ONLY_TYPE object at 0x109c26090>
+is_type_predicate = <function _is_kw_only at 0x109c32f20>
+
+    def _is_type(annotation, cls, a_module, a_type, is_type_predicate):
+        # Given a type annotation string, does it refer to a_type in
+        # a_module?  For example, when checking that annotation denotes a
+        # ClassVar, then a_module is typing, and a_type is
+        # typing.ClassVar.
+    
+        # It's possible to look up a_module given a_type, but it involves
+        # looking in sys.modules (again!), and seems like a waste since
+        # the caller already knows a_module.
+    
+        # - annotation is a string type annotation
+        # - cls is the class that this annotation was found in
+        # - a_module is the module we want to match
+        # - a_type is the type in that module we want to match
+        # - is_type_predicate is a function called with (obj, a_module)
+        #   that determines if obj is of the desired type.
+    
+        # Since this test does not do a local namespace lookup (and
+        # instead only a module (global) lookup), there are some things it
+        # gets wrong.
+    
+        # With string annotations, cv0 will be detected as a ClassVar:
+        #   CV = ClassVar
+        #   @dataclass
+        #   class C0:
+        #     cv0: CV
+    
+        # But in this example cv1 will not be detected as a ClassVar:
+        #   @dataclass
+        #   class C1:
+        #     CV = ClassVar
+        #     cv1: CV
+    
+        # In C1, the code in this function (_is_type) will look up "CV" in
+        # the module and not find it, so it will not consider cv1 as a
+        # ClassVar.  This is a fairly obscure corner case, and the best
+        # way to fix it would be to eval() the string "CV" with the
+        # correct global and local namespaces.  However that would involve
+        # a eval() penalty for every single field of every dataclass
+        # that's defined.  It was judged not worth it.
+    
+        match = _MODULE_IDENTIFIER_RE.match(annotation)
+        if match:
+            ns = None
+            module_name = match.group(1)
+            if not module_name:
+                # No module name, assume the class's module did
+                # "from dataclasses import InitVar".
+>               ns = sys.modules.get(cls.__module__).__dict__
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               AttributeError: 'NoneType' object has no attribute '__dict__'
+
+/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py:712: AttributeError
+_ LocalPdfGraphRagScriptTests.test_dedup_retrieved_items_removes_duplicate_contexts _
+
+self = <test_local_pdf_graphrag.LocalPdfGraphRagScriptTests testMethod=test_dedup_retrieved_items_removes_duplicate_contexts>
+
+    def test_dedup_retrieved_items_removes_duplicate_contexts(self):
+>       module = _load_script_module("local_pdf_graphrag_dedupe_test")
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_local_pdf_graphrag.py:93: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_local_pdf_graphrag.py:20: in _load_script_module
+    spec.loader.exec_module(module)
+<frozen importlib._bootstrap_external>:940: in exec_module
+    ???
+<frozen importlib._bootstrap>:241: in _call_with_frames_removed
+    ???
+examples/retrieve/local_pdf_graphrag.py:11: in <module>
+    @dataclass(frozen=True)
+     ^^^^^^^^^^^^^^^^^^^^^^
+/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py:1222: in wrap
+    return _process_class(cls, init, repr, eq, order, unsafe_hash,
+/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py:947: in _process_class
+    and _is_type(type, cls, dataclasses, dataclasses.KW_ONLY,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+annotation = 'str'
+cls = <class 'local_pdf_graphrag_dedupe_test.PromptTemplate'>
+a_module = <module 'dataclasses' from '/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py'>
+a_type = <dataclasses._KW_ONLY_TYPE object at 0x109c26090>
+is_type_predicate = <function _is_kw_only at 0x109c32f20>
+
+    def _is_type(annotation, cls, a_module, a_type, is_type_predicate):
+        # Given a type annotation string, does it refer to a_type in
+        # a_module?  For example, when checking that annotation denotes a
+        # ClassVar, then a_module is typing, and a_type is
+        # typing.ClassVar.
+    
+        # It's possible to look up a_module given a_type, but it involves
+        # looking in sys.modules (again!), and seems like a waste since
+        # the caller already knows a_module.
+    
+        # - annotation is a string type annotation
+        # - cls is the class that this annotation was found in
+        # - a_module is the module we want to match
+        # - a_type is the type in that module we want to match
+        # - is_type_predicate is a function called with (obj, a_module)
+        #   that determines if obj is of the desired type.
+    
+        # Since this test does not do a local namespace lookup (and
+        # instead only a module (global) lookup), there are some things it
+        # gets wrong.
+    
+        # With string annotations, cv0 will be detected as a ClassVar:
+        #   CV = ClassVar
+        #   @dataclass
+        #   class C0:
+        #     cv0: CV
+    
+        # But in this example cv1 will not be detected as a ClassVar:
+        #   @dataclass
+        #   class C1:
+        #     CV = ClassVar
+        #     cv1: CV
+    
+        # In C1, the code in this function (_is_type) will look up "CV" in
+        # the module and not find it, so it will not consider cv1 as a
+        # ClassVar.  This is a fairly obscure corner case, and the best
+        # way to fix it would be to eval() the string "CV" with the
+        # correct global and local namespaces.  However that would involve
+        # a eval() penalty for every single field of every dataclass
+        # that's defined.  It was judged not worth it.
+    
+        match = _MODULE_IDENTIFIER_RE.match(annotation)
+        if match:
+            ns = None
+            module_name = match.group(1)
+            if not module_name:
+                # No module name, assume the class's module did
+                # "from dataclasses import InitVar".
+>               ns = sys.modules.get(cls.__module__).__dict__
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               AttributeError: 'NoneType' object has no attribute '__dict__'
+
+/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py:712: AttributeError
+_ LocalPdfGraphRagScriptTests.test_dedup_retrieved_items_removes_identical_wrapped_duplicates _
+
+self = <test_local_pdf_graphrag.LocalPdfGraphRagScriptTests testMethod=test_dedup_retrieved_items_removes_identical_wrapped_duplicates>
+
+    def test_dedup_retrieved_items_removes_identical_wrapped_duplicates(self):
+>       module = _load_script_module("local_pdf_graphrag_dedupe_wrapped_test")
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_local_pdf_graphrag.py:108: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_local_pdf_graphrag.py:20: in _load_script_module
+    spec.loader.exec_module(module)
+<frozen importlib._bootstrap_external>:940: in exec_module
+    ???
+<frozen importlib._bootstrap>:241: in _call_with_frames_removed
+    ???
+examples/retrieve/local_pdf_graphrag.py:11: in <module>
+    @dataclass(frozen=True)
+     ^^^^^^^^^^^^^^^^^^^^^^
+/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py:1222: in wrap
+    return _process_class(cls, init, repr, eq, order, unsafe_hash,
+/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py:947: in _process_class
+    and _is_type(type, cls, dataclasses, dataclasses.KW_ONLY,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+annotation = 'str'
+cls = <class 'local_pdf_graphrag_dedupe_wrapped_test.PromptTemplate'>
+a_module = <module 'dataclasses' from '/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py'>
+a_type = <dataclasses._KW_ONLY_TYPE object at 0x109c26090>
+is_type_predicate = <function _is_kw_only at 0x109c32f20>
+
+    def _is_type(annotation, cls, a_module, a_type, is_type_predicate):
+        # Given a type annotation string, does it refer to a_type in
+        # a_module?  For example, when checking that annotation denotes a
+        # ClassVar, then a_module is typing, and a_type is
+        # typing.ClassVar.
+    
+        # It's possible to look up a_module given a_type, but it involves
+        # looking in sys.modules (again!), and seems like a waste since
+        # the caller already knows a_module.
+    
+        # - annotation is a string type annotation
+        # - cls is the class that this annotation was found in
+        # - a_module is the module we want to match
+        # - a_type is the type in that module we want to match
+        # - is_type_predicate is a function called with (obj, a_module)
+        #   that determines if obj is of the desired type.
+    
+        # Since this test does not do a local namespace lookup (and
+        # instead only a module (global) lookup), there are some things it
+        # gets wrong.
+    
+        # With string annotations, cv0 will be detected as a ClassVar:
+        #   CV = ClassVar
+        #   @dataclass
+        #   class C0:
+        #     cv0: CV
+    
+        # But in this example cv1 will not be detected as a ClassVar:
+        #   @dataclass
+        #   class C1:
+        #     CV = ClassVar
+        #     cv1: CV
+    
+        # In C1, the code in this function (_is_type) will look up "CV" in
+        # the module and not find it, so it will not consider cv1 as a
+        # ClassVar.  This is a fairly obscure corner case, and the best
+        # way to fix it would be to eval() the string "CV" with the
+        # correct global and local namespaces.  However that would involve
+        # a eval() penalty for every single field of every dataclass
+        # that's defined.  It was judged not worth it.
+    
+        match = _MODULE_IDENTIFIER_RE.match(annotation)
+        if match:
+            ns = None
+            module_name = match.group(1)
+            if not module_name:
+                # No module name, assume the class's module did
+                # "from dataclasses import InitVar".
+>               ns = sys.modules.get(cls.__module__).__dict__
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               AttributeError: 'NoneType' object has no attribute '__dict__'
+
+/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py:712: AttributeError
+_ LocalPdfGraphRagScriptTests.test_normalize_context_text_unescapes_common_sequences _
+
+self = <test_local_pdf_graphrag.LocalPdfGraphRagScriptTests testMethod=test_normalize_context_text_unescapes_common_sequences>
+
+    def test_normalize_context_text_unescapes_common_sequences(self):
+>       module = _load_script_module("local_pdf_graphrag_normalize_test")
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_local_pdf_graphrag.py:80: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_local_pdf_graphrag.py:20: in _load_script_module
+    spec.loader.exec_module(module)
+<frozen importlib._bootstrap_external>:940: in exec_module
+    ???
+<frozen importlib._bootstrap>:241: in _call_with_frames_removed
+    ???
+examples/retrieve/local_pdf_graphrag.py:11: in <module>
+    @dataclass(frozen=True)
+     ^^^^^^^^^^^^^^^^^^^^^^
+/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py:1222: in wrap
+    return _process_class(cls, init, repr, eq, order, unsafe_hash,
+/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py:947: in _process_class
+    and _is_type(type, cls, dataclasses, dataclasses.KW_ONLY,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+annotation = 'str'
+cls = <class 'local_pdf_graphrag_normalize_test.PromptTemplate'>
+a_module = <module 'dataclasses' from '/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py'>
+a_type = <dataclasses._KW_ONLY_TYPE object at 0x109c26090>
+is_type_predicate = <function _is_kw_only at 0x109c32f20>
+
+    def _is_type(annotation, cls, a_module, a_type, is_type_predicate):
+        # Given a type annotation string, does it refer to a_type in
+        # a_module?  For example, when checking that annotation denotes a
+        # ClassVar, then a_module is typing, and a_type is
+        # typing.ClassVar.
+    
+        # It's possible to look up a_module given a_type, but it involves
+        # looking in sys.modules (again!), and seems like a waste since
+        # the caller already knows a_module.
+    
+        # - annotation is a string type annotation
+        # - cls is the class that this annotation was found in
+        # - a_module is the module we want to match
+        # - a_type is the type in that module we want to match
+        # - is_type_predicate is a function called with (obj, a_module)
+        #   that determines if obj is of the desired type.
+    
+        # Since this test does not do a local namespace lookup (and
+        # instead only a module (global) lookup), there are some things it
+        # gets wrong.
+    
+        # With string annotations, cv0 will be detected as a ClassVar:
+        #   CV = ClassVar
+        #   @dataclass
+        #   class C0:
+        #     cv0: CV
+    
+        # But in this example cv1 will not be detected as a ClassVar:
+        #   @dataclass
+        #   class C1:
+        #     CV = ClassVar
+        #     cv1: CV
+    
+        # In C1, the code in this function (_is_type) will look up "CV" in
+        # the module and not find it, so it will not consider cv1 as a
+        # ClassVar.  This is a fairly obscure corner case, and the best
+        # way to fix it would be to eval() the string "CV" with the
+        # correct global and local namespaces.  However that would involve
+        # a eval() penalty for every single field of every dataclass
+        # that's defined.  It was judged not worth it.
+    
+        match = _MODULE_IDENTIFIER_RE.match(annotation)
+        if match:
+            ns = None
+            module_name = match.group(1)
+            if not module_name:
+                # No module name, assume the class's module did
+                # "from dataclasses import InitVar".
+>               ns = sys.modules.get(cls.__module__).__dict__
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               AttributeError: 'NoneType' object has no attribute '__dict__'
+
+/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py:712: AttributeError
+_ LocalPdfGraphRagScriptTests.test_rag_prompt_template_keeps_strict_citation_instruction _
+
+self = <test_local_pdf_graphrag.LocalPdfGraphRagScriptTests testMethod=test_rag_prompt_template_keeps_strict_citation_instruction>
+
+    def test_rag_prompt_template_keeps_strict_citation_instruction(self):
+>       module = _load_script_module("local_pdf_graphrag_prompt_template_test")
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_local_pdf_graphrag.py:72: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_local_pdf_graphrag.py:20: in _load_script_module
+    spec.loader.exec_module(module)
+<frozen importlib._bootstrap_external>:940: in exec_module
+    ???
+<frozen importlib._bootstrap>:241: in _call_with_frames_removed
+    ???
+examples/retrieve/local_pdf_graphrag.py:11: in <module>
+    @dataclass(frozen=True)
+     ^^^^^^^^^^^^^^^^^^^^^^
+/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py:1222: in wrap
+    return _process_class(cls, init, repr, eq, order, unsafe_hash,
+/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py:947: in _process_class
+    and _is_type(type, cls, dataclasses, dataclasses.KW_ONLY,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+annotation = 'str'
+cls = <class 'local_pdf_graphrag_prompt_template_test.PromptTemplate'>
+a_module = <module 'dataclasses' from '/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py'>
+a_type = <dataclasses._KW_ONLY_TYPE object at 0x109c26090>
+is_type_predicate = <function _is_kw_only at 0x109c32f20>
+
+    def _is_type(annotation, cls, a_module, a_type, is_type_predicate):
+        # Given a type annotation string, does it refer to a_type in
+        # a_module?  For example, when checking that annotation denotes a
+        # ClassVar, then a_module is typing, and a_type is
+        # typing.ClassVar.
+    
+        # It's possible to look up a_module given a_type, but it involves
+        # looking in sys.modules (again!), and seems like a waste since
+        # the caller already knows a_module.
+    
+        # - annotation is a string type annotation
+        # - cls is the class that this annotation was found in
+        # - a_module is the module we want to match
+        # - a_type is the type in that module we want to match
+        # - is_type_predicate is a function called with (obj, a_module)
+        #   that determines if obj is of the desired type.
+    
+        # Since this test does not do a local namespace lookup (and
+        # instead only a module (global) lookup), there are some things it
+        # gets wrong.
+    
+        # With string annotations, cv0 will be detected as a ClassVar:
+        #   CV = ClassVar
+        #   @dataclass
+        #   class C0:
+        #     cv0: CV
+    
+        # But in this example cv1 will not be detected as a ClassVar:
+        #   @dataclass
+        #   class C1:
+        #     CV = ClassVar
+        #     cv1: CV
+    
+        # In C1, the code in this function (_is_type) will look up "CV" in
+        # the module and not find it, so it will not consider cv1 as a
+        # ClassVar.  This is a fairly obscure corner case, and the best
+        # way to fix it would be to eval() the string "CV" with the
+        # correct global and local namespaces.  However that would involve
+        # a eval() penalty for every single field of every dataclass
+        # that's defined.  It was judged not worth it.
+    
+        match = _MODULE_IDENTIFIER_RE.match(annotation)
+        if match:
+            ns = None
+            module_name = match.group(1)
+            if not module_name:
+                # No module name, assume the class's module did
+                # "from dataclasses import InitVar".
+>               ns = sys.modules.get(cls.__module__).__dict__
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               AttributeError: 'NoneType' object has no attribute '__dict__'
+
+/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py:712: AttributeError
+_ LocalPdfGraphRagScriptTests.test_result_formatter_builds_deterministic_source_header_and_window _
+
+self = <test_local_pdf_graphrag.LocalPdfGraphRagScriptTests testMethod=test_result_formatter_builds_deterministic_source_header_and_window>
+
+    def test_result_formatter_builds_deterministic_source_header_and_window(self):
+>       module = _load_script_module("local_pdf_graphrag_result_formatter_test")
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_local_pdf_graphrag.py:53: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_local_pdf_graphrag.py:20: in _load_script_module
+    spec.loader.exec_module(module)
+<frozen importlib._bootstrap_external>:940: in exec_module
+    ???
+<frozen importlib._bootstrap>:241: in _call_with_frames_removed
+    ???
+examples/retrieve/local_pdf_graphrag.py:11: in <module>
+    @dataclass(frozen=True)
+     ^^^^^^^^^^^^^^^^^^^^^^
+/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py:1222: in wrap
+    return _process_class(cls, init, repr, eq, order, unsafe_hash,
+/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py:947: in _process_class
+    and _is_type(type, cls, dataclasses, dataclasses.KW_ONLY,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+annotation = 'str'
+cls = <class 'local_pdf_graphrag_result_formatter_test.PromptTemplate'>
+a_module = <module 'dataclasses' from '/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py'>
+a_type = <dataclasses._KW_ONLY_TYPE object at 0x109c26090>
+is_type_predicate = <function _is_kw_only at 0x109c32f20>
+
+    def _is_type(annotation, cls, a_module, a_type, is_type_predicate):
+        # Given a type annotation string, does it refer to a_type in
+        # a_module?  For example, when checking that annotation denotes a
+        # ClassVar, then a_module is typing, and a_type is
+        # typing.ClassVar.
+    
+        # It's possible to look up a_module given a_type, but it involves
+        # looking in sys.modules (again!), and seems like a waste since
+        # the caller already knows a_module.
+    
+        # - annotation is a string type annotation
+        # - cls is the class that this annotation was found in
+        # - a_module is the module we want to match
+        # - a_type is the type in that module we want to match
+        # - is_type_predicate is a function called with (obj, a_module)
+        #   that determines if obj is of the desired type.
+    
+        # Since this test does not do a local namespace lookup (and
+        # instead only a module (global) lookup), there are some things it
+        # gets wrong.
+    
+        # With string annotations, cv0 will be detected as a ClassVar:
+        #   CV = ClassVar
+        #   @dataclass
+        #   class C0:
+        #     cv0: CV
+    
+        # But in this example cv1 will not be detected as a ClassVar:
+        #   @dataclass
+        #   class C1:
+        #     CV = ClassVar
+        #     cv1: CV
+    
+        # In C1, the code in this function (_is_type) will look up "CV" in
+        # the module and not find it, so it will not consider cv1 as a
+        # ClassVar.  This is a fairly obscure corner case, and the best
+        # way to fix it would be to eval() the string "CV" with the
+        # correct global and local namespaces.  However that would involve
+        # a eval() penalty for every single field of every dataclass
+        # that's defined.  It was judged not worth it.
+    
+        match = _MODULE_IDENTIFIER_RE.match(annotation)
+        if match:
+            ns = None
+            module_name = match.group(1)
+            if not module_name:
+                # No module name, assume the class's module did
+                # "from dataclasses import InitVar".
+>               ns = sys.modules.get(cls.__module__).__dict__
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               AttributeError: 'NoneType' object has no attribute '__dict__'
+
+/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/dataclasses.py:712: AttributeError
+=========================== short test summary info ============================
+FAILED tests/test_simple_kg_builder_from_pdf.py::SimpleKgBuilderFromPdfScriptTests::test_chunk_preparation_keeps_deterministic_ids_and_provenance
+FAILED tests/test_simple_kg_builder_from_pdf.py::SimpleKgBuilderFromPdfScriptTests::test_chunk_settings_honor_environment_variables
+FAILED tests/test_simple_kg_builder_from_pdf.py::SimpleKgBuilderFromPdfScriptTests::test_document_scoped_filter_query_uses_provenance_pattern
+FAILED tests/test_simple_kg_builder_from_pdf.py::SimpleKgBuilderFromPdfScriptTests::test_documents_and_metadata_are_configured_for_both_synthetic_pdfs
+FAILED tests/test_simple_kg_builder_from_pdf.py::SimpleKgBuilderFromPdfScriptTests::test_entity_resolution_uses_label_specific_properties
+FAILED tests/test_simple_kg_builder_from_pdf.py::SimpleKgBuilderFromPdfScriptTests::test_lexical_reset_with_entity_pipeline_and_no_entity_reset_warns
+FAILED tests/test_simple_kg_builder_from_pdf.py::SimpleKgBuilderFromPdfScriptTests::test_reset_document_derived_graph_runs_in_single_transaction
+FAILED tests/test_simple_kg_builder_from_pdf.py::SimpleKgBuilderFromPdfScriptTests::test_schema_is_guided_and_not_free
+FAILED tests/test_local_pdf_graphrag.py::LocalPdfGraphRagScriptTests::test_build_query_params_rejects_invalid_doc_type
+FAILED tests/test_local_pdf_graphrag.py::LocalPdfGraphRagScriptTests::test_build_query_params_supports_all_and_specific_doc_types
+FAILED tests/test_local_pdf_graphrag.py::LocalPdfGraphRagScriptTests::test_build_retriever_filters_skips_empty_values
+FAILED tests/test_local_pdf_graphrag.py::LocalPdfGraphRagScriptTests::test_dedup_retrieved_items_removes_duplicate_contexts
+FAILED tests/test_local_pdf_graphrag.py::LocalPdfGraphRagScriptTests::test_dedup_retrieved_items_removes_identical_wrapped_duplicates
+FAILED tests/test_local_pdf_graphrag.py::LocalPdfGraphRagScriptTests::test_normalize_context_text_unescapes_common_sequences
+FAILED tests/test_local_pdf_graphrag.py::LocalPdfGraphRagScriptTests::test_rag_prompt_template_keeps_strict_citation_instruction
+FAILED tests/test_local_pdf_graphrag.py::LocalPdfGraphRagScriptTests::test_result_formatter_builds_deterministic_source_header_and_window
+16 failed, 1 passed in 2.19s
