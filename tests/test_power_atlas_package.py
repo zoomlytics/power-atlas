@@ -309,7 +309,7 @@ def test_package_modules_import() -> None:
     assert package.normalize_entity_type is contracts_module.normalize_entity_type
     assert package.resolve_pipeline_contract_source is contracts_module.resolve_pipeline_contract_source
     assert package.resolution_layer_schema is contracts_module.resolution_layer_schema
-    assert package.refresh_pipeline_contract is contracts_module.refresh_pipeline_contract
+    assert package.refresh_pipeline_contract is pipeline_module.refresh_pipeline_contract
     assert package.timestamp is contracts_module.timestamp
     assert package.write_manifest is contracts_module.write_manifest
     assert package.write_manifest_md is contracts_module.write_manifest_md

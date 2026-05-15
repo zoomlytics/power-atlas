@@ -64,7 +64,6 @@ from power_atlas.contracts.pipeline import (
 	get_pipeline_contract_snapshot,
 	is_pipeline_contract_snapshot,
 	load_pipeline_contract,
-	refresh_pipeline_contract,
 	resolve_pipeline_contract_source,
 )
 from power_atlas.contracts.runtime import Config, make_run_id, timestamp
@@ -182,7 +181,6 @@ __all__ = [
 	"resolve_repo_paths",
 	"resolve_early_return_rule",
 	"resolution_layer_schema",
-	"refresh_pipeline_contract",
 	"is_pipeline_contract_snapshot",
 	"timestamp",
 	"write_manifest",

@@ -154,7 +154,10 @@ _EXPORTS = {
     "resolve_pipeline_contract_source": ("power_atlas.contracts", "resolve_pipeline_contract_source"),
     "resolve_repo_paths": ("power_atlas.contracts", "resolve_repo_paths"),
     "resolve_early_return_rule": ("power_atlas.contracts", "resolve_early_return_rule"),
-    "refresh_pipeline_contract": ("power_atlas.contracts", "refresh_pipeline_contract"),
+    "refresh_pipeline_contract": (
+        "power_atlas.contracts.pipeline",
+        "refresh_pipeline_contract",
+    ),
     "get_default_retrieval_policy": ("power_atlas.contracts", "get_default_retrieval_policy"),
     "get_default_structured_graph_shape_contract": (
         "power_atlas.contracts",
