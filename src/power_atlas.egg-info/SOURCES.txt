@@ -131,8 +131,6 @@ src/power_atlas/interfaces/cli/run_demo_entrypoint.py
 src/power_atlas/interfaces/cli/run_demo_support.py
 src/power_atlas/interfaces/cli/smoke_test_entrypoint.py
 src/power_atlas/interfaces/cli/smoke_test_support.py
-src/power_atlas/interfaces/cli/sync_vendor_version_entrypoint.py
-src/power_atlas/interfaces/cli/sync_vendor_version_support.py
 src/power_atlas/orchestration/__init__.py
 src/power_atlas/orchestration/artifact_routing.py
 src/power_atlas/orchestration/ask_scope.py
@@ -157,4 +155,3 @@ tests/test_example_synthetic_pdfs.py
 tests/test_local_pdf_graphrag.py
 tests/test_power_atlas_package.py
 tests/test_simple_kg_builder_from_pdf.py
-tests/test_sync_vendor_version.py

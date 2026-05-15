@@ -377,6 +377,10 @@ def test_package_modules_import() -> None:
     assert not hasattr(package, "backend_router")
     with pytest.raises(ModuleNotFoundError):
         importlib.import_module("power_atlas.interfaces.api")
+    with pytest.raises(ModuleNotFoundError):
+        importlib.import_module("power_atlas.interfaces.cli.sync_vendor_version_entrypoint")
+    with pytest.raises(ModuleNotFoundError):
+        importlib.import_module("power_atlas.interfaces.cli.sync_vendor_version_support")
     assert api_module.BackendAppOptions.__name__ == "BackendAppOptions"
     assert api_module.BackendGraphQueryService.__name__ == "BackendGraphQueryService"
     assert api_module.BackendRuntime.__name__ == "BackendRuntime"
@@ -428,6 +432,8 @@ def test_package_modules_import() -> None:
     )
     assert callable(claim_extraction_runner_module.read_chunks_and_extract)
     assert callable(claim_extraction_runner_module.run_claim_extraction_runtime)
+
+
     assert callable(claim_extraction_runner_module.run_claim_extraction_runtime_default)
     assert callable(claim_extraction_runtime_module.run_claim_extraction_live)
     assert claim_participation_edges_module.EDGE_TYPE_HAS_PARTICIPANT == "HAS_PARTICIPANT"
@@ -508,6 +514,21 @@ def test_package_modules_import() -> None:
     assert not hasattr(orchestration_module, "run_claim_and_mention_extraction_legacy")
     assert not hasattr(orchestration_module, "run_entity_resolution_legacy")
     assert not hasattr(orchestration_module, "run_retrieval_and_qa_legacy")
+
+
+def test_direct_graphrag_imports_are_confined_to_adapters() -> None:
+    package_root = Path(__file__).resolve().parents[1] / "src" / "power_atlas"
+    direct_import_pattern = re.compile(r"\b(?:from|import)\s+neo4j_graphrag\b")
+    violations: list[str] = []
+
+    for file_path in sorted(package_root.rglob("*.py")):
+        relative_path = file_path.relative_to(package_root)
+        if relative_path.parts and relative_path.parts[0] == "adapters":
+            continue
+        if direct_import_pattern.search(file_path.read_text(encoding="utf-8")):
+            violations.append(relative_path.as_posix())
+
+    assert violations == []
 
 
 def test_api_module_exports_match_backend_facade_policy() -> None:

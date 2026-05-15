@@ -96,7 +96,7 @@ Layer intent:
 ### Implementation checkpoint (2026-04-30)
 
 - Phase 8 has now established a concrete thin-interface pattern rather than only a future intent: first-party CLI and API entrypoints increasingly remain as compatibility shells while package-owned `interfaces` modules own parser, transport, and entrypoint glue.
-- Under `interfaces/cli`, package-owned support and entrypoint modules now own the transport flow for `demo/run_demo.py`, the package-native `power_atlas.narrative_extraction_cli` caller surface, `demo/reset_demo_db.py`, `demo/smoke_test.py`, `pipelines/query/graph_health_diagnostics.py`, `pipelines/query/retrieval_benchmark.py`, and `scripts/sync_vendor_version.py`; the reset behavior and the retained narrative-extraction CLI surface now both live under `src/power_atlas/`, while `demo/reset_demo_db.py` remains the stable compatibility seam.
+- Under `interfaces/cli`, package-owned support and entrypoint modules now own the transport flow for `demo/run_demo.py`, the package-native `power_atlas.narrative_extraction_cli` caller surface, `demo/reset_demo_db.py`, `demo/smoke_test.py`, `pipelines/query/graph_health_diagnostics.py`, and `pipelines/query/retrieval_benchmark.py`; the reset behavior and the retained narrative-extraction CLI surface now both live under `src/power_atlas/`, while `demo/reset_demo_db.py` remains the stable compatibility seam.
 - The accepted boundary rule is now explicit rather than inferred from code motion: parser/defaults, request-context assembly, password/confirm guards, dispatch, stdout/stderr formatting, and route registration belong under `interfaces`; artifact construction, dry-run/live branching, stage-specific writes, query/runtime execution, and other behavior that materially changes application outcomes stay with application or runtime owners.
 - Compatibility shells are now a deliberate migration device, not a sign that ownership is unresolved. A legacy `demo/`, `pipelines/`, `scripts/`, or `backend/` file may remain as a stable import or execution seam even after its transport logic has moved package-side.
 - The earlier narrative-extraction runtime-side exception is now closed: the retained caller surface is `src/power_atlas/narrative_extraction_cli.py`, and `demo/narrative_extraction.py` is retired under Decision 40 rather than remaining a current `interfaces/cli` exception.
@@ -192,7 +192,7 @@ Intended semantics:
 - the live retrieval path is no longer just RequestContext-aware at its entrypoints: `retrieval_and_qa` now delegates request-context binding, live-session bootstrap, execution-context prep, interactive-session prelude, and single-shot session binding to package-owned helper modules while preserving the remaining stage-level patch seams,
 - the graph-analysis stage boundaries in `demo/stages/graph_health.py` and `demo/stages/retrieval_benchmark.py` now use their `RequestContext` entrypoints as the canonical runtime-owned paths, while the config-form APIs remain as explicit standalone analysis surfaces for notebooks, manual diagnostics, and direct scripts,
 - the root `power_atlas` package now also exposes the package-native stage entrypoint modules as discoverable namespace attributes (for example `power_atlas.claim_extraction_entrypoint`, `power_atlas.entity_resolution_entrypoint`, `power_atlas.pdf_ingest_entrypoint`, `power_atlas.structured_ingest_entrypoint`, and `power_atlas.retrieval_benchmark_entrypoint`) plus the corresponding package-owned runner modules (`power_atlas.claim_extraction_runner`, `power_atlas.entity_resolution_runner`, `power_atlas.pdf_ingest_runner`, `power_atlas.structured_ingest_runner`, and `power_atlas.retrieval_benchmark_runner`) while intentionally not flattening most `run_*` helpers into top-level names; `claim_extraction_entrypoint.run_*`, `entity_resolution_entrypoint.run_*`, `pdf_ingest_entrypoint.run_*`, `retrieval_benchmark_entrypoint.run_*`, and `structured_ingest_entrypoint.run_*` now own package-default runtime/config bindings, but that callable graduation currently stops at the module boundary rather than promoting new root-level exports,
-- the package-owned CLI adapter modules under `power_atlas.interfaces.cli.*` remain intentionally outside that root namespace contract. They are still the right import surface for executable wrappers such as `demo/run_demo.py`, `pipelines/query/retrieval_benchmark.py`, `pipelines/query/graph_health_diagnostics.py`, `demo/reset_demo_db.py`, and `scripts/sync_vendor_version.py`, but they should stay as deeper interface-layer imports rather than becoming root `power_atlas.*` attributes,
+- the package-owned CLI adapter modules under `power_atlas.interfaces.cli.*` remain intentionally outside that root namespace contract. They are still the right import surface for executable wrappers such as `demo/run_demo.py`, `pipelines/query/retrieval_benchmark.py`, `pipelines/query/graph_health_diagnostics.py`, and `demo/reset_demo_db.py`, but they should stay as deeper interface-layer imports rather than becoming root `power_atlas.*` attributes,
 - the current API surface is now owned by `power_atlas.api`; `backend/main.py` imports `create_backend_app` through that package-owned facade, `power_atlas.api` now re-exports the backend app/runtime builders from `power_atlas.backend_app`, the consolidated backend graph query service builder from `power_atlas.backend_graph`, and the graph HTTP contracts from the dedicated backend graph modules, the earlier `power_atlas.interfaces.api` compatibility alias has been removed, and the FastAPI helpers still avoid becoming root `power_atlas.create_backend_app` / `power_atlas.backend_router` exports,
 - the latest live `make phase1-verify` rerun on 2026-05-07 succeeded at commit `4666f6ec2b97d9f158737ae537d6a8f2f1481383`, with artifacts under `artifacts/repository_restructure/phase1/20260507T063610Z` and fully cited baseline, companion, and isolation asks,
 - the remaining work under this decision is the residual mutable-global inventory and any explicit disposition around the remaining cached pipeline-contract state, and this checkpoint should be read as caller migration plus boundary consolidation rather than a default mandate to delete the surviving standalone config-form stage APIs or the now-intentional `demo/run_demo.py` CLI/test seam surface.
@@ -730,35 +730,33 @@ rather than being retired in the current Phase 10 lane.
 
 ---
 
-## Decision 20 — `scripts/sync_vendor_version.py` stays as a defer-in-place compatibility shell for now
+## Decision 20 — `scripts/sync_vendor_version.py` is retired after the GraphRAG package migration
 
 ### Decision
 
-`scripts/sync_vendor_version.py` should remain in place for now as a thin
-compatibility shell rather than being retired in the current Phase 10 lane.
+`scripts/sync_vendor_version.py` should be removed because the old
+submodule-backed vendor metadata sync workflow no longer exists after the
+migration to the standard `neo4j-graphrag` package dependency.
 
 ### Why
 
-- it is already reduced to a package-backed CLI bridge that delegates argument
-	parsing and main-entry dispatch to `power_atlas.interfaces.cli`,
-- the remaining caller surface is still an active operator seam rather than a
-	dead wrapper,
-- `.github/workflows/vendor-version-consistency.yml` still invokes
-	`python3 scripts/sync_vendor_version.py --check`,
-- the root README and `docs/vendor/neo4j-graphrag-python.md` still document
-	this exact script path for local operator use,
-- `tests/test_sync_vendor_version.py` still imports and patches symbols from
-	`scripts.sync_vendor_version`, so deleting the file now would change the
-	active script/test seam rather than retire obsolete compatibility debt.
+- the repository no longer carries `vendor/neo4j-graphrag-python` as a git
+	submodule,
+- the dependency is now declared through normal package management in
+	`pyproject.toml` and the requirements files,
+- the dedicated workflow, script test seam, and related documentation for
+	vendor metadata synchronization have been removed, and
+- leaving the compatibility shell and package-side CLI helpers in place would
+	only preserve dead submodule-era transport code.
 
 ### Consequences
 
-- treat `scripts/sync_vendor_version.py` as an accepted defer-in-place shell,
-- do not open a deletion lane for it until the workflow/docs invocation surface
-	and test seam are intentionally migrated,
-- keep the package-owned CLI support modules under `src/power_atlas/interfaces/cli/`
-	as the authoritative implementation while this script remains the stable
-	outer seam.
+- remove `scripts/sync_vendor_version.py` and its package-side CLI helper
+	modules as completed retirement work,
+- update restructure docs so they no longer describe vendor-sync as an active
+	operator or CI seam, and
+- treat any remaining references to the old vendor-sync posture as stale docs
+	rather than live compatibility obligations.
 
 ### Open Questions
 

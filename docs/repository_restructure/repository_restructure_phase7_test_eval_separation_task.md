@@ -250,7 +250,7 @@ Audit inputs:
 - `demo/tests/test_graph_health_diagnostics_cli.py`
 - `pyproject.toml`
 - `Makefile`
-- `.github/workflows/vendor-version-consistency.yml`
+- historical note: `.github/workflows/vendor-version-consistency.yml` was removed when the GraphRAG submodule was retired
 - the README and restructure references that still describe these tests as
   active correctness coverage
 
