@@ -3,8 +3,8 @@ from __future__ import annotations
 from typing import Any
 
 import neo4j
-from neo4j_graphrag.experimental.components.types import LexicalGraphConfig
 
+from power_atlas.adapters.graphrag_types import LexicalGraphConfig
 from power_atlas.neo4j_io import validate_cypher_identifier
 
 

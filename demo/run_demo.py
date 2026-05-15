@@ -5,7 +5,7 @@ from functools import lru_cache
 import logging
 import os
 import traceback
-from datetime import UTC, datetime
+from datetime import timezone, datetime
 from pathlib import Path
 from typing import Any
 
@@ -154,7 +154,7 @@ _KEEP_REQUEST_CONTEXT_VALUE = object()
 
 
 def _now_iso() -> str:
-    return datetime.now(UTC).isoformat()
+    return datetime.now(timezone.utc).isoformat()
 
 
 def _scoped_request_context(

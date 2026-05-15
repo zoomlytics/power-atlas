@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+from datetime import timezone, datetime
 from pathlib import Path
 from typing import Any, Callable
 
@@ -119,7 +119,7 @@ def write_resolution_results(
     )
 
     if unresolved_rows:
-        created_at = datetime.now(UTC).isoformat()
+        created_at = datetime.now(timezone.utc).isoformat()
         cluster_rows = []
         for row in unresolved_rows:
             method = row.get("resolution_method", "label_cluster")
@@ -199,7 +199,7 @@ def run_entity_resolution_runtime(
         if entity_resolution_graph is None
         else entity_resolution_graph
     )
-    resolved_at = datetime.now(UTC).isoformat()
+    resolved_at = datetime.now(timezone.utc).isoformat()
 
     run_root = resolve_run_root(config.output_dir, run_id)
 

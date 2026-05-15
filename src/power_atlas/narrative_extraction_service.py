@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import timezone, datetime
 from pathlib import Path
 from typing import Any
 
@@ -27,7 +27,7 @@ def run_narrative_extraction_stage(
     prepare_rows,
     write_rows,
 ) -> dict[str, Any]:
-    extracted_at = datetime.now(UTC).isoformat()
+    extracted_at = datetime.now(timezone.utc).isoformat()
     run_root = config.output_root / config.run_id
     extraction_dir = run_root / "narrative_extraction"
     ensure_directory(extraction_dir)

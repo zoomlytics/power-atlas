@@ -2844,7 +2844,7 @@ def test_power_atlas_rag_template_prohibits_history_as_evidence():
 
 def test_power_atlas_rag_template_uses_vendor_rag_template_class():
     """Power Atlas template must extend the vendor RagTemplate for GraphRAG wiring."""
-    from neo4j_graphrag.generation import RagTemplate
+    from power_atlas.adapters.graphrag_types import RagTemplate
 
     assert isinstance(POWER_ATLAS_RAG_TEMPLATE, RagTemplate)
 
@@ -3554,7 +3554,7 @@ def test_retrieval_and_qa_live_path_uses_power_atlas_prompt_template(tmp_path: P
 
 
 def test_retrieval_and_qa_live_path_can_use_retrieval_policy_override(tmp_path: Path):
-    from neo4j_graphrag.generation import RagTemplate
+    from power_atlas.adapters.graphrag_types import RagTemplate
 
     from demo.run_demo import _request_context_from_config
     from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context
@@ -3629,7 +3629,7 @@ def test_retrieval_and_qa_live_path_can_use_retrieval_policy_override(tmp_path: 
 
 
 def test_retrieval_and_qa_live_path_uses_policy_traversal_defaults_when_flags_omitted(tmp_path: Path):
-    from neo4j_graphrag.generation import RagTemplate
+    from power_atlas.adapters.graphrag_types import RagTemplate
 
     from demo.run_demo import _request_context_from_config
     from demo.stages.retrieval_and_qa import run_retrieval_and_qa_request_context

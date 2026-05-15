@@ -3,7 +3,7 @@ from __future__ import annotations
 import dataclasses
 import json
 import logging
-from datetime import UTC, datetime
+from datetime import timezone, datetime
 from pathlib import Path
 from typing import Any
 
@@ -449,7 +449,7 @@ def build_benchmark_artifact(
     pairwise_results: list[PairwiseCaseResult],
     generated_at: str | None = None,
 ) -> RetrievalBenchmarkArtifact:
-    timestamp = generated_at or datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    timestamp = generated_at or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     summary = _compute_benchmark_summary(case_results, pairwise_results)
     return RetrievalBenchmarkArtifact(
         generated_at=timestamp,

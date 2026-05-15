@@ -43,7 +43,7 @@ from __future__ import annotations
 import dataclasses
 import json
 import logging
-from datetime import UTC, datetime
+from datetime import timezone, datetime
 from pathlib import Path
 from collections.abc import Callable
 from typing import Any
@@ -209,7 +209,7 @@ def build_graph_health_artifact(
     canonical_chain_health: list[dict[str, Any]],
     generated_at: str | None = None,
 ) -> GraphHealthArtifact:
-    ts = generated_at or datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    ts = generated_at or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     participation_summary = _compute_participation_summary(
         participation_role_distribution, claim_edge_coverage_distribution
     )

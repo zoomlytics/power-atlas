@@ -5,7 +5,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-from neo4j_graphrag.experimental.components.types import LexicalGraphConfig, Neo4jGraph, TextChunk
+from power_atlas.adapters.graphrag_types import LexicalGraphConfig, Neo4jGraph, TextChunk
 
 from power_atlas.bootstrap import create_neo4j_driver
 from power_atlas.settings import Neo4jSettings

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from neo4j_graphrag.experimental.components.types import LexicalGraphConfig, Neo4jGraph, TextChunk
+from power_atlas.adapters.graphrag_types import LexicalGraphConfig, Neo4jGraph, TextChunk
 
 
 def coerce_confidence(value: Any) -> float | None:

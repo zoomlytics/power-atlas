@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import os
 import tempfile
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -77,7 +77,7 @@ def build_batch_manifest(
         "warnings": citation_warnings,
     }
 
-    now = datetime.now(UTC).isoformat()
+    now = datetime.now(timezone.utc).isoformat()
     manifest: dict[str, Any] = {
         "run_id": make_run_id("batch"),
         "dataset_id": dataset_id,
@@ -120,7 +120,7 @@ def build_stage_manifest(
     effective_scope_id: str | None = (
         stage_run_id if scope_run_id is _SCOPE_RUN_ID_UNSET else scope_run_id
     )
-    now = datetime.now(UTC).isoformat()
+    now = datetime.now(timezone.utc).isoformat()
     manifest: dict[str, Any] = {
         "run_id": stage_run_id,
         "dataset_id": dataset_id,

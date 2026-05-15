@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import UTC, datetime
+from datetime import timezone, datetime
 from pathlib import Path
 from typing import Any, Callable
 
@@ -74,7 +74,7 @@ def run_claim_extraction_diagnostics_runtime_default(
     diagnostics_dir = run_root / "claim_extraction_diagnostics"
     diagnostics_dir.mkdir(parents=True, exist_ok=True)
     artifact_path = diagnostics_dir / "claim_extraction_diagnostics.json"
-    generated_at = datetime.now(UTC).isoformat()
+    generated_at = datetime.now(timezone.utc).isoformat()
 
     empty_participation_summary = {
         "total_edges": 0,

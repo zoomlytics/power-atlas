@@ -4,7 +4,8 @@ import sys
 from pathlib import Path
 
 import pytest
-from neo4j_graphrag.experimental.components.types import LexicalGraphConfig
+
+from power_atlas.adapters.graphrag_types import LexicalGraphConfig
 
 MODULE_PATH = Path(__file__).resolve().parents[1] / "io" / "run_scoped_chunk_reader.py"
 

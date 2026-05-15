@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import textwrap
 
-from neo4j_graphrag.generation import RagTemplate
+from power_atlas.adapters.graphrag_types import RagTemplate
 
 PROMPT_IDS = {
     "claim_extraction": "claims_v1",

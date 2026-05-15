@@ -3,8 +3,8 @@ from __future__ import annotations
 from typing import Any
 
 import neo4j
-from neo4j_graphrag.experimental.components.types import LexicalGraphConfig, Neo4jGraph, TextChunk
 
+from power_atlas.adapters.graphrag_types import LexicalGraphConfig, Neo4jGraph, TextChunk
 from power_atlas.extraction_rows import prepare_extracted_rows as _prepare_extracted_rows_impl
 from power_atlas.extraction_writes import write_all_extraction_data as _write_all_extraction_data_impl
 from power_atlas.extraction_writes import write_extracted_rows as _write_extracted_rows_impl

@@ -5,7 +5,7 @@ import re
 from dataclasses import replace
 from typing import Any
 
-from neo4j_graphrag.generation import RagTemplate
+from power_atlas.adapters.graphrag_types import RagTemplate
 
 from power_atlas.bootstrap import DomainPackDescriptor, build_app_context, build_request_context
 from power_atlas.contracts import (

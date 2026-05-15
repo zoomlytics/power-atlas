@@ -23,7 +23,7 @@ from power_atlas.narrative_extraction_readers import (
 from power_atlas.narrative_extraction_runtime import run_narrative_extraction_live
 from power_atlas.narrative_extraction_service import run_narrative_extraction_stage
 from power_atlas.settings import AppSettings
-from neo4j_graphrag.experimental.components.types import LexicalGraphConfig
+from power_atlas.adapters.graphrag_types import LexicalGraphConfig
 
 PROMPT_VERSION = PROMPT_IDS["narrative_extraction"]
 DEFAULT_OUTPUT_ROOT = Path(__file__).resolve().parents[2] / "demo" / "runs"

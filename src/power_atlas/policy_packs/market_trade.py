@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from neo4j_graphrag.generation import RagTemplate
+from power_atlas.adapters.graphrag_types import RagTemplate
 
 from power_atlas.bootstrap import DomainPackDescriptor
 from power_atlas.contracts import RetrievalOntology, RetrievalPolicy

@@ -1,11 +1,11 @@
+from __future__ import annotations
 """Versioned constants and graph contracts for entity resolution pipeline outputs."""
 
-from __future__ import annotations
 
 import re
 from dataclasses import dataclass
 from dataclasses import field
-from typing import Any, Callable
+from typing import Any, Callable, Optional
 
 
 ALIGNMENT_VERSION: str = "v1.0"
@@ -80,7 +80,7 @@ class EntityResolutionAlignmentContract:
 POWER_ATLAS_ENTITY_RESOLUTION_ALIGNMENT_CONTRACT = EntityResolutionAlignmentContract()
 
 
-DatasetIdSelector = Callable[[Any, str | None, str | None], str | None]
+DatasetIdSelector = Callable[[Any, Optional[str], Optional[str]], Optional[str]]
 
 
 def _default_select_dataset_id(

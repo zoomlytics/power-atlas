@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from neo4j_graphrag.experimental.components.schema import GraphSchema, NodeType, PropertyType, RelationshipType
-from neo4j_graphrag.experimental.components.types import LexicalGraphConfig
 
+from power_atlas.adapters.graphrag_types import LexicalGraphConfig
 from power_atlas.contracts.claim_extraction_policy import ClaimExtractionOntology
 from power_atlas.contracts.pipeline import PipelineContractSnapshot
 

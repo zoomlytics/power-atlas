@@ -2,8 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from neo4j_graphrag.generation import RagTemplate
-
+from power_atlas.adapters.graphrag_types import RagTemplate
 from power_atlas.contracts.prompts import POWER_ATLAS_RAG_TEMPLATE, PROMPT_IDS
 
 

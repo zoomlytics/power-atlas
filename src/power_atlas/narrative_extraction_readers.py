@@ -5,7 +5,7 @@ from typing import Any
 from neo4j_graphrag.experimental.components.entity_relation_extractor import (
     LLMEntityRelationExtractor,
 )
-from neo4j_graphrag.experimental.components.types import (
+from power_atlas.adapters.graphrag_types import (
     LexicalGraphConfig,
     Neo4jGraph,
     TextChunk,

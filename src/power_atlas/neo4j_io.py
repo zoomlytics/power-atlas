@@ -5,13 +5,13 @@ import re
 from typing import TYPE_CHECKING, Any
 
 from neo4j_graphrag.experimental.components.kg_writer import KGWriterModel, Neo4jWriter
-from neo4j_graphrag.experimental.components.types import LexicalGraphConfig, Neo4jGraph
 from neo4j_graphrag.experimental.pipeline.types.context import RunContext
 from pydantic import validate_call
 
+from power_atlas.adapters.graphrag_types import LexicalGraphConfig, Neo4jGraph, TextChunk, TextChunks
+
 try:
     from neo4j_graphrag.experimental.components.neo4j_reader import Neo4jChunkReader
-    from neo4j_graphrag.experimental.components.types import TextChunk, TextChunks
 except ModuleNotFoundError as exc:
     if exc.name != "neo4j_graphrag.experimental.components.neo4j_reader":
         raise
@@ -21,14 +21,6 @@ except ModuleNotFoundError as exc:
             self.driver = kwargs.get("driver") or (args[0] if args else None)
             self.fetch_embeddings = kwargs.get("fetch_embeddings", False)
             self.neo4j_database = kwargs.get("neo4j_database")
-
-    class TextChunk:  # type: ignore[no-redef]
-        def __init__(self, **kwargs: Any) -> None:
-            self.__dict__.update(kwargs)
-
-    class TextChunks:  # type: ignore[no-redef]
-        def __init__(self, chunks: list[TextChunk]) -> None:
-            self.chunks = chunks
 
 logger = logging.getLogger(__name__)
 

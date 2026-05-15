@@ -2,12 +2,23 @@
 platform darwin -- Python 3.9.5, pytest-7.4.3, pluggy-1.3.0
 rootdir: /Users/ash/Documents/repos/Zoomlytics/power-atlas
 configfile: pyproject.toml
-testpaths: tests, demo/tests
 plugins: cov-7.1.0, anyio-3.7.1
 collected 436 items / 26 errors
 
 ==================================== ERRORS ====================================
 _____________ ERROR collecting tests/test_backend_api_consumer.py ______________
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/runner.py:341: in from_call
+    result: Optional[TResult] = func()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/runner.py:372: in <lambda>
+    call = CallInfo.from_call(lambda: list(collector.collect()), "collect")
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:531: in collect
+    self._inject_setup_module_fixture()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:545: in _inject_setup_module_fixture
+    self.obj, ("setUpModule", "setup_module")
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:310: in obj
+    self._obj = obj = self._getobj()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:528: in _getobj
+    return self._importtestmodule()
 /Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:617: in _importtestmodule
     mod = import_path(self.path, mode=importmode, root=self.config.rootpath)
 /Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/pathlib.py:567: in import_path
@@ -48,11 +59,22 @@ src/power_atlas/backend_dataset_catalog.py:6: in <module>
     from power_atlas.contracts import DatasetRoot, list_available_datasets, resolve_dataset_root
 src/power_atlas/contracts/__init__.py:70: in <module>
     from power_atlas.contracts.resolution import (
-E     File "/Users/ash/Documents/repos/Zoomlytics/power-atlas/src/power_atlas/contracts/resolution.py", line 4
-E       from __future__ import annotations
-E       ^
-E   SyntaxError: from __future__ imports must occur at the beginning of the file
+src/power_atlas/contracts/resolution.py:83: in <module>
+    DatasetIdSelector = Callable[[Any, str | None, str | None], str | None]
+E   TypeError: unsupported operand type(s) for |: 'type' and 'NoneType'
 ____________ ERROR collecting tests/test_backend_dataset_catalog.py ____________
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/runner.py:341: in from_call
+    result: Optional[TResult] = func()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/runner.py:372: in <lambda>
+    call = CallInfo.from_call(lambda: list(collector.collect()), "collect")
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:531: in collect
+    self._inject_setup_module_fixture()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:545: in _inject_setup_module_fixture
+    self.obj, ("setUpModule", "setup_module")
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:310: in obj
+    self._obj = obj = self._getobj()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:528: in _getobj
+    return self._importtestmodule()
 /Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:617: in _importtestmodule
     mod = import_path(self.path, mode=importmode, root=self.config.rootpath)
 /Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/pathlib.py:567: in import_path
@@ -75,10 +97,9 @@ src/power_atlas/backend_dataset_catalog.py:6: in <module>
     from power_atlas.contracts import DatasetRoot, list_available_datasets, resolve_dataset_root
 src/power_atlas/contracts/__init__.py:70: in <module>
     from power_atlas.contracts.resolution import (
-E     File "/Users/ash/Documents/repos/Zoomlytics/power-atlas/src/power_atlas/contracts/resolution.py", line 4
-E       from __future__ import annotations
-E       ^
-E   SyntaxError: from __future__ imports must occur at the beginning of the file
+src/power_atlas/contracts/resolution.py:83: in <module>
+    DatasetIdSelector = Callable[[Any, str | None, str | None], str | None]
+E   TypeError: unsupported operand type(s) for |: 'type' and 'NoneType'
 __________ ERROR collecting tests/test_backend_graph_query_service.py __________
 /Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/runner.py:341: in from_call
     result: Optional[TResult] = func()
@@ -160,6 +181,18 @@ src/power_atlas/graph_status.py:14: in <module>
     @dataclass(frozen=True, slots=True)
 E   TypeError: dataclass() got an unexpected keyword argument 'slots'
 _____________ ERROR collecting tests/test_backend_graph_router.py ______________
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/runner.py:341: in from_call
+    result: Optional[TResult] = func()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/runner.py:372: in <lambda>
+    call = CallInfo.from_call(lambda: list(collector.collect()), "collect")
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:531: in collect
+    self._inject_setup_module_fixture()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:545: in _inject_setup_module_fixture
+    self.obj, ("setUpModule", "setup_module")
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:310: in obj
+    self._obj = obj = self._getobj()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:528: in _getobj
+    return self._importtestmodule()
 /Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:617: in _importtestmodule
     mod = import_path(self.path, mode=importmode, root=self.config.rootpath)
 /Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/pathlib.py:567: in import_path
@@ -200,11 +233,22 @@ src/power_atlas/backend_dataset_catalog.py:6: in <module>
     from power_atlas.contracts import DatasetRoot, list_available_datasets, resolve_dataset_root
 src/power_atlas/contracts/__init__.py:70: in <module>
     from power_atlas.contracts.resolution import (
-E     File "/Users/ash/Documents/repos/Zoomlytics/power-atlas/src/power_atlas/contracts/resolution.py", line 4
-E       from __future__ import annotations
-E       ^
-E   SyntaxError: from __future__ imports must occur at the beginning of the file
+src/power_atlas/contracts/resolution.py:83: in <module>
+    DatasetIdSelector = Callable[[Any, str | None, str | None], str | None]
+E   TypeError: unsupported operand type(s) for |: 'type' and 'NoneType'
 _________________ ERROR collecting tests/test_backend_main.py __________________
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/runner.py:341: in from_call
+    result: Optional[TResult] = func()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/runner.py:372: in <lambda>
+    call = CallInfo.from_call(lambda: list(collector.collect()), "collect")
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:531: in collect
+    self._inject_setup_module_fixture()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:545: in _inject_setup_module_fixture
+    self.obj, ("setUpModule", "setup_module")
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:310: in obj
+    self._obj = obj = self._getobj()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:528: in _getobj
+    return self._importtestmodule()
 /Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:617: in _importtestmodule
     mod = import_path(self.path, mode=importmode, root=self.config.rootpath)
 /Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/pathlib.py:567: in import_path
@@ -245,11 +289,22 @@ src/power_atlas/backend_dataset_catalog.py:6: in <module>
     from power_atlas.contracts import DatasetRoot, list_available_datasets, resolve_dataset_root
 src/power_atlas/contracts/__init__.py:70: in <module>
     from power_atlas.contracts.resolution import (
-E     File "/Users/ash/Documents/repos/Zoomlytics/power-atlas/src/power_atlas/contracts/resolution.py", line 4
-E       from __future__ import annotations
-E       ^
-E   SyntaxError: from __future__ imports must occur at the beginning of the file
+src/power_atlas/contracts/resolution.py:83: in <module>
+    DatasetIdSelector = Callable[[Any, str | None, str | None], str | None]
+E   TypeError: unsupported operand type(s) for |: 'type' and 'NoneType'
 ______________ ERROR collecting tests/test_backend_run_catalog.py ______________
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/runner.py:341: in from_call
+    result: Optional[TResult] = func()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/runner.py:372: in <lambda>
+    call = CallInfo.from_call(lambda: list(collector.collect()), "collect")
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:531: in collect
+    self._inject_setup_module_fixture()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:545: in _inject_setup_module_fixture
+    self.obj, ("setUpModule", "setup_module")
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:310: in obj
+    self._obj = obj = self._getobj()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:528: in _getobj
+    return self._importtestmodule()
 /Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:617: in _importtestmodule
     mod = import_path(self.path, mode=importmode, root=self.config.rootpath)
 /Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/pathlib.py:567: in import_path
@@ -272,11 +327,22 @@ src/power_atlas/backend_dataset_catalog.py:6: in <module>
     from power_atlas.contracts import DatasetRoot, list_available_datasets, resolve_dataset_root
 src/power_atlas/contracts/__init__.py:70: in <module>
     from power_atlas.contracts.resolution import (
-E     File "/Users/ash/Documents/repos/Zoomlytics/power-atlas/src/power_atlas/contracts/resolution.py", line 4
-E       from __future__ import annotations
-E       ^
-E   SyntaxError: from __future__ imports must occur at the beginning of the file
+src/power_atlas/contracts/resolution.py:83: in <module>
+    DatasetIdSelector = Callable[[Any, str | None, str | None], str | None]
+E   TypeError: unsupported operand type(s) for |: 'type' and 'NoneType'
 ___________ ERROR collecting demo/tests/test_claim_participation.py ____________
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/runner.py:341: in from_call
+    result: Optional[TResult] = func()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/runner.py:372: in <lambda>
+    call = CallInfo.from_call(lambda: list(collector.collect()), "collect")
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:531: in collect
+    self._inject_setup_module_fixture()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:545: in _inject_setup_module_fixture
+    self.obj, ("setUpModule", "setup_module")
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:310: in obj
+    self._obj = obj = self._getobj()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:528: in _getobj
+    return self._importtestmodule()
 /Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:617: in _importtestmodule
     mod = import_path(self.path, mode=importmode, root=self.config.rootpath)
 /Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/pathlib.py:567: in import_path
@@ -305,11 +371,22 @@ src/power_atlas/backend_dataset_catalog.py:6: in <module>
     from power_atlas.contracts import DatasetRoot, list_available_datasets, resolve_dataset_root
 src/power_atlas/contracts/__init__.py:70: in <module>
     from power_atlas.contracts.resolution import (
-E     File "/Users/ash/Documents/repos/Zoomlytics/power-atlas/src/power_atlas/contracts/resolution.py", line 4
-E       from __future__ import annotations
-E       ^
-E   SyntaxError: from __future__ imports must occur at the beginning of the file
+src/power_atlas/contracts/resolution.py:83: in <module>
+    DatasetIdSelector = Callable[[Any, str | None, str | None], str | None]
+E   TypeError: unsupported operand type(s) for |: 'type' and 'NoneType'
 _____ ERROR collecting demo/tests/test_claim_participation_integration.py ______
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/runner.py:341: in from_call
+    result: Optional[TResult] = func()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/runner.py:372: in <lambda>
+    call = CallInfo.from_call(lambda: list(collector.collect()), "collect")
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:531: in collect
+    self._inject_setup_module_fixture()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:545: in _inject_setup_module_fixture
+    self.obj, ("setUpModule", "setup_module")
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:310: in obj
+    self._obj = obj = self._getobj()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:528: in _getobj
+    return self._importtestmodule()
 /Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:617: in _importtestmodule
     mod = import_path(self.path, mode=importmode, root=self.config.rootpath)
 /Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/pathlib.py:567: in import_path
@@ -338,11 +415,22 @@ src/power_atlas/backend_dataset_catalog.py:6: in <module>
     from power_atlas.contracts import DatasetRoot, list_available_datasets, resolve_dataset_root
 src/power_atlas/contracts/__init__.py:70: in <module>
     from power_atlas.contracts.resolution import (
-E     File "/Users/ash/Documents/repos/Zoomlytics/power-atlas/src/power_atlas/contracts/resolution.py", line 4
-E       from __future__ import annotations
-E       ^
-E   SyntaxError: from __future__ imports must occur at the beginning of the file
+src/power_atlas/contracts/resolution.py:83: in <module>
+    DatasetIdSelector = Callable[[Any, str | None, str | None], str | None]
+E   TypeError: unsupported operand type(s) for |: 'type' and 'NoneType'
 ______________ ERROR collecting demo/tests/test_demo_workflow.py _______________
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/runner.py:341: in from_call
+    result: Optional[TResult] = func()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/runner.py:372: in <lambda>
+    call = CallInfo.from_call(lambda: list(collector.collect()), "collect")
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:531: in collect
+    self._inject_setup_module_fixture()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:545: in _inject_setup_module_fixture
+    self.obj, ("setUpModule", "setup_module")
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:310: in obj
+    self._obj = obj = self._getobj()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:528: in _getobj
+    return self._importtestmodule()
 /Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:617: in _importtestmodule
     mod = import_path(self.path, mode=importmode, root=self.config.rootpath)
 /Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/pathlib.py:567: in import_path
@@ -363,11 +451,22 @@ demo/tests/test_demo_workflow.py:18: in <module>
     from power_atlas.contracts import PROMPT_IDS
 src/power_atlas/contracts/__init__.py:70: in <module>
     from power_atlas.contracts.resolution import (
-E     File "/Users/ash/Documents/repos/Zoomlytics/power-atlas/src/power_atlas/contracts/resolution.py", line 4
-E       from __future__ import annotations
-E       ^
-E   SyntaxError: from __future__ imports must occur at the beginning of the file
+src/power_atlas/contracts/resolution.py:83: in <module>
+    DatasetIdSelector = Callable[[Any, str | None, str | None], str | None]
+E   TypeError: unsupported operand type(s) for |: 'type' and 'NoneType'
 ____________ ERROR collecting demo/tests/test_doc_contract_drift.py ____________
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/runner.py:341: in from_call
+    result: Optional[TResult] = func()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/runner.py:372: in <lambda>
+    call = CallInfo.from_call(lambda: list(collector.collect()), "collect")
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:531: in collect
+    self._inject_setup_module_fixture()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:545: in _inject_setup_module_fixture
+    self.obj, ("setUpModule", "setup_module")
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:310: in obj
+    self._obj = obj = self._getobj()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:528: in _getobj
+    return self._importtestmodule()
 /Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:617: in _importtestmodule
     mod = import_path(self.path, mode=importmode, root=self.config.rootpath)
 /Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/pathlib.py:567: in import_path
@@ -390,11 +489,22 @@ demo/stages/retrieval_and_qa.py:18: in <module>
     from power_atlas.contracts import (
 src/power_atlas/contracts/__init__.py:70: in <module>
     from power_atlas.contracts.resolution import (
-E     File "/Users/ash/Documents/repos/Zoomlytics/power-atlas/src/power_atlas/contracts/resolution.py", line 4
-E       from __future__ import annotations
-E       ^
-E   SyntaxError: from __future__ imports must occur at the beginning of the file
+src/power_atlas/contracts/resolution.py:83: in <module>
+    DatasetIdSelector = Callable[[Any, str | None, str | None], str | None]
+E   TypeError: unsupported operand type(s) for |: 'type' and 'NoneType'
 ____________ ERROR collecting demo/tests/test_entity_resolution.py _____________
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/runner.py:341: in from_call
+    result: Optional[TResult] = func()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/runner.py:372: in <lambda>
+    call = CallInfo.from_call(lambda: list(collector.collect()), "collect")
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:531: in collect
+    self._inject_setup_module_fixture()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:545: in _inject_setup_module_fixture
+    self.obj, ("setUpModule", "setup_module")
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:310: in obj
+    self._obj = obj = self._getobj()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:528: in _getobj
+    return self._importtestmodule()
 /Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:617: in _importtestmodule
     mod = import_path(self.path, mode=importmode, root=self.config.rootpath)
 /Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/pathlib.py:567: in import_path
@@ -415,11 +525,22 @@ demo/tests/test_entity_resolution.py:14: in <module>
     from power_atlas.contracts import Config as _RuntimeConfig
 src/power_atlas/contracts/__init__.py:70: in <module>
     from power_atlas.contracts.resolution import (
-E     File "/Users/ash/Documents/repos/Zoomlytics/power-atlas/src/power_atlas/contracts/resolution.py", line 4
-E       from __future__ import annotations
-E       ^
-E   SyntaxError: from __future__ imports must occur at the beginning of the file
+src/power_atlas/contracts/resolution.py:83: in <module>
+    DatasetIdSelector = Callable[[Any, str | None, str | None], str | None]
+E   TypeError: unsupported operand type(s) for |: 'type' and 'NoneType'
 _______________ ERROR collecting demo/tests/test_graph_health.py _______________
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/runner.py:341: in from_call
+    result: Optional[TResult] = func()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/runner.py:372: in <lambda>
+    call = CallInfo.from_call(lambda: list(collector.collect()), "collect")
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:531: in collect
+    self._inject_setup_module_fixture()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:545: in _inject_setup_module_fixture
+    self.obj, ("setUpModule", "setup_module")
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:310: in obj
+    self._obj = obj = self._getobj()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:528: in _getobj
+    return self._importtestmodule()
 /Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:617: in _importtestmodule
     mod = import_path(self.path, mode=importmode, root=self.config.rootpath)
 /Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/pathlib.py:567: in import_path
@@ -440,11 +561,22 @@ demo/tests/test_graph_health.py:10: in <module>
     from power_atlas.contracts import Config
 src/power_atlas/contracts/__init__.py:70: in <module>
     from power_atlas.contracts.resolution import (
-E     File "/Users/ash/Documents/repos/Zoomlytics/power-atlas/src/power_atlas/contracts/resolution.py", line 4
-E       from __future__ import annotations
-E       ^
-E   SyntaxError: from __future__ imports must occur at the beginning of the file
+src/power_atlas/contracts/resolution.py:83: in <module>
+    DatasetIdSelector = Callable[[Any, str | None, str | None], str | None]
+E   TypeError: unsupported operand type(s) for |: 'type' and 'NoneType'
 _______ ERROR collecting demo/tests/test_graph_health_diagnostics_cli.py _______
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/runner.py:341: in from_call
+    result: Optional[TResult] = func()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/runner.py:372: in <lambda>
+    call = CallInfo.from_call(lambda: list(collector.collect()), "collect")
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:531: in collect
+    self._inject_setup_module_fixture()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:545: in _inject_setup_module_fixture
+    self.obj, ("setUpModule", "setup_module")
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:310: in obj
+    self._obj = obj = self._getobj()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:528: in _getobj
+    return self._importtestmodule()
 /Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:617: in _importtestmodule
     mod = import_path(self.path, mode=importmode, root=self.config.rootpath)
 /Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/pathlib.py:567: in import_path
@@ -473,11 +605,22 @@ src/power_atlas/orchestration/artifact_routing.py:6: in <module>
     from power_atlas.contracts import write_manifest, write_manifest_md
 src/power_atlas/contracts/__init__.py:70: in <module>
     from power_atlas.contracts.resolution import (
-E     File "/Users/ash/Documents/repos/Zoomlytics/power-atlas/src/power_atlas/contracts/resolution.py", line 4
-E       from __future__ import annotations
-E       ^
-E   SyntaxError: from __future__ imports must occur at the beginning of the file
+src/power_atlas/contracts/resolution.py:83: in <module>
+    DatasetIdSelector = Callable[[Any, str | None, str | None], str | None]
+E   TypeError: unsupported operand type(s) for |: 'type' and 'NoneType'
 ____________ ERROR collecting demo/tests/test_interactive_debug.py _____________
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/runner.py:341: in from_call
+    result: Optional[TResult] = func()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/runner.py:372: in <lambda>
+    call = CallInfo.from_call(lambda: list(collector.collect()), "collect")
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:531: in collect
+    self._inject_setup_module_fixture()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:545: in _inject_setup_module_fixture
+    self.obj, ("setUpModule", "setup_module")
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:310: in obj
+    self._obj = obj = self._getobj()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:528: in _getobj
+    return self._importtestmodule()
 /Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:617: in _importtestmodule
     mod = import_path(self.path, mode=importmode, root=self.config.rootpath)
 /Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/pathlib.py:567: in import_path
@@ -500,11 +643,22 @@ demo/stages/retrieval_and_qa.py:18: in <module>
     from power_atlas.contracts import (
 src/power_atlas/contracts/__init__.py:70: in <module>
     from power_atlas.contracts.resolution import (
-E     File "/Users/ash/Documents/repos/Zoomlytics/power-atlas/src/power_atlas/contracts/resolution.py", line 4
-E       from __future__ import annotations
-E       ^
-E   SyntaxError: from __future__ imports must occur at the beginning of the file
+src/power_atlas/contracts/resolution.py:83: in <module>
+    DatasetIdSelector = Callable[[Any, str | None, str | None], str | None]
+E   TypeError: unsupported operand type(s) for |: 'type' and 'NoneType'
 ___________ ERROR collecting demo/tests/test_narrative_extraction.py ___________
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/runner.py:341: in from_call
+    result: Optional[TResult] = func()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/runner.py:372: in <lambda>
+    call = CallInfo.from_call(lambda: list(collector.collect()), "collect")
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:531: in collect
+    self._inject_setup_module_fixture()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:545: in _inject_setup_module_fixture
+    self.obj, ("setUpModule", "setup_module")
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:310: in obj
+    self._obj = obj = self._getobj()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:528: in _getobj
+    return self._importtestmodule()
 /Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:617: in _importtestmodule
     mod = import_path(self.path, mode=importmode, root=self.config.rootpath)
 /Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/pathlib.py:567: in import_path
@@ -527,11 +681,22 @@ src/power_atlas/narrative_extraction_cli.py:9: in <module>
     from power_atlas.contracts import PROMPT_IDS, claim_extraction_lexical_config
 src/power_atlas/contracts/__init__.py:70: in <module>
     from power_atlas.contracts.resolution import (
-E     File "/Users/ash/Documents/repos/Zoomlytics/power-atlas/src/power_atlas/contracts/resolution.py", line 4
-E       from __future__ import annotations
-E       ^
-E   SyntaxError: from __future__ imports must occur at the beginning of the file
+src/power_atlas/contracts/resolution.py:83: in <module>
+    DatasetIdSelector = Callable[[Any, str | None, str | None], str | None]
+E   TypeError: unsupported operand type(s) for |: 'type' and 'NoneType'
 ___________ ERROR collecting demo/tests/test_orchestrator_modules.py ___________
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/runner.py:341: in from_call
+    result: Optional[TResult] = func()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/runner.py:372: in <lambda>
+    call = CallInfo.from_call(lambda: list(collector.collect()), "collect")
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:531: in collect
+    self._inject_setup_module_fixture()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:545: in _inject_setup_module_fixture
+    self.obj, ("setUpModule", "setup_module")
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:310: in obj
+    self._obj = obj = self._getobj()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:528: in _getobj
+    return self._importtestmodule()
 /Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:617: in _importtestmodule
     mod = import_path(self.path, mode=importmode, root=self.config.rootpath)
 /Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/pathlib.py:567: in import_path
@@ -554,11 +719,22 @@ demo/stages/structured_ingest.py:7: in <module>
     from power_atlas.contracts import (
 src/power_atlas/contracts/__init__.py:70: in <module>
     from power_atlas.contracts.resolution import (
-E     File "/Users/ash/Documents/repos/Zoomlytics/power-atlas/src/power_atlas/contracts/resolution.py", line 4
-E       from __future__ import annotations
-E       ^
-E   SyntaxError: from __future__ imports must occur at the beginning of the file
+src/power_atlas/contracts/resolution.py:83: in <module>
+    DatasetIdSelector = Callable[[Any, str | None, str | None], str | None]
+E   TypeError: unsupported operand type(s) for |: 'type' and 'NoneType'
 ____________ ERROR collecting demo/tests/test_pdf_ingest_helpers.py ____________
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/runner.py:341: in from_call
+    result: Optional[TResult] = func()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/runner.py:372: in <lambda>
+    call = CallInfo.from_call(lambda: list(collector.collect()), "collect")
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:531: in collect
+    self._inject_setup_module_fixture()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:545: in _inject_setup_module_fixture
+    self.obj, ("setUpModule", "setup_module")
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:310: in obj
+    self._obj = obj = self._getobj()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:528: in _getobj
+    return self._importtestmodule()
 /Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:617: in _importtestmodule
     mod = import_path(self.path, mode=importmode, root=self.config.rootpath)
 /Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/pathlib.py:567: in import_path
@@ -583,10 +759,9 @@ src/power_atlas/pdf_ingest_runner.py:10: in <module>
     from power_atlas.contracts import DatasetRoot, PDF_PIPELINE_CONFIG_PATH, make_run_id, resolve_dataset_root
 src/power_atlas/contracts/__init__.py:70: in <module>
     from power_atlas.contracts.resolution import (
-E     File "/Users/ash/Documents/repos/Zoomlytics/power-atlas/src/power_atlas/contracts/resolution.py", line 4
-E       from __future__ import annotations
-E       ^
-E   SyntaxError: from __future__ imports must occur at the beginning of the file
+src/power_atlas/contracts/resolution.py:83: in <module>
+    DatasetIdSelector = Callable[[Any, str | None, str | None], str | None]
+E   TypeError: unsupported operand type(s) for |: 'type' and 'NoneType'
 ____________ ERROR collecting demo/tests/test_pipeline_contract.py _____________
 ImportError while importing test module '/Users/ash/Documents/repos/Zoomlytics/power-atlas/demo/tests/test_pipeline_contract.py'.
 Hint: make sure your test modules/packages have valid Python names.
@@ -597,6 +772,18 @@ demo/tests/test_pipeline_contract.py:10: in <module>
     import power_atlas.contracts.pipeline as pipeline
 E   ImportError: cannot import name 'contracts' from 'power_atlas' (/Users/ash/Documents/repos/Zoomlytics/power-atlas/src/power_atlas/__init__.py)
 ___________ ERROR collecting demo/tests/test_retrieval_benchmark.py ____________
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/runner.py:341: in from_call
+    result: Optional[TResult] = func()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/runner.py:372: in <lambda>
+    call = CallInfo.from_call(lambda: list(collector.collect()), "collect")
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:531: in collect
+    self._inject_setup_module_fixture()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:545: in _inject_setup_module_fixture
+    self.obj, ("setUpModule", "setup_module")
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:310: in obj
+    self._obj = obj = self._getobj()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:528: in _getobj
+    return self._importtestmodule()
 /Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:617: in _importtestmodule
     mod = import_path(self.path, mode=importmode, root=self.config.rootpath)
 /Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/pathlib.py:567: in import_path
@@ -625,11 +812,22 @@ src/power_atlas/backend_dataset_catalog.py:6: in <module>
     from power_atlas.contracts import DatasetRoot, list_available_datasets, resolve_dataset_root
 src/power_atlas/contracts/__init__.py:70: in <module>
     from power_atlas.contracts.resolution import (
-E     File "/Users/ash/Documents/repos/Zoomlytics/power-atlas/src/power_atlas/contracts/resolution.py", line 4
-E       from __future__ import annotations
-E       ^
-E   SyntaxError: from __future__ imports must occur at the beginning of the file
+src/power_atlas/contracts/resolution.py:83: in <module>
+    DatasetIdSelector = Callable[[Any, str | None, str | None], str | None]
+E   TypeError: unsupported operand type(s) for |: 'type' and 'NoneType'
 _________ ERROR collecting demo/tests/test_retrieval_benchmark_cli.py __________
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/runner.py:341: in from_call
+    result: Optional[TResult] = func()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/runner.py:372: in <lambda>
+    call = CallInfo.from_call(lambda: list(collector.collect()), "collect")
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:531: in collect
+    self._inject_setup_module_fixture()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:545: in _inject_setup_module_fixture
+    self.obj, ("setUpModule", "setup_module")
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:310: in obj
+    self._obj = obj = self._getobj()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:528: in _getobj
+    return self._importtestmodule()
 /Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:617: in _importtestmodule
     mod = import_path(self.path, mode=importmode, root=self.config.rootpath)
 /Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/pathlib.py:567: in import_path
@@ -658,11 +856,22 @@ src/power_atlas/orchestration/artifact_routing.py:6: in <module>
     from power_atlas.contracts import write_manifest, write_manifest_md
 src/power_atlas/contracts/__init__.py:70: in <module>
     from power_atlas.contracts.resolution import (
-E     File "/Users/ash/Documents/repos/Zoomlytics/power-atlas/src/power_atlas/contracts/resolution.py", line 4
-E       from __future__ import annotations
-E       ^
-E   SyntaxError: from __future__ imports must occur at the beginning of the file
+src/power_atlas/contracts/resolution.py:83: in <module>
+    DatasetIdSelector = Callable[[Any, str | None, str | None], str | None]
+E   TypeError: unsupported operand type(s) for |: 'type' and 'NoneType'
 ___ ERROR collecting demo/tests/test_retrieval_metadata_projection_parity.py ___
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/runner.py:341: in from_call
+    result: Optional[TResult] = func()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/runner.py:372: in <lambda>
+    call = CallInfo.from_call(lambda: list(collector.collect()), "collect")
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:531: in collect
+    self._inject_setup_module_fixture()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:545: in _inject_setup_module_fixture
+    self.obj, ("setUpModule", "setup_module")
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:310: in obj
+    self._obj = obj = self._getobj()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:528: in _getobj
+    return self._importtestmodule()
 /Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:617: in _importtestmodule
     mod = import_path(self.path, mode=importmode, root=self.config.rootpath)
 /Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/pathlib.py:567: in import_path
@@ -683,11 +892,22 @@ demo/tests/test_retrieval_metadata_projection_parity.py:78: in <module>
     from power_atlas.contracts import RETRIEVAL_METADATA_SURFACE_POLICY, FieldSurfacePolicy
 src/power_atlas/contracts/__init__.py:70: in <module>
     from power_atlas.contracts.resolution import (
-E     File "/Users/ash/Documents/repos/Zoomlytics/power-atlas/src/power_atlas/contracts/resolution.py", line 4
-E       from __future__ import annotations
-E       ^
-E   SyntaxError: from __future__ imports must occur at the beginning of the file
+src/power_atlas/contracts/resolution.py:83: in <module>
+    DatasetIdSelector = Callable[[Any, str | None, str | None], str | None]
+E   TypeError: unsupported operand type(s) for |: 'type' and 'NoneType'
 _____________ ERROR collecting demo/tests/test_retrieval_parity.py _____________
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/runner.py:341: in from_call
+    result: Optional[TResult] = func()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/runner.py:372: in <lambda>
+    call = CallInfo.from_call(lambda: list(collector.collect()), "collect")
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:531: in collect
+    self._inject_setup_module_fixture()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:545: in _inject_setup_module_fixture
+    self.obj, ("setUpModule", "setup_module")
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:310: in obj
+    self._obj = obj = self._getobj()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:528: in _getobj
+    return self._importtestmodule()
 /Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:617: in _importtestmodule
     mod = import_path(self.path, mode=importmode, root=self.config.rootpath)
 /Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/pathlib.py:567: in import_path
@@ -708,11 +928,22 @@ demo/tests/test_retrieval_parity.py:40: in <module>
     from power_atlas.contracts import Config as _RuntimeConfig
 src/power_atlas/contracts/__init__.py:70: in <module>
     from power_atlas.contracts.resolution import (
-E     File "/Users/ash/Documents/repos/Zoomlytics/power-atlas/src/power_atlas/contracts/resolution.py", line 4
-E       from __future__ import annotations
-E       ^
-E   SyntaxError: from __future__ imports must occur at the beginning of the file
+src/power_atlas/contracts/resolution.py:83: in <module>
+    DatasetIdSelector = Callable[[Any, str | None, str | None], str | None]
+E   TypeError: unsupported operand type(s) for |: 'type' and 'NoneType'
 ________ ERROR collecting demo/tests/test_retrieval_path_diagnostics.py ________
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/runner.py:341: in from_call
+    result: Optional[TResult] = func()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/runner.py:372: in <lambda>
+    call = CallInfo.from_call(lambda: list(collector.collect()), "collect")
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:531: in collect
+    self._inject_setup_module_fixture()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:545: in _inject_setup_module_fixture
+    self.obj, ("setUpModule", "setup_module")
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:310: in obj
+    self._obj = obj = self._getobj()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:528: in _getobj
+    return self._importtestmodule()
 /Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:617: in _importtestmodule
     mod = import_path(self.path, mode=importmode, root=self.config.rootpath)
 /Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/pathlib.py:567: in import_path
@@ -733,11 +964,22 @@ demo/tests/test_retrieval_path_diagnostics.py:22: in <module>
     from power_atlas.contracts import Config as _RuntimeConfig
 src/power_atlas/contracts/__init__.py:70: in <module>
     from power_atlas.contracts.resolution import (
-E     File "/Users/ash/Documents/repos/Zoomlytics/power-atlas/src/power_atlas/contracts/resolution.py", line 4
-E       from __future__ import annotations
-E       ^
-E   SyntaxError: from __future__ imports must occur at the beginning of the file
+src/power_atlas/contracts/resolution.py:83: in <module>
+    DatasetIdSelector = Callable[[Any, str | None, str | None], str | None]
+E   TypeError: unsupported operand type(s) for |: 'type' and 'NoneType'
 _________ ERROR collecting demo/tests/test_retrieval_query_builders.py _________
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/runner.py:341: in from_call
+    result: Optional[TResult] = func()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/runner.py:372: in <lambda>
+    call = CallInfo.from_call(lambda: list(collector.collect()), "collect")
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:531: in collect
+    self._inject_setup_module_fixture()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:545: in _inject_setup_module_fixture
+    self.obj, ("setUpModule", "setup_module")
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:310: in obj
+    self._obj = obj = self._getobj()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:528: in _getobj
+    return self._importtestmodule()
 /Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:617: in _importtestmodule
     mod = import_path(self.path, mode=importmode, root=self.config.rootpath)
 /Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/pathlib.py:567: in import_path
@@ -760,11 +1002,22 @@ demo/stages/retrieval_and_qa.py:18: in <module>
     from power_atlas.contracts import (
 src/power_atlas/contracts/__init__.py:70: in <module>
     from power_atlas.contracts.resolution import (
-E     File "/Users/ash/Documents/repos/Zoomlytics/power-atlas/src/power_atlas/contracts/resolution.py", line 4
-E       from __future__ import annotations
-E       ^
-E   SyntaxError: from __future__ imports must occur at the beginning of the file
+src/power_atlas/contracts/resolution.py:83: in <module>
+    DatasetIdSelector = Callable[[Any, str | None, str | None], str | None]
+E   TypeError: unsupported operand type(s) for |: 'type' and 'NoneType'
 ________ ERROR collecting demo/tests/test_retrieval_result_contract.py _________
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/runner.py:341: in from_call
+    result: Optional[TResult] = func()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/runner.py:372: in <lambda>
+    call = CallInfo.from_call(lambda: list(collector.collect()), "collect")
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:531: in collect
+    self._inject_setup_module_fixture()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:545: in _inject_setup_module_fixture
+    self.obj, ("setUpModule", "setup_module")
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:310: in obj
+    self._obj = obj = self._getobj()
+/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:528: in _getobj
+    return self._importtestmodule()
 /Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/python.py:617: in _importtestmodule
     mod = import_path(self.path, mode=importmode, root=self.config.rootpath)
 /Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/_pytest/pathlib.py:567: in import_path
@@ -785,36 +1038,35 @@ demo/tests/test_retrieval_result_contract.py:219: in <module>
     from power_atlas.contracts import RETRIEVAL_METADATA_SURFACE_POLICY
 src/power_atlas/contracts/__init__.py:70: in <module>
     from power_atlas.contracts.resolution import (
-E     File "/Users/ash/Documents/repos/Zoomlytics/power-atlas/src/power_atlas/contracts/resolution.py", line 4
-E       from __future__ import annotations
-E       ^
-E   SyntaxError: from __future__ imports must occur at the beginning of the file
+src/power_atlas/contracts/resolution.py:83: in <module>
+    DatasetIdSelector = Callable[[Any, str | None, str | None], str | None]
+E   TypeError: unsupported operand type(s) for |: 'type' and 'NoneType'
 =========================== short test summary info ============================
-ERROR tests/test_backend_api_consumer.py
-ERROR tests/test_backend_dataset_catalog.py
+ERROR tests/test_backend_api_consumer.py - TypeError: unsupported operand typ...
+ERROR tests/test_backend_dataset_catalog.py - TypeError: unsupported operand ...
 ERROR tests/test_backend_graph_query_service.py - TypeError: dataclass() got ...
 ERROR tests/test_backend_graph_response_adapters.py - TypeError: dataclass() ...
-ERROR tests/test_backend_graph_router.py
-ERROR tests/test_backend_main.py
-ERROR tests/test_backend_run_catalog.py
-ERROR demo/tests/test_claim_participation.py
-ERROR demo/tests/test_claim_participation_integration.py
-ERROR demo/tests/test_demo_workflow.py
-ERROR demo/tests/test_doc_contract_drift.py
-ERROR demo/tests/test_entity_resolution.py
-ERROR demo/tests/test_graph_health.py
-ERROR demo/tests/test_graph_health_diagnostics_cli.py
-ERROR demo/tests/test_interactive_debug.py
-ERROR demo/tests/test_narrative_extraction.py
-ERROR demo/tests/test_orchestrator_modules.py
-ERROR demo/tests/test_pdf_ingest_helpers.py
+ERROR tests/test_backend_graph_router.py - TypeError: unsupported operand typ...
+ERROR tests/test_backend_main.py - TypeError: unsupported operand type(s) for...
+ERROR tests/test_backend_run_catalog.py - TypeError: unsupported operand type...
+ERROR demo/tests/test_claim_participation.py - TypeError: unsupported operand...
+ERROR demo/tests/test_claim_participation_integration.py - TypeError: unsuppo...
+ERROR demo/tests/test_demo_workflow.py - TypeError: unsupported operand type(...
+ERROR demo/tests/test_doc_contract_drift.py - TypeError: unsupported operand ...
+ERROR demo/tests/test_entity_resolution.py - TypeError: unsupported operand t...
+ERROR demo/tests/test_graph_health.py - TypeError: unsupported operand type(s...
+ERROR demo/tests/test_graph_health_diagnostics_cli.py - TypeError: unsupporte...
+ERROR demo/tests/test_interactive_debug.py - TypeError: unsupported operand t...
+ERROR demo/tests/test_narrative_extraction.py - TypeError: unsupported operan...
+ERROR demo/tests/test_orchestrator_modules.py - TypeError: unsupported operan...
+ERROR demo/tests/test_pdf_ingest_helpers.py - TypeError: unsupported operand ...
 ERROR demo/tests/test_pipeline_contract.py
-ERROR demo/tests/test_retrieval_benchmark.py
-ERROR demo/tests/test_retrieval_benchmark_cli.py
-ERROR demo/tests/test_retrieval_metadata_projection_parity.py
-ERROR demo/tests/test_retrieval_parity.py
-ERROR demo/tests/test_retrieval_path_diagnostics.py
-ERROR demo/tests/test_retrieval_query_builders.py
-ERROR demo/tests/test_retrieval_result_contract.py
+ERROR demo/tests/test_retrieval_benchmark.py - TypeError: unsupported operand...
+ERROR demo/tests/test_retrieval_benchmark_cli.py - TypeError: unsupported ope...
+ERROR demo/tests/test_retrieval_metadata_projection_parity.py - TypeError: un...
+ERROR demo/tests/test_retrieval_parity.py - TypeError: unsupported operand ty...
+ERROR demo/tests/test_retrieval_path_diagnostics.py - TypeError: unsupported ...
+ERROR demo/tests/test_retrieval_query_builders.py - TypeError: unsupported op...
+ERROR demo/tests/test_retrieval_result_contract.py - TypeError: unsupported o...
 !!!!!!!!!!!!!!!!!!! Interrupted: 26 errors during collection !!!!!!!!!!!!!!!!!!!
-============================== 26 errors in 6.33s ==============================
+============================== 26 errors in 7.44s ==============================

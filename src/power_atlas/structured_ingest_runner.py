@@ -3,7 +3,7 @@ from __future__ import annotations
 import csv
 import json
 import re
-from datetime import UTC, datetime
+from datetime import timezone, datetime
 from pathlib import Path
 from typing import Any, Callable
 
@@ -31,7 +31,7 @@ def load_csv_rows(path: Path) -> list[dict[str, str]]:
 
 
 def timestamp() -> str:
-    return datetime.now(UTC).isoformat()
+    return datetime.now(timezone.utc).isoformat()
 
 
 def dataset_id_from_fixtures_root(fixtures_root: Path) -> str:
