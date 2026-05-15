@@ -675,6 +675,35 @@ def test_graph_health_diagnostics_consumer_runs_from_outside_repo_when_installed
     }
 
 
+def test_graph_health_diagnostics_standalone_consumer_runs_from_outside_repo_when_installed(
+    tmp_path: Path,
+) -> None:
+    _require_installed_power_atlas()
+
+    completed = _run_example_script_from_outside_repo_when_installed(
+        "graph_health_diagnostics_standalone_consumer.py",
+        tmp_path,
+    )
+
+    assert json.loads(completed.stdout) == {
+        "consumer": "graph_health_diagnostics_standalone_consumer",
+        "alignment_version": "v2.0",
+        "artifact_relative_path": "runs/unstructured_ingest-20260514T000100Z-standalone/graph_health/graph_health_diagnostics.json",
+        "canonical_chain_entities": ["Gamma Energy", "Dana Price"],
+        "run_id": "unstructured_ingest-20260514T000100Z-standalone",
+        "status": "live",
+        "summary": {
+            "aligned_clusters": 4,
+            "alignment_coverage_pct": 80.0,
+            "claim_coverage_pct": 75.0,
+            "total_edges": 8,
+            "total_mentions": 12,
+            "unclustered_mentions": 3,
+        },
+        "warning_count": 0,
+    }
+
+
 def test_backend_api_custom_graph_queries_runs_from_outside_repo_when_installed(
     tmp_path: Path,
 ) -> None:
