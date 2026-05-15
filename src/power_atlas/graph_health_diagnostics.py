@@ -45,6 +45,7 @@ import json
 import logging
 from datetime import UTC, datetime
 from pathlib import Path
+from collections.abc import Callable
 from typing import Any
 
 from power_atlas.context import RequestContext
@@ -242,6 +243,7 @@ def _run_graph_health_diagnostics_impl(
     alignment_version: str | None = None,
     suppress_alignment_version_warning: bool = False,
     entity_type_policy: EntityTypeNormalizationPolicy | None = None,
+    query_rows_fetcher: Callable[..., dict[str, list[dict[str, object]]]] = fetch_graph_health_query_rows,
 ) -> dict[str, Any]:
     effective_output_dir = Path(output_dir)
     runs_root = (effective_output_dir / "runs").resolve()
@@ -311,7 +313,7 @@ def _run_graph_health_diagnostics_impl(
     if neo4j_settings is None:
         raise ValueError("Graph health diagnostics require Neo4j settings for live execution.")
 
-    query_rows = fetch_graph_health_query_rows(
+    query_rows = query_rows_fetcher(
         neo4j_settings,
         neo4j_settings.database,
         run_id=run_id,
