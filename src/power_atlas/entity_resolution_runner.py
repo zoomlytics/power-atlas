@@ -398,7 +398,10 @@ def run_entity_resolution_runtime_default(
         fetch_member_of_coverage,
     )
     from power_atlas.entity_resolution_reporting import build_entity_type_report
-    from power_atlas.entity_resolution_resolver import _build_lookup_tables, _resolve_mention
+    from power_atlas.entity_resolution_resolver import (
+        build_lookup_tables,
+        resolve_mention,
+    )
 
     resolved_entity_resolution_canonical_lookup = (
         get_default_entity_resolution_canonical_lookup_contract()
@@ -488,7 +491,7 @@ def run_entity_resolution_runtime_default(
         ),
         fetch_mentions=fetch_entity_mentions,
         fetch_canonicals=fetch_canonical_entities,
-        build_lookup_tables=lambda canonical_nodes: _build_lookup_tables(
+        build_lookup_tables=lambda canonical_nodes: build_lookup_tables(
             canonical_nodes,
             canonical_lookup_contract=resolved_entity_resolution_canonical_lookup,
         ),
@@ -500,7 +503,7 @@ def run_entity_resolution_runtime_default(
             canonical_lookup_contract=resolved_entity_resolution_canonical_lookup,
             entity_resolution_alignment=resolved_entity_resolution_alignment,
         ),
-        resolve_mention=lambda mention, by_qid, by_label, by_alias: _resolve_mention(
+        resolve_mention=lambda mention, by_qid, by_label, by_alias: resolve_mention(
             mention,
             by_qid,
             by_label,

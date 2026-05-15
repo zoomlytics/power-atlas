@@ -15,7 +15,7 @@ _QID_PATTERN = re.compile(r"^Q\d+$")
 _normalize = normalize_mention_text
 
 
-def _split_aliases(
+def split_aliases(
     raw: Any,
     canonical_lookup_contract: EntityResolutionCanonicalLookupContract | None = None,
 ) -> list[str]:
@@ -40,8 +40,7 @@ def _split_aliases(
     ]
 
 
-
-def _build_lookup_tables(
+def build_lookup_tables(
     canonical_nodes: list[dict[str, Any]],
     canonical_lookup_contract: EntityResolutionCanonicalLookupContract | None = None,
 ) -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any]], dict[str, dict[str, Any]]]:
@@ -69,7 +68,7 @@ def _build_lookup_tables(
         normalized_name = _normalize(name)
         if normalized_name and normalized_name not in by_label:
             by_label[normalized_name] = row
-        for alias in _split_aliases(
+        for alias in split_aliases(
             row.get(resolved_lookup.canonical_aliases_field),
             canonical_lookup_contract=resolved_lookup,
         ):
@@ -79,8 +78,7 @@ def _build_lookup_tables(
     return by_qid, by_label, by_alias
 
 
-
-def _resolve_mention(
+def resolve_mention(
     mention: dict[str, Any],
     by_qid: dict[str, dict[str, Any]],
     by_label: dict[str, dict[str, Any]],
@@ -179,4 +177,9 @@ def _resolve_mention(
     }
 
 
-__all__ = ["_build_lookup_tables", "_resolve_mention", "_split_aliases"]
+_split_aliases = split_aliases
+_build_lookup_tables = build_lookup_tables
+_resolve_mention = resolve_mention
+
+
+__all__ = ["build_lookup_tables", "resolve_mention", "split_aliases"]

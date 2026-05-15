@@ -1829,7 +1829,7 @@ def test_fetch_canonical_entities_accepts_custom_entity_resolution_canonical_loo
 
 def test_resolve_mention_accepts_custom_entity_resolution_canonical_lookup_contract() -> None:
     from power_atlas.contracts import EntityResolutionCanonicalLookupContract
-    from power_atlas.entity_resolution_resolver import _build_lookup_tables, _resolve_mention
+    from power_atlas.entity_resolution_resolver import build_lookup_tables, resolve_mention
 
     lookup_contract = EntityResolutionCanonicalLookupContract(
         canonical_entity_id_field="security_id",
@@ -1840,7 +1840,7 @@ def test_resolve_mention_accepts_custom_entity_resolution_canonical_lookup_contr
         qid_exact_method="security_id_exact",
         unresolved_method="security_cluster",
     )
-    by_qid, by_label, by_alias = _build_lookup_tables(
+    by_qid, by_label, by_alias = build_lookup_tables(
         [
             {
                 "security_id": "SEC1",
@@ -1852,14 +1852,14 @@ def test_resolve_mention_accepts_custom_entity_resolution_canonical_lookup_contr
         canonical_lookup_contract=lookup_contract,
     )
 
-    resolved = _resolve_mention(
+    resolved = resolve_mention(
         {"mention_id": "m-1", "name": "SEC1", "entity_type": "Company"},
         by_qid,
         by_label,
         by_alias,
         canonical_lookup_contract=lookup_contract,
     )
-    aligned = _resolve_mention(
+    aligned = resolve_mention(
         {"mention_id": "m-2", "name": "ACME", "entity_type": "Company"},
         by_qid,
         by_label,
@@ -1871,6 +1871,33 @@ def test_resolve_mention_accepts_custom_entity_resolution_canonical_lookup_contr
     assert resolved["canonical_run_id"] == "structured-1"
     assert resolved["resolution_method"] == "security_id_exact"
     assert aligned["resolution_method"] == lookup_contract.alias_exact_method
+
+
+def test_entity_resolution_resolver_publishes_public_helper_names_only() -> None:
+    import power_atlas.entity_resolution_resolver as resolver_module
+
+    assert resolver_module.__all__ == [
+        "build_lookup_tables",
+        "resolve_mention",
+        "split_aliases",
+    ]
+    assert resolver_module._build_lookup_tables is resolver_module.build_lookup_tables
+    assert resolver_module._resolve_mention is resolver_module.resolve_mention
+    assert resolver_module._split_aliases is resolver_module.split_aliases
+
+
+def test_llm_utils_publishes_public_helper_names_only() -> None:
+    import power_atlas.llm_utils as llm_utils_module
+
+    assert llm_utils_module.__all__ == [
+        "OpenAILLM",
+        "build_openai_llm",
+        "model_supports_temperature",
+    ]
+    assert (
+        llm_utils_module._model_supports_temperature
+        is llm_utils_module.model_supports_temperature
+    )
 
 
 def test_align_clusters_to_canonical_accepts_custom_entity_resolution_alignment_contract() -> None:
