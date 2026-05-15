@@ -114,8 +114,10 @@ These files or directories still have an accepted role and should not yet be put
   - still the import seam exercised by `tests/test_backend_main.py`
 - `frontend/`
   - documented as a transitional non-core health-check client, not yet a retired surface
-- `pipelines/query/*.py` and `scripts/sync_vendor_version.py`
+- `pipelines/query/*.py`
   - now thin compatibility entrypoints, but still the stable invocation surfaces
+- `scripts/sync_vendor_version.py`
+  - fully retired and removed alongside vendor submodule
 - compatibility re-export modules noted in the decisions register under the package root
 
 These are legacy-shaped surfaces, but they are not yet expired. Removing them before the active execution posture changes would create churn without closing the real migration obligations.
@@ -143,14 +145,8 @@ Post-reset and narrative-wrapper checkpoint:
 
 Script-specific audit result:
 
-- `scripts/sync_vendor_version.py` is currently a defer-in-place shell rather
-  than a live retirement candidate,
-- it still serves as the stable operator and CI seam for vendor metadata sync:
-  the repo README, vendor docs, and `.github/workflows/vendor-version-consistency.yml`
-  still invoke this exact script path,
-- `tests/test_sync_vendor_version.py` still imports and patches symbols from
-  `scripts.sync_vendor_version`, so deleting it now would change the active
-  script/test seam rather than retire dead compatibility debt.
+- `scripts/sync_vendor_version.py` has been fully retired and removed because the `vendor/neo4j-graphrag-python` submodule has been replaced with the standard PyPI package.
+- CI workflows like `vendor-version-consistency.yml` and the dedicated `tests/test_sync_vendor_version.py` have also been removed.
 
 Smoke-test audit result:
 

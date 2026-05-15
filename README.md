@@ -242,7 +242,6 @@ power-atlas/
 ├── artifacts/                   # Durable verification and restructure evidence
 ├── studies/                     # Historical research and exploratory notes
 ├── _archive/                    # Archived experimentation material (non-active reference only)
-├── vendor/                      # Vendored third-party code
 ├── vendor-resources/            # Retained vendor reference material
 ├── docker-compose.yml
 ├── pyproject.toml
@@ -819,17 +818,6 @@ Key environment variables:
 ---
 
 ## Development
-
-### Vendor metadata sync
-
-When the `vendor/neo4j-graphrag-python` submodule pin changes, use the stable
-operator script seam:
-
-```bash
-python scripts/sync_vendor_version.py
-# Verify:
-python scripts/sync_vendor_version.py --check
-```
 
 ### Docker Compose services
 
