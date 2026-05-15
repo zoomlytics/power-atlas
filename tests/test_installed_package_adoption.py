@@ -642,6 +642,39 @@ def test_claim_extraction_diagnostics_report_consumer_runs_from_outside_repo_whe
     }
 
 
+def test_graph_health_diagnostics_consumer_runs_from_outside_repo_when_installed(
+    tmp_path: Path,
+) -> None:
+    _require_installed_power_atlas()
+
+    completed = _run_example_script_from_outside_repo_when_installed(
+        "graph_health_diagnostics_consumer.py",
+        tmp_path,
+    )
+
+    assert json.loads(completed.stdout) == {
+        "consumer": "graph_health_diagnostics_consumer",
+        "alignment_version": "v1.0",
+        "artifact_relative_path": "runs/unstructured_ingest-20260514T000000Z-example/graph_health/graph_health_diagnostics.json",
+        "canonical_chain_entities": ["Acme Corp", "Beta Logistics"],
+        "entity_type_policy_synonyms": {
+            "Company": "Organization",
+            "person": "Person",
+        },
+        "run_id": "unstructured_ingest-20260514T000000Z-example",
+        "status": "live",
+        "summary": {
+            "aligned_clusters": 5,
+            "claim_coverage_pct": 90.0,
+            "total_clusters": 6,
+            "total_edges": 9,
+            "total_mentions": 12,
+            "unclustered_mentions": 2,
+        },
+        "warning_count": 0,
+    }
+
+
 def test_backend_api_custom_graph_queries_runs_from_outside_repo_when_installed(
     tmp_path: Path,
 ) -> None:

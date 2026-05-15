@@ -336,6 +336,42 @@ def test_claim_extraction_diagnostics_report_consumer_example_script_runs() -> N
     }
 
 
+def test_graph_health_diagnostics_consumer_example_script_runs() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(repo_root / "examples" / "graph_health_diagnostics_consumer.py"),
+        ],
+        cwd=repo_root,
+        capture_output=True,
+        check=True,
+        text=True,
+    )
+
+    assert json.loads(completed.stdout) == {
+        "consumer": "graph_health_diagnostics_consumer",
+        "alignment_version": "v1.0",
+        "artifact_relative_path": "runs/unstructured_ingest-20260514T000000Z-example/graph_health/graph_health_diagnostics.json",
+        "canonical_chain_entities": ["Acme Corp", "Beta Logistics"],
+        "entity_type_policy_synonyms": {
+            "Company": "Organization",
+            "person": "Person",
+        },
+        "run_id": "unstructured_ingest-20260514T000000Z-example",
+        "status": "live",
+        "summary": {
+            "aligned_clusters": 5,
+            "claim_coverage_pct": 90.0,
+            "total_clusters": 6,
+            "total_edges": 9,
+            "total_mentions": 12,
+            "unclustered_mentions": 2,
+        },
+        "warning_count": 0,
+    }
+
+
 def test_claim_extraction_diagnostics_report_script_runs_for_run_and_current(
     tmp_path: Path,
 ) -> None:

@@ -60,6 +60,8 @@ from power_atlas.settings import Neo4jSettings
 
 _logger = logging.getLogger(__name__)
 
+GraphHealthQueryRowsFetcher = Callable[..., dict[str, list[dict[str, object]]]]
+
 
 def _neo4j_settings_from_config(config) -> Neo4jSettings:
     config_settings = getattr(config, "settings", None)
@@ -243,7 +245,7 @@ def _run_graph_health_diagnostics_impl(
     alignment_version: str | None = None,
     suppress_alignment_version_warning: bool = False,
     entity_type_policy: EntityTypeNormalizationPolicy | None = None,
-    query_rows_fetcher: Callable[..., dict[str, list[dict[str, object]]]] = fetch_graph_health_query_rows,
+    query_rows_fetcher: GraphHealthQueryRowsFetcher = fetch_graph_health_query_rows,
 ) -> dict[str, Any]:
     effective_output_dir = Path(output_dir)
     runs_root = (effective_output_dir / "runs").resolve()
@@ -378,6 +380,7 @@ def run_graph_health_diagnostics(
     alignment_version: str | None = None,
     output_dir: Path | None = None,
     suppress_alignment_version_warning: bool = False,
+    query_rows_fetcher: GraphHealthQueryRowsFetcher = fetch_graph_health_query_rows,
 ) -> dict[str, Any]:
     resolved_output_dir = Path(output_dir if output_dir is not None else config.output_dir)
     dry_run = bool(getattr(config, "dry_run", False))
@@ -389,6 +392,7 @@ def run_graph_health_diagnostics(
         run_id=run_id,
         alignment_version=alignment_version,
         suppress_alignment_version_warning=suppress_alignment_version_warning,
+        query_rows_fetcher=query_rows_fetcher,
     )
 
 
@@ -398,6 +402,7 @@ def run_graph_health_diagnostics_request_context(
     alignment_version: str | None = None,
     output_dir: Path | None = None,
     suppress_alignment_version_warning: bool = False,
+    query_rows_fetcher: GraphHealthQueryRowsFetcher = fetch_graph_health_query_rows,
 ) -> dict[str, Any]:
     resolved_output_dir = Path(
         output_dir if output_dir is not None else request_context.config.output_dir
@@ -414,11 +419,13 @@ def run_graph_health_diagnostics_request_context(
         alignment_version=alignment_version,
         suppress_alignment_version_warning=suppress_alignment_version_warning,
         entity_type_policy=request_context.policies.entity_type_normalization,
+        query_rows_fetcher=query_rows_fetcher,
     )
 
 
 __all__ = [
     "GraphHealthArtifact",
+    "GraphHealthQueryRowsFetcher",
     "build_graph_health_artifact",
     "run_graph_health_diagnostics",
     "run_graph_health_diagnostics_request_context",

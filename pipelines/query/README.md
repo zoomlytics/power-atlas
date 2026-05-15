@@ -1677,8 +1677,8 @@ or custom scripts:
 from pathlib import Path
 
 from power_atlas.bootstrap import build_runtime_config, build_settings
+from power_atlas.graph_health_diagnostics import run_graph_health_diagnostics_request_context
 from power_atlas.orchestration.context_builder import build_request_context_from_config
-from demo.stages.graph_health import run_graph_health_diagnostics_request_context
 
 settings = build_settings(
   {
