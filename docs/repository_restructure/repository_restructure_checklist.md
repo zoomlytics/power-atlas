@@ -520,4 +520,6 @@ Use this section as the working short list.
 - [x] perform the explicit shared-core namespace evaluation now that the narrower backend baseline-adoption pass has landed
 - [x] decide to keep the remaining dataset-root-owning runner/default surfaces (`contracts.resolution`, `pdf_ingest_runner`, `structured_ingest_runner`) app-owned for now and scope any future extraction to a smaller shared-mechanics pilot rather than a broad namespace split
 - [x] define the first bounded follow-up lane in `docs/repository_restructure/repository_restructure_shared_mechanics_pilot_contract.md` so the smaller shared-mechanics pilot has explicit scope, deliverables, acceptance criteria, and non-goals
+- [x] land the first shared-mechanics pilot inventory/proof slice through `power_atlas.shared_mechanics`, `examples/shared_mechanics_consumer.py`, and focused repo plus installed-package tests
+- [ ] decide whether the next shared-mechanics follow-up should extract a request-free retrieval execution helper below `RequestContext` or pause the pilot until dataset/default authority work becomes worth the cost
 - [x] re-run the full `make phase1-verify` gate after the recent bootstrap/default-resolution cleanup and record whether the earlier one-off citation fallback reproduces

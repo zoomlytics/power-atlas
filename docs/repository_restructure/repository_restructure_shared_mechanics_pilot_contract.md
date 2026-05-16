@@ -159,6 +159,49 @@ The next bounded steps should proceed in this order:
 4. only then decide whether another mechanics slice is worthwhile before any
    dataset-authority externalization.
 
+## 2026-05-16 implementation checkpoint
+
+The first bounded shared-mechanics slice has now landed.
+
+The repo now has a package-owned inventory/grouping surface at
+`power_atlas.shared_mechanics` plus an executable package-only consumer proof at
+`examples/shared_mechanics_consumer.py`.
+
+That surface currently includes the following mechanics-heavy modules or
+helpers:
+
+- `power_atlas.contracts.runtime`
+- `power_atlas.contracts.manifest`
+- `power_atlas.neo4j_io`
+- `power_atlas.run_scope_queries`
+- `power_atlas.retrieval_postprocessing`
+- `power_atlas.retrieval_request_helpers`
+
+It also records the first hidden-assumption set that still blocks widening the
+pilot:
+
+- `power_atlas.context` remains deferred because `AppContext` /
+  `RequestContext` still bundle app settings, default policy ownership, and
+  pipeline-contract runtime state,
+- `power_atlas.retrieval_request_context_adapters` remains deferred because it
+  still depends on the app-owned `RequestContext` surface and forwards
+  retrieval policy plus Neo4j settings from that layer,
+- the broader `power_atlas.adapters.neo4j.*` family remains deferred because it
+  still mixes clean query mechanics with stage-specific runtime modules; the
+  current pilot only includes the run-scope query lane via
+  `power_atlas.run_scope_queries`.
+
+Focused validation for this checkpoint passed with:
+
+- `pytest -q tests/test_shared_mechanics_pilot.py tests/test_installed_package_adoption.py -k shared_mechanics`
+
+That means the pilot has now satisfied its first three required deliverables:
+inventory, package-owned grouping surface, and executable proof. The next
+decision is narrower: whether another mechanics-only slice should extract a
+request-free retrieval execution helper below `RequestContext`, or whether the
+pilot should pause here until dataset/default authority work becomes worth the
+cost.
+
 ## Non-goals
 
 This pilot contract does **not** authorize:

@@ -452,6 +452,71 @@ def test_backend_api_consumer_runs_from_outside_repo_when_installed(
     }
 
 
+def test_shared_mechanics_consumer_runs_from_outside_repo_when_installed(
+    tmp_path: Path,
+) -> None:
+    _require_installed_power_atlas()
+
+    completed = _run_example_script_from_outside_repo_when_installed(
+        "shared_mechanics_consumer.py",
+        tmp_path,
+    )
+
+    assert json.loads(completed.stdout) == {
+        "consumer": "shared_mechanics_consumer",
+        "deferred_modules": [
+            {
+                "hidden_assumptions": [
+                    "AppContext and RequestContext still depend on AppSettings-backed runtime state.",
+                    "Default app-policy construction is still coupled to the current Power Atlas policy set.",
+                ],
+                "module": "power_atlas.context",
+            },
+            {
+                "hidden_assumptions": [
+                    "The adapter API currently requires RequestContext from power_atlas.context.",
+                    "Runtime forwarding still assumes app-owned retrieval policy and settings ownership.",
+                ],
+                "module": "power_atlas.retrieval_request_context_adapters",
+            },
+            {
+                "hidden_assumptions": [
+                    "The current pilot includes run-scope query mechanics via power_atlas.run_scope_queries only.",
+                    "A broader adapters.neo4j family surface would currently mix mechanics with stage/domain runtime ownership.",
+                ],
+                "module": "power_atlas.adapters.neo4j.*",
+            },
+        ],
+        "helpers": {
+            "all_cited": True,
+            "fallback": {
+                "applied": True,
+                "display_answer": "Insufficient citations detected: Missing citation",
+                "history_answer": "Insufficient citations detected",
+                "prefix": "Insufficient citations detected",
+            },
+            "query_params": {
+                "alignment_version": "align-v1",
+                "run_id": "pilot-run-id",
+                "source_uri": "file:///pilot/source.pdf",
+            },
+            "scope_label": "run=pilot-run-id",
+        },
+        "included_modules": [
+            "power_atlas.contracts.runtime",
+            "power_atlas.contracts.manifest",
+            "power_atlas.neo4j_io",
+            "power_atlas.run_scope_queries",
+            "power_atlas.retrieval_postprocessing",
+            "power_atlas.retrieval_request_helpers",
+        ],
+        "runtime_surface": {
+            "config_type": "Config",
+            "manifest_builder": "build_stage_manifest",
+        },
+    }
+
+
 def test_retrieval_policy_consumer_runs_from_outside_repo_when_installed(
     tmp_path: Path,
 ) -> None:
