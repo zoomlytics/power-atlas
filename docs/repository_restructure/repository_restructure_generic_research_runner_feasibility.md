@@ -256,6 +256,9 @@ the same exact semantics.
 
 The likely end state is not one package. It is three layers.
 
+The clearer role-oriented version of this model now lives in
+`docs/repository_restructure/repository_restructure_target_shape_roles.md`.
+
 ### Layer 1: reusable research runner core
 
 This layer would own:

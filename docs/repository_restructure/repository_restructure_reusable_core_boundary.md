@@ -8,6 +8,7 @@
 - `docs/repository_restructure/repository_restructure_checklist.md`
 - `docs/repository_restructure/repository_restructure_decisions.md`
 - `docs/repository_restructure/repository_restructure_generic_research_runner_feasibility.md`
+- `docs/repository_restructure/repository_restructure_target_shape_roles.md`
 - `docs/repository_restructure/repository_restructure_shared_mechanics_pilot_contract.md`
 - `docs/repository_restructure/repository_restructure_second_domain_pilot_contract.md`
 - `docs/repository_restructure/repository_restructure_second_domain_gap_inventory.md`
