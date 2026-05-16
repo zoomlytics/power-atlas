@@ -346,6 +346,7 @@ def test_package_modules_import() -> None:
             "examples/market_trade_entity_resolution_consumer.py",
         ),
     )
+    assert package.AppBaseline is bootstrap_module.AppBaseline
     assert package.AppSettings is settings_module.AppSettings
     assert package.AppSettingsEnvNames is settings_module.AppSettingsEnvNames
     assert package.build_settings is bootstrap_module.build_settings
@@ -353,7 +354,9 @@ def test_package_modules_import() -> None:
     assert package.build_request_context is bootstrap_module.build_request_context
     assert package.build_default_app_policies is context_module.build_default_app_policies
     assert package.build_openai_llm is llm_utils_module.build_openai_llm
+    assert package.DEFAULT_APP_BASELINE is bootstrap_module.DEFAULT_APP_BASELINE
     assert package.DEFAULT_APP_SETTINGS_ENV_NAMES is settings_module.DEFAULT_APP_SETTINGS_ENV_NAMES
+    assert package.resolve_app_baseline is bootstrap_module.resolve_app_baseline
     assert package.normalize_mention_text is text_utils_module.normalize_mention_text
     assert package.claim_extraction_diagnostics is claim_extraction_diagnostics_module
     assert package.claim_extraction_entrypoint is claim_extraction_entrypoint_module
@@ -649,6 +652,104 @@ def test_build_settings_supports_explicit_env_names() -> None:
     assert app.settings.embedder_model == "text-embedding-3-large"
     assert app.settings.output_dir == Path("build/custom-app")
     assert app.settings.dataset_name == "research_dataset_v1"
+
+
+def test_resolve_app_baseline_composes_repo_paths_and_env_names(tmp_path: Path) -> None:
+    from power_atlas.bootstrap import AppSettingsEnvNames, resolve_app_baseline
+    from power_atlas.contracts import RepoPaths
+
+    repo_paths = RepoPaths(
+        base_dir=tmp_path / "host_app",
+        fixtures_dir=tmp_path / "host_app" / "fixtures",
+        artifacts_dir=tmp_path / "host_app" / "artifacts",
+        config_dir=tmp_path / "host_app" / "config",
+        pdf_pipeline_config_path=tmp_path / "host_app" / "config" / "pipeline.yaml",
+        datasets_container_dir=tmp_path / "host_app" / "fixtures" / "datasets",
+    )
+
+    baseline = resolve_app_baseline(
+        env_names=AppSettingsEnvNames(
+            dataset_name_primary="APP_DATASET",
+            dataset_name_fallback="LEGACY_APP_DATASET",
+        ),
+        repo_paths=repo_paths,
+    )
+
+    assert baseline.env_names.dataset_name_primary == "APP_DATASET"
+    assert baseline.env_names.dataset_name_fallback == "LEGACY_APP_DATASET"
+    assert baseline.repo_paths == repo_paths
+    assert baseline.pipeline_contract_source.config_path == repo_paths.pdf_pipeline_config_path
+
+
+def test_build_app_context_supports_explicit_app_baseline(tmp_path: Path) -> None:
+    from power_atlas.bootstrap import AppSettingsEnvNames, build_app_context, resolve_app_baseline
+    from power_atlas.contracts import RepoPaths
+
+    pipeline_config_path = tmp_path / "host_app" / "config" / "pipeline.yaml"
+    pipeline_config_path.parent.mkdir(parents=True)
+    pipeline_config_path.write_text(
+        """
+contract:
+  chunk_embedding:
+    index_name: research_chunk_index
+    label: ResearchChunk
+    embedding_property: research_embedding
+    dimensions: 3072
+embedder_config:
+  params_:
+    model: text-embedding-3-large
+text_splitter:
+  params_:
+    chunk_size: 1200
+    chunk_overlap: 200
+""".strip(),
+        encoding="utf-8",
+    )
+    repo_paths = RepoPaths(
+        base_dir=tmp_path / "host_app",
+        fixtures_dir=tmp_path / "host_app" / "fixtures",
+        artifacts_dir=tmp_path / "host_app" / "artifacts",
+        config_dir=tmp_path / "host_app" / "config",
+        pdf_pipeline_config_path=pipeline_config_path,
+        datasets_container_dir=tmp_path / "host_app" / "fixtures" / "datasets",
+    )
+    baseline = resolve_app_baseline(
+        env_names=AppSettingsEnvNames(
+            neo4j_uri="APP_NEO4J_URI",
+            neo4j_username="APP_NEO4J_USERNAME",
+            neo4j_password="APP_NEO4J_PASSWORD",
+            neo4j_database="APP_NEO4J_DATABASE",
+            openai_model="APP_OPENAI_MODEL",
+            embedder_model_primary="APP_EMBEDDER_MODEL",
+            output_dir="APP_OUTPUT_DIR",
+            dataset_name_primary="APP_DATASET",
+            dataset_name_fallback="LEGACY_APP_DATASET",
+        ),
+        repo_paths=repo_paths,
+    )
+
+    app_context = build_app_context(
+        environ={
+            "APP_NEO4J_URI": "bolt://custom.test:7687",
+            "APP_NEO4J_USERNAME": "custom-user",
+            "APP_NEO4J_PASSWORD": "custom-secret",
+            "APP_NEO4J_DATABASE": "custom-db",
+            "APP_OPENAI_MODEL": "gpt-5.4",
+            "APP_EMBEDDER_MODEL": "text-embedding-3-large",
+            "APP_OUTPUT_DIR": "build/custom-app",
+            "APP_DATASET": "research_dataset_v1",
+        },
+        app_baseline=baseline,
+    )
+
+    assert app_context.settings.dataset_name == "research_dataset_v1"
+    assert app_context.pipeline_contract.chunk_embedding_index_name == "research_chunk_index"
+    assert app_context.pipeline_contract.chunk_embedding_label == "ResearchChunk"
+    assert app_context.pipeline_contract.chunk_embedding_property == "research_embedding"
+    assert app_context.pipeline_contract.chunk_embedding_dimensions == 3072
+    assert app_context.pipeline_contract.embedder_model_name == "text-embedding-3-large"
+    assert app_context.pipeline_contract.chunk_fallback_stride == 1000
+    assert app_context.pipeline_contract_config_data["contract"]["chunk_embedding"]["index_name"] == "research_chunk_index"
 
 
 def test_build_settings_from_overrides_ignores_ambient_dataset_defaults() -> None:

@@ -1,5 +1,7 @@
 from power_atlas.bootstrap.app import (
+	AppBaseline,
 	AppBootstrap,
+	DEFAULT_APP_BASELINE,
 	bootstrap_app,
 	build_app_context,
 	build_request_context,
@@ -8,6 +10,7 @@ from power_atlas.bootstrap.app import (
 	dataset_env_selection,
 	has_openai_api_key,
 	require_openai_api_key,
+	resolve_app_baseline,
 	temporary_environment,
 )
 from power_atlas.bootstrap.clients import (
@@ -19,8 +22,10 @@ from power_atlas.bootstrap.domain_pack import DomainPackDescriptor
 from power_atlas.settings import AppSettingsEnvNames, DEFAULT_APP_SETTINGS_ENV_NAMES
 
 __all__ = [
+	"AppBaseline",
 	"AppBootstrap",
 	"AppSettingsEnvNames",
+	"DEFAULT_APP_BASELINE",
 	"bootstrap_app",
 	"build_app_context",
 	"build_request_context",
@@ -34,5 +39,6 @@ __all__ = [
 	"DomainPackDescriptor",
 	"has_openai_api_key",
 	"require_openai_api_key",
+	"resolve_app_baseline",
 	"temporary_environment",
 ]

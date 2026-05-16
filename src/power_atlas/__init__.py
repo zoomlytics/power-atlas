@@ -10,6 +10,7 @@ _EXPORTS = {
     "BASE_DIR": ("power_atlas.contracts", "BASE_DIR"),
     "AmbiguousDatasetError": ("power_atlas.contracts", "AmbiguousDatasetError"),
     "api": ("power_atlas.api", None),
+    "AppBaseline": ("power_atlas.bootstrap", "AppBaseline"),
     "AppBootstrap": ("power_atlas.bootstrap", "AppBootstrap"),
     "AppContext": ("power_atlas.context", "AppContext"),
     "AppPolicies": ("power_atlas.context", "AppPolicies"),
@@ -22,6 +23,7 @@ _EXPORTS = {
     "CSV_FIRST_DATA_ROW": ("power_atlas.contracts", "CSV_FIRST_DATA_ROW"),
     "Config": ("power_atlas.contracts", "Config"),
     "DatasetIdSelector": ("power_atlas.contracts", "DatasetIdSelector"),
+    "DEFAULT_APP_BASELINE": ("power_atlas.bootstrap", "DEFAULT_APP_BASELINE"),
     "DEFAULT_APP_SETTINGS_ENV_NAMES": ("power_atlas.settings", "DEFAULT_APP_SETTINGS_ENV_NAMES"),
     "DATASETS_CONTAINER_DIR": ("power_atlas.contracts", "DATASETS_CONTAINER_DIR"),
     "DatasetRoot": ("power_atlas.contracts", "DatasetRoot"),
@@ -158,6 +160,7 @@ _EXPORTS = {
         "power_atlas.contracts.pipeline",
         "refresh_pipeline_contract",
     ),
+    "resolve_app_baseline": ("power_atlas.bootstrap", "resolve_app_baseline"),
     "get_default_retrieval_policy": ("power_atlas.contracts", "get_default_retrieval_policy"),
     "get_default_structured_graph_shape_contract": (
         "power_atlas.contracts",

@@ -270,3 +270,32 @@ covering one or more of:
 
 Only after one of those default-bearing surfaces is externalized should the
 repo re-evaluate whether a broader shared-core namespace split is justified.
+
+## 2026-05-15 implementation checkpoint
+
+That follow-up slice has now started and the composition root is materially
+better than it was at the decision checkpoint.
+
+The package now has a bootstrap-owned `AppBaseline` descriptor plus
+`resolve_app_baseline(...)`, which composes the already-separated default
+surfaces for:
+
+- environment variable naming via `AppSettingsEnvNames`,
+- repo-root/config/dataset path ownership via `RepoPaths`,
+- pipeline contract source selection via `PipelineContractSource`.
+
+`build_settings(...)`, `build_app_context(...)`, `dataset_env_selection(...)`,
+`build_runtime_config(...)`, `build_request_context(...)`, and
+`bootstrap_app(...)` now accept that baseline explicitly. When a non-default
+baseline is supplied, bootstrap-owned runtime assembly loads contract state from
+the explicit source rather than silently falling back to the Power Atlas repo
+layout. The new `examples/app_baseline_consumer.py` subprocess proof also shows
+that package bootstrap can run against a fabricated host-app tree using custom
+`HOSTAPP_*` env names instead of the ambient `POWER_ATLAS_*` naming.
+
+This does **not** mean a broader shared-core namespace split should start
+immediately. It does mean the earlier blocker has moved. The next question is no
+longer whether default-coupling must be externalized first; it is whether the
+current explicit baseline surface is already sufficient to justify a split, or
+whether one narrower adoption pass is still needed before paying namespace
+churn.

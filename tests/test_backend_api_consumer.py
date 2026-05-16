@@ -302,6 +302,48 @@ def test_domain_pack_starter_example_script_runs() -> None:
     }
 
 
+def test_app_baseline_consumer_example_script_runs() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(repo_root / "examples" / "app_baseline_consumer.py"),
+        ],
+        cwd=repo_root,
+        capture_output=True,
+        check=True,
+        text=True,
+    )
+
+    payload = json.loads(completed.stdout)
+    assert payload["consumer"] == "app_baseline_consumer"
+    assert payload["baseline"]["dataset_env"] == "HOSTAPP_DATASET"
+    assert payload["baseline"]["legacy_dataset_env"] == "HOSTAPP_LEGACY_DATASET"
+    assert payload["baseline"]["config_dir"].endswith("/host_app/config")
+    assert payload["baseline"]["pipeline_config_path"].endswith("/host_app/config/pipeline.yaml")
+    assert payload["settings"] == {
+        "dataset_name": "host_dataset_v1",
+        "neo4j_uri": "bolt://host-app.test:7687",
+        "output_dir": payload["settings"]["output_dir"],
+    }
+    assert payload["settings"]["output_dir"].endswith("/host_app/build")
+    assert payload["pipeline_contract"] == {
+        "chunk_embedding_dimensions": 1024,
+        "chunk_embedding_index_name": "host_app_chunk_index",
+        "chunk_embedding_label": "HostChunk",
+        "chunk_embedding_property": "host_embedding",
+        "chunk_fallback_stride": 750,
+        "embedder_model_name": "text-embedding-3-large",
+    }
+    assert payload["request_context"] == {
+        "command": "ask",
+        "dataset_name": "host_dataset_v1",
+        "question": "Which host-app baseline was applied?",
+        "run_id": "host-app-run-id",
+        "source_uri": "file:///host-app/source.pdf",
+    }
+
+
 def test_claim_extraction_diagnostics_report_consumer_example_script_runs() -> None:
     repo_root = Path(__file__).resolve().parents[1]
     completed = subprocess.run(
