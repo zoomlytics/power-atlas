@@ -517,5 +517,6 @@ Use this section as the working short list.
 - [x] choose the next deliberate follow-up lane across Phase 6 operationalization, Phase 7 eval/test separation, or Phase 10 legacy retirement, based on which remaining slice would add the most clarity with the least structural churn
 - [ ] perform a short canonical tracker refresh whenever a follow-up slice materially changes the recorded Phase 6 or Phase 7 posture
 - [x] decide whether the new bootstrap-owned `AppBaseline` surface is already enough to justify a broader shared-core namespace evaluation or whether one narrower first-party adoption pass should land first
-- [ ] perform the explicit shared-core namespace evaluation now that the narrower backend baseline-adoption pass has landed
+- [x] perform the explicit shared-core namespace evaluation now that the narrower backend baseline-adoption pass has landed
+- [ ] decide whether to keep the remaining dataset-root-owning runner/default surfaces (`contracts.resolution`, `pdf_ingest_runner`, `structured_ingest_runner`) app-owned or externalize their dataset authority before any broader namespace split
 - [x] re-run the full `make phase1-verify` gate after the recent bootstrap/default-resolution cleanup and record whether the earlier one-off citation fallback reproduces

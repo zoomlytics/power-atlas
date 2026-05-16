@@ -322,3 +322,51 @@ determine whether the remaining direct `resolve_dataset_root(...)` and related
 Power-Atlas-shaped runtime calls are evidence that a shared namespace split is
 still premature, or whether they are now localized enough to treat as
 application-owned internals living above a reusable baseline.
+
+## 2026-05-16 namespace evaluation
+
+That explicit evaluation now has an answer.
+
+The answer is still: **do not start a broader shared-core namespace split yet**.
+
+The reason has changed. The repo is no longer blocked on the old composition
+root/default-coupling problem. `AppBaseline` plus the backend adoption follow-up
+mean the package now has an explicit host-app baseline surface with both
+bootstrap and first-party backend proofs.
+
+The remaining blocker is narrower and more concrete: a small set of
+package-public runtime/default surfaces still derive dataset identity or fixture
+roots from Power Atlas-owned defaults rather than from an explicit host-app
+authority.
+
+The highest-signal remaining examples are:
+
+- `power_atlas.contracts.resolution._default_select_dataset_id(...)`, which
+  still resolves dataset ids by calling `resolve_dataset_root(...)` directly
+  inside a contracts module,
+- `power_atlas.pdf_ingest_runner.resolve_pdf_dataset(...)`, which still falls
+  back to `resolve_dataset_root(dataset_name)` when callers do not provide an
+  explicit fixtures root,
+- `power_atlas.structured_ingest_runner.resolve_structured_dataset(...)`, which
+  still falls back to `resolve_dataset_root()` when callers do not provide an
+  explicit fixtures root.
+
+By contrast, the remaining orchestration call sites under
+`power_atlas.orchestration.*` are less concerning for the split decision:
+those paths are already visibly app-owned coordination layers, and several of
+them take `resolve_dataset_root` as an injected dependency rather than owning
+ambient lookup directly.
+
+So the current no-go is not “the repo still lacks reusable evidence,” and it is
+not “keep doing more generic baseline plumbing everywhere.” It is this:
+starting a broader namespace split now would still relocate a few Power Atlas
+dataset/default assumptions into the would-be shared namespace instead of
+cleanly leaving them in the application layer.
+
+That means the next deliberate step should be one of two narrower choices,
+made explicitly rather than by drift:
+
+1. keep those runner/default surfaces in the Power Atlas application namespace
+   and scope any future extraction smaller than a broad namespace split, or
+2. externalize dataset-root ownership in those specific runtime/default paths
+   first, then re-run the namespace decision.
