@@ -1,0 +1,970 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.11.14, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/ash/Documents/repos/Zoomlytics/power-atlas
+configfile: pyproject.toml
+plugins: anyio-4.12.1, cov-7.0.0
+collected 2329 items
+
+tests/test_backend_api_consumer.py ................F.....                [  0%]
+tests/test_backend_dataset_catalog.py ..                                 [  1%]
+tests/test_backend_graph_query_service.py ....                           [  1%]
+tests/test_backend_graph_response_adapters.py ...                        [  1%]
+tests/test_backend_graph_router.py .                                     [  1%]
+tests/test_backend_main.py .............F...F                            [  2%]
+tests/test_backend_run_catalog.py ........F.                             [  2%]
+tests/test_demo_run_demo_dry_run.py ...                                  [  2%]
+tests/test_example_synthetic_pdfs.py .                                   [  2%]
+tests/test_installed_package_adoption.py ...................             [  3%]
+tests/test_local_pdf_graphrag.py ........                                [  3%]
+tests/test_power_atlas_package.py ..........F........................... [  5%]
+...................................                                      [  7%]
+tests/test_simple_kg_builder_from_pdf.py ........                        [  7%]
+demo/tests/test_claim_participation.py ................................. [  8%]
+........................................................................ [ 11%]
+........................................................................ [ 14%]
+.............................................                            [ 16%]
+demo/tests/test_claim_participation_integration.py ..................... [ 17%]
+.....                                                                    [ 18%]
+demo/tests/test_dataset_root_resolution.py .......................       [ 19%]
+demo/tests/test_demo_workflow.py ....................................... [ 20%]
+........................................................................ [ 23%]
+.....                                                                    [ 24%]
+demo/tests/test_deprecated_stage_adapter_usage.py ..                     [ 24%]
+demo/tests/test_doc_contract_drift.py ....................               [ 24%]
+demo/tests/test_entity_resolution.py ................................... [ 26%]
+........................................................................ [ 29%]
+........................................................................ [ 32%]
+.......................................................................  [ 35%]
+demo/tests/test_graph_health.py ........................................ [ 37%]
+........                                                                 [ 37%]
+demo/tests/test_graph_health_diagnostics_cli.py ...........              [ 38%]
+demo/tests/test_interactive_debug.py ..........................          [ 39%]
+demo/tests/test_llm_utils.py ........................................... [ 41%]
+.................                                                        [ 41%]
+demo/tests/test_manifest.py ......................................       [ 43%]
+demo/tests/test_narrative_extraction.py ..........                       [ 43%]
+demo/tests/test_orchestrator_modules.py ................................ [ 45%]
+........................................................................ [ 48%]
+........................................................................ [ 51%]
+..........................................................               [ 54%]
+demo/tests/test_pdf_ingest_helpers.py .................................. [ 55%]
+.                                                                        [ 55%]
+demo/tests/test_pipeline_contract.py ............                        [ 56%]
+demo/tests/test_provenance_writer.py .                                   [ 56%]
+demo/tests/test_retrieval_benchmark.py ................................. [ 57%]
+........................................................................ [ 60%]
+................................                                         [ 61%]
+demo/tests/test_retrieval_benchmark_cli.py ...........                   [ 62%]
+demo/tests/test_retrieval_metadata_policy.py ........................... [ 63%]
+........................................................................ [ 66%]
+............................................................             [ 69%]
+demo/tests/test_retrieval_metadata_projection_parity.py ................ [ 69%]
+........................................................................ [ 73%]
+...............................................................          [ 75%]
+demo/tests/test_retrieval_metadata_taxonomy_drift.py ................... [ 76%]
+.......................                                                  [ 77%]
+demo/tests/test_retrieval_parity.py ....................                 [ 78%]
+demo/tests/test_retrieval_path_diagnostics.py .......................... [ 79%]
+........................................................................ [ 82%]
+......................................................                   [ 84%]
+demo/tests/test_retrieval_query_builders.py ............................ [ 86%]
+...............................................................          [ 88%]
+demo/tests/test_retrieval_result_contract.py ........................... [ 89%]
+........................................................................ [ 93%]
+........................................................................ [ 96%]
+........................................................................ [ 99%]
+...............                                                          [ 99%]
+demo/tests/test_run_scoped_chunk_reader.py ..                            [100%]
+
+=================================== FAILURES ===================================
+__ test_public_api_facade_defaults_current_run_queries_to_configured_dataset ___
+
+tmp_path = PosixPath('/private/var/folders/d0/l_6cpmd569z0ztzsdwv0skbh0000gn/T/pytest-of-ash/pytest-49/test_public_api_facade_default0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10be40350>
+
+    def test_public_api_facade_defaults_current_run_queries_to_configured_dataset(
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        older_run_root = tmp_path / "runs" / "unstructured_ingest-20260512T000000Z-a"
+        older_manifest_path = older_run_root / "pdf_ingest" / "manifest.json"
+        older_manifest_path.parent.mkdir(parents=True)
+        older_manifest_path.write_text(
+            json.dumps(
+                {
+                    "run_id": older_run_root.name,
+                    "dataset_id": "demo_dataset_v1",
+                    "stages": {"pdf_ingest": {"status": "live"}},
+                }
+            ),
+            encoding="utf-8",
+        )
+    
+        newer_run_root = tmp_path / "runs" / "unstructured_ingest-20260512T000100Z-b"
+        newer_claim_manifest_path = newer_run_root / "claim_extraction" / "manifest.json"
+        newer_claim_manifest_path.parent.mkdir(parents=True)
+        newer_claim_manifest_path.write_text(
+            json.dumps(
+                {
+                    "run_id": newer_run_root.name,
+                    "dataset_id": "resolved-demo-dataset",
+                    "stages": {"claim_extraction": {"status": "live"}},
+                }
+            ),
+            encoding="utf-8",
+        )
+    
+        structured_run_root = tmp_path / "runs" / "structured_ingest-20260512T000050Z-c"
+        structured_manifest_path = structured_run_root / "structured_ingest" / "manifest.json"
+        structured_manifest_path.parent.mkdir(parents=True)
+        structured_manifest_path.write_text(
+            json.dumps(
+                {
+                    "run_id": structured_run_root.name,
+                    "dataset_id": "demo_dataset_v2",
+                    "stages": {"structured_ingest": {"status": "live"}},
+                }
+            ),
+            encoding="utf-8",
+        )
+    
+        monkeypatch.setattr(
+            "power_atlas.backend_run_catalog.resolve_backend_dataset_catalog",
+            lambda settings: importlib.import_module("power_atlas.backend_dataset_catalog").DatasetCatalogResult(
+                datasets=[],
+                selected_dataset=importlib.import_module("power_atlas.backend_dataset_catalog").DatasetCatalogEntry(
+                    name="demo_dataset_v1",
+                    dataset_id="resolved-demo-dataset",
+                    pdf_filename="example.pdf",
+                    manifest_path="/tmp/manifest.json",
+                    root_path="/tmp/dataset",
+                ),
+                selection_mode="configured",
+            ),
+        )
+    
+        consumer_app = create_backend_app(
+            BackendAppOptions(version="2.3.0-test"),
+            environ={
+                "POWER_ATLAS_OUTPUT_DIR": str(tmp_path),
+                "POWER_ATLAS_DATASET": "demo_dataset_v1",
+            },
+        )
+    
+        async def _exercise_app() -> None:
+            transport = httpx.ASGITransport(app=consumer_app)
+            async with httpx.AsyncClient(
+                transport=transport,
+                base_url="http://testserver",
+            ) as client:
+                current_runs = await client.get("/runs/current")
+                assert current_runs.status_code == 200
+                assert [run["run_id"] for run in current_runs.json()["runs"]] == [
+                    newer_run_root.name
+                ]
+    
+                current_run_detail = await client.get(
+                    "/runs/current/unstructured_ingest",
+                    params={"stage_name": "claim_extraction"},
+                )
+                assert current_run_detail.status_code == 200
+                detail_payload = current_run_detail.json()
+                assert detail_payload["run"]["run_id"] == newer_run_root.name
+                assert [stage["stage_name"] for stage in detail_payload["stages"]] == [
+                    "claim_extraction"
+                ]
+    
+>       asyncio.run(_exercise_app())
+
+tests/test_backend_api_consumer.py:898: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/asyncio/runners.py:190: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/asyncio/runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/asyncio/base_events.py:654: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests/test_backend_api_consumer.py:881: in _exercise_app
+    current_runs = await client.get("/runs/current")
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.11/site-packages/httpx/_client.py:1768: in get
+    return await self.request(
+.venv/lib/python3.11/site-packages/httpx/_client.py:1540: in request
+    return await self.send(request, auth=auth, follow_redirects=follow_redirects)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.11/site-packages/httpx/_client.py:1629: in send
+    response = await self._send_handling_auth(
+.venv/lib/python3.11/site-packages/httpx/_client.py:1657: in _send_handling_auth
+    response = await self._send_handling_redirects(
+.venv/lib/python3.11/site-packages/httpx/_client.py:1694: in _send_handling_redirects
+    response = await self._send_single_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.11/site-packages/httpx/_client.py:1730: in _send_single_request
+    response = await transport.handle_async_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.11/site-packages/httpx/_transports/asgi.py:170: in handle_async_request
+    await self.app(scope, receive, send)
+.venv/lib/python3.11/site-packages/fastapi/applications.py:1054: in __call__
+    await super().__call__(scope, receive, send)
+.venv/lib/python3.11/site-packages/starlette/applications.py:123: in __call__
+    await self.middleware_stack(scope, receive, send)
+.venv/lib/python3.11/site-packages/starlette/middleware/errors.py:186: in __call__
+    raise exc
+.venv/lib/python3.11/site-packages/starlette/middleware/errors.py:164: in __call__
+    await self.app(scope, receive, _send)
+.venv/lib/python3.11/site-packages/starlette/middleware/cors.py:83: in __call__
+    await self.app(scope, receive, send)
+.venv/lib/python3.11/site-packages/starlette/middleware/exceptions.py:62: in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+.venv/lib/python3.11/site-packages/starlette/_exception_handler.py:64: in wrapped_app
+    raise exc
+.venv/lib/python3.11/site-packages/starlette/_exception_handler.py:53: in wrapped_app
+    await app(scope, receive, sender)
+.venv/lib/python3.11/site-packages/starlette/routing.py:762: in __call__
+    await self.middleware_stack(scope, receive, send)
+.venv/lib/python3.11/site-packages/starlette/routing.py:782: in app
+    await route.handle(scope, receive, send)
+.venv/lib/python3.11/site-packages/starlette/routing.py:297: in handle
+    await self.app(scope, receive, send)
+.venv/lib/python3.11/site-packages/starlette/routing.py:77: in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+.venv/lib/python3.11/site-packages/starlette/_exception_handler.py:64: in wrapped_app
+    raise exc
+.venv/lib/python3.11/site-packages/starlette/_exception_handler.py:53: in wrapped_app
+    await app(scope, receive, sender)
+.venv/lib/python3.11/site-packages/starlette/routing.py:72: in app
+    response = await func(request)
+               ^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.11/site-packages/fastapi/routing.py:299: in app
+    raise e
+.venv/lib/python3.11/site-packages/fastapi/routing.py:294: in app
+    raw_response = await run_endpoint_function(
+.venv/lib/python3.11/site-packages/fastapi/routing.py:191: in run_endpoint_function
+    return await dependant.call(**values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/power_atlas/backend_app.py:268: in current_runs
+    run_catalog = resolve_backend_current_run_catalog(
+src/power_atlas/backend_run_catalog.py:221: in resolve_backend_current_run_catalog
+    effective_dataset_id, inferred_dataset_id = _resolve_effective_current_dataset_id(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+settings = AppSettings(neo4j=Neo4jSettings(uri='neo4j://localhost:7687', username='neo4j', password='CHANGE_ME_BEFORE_USE', datab...pmd569z0ztzsdwv0skbh0000gn/T/pytest-of-ash/pytest-49/test_public_api_facade_default0'), dataset_name='demo_dataset_v1')
+dataset_id = None
+
+    def _resolve_effective_current_dataset_id(
+        settings: AppSettings,
+        dataset_id: str | None,
+        *,
+        repo_paths: RepoPaths | None = None,
+    ) -> tuple[str | None, str | None]:
+        if dataset_id is not None:
+            return dataset_id, None
+>       dataset_catalog = resolve_backend_dataset_catalog(settings, repo_paths=repo_paths)
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: test_public_api_facade_defaults_current_run_queries_to_configured_dataset.<locals>.<lambda>() got an unexpected keyword argument 'repo_paths'
+
+src/power_atlas/backend_run_catalog.py:132: TypeError
+__ test_create_backend_app_defaults_current_run_routes_to_configured_dataset ___
+
+tmp_path = PosixPath('/private/var/folders/d0/l_6cpmd569z0ztzsdwv0skbh0000gn/T/pytest-of-ash/pytest-49/test_create_backend_app_defaul0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10c561a10>
+
+    def test_create_backend_app_defaults_current_run_routes_to_configured_dataset(
+        tmp_path,
+        monkeypatch,
+    ) -> None:
+        selected_run_root = tmp_path / "runs" / "unstructured_ingest-20260512T000100Z-b"
+        selected_claim_manifest_path = selected_run_root / "claim_extraction" / "manifest.json"
+        selected_claim_manifest_path.parent.mkdir(parents=True)
+        selected_claim_manifest_path.write_text(
+            """
+    {
+        "run_id": "unstructured_ingest-20260512T000100Z-b",
+        "dataset_id": "resolved-demo-dataset",
+        "stages": {
+            "claim_extraction": {
+                "status": "live"
+            }
+        }
+    }
+    """.strip(),
+            encoding="utf-8",
+        )
+        other_run_root = tmp_path / "runs" / "structured_ingest-20260512T000050Z-c"
+        other_manifest_path = other_run_root / "structured_ingest" / "manifest.json"
+        other_manifest_path.parent.mkdir(parents=True)
+        other_manifest_path.write_text(
+            """
+    {
+        "run_id": "structured_ingest-20260512T000050Z-c",
+        "dataset_id": "demo_dataset_v2",
+        "stages": {
+            "structured_ingest": {
+                "status": "live"
+            }
+        }
+    }
+    """.strip(),
+            encoding="utf-8",
+        )
+    
+        monkeypatch.setattr(
+            "power_atlas.backend_run_catalog.resolve_backend_dataset_catalog",
+            lambda settings: importlib.import_module("power_atlas.backend_dataset_catalog").DatasetCatalogResult(
+                datasets=[],
+                selected_dataset=importlib.import_module("power_atlas.backend_dataset_catalog").DatasetCatalogEntry(
+                    name="demo_dataset_v1",
+                    dataset_id="resolved-demo-dataset",
+                    pdf_filename="example.pdf",
+                    manifest_path="/tmp/manifest.json",
+                    root_path="/tmp/dataset",
+                ),
+                selection_mode="configured",
+            ),
+        )
+        custom_app = create_backend_app(
+            environ={
+                "POWER_ATLAS_OUTPUT_DIR": str(tmp_path),
+                "POWER_ATLAS_DATASET": "demo_dataset_v1",
+            }
+        )
+    
+        async def _exercise_app() -> None:
+            transport = httpx.ASGITransport(app=custom_app)
+            async with httpx.AsyncClient(
+                transport=transport,
+                base_url="http://testserver",
+            ) as client:
+                current_runs_response = await client.get("/runs/current")
+                assert current_runs_response.status_code == 200
+                current_runs_payload = current_runs_response.json()
+                assert [run["run_id"] for run in current_runs_payload["runs"]] == [
+                    selected_run_root.name,
+                ]
+                assert current_runs_payload["inferred_dataset_id"] == "resolved-demo-dataset"
+    
+                current_detail_response = await client.get(
+                    "/runs/current/unstructured_ingest",
+                    params={"stage_name": "claim_extraction"},
+                )
+                assert current_detail_response.status_code == 200
+                detail_payload = current_detail_response.json()
+                assert detail_payload["run"]["run_id"] == selected_run_root.name
+                assert detail_payload["inferred_dataset_id"] == "resolved-demo-dataset"
+                assert [stage["stage_name"] for stage in detail_payload["stages"]] == [
+                    "claim_extraction"
+                ]
+    
+                current_claim_diagnostics_response = await client.get(
+                    "/runs/current/unstructured_ingest/claim-extraction-diagnostics"
+                )
+                assert current_claim_diagnostics_response.status_code == 404
+                assert "was not found" in current_claim_diagnostics_response.json()["detail"]
+    
+>       asyncio.run(_exercise_app())
+
+tests/test_backend_main.py:984: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/asyncio/runners.py:190: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/asyncio/runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/asyncio/base_events.py:654: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests/test_backend_main.py:958: in _exercise_app
+    current_runs_response = await client.get("/runs/current")
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.11/site-packages/httpx/_client.py:1768: in get
+    return await self.request(
+.venv/lib/python3.11/site-packages/httpx/_client.py:1540: in request
+    return await self.send(request, auth=auth, follow_redirects=follow_redirects)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.11/site-packages/httpx/_client.py:1629: in send
+    response = await self._send_handling_auth(
+.venv/lib/python3.11/site-packages/httpx/_client.py:1657: in _send_handling_auth
+    response = await self._send_handling_redirects(
+.venv/lib/python3.11/site-packages/httpx/_client.py:1694: in _send_handling_redirects
+    response = await self._send_single_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.11/site-packages/httpx/_client.py:1730: in _send_single_request
+    response = await transport.handle_async_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.11/site-packages/httpx/_transports/asgi.py:170: in handle_async_request
+    await self.app(scope, receive, send)
+.venv/lib/python3.11/site-packages/fastapi/applications.py:1054: in __call__
+    await super().__call__(scope, receive, send)
+.venv/lib/python3.11/site-packages/starlette/applications.py:123: in __call__
+    await self.middleware_stack(scope, receive, send)
+.venv/lib/python3.11/site-packages/starlette/middleware/errors.py:186: in __call__
+    raise exc
+.venv/lib/python3.11/site-packages/starlette/middleware/errors.py:164: in __call__
+    await self.app(scope, receive, _send)
+.venv/lib/python3.11/site-packages/starlette/middleware/cors.py:83: in __call__
+    await self.app(scope, receive, send)
+.venv/lib/python3.11/site-packages/starlette/middleware/exceptions.py:62: in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+.venv/lib/python3.11/site-packages/starlette/_exception_handler.py:64: in wrapped_app
+    raise exc
+.venv/lib/python3.11/site-packages/starlette/_exception_handler.py:53: in wrapped_app
+    await app(scope, receive, sender)
+.venv/lib/python3.11/site-packages/starlette/routing.py:762: in __call__
+    await self.middleware_stack(scope, receive, send)
+.venv/lib/python3.11/site-packages/starlette/routing.py:782: in app
+    await route.handle(scope, receive, send)
+.venv/lib/python3.11/site-packages/starlette/routing.py:297: in handle
+    await self.app(scope, receive, send)
+.venv/lib/python3.11/site-packages/starlette/routing.py:77: in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+.venv/lib/python3.11/site-packages/starlette/_exception_handler.py:64: in wrapped_app
+    raise exc
+.venv/lib/python3.11/site-packages/starlette/_exception_handler.py:53: in wrapped_app
+    await app(scope, receive, sender)
+.venv/lib/python3.11/site-packages/starlette/routing.py:72: in app
+    response = await func(request)
+               ^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.11/site-packages/fastapi/routing.py:299: in app
+    raise e
+.venv/lib/python3.11/site-packages/fastapi/routing.py:294: in app
+    raw_response = await run_endpoint_function(
+.venv/lib/python3.11/site-packages/fastapi/routing.py:191: in run_endpoint_function
+    return await dependant.call(**values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/power_atlas/backend_app.py:268: in current_runs
+    run_catalog = resolve_backend_current_run_catalog(
+src/power_atlas/backend_run_catalog.py:221: in resolve_backend_current_run_catalog
+    effective_dataset_id, inferred_dataset_id = _resolve_effective_current_dataset_id(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+settings = AppSettings(neo4j=Neo4jSettings(uri='neo4j://localhost:7687', username='neo4j', password='CHANGE_ME_BEFORE_USE', datab...pmd569z0ztzsdwv0skbh0000gn/T/pytest-of-ash/pytest-49/test_create_backend_app_defaul0'), dataset_name='demo_dataset_v1')
+dataset_id = None
+
+    def _resolve_effective_current_dataset_id(
+        settings: AppSettings,
+        dataset_id: str | None,
+        *,
+        repo_paths: RepoPaths | None = None,
+    ) -> tuple[str | None, str | None]:
+        if dataset_id is not None:
+            return dataset_id, None
+>       dataset_catalog = resolve_backend_dataset_catalog(settings, repo_paths=repo_paths)
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: test_create_backend_app_defaults_current_run_routes_to_configured_dataset.<locals>.<lambda>() got an unexpected keyword argument 'repo_paths'
+
+src/power_atlas/backend_run_catalog.py:132: TypeError
+_ test_create_backend_app_exposes_current_claim_extraction_diagnostics_artifact _
+
+tmp_path = PosixPath('/private/var/folders/d0/l_6cpmd569z0ztzsdwv0skbh0000gn/T/pytest-of-ash/pytest-49/test_create_backend_app_expose3')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10be0a990>
+
+    def test_create_backend_app_exposes_current_claim_extraction_diagnostics_artifact(
+        tmp_path,
+        monkeypatch,
+    ) -> None:
+        selected_run_root = tmp_path / "runs" / "unstructured_ingest-20260512T000100Z-b"
+        selected_claim_manifest_path = selected_run_root / "claim_extraction" / "manifest.json"
+        selected_claim_manifest_path.parent.mkdir(parents=True)
+        selected_claim_manifest_path.write_text(
+            """
+    {
+        "run_id": "unstructured_ingest-20260512T000100Z-b",
+        "dataset_id": "resolved-demo-dataset",
+        "stages": {
+            "claim_extraction": {
+                "status": "live"
+            }
+        }
+    }
+    """.strip(),
+            encoding="utf-8",
+        )
+        artifact_path = (
+            selected_run_root
+            / "claim_extraction_diagnostics"
+            / "claim_extraction_diagnostics.json"
+        )
+        artifact_path.parent.mkdir(parents=True, exist_ok=True)
+        artifact_path.write_text(
+            """
+    {
+      "status": "dry_run",
+      "generated_at": "2026-05-13T12:00:00+00:00",
+      "run_id": "unstructured_ingest-20260512T000100Z-b",
+      "source_uri": "file:///example/doc.pdf",
+      "artifact_path": "ignored-by-reader",
+      "participation_summary": {
+        "total_edges": 0,
+        "edges_by_role": {},
+        "total_claims": 0,
+        "claims_with_zero_edges": 0,
+        "claim_coverage_pct": null
+      },
+      "match_summary": {
+        "total_edges_with_match_method": 0,
+        "edges_by_match_method": {}
+      },
+      "warnings": ["claim extraction diagnostics skipped in dry_run mode"]
+    }
+            """.strip(),
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(
+            "power_atlas.backend_run_catalog.resolve_backend_dataset_catalog",
+            lambda settings: importlib.import_module("power_atlas.backend_dataset_catalog").DatasetCatalogResult(
+                datasets=[],
+                selected_dataset=importlib.import_module("power_atlas.backend_dataset_catalog").DatasetCatalogEntry(
+                    name="demo_dataset_v1",
+                    dataset_id="resolved-demo-dataset",
+                    pdf_filename="example.pdf",
+                    manifest_path="/tmp/manifest.json",
+                    root_path="/tmp/dataset",
+                ),
+                selection_mode="configured",
+            ),
+        )
+        custom_app = create_backend_app(
+            environ={
+                "POWER_ATLAS_OUTPUT_DIR": str(tmp_path),
+                "POWER_ATLAS_DATASET": "demo_dataset_v1",
+            }
+        )
+    
+        async def _exercise_app() -> None:
+            transport = httpx.ASGITransport(app=custom_app)
+            async with httpx.AsyncClient(
+                transport=transport,
+                base_url="http://testserver",
+            ) as client:
+                response = await client.get(
+                    "/runs/current/unstructured_ingest/claim-extraction-diagnostics"
+                )
+                assert response.status_code == 200
+                assert response.json() == {
+                    "status": "dry_run",
+                    "detail": "Claim extraction diagnostics artifact retrieved successfully",
+                    "run_id": "unstructured_ingest-20260512T000100Z-b",
+                    "generated_at": "2026-05-13T12:00:00+00:00",
+                    "source_uri": "file:///example/doc.pdf",
+                    "artifact_path": str(artifact_path.resolve()),
+                    "participation_summary": {
+                        "total_edges": 0,
+                        "edges_by_role": {},
+                        "total_claims": 0,
+                        "claims_with_zero_edges": 0,
+                        "claim_coverage_pct": None,
+                    },
+                    "match_summary": {
+                        "total_edges_with_match_method": 0,
+                        "edges_by_match_method": {},
+                    },
+                    "warnings": [
+                        "claim extraction diagnostics skipped in dry_run mode"
+                    ],
+                    "inferred_dataset_id": "resolved-demo-dataset",
+                }
+    
+>       asyncio.run(_exercise_app())
+
+tests/test_backend_main.py:1315: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/asyncio/runners.py:190: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/asyncio/runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/asyncio/base_events.py:654: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests/test_backend_main.py:1287: in _exercise_app
+    response = await client.get(
+.venv/lib/python3.11/site-packages/httpx/_client.py:1768: in get
+    return await self.request(
+.venv/lib/python3.11/site-packages/httpx/_client.py:1540: in request
+    return await self.send(request, auth=auth, follow_redirects=follow_redirects)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.11/site-packages/httpx/_client.py:1629: in send
+    response = await self._send_handling_auth(
+.venv/lib/python3.11/site-packages/httpx/_client.py:1657: in _send_handling_auth
+    response = await self._send_handling_redirects(
+.venv/lib/python3.11/site-packages/httpx/_client.py:1694: in _send_handling_redirects
+    response = await self._send_single_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.11/site-packages/httpx/_client.py:1730: in _send_single_request
+    response = await transport.handle_async_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.11/site-packages/httpx/_transports/asgi.py:170: in handle_async_request
+    await self.app(scope, receive, send)
+.venv/lib/python3.11/site-packages/fastapi/applications.py:1054: in __call__
+    await super().__call__(scope, receive, send)
+.venv/lib/python3.11/site-packages/starlette/applications.py:123: in __call__
+    await self.middleware_stack(scope, receive, send)
+.venv/lib/python3.11/site-packages/starlette/middleware/errors.py:186: in __call__
+    raise exc
+.venv/lib/python3.11/site-packages/starlette/middleware/errors.py:164: in __call__
+    await self.app(scope, receive, _send)
+.venv/lib/python3.11/site-packages/starlette/middleware/cors.py:83: in __call__
+    await self.app(scope, receive, send)
+.venv/lib/python3.11/site-packages/starlette/middleware/exceptions.py:62: in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+.venv/lib/python3.11/site-packages/starlette/_exception_handler.py:64: in wrapped_app
+    raise exc
+.venv/lib/python3.11/site-packages/starlette/_exception_handler.py:53: in wrapped_app
+    await app(scope, receive, sender)
+.venv/lib/python3.11/site-packages/starlette/routing.py:762: in __call__
+    await self.middleware_stack(scope, receive, send)
+.venv/lib/python3.11/site-packages/starlette/routing.py:782: in app
+    await route.handle(scope, receive, send)
+.venv/lib/python3.11/site-packages/starlette/routing.py:297: in handle
+    await self.app(scope, receive, send)
+.venv/lib/python3.11/site-packages/starlette/routing.py:77: in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+.venv/lib/python3.11/site-packages/starlette/_exception_handler.py:64: in wrapped_app
+    raise exc
+.venv/lib/python3.11/site-packages/starlette/_exception_handler.py:53: in wrapped_app
+    await app(scope, receive, sender)
+.venv/lib/python3.11/site-packages/starlette/routing.py:72: in app
+    response = await func(request)
+               ^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.11/site-packages/fastapi/routing.py:299: in app
+    raise e
+.venv/lib/python3.11/site-packages/fastapi/routing.py:294: in app
+    raw_response = await run_endpoint_function(
+.venv/lib/python3.11/site-packages/fastapi/routing.py:191: in run_endpoint_function
+    return await dependant.call(**values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/power_atlas/backend_app.py:347: in current_claim_extraction_diagnostics
+    result = resolve_current_claim_extraction_diagnostics_artifact(
+src/power_atlas/claim_extraction_diagnostics_artifact.py:189: in resolve_current_claim_extraction_diagnostics_artifact
+    run_catalog = resolve_backend_current_run_catalog(
+src/power_atlas/backend_run_catalog.py:221: in resolve_backend_current_run_catalog
+    effective_dataset_id, inferred_dataset_id = _resolve_effective_current_dataset_id(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+settings = AppSettings(neo4j=Neo4jSettings(uri='neo4j://localhost:7687', username='neo4j', password='CHANGE_ME_BEFORE_USE', datab...pmd569z0ztzsdwv0skbh0000gn/T/pytest-of-ash/pytest-49/test_create_backend_app_expose3'), dataset_name='demo_dataset_v1')
+dataset_id = None
+
+    def _resolve_effective_current_dataset_id(
+        settings: AppSettings,
+        dataset_id: str | None,
+        *,
+        repo_paths: RepoPaths | None = None,
+    ) -> tuple[str | None, str | None]:
+        if dataset_id is not None:
+            return dataset_id, None
+>       dataset_catalog = resolve_backend_dataset_catalog(settings, repo_paths=repo_paths)
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: test_create_backend_app_exposes_current_claim_extraction_diagnostics_artifact.<locals>.<lambda>() got an unexpected keyword argument 'repo_paths'
+
+src/power_atlas/backend_run_catalog.py:132: TypeError
+___ test_backend_current_run_catalog_defaults_to_configured_selected_dataset ___
+
+tmp_path = PosixPath('/private/var/folders/d0/l_6cpmd569z0ztzsdwv0skbh0000gn/T/pytest-of-ash/pytest-49/test_backend_current_run_catal1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10c395750>
+
+    def test_backend_current_run_catalog_defaults_to_configured_selected_dataset(
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        newer_selected_run_root = tmp_path / "runs" / "unstructured_ingest-20260512T000100Z-b"
+        newer_selected_manifest_path = newer_selected_run_root / "claim_extraction" / "manifest.json"
+        newer_selected_manifest_path.parent.mkdir(parents=True)
+        newer_selected_manifest_path.write_text(
+            json.dumps(
+                {
+                    "run_id": newer_selected_run_root.name,
+                    "dataset_id": "resolved-demo-dataset",
+                    "stages": {"claim_extraction": {"status": "live"}},
+                }
+            ),
+            encoding="utf-8",
+        )
+        other_run_root = tmp_path / "runs" / "structured_ingest-20260512T000050Z-c"
+        other_manifest_path = other_run_root / "structured_ingest" / "manifest.json"
+        other_manifest_path.parent.mkdir(parents=True)
+        other_manifest_path.write_text(
+            json.dumps(
+                {
+                    "run_id": other_run_root.name,
+                    "dataset_id": "demo_dataset_v2",
+                    "stages": {"structured_ingest": {"status": "live"}},
+                }
+            ),
+            encoding="utf-8",
+        )
+    
+        monkeypatch.setattr(
+            "power_atlas.backend_run_catalog.resolve_backend_dataset_catalog",
+            lambda settings: DatasetCatalogResult(
+                datasets=[],
+                selected_dataset=DatasetCatalogEntry(
+                    name="demo_dataset_v1",
+                    dataset_id="resolved-demo-dataset",
+                    pdf_filename="example.pdf",
+                    manifest_path="/tmp/manifest.json",
+                    root_path="/tmp/dataset",
+                ),
+                selection_mode="configured",
+            ),
+        )
+    
+        settings = AppSettings(
+            neo4j=Neo4jSettings(password="secret"),
+            output_dir=tmp_path,
+            dataset_name="demo_dataset_v1",
+        )
+    
+>       result = resolve_backend_current_run_catalog(settings)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_backend_run_catalog.py:351: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/power_atlas/backend_run_catalog.py:221: in resolve_backend_current_run_catalog
+    effective_dataset_id, inferred_dataset_id = _resolve_effective_current_dataset_id(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+settings = AppSettings(neo4j=Neo4jSettings(uri='neo4j://localhost:7687', username='neo4j', password='secret', database='neo4j'), ...pmd569z0ztzsdwv0skbh0000gn/T/pytest-of-ash/pytest-49/test_backend_current_run_catal1'), dataset_name='demo_dataset_v1')
+dataset_id = None
+
+    def _resolve_effective_current_dataset_id(
+        settings: AppSettings,
+        dataset_id: str | None,
+        *,
+        repo_paths: RepoPaths | None = None,
+    ) -> tuple[str | None, str | None]:
+        if dataset_id is not None:
+            return dataset_id, None
+>       dataset_catalog = resolve_backend_dataset_catalog(settings, repo_paths=repo_paths)
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: test_backend_current_run_catalog_defaults_to_configured_selected_dataset.<locals>.<lambda>() got an unexpected keyword argument 'repo_paths'
+
+src/power_atlas/backend_run_catalog.py:132: TypeError
+_____________ test_public_api_facade_supports_filtered_run_queries _____________
+
+tmp_path = PosixPath('/private/var/folders/d0/l_6cpmd569z0ztzsdwv0skbh0000gn/T/pytest-of-ash/pytest-49/test_public_api_facade_support2')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10c129250>
+
+    def test_public_api_facade_supports_filtered_run_queries(
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from power_atlas.api import BackendAppOptions, create_backend_app
+    
+        older_run_root = tmp_path / "runs" / "unstructured_ingest-20260512T000000Z-a"
+        older_manifest_path = older_run_root / "pdf_ingest" / "manifest.json"
+        older_manifest_path.parent.mkdir(parents=True)
+        older_manifest_path.write_text(
+            json.dumps(
+                {
+                    "run_id": older_run_root.name,
+                    "dataset_id": "demo_dataset_v1",
+                    "stages": {"pdf_ingest": {"status": "live"}},
+                }
+            ),
+            encoding="utf-8",
+        )
+    
+        newer_run_root = tmp_path / "runs" / "unstructured_ingest-20260512T000100Z-b"
+        newer_pdf_manifest_path = newer_run_root / "pdf_ingest" / "manifest.json"
+        newer_pdf_manifest_path.parent.mkdir(parents=True)
+        newer_pdf_manifest_path.write_text(
+            json.dumps(
+                {
+                    "run_id": newer_run_root.name,
+                    "dataset_id": "demo_dataset_v1",
+                    "stages": {"pdf_ingest": {"status": "live"}},
+                }
+            ),
+            encoding="utf-8",
+        )
+        newer_claim_manifest_path = newer_run_root / "claim_extraction" / "manifest.json"
+        newer_claim_manifest_path.parent.mkdir(parents=True)
+        newer_claim_manifest_path.write_text(
+            json.dumps(
+                {
+                    "run_id": newer_run_root.name,
+                    "dataset_id": "resolved-demo-dataset",
+                    "stages": {"claim_extraction": {"status": "live"}},
+                }
+            ),
+            encoding="utf-8",
+        )
+    
+        monkeypatch.setattr(
+            "power_atlas.backend_run_catalog.resolve_backend_dataset_catalog",
+            lambda settings: importlib.import_module("power_atlas.backend_dataset_catalog").DatasetCatalogResult(
+                datasets=[],
+                selected_dataset=importlib.import_module("power_atlas.backend_dataset_catalog").DatasetCatalogEntry(
+                    name="demo_dataset_v1",
+                    dataset_id="resolved-demo-dataset",
+                    pdf_filename="example.pdf",
+                    manifest_path="/tmp/manifest.json",
+                    root_path="/tmp/dataset",
+                ),
+                selection_mode="configured",
+            ),
+        )
+    
+        app = create_backend_app(
+            BackendAppOptions(version="4.0.0-run-filters"),
+            environ={
+                "POWER_ATLAS_OUTPUT_DIR": str(tmp_path),
+                "POWER_ATLAS_DATASET": "demo_dataset_v1",
+            },
+        )
+    
+        async def _exercise_app() -> None:
+            transport = httpx.ASGITransport(app=app)
+            async with httpx.AsyncClient(
+                transport=transport,
+                base_url="http://testserver",
+            ) as client:
+                current_runs = await client.get(
+                    "/runs/current",
+                )
+                assert current_runs.status_code == 200
+                current_runs_payload = current_runs.json()
+                assert [run["run_id"] for run in current_runs_payload["runs"]] == [
+                    newer_run_root.name
+                ]
+                assert current_runs_payload["inferred_dataset_id"] == "resolved-demo-dataset"
+    
+                current_run_detail = await client.get(
+                    "/runs/current/unstructured_ingest",
+                    params={"stage_name": "claim_extraction"},
+                )
+                assert current_run_detail.status_code == 200
+                detail_payload = current_run_detail.json()
+                assert detail_payload["run"]["run_id"] == newer_run_root.name
+                assert detail_payload["inferred_dataset_id"] == "resolved-demo-dataset"
+                assert [stage["stage_name"] for stage in detail_payload["stages"]] == [
+                    "claim_extraction"
+                ]
+    
+                latest_per_prefix = await client.get(
+                    "/runs",
+                    params={
+                        "dataset_id": "resolved-demo-dataset",
+                        "latest_per_stage_prefix": "true",
+                    },
+                )
+                assert latest_per_prefix.status_code == 200
+                assert [run["run_id"] for run in latest_per_prefix.json()["runs"]] == [
+                    newer_run_root.name
+                ]
+    
+                detail_by_stage = await client.get(
+                    f"/runs/{newer_run_root.name}",
+                    params={"stage_name": "claim_extraction"},
+                )
+                assert detail_by_stage.status_code == 200
+                detail_payload = detail_by_stage.json()
+                assert detail_payload["run"]["run_id"] == newer_run_root.name
+                assert [stage["stage_name"] for stage in detail_payload["stages"]] == [
+                    "claim_extraction"
+                ]
+    
+>       asyncio.run(_exercise_app())
+
+tests/test_power_atlas_package.py:895: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/asyncio/runners.py:190: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/asyncio/runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/Users/ash/.pyenv/versions/3.11.14/lib/python3.11/asyncio/base_events.py:654: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests/test_power_atlas_package.py:850: in _exercise_app
+    current_runs = await client.get(
+.venv/lib/python3.11/site-packages/httpx/_client.py:1768: in get
+    return await self.request(
+.venv/lib/python3.11/site-packages/httpx/_client.py:1540: in request
+    return await self.send(request, auth=auth, follow_redirects=follow_redirects)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.11/site-packages/httpx/_client.py:1629: in send
+    response = await self._send_handling_auth(
+.venv/lib/python3.11/site-packages/httpx/_client.py:1657: in _send_handling_auth
+    response = await self._send_handling_redirects(
+.venv/lib/python3.11/site-packages/httpx/_client.py:1694: in _send_handling_redirects
+    response = await self._send_single_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.11/site-packages/httpx/_client.py:1730: in _send_single_request
+    response = await transport.handle_async_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.11/site-packages/httpx/_transports/asgi.py:170: in handle_async_request
+    await self.app(scope, receive, send)
+.venv/lib/python3.11/site-packages/fastapi/applications.py:1054: in __call__
+    await super().__call__(scope, receive, send)
+.venv/lib/python3.11/site-packages/starlette/applications.py:123: in __call__
+    await self.middleware_stack(scope, receive, send)
+.venv/lib/python3.11/site-packages/starlette/middleware/errors.py:186: in __call__
+    raise exc
+.venv/lib/python3.11/site-packages/starlette/middleware/errors.py:164: in __call__
+    await self.app(scope, receive, _send)
+.venv/lib/python3.11/site-packages/starlette/middleware/cors.py:83: in __call__
+    await self.app(scope, receive, send)
+.venv/lib/python3.11/site-packages/starlette/middleware/exceptions.py:62: in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+.venv/lib/python3.11/site-packages/starlette/_exception_handler.py:64: in wrapped_app
+    raise exc
+.venv/lib/python3.11/site-packages/starlette/_exception_handler.py:53: in wrapped_app
+    await app(scope, receive, sender)
+.venv/lib/python3.11/site-packages/starlette/routing.py:762: in __call__
+    await self.middleware_stack(scope, receive, send)
+.venv/lib/python3.11/site-packages/starlette/routing.py:782: in app
+    await route.handle(scope, receive, send)
+.venv/lib/python3.11/site-packages/starlette/routing.py:297: in handle
+    await self.app(scope, receive, send)
+.venv/lib/python3.11/site-packages/starlette/routing.py:77: in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+.venv/lib/python3.11/site-packages/starlette/_exception_handler.py:64: in wrapped_app
+    raise exc
+.venv/lib/python3.11/site-packages/starlette/_exception_handler.py:53: in wrapped_app
+    await app(scope, receive, sender)
+.venv/lib/python3.11/site-packages/starlette/routing.py:72: in app
+    response = await func(request)
+               ^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.11/site-packages/fastapi/routing.py:299: in app
+    raise e
+.venv/lib/python3.11/site-packages/fastapi/routing.py:294: in app
+    raw_response = await run_endpoint_function(
+.venv/lib/python3.11/site-packages/fastapi/routing.py:191: in run_endpoint_function
+    return await dependant.call(**values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/power_atlas/backend_app.py:268: in current_runs
+    run_catalog = resolve_backend_current_run_catalog(
+src/power_atlas/backend_run_catalog.py:221: in resolve_backend_current_run_catalog
+    effective_dataset_id, inferred_dataset_id = _resolve_effective_current_dataset_id(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+settings = AppSettings(neo4j=Neo4jSettings(uri='neo4j://localhost:7687', username='neo4j', password='CHANGE_ME_BEFORE_USE', datab...pmd569z0ztzsdwv0skbh0000gn/T/pytest-of-ash/pytest-49/test_public_api_facade_support2'), dataset_name='demo_dataset_v1')
+dataset_id = None
+
+    def _resolve_effective_current_dataset_id(
+        settings: AppSettings,
+        dataset_id: str | None,
+        *,
+        repo_paths: RepoPaths | None = None,
+    ) -> tuple[str | None, str | None]:
+        if dataset_id is not None:
+            return dataset_id, None
+>       dataset_catalog = resolve_backend_dataset_catalog(settings, repo_paths=repo_paths)
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: test_public_api_facade_supports_filtered_run_queries.<locals>.<lambda>() got an unexpected keyword argument 'repo_paths'
+
+src/power_atlas/backend_run_catalog.py:132: TypeError
+=========================== short test summary info ============================
+FAILED tests/test_backend_api_consumer.py::test_public_api_facade_defaults_current_run_queries_to_configured_dataset
+FAILED tests/test_backend_main.py::test_create_backend_app_defaults_current_run_routes_to_configured_dataset
+FAILED tests/test_backend_main.py::test_create_backend_app_exposes_current_claim_extraction_diagnostics_artifact
+FAILED tests/test_backend_run_catalog.py::test_backend_current_run_catalog_defaults_to_configured_selected_dataset
+FAILED tests/test_power_atlas_package.py::test_public_api_facade_supports_filtered_run_queries
+================== 5 failed, 2324 passed in 71.82s (0:01:11) ===================

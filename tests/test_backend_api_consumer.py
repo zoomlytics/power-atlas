@@ -851,7 +851,7 @@ def test_public_api_facade_defaults_current_run_queries_to_configured_dataset(
 
     monkeypatch.setattr(
         "power_atlas.backend_run_catalog.resolve_backend_dataset_catalog",
-        lambda settings: importlib.import_module("power_atlas.backend_dataset_catalog").DatasetCatalogResult(
+        lambda settings, **_: importlib.import_module("power_atlas.backend_dataset_catalog").DatasetCatalogResult(
             datasets=[],
             selected_dataset=importlib.import_module("power_atlas.backend_dataset_catalog").DatasetCatalogEntry(
                 name="demo_dataset_v1",

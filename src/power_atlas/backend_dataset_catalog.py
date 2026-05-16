@@ -3,7 +3,12 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from power_atlas.contracts import DatasetRoot, list_available_datasets, resolve_dataset_root
+from power_atlas.contracts import (
+    DatasetRoot,
+    RepoPaths,
+    list_available_datasets,
+    resolve_dataset_root,
+)
 from power_atlas.settings import AppSettings
 
 
@@ -38,12 +43,24 @@ def _default_dataset_root_resolver(name: str | None) -> DatasetRoot:
     return resolve_dataset_root(name, environ={})
 
 
+def _build_dataset_root_resolver(repo_paths: RepoPaths) -> Callable[[str | None], DatasetRoot]:
+    return lambda name: resolve_dataset_root(name, environ={}, repo_paths=repo_paths)
+
+
+def _build_list_datasets(repo_paths: RepoPaths) -> Callable[[], list[str]]:
+    return lambda: list_available_datasets(repo_paths=repo_paths)
+
+
 def resolve_backend_dataset_catalog(
     settings: AppSettings,
     *,
+    repo_paths: RepoPaths | None = None,
     list_datasets: Callable[[], list[str]] = list_available_datasets,
     dataset_root_resolver: Callable[[str | None], DatasetRoot] = _default_dataset_root_resolver,
 ) -> DatasetCatalogResult:
+    if repo_paths is not None:
+        list_datasets = _build_list_datasets(repo_paths)
+        dataset_root_resolver = _build_dataset_root_resolver(repo_paths)
     available_dataset_names = list_datasets()
     datasets = [
         _entry_from_root(dataset_name, dataset_root_resolver(dataset_name))

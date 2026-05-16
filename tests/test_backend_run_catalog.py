@@ -329,7 +329,7 @@ def test_backend_current_run_catalog_defaults_to_configured_selected_dataset(
 
     monkeypatch.setattr(
         "power_atlas.backend_run_catalog.resolve_backend_dataset_catalog",
-        lambda settings: DatasetCatalogResult(
+        lambda settings, **_: DatasetCatalogResult(
             datasets=[],
             selected_dataset=DatasetCatalogEntry(
                 name="demo_dataset_v1",

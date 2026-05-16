@@ -516,5 +516,6 @@ Use this section as the working short list.
 - [x] close the `demo/contracts` retirement lane and the `_archive/` placement decision before widening Phase 10 scope
 - [x] choose the next deliberate follow-up lane across Phase 6 operationalization, Phase 7 eval/test separation, or Phase 10 legacy retirement, based on which remaining slice would add the most clarity with the least structural churn
 - [ ] perform a short canonical tracker refresh whenever a follow-up slice materially changes the recorded Phase 6 or Phase 7 posture
-- [ ] decide whether the new bootstrap-owned `AppBaseline` surface is already enough to justify a broader shared-core namespace evaluation or whether one narrower first-party adoption pass should land first
+- [x] decide whether the new bootstrap-owned `AppBaseline` surface is already enough to justify a broader shared-core namespace evaluation or whether one narrower first-party adoption pass should land first
+- [ ] perform the explicit shared-core namespace evaluation now that the narrower backend baseline-adoption pass has landed
 - [x] re-run the full `make phase1-verify` gate after the recent bootstrap/default-resolution cleanup and record whether the earlier one-off citation fallback reproduces

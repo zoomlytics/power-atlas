@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from power_atlas.backend_dataset_catalog import resolve_backend_dataset_catalog
+from power_atlas.contracts import RepoPaths
 from power_atlas.settings import AppSettings
 
 
@@ -123,10 +124,12 @@ def extract_run_stage_prefix(run_id: str) -> str:
 def _resolve_effective_current_dataset_id(
     settings: AppSettings,
     dataset_id: str | None,
+    *,
+    repo_paths: RepoPaths | None = None,
 ) -> tuple[str | None, str | None]:
     if dataset_id is not None:
         return dataset_id, None
-    dataset_catalog = resolve_backend_dataset_catalog(settings)
+    dataset_catalog = resolve_backend_dataset_catalog(settings, repo_paths=repo_paths)
     if (
         dataset_catalog.selection_mode == "configured"
         and dataset_catalog.selected_dataset is not None
@@ -213,10 +216,12 @@ def resolve_backend_current_run_catalog(
     *,
     dataset_id: str | None = None,
     stage_name: str | None = None,
+    repo_paths: RepoPaths | None = None,
 ) -> RunCatalogResult:
     effective_dataset_id, inferred_dataset_id = _resolve_effective_current_dataset_id(
         settings,
         dataset_id,
+        repo_paths=repo_paths,
     )
     result = resolve_backend_run_catalog(
         settings,
@@ -239,10 +244,12 @@ def resolve_backend_current_run_details(
     *,
     dataset_id: str | None = None,
     stage_name: str | None = None,
+    repo_paths: RepoPaths | None = None,
 ) -> RunDetailResult:
     run_catalog = resolve_backend_current_run_catalog(
         settings,
         dataset_id=dataset_id,
+        repo_paths=repo_paths,
     )
     matching_run = next(
         (run for run in run_catalog.runs if extract_run_stage_prefix(run.run_id) == stage_prefix),

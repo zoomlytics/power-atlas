@@ -135,6 +135,7 @@ class CurrentClaimExtractionDiagnosticsResponse(ClaimExtractionDiagnosticsRespon
 class BackendRuntime:
     app_context: AppContext
     graph_queries: BackendGraphQueryService
+    app_baseline: AppBaseline | None = None
 
 
 def build_backend_runtime(
@@ -152,6 +153,7 @@ def build_backend_runtime(
     return BackendRuntime(
         app_context=resolved_app_context,
         graph_queries=(graph_queries or build_backend_graph_query_service(resolved_app_context)),
+        app_baseline=app_baseline,
     )
 
 
@@ -196,8 +198,10 @@ def build_backend_router(
 
     @router.get("/datasets", response_model=DatasetsResponse)
     async def datasets(request: Request) -> DatasetsResponse:
+        runtime = get_backend_runtime(request.app)
         dataset_catalog = resolve_backend_dataset_catalog(
-            get_backend_runtime(request.app).app_context.settings
+            runtime.app_context.settings,
+            repo_paths=(None if runtime.app_baseline is None else runtime.app_baseline.repo_paths),
         )
         selected_dataset = None
         if dataset_catalog.selected_dataset is not None:
@@ -260,10 +264,12 @@ def build_backend_router(
         dataset_id: str | None = None,
         stage_name: str | None = None,
     ) -> CurrentRunsResponse:
+        runtime = get_backend_runtime(request.app)
         run_catalog = resolve_backend_current_run_catalog(
-            get_backend_runtime(request.app).app_context.settings,
+            runtime.app_context.settings,
             dataset_id=dataset_id,
             stage_name=stage_name,
+            repo_paths=(None if runtime.app_baseline is None else runtime.app_baseline.repo_paths),
         )
         return CurrentRunsResponse(
             output_dir=run_catalog.output_dir,
@@ -290,12 +296,14 @@ def build_backend_router(
         dataset_id: str | None = None,
         stage_name: str | None = None,
     ) -> CurrentRunDetailResponse:
+        runtime = get_backend_runtime(request.app)
         try:
             run_detail_result = resolve_backend_current_run_details(
-                get_backend_runtime(request.app).app_context.settings,
+                runtime.app_context.settings,
                 stage_prefix,
                 dataset_id=dataset_id,
                 stage_name=stage_name,
+                repo_paths=(None if runtime.app_baseline is None else runtime.app_baseline.repo_paths),
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -334,11 +342,13 @@ def build_backend_router(
         request: Request,
         dataset_id: str | None = None,
     ) -> CurrentClaimExtractionDiagnosticsResponse:
+        runtime = get_backend_runtime(request.app)
         try:
             result = resolve_current_claim_extraction_diagnostics_artifact(
-                get_backend_runtime(request.app).app_context.settings,
+                runtime.app_context.settings,
                 stage_prefix,
                 dataset_id=dataset_id,
+                repo_paths=(None if runtime.app_baseline is None else runtime.app_baseline.repo_paths),
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc

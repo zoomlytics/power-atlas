@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import builtins
-import importlib
 import importlib.util
 import json
 import re
@@ -820,7 +819,7 @@ def test_public_api_facade_supports_filtered_run_queries(
 
     monkeypatch.setattr(
         "power_atlas.backend_run_catalog.resolve_backend_dataset_catalog",
-        lambda settings: importlib.import_module("power_atlas.backend_dataset_catalog").DatasetCatalogResult(
+        lambda settings, **_: importlib.import_module("power_atlas.backend_dataset_catalog").DatasetCatalogResult(
             datasets=[],
             selected_dataset=importlib.import_module("power_atlas.backend_dataset_catalog").DatasetCatalogEntry(
                 name="demo_dataset_v1",

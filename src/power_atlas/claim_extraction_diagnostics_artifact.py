@@ -9,6 +9,7 @@ from power_atlas.backend_run_catalog import (
     resolve_run_root,
     resolve_runs_root,
 )
+from power_atlas.contracts import RepoPaths
 from power_atlas.settings import AppSettings
 
 
@@ -183,10 +184,12 @@ def resolve_current_claim_extraction_diagnostics_artifact(
     stage_prefix: str,
     *,
     dataset_id: str | None = None,
+    repo_paths: RepoPaths | None = None,
 ) -> CurrentClaimExtractionDiagnosticsArtifactResult:
     run_catalog = resolve_backend_current_run_catalog(
         settings,
         dataset_id=dataset_id,
+        repo_paths=repo_paths,
     )
     matching_run = next(
         (run for run in run_catalog.runs if extract_run_stage_prefix(run.run_id) == stage_prefix),

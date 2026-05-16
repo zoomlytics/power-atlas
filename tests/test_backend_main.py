@@ -14,7 +14,7 @@ from power_atlas.api import (
 )
 from power_atlas.bootstrap import AppSettingsEnvNames, build_app_context, resolve_app_baseline
 from power_atlas.context import AppContext
-from power_atlas.contracts import resolve_pipeline_contract_source
+from power_atlas.contracts import RepoPaths, resolve_pipeline_contract_source
 from power_atlas.graph_status import DEFAULT_UNCONFIGURED_DETAIL, GraphStatusResult
 from power_atlas.graph_health_summary import (
     GraphHealthAlignmentSummary,
@@ -544,6 +544,132 @@ text_splitter:
     asyncio.run(_exercise_app())
 
 
+def test_create_backend_app_datasets_and_current_runs_support_explicit_repo_paths(
+    tmp_path,
+) -> None:
+    host_root = tmp_path / "host-app"
+    selected_dataset_root = host_root / "fixtures" / "datasets" / "host_dataset_v1"
+    selected_dataset_root.mkdir(parents=True)
+    (selected_dataset_root / "manifest.json").write_text(
+        """
+{
+  "dataset": "host-dataset-id-v1",
+  "provenance": [{"kind": "pdf", "path": "unstructured/host-one.pdf"}]
+}
+""".strip(),
+        encoding="utf-8",
+    )
+    other_dataset_root = host_root / "fixtures" / "datasets" / "host_dataset_v2"
+    other_dataset_root.mkdir(parents=True)
+    (other_dataset_root / "manifest.json").write_text(
+        """
+{
+  "dataset": "host-dataset-id-v2",
+  "provenance": [{"kind": "pdf", "path": "unstructured/host-two.pdf"}]
+}
+""".strip(),
+        encoding="utf-8",
+    )
+    output_dir = tmp_path / "host-app-output"
+    selected_run_root = output_dir / "runs" / "unstructured_ingest-20260512T000100Z-b"
+    selected_claim_manifest_path = selected_run_root / "claim_extraction" / "manifest.json"
+    selected_claim_manifest_path.parent.mkdir(parents=True)
+    selected_claim_manifest_path.write_text(
+        """
+{
+  "run_id": "unstructured_ingest-20260512T000100Z-b",
+  "dataset_id": "host-dataset-id-v1",
+  "stages": {
+    "claim_extraction": {"status": "live"}
+  }
+}
+""".strip(),
+        encoding="utf-8",
+    )
+    other_run_root = output_dir / "runs" / "structured_ingest-20260512T000050Z-c"
+    other_manifest_path = other_run_root / "structured_ingest" / "manifest.json"
+    other_manifest_path.parent.mkdir(parents=True)
+    other_manifest_path.write_text(
+        """
+{
+  "run_id": "structured_ingest-20260512T000050Z-c",
+  "dataset_id": "host-dataset-id-v2",
+  "stages": {
+    "structured_ingest": {"status": "live"}
+  }
+}
+""".strip(),
+        encoding="utf-8",
+    )
+    custom_app = create_backend_app(
+        environ={
+            "HOSTAPP_OUTPUT_DIR": str(output_dir),
+            "HOSTAPP_DATASET": "host_dataset_v1",
+        },
+        app_baseline=resolve_app_baseline(
+            env_names=AppSettingsEnvNames(
+                output_dir="HOSTAPP_OUTPUT_DIR",
+                dataset_name_primary="HOSTAPP_DATASET",
+                dataset_name_fallback="HOSTAPP_LEGACY_DATASET",
+            ),
+            repo_paths=RepoPaths(
+                base_dir=host_root,
+                fixtures_dir=host_root / "fixtures",
+                artifacts_dir=host_root / "artifacts",
+                config_dir=host_root / "config",
+                pdf_pipeline_config_path=host_root / "config" / "pipeline.yaml",
+                datasets_container_dir=host_root / "fixtures" / "datasets",
+            ),
+        ),
+    )
+
+    async def _exercise_app() -> None:
+        transport = httpx.ASGITransport(app=custom_app)
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="http://testserver",
+        ) as client:
+            datasets_response = await client.get("/datasets")
+            assert datasets_response.status_code == 200
+            assert datasets_response.json() == {
+                "datasets": [
+                    {
+                        "name": "host_dataset_v1",
+                        "dataset_id": "host-dataset-id-v1",
+                        "pdf_filename": "host-one.pdf",
+                        "manifest_path": str(selected_dataset_root / "manifest.json"),
+                        "root_path": str(selected_dataset_root),
+                    },
+                    {
+                        "name": "host_dataset_v2",
+                        "dataset_id": "host-dataset-id-v2",
+                        "pdf_filename": "host-two.pdf",
+                        "manifest_path": str(other_dataset_root / "manifest.json"),
+                        "root_path": str(other_dataset_root),
+                    },
+                ],
+                "selected_dataset": {
+                    "name": "host_dataset_v1",
+                    "dataset_id": "host-dataset-id-v1",
+                    "pdf_filename": "host-one.pdf",
+                    "manifest_path": str(selected_dataset_root / "manifest.json"),
+                    "root_path": str(selected_dataset_root),
+                },
+                "selection_mode": "configured",
+                "detail": None,
+            }
+
+            current_runs_response = await client.get("/runs/current")
+            assert current_runs_response.status_code == 200
+            current_runs_payload = current_runs_response.json()
+            assert [run["run_id"] for run in current_runs_payload["runs"]] == [
+                selected_run_root.name,
+            ]
+            assert current_runs_payload["inferred_dataset_id"] == "host-dataset-id-v1"
+
+    asyncio.run(_exercise_app())
+
+
 def test_create_backend_app_filters_runs_to_latest_stage_prefix(tmp_path) -> None:
         older_run_root = tmp_path / "runs" / "unstructured_ingest-20260512T000000Z-a"
         older_manifest_path = older_run_root / "pdf_ingest" / "manifest.json"
@@ -804,7 +930,7 @@ def test_create_backend_app_defaults_current_run_routes_to_configured_dataset(
 
     monkeypatch.setattr(
         "power_atlas.backend_run_catalog.resolve_backend_dataset_catalog",
-        lambda settings: importlib.import_module("power_atlas.backend_dataset_catalog").DatasetCatalogResult(
+        lambda settings, **_: importlib.import_module("power_atlas.backend_dataset_catalog").DatasetCatalogResult(
             datasets=[],
             selected_dataset=importlib.import_module("power_atlas.backend_dataset_catalog").DatasetCatalogEntry(
                 name="demo_dataset_v1",
@@ -1133,7 +1259,7 @@ def test_create_backend_app_exposes_current_claim_extraction_diagnostics_artifac
     )
     monkeypatch.setattr(
         "power_atlas.backend_run_catalog.resolve_backend_dataset_catalog",
-        lambda settings: importlib.import_module("power_atlas.backend_dataset_catalog").DatasetCatalogResult(
+        lambda settings, **_: importlib.import_module("power_atlas.backend_dataset_catalog").DatasetCatalogResult(
             datasets=[],
             selected_dataset=importlib.import_module("power_atlas.backend_dataset_catalog").DatasetCatalogEntry(
                 name="demo_dataset_v1",

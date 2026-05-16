@@ -299,3 +299,26 @@ longer whether default-coupling must be externalized first; it is whether the
 current explicit baseline surface is already sufficient to justify a split, or
 whether one narrower adoption pass is still needed before paying namespace
 churn.
+
+## 2026-05-15 backend adoption checkpoint
+
+That narrower first-party adoption pass has now landed.
+
+The public backend facade and the mounted backend host examples now consume the
+explicit baseline surface too:
+
+- `build_backend_runtime(...)` and `create_backend_app(...)` accept
+  `app_baseline=`,
+- backend `/datasets` plus the current-run convenience routes now resolve
+  dataset catalogs and inferred dataset ids against the baseline-owned
+  `RepoPaths` rather than always assuming the in-repo fixture tree,
+- focused backend tests now prove custom env-name, output-dir, pipeline-source,
+  and dataset-root behavior through the supported backend package surfaces.
+
+That means the checklist question has changed again. The repo no longer needs
+another small first-party baseline-adoption slice before revisiting the
+namespace-split decision. The next step should be the evaluation itself:
+determine whether the remaining direct `resolve_dataset_root(...)` and related
+Power-Atlas-shaped runtime calls are evidence that a shared namespace split is
+still premature, or whether they are now localized enough to treat as
+application-owned internals living above a reusable baseline.
