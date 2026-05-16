@@ -370,3 +370,63 @@ made explicitly rather than by drift:
    and scope any future extraction smaller than a broad namespace split, or
 2. externalize dataset-root ownership in those specific runtime/default paths
    first, then re-run the namespace decision.
+
+## 2026-05-16 scoped extraction recommendation
+
+This checkpoint now chooses the first of those two narrower paths.
+
+The recommended boundary is: keep the remaining dataset/default-owning runtime
+surfaces in `power_atlas` and treat any future extraction as a smaller
+shared-mechanics slice rather than a broad namespace move.
+
+### Leave in `power_atlas` for now
+
+The following modules or families should remain Power Atlas application
+surfaces because they still own repo layout, environment naming, dataset
+identity defaults, or current app route semantics:
+
+- `power_atlas.settings`
+- `power_atlas.contracts.paths`
+- `power_atlas.contracts.pipeline`
+- `power_atlas.contracts.resolution`
+- `power_atlas.pdf_ingest_runner`
+- `power_atlas.structured_ingest_runner`
+- `power_atlas.retrieval_result_prelude`
+- `power_atlas.orchestration.*`
+- `power_atlas.api`
+- `power_atlas.backend_app`
+- `power_atlas.backend_dataset_catalog`
+- `power_atlas.backend_run_catalog`
+
+These are not all equally problematic for reuse. The point is narrower: they
+still express the current host application's defaults or public semantics, so
+moving them into a shared namespace now would mostly relocate Power Atlas
+ownership rather than reduce it.
+
+### Plausible smaller shared-core candidates later
+
+If the repo wants a smaller extraction before externalizing those defaults, the
+first candidate set should be limited to modules whose responsibility is runtime
+mechanics rather than Power Atlas policy/default ownership:
+
+- `power_atlas.context`
+- `power_atlas.contracts.runtime`
+- `power_atlas.contracts.manifest`
+- `power_atlas.adapters.neo4j.*`
+- `power_atlas.neo4j_io`
+- `power_atlas.run_scope_queries`
+- `power_atlas.retrieval_postprocessing`
+- `power_atlas.retrieval_request_helpers`
+- `power_atlas.retrieval_request_context_adapters`
+
+That smaller set is intentionally conservative. It favors modules that already
+look like reusable mechanics over modules that are only partly decoupled but
+still carry Power Atlas dataset, pipeline, prompt, or route assumptions.
+
+### Consequence for future extraction work
+
+If another extraction slice starts before dataset-root ownership is
+externalized, it should not be framed as “start the shared-core namespace
+split.” It should be framed as a limited shared-mechanics pilot using only the
+candidate set above while explicitly leaving dataset/default authority in the
+Power Atlas app layer.
