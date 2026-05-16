@@ -2555,6 +2555,56 @@ def test_run_retrieval_request_context_forwards_request_owned_retrieval_policy()
     assert captured["interactive"] is True
 
 
+def test_run_retrieval_with_runtime_inputs_forwards_request_free_runtime_state() -> None:
+    from power_atlas.retrieval_runtime_bindings import run_retrieval_with_runtime_inputs
+
+    config = type("ConfigStub", (), {"question": "Which helper was bound?"})()
+    pipeline_contract = type(
+        "PipelineContractStub",
+        (),
+        {"chunk_embedding_index_name": "bound-index"},
+    )()
+    retrieval_policy = type("RetrievalPolicyStub", (), {"qa_prompt_id": "bound_qa_v1"})()
+    neo4j_settings = type("Neo4jSettingsStub", (), {"database": "neo4j"})()
+    captured: dict[str, object] = {}
+
+    def _fake_run_impl(config: object, **kwargs: object) -> dict[str, object]:
+        captured["config"] = config
+        captured.update(kwargs)
+        return {"status": "bound-ok"}
+
+    result = run_retrieval_with_runtime_inputs(
+        config,
+        run_id="bound-run-id",
+        source_uri="file:///bound/source.pdf",
+        top_k=9,
+        index_name=None,
+        question=None,
+        expand_graph=True,
+        cluster_aware=False,
+        message_history=[{"role": "user", "content": "Earlier turn"}],
+        interactive=False,
+        all_runs=True,
+        pipeline_contract=pipeline_contract,
+        retrieval_policy=retrieval_policy,
+        neo4j_settings=neo4j_settings,
+        run_impl=_fake_run_impl,
+    )
+
+    assert result == {"status": "bound-ok"}
+    assert captured["config"] is config
+    assert captured["pipeline_contract"] is pipeline_contract
+    assert captured["retrieval_policy"] is retrieval_policy
+    assert captured["neo4j_settings"] is neo4j_settings
+    assert captured["index_name"] == "bound-index"
+    assert captured["question"] == "Which helper was bound?"
+    assert captured["run_id"] == "bound-run-id"
+    assert captured["source_uri"] == "file:///bound/source.pdf"
+    assert captured["all_runs"] is True
+    assert captured["expand_graph"] is True
+    assert captured["cluster_aware"] is False
+
+
 def test_run_interactive_request_context_forwards_request_owned_retrieval_policy() -> None:
     from dataclasses import replace
 
@@ -2621,6 +2671,54 @@ def test_run_interactive_request_context_forwards_request_owned_retrieval_policy
     assert captured["run_id"] == "interactive-policy-run"
     assert captured["source_uri"] == "file:///interactive-policy.pdf"
     assert captured["all_runs"] is True
+    assert captured["debug"] is True
+
+
+def test_run_interactive_retrieval_with_runtime_inputs_forwards_request_free_runtime_state() -> None:
+    from power_atlas.retrieval_runtime_bindings import (
+        run_interactive_retrieval_with_runtime_inputs,
+    )
+
+    config = type("ConfigStub", (), {})()
+    pipeline_contract = type(
+        "PipelineContractStub",
+        (),
+        {"chunk_embedding_index_name": "interactive-bound-index"},
+    )()
+    retrieval_policy = type("RetrievalPolicyStub", (), {"qa_prompt_id": "interactive_bound_qa_v1"})()
+    neo4j_settings = type("Neo4jSettingsStub", (), {"database": "neo4j"})()
+    captured: dict[str, object] = {}
+
+    def _fake_run_impl(config: object, **kwargs: object) -> str:
+        captured["config"] = config
+        captured.update(kwargs)
+        return "interactive-bound-ok"
+
+    result = run_interactive_retrieval_with_runtime_inputs(
+        config,
+        run_id="interactive-bound-run-id",
+        source_uri="file:///interactive-bound/source.pdf",
+        top_k=6,
+        index_name=None,
+        expand_graph=False,
+        cluster_aware=True,
+        all_runs=False,
+        debug=True,
+        pipeline_contract=pipeline_contract,
+        retrieval_policy=retrieval_policy,
+        neo4j_settings=neo4j_settings,
+        run_impl=_fake_run_impl,
+    )
+
+    assert result == "interactive-bound-ok"
+    assert captured["config"] is config
+    assert captured["pipeline_contract"] is pipeline_contract
+    assert captured["retrieval_policy"] is retrieval_policy
+    assert captured["neo4j_settings"] is neo4j_settings
+    assert captured["index_name"] == "interactive-bound-index"
+    assert captured["run_id"] == "interactive-bound-run-id"
+    assert captured["source_uri"] == "file:///interactive-bound/source.pdf"
+    assert captured["all_runs"] is False
     assert captured["debug"] is True
 
 

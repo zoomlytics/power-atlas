@@ -475,7 +475,7 @@ def test_shared_mechanics_consumer_runs_from_outside_repo_when_installed(
             {
                 "hidden_assumptions": [
                     "The adapter API currently requires RequestContext from power_atlas.context.",
-                    "Runtime forwarding still assumes app-owned retrieval policy and settings ownership.",
+                    "Only the lower-level execution binding is request-free; the adapter surface still belongs to the app-owned context layer.",
                 ],
                 "module": "power_atlas.retrieval_request_context_adapters",
             },
@@ -509,10 +509,18 @@ def test_shared_mechanics_consumer_runs_from_outside_repo_when_installed(
             "power_atlas.run_scope_queries",
             "power_atlas.retrieval_postprocessing",
             "power_atlas.retrieval_request_helpers",
+            "power_atlas.retrieval_runtime_bindings",
         ],
         "runtime_surface": {
             "config_type": "Config",
             "manifest_builder": "build_stage_manifest",
+            "retrieval_binding": {
+                "index_name": "pilot-index",
+                "qa_prompt_id": "pilot_qa_v1",
+                "question": "Which mechanics helper ran?",
+                "run_id": "pilot-run-id",
+                "source_uri": "file:///pilot/source.pdf",
+            },
         },
     }
 

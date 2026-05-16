@@ -69,6 +69,14 @@ SHARED_MECHANICS_PILOT = SharedMechanicsPilotSurface(
                 "independent of the current app dataset authority."
             ),
         ),
+        SharedMechanicsModuleRecord(
+            module="power_atlas.retrieval_runtime_bindings",
+            status="included",
+            rationale=(
+                "Retrieval runtime binding now has a request-free helper layer below RequestContext, "
+                "so execution binding can be consumed without app-owned context carriers."
+            ),
+        ),
     ),
     deferred_modules=(
         SharedMechanicsModuleRecord(
@@ -87,12 +95,13 @@ SHARED_MECHANICS_PILOT = SharedMechanicsPilotSurface(
             module="power_atlas.retrieval_request_context_adapters",
             status="deferred",
             rationale=(
-                "Request-context adapters remain above the mechanics boundary because they forward "
-                "retrieval policy and Neo4j settings from the app-owned RequestContext surface."
+                "Request-context adapters remain above the mechanics boundary because their public "
+                "API still requires the app-owned RequestContext surface, even though the lower-level "
+                "execution binding now lives in power_atlas.retrieval_runtime_bindings."
             ),
             hidden_assumptions=(
                 "The adapter API currently requires RequestContext from power_atlas.context.",
-                "Runtime forwarding still assumes app-owned retrieval policy and settings ownership.",
+                "Only the lower-level execution binding is request-free; the adapter surface still belongs to the app-owned context layer.",
             ),
         ),
         SharedMechanicsModuleRecord(
@@ -129,6 +138,14 @@ _EXPORTS = {
     "build_retrieval_query_params": (
         "power_atlas.retrieval_request_helpers",
         "build_retrieval_query_params",
+    ),
+    "run_interactive_retrieval_with_runtime_inputs": (
+        "power_atlas.retrieval_runtime_bindings",
+        "run_interactive_retrieval_with_runtime_inputs",
+    ),
+    "run_retrieval_with_runtime_inputs": (
+        "power_atlas.retrieval_runtime_bindings",
+        "run_retrieval_with_runtime_inputs",
     ),
     "build_stage_manifest": ("power_atlas.contracts.manifest", "build_stage_manifest"),
     "check_all_answers_cited": (

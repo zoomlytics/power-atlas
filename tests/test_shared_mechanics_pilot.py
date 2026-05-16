@@ -19,6 +19,7 @@ def test_shared_mechanics_pilot_surface_classifies_candidates() -> None:
         "power_atlas.run_scope_queries",
         "power_atlas.retrieval_postprocessing",
         "power_atlas.retrieval_request_helpers",
+        "power_atlas.retrieval_runtime_bindings",
     ]
     assert [
         record.module for record in shared_mechanics.SHARED_MECHANICS_PILOT.deferred_modules
@@ -38,7 +39,7 @@ def test_shared_mechanics_pilot_surface_classifies_candidates() -> None:
     )
     assert deferred_notes["power_atlas.retrieval_request_context_adapters"] == (
         "The adapter API currently requires RequestContext from power_atlas.context.",
-        "Runtime forwarding still assumes app-owned retrieval policy and settings ownership.",
+        "Only the lower-level execution binding is request-free; the adapter surface still belongs to the app-owned context layer.",
     )
 
     assert shared_mechanics.Config.__name__ == "Config"
@@ -69,6 +70,37 @@ def test_shared_mechanics_pilot_surface_classifies_candidates() -> None:
     assert history_answer == shared_mechanics.CITATION_FALLBACK_PREFIX
     assert fallback_applied is True
 
+    runtime_binding = shared_mechanics.run_retrieval_with_runtime_inputs(
+        type("ConfigStub", (), {"question": "Which mechanics helper ran?"})(),
+        run_id="pilot-run-id",
+        source_uri="file:///pilot/source.pdf",
+        top_k=4,
+        index_name=None,
+        question=None,
+        expand_graph=None,
+        cluster_aware=None,
+        message_history=None,
+        interactive=False,
+        all_runs=False,
+        pipeline_contract=type("PipelineContractStub", (), {"chunk_embedding_index_name": "pilot-index"})(),
+        retrieval_policy=type("RetrievalPolicyStub", (), {"qa_prompt_id": "pilot_qa_v1"})(),
+        neo4j_settings=type("Neo4jSettingsStub", (), {"database": "neo4j"})(),
+        run_impl=lambda config, **kwargs: {
+            "index_name": kwargs["index_name"],
+            "qa_prompt_id": kwargs["retrieval_policy"].qa_prompt_id,
+            "question": kwargs["question"],
+            "run_id": kwargs["run_id"],
+            "source_uri": kwargs["source_uri"],
+        },
+    )
+    assert runtime_binding == {
+        "index_name": "pilot-index",
+        "qa_prompt_id": "pilot_qa_v1",
+        "question": "Which mechanics helper ran?",
+        "run_id": "pilot-run-id",
+        "source_uri": "file:///pilot/source.pdf",
+    }
+
 
 def test_shared_mechanics_consumer_example_script_runs() -> None:
     repo_root = Path(__file__).resolve().parents[1]
@@ -93,7 +125,7 @@ def test_shared_mechanics_consumer_example_script_runs() -> None:
             {
                 "hidden_assumptions": [
                     "The adapter API currently requires RequestContext from power_atlas.context.",
-                    "Runtime forwarding still assumes app-owned retrieval policy and settings ownership.",
+                    "Only the lower-level execution binding is request-free; the adapter surface still belongs to the app-owned context layer.",
                 ],
                 "module": "power_atlas.retrieval_request_context_adapters",
             },
@@ -127,9 +159,17 @@ def test_shared_mechanics_consumer_example_script_runs() -> None:
             "power_atlas.run_scope_queries",
             "power_atlas.retrieval_postprocessing",
             "power_atlas.retrieval_request_helpers",
+            "power_atlas.retrieval_runtime_bindings",
         ],
         "runtime_surface": {
             "config_type": "Config",
             "manifest_builder": "build_stage_manifest",
+            "retrieval_binding": {
+                "index_name": "pilot-index",
+                "qa_prompt_id": "pilot_qa_v1",
+                "question": "Which mechanics helper ran?",
+                "run_id": "pilot-run-id",
+                "source_uri": "file:///pilot/source.pdf",
+            },
         },
     }

@@ -176,6 +176,7 @@ helpers:
 - `power_atlas.run_scope_queries`
 - `power_atlas.retrieval_postprocessing`
 - `power_atlas.retrieval_request_helpers`
+- `power_atlas.retrieval_runtime_bindings`
 
 It also records the first hidden-assumption set that still blocks widening the
 pilot:
@@ -184,23 +185,36 @@ pilot:
   `RequestContext` still bundle app settings, default policy ownership, and
   pipeline-contract runtime state,
 - `power_atlas.retrieval_request_context_adapters` remains deferred because it
-  still depends on the app-owned `RequestContext` surface and forwards
-  retrieval policy plus Neo4j settings from that layer,
+  still depends on the app-owned `RequestContext` surface even though the
+  request-free execution binding now lives in
+  `power_atlas.retrieval_runtime_bindings`,
 - the broader `power_atlas.adapters.neo4j.*` family remains deferred because it
   still mixes clean query mechanics with stage-specific runtime modules; the
   current pilot only includes the run-scope query lane via
   `power_atlas.run_scope_queries`.
 
+The next bounded follow-up has also now landed: retrieval execution binding no
+longer depends directly on `RequestContext`.
+
+- `power_atlas.retrieval_runtime_bindings` now owns the request-free runtime
+  binding helper layer,
+- `power_atlas.retrieval_request_context_adapters` is now a thinner wrapper
+  that only extracts app-owned `RequestContext` state and forwards it into that
+  lower-level helper,
+- the shared-mechanics consumer proof now exercises the lower-level helper
+  directly instead of proving only the earlier grouping surface.
+
 Focused validation for this checkpoint passed with:
 
-- `pytest -q tests/test_shared_mechanics_pilot.py tests/test_installed_package_adoption.py -k shared_mechanics`
+- `pytest -q tests/test_shared_mechanics_pilot.py tests/test_installed_package_adoption.py tests/test_power_atlas_package.py -k 'shared_mechanics or retrieval_with_runtime_inputs or run_retrieval_request_context or run_interactive_request_context'`
 
-That means the pilot has now satisfied its first three required deliverables:
-inventory, package-owned grouping surface, and executable proof. The next
-decision is narrower: whether another mechanics-only slice should extract a
-request-free retrieval execution helper below `RequestContext`, or whether the
-pilot should pause here until dataset/default authority work becomes worth the
-cost.
+That means the pilot has now advanced one step beyond the first checkpoint:
+the inventory/grouping surface, executable proof, and the first request-free
+retrieval execution helper all exist. The next decision is narrower again:
+either pause the mechanics pilot here because the remaining blockers are back
+to app-owned context/default authority, or run one more small audit to see
+whether a narrower subset of `power_atlas.adapters.neo4j.*` can join the pilot
+without pulling stage-owned runtime modules with it.
 
 ## Non-goals
 
