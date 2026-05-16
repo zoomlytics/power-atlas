@@ -8,6 +8,7 @@
 - `docs/repository_restructure/repository_restructure_checklist.md`
 - `docs/repository_restructure/repository_restructure_decisions.md`
 - `docs/repository_restructure/repository_restructure_generic_research_runner_feasibility.md`
+- `docs/repository_restructure/repository_restructure_shared_mechanics_pilot_contract.md`
 - `docs/repository_restructure/repository_restructure_second_domain_pilot_contract.md`
 - `docs/repository_restructure/repository_restructure_second_domain_gap_inventory.md`
 
@@ -430,3 +431,6 @@ externalized, it should not be framed as “start the shared-core namespace
 split.” It should be framed as a limited shared-mechanics pilot using only the
 candidate set above while explicitly leaving dataset/default authority in the
 Power Atlas app layer.
+
+That pilot is now defined concretely in
+`docs/repository_restructure/repository_restructure_shared_mechanics_pilot_contract.md`.
