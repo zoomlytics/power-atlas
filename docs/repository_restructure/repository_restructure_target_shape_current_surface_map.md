@@ -5,6 +5,7 @@
 **Date context:** 2026-05-16  
 **Related documents:**
 - `docs/repository_restructure/repository_restructure_target_shape_roles.md`
+- `docs/repository_restructure/repository_restructure_target_shape_extraction_sequence.md`
 - `docs/repository_restructure/repository_restructure_reusable_core_boundary.md`
 - `docs/repository_restructure/repository_restructure_shared_mechanics_pilot_contract.md`
 
@@ -173,3 +174,6 @@ The practical order of operations remains:
 
 This is why the next high-value work is still explicit default/domain
 authority, not rename-driven restructuring.
+
+The ordered follow-up sequence for those mixed boundaries now lives in
+`docs/repository_restructure/repository_restructure_target_shape_extraction_sequence.md`.
