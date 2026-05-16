@@ -9,6 +9,7 @@ import httpx
 from fastapi import FastAPI
 
 from power_atlas.api import build_backend_router, build_backend_runtime
+from power_atlas.bootstrap import AppBaseline
 from power_atlas.contracts import resolve_dataset_root
 
 
@@ -97,9 +98,16 @@ def _seed_example_runs(output_dir: Path) -> tuple[str, str, str]:
     return older_run_id, newer_run_id, structured_run_id
 
 
-def build_example_app(*, environ: dict[str, str] | None = None) -> FastAPI:
+def build_example_app(
+    *,
+    environ: dict[str, str] | None = None,
+    app_baseline: AppBaseline | None = None,
+) -> FastAPI:
     app = FastAPI(title="Host Application", version="1.0.0-host")
-    app.state.backend_runtime = build_backend_runtime(environ={} if environ is None else environ)
+    app.state.backend_runtime = build_backend_runtime(
+        environ={} if environ is None else environ,
+        app_baseline=app_baseline,
+    )
     app.include_router(build_backend_router(version="0.1.0-mounted"), prefix="/atlas")
 
     @app.get("/host-info")

@@ -23,7 +23,7 @@ from power_atlas.claim_extraction_diagnostics_artifact import (
     resolve_current_claim_extraction_diagnostics_artifact,
     resolve_claim_extraction_diagnostics_artifact,
 )
-from power_atlas.bootstrap import build_app_context
+from power_atlas.bootstrap import AppBaseline, build_app_context
 from power_atlas.context import AppContext
 
 DEFAULT_API_TITLE = "Power Atlas API"
@@ -142,9 +142,12 @@ def build_backend_runtime(
     app_context: AppContext | None = None,
     environ: Mapping[str, str] | None = None,
     graph_queries: BackendGraphQueryService | None = None,
+    app_baseline: AppBaseline | None = None,
 ) -> BackendRuntime:
     resolved_app_context = (
-        build_app_context(environ=environ) if app_context is None else app_context
+        build_app_context(environ=environ, app_baseline=app_baseline)
+        if app_context is None
+        else app_context
     )
     return BackendRuntime(
         app_context=resolved_app_context,
@@ -480,12 +483,14 @@ def create_backend_app(
     app_context: AppContext | None = None,
     environ: Mapping[str, str] | None = None,
     graph_queries: BackendGraphQueryService | None = None,
+    app_baseline: AppBaseline | None = None,
 ) -> FastAPI:
     app_options = options or BackendAppOptions()
     resolved_runtime = runtime or build_backend_runtime(
         app_context=app_context,
         environ=environ,
         graph_queries=graph_queries,
+        app_baseline=app_baseline,
     )
     selected_router = router or build_backend_router(version=app_options.version)
 

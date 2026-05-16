@@ -10,6 +10,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from power_atlas.api import build_backend_router, build_backend_runtime
+from power_atlas.bootstrap import AppBaseline
 from power_atlas.contracts import resolve_dataset_root
 
 ATLAS_TOKEN_HEADER = "x-atlas-token"
@@ -82,9 +83,16 @@ def _seed_example_runs(output_dir: Path) -> str:
     return run_id
 
 
-def build_example_app(*, environ: dict[str, str] | None = None) -> FastAPI:
+def build_example_app(
+    *,
+    environ: dict[str, str] | None = None,
+    app_baseline: AppBaseline | None = None,
+) -> FastAPI:
     app = FastAPI(title="Guarded Host Application", version="1.0.0-guarded")
-    app.state.backend_runtime = build_backend_runtime(environ={} if environ is None else environ)
+    app.state.backend_runtime = build_backend_runtime(
+        environ={} if environ is None else environ,
+        app_baseline=app_baseline,
+    )
     app.include_router(build_backend_router(version="0.1.0-guarded"), prefix="/atlas")
 
     @app.middleware("http")

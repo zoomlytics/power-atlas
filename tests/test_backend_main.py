@@ -12,8 +12,9 @@ from power_atlas.api import (
     create_backend_app,
     get_backend_runtime,
 )
-from power_atlas.bootstrap import build_app_context
+from power_atlas.bootstrap import AppSettingsEnvNames, build_app_context, resolve_app_baseline
 from power_atlas.context import AppContext
+from power_atlas.contracts import resolve_pipeline_contract_source
 from power_atlas.graph_status import DEFAULT_UNCONFIGURED_DETAIL, GraphStatusResult
 from power_atlas.graph_health_summary import (
     GraphHealthAlignmentSummary,
@@ -478,6 +479,67 @@ def test_create_backend_app_bootstraps_shared_app_context_from_environment(monke
                 "neo4j_uri": "neo4j://bootstrap.example:7687",
                 "database": "bootstrap",
             }
+
+    asyncio.run(_exercise_app())
+
+
+def test_create_backend_app_supports_explicit_app_baseline(tmp_path) -> None:
+    pipeline_config_path = tmp_path / "host-app" / "config" / "pipeline.yaml"
+    pipeline_config_path.parent.mkdir(parents=True)
+    pipeline_config_path.write_text(
+        """
+contract:
+  chunk_embedding:
+    index_name: backend_host_chunk_index
+    label: BackendHostChunk
+    embedding_property: backend_host_embedding
+    dimensions: 2048
+embedder_config:
+  params_:
+    model: text-embedding-3-large
+text_splitter:
+  params_:
+    chunk_size: 1100
+    chunk_overlap: 125
+""".strip(),
+        encoding="utf-8",
+    )
+    app_baseline = resolve_app_baseline(
+        env_names=AppSettingsEnvNames(
+            output_dir="HOSTAPP_OUTPUT_DIR",
+            dataset_name_primary="HOSTAPP_DATASET",
+            dataset_name_fallback="HOSTAPP_LEGACY_DATASET",
+        ),
+        pipeline_contract_source=resolve_pipeline_contract_source(
+            config_path=pipeline_config_path,
+        ),
+    )
+    custom_app = create_backend_app(
+        environ={
+            "HOSTAPP_OUTPUT_DIR": str(tmp_path / "host-app-output"),
+            "HOSTAPP_DATASET": "demo_dataset_v1",
+        },
+        app_baseline=app_baseline,
+    )
+
+    runtime = get_backend_runtime(custom_app)
+    assert runtime.app_context.settings.output_dir == tmp_path / "host-app-output"
+    assert runtime.app_context.settings.dataset_name == "demo_dataset_v1"
+    assert runtime.app_context.pipeline_contract.chunk_embedding_index_name == "backend_host_chunk_index"
+    assert runtime.app_context.pipeline_contract.chunk_embedding_label == "BackendHostChunk"
+    assert runtime.app_context.pipeline_contract.chunk_embedding_property == "backend_host_embedding"
+    assert runtime.app_context.pipeline_contract.chunk_embedding_dimensions == 2048
+    assert runtime.app_context.pipeline_contract.chunk_fallback_stride == 975
+
+    async def _exercise_app() -> None:
+        transport = httpx.ASGITransport(app=custom_app)
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="http://testserver",
+        ) as client:
+            runs_response = await client.get("/runs")
+            assert runs_response.status_code == 200
+            assert runs_response.json()["output_dir"] == str(tmp_path / "host-app-output")
 
     asyncio.run(_exercise_app())
 

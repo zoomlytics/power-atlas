@@ -7,15 +7,23 @@ import httpx
 from fastapi import FastAPI
 
 from power_atlas.api import backend_router, build_backend_runtime, get_backend_runtime, lifespan
+from power_atlas.bootstrap import AppBaseline
 
 
-def build_example_app(*, environ: dict[str, str] | None = None) -> FastAPI:
+def build_example_app(
+    *,
+    environ: dict[str, str] | None = None,
+    app_baseline: AppBaseline | None = None,
+) -> FastAPI:
     app = FastAPI(
         title="Power Atlas Direct Hooks Example",
         version="0.1.0-direct-hooks",
         lifespan=lifespan,
     )
-    app.state.backend_runtime = build_backend_runtime(environ={} if environ is None else environ)
+    app.state.backend_runtime = build_backend_runtime(
+        environ={} if environ is None else environ,
+        app_baseline=app_baseline,
+    )
     app.include_router(backend_router, prefix="/atlas")
 
     @app.get("/host-info")
