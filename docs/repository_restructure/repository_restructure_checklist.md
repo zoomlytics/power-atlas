@@ -522,5 +522,6 @@ Use this section as the working short list.
 - [x] define the first bounded follow-up lane in `docs/repository_restructure/repository_restructure_shared_mechanics_pilot_contract.md` so the smaller shared-mechanics pilot has explicit scope, deliverables, acceptance criteria, and non-goals
 - [x] land the first shared-mechanics pilot inventory/proof slice through `power_atlas.shared_mechanics`, `examples/shared_mechanics_consumer.py`, and focused repo plus installed-package tests
 - [x] extract a request-free retrieval execution helper below `RequestContext` through `power_atlas.retrieval_runtime_bindings` and keep `power_atlas.retrieval_request_context_adapters` as the thinner app-owned wrapper
-- [ ] decide whether to pause the shared-mechanics pilot here or run one more narrow audit on `power_atlas.adapters.neo4j.*` to see if a smaller mechanics-only subset can join the pilot without pulling stage-owned runtime modules with it
+- [x] run the narrow `power_atlas.adapters.neo4j.*` audit, admit only `power_atlas.adapters.neo4j.retrieval_session` into the pilot, and keep the broader adapter family deferred because the remaining modules are still stage-owned or Power Atlas graph-shape specific
+- [x] pause the shared-mechanics pilot here now that the remaining blockers are back to app-owned context/default authority and stage-owned adapter runtime
 - [x] re-run the full `make phase1-verify` gate after the recent bootstrap/default-resolution cleanup and record whether the earlier one-off citation fallback reproduces

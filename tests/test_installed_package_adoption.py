@@ -481,8 +481,8 @@ def test_shared_mechanics_consumer_runs_from_outside_repo_when_installed(
             },
             {
                 "hidden_assumptions": [
-                    "The current pilot includes run-scope query mechanics via power_atlas.run_scope_queries only.",
-                    "A broader adapters.neo4j family surface would currently mix mechanics with stage/domain runtime ownership.",
+                    "The current pilot now includes run-scope queries and the narrow retrieval_session helper only.",
+                    "A broader adapters.neo4j family surface would still mix mechanics with stage/domain runtime ownership.",
                 ],
                 "module": "power_atlas.adapters.neo4j.*",
             },
@@ -510,6 +510,7 @@ def test_shared_mechanics_consumer_runs_from_outside_repo_when_installed(
             "power_atlas.retrieval_postprocessing",
             "power_atlas.retrieval_request_helpers",
             "power_atlas.retrieval_runtime_bindings",
+            "power_atlas.adapters.neo4j.retrieval_session",
         ],
         "runtime_surface": {
             "config_type": "Config",
@@ -520,6 +521,17 @@ def test_shared_mechanics_consumer_runs_from_outside_repo_when_installed(
                 "question": "Which mechanics helper ran?",
                 "run_id": "pilot-run-id",
                 "source_uri": "file:///pilot/source.pdf",
+            },
+            "retrieval_session": {
+                "rag": {
+                    "llm_model": "gpt-5.4",
+                    "prompt_template": "Answer with cited evidence.",
+                },
+                "retriever": {
+                    "index_name": "pilot-index",
+                    "neo4j_database": "neo4j",
+                    "retrieval_query": "MATCH (n) RETURN n",
+                },
             },
         },
     }

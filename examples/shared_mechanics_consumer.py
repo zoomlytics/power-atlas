@@ -8,6 +8,7 @@ from power_atlas.shared_mechanics import (
     SHARED_MECHANICS_PILOT,
     build_citation_fallback,
     build_retrieval_query_params,
+    build_retriever_and_rag,
     build_stage_manifest,
     check_all_answers_cited,
     format_retrieval_scope_label,
@@ -42,6 +43,31 @@ def build_example_payload() -> dict[str, object]:
             "source_uri": kwargs["source_uri"],
         },
     )
+    retriever, rag = build_retriever_and_rag(
+        driver={"kind": "driver"},
+        index_name="pilot-index",
+        retrieval_query="MATCH (n) RETURN n",
+        qa_model="gpt-5.4",
+        neo4j_database="neo4j",
+        embedder_model_name="text-embedding-3-large",
+        result_formatter=lambda result: result,
+        embedder_factory=type("EmbedderFactoryStub", (), {}),
+        retriever_factory=lambda **kwargs: {
+            "index_name": kwargs["index_name"],
+            "retrieval_query": kwargs["retrieval_query"],
+            "neo4j_database": kwargs["neo4j_database"],
+        },
+        rag_factory=lambda **kwargs: {
+            "llm_model": kwargs["llm"]["model"],
+            "prompt_template": kwargs["prompt_template"],
+        },
+        build_embedder=lambda model_name, *, embedder_factory: {
+            "factory_name": embedder_factory.__name__,
+            "model": model_name,
+        },
+        build_llm=lambda model_name: {"model": model_name},
+        prompt_template="Answer with cited evidence.",
+    )
     return {
         "consumer": "shared_mechanics_consumer",
         "included_modules": [
@@ -58,6 +84,10 @@ def build_example_payload() -> dict[str, object]:
             "config_type": Config.__name__,
             "manifest_builder": build_stage_manifest.__name__,
             "retrieval_binding": runtime_binding,
+            "retrieval_session": {
+                "rag": rag,
+                "retriever": retriever,
+            },
         },
         "helpers": {
             "scope_label": format_retrieval_scope_label("pilot-run-id", False),

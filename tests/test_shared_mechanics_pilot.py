@@ -20,6 +20,7 @@ def test_shared_mechanics_pilot_surface_classifies_candidates() -> None:
         "power_atlas.retrieval_postprocessing",
         "power_atlas.retrieval_request_helpers",
         "power_atlas.retrieval_runtime_bindings",
+        "power_atlas.adapters.neo4j.retrieval_session",
     ]
     assert [
         record.module for record in shared_mechanics.SHARED_MECHANICS_PILOT.deferred_modules
@@ -42,6 +43,11 @@ def test_shared_mechanics_pilot_surface_classifies_candidates() -> None:
         "Only the lower-level execution binding is request-free; the adapter surface still belongs to the app-owned context layer.",
     )
 
+
+    assert deferred_notes["power_atlas.adapters.neo4j.*"] == (
+        "The current pilot now includes run-scope queries and the narrow retrieval_session helper only.",
+        "A broader adapters.neo4j family surface would still mix mechanics with stage/domain runtime ownership.",
+    )
     assert shared_mechanics.Config.__name__ == "Config"
     assert shared_mechanics.build_stage_manifest.__name__ == "build_stage_manifest"
     assert (
@@ -101,6 +107,41 @@ def test_shared_mechanics_pilot_surface_classifies_candidates() -> None:
         "source_uri": "file:///pilot/source.pdf",
     }
 
+    retriever, rag = shared_mechanics.build_retriever_and_rag(
+        driver={"kind": "driver"},
+        index_name="pilot-index",
+        retrieval_query="MATCH (n) RETURN n",
+        qa_model="gpt-5.4",
+        neo4j_database="neo4j",
+        embedder_model_name="text-embedding-3-large",
+        result_formatter=lambda result: result,
+        embedder_factory=type("EmbedderFactoryStub", (), {}),
+        retriever_factory=lambda **kwargs: {
+            "index_name": kwargs["index_name"],
+            "retrieval_query": kwargs["retrieval_query"],
+            "neo4j_database": kwargs["neo4j_database"],
+        },
+        rag_factory=lambda **kwargs: {
+            "llm_model": kwargs["llm"]["model"],
+            "prompt_template": kwargs["prompt_template"],
+        },
+        build_embedder=lambda model_name, *, embedder_factory: {
+            "factory_name": embedder_factory.__name__,
+            "model": model_name,
+        },
+        build_llm=lambda model_name: {"model": model_name},
+        prompt_template="Answer with cited evidence.",
+    )
+    assert retriever == {
+        "index_name": "pilot-index",
+        "retrieval_query": "MATCH (n) RETURN n",
+        "neo4j_database": "neo4j",
+    }
+    assert rag == {
+        "llm_model": "gpt-5.4",
+        "prompt_template": "Answer with cited evidence.",
+    }
+
 
 def test_shared_mechanics_consumer_example_script_runs() -> None:
     repo_root = Path(__file__).resolve().parents[1]
@@ -131,8 +172,8 @@ def test_shared_mechanics_consumer_example_script_runs() -> None:
             },
             {
                 "hidden_assumptions": [
-                    "The current pilot includes run-scope query mechanics via power_atlas.run_scope_queries only.",
-                    "A broader adapters.neo4j family surface would currently mix mechanics with stage/domain runtime ownership.",
+                    "The current pilot now includes run-scope queries and the narrow retrieval_session helper only.",
+                    "A broader adapters.neo4j family surface would still mix mechanics with stage/domain runtime ownership.",
                 ],
                 "module": "power_atlas.adapters.neo4j.*",
             },
@@ -160,6 +201,7 @@ def test_shared_mechanics_consumer_example_script_runs() -> None:
             "power_atlas.retrieval_postprocessing",
             "power_atlas.retrieval_request_helpers",
             "power_atlas.retrieval_runtime_bindings",
+            "power_atlas.adapters.neo4j.retrieval_session",
         ],
         "runtime_surface": {
             "config_type": "Config",
@@ -170,6 +212,17 @@ def test_shared_mechanics_consumer_example_script_runs() -> None:
                 "question": "Which mechanics helper ran?",
                 "run_id": "pilot-run-id",
                 "source_uri": "file:///pilot/source.pdf",
+            },
+            "retrieval_session": {
+                "rag": {
+                    "llm_model": "gpt-5.4",
+                    "prompt_template": "Answer with cited evidence.",
+                },
+                "retriever": {
+                    "index_name": "pilot-index",
+                    "neo4j_database": "neo4j",
+                    "retrieval_query": "MATCH (n) RETURN n",
+                },
             },
         },
     }

@@ -77,6 +77,15 @@ SHARED_MECHANICS_PILOT = SharedMechanicsPilotSurface(
                 "so execution binding can be consumed without app-owned context carriers."
             ),
         ),
+        SharedMechanicsModuleRecord(
+            module="power_atlas.adapters.neo4j.retrieval_session",
+            status="included",
+            rationale=(
+                "The retrieval session builder is a mechanics-only factory/composition helper that "
+                "accepts explicit driver, query, model, and factory inputs without owning Power Atlas "
+                "dataset or stage defaults."
+            ),
+        ),
     ),
     deferred_modules=(
         SharedMechanicsModuleRecord(
@@ -112,8 +121,8 @@ SHARED_MECHANICS_PILOT = SharedMechanicsPilotSurface(
                 "still mixes clean query helpers with stage-specific runtime modules."
             ),
             hidden_assumptions=(
-                "The current pilot includes run-scope query mechanics via power_atlas.run_scope_queries only.",
-                "A broader adapters.neo4j family surface would currently mix mechanics with stage/domain runtime ownership.",
+                "The current pilot now includes run-scope queries and the narrow retrieval_session helper only.",
+                "A broader adapters.neo4j family surface would still mix mechanics with stage/domain runtime ownership.",
             ),
         ),
     ),
@@ -138,6 +147,10 @@ _EXPORTS = {
     "build_retrieval_query_params": (
         "power_atlas.retrieval_request_helpers",
         "build_retrieval_query_params",
+    ),
+    "build_retriever_and_rag": (
+        "power_atlas.adapters.neo4j.retrieval_session",
+        "build_retriever_and_rag",
     ),
     "run_interactive_retrieval_with_runtime_inputs": (
         "power_atlas.retrieval_runtime_bindings",

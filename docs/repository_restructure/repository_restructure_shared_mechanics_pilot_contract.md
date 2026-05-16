@@ -177,6 +177,7 @@ helpers:
 - `power_atlas.retrieval_postprocessing`
 - `power_atlas.retrieval_request_helpers`
 - `power_atlas.retrieval_runtime_bindings`
+- `power_atlas.adapters.neo4j.retrieval_session`
 
 It also records the first hidden-assumption set that still blocks widening the
 pilot:
@@ -190,8 +191,8 @@ pilot:
   `power_atlas.retrieval_runtime_bindings`,
 - the broader `power_atlas.adapters.neo4j.*` family remains deferred because it
   still mixes clean query mechanics with stage-specific runtime modules; the
-  current pilot only includes the run-scope query lane via
-  `power_atlas.run_scope_queries`.
+  current pilot now includes only the run-scope query lane plus the narrow
+  retrieval-session factory helper.
 
 The next bounded follow-up has also now landed: retrieval execution binding no
 longer depends directly on `RequestContext`.
@@ -204,17 +205,31 @@ longer depends directly on `RequestContext`.
 - the shared-mechanics consumer proof now exercises the lower-level helper
   directly instead of proving only the earlier grouping surface.
 
+One more bounded audit has also now landed for `power_atlas.adapters.neo4j.*`.
+
+- `power_atlas.adapters.neo4j.retrieval_session` is now included in the pilot
+  because `build_retriever_and_rag(...)` is a mechanics-only factory helper
+  driven entirely by explicit driver, query, model, and factory inputs,
+- `graph_health_queries`, `claim_extraction_query_specs`, and
+  `retrieval_benchmark_queries` remain outside the pilot because they still
+  encode current Power Atlas graph labels, claim/canonical semantics, and
+  stage-facing diagnostic or benchmark intent,
+- the live runtime modules under `adapters.neo4j.*_runtime.py` remain outside
+  the pilot because they still represent stage-owned runtime behavior rather
+  than a clean shared mechanics layer.
+
 Focused validation for this checkpoint passed with:
 
 - `pytest -q tests/test_shared_mechanics_pilot.py tests/test_installed_package_adoption.py tests/test_power_atlas_package.py -k 'shared_mechanics or retrieval_with_runtime_inputs or run_retrieval_request_context or run_interactive_request_context'`
+- `pytest -q tests/test_shared_mechanics_pilot.py tests/test_installed_package_adoption.py -k shared_mechanics`
 
 That means the pilot has now advanced one step beyond the first checkpoint:
 the inventory/grouping surface, executable proof, and the first request-free
 retrieval execution helper all exist. The next decision is narrower again:
-either pause the mechanics pilot here because the remaining blockers are back
-to app-owned context/default authority, or run one more small audit to see
-whether a narrower subset of `power_atlas.adapters.neo4j.*` can join the pilot
-without pulling stage-owned runtime modules with it.
+the remaining blockers are back to app-owned context/default authority and
+stage-owned adapter runtime. The current recommendation is therefore to pause
+the shared-mechanics pilot here rather than widening it further before a more
+valuable dataset/default-authority slice exists.
 
 ## Non-goals
 
