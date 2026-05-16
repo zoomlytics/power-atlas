@@ -6,6 +6,7 @@
 **Related documents:**
 - `docs/repository_restructure/repository_restructure_reusable_core_boundary.md`
 - `docs/repository_restructure/repository_restructure_generic_research_runner_feasibility.md`
+- `docs/repository_restructure/repository_restructure_target_shape_current_surface_map.md`
 - `docs/repository_restructure/repository_restructure_shared_mechanics_pilot_contract.md`
 - `README.md`
 
@@ -93,6 +94,9 @@ the Power Atlas domain pack.
 
 If the surface is about how operators or future agents run the system in this
 repo, it belongs in the Power Atlas application shell.
+
+The current checkpoint map of concrete repo surfaces now lives in
+`docs/repository_restructure/repository_restructure_target_shape_current_surface_map.md`.
 
 ## Current interpretation of `power_atlas`
 
