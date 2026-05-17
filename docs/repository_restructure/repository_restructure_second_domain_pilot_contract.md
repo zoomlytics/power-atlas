@@ -7,6 +7,7 @@
 - `docs/repository_restructure/repository_restructure_generic_research_runner_feasibility.md`
 - `docs/repository_restructure/repository_restructure_reusable_core_boundary.md`
 - `docs/repository_restructure/repository_restructure_second_domain_gap_inventory.md`
+- `docs/repository_restructure/repository_restructure_tubesynth_second_consumer_assessment.md`
 - `README.md`
 
 ## Purpose

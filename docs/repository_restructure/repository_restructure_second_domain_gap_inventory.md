@@ -7,6 +7,7 @@
 - `docs/repository_restructure/repository_restructure_second_domain_pilot_contract.md`
 - `docs/repository_restructure/repository_restructure_reusable_core_boundary.md`
 - `docs/repository_restructure/repository_restructure_generic_research_runner_feasibility.md`
+- `docs/repository_restructure/repository_restructure_tubesynth_second_consumer_assessment.md`
 
 ## Purpose
 
@@ -174,9 +175,9 @@ RequestContext/AppContext-backed configuration.
 This closes the last concrete hardcoded seam named in this gap inventory, and a
 package-only second-domain entity-resolution consumer proof now exists.
 The next question is no longer whether the current seam set can support a
-package-only second-domain consumer. The next question is whether those seams
-are now coherent enough, via a descriptor-backed domain contribution model, to
-pause extraction and evaluate a broader shared-kernel split.
+package-only second-domain consumer. The next question is which remaining
+authority boundaries must still be externalized before a future second
+application shell would stop inheriting ambient Power Atlas assumptions.
 
 ## What is not a blocker at this checkpoint
 
@@ -204,16 +205,23 @@ pilot proof plus the structured ingest contracts.
 
 The next extraction slices should proceed in this order:
 
-1. decide whether the second-domain pilot now warrants a broader shared
-  kernel namespace split.
+1. treat the market/trade proof as sufficient evidence that a second-domain
+  pack can compose current package seams without copying runtime modules,
+2. use the TubeSynth future-state assessment to test whether a future second
+  **application shell** would need clearer kernel boundaries than the current
+  second-domain pilot alone can prove,
+3. continue with the target-shape extraction sequence rather than starting a
+  broad shared-kernel namespace split.
 
 ## Minimum acceptance for the next slice
 
 The next reuse slice should be considered sufficient only if it turns the new
-package-only proof into a decision about whether further reusable-core
-splitting is still justified.
+package-only proof plus the TubeSynth-style second-consumer pressure test into
+a concrete bounded implementation decision.
 
 The structured ingest layer, entity-resolution graph vocabulary, and canonical
 lookup, alignment strategy, and dataset-selection surfaces are now materially
-improved. The next meaningful step is deciding whether further kernel splitting
-is warranted now that the package-only second-domain proof exists.
+improved. The next meaningful step is not a rename-first or namespace-first
+split. The next meaningful step is continuing to externalize default, context,
+and dataset/source authority so that a future second application shell would
+not need to inherit ambient Power Atlas assumptions.
