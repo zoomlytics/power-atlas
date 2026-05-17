@@ -6,13 +6,18 @@ import os
 from pathlib import Path
 from typing import Any
 
+from power_atlas.bootstrap import AppBaseline
 from power_atlas.bootstrap import build_settings
-from power_atlas.orchestration.context_builder import build_settings_from_overrides
+from power_atlas.bootstrap import resolve_app_baseline
 
 
-def default_narrative_cli_settings():
-    settings = build_settings()
-    if "OPENAI_MODEL" in os.environ:
+def default_narrative_cli_settings(
+    *,
+    app_baseline: AppBaseline | None = None,
+):
+    resolved_baseline = resolve_app_baseline() if app_baseline is None else app_baseline
+    settings = build_settings(app_baseline=resolved_baseline)
+    if resolved_baseline.env_names.openai_model in os.environ:
         return settings
     return replace(settings, openai_model="gpt-4o-mini")
 
@@ -21,12 +26,17 @@ def build_narrative_cli_config(
     args: argparse.Namespace,
     *,
     extraction_config_type: type,
+    app_baseline: AppBaseline | None = None,
 ):
-    settings = build_settings_from_overrides(
-        neo4j_uri=args.neo4j_uri,
-        neo4j_username=args.neo4j_username,
-        neo4j_password=args.neo4j_password,
-        neo4j_database=args.neo4j_database,
+    settings = replace(
+        default_narrative_cli_settings(app_baseline=app_baseline),
+        neo4j=replace(
+            default_narrative_cli_settings(app_baseline=app_baseline).neo4j,
+            uri=args.neo4j_uri,
+            username=args.neo4j_username,
+            password=args.neo4j_password,
+            database=args.neo4j_database,
+        ),
         openai_model=args.model_name,
     )
     return extraction_config_type(
@@ -43,8 +53,9 @@ def parse_narrative_extraction_args(
     *,
     default_output_root: Path,
     extraction_config_type: type,
+    app_baseline: AppBaseline | None = None,
 ) -> Any:
-    package_settings = default_narrative_cli_settings()
+    package_settings = default_narrative_cli_settings(app_baseline=app_baseline)
     parser = argparse.ArgumentParser(
         description="Run narrative claim and mention extraction from existing ingested chunks."
     )
@@ -73,6 +84,7 @@ def parse_narrative_extraction_args(
     return build_narrative_cli_config(
         args,
         extraction_config_type=extraction_config_type,
+        app_baseline=app_baseline,
     )
 
 

@@ -72,6 +72,10 @@ naming, and similar defaults as if they are universal runtime behavior.
 - `narrative_extraction_cli.py` can now consume baseline-owned narrative prompt
   defaults in its stage path instead of reading only the ambient prompt
   registry constant,
+- `interfaces/cli/narrative_extraction_support.py` now resolves parser settings
+  defaults and the narrative-model fallback against baseline-owned env names,
+  and preserves other baseline-derived settings when materializing the CLI
+  config instead of rebuilding a Power Atlas-shaped `AppSettings` from scratch,
 - the market-trade retrieval consumer proof now uses baseline-owned retrieval
   policy selection rather than mutating `app_context.policies` after the fact,
 - prompt/default authority and env-naming authority still remain active follow-

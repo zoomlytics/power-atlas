@@ -93,11 +93,16 @@ def run_narrative_extraction(
     )
 
 
-def _parse_args(argv: list[str] | None = None) -> ExtractionConfig:
+def _parse_args(
+    argv: list[str] | None = None,
+    *,
+    app_baseline: AppBaseline | None = None,
+) -> ExtractionConfig:
     return _parse_narrative_extraction_args_impl(
         argv,
         default_output_root=DEFAULT_OUTPUT_ROOT,
         extraction_config_type=ExtractionConfig,
+        app_baseline=app_baseline,
     )
 
 

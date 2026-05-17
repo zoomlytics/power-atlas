@@ -27,7 +27,7 @@ from power_atlas.narrative_extraction_cli import (  # noqa: E402
     run_narrative_extraction,
 )
 from power_atlas.bootstrap import resolve_app_baseline  # noqa: E402
-from power_atlas.settings import AppSettings, Neo4jSettings  # noqa: E402
+from power_atlas.settings import AppSettings, AppSettingsEnvNames, Neo4jSettings  # noqa: E402
 
 
 def _make_config(
@@ -264,6 +264,70 @@ def test_parse_args_preserves_narrative_default_model(monkeypatch: pytest.Monkey
     config = _parse_args(["--run-id", "parser-run"])
 
     assert config.settings.openai_model == "gpt-4o-mini"
+
+
+def test_parse_args_supports_app_baseline_env_names(monkeypatch: pytest.MonkeyPatch):
+    app_baseline = resolve_app_baseline(
+        env_names=AppSettingsEnvNames(
+            neo4j_uri="APP_NEO4J_URI",
+            neo4j_username="APP_NEO4J_USERNAME",
+            neo4j_password="APP_NEO4J_PASSWORD",
+            neo4j_database="APP_NEO4J_DATABASE",
+            openai_model="APP_OPENAI_MODEL",
+        )
+    )
+    monkeypatch.setenv("APP_NEO4J_URI", "bolt://app-parser.test:7687")
+    monkeypatch.setenv("APP_NEO4J_USERNAME", "app-parser-user")
+    monkeypatch.setenv("APP_NEO4J_PASSWORD", "app-parser-secret")
+    monkeypatch.setenv("APP_NEO4J_DATABASE", "app-parser-db")
+    monkeypatch.setenv("APP_OPENAI_MODEL", "app-parser-model")
+
+    config = _parse_args(["--run-id", "parser-run"], app_baseline=app_baseline)
+
+    assert config.settings.neo4j.uri == "bolt://app-parser.test:7687"
+    assert config.settings.neo4j.username == "app-parser-user"
+    assert config.settings.neo4j.password == "app-parser-secret"
+    assert config.settings.neo4j.database == "app-parser-db"
+    assert config.settings.openai_model == "app-parser-model"
+
+
+def test_parse_args_uses_narrative_default_model_when_custom_model_env_is_absent(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    app_baseline = resolve_app_baseline(
+        env_names=AppSettingsEnvNames(openai_model="APP_OPENAI_MODEL")
+    )
+    monkeypatch.setenv("OPENAI_MODEL", "ambient-model")
+    monkeypatch.delenv("APP_OPENAI_MODEL", raising=False)
+
+    config = _parse_args(["--run-id", "parser-run"], app_baseline=app_baseline)
+
+    assert config.settings.openai_model == "gpt-4o-mini"
+
+
+def test_parse_args_preserves_other_baseline_derived_settings(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    app_baseline = resolve_app_baseline(
+        env_names=AppSettingsEnvNames(
+            openai_model="APP_OPENAI_MODEL",
+            embedder_model_primary="APP_EMBEDDER_MODEL",
+            output_dir="APP_OUTPUT_DIR",
+            dataset_name_primary="APP_DATASET",
+            dataset_name_fallback="LEGACY_APP_DATASET",
+        )
+    )
+    monkeypatch.setenv("APP_OPENAI_MODEL", "app-parser-model")
+    monkeypatch.setenv("APP_EMBEDDER_MODEL", "text-embedding-3-large")
+    monkeypatch.setenv("APP_OUTPUT_DIR", "build/app-parser")
+    monkeypatch.setenv("APP_DATASET", "app-dataset")
+
+    config = _parse_args(["--run-id", "parser-run"], app_baseline=app_baseline)
+
+    assert config.settings.openai_model == "app-parser-model"
+    assert config.settings.embedder_model == "text-embedding-3-large"
+    assert config.settings.output_dir == Path("build/app-parser")
+    assert config.settings.dataset_name == "app-dataset"
 
 
 def test_main_emits_json_summary(capsys: pytest.CaptureFixture[str], tmp_path: Path):
