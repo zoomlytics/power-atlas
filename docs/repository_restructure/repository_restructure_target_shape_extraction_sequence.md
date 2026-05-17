@@ -85,6 +85,9 @@ naming, and similar defaults as if they are universal runtime behavior.
 - `interfaces/cli/reset_demo_support.py` now follows the same baseline-owned
   env-name and preserved-settings pattern for reset-demo argument parsing,
   pipeline-contract epilog composition, and settings construction,
+- `interfaces/cli/run_demo_support.py` now follows the same baseline-owned
+  env-name and preserved-settings pattern for run-demo common parser defaults
+  and request-context/config settings construction,
 - the market-trade retrieval consumer proof now uses baseline-owned retrieval
   policy selection rather than mutating `app_context.policies` after the fact,
 - prompt/default authority and env-naming authority still remain active follow-

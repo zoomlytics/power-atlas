@@ -667,6 +667,88 @@ class WorkflowTests(unittest.TestCase):
 
         self.assertEqual(args.dataset, "demo_dataset_v2")
 
+    def test_parse_args_supports_app_baseline_env_names(self):
+        from power_atlas.bootstrap import AppSettingsEnvNames, resolve_app_baseline
+
+        module = _load_module(RUN_DEMO_PATH, "run_parse_args_baseline_env_names_test")
+        app_baseline = resolve_app_baseline(
+            env_names=AppSettingsEnvNames(
+                neo4j_uri="APP_NEO4J_URI",
+                neo4j_username="APP_NEO4J_USERNAME",
+                neo4j_password="APP_NEO4J_PASSWORD",
+                neo4j_database="APP_NEO4J_DATABASE",
+                openai_model="APP_OPENAI_MODEL",
+                dataset_name_primary="APP_DATASET",
+                dataset_name_fallback="LEGACY_APP_DATASET",
+            )
+        )
+        with patch.dict(
+            os.environ,
+            {
+                "APP_NEO4J_URI": "bolt://run-demo-app.test:7687",
+                "APP_NEO4J_USERNAME": "run-demo-user",
+                "APP_NEO4J_PASSWORD": "run-demo-secret",
+                "APP_NEO4J_DATABASE": "run-demo-db",
+                "APP_OPENAI_MODEL": "run-demo-model",
+                "APP_DATASET": "demo_dataset_v2",
+            },
+            clear=True,
+        ):
+            args = module.parse_args(["ingest"], app_baseline=app_baseline)
+
+        self.assertEqual(args.neo4j_uri, "bolt://run-demo-app.test:7687")
+        self.assertEqual(args.neo4j_username, "run-demo-user")
+        self.assertEqual(args.neo4j_password, "run-demo-secret")
+        self.assertEqual(args.neo4j_database, "run-demo-db")
+        self.assertEqual(args.openai_model, "run-demo-model")
+        self.assertEqual(args.dataset, "demo_dataset_v2")
+
+    def test_parse_args_uses_custom_password_env_name_not_ambient_default(self):
+        from power_atlas.bootstrap import AppSettingsEnvNames, resolve_app_baseline
+
+        module = _load_module(RUN_DEMO_PATH, "run_parse_args_password_env_name_test")
+        app_baseline = resolve_app_baseline(
+            env_names=AppSettingsEnvNames(neo4j_password="APP_NEO4J_PASSWORD")
+        )
+        with patch.dict(
+            os.environ,
+            {"NEO4J_PASSWORD": "ambient-secret"},
+            clear=True,
+        ):
+            args = module.parse_args(["ingest"], app_baseline=app_baseline)
+
+        self.assertEqual(args.neo4j_password, "CHANGE_ME_BEFORE_USE")
+
+    def test_build_request_context_from_args_preserves_other_baseline_settings(self):
+        from power_atlas.bootstrap import AppSettingsEnvNames, resolve_app_baseline
+
+        module = _load_module(RUN_DEMO_PATH, "run_build_request_context_baseline_test")
+        app_baseline = resolve_app_baseline(
+            env_names=AppSettingsEnvNames(
+                embedder_model_primary="APP_EMBEDDER_MODEL",
+                dataset_name_primary="APP_DATASET",
+                dataset_name_fallback="LEGACY_APP_DATASET",
+            )
+        )
+        with patch.dict(
+            os.environ,
+            {
+                "APP_EMBEDDER_MODEL": "text-embedding-3-large",
+                "APP_DATASET": "demo_dataset_v2",
+            },
+            clear=True,
+        ):
+            args = module.parse_args(["ingest"], app_baseline=app_baseline)
+            request_context = module._build_request_context_from_args(
+                args,
+                app_baseline=app_baseline,
+            )
+
+        self.assertEqual(request_context.settings.embedder_model, "text-embedding-3-large")
+        self.assertEqual(request_context.settings.dataset_name, "demo_dataset_v2")
+        self.assertEqual(request_context.settings.openai_model, args.openai_model)
+        self.assertEqual(request_context.settings.neo4j.password, args.neo4j_password)
+
     def test_reset_command_skips_password_validation(self):
         module = _load_module(RUN_DEMO_PATH, "run_main_reset_test")
         args = type(

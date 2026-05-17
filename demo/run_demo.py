@@ -205,17 +205,26 @@ def _resolve_independent_stage_run_id(
     )
 
 
-def _add_common_args(parser: argparse.ArgumentParser) -> None:
-    _add_common_args_impl(parser)
+def _add_common_args(
+    parser: argparse.ArgumentParser,
+    *,
+    app_baseline=None,
+) -> None:
+    _add_common_args_impl(parser, app_baseline=app_baseline)
 
 
-def _build_config_from_args(args: argparse.Namespace) -> Config:
-    return _build_config_from_args_impl(args)
+def _build_config_from_args(
+    args: argparse.Namespace,
+    *,
+    app_baseline=None,
+) -> Config:
+    return _build_config_from_args_impl(args, app_baseline=app_baseline)
 
 
 def _build_request_context_from_args(
     args: argparse.Namespace,
     *,
+    app_baseline=None,
     dry_run: bool | None = None,
     run_id: str | None = None,
     all_runs: bool = False,
@@ -223,6 +232,7 @@ def _build_request_context_from_args(
 ):
     return _build_request_context_from_args_impl(
         args,
+        app_baseline=app_baseline,
         dry_run=dry_run,
         run_id=run_id,
         all_runs=all_runs,
@@ -247,8 +257,12 @@ def _request_context_from_config(
     )
 
 
-def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    return _parse_args_impl(argv)
+def _parse_args(
+    argv: list[str] | None = None,
+    *,
+    app_baseline=None,
+) -> argparse.Namespace:
+    return _parse_args_impl(argv, app_baseline=app_baseline)
 
 
 def _neo4j_settings_from_config(config: Config) -> Neo4jSettings:
@@ -645,8 +659,12 @@ def run_demo(request_context: RequestContext) -> Path:
     return _run_orchestrated(request_context)
 
 
-def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    return _parse_args(argv)
+def parse_args(
+    argv: list[str] | None = None,
+    *,
+    app_baseline=None,
+) -> argparse.Namespace:
+    return _parse_args(argv, app_baseline=app_baseline)
 
 
 run_independent_demo = _run_independent_stage

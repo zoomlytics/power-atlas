@@ -1,24 +1,60 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import replace
 import sys
 from pathlib import Path
 
+from power_atlas.bootstrap import AppBaseline
 from power_atlas.bootstrap import build_app_context as _build_app_context
 from power_atlas.bootstrap import build_request_context as _build_request_context
 from power_atlas.bootstrap import build_runtime_config as _build_runtime_config
 from power_atlas.bootstrap import build_settings as _build_package_settings
+from power_atlas.bootstrap import resolve_app_baseline
 from power_atlas.context import RequestContext
 from power_atlas.orchestration.context_builder import (
     build_request_context_from_config as _build_request_context_from_config,
-    build_settings_from_overrides as _build_settings_from_overrides,
 )
 
 from power_atlas.contracts import ARTIFACTS_DIR, Config
 
 
-def add_common_args(parser: argparse.ArgumentParser) -> None:
-    package_settings = _build_package_settings()
+def default_run_demo_cli_settings(
+    *,
+    app_baseline: AppBaseline | None = None,
+):
+    resolved_baseline = resolve_app_baseline() if app_baseline is None else app_baseline
+    return _build_package_settings(app_baseline=resolved_baseline)
+
+
+def _settings_from_common_args(
+    args: argparse.Namespace,
+    *,
+    app_baseline: AppBaseline | None = None,
+):
+    base_settings = default_run_demo_cli_settings(app_baseline=app_baseline)
+    return replace(
+        base_settings,
+        neo4j=replace(
+            base_settings.neo4j,
+            uri=args.neo4j_uri,
+            username=args.neo4j_username,
+            password=args.neo4j_password,
+            database=args.neo4j_database,
+        ),
+        openai_model=args.openai_model,
+        output_dir=args.output_dir,
+        dataset_name=getattr(args, "dataset", None) or None,
+    )
+
+
+def add_common_args(
+    parser: argparse.ArgumentParser,
+    *,
+    app_baseline: AppBaseline | None = None,
+) -> None:
+    resolved_baseline = resolve_app_baseline() if app_baseline is None else app_baseline
+    package_settings = default_run_demo_cli_settings(app_baseline=resolved_baseline)
     mode_group = parser.add_mutually_exclusive_group()
     mode_group.add_argument(
         "--dry-run",
@@ -46,22 +82,19 @@ def add_common_args(parser: argparse.ArgumentParser) -> None:
         metavar="DATASET_NAME",
         help=(
             "Name of the fixture dataset to use (directory under demo/fixtures/datasets/). "
-            "Defaults to POWER_ATLAS_DATASET or FIXTURE_DATASET; if neither is set, "
+            f"Defaults to {resolved_baseline.env_names.dataset_name_primary} or "
+            f"{resolved_baseline.env_names.dataset_name_fallback}; if neither is set, "
             "the single available dataset is auto-discovered."
         ),
     )
 
 
-def build_config_from_args(args: argparse.Namespace) -> Config:
-    settings = _build_settings_from_overrides(
-        neo4j_uri=args.neo4j_uri,
-        neo4j_username=args.neo4j_username,
-        neo4j_password=args.neo4j_password,
-        neo4j_database=args.neo4j_database,
-        openai_model=args.openai_model,
-        output_dir=args.output_dir,
-        dataset_name=getattr(args, "dataset", None) or "",
-    )
+def build_config_from_args(
+    args: argparse.Namespace,
+    *,
+    app_baseline: AppBaseline | None = None,
+) -> Config:
+    settings = _settings_from_common_args(args, app_baseline=app_baseline)
     config = _build_runtime_config(
         settings,
         dry_run=args.dry_run,
@@ -77,21 +110,15 @@ def build_config_from_args(args: argparse.Namespace) -> Config:
 def build_request_context_from_args(
     args: argparse.Namespace,
     *,
+    app_baseline: AppBaseline | None = None,
     dry_run: bool | None = None,
     run_id: str | None = None,
     all_runs: bool = False,
     source_uri: str | None = None,
 ) -> RequestContext:
-    settings = _build_settings_from_overrides(
-        neo4j_uri=args.neo4j_uri,
-        neo4j_username=args.neo4j_username,
-        neo4j_password=args.neo4j_password,
-        neo4j_database=args.neo4j_database,
-        openai_model=args.openai_model,
-        output_dir=args.output_dir,
-        dataset_name=getattr(args, "dataset", None) or "",
-    )
-    app_context = _build_app_context(settings=settings)
+    resolved_baseline = resolve_app_baseline() if app_baseline is None else app_baseline
+    settings = _settings_from_common_args(args, app_baseline=resolved_baseline)
+    app_context = _build_app_context(settings=settings, app_baseline=resolved_baseline)
     return _build_request_context(
         app_context,
         command=getattr(args, "command", None),
@@ -122,10 +149,14 @@ def request_context_from_config(
     )
 
 
-def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+def parse_args(
+    argv: list[str] | None = None,
+    *,
+    app_baseline: AppBaseline | None = None,
+) -> argparse.Namespace:
     raw_argv = list(argv) if argv is not None else sys.argv[1:]
     common_parser = argparse.ArgumentParser(add_help=False, allow_abbrev=False)
-    add_common_args(common_parser)
+    add_common_args(common_parser, app_baseline=app_baseline)
     parser = argparse.ArgumentParser(
         description="Demo workflow orchestrator",
         parents=[common_parser],
@@ -282,6 +313,7 @@ __all__ = [
     "add_common_args",
     "build_config_from_args",
     "build_request_context_from_args",
+    "default_run_demo_cli_settings",
     "parse_args",
     "request_context_from_config",
 ]
