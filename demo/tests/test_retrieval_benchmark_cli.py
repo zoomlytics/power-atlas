@@ -14,6 +14,7 @@ when the result dict contains a non-empty ``warnings`` list.
 """
 from __future__ import annotations
 
+import argparse
 import os
 import unittest
 from typing import Any
@@ -21,6 +22,10 @@ from unittest.mock import patch
 
 import pipelines.query.retrieval_benchmark as cli_module
 from pipelines.query.retrieval_benchmark import main
+from power_atlas.bootstrap import AppSettingsEnvNames, resolve_app_baseline
+from power_atlas.interfaces.cli.retrieval_benchmark_support import (
+    build_retrieval_benchmark_cli_request_context,
+)
 
 
 def _make_result(warnings: list[str], artifact_path: str = "/tmp/rb_artifact.json") -> dict[str, Any]:
@@ -139,6 +144,85 @@ class TestRetrievalBenchmarkCliMainArgParsing(unittest.TestCase):
         self.assertEqual(args.neo4j_username, "override-user")
         self.assertEqual(args.neo4j_password, "override-secret")
         self.assertEqual(args.neo4j_database, "override-db")
+
+    def test_parse_args_supports_app_baseline_env_names(self) -> None:
+        app_baseline = resolve_app_baseline(
+            env_names=AppSettingsEnvNames(
+                neo4j_uri="APP_NEO4J_URI",
+                neo4j_username="APP_NEO4J_USERNAME",
+                neo4j_password="APP_NEO4J_PASSWORD",
+                neo4j_database="APP_NEO4J_DATABASE",
+            )
+        )
+        with patch.dict(
+            os.environ,
+            {
+                "APP_NEO4J_URI": "bolt://rb-app.test:7687",
+                "APP_NEO4J_USERNAME": "rb-app-user",
+                "APP_NEO4J_PASSWORD": "rb-app-secret",
+                "APP_NEO4J_DATABASE": "rb-app-db",
+            },
+            clear=True,
+        ):
+            args = cli_module._parse_args([], app_baseline=app_baseline)
+
+        self.assertEqual(args.neo4j_uri, "bolt://rb-app.test:7687")
+        self.assertEqual(args.neo4j_username, "rb-app-user")
+        self.assertEqual(args.neo4j_password, "rb-app-secret")
+        self.assertEqual(args.neo4j_database, "rb-app-db")
+
+    def test_parse_args_uses_custom_password_env_name_not_ambient_default(self) -> None:
+        app_baseline = resolve_app_baseline(
+            env_names=AppSettingsEnvNames(neo4j_password="APP_NEO4J_PASSWORD")
+        )
+        with patch.dict(
+            os.environ,
+            {
+                "NEO4J_PASSWORD": "ambient-secret",
+            },
+            clear=True,
+        ):
+            args = cli_module._parse_args([], app_baseline=app_baseline)
+
+        self.assertEqual(args.neo4j_password, "")
+
+    def test_build_request_context_preserves_other_baseline_settings(self) -> None:
+        app_baseline = resolve_app_baseline(
+            env_names=AppSettingsEnvNames(
+                embedder_model_primary="APP_EMBEDDER_MODEL",
+                output_dir="APP_OUTPUT_DIR",
+                dataset_name_primary="APP_DATASET",
+                dataset_name_fallback="LEGACY_APP_DATASET",
+            )
+        )
+        with patch.dict(
+            os.environ,
+            {
+                "APP_EMBEDDER_MODEL": "text-embedding-3-large",
+                "APP_OUTPUT_DIR": "build/retrieval-benchmark-app",
+                "APP_DATASET": "retrieval_dataset",
+            },
+            clear=True,
+        ):
+            request_context = build_retrieval_benchmark_cli_request_context(
+                argparse.Namespace(
+                    neo4j_uri="bolt://override.test:7687",
+                    neo4j_username="override-user",
+                    neo4j_password="override-secret",
+                    neo4j_database="override-db",
+                    output_dir=cli_module._PIPELINES_DIR,
+                    run_id="run-123",
+                ),
+                app_baseline=app_baseline,
+            )
+
+        self.assertEqual(request_context.settings.neo4j.uri, "bolt://override.test:7687")
+        self.assertEqual(request_context.settings.neo4j.username, "override-user")
+        self.assertEqual(request_context.settings.neo4j.password, "override-secret")
+        self.assertEqual(request_context.settings.neo4j.database, "override-db")
+        self.assertEqual(request_context.settings.embedder_model, "text-embedding-3-large")
+        self.assertEqual(request_context.settings.dataset_name, "retrieval_dataset")
+        self.assertEqual(request_context.settings.output_dir, cli_module._PIPELINES_DIR)
 
 
 class TestRetrievalBenchmarkCliUnscopedWarnings(unittest.TestCase):

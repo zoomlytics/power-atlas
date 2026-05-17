@@ -10,6 +10,7 @@ import sys
 import tempfile
 import unittest
 from unittest import mock
+from unittest.mock import patch
 from contextlib import contextmanager, redirect_stdout
 from pathlib import Path
 
@@ -3275,6 +3276,92 @@ class ResetDemoDbTests(unittest.TestCase):
         self.assertEqual(args.neo4j_username, "override-user")
         self.assertEqual(args.neo4j_password, "override-secret")
         self.assertEqual(args.neo4j_database, "override-db")
+
+    def test_reset_parse_args_supports_app_baseline_env_names(self):
+        from power_atlas.bootstrap import AppSettingsEnvNames, resolve_app_baseline
+
+        app_baseline = resolve_app_baseline(
+            env_names=AppSettingsEnvNames(
+                neo4j_uri="APP_NEO4J_URI",
+                neo4j_username="APP_NEO4J_USERNAME",
+                neo4j_password="APP_NEO4J_PASSWORD",
+                neo4j_database="APP_NEO4J_DATABASE",
+            )
+        )
+        with patch.dict(
+            os.environ,
+            {
+                "APP_NEO4J_URI": "bolt://reset-app.test:7687",
+                "APP_NEO4J_USERNAME": "reset-app-user",
+                "APP_NEO4J_PASSWORD": "reset-app-secret",
+                "APP_NEO4J_DATABASE": "reset-app-db",
+            },
+            clear=True,
+        ):
+            module = self._load_reset_module("reset_parse_baseline_env_names_test")
+            args = module.parse_args(["--confirm"], app_baseline=app_baseline)
+
+        self.assertEqual(args.neo4j_uri, "bolt://reset-app.test:7687")
+        self.assertEqual(args.neo4j_username, "reset-app-user")
+        self.assertEqual(args.neo4j_password, "reset-app-secret")
+        self.assertEqual(args.neo4j_database, "reset-app-db")
+
+    def test_reset_parse_args_uses_custom_password_env_name_not_ambient_default(self):
+        from power_atlas.bootstrap import AppSettingsEnvNames, resolve_app_baseline
+
+        app_baseline = resolve_app_baseline(
+            env_names=AppSettingsEnvNames(neo4j_password="APP_NEO4J_PASSWORD")
+        )
+        with patch.dict(
+            os.environ,
+            {"NEO4J_PASSWORD": "ambient-secret"},
+            clear=True,
+        ):
+            module = self._load_reset_module("reset_parse_password_env_name_test")
+            args = module.parse_args(["--confirm"], app_baseline=app_baseline)
+
+        self.assertIsNone(args.neo4j_password)
+
+    def test_reset_build_settings_from_args_preserves_other_baseline_settings(self):
+        import argparse
+
+        from power_atlas.bootstrap import AppSettingsEnvNames, resolve_app_baseline
+
+        app_baseline = resolve_app_baseline(
+            env_names=AppSettingsEnvNames(
+                embedder_model_primary="APP_EMBEDDER_MODEL",
+                output_dir="APP_OUTPUT_DIR",
+                dataset_name_primary="APP_DATASET",
+                dataset_name_fallback="LEGACY_APP_DATASET",
+            )
+        )
+        with patch.dict(
+            os.environ,
+            {
+                "APP_EMBEDDER_MODEL": "text-embedding-3-large",
+                "APP_OUTPUT_DIR": "build/reset-app",
+                "APP_DATASET": "reset_dataset",
+            },
+            clear=True,
+        ):
+            module = self._load_reset_module("reset_build_settings_baseline_test")
+            settings = module._build_settings_from_args(
+                argparse.Namespace(
+                    neo4j_uri="bolt://override.test:7687",
+                    neo4j_username="override-user",
+                    neo4j_password="override-secret",
+                    neo4j_database="override-db",
+                ),
+                app_baseline=app_baseline,
+            )
+
+        self.assertEqual(settings.neo4j.uri, "bolt://override.test:7687")
+        self.assertEqual(settings.neo4j.username, "override-user")
+        self.assertEqual(settings.neo4j.password, "override-secret")
+        self.assertEqual(settings.neo4j.database, "override-db")
+        self.assertEqual(settings.embedder_model, "text-embedding-3-large")
+        self.assertEqual(settings.output_dir, Path("build/reset-app"))
+        self.assertEqual(settings.dataset_name, "reset_dataset")
 
     def test_reset_main_emits_summary_and_warnings(self):
         module = self._load_reset_module("reset_main_summary_test")

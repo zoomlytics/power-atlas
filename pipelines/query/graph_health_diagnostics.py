@@ -42,7 +42,7 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from power_atlas.bootstrap import build_runtime_config, build_settings  # noqa: E402
+from power_atlas.bootstrap import AppBaseline, build_settings  # noqa: E402
 from power_atlas.interfaces.cli.graph_health_diagnostics_support import (  # noqa: E402
     build_graph_health_cli_request_context as _build_graph_health_cli_request_context_impl,
     parse_graph_health_diagnostics_args as _parse_graph_health_diagnostics_args_impl,
@@ -61,17 +61,27 @@ _PIPELINES_DIR = Path(__file__).resolve().parent.parent
 _logger = logging.getLogger(__name__)
 
 
-def _build_cli_request_context(args: argparse.Namespace):
+def _build_cli_request_context(
+    args: argparse.Namespace,
+    *,
+    app_baseline: AppBaseline | None = None,
+):
     return _build_graph_health_cli_request_context_impl(
         args,
+        app_baseline=app_baseline,
     )
 
 
-def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+def _parse_args(
+    argv: list[str] | None = None,
+    *,
+    app_baseline: AppBaseline | None = None,
+) -> argparse.Namespace:
     return _parse_graph_health_diagnostics_args_impl(
         argv,
         default_output_dir=_PIPELINES_DIR,
         doc_epilog=__doc__,
+        app_baseline=app_baseline,
     )
 
 

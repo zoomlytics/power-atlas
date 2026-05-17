@@ -1,20 +1,39 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import replace
 import os
 from pathlib import Path
 
+from power_atlas.bootstrap import AppBaseline
 from power_atlas.bootstrap import build_runtime_config, build_settings
+from power_atlas.bootstrap import resolve_app_baseline
 from power_atlas.orchestration.context_builder import build_request_context_from_config
-from power_atlas.orchestration.context_builder import build_settings_from_overrides
 
 
-def build_graph_health_cli_request_context(args: argparse.Namespace):
-    settings = build_settings_from_overrides(
-        neo4j_uri=args.neo4j_uri,
-        neo4j_username=args.neo4j_username,
-        neo4j_password=args.neo4j_password,
-        neo4j_database=args.neo4j_database,
+def default_graph_health_cli_settings(
+    *,
+    app_baseline: AppBaseline | None = None,
+):
+    resolved_baseline = resolve_app_baseline() if app_baseline is None else app_baseline
+    return build_settings(app_baseline=resolved_baseline)
+
+
+def build_graph_health_cli_request_context(
+    args: argparse.Namespace,
+    *,
+    app_baseline: AppBaseline | None = None,
+):
+    base_settings = default_graph_health_cli_settings(app_baseline=app_baseline)
+    settings = replace(
+        base_settings,
+        neo4j=replace(
+            base_settings.neo4j,
+            uri=args.neo4j_uri,
+            username=args.neo4j_username,
+            password=args.neo4j_password,
+            database=args.neo4j_database,
+        ),
         output_dir=args.output_dir,
     )
     config = build_runtime_config(settings, dry_run=False, output_dir=args.output_dir)
@@ -30,8 +49,10 @@ def parse_graph_health_diagnostics_args(
     *,
     default_output_dir: Path,
     doc_epilog: str | None,
+    app_baseline: AppBaseline | None = None,
 ) -> argparse.Namespace:
-    package_settings = build_settings()
+    resolved_baseline = resolve_app_baseline() if app_baseline is None else app_baseline
+    package_settings = default_graph_health_cli_settings(app_baseline=resolved_baseline)
     parser = argparse.ArgumentParser(
         description="Generate a repeatable graph-health diagnostics artifact.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -65,7 +86,7 @@ def parse_graph_health_diagnostics_args(
     )
     parser.add_argument(
         "--neo4j-password",
-        default=os.getenv("NEO4J_PASSWORD", ""),
+        default=os.getenv(resolved_baseline.env_names.neo4j_password, ""),
         help="Neo4j password (default: $NEO4J_PASSWORD).",
     )
     parser.add_argument(
@@ -88,5 +109,6 @@ def parse_graph_health_diagnostics_args(
 
 __all__ = [
     "build_graph_health_cli_request_context",
+    "default_graph_health_cli_settings",
     "parse_graph_health_diagnostics_args",
 ]

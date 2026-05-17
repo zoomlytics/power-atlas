@@ -76,6 +76,15 @@ naming, and similar defaults as if they are universal runtime behavior.
   defaults and the narrative-model fallback against baseline-owned env names,
   and preserves other baseline-derived settings when materializing the CLI
   config instead of rebuilding a Power Atlas-shaped `AppSettings` from scratch,
+- `interfaces/cli/graph_health_diagnostics_support.py` now follows the same
+  baseline-owned env-name and preserved-settings pattern for graph-health
+  parser defaults and request-context construction,
+- `interfaces/cli/retrieval_benchmark_support.py` now follows the same
+  baseline-owned env-name and preserved-settings pattern for retrieval-
+  benchmark parser defaults and request-context construction,
+- `interfaces/cli/reset_demo_support.py` now follows the same baseline-owned
+  env-name and preserved-settings pattern for reset-demo argument parsing,
+  pipeline-contract epilog composition, and settings construction,
 - the market-trade retrieval consumer proof now uses baseline-owned retrieval
   policy selection rather than mutating `app_context.policies` after the fact,
 - prompt/default authority and env-naming authority still remain active follow-

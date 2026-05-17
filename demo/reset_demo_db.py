@@ -60,7 +60,7 @@ import argparse
 import logging
 from pathlib import Path
 
-from power_atlas.bootstrap import build_app_context, build_settings, create_neo4j_driver
+from power_atlas.bootstrap import AppBaseline, build_app_context, create_neo4j_driver
 from power_atlas.interfaces.cli.reset_demo_entrypoint import run_reset_demo_main
 from power_atlas.interfaces.cli.reset_demo_support import (
     build_reset_settings_from_args as _build_reset_settings_from_args_impl,
@@ -81,18 +81,28 @@ def _demo_owned_indexes(pipeline_contract):
     return _demo_owned_indexes_impl(pipeline_contract)
 
 
-def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+def parse_args(
+  argv: list[str] | None = None,
+  *,
+  app_baseline: AppBaseline | None = None,
+) -> argparse.Namespace:
     return _parse_reset_demo_args_impl(
         argv,
         demo_node_labels=DEMO_NODE_LABELS,
         demo_owned_indexes_resolver=_demo_owned_indexes,
         default_output_dir=ARTIFACTS_DIR,
+    app_baseline=app_baseline,
     )
 
 
-def _build_settings_from_args(args: argparse.Namespace):
+def _build_settings_from_args(
+  args: argparse.Namespace,
+  *,
+  app_baseline: AppBaseline | None = None,
+):
     return _build_reset_settings_from_args_impl(
         args,
+    app_baseline=app_baseline,
     )
 
 
