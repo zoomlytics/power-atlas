@@ -494,6 +494,7 @@ def test_package_modules_import() -> None:
     assert callable(pdf_ingest_entrypoint_module.neo4j_settings_from_config)
     assert callable(pdf_ingest_entrypoint_module.openai_model_from_config)
     assert callable(pdf_ingest_entrypoint_module.run_pdf_ingest)
+    assert callable(pdf_ingest_entrypoint_module.run_pdf_ingest_runtime)
     assert callable(pdf_ingest_entrypoint_module.run_pdf_ingest_request_context)
     assert callable(pdf_ingest_runner_module.resolve_pdf_dataset)
     assert callable(pdf_ingest_runner_module.sha256_file)
@@ -515,6 +516,7 @@ def test_package_modules_import() -> None:
     assert callable(retrieval_request_context_adapters_module.run_interactive_request_context)
     assert callable(structured_ingest_entrypoint_module.neo4j_settings_from_config)
     assert callable(structured_ingest_entrypoint_module.run_structured_ingest)
+    assert callable(structured_ingest_entrypoint_module.run_structured_ingest_runtime)
     assert callable(structured_ingest_entrypoint_module.run_structured_ingest_request_context)
     assert callable(structured_ingest_runner_module.load_csv_rows)
     assert callable(structured_ingest_runner_module.lint_and_clean_structured_csvs)
@@ -1219,6 +1221,44 @@ def test_structured_ingest_request_context_uses_package_default_config_runner() 
     )
 
 
+def test_structured_ingest_runtime_uses_runtime_owned_config_runner() -> None:
+    from power_atlas.bootstrap import bootstrap_app, build_request_context
+    from power_atlas.structured_ingest_entrypoint import run_structured_ingest_runtime
+
+    app = bootstrap_app(
+        {
+            "NEO4J_URI": "bolt://example.test:7687",
+            "NEO4J_USERNAME": "atlas",
+            "NEO4J_PASSWORD": "secret",
+            "NEO4J_DATABASE": "analytics",
+            "OPENAI_MODEL": "gpt-5.4",
+            "POWER_ATLAS_DATASET": "demo_dataset_v1",
+        }
+    )
+    request_context = build_request_context(
+        app.app_context,
+        command="ingest-structured",
+        dry_run=False,
+        run_id="runtime-run-123",
+    )
+    result_payload = {"status": "runtime-ok"}
+
+    config_runner = mock.Mock(return_value=result_payload)
+
+    result = run_structured_ingest_runtime(request_context.runtime, config_runner=config_runner)
+
+    assert result == result_payload
+    config_runner.assert_called_once_with(
+        request_context.config,
+        run_id="runtime-run-123",
+        fixtures_dir=None,
+        dataset_id=None,
+        neo4j_settings=request_context.settings.neo4j,
+        structured_graph_shape=None,
+        structured_schema=None,
+    )
+
+
 def test_write_structured_ingest_graph_accepts_custom_graph_shape_contract() -> None:
     from power_atlas.contracts import StructuredGraphShapeContract
     from power_atlas.structured_ingest_writes import write_structured_ingest_graph
@@ -1494,6 +1534,52 @@ def test_pdf_ingest_request_context_uses_package_default_config_runner() -> None
     default_config_runner.assert_called_once_with(
         request_context.config,
         "run-123",
+        fixtures_dir=None,
+        pdf_filename=None,
+        dataset_id=None,
+        index_name=request_context.pipeline_contract.chunk_embedding_index_name,
+        chunk_label=request_context.pipeline_contract.chunk_embedding_label,
+        embedding_property=request_context.pipeline_contract.chunk_embedding_property,
+        embedding_dimensions=request_context.pipeline_contract.chunk_embedding_dimensions,
+        embedder_model=request_context.pipeline_contract.embedder_model_name,
+        chunk_stride=request_context.pipeline_contract.chunk_fallback_stride,
+        pipeline_contract=request_context.pipeline_contract,
+        neo4j_settings=request_context.settings.neo4j,
+        openai_model=request_context.settings.openai_model,
+        dataset_name=request_context.settings.dataset_name,
+    )
+
+
+def test_pdf_ingest_runtime_uses_runtime_owned_config_runner() -> None:
+    from power_atlas.bootstrap import bootstrap_app, build_request_context
+    from power_atlas.pdf_ingest_entrypoint import run_pdf_ingest_runtime
+
+    app = bootstrap_app(
+        {
+            "NEO4J_URI": "bolt://example.test:7687",
+            "NEO4J_USERNAME": "atlas",
+            "NEO4J_PASSWORD": "secret",
+            "NEO4J_DATABASE": "analytics",
+            "OPENAI_MODEL": "gpt-5.4",
+            "POWER_ATLAS_DATASET": "demo_dataset_v1",
+        }
+    )
+    request_context = build_request_context(
+        app.app_context,
+        command="ingest-pdf",
+        dry_run=False,
+        run_id="runtime-run-123",
+    )
+    result_payload = {"status": "runtime-ok"}
+
+    config_runner = mock.Mock(return_value=result_payload)
+
+    result = run_pdf_ingest_runtime(request_context.runtime, config_runner=config_runner)
+
+    assert result == result_payload
+    config_runner.assert_called_once_with(
+        request_context.config,
+        "runtime-run-123",
         fixtures_dir=None,
         pdf_filename=None,
         dataset_id=None,

@@ -141,6 +141,14 @@ These are the important boundaries that still blend roles.
   - now has the same initial `RequestRuntime` bridge shape, but still remains
     app-owned because dataset/policy/runtime ownership still comes from
     `context.py`-owned carriers and `RequestContext` compatibility wrappers.
+- `src/power_atlas/pdf_ingest_entrypoint.py`
+  - now has the same initial `RequestRuntime` bridge shape, but still remains
+    app-owned because pipeline/runtime ownership still comes from
+    `context.py`-owned carriers and `RequestContext` compatibility wrappers.
+- `src/power_atlas/structured_ingest_entrypoint.py`
+  - now has the same initial `RequestRuntime` bridge shape, but still remains
+    app-owned because dataset/runtime ownership still comes from
+    `context.py`-owned carriers and `RequestContext` compatibility wrappers.
 - `src/power_atlas/adapters/neo4j/*.py`
   - some modules are clean mechanics, others remain stage-specific runtime
     surfaces.

@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Callable
 
-from power_atlas.context import RequestContext
+from power_atlas.context import RequestContext, RequestRuntime
 from power_atlas.contracts import (
     StructuredGraphShapeContract,
     StructuredSchemaContract,
@@ -85,13 +85,32 @@ def run_structured_ingest_request_context(
     structured_schema: StructuredSchemaContract | None = None,
     config_runner: Callable[..., dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    resolved_config_runner = config_runner or _default_config_runner
-    return resolved_config_runner(
-        request_context.config,
-        run_id=request_context.run_id,
+    return run_structured_ingest_runtime(
+        request_context.runtime,
         fixtures_dir=fixtures_dir,
         dataset_id=dataset_id,
-        neo4j_settings=request_context.settings.neo4j,
+        structured_graph_shape=structured_graph_shape,
+        structured_schema=structured_schema,
+        config_runner=config_runner,
+    )
+
+
+def run_structured_ingest_runtime(
+    request_runtime: RequestRuntime,
+    *,
+    fixtures_dir: Path | None = None,
+    dataset_id: str | None = None,
+    structured_graph_shape: StructuredGraphShapeContract | None = None,
+    structured_schema: StructuredSchemaContract | None = None,
+    config_runner: Callable[..., dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    resolved_config_runner = config_runner or _default_config_runner
+    return resolved_config_runner(
+        request_runtime.config,
+        run_id=request_runtime.run_id,
+        fixtures_dir=fixtures_dir,
+        dataset_id=dataset_id,
+        neo4j_settings=request_runtime.settings.neo4j,
         structured_graph_shape=structured_graph_shape,
         structured_schema=structured_schema,
     )
@@ -100,5 +119,6 @@ def run_structured_ingest_request_context(
 __all__ = [
     "neo4j_settings_from_config",
     "run_structured_ingest",
+    "run_structured_ingest_runtime",
     "run_structured_ingest_request_context",
 ]

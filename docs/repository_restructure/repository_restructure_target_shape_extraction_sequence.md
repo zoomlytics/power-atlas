@@ -97,6 +97,12 @@ naming, and similar defaults as if they are universal runtime behavior.
 - `entity_resolution_entrypoint.py` now also has a `RequestRuntime` binding
   surface while preserving its `RequestContext` wrapper as a shell-side
   compatibility bridge,
+- `pdf_ingest_entrypoint.py` now also has a `RequestRuntime` binding surface
+  while preserving its `RequestContext` wrapper as a shell-side compatibility
+  bridge,
+- `structured_ingest_entrypoint.py` now also has a `RequestRuntime` binding
+  surface while preserving its `RequestContext` wrapper as a shell-side
+  compatibility bridge,
 - the market-trade retrieval consumer proof now uses baseline-owned retrieval
   policy selection rather than mutating `app_context.policies` after the fact,
 - prompt/default authority and env-naming authority still remain active follow-

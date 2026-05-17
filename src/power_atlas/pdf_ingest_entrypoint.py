@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Callable
 
-from power_atlas.context import RequestContext
+from power_atlas.context import RequestContext, RequestRuntime
 from power_atlas.contracts.pipeline import (
     PipelineContractSnapshot,
     is_pipeline_contract_snapshot,
@@ -163,11 +163,40 @@ def run_pdf_ingest_request_context(
     chunk_stride: int | None = None,
     config_runner: Callable[..., dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    pipeline_contract = request_context.pipeline_contract
+    return run_pdf_ingest_runtime(
+        request_context.runtime,
+        fixtures_dir=fixtures_dir,
+        pdf_filename=pdf_filename,
+        dataset_id=dataset_id,
+        index_name=index_name,
+        chunk_label=chunk_label,
+        embedding_property=embedding_property,
+        embedding_dimensions=embedding_dimensions,
+        embedder_model=embedder_model,
+        chunk_stride=chunk_stride,
+        config_runner=config_runner,
+    )
+
+
+def run_pdf_ingest_runtime(
+    request_runtime: RequestRuntime,
+    *,
+    fixtures_dir: Path | None = None,
+    pdf_filename: str | None = None,
+    dataset_id: str | None = None,
+    index_name: str | None = None,
+    chunk_label: str | None = None,
+    embedding_property: str | None = None,
+    embedding_dimensions: int | None = None,
+    embedder_model: str | None = None,
+    chunk_stride: int | None = None,
+    config_runner: Callable[..., dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    pipeline_contract = request_runtime.pipeline_contract
     resolved_config_runner = config_runner or _default_config_runner
     return resolved_config_runner(
-        request_context.config,
-        request_context.run_id,
+        request_runtime.config,
+        request_runtime.run_id,
         fixtures_dir=fixtures_dir,
         pdf_filename=pdf_filename,
         dataset_id=dataset_id,
@@ -184,9 +213,9 @@ def run_pdf_ingest_request_context(
             chunk_stride if chunk_stride is not None else pipeline_contract.chunk_fallback_stride
         ),
         pipeline_contract=pipeline_contract,
-        neo4j_settings=request_context.settings.neo4j,
-        openai_model=request_context.settings.openai_model,
-        dataset_name=request_context.settings.dataset_name,
+        neo4j_settings=request_runtime.settings.neo4j,
+        openai_model=request_runtime.settings.openai_model,
+        dataset_name=request_runtime.settings.dataset_name,
     )
 
 
@@ -195,5 +224,6 @@ __all__ = [
     "openai_model_from_config",
     "resolve_pipeline_contract",
     "run_pdf_ingest",
+    "run_pdf_ingest_runtime",
     "run_pdf_ingest_request_context",
 ]
