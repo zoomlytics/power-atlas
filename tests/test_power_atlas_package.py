@@ -443,6 +443,7 @@ def test_package_modules_import() -> None:
     assert callable(claim_extraction_entrypoint_module.neo4j_settings_from_config)
     assert callable(claim_extraction_entrypoint_module.openai_model_from_config)
     assert callable(claim_extraction_entrypoint_module.run_claim_extraction)
+    assert callable(claim_extraction_entrypoint_module.run_claim_extraction_runtime)
     assert callable(claim_extraction_entrypoint_module.run_claim_extraction_request_context)
     assert callable(
         claim_extraction_query_specs_module.build_claim_extraction_diagnostic_query_specs
@@ -470,6 +471,7 @@ def test_package_modules_import() -> None:
     assert callable(entity_resolution_entrypoint_module.neo4j_settings_from_config)
     assert callable(entity_resolution_entrypoint_module.resolve_effective_dataset_id)
     assert callable(entity_resolution_entrypoint_module.run_entity_resolution)
+    assert callable(entity_resolution_entrypoint_module.run_entity_resolution_runtime)
     assert callable(entity_resolution_entrypoint_module.run_entity_resolution_request_context)
     assert (
         entity_resolution_entrypoint_module.RESOLUTION_MODE_STRUCTURED_ANCHOR
@@ -1106,6 +1108,48 @@ def test_claim_extraction_request_context_uses_package_default_config_runner() -
         request_context.config,
         run_id="run-123",
         source_uri="file:///example/doc.pdf",
+        pipeline_contract=request_context.pipeline_contract,
+        claim_extraction_policy=request_context.policies.claim_extraction,
+        neo4j_settings=request_context.settings.neo4j,
+        model_name=request_context.settings.openai_model,
+    )
+
+
+def test_claim_extraction_runtime_uses_runtime_owned_config_runner() -> None:
+    from power_atlas.bootstrap import bootstrap_app, build_request_context
+    from power_atlas.claim_extraction_entrypoint import run_claim_extraction_runtime
+
+    app = bootstrap_app(
+        {
+            "NEO4J_URI": "bolt://example.test:7687",
+            "NEO4J_USERNAME": "atlas",
+            "NEO4J_PASSWORD": "secret",
+            "NEO4J_DATABASE": "analytics",
+            "OPENAI_MODEL": "gpt-5.4",
+            "POWER_ATLAS_DATASET": "demo_dataset_v1",
+        }
+    )
+    request_context = build_request_context(
+        app.app_context,
+        command="extract-claims",
+        dry_run=False,
+        run_id="runtime-run-123",
+        source_uri="file:///runtime/doc.pdf",
+    )
+    result_payload = {"status": "runtime-ok"}
+
+    config_runner = mock.Mock(return_value=result_payload)
+
+    result = run_claim_extraction_runtime(
+        request_context.runtime,
+        config_runner=config_runner,
+    )
+
+    assert result == result_payload
+    config_runner.assert_called_once_with(
+        request_context.config,
+        run_id="runtime-run-123",
+        source_uri="file:///runtime/doc.pdf",
         pipeline_contract=request_context.pipeline_contract,
         claim_extraction_policy=request_context.policies.claim_extraction,
         neo4j_settings=request_context.settings.neo4j,
@@ -1958,6 +2002,56 @@ def test_entity_resolution_request_context_uses_package_default_config_runner() 
         request_context.config,
         run_id="run-123",
         source_uri="file:///example/doc.pdf",
+        resolution_mode="hybrid",
+        artifact_subdir="entity_resolution",
+        dataset_id=None,
+        neo4j_settings=request_context.settings.neo4j,
+        dataset_name="demo_dataset_v1",
+        entity_type_policy=request_context.policies.entity_type_normalization,
+        entity_resolution_dataset_selection=None,
+        entity_resolution_alignment=None,
+        entity_resolution_canonical_lookup=None,
+        entity_resolution_graph=None,
+    )
+
+
+def test_entity_resolution_runtime_uses_runtime_owned_config_runner() -> None:
+    from power_atlas import entity_resolution_entrypoint
+    from power_atlas.bootstrap import bootstrap_app, build_request_context
+
+    app = bootstrap_app(
+        {
+            "NEO4J_URI": "bolt://example.test:7687",
+            "NEO4J_USERNAME": "atlas",
+            "NEO4J_PASSWORD": "secret",
+            "NEO4J_DATABASE": "analytics",
+            "OPENAI_MODEL": "gpt-5.4",
+            "POWER_ATLAS_DATASET": "demo_dataset_v1",
+        }
+    )
+    request_context = build_request_context(
+        app.app_context,
+        command="resolve",
+        dry_run=False,
+        resolution_mode="hybrid",
+        run_id="runtime-run-123",
+        source_uri="file:///runtime/entity.pdf",
+    )
+    result_payload = {"status": "runtime-ok"}
+
+    config_runner = mock.Mock(return_value=result_payload)
+
+    result = entity_resolution_entrypoint.run_entity_resolution_runtime(
+        request_context.runtime,
+        resolution_mode="hybrid",
+        config_runner=config_runner,
+    )
+
+    assert result == result_payload
+    config_runner.assert_called_once_with(
+        request_context.config,
+        run_id="runtime-run-123",
+        source_uri="file:///runtime/entity.pdf",
         resolution_mode="hybrid",
         artifact_subdir="entity_resolution",
         dataset_id=None,

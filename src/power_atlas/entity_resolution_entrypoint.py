@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
-from power_atlas.context import RequestContext
+from power_atlas.context import RequestContext, RequestRuntime
 from power_atlas.contracts import (
     EntityResolutionAlignmentContract,
     EntityResolutionCanonicalLookupContract,
@@ -172,21 +172,46 @@ def run_entity_resolution_request_context(
     entity_resolution_graph: EntityResolutionGraphContract | None = None,
     config_runner: Callable[..., dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    run_id = request_context.run_id
-    if not isinstance(run_id, str) or not run_id:
-        raise ValueError("Entity resolution requires request_context.run_id")
-
-    resolved_config_runner = config_runner or _default_config_runner
-    return resolved_config_runner(
-        request_context.config,
-        run_id=run_id,
-        source_uri=request_context.source_uri,
+    return run_entity_resolution_runtime(
+        request_context.runtime,
         resolution_mode=resolution_mode,
         artifact_subdir=artifact_subdir,
         dataset_id=dataset_id,
-        neo4j_settings=request_context.settings.neo4j,
-        dataset_name=request_context.settings.dataset_name,
-        entity_type_policy=request_context.policies.entity_type_normalization,
+        entity_resolution_dataset_selection=entity_resolution_dataset_selection,
+        entity_resolution_alignment=entity_resolution_alignment,
+        entity_resolution_canonical_lookup=entity_resolution_canonical_lookup,
+        entity_resolution_graph=entity_resolution_graph,
+        config_runner=config_runner,
+    )
+
+
+def run_entity_resolution_runtime(
+    request_runtime: RequestRuntime,
+    *,
+    resolution_mode: str | None = None,
+    artifact_subdir: str = "entity_resolution",
+    dataset_id: str | None = None,
+    entity_resolution_dataset_selection: EntityResolutionDatasetSelectionContract | None = None,
+    entity_resolution_alignment: EntityResolutionAlignmentContract | None = None,
+    entity_resolution_canonical_lookup: EntityResolutionCanonicalLookupContract | None = None,
+    entity_resolution_graph: EntityResolutionGraphContract | None = None,
+    config_runner: Callable[..., dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    run_id = request_runtime.run_id
+    if not isinstance(run_id, str) or not run_id:
+        raise ValueError("Entity resolution requires request_runtime.run_id")
+
+    resolved_config_runner = config_runner or _default_config_runner
+    return resolved_config_runner(
+        request_runtime.config,
+        run_id=run_id,
+        source_uri=request_runtime.source_uri,
+        resolution_mode=resolution_mode,
+        artifact_subdir=artifact_subdir,
+        dataset_id=dataset_id,
+        neo4j_settings=request_runtime.settings.neo4j,
+        dataset_name=request_runtime.settings.dataset_name,
+        entity_type_policy=request_runtime.policies.entity_type_normalization,
         entity_resolution_dataset_selection=entity_resolution_dataset_selection,
         entity_resolution_alignment=entity_resolution_alignment,
         entity_resolution_canonical_lookup=entity_resolution_canonical_lookup,
@@ -202,5 +227,6 @@ __all__ = [
     "neo4j_settings_from_config",
     "resolve_effective_dataset_id",
     "run_entity_resolution",
+    "run_entity_resolution_runtime",
     "run_entity_resolution_request_context",
 ]

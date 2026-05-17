@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
-from power_atlas.context import RequestContext
+from power_atlas.context import RequestContext, RequestRuntime
 from power_atlas.contracts import ClaimExtractionPolicy, get_default_claim_extraction_policy
 from power_atlas.contracts.pipeline import (
     PipelineContractSnapshot,
@@ -125,15 +125,26 @@ def run_claim_extraction_request_context(
     *,
     config_runner: Callable[..., dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
+    return run_claim_extraction_runtime(
+        request_context.runtime,
+        config_runner=config_runner,
+    )
+
+
+def run_claim_extraction_runtime(
+    request_runtime: RequestRuntime,
+    *,
+    config_runner: Callable[..., dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     resolved_config_runner = config_runner or _default_config_runner
     return resolved_config_runner(
-        request_context.config,
-        run_id=request_context.run_id,
-        source_uri=request_context.source_uri,
-        pipeline_contract=request_context.pipeline_contract,
-        claim_extraction_policy=request_context.policies.claim_extraction,
-        neo4j_settings=request_context.settings.neo4j,
-        model_name=request_context.settings.openai_model,
+        request_runtime.config,
+        run_id=request_runtime.run_id,
+        source_uri=request_runtime.source_uri,
+        pipeline_contract=request_runtime.pipeline_contract,
+        claim_extraction_policy=request_runtime.policies.claim_extraction,
+        neo4j_settings=request_runtime.settings.neo4j,
+        model_name=request_runtime.settings.openai_model,
     )
 
 
@@ -143,5 +154,6 @@ __all__ = [
     "resolve_claim_extraction_policy",
     "resolve_pipeline_contract",
     "run_claim_extraction",
+    "run_claim_extraction_runtime",
     "run_claim_extraction_request_context",
 ]

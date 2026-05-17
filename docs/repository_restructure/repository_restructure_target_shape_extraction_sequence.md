@@ -91,6 +91,12 @@ naming, and similar defaults as if they are universal runtime behavior.
 - `context.py` now exposes thin `AppRuntime` / `RequestRuntime` carriers, and
   `retrieval_request_context_adapters.py` can bind through `RequestRuntime`
   while keeping `RequestContext` as a shell-side compatibility wrapper,
+- `claim_extraction_entrypoint.py` now also has a `RequestRuntime` binding
+  surface while preserving its `RequestContext` wrapper as a shell-side
+  compatibility bridge,
+- `entity_resolution_entrypoint.py` now also has a `RequestRuntime` binding
+  surface while preserving its `RequestContext` wrapper as a shell-side
+  compatibility bridge,
 - the market-trade retrieval consumer proof now uses baseline-owned retrieval
   policy selection rather than mutating `app_context.policies` after the fact,
 - prompt/default authority and env-naming authority still remain active follow-
