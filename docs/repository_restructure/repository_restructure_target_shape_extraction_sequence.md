@@ -63,6 +63,9 @@ naming, and similar defaults as if they are universal runtime behavior.
 - `AppBaseline` now owns explicit retrieval, claim-extraction, and
   entity-type-normalization policy selection for package-owned app-context
   composition,
+- `resolve_app_baseline(...)` can now also shape the default retrieval QA
+  prompt id, retrieval RAG template, and claim-extraction prompt id before
+  those defaults are baked into baseline-owned policies,
 - the market-trade retrieval consumer proof now uses baseline-owned retrieval
   policy selection rather than mutating `app_context.policies` after the fact,
 - prompt/default authority and env-naming authority still remain active follow-

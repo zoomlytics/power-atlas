@@ -29,8 +29,17 @@ POWER_ATLAS_CLAIM_EXTRACTION_POLICY = ClaimExtractionPolicy(
 )
 
 
-def get_default_claim_extraction_policy() -> ClaimExtractionPolicy:
-    return POWER_ATLAS_CLAIM_EXTRACTION_POLICY
+def get_default_claim_extraction_policy(
+    *,
+    prompt_id: str | None = None,
+) -> ClaimExtractionPolicy:
+    if prompt_id is None:
+        return POWER_ATLAS_CLAIM_EXTRACTION_POLICY
+
+    return ClaimExtractionPolicy(
+        ontology=POWER_ATLAS_CLAIM_EXTRACTION_POLICY.ontology,
+        prompt_id=prompt_id,
+    )
 
 
 __all__ = [

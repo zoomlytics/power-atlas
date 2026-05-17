@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Iterator, Mapping, MutableMapping
 import os
 
+from power_atlas.adapters.graphrag_types import RagTemplate
 from power_atlas.context import AppContext, AppPolicies, RequestContext, build_default_app_policies
 from power_atlas.contracts.claim_extraction_policy import (
     ClaimExtractionPolicy,
@@ -63,6 +64,9 @@ def resolve_app_baseline(
     retrieval_policy: RetrievalPolicy | None = None,
     claim_extraction_policy: ClaimExtractionPolicy | None = None,
     entity_type_normalization_policy: EntityTypeNormalizationPolicy | None = None,
+    retrieval_qa_prompt_id: str | None = None,
+    retrieval_rag_template: RagTemplate | None = None,
+    claim_extraction_prompt_id: str | None = None,
 ) -> AppBaseline:
     resolved_repo_paths = resolve_repo_paths() if repo_paths is None else repo_paths
     return AppBaseline(
@@ -74,10 +78,15 @@ def resolve_app_baseline(
             else pipeline_contract_source
         ),
         retrieval_policy=(
-            get_default_retrieval_policy() if retrieval_policy is None else retrieval_policy
+            get_default_retrieval_policy(
+                qa_prompt_id=retrieval_qa_prompt_id,
+                rag_template=retrieval_rag_template,
+            )
+            if retrieval_policy is None
+            else retrieval_policy
         ),
         claim_extraction_policy=(
-            get_default_claim_extraction_policy()
+            get_default_claim_extraction_policy(prompt_id=claim_extraction_prompt_id)
             if claim_extraction_policy is None
             else claim_extraction_policy
         ),

@@ -796,6 +796,62 @@ text_splitter:
     assert app_context.policies.entity_type_normalization is entity_type_normalization_policy
 
 
+def test_build_app_context_supports_baseline_prompt_default_overrides(tmp_path: Path) -> None:
+    from neo4j_graphrag.generation import RagTemplate
+
+    from power_atlas.bootstrap import build_app_context, resolve_app_baseline
+    from power_atlas.contracts import RepoPaths
+
+    pipeline_config_path = tmp_path / "host_app" / "config" / "pipeline.yaml"
+    pipeline_config_path.parent.mkdir(parents=True)
+    pipeline_config_path.write_text(
+        """
+contract:
+  chunk_embedding:
+    index_name: research_chunk_index
+    label: ResearchChunk
+    embedding_property: research_embedding
+    dimensions: 3072
+embedder_config:
+  params_:
+    model: text-embedding-3-large
+text_splitter:
+  params_:
+    chunk_size: 1200
+    chunk_overlap: 200
+""".strip(),
+        encoding="utf-8",
+    )
+    repo_paths = RepoPaths(
+        base_dir=tmp_path / "host_app",
+        fixtures_dir=tmp_path / "host_app" / "fixtures",
+        artifacts_dir=tmp_path / "host_app" / "artifacts",
+        config_dir=tmp_path / "host_app" / "config",
+        pdf_pipeline_config_path=pipeline_config_path,
+        datasets_container_dir=tmp_path / "host_app" / "fixtures" / "datasets",
+    )
+    custom_rag_template = RagTemplate(
+        template=(
+            "Host app context:\n{context}\n"
+            "Examples:\n{examples}\n"
+            "Question:\n{query_text}"
+        ),
+        system_instructions="Use host-app evidence posture only.",
+    )
+    baseline = resolve_app_baseline(
+        repo_paths=repo_paths,
+        retrieval_qa_prompt_id="host_app_qa_v1",
+        retrieval_rag_template=custom_rag_template,
+        claim_extraction_prompt_id="host_app_claim_extraction_v1",
+    )
+
+    app_context = build_app_context(environ={}, app_baseline=baseline)
+
+    assert app_context.policies.retrieval.qa_prompt_id == "host_app_qa_v1"
+    assert app_context.policies.retrieval.rag_template is custom_rag_template
+    assert app_context.policies.claim_extraction.prompt_id == "host_app_claim_extraction_v1"
+
+
 def test_build_settings_from_overrides_ignores_ambient_dataset_defaults() -> None:
     from power_atlas.orchestration.context_builder import build_settings_from_overrides
 
@@ -2397,6 +2453,30 @@ def test_default_retrieval_policy_matches_existing_power_atlas_defaults() -> Non
     assert retrieval_policy.default_cluster_aware is False
 
 
+def test_default_retrieval_policy_supports_prompt_overrides() -> None:
+    from neo4j_graphrag.generation import RagTemplate
+
+    from power_atlas.contracts import get_default_retrieval_policy
+
+    custom_rag_template = RagTemplate(
+        template=(
+            "Host app context:\n{context}\n"
+            "Examples:\n{examples}\n"
+            "Question:\n{query_text}"
+        ),
+        system_instructions="Use host-app evidence posture only.",
+    )
+
+    retrieval_policy = get_default_retrieval_policy(
+        qa_prompt_id="host_app_qa_v1",
+        rag_template=custom_rag_template,
+    )
+
+    assert retrieval_policy.qa_prompt_id == "host_app_qa_v1"
+    assert retrieval_policy.rag_template is custom_rag_template
+    assert retrieval_policy.ontology.claim_label == "ExtractedClaim"
+
+
 def test_default_claim_extraction_policy_matches_existing_power_atlas_defaults() -> None:
     from power_atlas.contracts import (
         POWER_ATLAS_CLAIM_EXTRACTION_POLICY,
@@ -2410,6 +2490,17 @@ def test_default_claim_extraction_policy_matches_existing_power_atlas_defaults()
     assert claim_extraction_policy.prompt_id == PROMPT_IDS["claim_extraction"]
     assert claim_extraction_policy.ontology.claim_label == "ExtractedClaim"
     assert claim_extraction_policy.ontology.mentioned_in_relationship == "MENTIONED_IN"
+
+
+def test_default_claim_extraction_policy_supports_prompt_override() -> None:
+    from power_atlas.contracts import get_default_claim_extraction_policy
+
+    claim_extraction_policy = get_default_claim_extraction_policy(
+        prompt_id="host_app_claim_extraction_v1"
+    )
+
+    assert claim_extraction_policy.prompt_id == "host_app_claim_extraction_v1"
+    assert claim_extraction_policy.ontology.claim_label == "ExtractedClaim"
 
 
 def test_claim_extraction_schema_accepts_policy_ontology_override() -> None:

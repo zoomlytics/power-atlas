@@ -37,8 +37,29 @@ POWER_ATLAS_RETRIEVAL_POLICY = RetrievalPolicy(
 )
 
 
-def get_default_retrieval_policy() -> RetrievalPolicy:
-    return POWER_ATLAS_RETRIEVAL_POLICY
+def get_default_retrieval_policy(
+    *,
+    qa_prompt_id: str | None = None,
+    rag_template: RagTemplate | None = None,
+) -> RetrievalPolicy:
+    if qa_prompt_id is None and rag_template is None:
+        return POWER_ATLAS_RETRIEVAL_POLICY
+
+    return RetrievalPolicy(
+        ontology=POWER_ATLAS_RETRIEVAL_POLICY.ontology,
+        qa_prompt_id=(
+            POWER_ATLAS_RETRIEVAL_POLICY.qa_prompt_id
+            if qa_prompt_id is None
+            else qa_prompt_id
+        ),
+        rag_template=(
+            POWER_ATLAS_RETRIEVAL_POLICY.rag_template
+            if rag_template is None
+            else rag_template
+        ),
+        default_expand_graph=POWER_ATLAS_RETRIEVAL_POLICY.default_expand_graph,
+        default_cluster_aware=POWER_ATLAS_RETRIEVAL_POLICY.default_cluster_aware,
+    )
 
 
 __all__ = [
