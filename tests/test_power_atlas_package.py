@@ -655,8 +655,22 @@ def test_build_settings_supports_explicit_env_names() -> None:
 
 def test_resolve_app_baseline_composes_repo_paths_and_env_names(tmp_path: Path) -> None:
     from power_atlas.bootstrap import AppSettingsEnvNames, resolve_app_baseline
-    from power_atlas.contracts import RepoPaths
+    from power_atlas.contracts import (
+        ClaimExtractionOntology,
+        ClaimExtractionPolicy,
+        EntityTypeNormalizationPolicy,
+        RepoPaths,
+    )
     from power_atlas.policy_packs import MARKET_TRADE_RETRIEVAL_POLICY
+
+    claim_extraction_policy = ClaimExtractionPolicy(
+        ontology=ClaimExtractionOntology(claim_label="HostAppClaim"),
+        prompt_id="host_app_claim_extraction_v1",
+    )
+    entity_type_normalization_policy = EntityTypeNormalizationPolicy(
+        synonyms={"Issuer": "Organization"},
+        null_sentinel="__host_app_null__",
+    )
 
     repo_paths = RepoPaths(
         base_dir=tmp_path / "host_app",
@@ -674,6 +688,8 @@ def test_resolve_app_baseline_composes_repo_paths_and_env_names(tmp_path: Path) 
         ),
         repo_paths=repo_paths,
         retrieval_policy=MARKET_TRADE_RETRIEVAL_POLICY,
+        claim_extraction_policy=claim_extraction_policy,
+        entity_type_normalization_policy=entity_type_normalization_policy,
     )
 
     assert baseline.env_names.dataset_name_primary == "APP_DATASET"
@@ -681,12 +697,31 @@ def test_resolve_app_baseline_composes_repo_paths_and_env_names(tmp_path: Path) 
     assert baseline.repo_paths == repo_paths
     assert baseline.pipeline_contract_source.config_path == repo_paths.pdf_pipeline_config_path
     assert baseline.retrieval_policy is MARKET_TRADE_RETRIEVAL_POLICY
+    assert baseline.claim_extraction_policy is claim_extraction_policy
+    assert baseline.entity_type_normalization_policy is entity_type_normalization_policy
 
 
 def test_build_app_context_supports_explicit_app_baseline(tmp_path: Path) -> None:
     from power_atlas.bootstrap import AppSettingsEnvNames, build_app_context, resolve_app_baseline
-    from power_atlas.contracts import RepoPaths
+    from power_atlas.contracts import (
+        ClaimExtractionOntology,
+        ClaimExtractionPolicy,
+        EntityTypeNormalizationPolicy,
+        RepoPaths,
+    )
     from power_atlas.policy_packs import MARKET_TRADE_RETRIEVAL_POLICY
+
+    claim_extraction_policy = ClaimExtractionPolicy(
+        ontology=ClaimExtractionOntology(
+            claim_label="HostAppClaim",
+            mentioned_in_relationship="HOST_APP_MENTIONED_IN",
+        ),
+        prompt_id="host_app_claim_extraction_v1",
+    )
+    entity_type_normalization_policy = EntityTypeNormalizationPolicy(
+        synonyms={"Issuer": "Organization"},
+        null_sentinel="__host_app_null__",
+    )
 
     pipeline_config_path = tmp_path / "host_app" / "config" / "pipeline.yaml"
     pipeline_config_path.parent.mkdir(parents=True)
@@ -730,6 +765,8 @@ text_splitter:
         ),
         repo_paths=repo_paths,
         retrieval_policy=MARKET_TRADE_RETRIEVAL_POLICY,
+        claim_extraction_policy=claim_extraction_policy,
+        entity_type_normalization_policy=entity_type_normalization_policy,
     )
 
     app_context = build_app_context(
@@ -755,6 +792,8 @@ text_splitter:
     assert app_context.pipeline_contract.chunk_fallback_stride == 1000
     assert app_context.pipeline_contract_config_data["contract"]["chunk_embedding"]["index_name"] == "research_chunk_index"
     assert app_context.policies.retrieval is MARKET_TRADE_RETRIEVAL_POLICY
+    assert app_context.policies.claim_extraction is claim_extraction_policy
+    assert app_context.policies.entity_type_normalization is entity_type_normalization_policy
 
 
 def test_build_settings_from_overrides_ignores_ambient_dataset_defaults() -> None:
@@ -2495,6 +2534,32 @@ def test_default_app_policies_support_explicit_retrieval_policy() -> None:
     policies = build_default_app_policies(retrieval=MARKET_TRADE_RETRIEVAL_POLICY)
 
     assert policies.retrieval is MARKET_TRADE_RETRIEVAL_POLICY
+
+
+def test_default_app_policies_support_explicit_claim_and_entity_type_policies() -> None:
+    from power_atlas.context import build_default_app_policies
+    from power_atlas.contracts import ClaimExtractionOntology, ClaimExtractionPolicy
+    from power_atlas.contracts.entity_type_normalization_policy import EntityTypeNormalizationPolicy
+
+    claim_extraction_policy = ClaimExtractionPolicy(
+        ontology=ClaimExtractionOntology(
+            claim_label="HostAppClaim",
+            supported_by_relationship="HOST_APP_SUPPORTED_BY",
+        ),
+        prompt_id="host_app_claim_extraction_v1",
+    )
+    entity_type_normalization_policy = EntityTypeNormalizationPolicy(
+        synonyms={"Desk": "Organization"},
+        null_sentinel="__desk_null__",
+    )
+
+    policies = build_default_app_policies(
+        claim_extraction=claim_extraction_policy,
+        entity_type_normalization=entity_type_normalization_policy,
+    )
+
+    assert policies.claim_extraction is claim_extraction_policy
+    assert policies.entity_type_normalization is entity_type_normalization_policy
 
 
 def test_run_retrieval_request_context_forwards_request_owned_retrieval_policy() -> None:

@@ -7,6 +7,14 @@ from typing import Iterator, Mapping, MutableMapping
 import os
 
 from power_atlas.context import AppContext, AppPolicies, RequestContext, build_default_app_policies
+from power_atlas.contracts.claim_extraction_policy import (
+    ClaimExtractionPolicy,
+    get_default_claim_extraction_policy,
+)
+from power_atlas.contracts.entity_type_normalization_policy import (
+    EntityTypeNormalizationPolicy,
+    get_default_entity_type_normalization_policy,
+)
 from power_atlas.contracts.paths import RepoPaths, resolve_repo_paths
 from power_atlas.contracts.pipeline import (
     PipelineContractLoadResult,
@@ -39,6 +47,12 @@ class AppBaseline:
         default_factory=resolve_pipeline_contract_source
     )
     retrieval_policy: RetrievalPolicy = field(default_factory=get_default_retrieval_policy)
+    claim_extraction_policy: ClaimExtractionPolicy = field(
+        default_factory=get_default_claim_extraction_policy
+    )
+    entity_type_normalization_policy: EntityTypeNormalizationPolicy = field(
+        default_factory=get_default_entity_type_normalization_policy
+    )
 
 
 def resolve_app_baseline(
@@ -47,6 +61,8 @@ def resolve_app_baseline(
     repo_paths: RepoPaths | None = None,
     pipeline_contract_source: PipelineContractSource | None = None,
     retrieval_policy: RetrievalPolicy | None = None,
+    claim_extraction_policy: ClaimExtractionPolicy | None = None,
+    entity_type_normalization_policy: EntityTypeNormalizationPolicy | None = None,
 ) -> AppBaseline:
     resolved_repo_paths = resolve_repo_paths() if repo_paths is None else repo_paths
     return AppBaseline(
@@ -59,6 +75,16 @@ def resolve_app_baseline(
         ),
         retrieval_policy=(
             get_default_retrieval_policy() if retrieval_policy is None else retrieval_policy
+        ),
+        claim_extraction_policy=(
+            get_default_claim_extraction_policy()
+            if claim_extraction_policy is None
+            else claim_extraction_policy
+        ),
+        entity_type_normalization_policy=(
+            get_default_entity_type_normalization_policy()
+            if entity_type_normalization_policy is None
+            else entity_type_normalization_policy
         ),
     )
 
@@ -73,6 +99,8 @@ def _effective_app_baseline(
     repo_paths: RepoPaths | None = None,
     pipeline_contract_source: PipelineContractSource | None = None,
     retrieval_policy: RetrievalPolicy | None = None,
+    claim_extraction_policy: ClaimExtractionPolicy | None = None,
+    entity_type_normalization_policy: EntityTypeNormalizationPolicy | None = None,
 ) -> AppBaseline:
     if app_baseline is None:
         return resolve_app_baseline(
@@ -80,6 +108,8 @@ def _effective_app_baseline(
             repo_paths=repo_paths,
             pipeline_contract_source=pipeline_contract_source,
             retrieval_policy=retrieval_policy,
+            claim_extraction_policy=claim_extraction_policy,
+            entity_type_normalization_policy=entity_type_normalization_policy,
         )
 
     resolved_repo_paths = app_baseline.repo_paths if repo_paths is None else repo_paths
@@ -96,6 +126,16 @@ def _effective_app_baseline(
         repo_paths=resolved_repo_paths,
         pipeline_contract_source=resolved_pipeline_contract_source,
         retrieval_policy=(app_baseline.retrieval_policy if retrieval_policy is None else retrieval_policy),
+        claim_extraction_policy=(
+            app_baseline.claim_extraction_policy
+            if claim_extraction_policy is None
+            else claim_extraction_policy
+        ),
+        entity_type_normalization_policy=(
+            app_baseline.entity_type_normalization_policy
+            if entity_type_normalization_policy is None
+            else entity_type_normalization_policy
+        ),
     )
 
 
@@ -145,7 +185,11 @@ def build_app_context(
             else dict(pipeline_contract_result.config_data)
         ),
         policies=(
-            build_default_app_policies(retrieval=resolved_baseline.retrieval_policy)
+            build_default_app_policies(
+                retrieval=resolved_baseline.retrieval_policy,
+                claim_extraction=resolved_baseline.claim_extraction_policy,
+                entity_type_normalization=resolved_baseline.entity_type_normalization_policy,
+            )
             if policies is None
             else policies
         ),

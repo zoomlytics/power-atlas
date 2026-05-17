@@ -58,6 +58,16 @@ naming, and similar defaults as if they are universal runtime behavior.
   without compatibility theater,
 - no backend or CLI shell contract has to move yet.
 
+**Current checkpoint:**
+
+- `AppBaseline` now owns explicit retrieval, claim-extraction, and
+  entity-type-normalization policy selection for package-owned app-context
+  composition,
+- the market-trade retrieval consumer proof now uses baseline-owned retrieval
+  policy selection rather than mutating `app_context.policies` after the fact,
+- prompt/default authority and env-naming authority still remain active follow-
+  up work inside Priority 1.
+
 ## Priority 2: split kernel runtime carriers from app-owned context
 
 **Why second:** `RequestContext` and `AppContext` still bundle together too many

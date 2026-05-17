@@ -27,11 +27,21 @@ class AppPolicies:
 def build_default_app_policies(
     *,
     retrieval: RetrievalPolicy | None = None,
+    claim_extraction: ClaimExtractionPolicy | None = None,
+    entity_type_normalization: EntityTypeNormalizationPolicy | None = None,
 ) -> AppPolicies:
     return AppPolicies(
         retrieval=get_default_retrieval_policy() if retrieval is None else retrieval,
-        claim_extraction=get_default_claim_extraction_policy(),
-        entity_type_normalization=get_default_entity_type_normalization_policy(),
+        claim_extraction=(
+            get_default_claim_extraction_policy()
+            if claim_extraction is None
+            else claim_extraction
+        ),
+        entity_type_normalization=(
+            get_default_entity_type_normalization_policy()
+            if entity_type_normalization is None
+            else entity_type_normalization
+        ),
     )
 
 
