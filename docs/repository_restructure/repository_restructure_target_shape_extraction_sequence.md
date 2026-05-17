@@ -66,6 +66,9 @@ naming, and similar defaults as if they are universal runtime behavior.
 - `resolve_app_baseline(...)` can now also shape the default retrieval QA
   prompt id, retrieval RAG template, and claim-extraction prompt id before
   those defaults are baked into baseline-owned policies,
+- `contracts/prompts.py` now exposes a prompt-default carrier that preserves
+  the Power Atlas constants as compatibility surfaces while giving baseline-
+  owned composition a single prompt-default object to override,
 - the market-trade retrieval consumer proof now uses baseline-owned retrieval
   policy selection rather than mutating `app_context.policies` after the fact,
 - prompt/default authority and env-naming authority still remain active follow-

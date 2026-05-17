@@ -17,6 +17,7 @@ from power_atlas.contracts.entity_type_normalization_policy import (
     get_default_entity_type_normalization_policy,
 )
 from power_atlas.contracts.paths import RepoPaths, resolve_repo_paths
+from power_atlas.contracts.prompts import PromptDefaults, get_default_prompt_defaults
 from power_atlas.contracts.pipeline import (
     PipelineContractLoadResult,
     PipelineContractSource,
@@ -47,6 +48,7 @@ class AppBaseline:
     pipeline_contract_source: PipelineContractSource = field(
         default_factory=resolve_pipeline_contract_source
     )
+    prompt_defaults: PromptDefaults = field(default_factory=get_default_prompt_defaults)
     retrieval_policy: RetrievalPolicy = field(default_factory=get_default_retrieval_policy)
     claim_extraction_policy: ClaimExtractionPolicy = field(
         default_factory=get_default_claim_extraction_policy
@@ -61,6 +63,8 @@ def resolve_app_baseline(
     env_names: AppSettingsEnvNames | None = None,
     repo_paths: RepoPaths | None = None,
     pipeline_contract_source: PipelineContractSource | None = None,
+    prompt_defaults: PromptDefaults | None = None,
+    prompt_ids: Mapping[str, str] | None = None,
     retrieval_policy: RetrievalPolicy | None = None,
     claim_extraction_policy: ClaimExtractionPolicy | None = None,
     entity_type_normalization_policy: EntityTypeNormalizationPolicy | None = None,
@@ -69,6 +73,19 @@ def resolve_app_baseline(
     claim_extraction_prompt_id: str | None = None,
 ) -> AppBaseline:
     resolved_repo_paths = resolve_repo_paths() if repo_paths is None else repo_paths
+    resolved_prompt_id_overrides = {} if prompt_ids is None else dict(prompt_ids)
+    if retrieval_qa_prompt_id is not None:
+        resolved_prompt_id_overrides["qa"] = retrieval_qa_prompt_id
+    if claim_extraction_prompt_id is not None:
+        resolved_prompt_id_overrides["claim_extraction"] = claim_extraction_prompt_id
+    resolved_prompt_defaults = (
+        get_default_prompt_defaults(
+            prompt_ids=None if not resolved_prompt_id_overrides else resolved_prompt_id_overrides,
+            retrieval_rag_template=retrieval_rag_template,
+        )
+        if prompt_defaults is None
+        else prompt_defaults
+    )
     return AppBaseline(
         env_names=DEFAULT_APP_SETTINGS_ENV_NAMES if env_names is None else env_names,
         repo_paths=resolved_repo_paths,
@@ -77,16 +94,19 @@ def resolve_app_baseline(
             if pipeline_contract_source is None
             else pipeline_contract_source
         ),
+        prompt_defaults=resolved_prompt_defaults,
         retrieval_policy=(
             get_default_retrieval_policy(
-                qa_prompt_id=retrieval_qa_prompt_id,
-                rag_template=retrieval_rag_template,
+                qa_prompt_id=resolved_prompt_defaults.prompt_ids["qa"],
+                rag_template=resolved_prompt_defaults.retrieval_rag_template,
             )
             if retrieval_policy is None
             else retrieval_policy
         ),
         claim_extraction_policy=(
-            get_default_claim_extraction_policy(prompt_id=claim_extraction_prompt_id)
+            get_default_claim_extraction_policy(
+                prompt_id=resolved_prompt_defaults.prompt_ids["claim_extraction"]
+            )
             if claim_extraction_policy is None
             else claim_extraction_policy
         ),
@@ -107,6 +127,7 @@ def _effective_app_baseline(
     env_names: AppSettingsEnvNames | None = None,
     repo_paths: RepoPaths | None = None,
     pipeline_contract_source: PipelineContractSource | None = None,
+    prompt_defaults: PromptDefaults | None = None,
     retrieval_policy: RetrievalPolicy | None = None,
     claim_extraction_policy: ClaimExtractionPolicy | None = None,
     entity_type_normalization_policy: EntityTypeNormalizationPolicy | None = None,
@@ -116,6 +137,7 @@ def _effective_app_baseline(
             env_names=env_names,
             repo_paths=repo_paths,
             pipeline_contract_source=pipeline_contract_source,
+            prompt_defaults=prompt_defaults,
             retrieval_policy=retrieval_policy,
             claim_extraction_policy=claim_extraction_policy,
             entity_type_normalization_policy=entity_type_normalization_policy,
@@ -134,6 +156,7 @@ def _effective_app_baseline(
         env_names=app_baseline.env_names if env_names is None else env_names,
         repo_paths=resolved_repo_paths,
         pipeline_contract_source=resolved_pipeline_contract_source,
+        prompt_defaults=(app_baseline.prompt_defaults if prompt_defaults is None else prompt_defaults),
         retrieval_policy=(app_baseline.retrieval_policy if retrieval_policy is None else retrieval_policy),
         claim_extraction_policy=(
             app_baseline.claim_extraction_policy

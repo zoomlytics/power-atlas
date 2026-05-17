@@ -840,13 +840,20 @@ text_splitter:
     )
     baseline = resolve_app_baseline(
         repo_paths=repo_paths,
-        retrieval_qa_prompt_id="host_app_qa_v1",
+        prompt_ids={
+            "qa": "host_app_qa_v1",
+            "claim_extraction": "host_app_claim_extraction_v1",
+            "narrative_extraction": "host_app_narrative_v1",
+        },
         retrieval_rag_template=custom_rag_template,
-        claim_extraction_prompt_id="host_app_claim_extraction_v1",
     )
 
     app_context = build_app_context(environ={}, app_baseline=baseline)
 
+    assert baseline.prompt_defaults.prompt_ids["qa"] == "host_app_qa_v1"
+    assert baseline.prompt_defaults.prompt_ids["claim_extraction"] == "host_app_claim_extraction_v1"
+    assert baseline.prompt_defaults.prompt_ids["narrative_extraction"] == "host_app_narrative_v1"
+    assert baseline.prompt_defaults.retrieval_rag_template is custom_rag_template
     assert app_context.policies.retrieval.qa_prompt_id == "host_app_qa_v1"
     assert app_context.policies.retrieval.rag_template is custom_rag_template
     assert app_context.policies.claim_extraction.prompt_id == "host_app_claim_extraction_v1"
@@ -2451,6 +2458,24 @@ def test_default_retrieval_policy_matches_existing_power_atlas_defaults() -> Non
     assert retrieval_policy.ontology.aligned_with_relationship == "ALIGNED_WITH"
     assert retrieval_policy.default_expand_graph is False
     assert retrieval_policy.default_cluster_aware is False
+
+
+def test_default_prompt_defaults_support_partial_prompt_id_override() -> None:
+    from power_atlas.contracts.prompts import (
+        POWER_ATLAS_PROMPT_DEFAULTS,
+        get_default_prompt_defaults,
+    )
+
+    prompt_defaults = get_default_prompt_defaults(
+        prompt_ids={"qa": "host_app_qa_v1"}
+    )
+
+    assert prompt_defaults.prompt_ids["qa"] == "host_app_qa_v1"
+    assert (
+        prompt_defaults.prompt_ids["claim_extraction"]
+        == POWER_ATLAS_PROMPT_DEFAULTS.prompt_ids["claim_extraction"]
+    )
+    assert prompt_defaults.retrieval_rag_template is POWER_ATLAS_PROMPT_DEFAULTS.retrieval_rag_template
 
 
 def test_default_retrieval_policy_supports_prompt_overrides() -> None:

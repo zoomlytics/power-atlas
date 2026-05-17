@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 import textwrap
+from typing import Mapping
 
 from power_atlas.adapters.graphrag_types import RagTemplate
 
@@ -70,4 +72,45 @@ POWER_ATLAS_RAG_TEMPLATE = RagTemplate(
     ),
 )
 
-__all__ = ["PROMPT_IDS", "POWER_ATLAS_RAG_TEMPLATE"]
+
+@dataclass(frozen=True)
+class PromptDefaults:
+    prompt_ids: Mapping[str, str]
+    retrieval_rag_template: RagTemplate
+
+
+POWER_ATLAS_PROMPT_DEFAULTS = PromptDefaults(
+    prompt_ids=PROMPT_IDS,
+    retrieval_rag_template=POWER_ATLAS_RAG_TEMPLATE,
+)
+
+
+def get_default_prompt_defaults(
+    *,
+    prompt_ids: Mapping[str, str] | None = None,
+    retrieval_rag_template: RagTemplate | None = None,
+) -> PromptDefaults:
+    if prompt_ids is None and retrieval_rag_template is None:
+        return POWER_ATLAS_PROMPT_DEFAULTS
+
+    resolved_prompt_ids = dict(POWER_ATLAS_PROMPT_DEFAULTS.prompt_ids)
+    if prompt_ids is not None:
+        resolved_prompt_ids.update(prompt_ids)
+
+    return PromptDefaults(
+        prompt_ids=resolved_prompt_ids,
+        retrieval_rag_template=(
+            POWER_ATLAS_PROMPT_DEFAULTS.retrieval_rag_template
+            if retrieval_rag_template is None
+            else retrieval_rag_template
+        ),
+    )
+
+
+__all__ = [
+    "PROMPT_IDS",
+    "POWER_ATLAS_PROMPT_DEFAULTS",
+    "POWER_ATLAS_RAG_TEMPLATE",
+    "PromptDefaults",
+    "get_default_prompt_defaults",
+]
