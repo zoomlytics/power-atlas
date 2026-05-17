@@ -88,6 +88,9 @@ naming, and similar defaults as if they are universal runtime behavior.
 - `interfaces/cli/run_demo_support.py` now follows the same baseline-owned
   env-name and preserved-settings pattern for run-demo common parser defaults
   and request-context/config settings construction,
+- `context.py` now exposes thin `AppRuntime` / `RequestRuntime` carriers, and
+  `retrieval_request_context_adapters.py` can bind through `RequestRuntime`
+  while keeping `RequestContext` as a shell-side compatibility wrapper,
 - the market-trade retrieval consumer proof now uses baseline-owned retrieval
   policy selection rather than mutating `app_context.policies` after the fact,
 - prompt/default authority and env-naming authority still remain active follow-

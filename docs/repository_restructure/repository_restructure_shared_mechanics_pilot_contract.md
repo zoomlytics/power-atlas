@@ -186,8 +186,8 @@ pilot:
   `RequestContext` still bundle app settings, default policy ownership, and
   pipeline-contract runtime state,
 - `power_atlas.retrieval_request_context_adapters` remains deferred because it
-  still depends on the app-owned `RequestContext` surface even though the
-  request-free execution binding now lives in
+  still depends on runtime carriers from the app-owned `power_atlas.context`
+  surface even though the request-free execution binding now lives in
   `power_atlas.retrieval_runtime_bindings`,
 - the broader `power_atlas.adapters.neo4j.*` family remains deferred because it
   still mixes clean query mechanics with stage-specific runtime modules; the
@@ -200,8 +200,8 @@ longer depends directly on `RequestContext`.
 - `power_atlas.retrieval_runtime_bindings` now owns the request-free runtime
   binding helper layer,
 - `power_atlas.retrieval_request_context_adapters` is now a thinner wrapper
-  that only extracts app-owned `RequestContext` state and forwards it into that
-  lower-level helper,
+  that can bind through `RequestRuntime` and still offers app-owned
+  `RequestContext` compatibility shims above that lower-level helper,
 - the shared-mechanics consumer proof now exercises the lower-level helper
   directly instead of proving only the earlier grouping surface.
 

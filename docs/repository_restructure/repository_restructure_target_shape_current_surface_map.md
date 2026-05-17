@@ -130,8 +130,9 @@ These are the important boundaries that still blend roles.
   - composition is kernel-worthy, but the current baseline still carries repo
     paths, environment names, and host-app default authority.
 - `src/power_atlas/retrieval_request_context_adapters.py`
-  - now thinner, but still app-owned because the API requires
-    `RequestContext`.
+  - now thinner, and can bind through `RequestRuntime`, but still remains
+    app-owned because that runtime carrier still comes from `context.py` and
+    the `RequestContext` wrappers remain shell-side bridges.
 - `src/power_atlas/adapters/neo4j/*.py`
   - some modules are clean mechanics, others remain stage-specific runtime
     surfaces.

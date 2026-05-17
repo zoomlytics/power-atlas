@@ -236,6 +236,7 @@ def test_package_modules_import() -> None:
     assert package.ID_PATTERNS is contracts_module.ID_PATTERNS
     assert package.AppContext is context_module.AppContext
     assert package.AppPolicies is context_module.AppPolicies
+    assert package.AppRuntime is context_module.AppRuntime
     assert package.PDF_PIPELINE_CONFIG_PATH == contracts_module.PDF_PIPELINE_CONFIG_PATH
     assert package.PipelineContractLoadResult is contracts_module.PipelineContractLoadResult
     assert package.PipelineContractSnapshot is contracts_module.PipelineContractSnapshot
@@ -261,6 +262,7 @@ def test_package_modules_import() -> None:
     assert package.POWER_ATLAS_ENTITY_TYPE_NORMALIZATION_POLICY is contracts_module.POWER_ATLAS_ENTITY_TYPE_NORMALIZATION_POLICY
     assert package.RETRIEVAL_METADATA_SURFACE_POLICY is contracts_module.RETRIEVAL_METADATA_SURFACE_POLICY
     assert package.RequestContext is context_module.RequestContext
+    assert package.RequestRuntime is context_module.RequestRuntime
     assert package.RetrievalMetadataSurface is contracts_module.RetrievalMetadataSurface
     assert package.RetrievalOntology is contracts_module.RetrievalOntology
     assert package.RetrievalPolicy is contracts_module.RetrievalPolicy
@@ -2751,6 +2753,103 @@ def test_run_retrieval_request_context_forwards_request_owned_retrieval_policy()
     assert captured["interactive"] is True
 
 
+def test_request_context_runtime_exposes_request_scoped_runtime_state() -> None:
+    from power_atlas.bootstrap import build_app_context, build_request_context
+
+    request_context = build_request_context(
+        build_app_context(environ={}),
+        command="ask",
+        dry_run=True,
+        question="Which runtime carrier was exposed?",
+        run_id="runtime-carrier-run",
+        all_runs=True,
+        source_uri="file:///runtime-carrier.pdf",
+    )
+
+    runtime = request_context.runtime
+
+    assert runtime.config is request_context.config
+    assert runtime.settings is request_context.settings
+    assert runtime.pipeline_contract is request_context.pipeline_contract
+    assert runtime.pipeline_contract_config_data is request_context.app.pipeline_contract_config_data
+    assert runtime.policies is request_context.policies
+    assert runtime.run_id == "runtime-carrier-run"
+    assert runtime.all_runs is True
+    assert runtime.source_uri == "file:///runtime-carrier.pdf"
+
+
+def test_run_retrieval_runtime_forwards_request_runtime_state() -> None:
+    from dataclasses import replace
+
+    from neo4j_graphrag.generation import RagTemplate
+
+    from power_atlas.bootstrap import build_app_context, build_request_context
+    from power_atlas.contracts import RetrievalOntology, RetrievalPolicy
+    from power_atlas.retrieval_request_context_adapters import run_retrieval_runtime
+
+    alternate_policy = RetrievalPolicy(
+        ontology=RetrievalOntology(
+            claim_label="RuntimeClaim",
+            mention_label="RuntimeMention",
+            cluster_label="RuntimeCluster",
+            canonical_label="RuntimeCanonical",
+            supported_by_relationship="SUPPORTED_BY_RUNTIME",
+            mentioned_in_relationship="MENTIONED_IN_RUNTIME",
+            has_participant_relationship="HAS_RUNTIME_PARTICIPANT",
+            resolves_to_relationship="RUNTIME_RESOLVES_TO",
+            member_of_relationship="RUNTIME_MEMBER_OF",
+            aligned_with_relationship="RUNTIME_ALIGNED_WITH",
+        ),
+        qa_prompt_id="runtime_qa_v1",
+        rag_template=RagTemplate(
+            template="Context:\n{context}\nExamples:\n{examples}\nQuestion:\n{query_text}\nAnswer:",
+            system_instructions="Runtime retrieval policy prompt",
+        ),
+        default_expand_graph=False,
+        default_cluster_aware=True,
+    )
+    request_context = build_request_context(
+        replace(
+            build_app_context(environ={}),
+            policies=replace(build_app_context(environ={}).policies, retrieval=alternate_policy),
+        ),
+        command="ask",
+        dry_run=True,
+        question="Which runtime helper was forwarded?",
+        run_id="runtime-forwarded-run",
+        source_uri="file:///runtime-forwarded.pdf",
+    )
+    captured: dict[str, object] = {}
+
+    def _fake_run_impl(config: object, **kwargs: object) -> dict[str, object]:
+        captured["config"] = config
+        captured.update(kwargs)
+        return {"status": "runtime-ok"}
+
+    result = run_retrieval_runtime(
+        request_context.runtime,
+        top_k=11,
+        index_name=None,
+        question=None,
+        expand_graph=None,
+        cluster_aware=None,
+        message_history=None,
+        interactive=False,
+        run_impl=_fake_run_impl,
+    )
+
+    assert result == {"status": "runtime-ok"}
+    assert captured["config"] is request_context.config
+    assert captured["retrieval_policy"] is alternate_policy
+    assert captured["pipeline_contract"] is request_context.pipeline_contract
+    assert captured["neo4j_settings"] is request_context.settings.neo4j
+    assert captured["index_name"] == request_context.pipeline_contract.chunk_embedding_index_name
+    assert captured["question"] == "Which runtime helper was forwarded?"
+    assert captured["run_id"] == "runtime-forwarded-run"
+    assert captured["source_uri"] == "file:///runtime-forwarded.pdf"
+    assert captured["all_runs"] is False
+
+
 def test_run_retrieval_with_runtime_inputs_forwards_request_free_runtime_state() -> None:
     from power_atlas.retrieval_runtime_bindings import run_retrieval_with_runtime_inputs
 
@@ -2863,11 +2962,75 @@ def test_run_interactive_request_context_forwards_request_owned_retrieval_policy
     assert captured["retrieval_policy"] is alternate_policy
     assert captured["pipeline_contract"] is request_context.pipeline_contract
     assert captured["neo4j_settings"] is request_context.settings.neo4j
+
+
+def test_run_interactive_runtime_forwards_request_runtime_state() -> None:
+    from dataclasses import replace
+
+    from neo4j_graphrag.generation import RagTemplate
+
+    from power_atlas.bootstrap import build_app_context, build_request_context
+    from power_atlas.contracts import RetrievalOntology, RetrievalPolicy
+    from power_atlas.retrieval_request_context_adapters import run_interactive_runtime
+
+    alternate_policy = RetrievalPolicy(
+        ontology=RetrievalOntology(
+            claim_label="InteractiveRuntimeClaim",
+            mention_label="InteractiveRuntimeMention",
+            cluster_label="InteractiveRuntimeCluster",
+            canonical_label="InteractiveRuntimeCanonical",
+            supported_by_relationship="INTERACTIVE_SUPPORTED_BY",
+            mentioned_in_relationship="INTERACTIVE_MENTIONED_IN",
+            has_participant_relationship="INTERACTIVE_HAS_PARTICIPANT",
+            resolves_to_relationship="INTERACTIVE_RESOLVES_TO",
+            member_of_relationship="INTERACTIVE_MEMBER_OF",
+            aligned_with_relationship="INTERACTIVE_ALIGNED_WITH",
+        ),
+        qa_prompt_id="interactive_runtime_qa_v1",
+        rag_template=RagTemplate(
+            template="Context:\n{context}\nExamples:\n{examples}\nQuestion:\n{query_text}\nAnswer:",
+            system_instructions="Interactive runtime retrieval policy prompt",
+        ),
+    )
+    request_context = build_request_context(
+        replace(
+            build_app_context(environ={}),
+            policies=replace(build_app_context(environ={}).policies, retrieval=alternate_policy),
+        ),
+        command="ask",
+        dry_run=True,
+        run_id="interactive-runtime-run",
+        all_runs=False,
+        source_uri="file:///interactive-runtime.pdf",
+    )
+    captured: dict[str, object] = {}
+
+    def _fake_run_impl(config: object, **kwargs: object) -> str:
+        captured["config"] = config
+        captured.update(kwargs)
+        return "interactive-runtime-ok"
+
+    result = run_interactive_runtime(
+        request_context.runtime,
+        top_k=4,
+        index_name=None,
+        expand_graph=None,
+        cluster_aware=None,
+        all_runs=None,
+        debug=False,
+        run_impl=_fake_run_impl,
+    )
+
+    assert result == "interactive-runtime-ok"
+    assert captured["config"] is request_context.config
+    assert captured["retrieval_policy"] is alternate_policy
+    assert captured["pipeline_contract"] is request_context.pipeline_contract
+    assert captured["neo4j_settings"] is request_context.settings.neo4j
+    assert captured["run_id"] == "interactive-runtime-run"
+    assert captured["source_uri"] == "file:///interactive-runtime.pdf"
+    assert captured["all_runs"] is False
     assert captured["index_name"] == request_context.pipeline_contract.chunk_embedding_index_name
-    assert captured["run_id"] == "interactive-policy-run"
-    assert captured["source_uri"] == "file:///interactive-policy.pdf"
-    assert captured["all_runs"] is True
-    assert captured["debug"] is True
+    assert captured["debug"] is False
 
 
 def test_run_interactive_retrieval_with_runtime_inputs_forwards_request_free_runtime_state() -> None:

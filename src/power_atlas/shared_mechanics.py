@@ -104,13 +104,13 @@ SHARED_MECHANICS_PILOT = SharedMechanicsPilotSurface(
             module="power_atlas.retrieval_request_context_adapters",
             status="deferred",
             rationale=(
-                "Request-context adapters remain above the mechanics boundary because their public "
-                "API still requires the app-owned RequestContext surface, even though the lower-level "
-                "execution binding now lives in power_atlas.retrieval_runtime_bindings."
+                "Request-context adapters remain above the mechanics boundary because they still "
+                "depend on runtime carriers from the app-owned power_atlas.context surface, even "
+                "though the lower-level execution binding now lives in power_atlas.retrieval_runtime_bindings."
             ),
             hidden_assumptions=(
-                "The adapter API currently requires RequestContext from power_atlas.context.",
-                "Only the lower-level execution binding is request-free; the adapter surface still belongs to the app-owned context layer.",
+                "The adapter surface can now accept RequestRuntime, but that carrier still comes from power_atlas.context.",
+                "RequestContext compatibility wrappers remain app-owned bridges above the lower-level execution binding.",
             ),
         ),
         SharedMechanicsModuleRecord(

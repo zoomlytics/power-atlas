@@ -24,6 +24,26 @@ class AppPolicies:
     entity_type_normalization: EntityTypeNormalizationPolicy
 
 
+@dataclass(frozen=True)
+class AppRuntime:
+    settings: AppSettings
+    pipeline_contract: PipelineContractSnapshot
+    pipeline_contract_config_data: dict[str, Any]
+    policies: AppPolicies
+
+
+@dataclass(frozen=True)
+class RequestRuntime:
+    config: Config
+    settings: AppSettings
+    pipeline_contract: PipelineContractSnapshot
+    pipeline_contract_config_data: dict[str, Any]
+    policies: AppPolicies
+    run_id: str | None = None
+    all_runs: bool = False
+    source_uri: str | None = None
+
+
 def build_default_app_policies(
     *,
     retrieval: RetrievalPolicy | None = None,
@@ -51,6 +71,15 @@ class AppContext:
     pipeline_contract: PipelineContractSnapshot
     pipeline_contract_config_data: dict[str, Any]
     policies: AppPolicies
+
+    @property
+    def runtime(self) -> AppRuntime:
+        return AppRuntime(
+            settings=self.settings,
+            pipeline_contract=self.pipeline_contract,
+            pipeline_contract_config_data=self.pipeline_contract_config_data,
+            policies=self.policies,
+        )
 
 
 @dataclass(frozen=True)
@@ -82,5 +111,25 @@ class RequestContext:
     def policies(self) -> AppPolicies:
         return self.app.policies
 
+    @property
+    def runtime(self) -> RequestRuntime:
+        return RequestRuntime(
+            config=self.config,
+            settings=self.settings,
+            pipeline_contract=self.pipeline_contract,
+            pipeline_contract_config_data=self.app.pipeline_contract_config_data,
+            policies=self.policies,
+            run_id=self.run_id,
+            all_runs=self.all_runs,
+            source_uri=self.source_uri,
+        )
 
-__all__ = ["AppContext", "AppPolicies", "RequestContext", "build_default_app_policies"]
+
+__all__ = [
+    "AppContext",
+    "AppPolicies",
+    "AppRuntime",
+    "RequestContext",
+    "RequestRuntime",
+    "build_default_app_policies",
+]

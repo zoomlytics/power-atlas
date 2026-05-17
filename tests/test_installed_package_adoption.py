@@ -474,8 +474,8 @@ def test_shared_mechanics_consumer_runs_from_outside_repo_when_installed(
             },
             {
                 "hidden_assumptions": [
-                    "The adapter API currently requires RequestContext from power_atlas.context.",
-                    "Only the lower-level execution binding is request-free; the adapter surface still belongs to the app-owned context layer.",
+                    "The adapter surface can now accept RequestRuntime, but that carrier still comes from power_atlas.context.",
+                    "RequestContext compatibility wrappers remain app-owned bridges above the lower-level execution binding.",
                 ],
                 "module": "power_atlas.retrieval_request_context_adapters",
             },
