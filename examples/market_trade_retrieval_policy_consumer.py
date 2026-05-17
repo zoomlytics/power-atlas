@@ -1,22 +1,17 @@
 from __future__ import annotations
 
 import json
-from dataclasses import replace
 
-from power_atlas.bootstrap import build_app_context, build_request_context
+from power_atlas.bootstrap import build_app_context, build_request_context, resolve_app_baseline
 from power_atlas.contracts import RetrievalPolicy
 from power_atlas.policy_packs import MARKET_TRADE_RETRIEVAL_POLICY
 from power_atlas.retrieval_request_context_adapters import run_retrieval_request_context
 
 
 def build_example_payload() -> dict[str, object]:
-    app_context = build_app_context(environ={})
-    app_context = replace(
-        app_context,
-        policies=replace(
-            app_context.policies,
-            retrieval=MARKET_TRADE_RETRIEVAL_POLICY,
-        ),
+    app_context = build_app_context(
+        environ={},
+        app_baseline=resolve_app_baseline(retrieval_policy=MARKET_TRADE_RETRIEVAL_POLICY),
     )
     request_context = build_request_context(
         app_context,

@@ -656,6 +656,7 @@ def test_build_settings_supports_explicit_env_names() -> None:
 def test_resolve_app_baseline_composes_repo_paths_and_env_names(tmp_path: Path) -> None:
     from power_atlas.bootstrap import AppSettingsEnvNames, resolve_app_baseline
     from power_atlas.contracts import RepoPaths
+    from power_atlas.policy_packs import MARKET_TRADE_RETRIEVAL_POLICY
 
     repo_paths = RepoPaths(
         base_dir=tmp_path / "host_app",
@@ -672,17 +673,20 @@ def test_resolve_app_baseline_composes_repo_paths_and_env_names(tmp_path: Path) 
             dataset_name_fallback="LEGACY_APP_DATASET",
         ),
         repo_paths=repo_paths,
+        retrieval_policy=MARKET_TRADE_RETRIEVAL_POLICY,
     )
 
     assert baseline.env_names.dataset_name_primary == "APP_DATASET"
     assert baseline.env_names.dataset_name_fallback == "LEGACY_APP_DATASET"
     assert baseline.repo_paths == repo_paths
     assert baseline.pipeline_contract_source.config_path == repo_paths.pdf_pipeline_config_path
+    assert baseline.retrieval_policy is MARKET_TRADE_RETRIEVAL_POLICY
 
 
 def test_build_app_context_supports_explicit_app_baseline(tmp_path: Path) -> None:
     from power_atlas.bootstrap import AppSettingsEnvNames, build_app_context, resolve_app_baseline
     from power_atlas.contracts import RepoPaths
+    from power_atlas.policy_packs import MARKET_TRADE_RETRIEVAL_POLICY
 
     pipeline_config_path = tmp_path / "host_app" / "config" / "pipeline.yaml"
     pipeline_config_path.parent.mkdir(parents=True)
@@ -725,6 +729,7 @@ text_splitter:
             dataset_name_fallback="LEGACY_APP_DATASET",
         ),
         repo_paths=repo_paths,
+        retrieval_policy=MARKET_TRADE_RETRIEVAL_POLICY,
     )
 
     app_context = build_app_context(
@@ -749,6 +754,7 @@ text_splitter:
     assert app_context.pipeline_contract.embedder_model_name == "text-embedding-3-large"
     assert app_context.pipeline_contract.chunk_fallback_stride == 1000
     assert app_context.pipeline_contract_config_data["contract"]["chunk_embedding"]["index_name"] == "research_chunk_index"
+    assert app_context.policies.retrieval is MARKET_TRADE_RETRIEVAL_POLICY
 
 
 def test_build_settings_from_overrides_ignores_ambient_dataset_defaults() -> None:
@@ -2480,6 +2486,15 @@ def test_default_app_policies_expose_default_stage_policies() -> None:
     assert policies.retrieval is POWER_ATLAS_RETRIEVAL_POLICY
     assert policies.claim_extraction is POWER_ATLAS_CLAIM_EXTRACTION_POLICY
     assert policies.entity_type_normalization is POWER_ATLAS_ENTITY_TYPE_NORMALIZATION_POLICY
+
+
+def test_default_app_policies_support_explicit_retrieval_policy() -> None:
+    from power_atlas.context import build_default_app_policies
+    from power_atlas.policy_packs import MARKET_TRADE_RETRIEVAL_POLICY
+
+    policies = build_default_app_policies(retrieval=MARKET_TRADE_RETRIEVAL_POLICY)
+
+    assert policies.retrieval is MARKET_TRADE_RETRIEVAL_POLICY
 
 
 def test_run_retrieval_request_context_forwards_request_owned_retrieval_policy() -> None:

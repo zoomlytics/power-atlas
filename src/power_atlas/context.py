@@ -24,9 +24,12 @@ class AppPolicies:
     entity_type_normalization: EntityTypeNormalizationPolicy
 
 
-def build_default_app_policies() -> AppPolicies:
+def build_default_app_policies(
+    *,
+    retrieval: RetrievalPolicy | None = None,
+) -> AppPolicies:
     return AppPolicies(
-        retrieval=get_default_retrieval_policy(),
+        retrieval=get_default_retrieval_policy() if retrieval is None else retrieval,
         claim_extraction=get_default_claim_extraction_policy(),
         entity_type_normalization=get_default_entity_type_normalization_policy(),
     )

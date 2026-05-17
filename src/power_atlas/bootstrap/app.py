@@ -17,6 +17,7 @@ from power_atlas.contracts.pipeline import (
     resolve_pipeline_contract_source,
 )
 from power_atlas.contracts.runtime import Config
+from power_atlas.contracts.retrieval_policy import RetrievalPolicy, get_default_retrieval_policy
 from power_atlas.settings import (
     AppSettings,
     AppSettingsEnvNames,
@@ -37,6 +38,7 @@ class AppBaseline:
     pipeline_contract_source: PipelineContractSource = field(
         default_factory=resolve_pipeline_contract_source
     )
+    retrieval_policy: RetrievalPolicy = field(default_factory=get_default_retrieval_policy)
 
 
 def resolve_app_baseline(
@@ -44,6 +46,7 @@ def resolve_app_baseline(
     env_names: AppSettingsEnvNames | None = None,
     repo_paths: RepoPaths | None = None,
     pipeline_contract_source: PipelineContractSource | None = None,
+    retrieval_policy: RetrievalPolicy | None = None,
 ) -> AppBaseline:
     resolved_repo_paths = resolve_repo_paths() if repo_paths is None else repo_paths
     return AppBaseline(
@@ -53,6 +56,9 @@ def resolve_app_baseline(
             resolve_pipeline_contract_source(repo_paths=resolved_repo_paths)
             if pipeline_contract_source is None
             else pipeline_contract_source
+        ),
+        retrieval_policy=(
+            get_default_retrieval_policy() if retrieval_policy is None else retrieval_policy
         ),
     )
 
@@ -66,12 +72,14 @@ def _effective_app_baseline(
     env_names: AppSettingsEnvNames | None = None,
     repo_paths: RepoPaths | None = None,
     pipeline_contract_source: PipelineContractSource | None = None,
+    retrieval_policy: RetrievalPolicy | None = None,
 ) -> AppBaseline:
     if app_baseline is None:
         return resolve_app_baseline(
             env_names=env_names,
             repo_paths=repo_paths,
             pipeline_contract_source=pipeline_contract_source,
+            retrieval_policy=retrieval_policy,
         )
 
     resolved_repo_paths = app_baseline.repo_paths if repo_paths is None else repo_paths
@@ -87,6 +95,7 @@ def _effective_app_baseline(
         env_names=app_baseline.env_names if env_names is None else env_names,
         repo_paths=resolved_repo_paths,
         pipeline_contract_source=resolved_pipeline_contract_source,
+        retrieval_policy=(app_baseline.retrieval_policy if retrieval_policy is None else retrieval_policy),
     )
 
 
@@ -135,7 +144,11 @@ def build_app_context(
             if pipeline_contract_result is None
             else dict(pipeline_contract_result.config_data)
         ),
-        policies=build_default_app_policies() if policies is None else policies,
+        policies=(
+            build_default_app_policies(retrieval=resolved_baseline.retrieval_policy)
+            if policies is None
+            else policies
+        ),
     )
 
 
