@@ -4,9 +4,10 @@ import argparse
 from dataclasses import dataclass
 from pathlib import Path
 
+from power_atlas.bootstrap import AppBaseline
 from power_atlas.bootstrap import build_app_context
-from power_atlas.bootstrap import build_settings
-from power_atlas.contracts import PROMPT_IDS, claim_extraction_lexical_config
+from power_atlas.bootstrap import resolve_app_baseline
+from power_atlas.contracts import claim_extraction_lexical_config
 from power_atlas.extraction_rows import prepare_extracted_rows
 from power_atlas.extraction_writes import write_extracted_rows
 from power_atlas.interfaces.cli.narrative_extraction_entrypoint import (
@@ -25,7 +26,16 @@ from power_atlas.narrative_extraction_service import run_narrative_extraction_st
 from power_atlas.settings import AppSettings
 from power_atlas.adapters.graphrag_types import LexicalGraphConfig
 
-PROMPT_VERSION = PROMPT_IDS["narrative_extraction"]
+
+def resolve_narrative_prompt_version(
+    *,
+    app_baseline: AppBaseline | None = None,
+) -> str:
+    resolved_baseline = resolve_app_baseline() if app_baseline is None else app_baseline
+    return resolved_baseline.prompt_defaults.prompt_ids["narrative_extraction"]
+
+
+PROMPT_VERSION = resolve_narrative_prompt_version()
 DEFAULT_OUTPUT_ROOT = Path(__file__).resolve().parents[2] / "demo" / "runs"
 DEFAULT_NEO4J_PASSWORD = "CHANGE_ME_BEFORE_USE"
 
@@ -39,8 +49,11 @@ class ExtractionConfig:
     dry_run: bool = False
 
 
-def build_lexical_config() -> LexicalGraphConfig:
-    app_context = build_app_context(settings=build_settings())
+def build_lexical_config(
+    *,
+    app_baseline: AppBaseline | None = None,
+) -> LexicalGraphConfig:
+    app_context = build_app_context(app_baseline=app_baseline)
     return claim_extraction_lexical_config(app_context.pipeline_contract)
 
 
@@ -58,14 +71,20 @@ def _build_cli_config(args: argparse.Namespace) -> ExtractionConfig:
     )
 
 
-def run_narrative_extraction(config: ExtractionConfig) -> dict[str, object]:
+def run_narrative_extraction(
+    config: ExtractionConfig,
+    *,
+    app_baseline: AppBaseline | None = None,
+) -> dict[str, object]:
     from power_atlas.bootstrap import require_openai_api_key
+
+    resolved_baseline = resolve_app_baseline() if app_baseline is None else app_baseline
 
     return run_narrative_extraction_stage(
         config,
-        prompt_version=PROMPT_VERSION,
+        prompt_version=resolve_narrative_prompt_version(app_baseline=resolved_baseline),
         default_neo4j_password=DEFAULT_NEO4J_PASSWORD,
-        build_lexical_config=build_lexical_config,
+        build_lexical_config=lambda: build_lexical_config(app_baseline=resolved_baseline),
         require_openai_api_key=require_openai_api_key,
         run_narrative_extraction_live=run_narrative_extraction_live,
         read_chunks_and_extract=_read_chunks_and_extract,

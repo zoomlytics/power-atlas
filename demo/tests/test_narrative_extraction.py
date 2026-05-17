@@ -23,8 +23,10 @@ from power_atlas.narrative_extraction_cli import (  # noqa: E402
     _parse_args,
     build_lexical_config,
     prepare_extracted_rows,
+    resolve_narrative_prompt_version,
     run_narrative_extraction,
 )
+from power_atlas.bootstrap import resolve_app_baseline  # noqa: E402
 from power_atlas.settings import AppSettings, Neo4jSettings  # noqa: E402
 
 
@@ -139,6 +141,26 @@ def test_run_narrative_extraction_dry_run_writes_artifacts(tmp_path: Path):
     assert stored_manifest["stages"]["narrative_extraction"]["run_id"] == config.run_id
     assert stored_manifest["run_scopes"]["unstructured_ingest_run_id"] == config.run_id
     assert stored_manifest["run_scopes"]["batch_mode"] == "single_independent_run"
+
+
+def test_run_narrative_extraction_dry_run_supports_app_baseline_prompt_override(
+    tmp_path: Path,
+):
+    output_root = tmp_path / "runs"
+    config = _make_config(
+        run_id="run-override",
+        output_root=output_root,
+        source_uri=None,
+        dry_run=True,
+    )
+    app_baseline = resolve_app_baseline(
+        prompt_ids={"narrative_extraction": "host_app_narrative_v1"}
+    )
+
+    summary = run_narrative_extraction(config, app_baseline=app_baseline)
+
+    assert resolve_narrative_prompt_version(app_baseline=app_baseline) == "host_app_narrative_v1"
+    assert summary["prompt_version"] == "host_app_narrative_v1"
 
 
 def test_run_narrative_extraction_live_path_uses_run_scoped_reader_and_writer(tmp_path: Path):

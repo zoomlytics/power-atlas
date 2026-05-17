@@ -69,6 +69,9 @@ naming, and similar defaults as if they are universal runtime behavior.
 - `contracts/prompts.py` now exposes a prompt-default carrier that preserves
   the Power Atlas constants as compatibility surfaces while giving baseline-
   owned composition a single prompt-default object to override,
+- `narrative_extraction_cli.py` can now consume baseline-owned narrative prompt
+  defaults in its stage path instead of reading only the ambient prompt
+  registry constant,
 - the market-trade retrieval consumer proof now uses baseline-owned retrieval
   policy selection rather than mutating `app_context.policies` after the fact,
 - prompt/default authority and env-naming authority still remain active follow-
