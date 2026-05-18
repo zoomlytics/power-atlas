@@ -1,0 +1,12 @@
+{
+  "status": "dry_run",
+  "run_id": "runtime-participation-run",
+  "source_uri": "file:///runtime/claim-source.pdf",
+  "edges_written": 0,
+  "subject_edges": 0,
+  "object_edges": 0,
+  "match_metrics": null,
+  "warnings": [
+    "claim participation skipped in dry_run mode"
+  ]
+}

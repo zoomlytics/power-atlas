@@ -474,7 +474,7 @@ def test_shared_mechanics_consumer_runs_from_outside_repo_when_installed(
             },
             {
                 "hidden_assumptions": [
-                    "The adapter surface can now accept RequestRuntime, but that carrier still comes from power_atlas.context.",
+                    "The adapter surface can now accept RequestRuntime, but RequestContext compatibility wrappers still own that binding boundary.",
                     "RequestContext compatibility wrappers remain app-owned bridges above the lower-level execution binding.",
                 ],
                 "module": "power_atlas.retrieval_request_context_adapters",

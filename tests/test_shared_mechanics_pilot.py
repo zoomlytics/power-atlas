@@ -39,7 +39,7 @@ def test_shared_mechanics_pilot_surface_classifies_candidates() -> None:
         "Default app-policy construction is still coupled to the current Power Atlas policy set.",
     )
     assert deferred_notes["power_atlas.retrieval_request_context_adapters"] == (
-        "The adapter surface can now accept RequestRuntime, but that carrier still comes from power_atlas.context.",
+        "The adapter surface can now accept RequestRuntime, but RequestContext compatibility wrappers still own that binding boundary.",
         "RequestContext compatibility wrappers remain app-owned bridges above the lower-level execution binding.",
     )
 
@@ -165,8 +165,8 @@ def test_shared_mechanics_consumer_example_script_runs() -> None:
             },
             {
                 "hidden_assumptions": [
-                        "The adapter surface can now accept RequestRuntime, but that carrier still comes from power_atlas.context.",
-                        "RequestContext compatibility wrappers remain app-owned bridges above the lower-level execution binding.",
+                    "The adapter surface can now accept RequestRuntime, but RequestContext compatibility wrappers still own that binding boundary.",
+                    "RequestContext compatibility wrappers remain app-owned bridges above the lower-level execution binding.",
                 ],
                 "module": "power_atlas.retrieval_request_context_adapters",
             },

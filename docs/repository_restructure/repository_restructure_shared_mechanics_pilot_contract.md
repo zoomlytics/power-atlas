@@ -205,6 +205,18 @@ longer depends directly on `RequestContext`.
 - the shared-mechanics consumer proof now exercises the lower-level helper
   directly instead of proving only the earlier grouping surface.
 
+The next follow-up has now also landed: the thin runtime carriers no longer
+live in `power_atlas.context`.
+
+- `power_atlas.runtime_carriers` now owns `AppPolicies`, `AppRuntime`,
+  `RequestRuntime`, and default app-policy construction,
+- `power_atlas.context` remains deferred because it still owns the
+  `AppContext` / `RequestContext` compatibility wrappers above those thinner
+  carriers,
+- `power_atlas.retrieval_request_context_adapters` remains deferred because it
+  still depends on those app-owned wrapper boundaries even though the lower-
+  level runtime carrier no longer lives in `power_atlas.context`.
+
 One more bounded audit has also now landed for `power_atlas.adapters.neo4j.*`.
 
 - `power_atlas.adapters.neo4j.retrieval_session` is now included in the pilot

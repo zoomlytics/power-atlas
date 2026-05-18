@@ -121,6 +121,7 @@ def test_package_modules_import() -> None:
     claim_extraction_runtime_module = importlib.import_module(
         "power_atlas.claim_extraction_runtime"
     )
+    runtime_carriers_module = importlib.import_module("power_atlas.runtime_carriers")
     claim_participation_edges_module = importlib.import_module(
         "power_atlas.claim_participation_edges"
     )
@@ -235,8 +236,10 @@ def test_package_modules_import() -> None:
     assert package.FIXTURES_DIR == contracts_module.FIXTURES_DIR
     assert package.ID_PATTERNS is contracts_module.ID_PATTERNS
     assert package.AppContext is context_module.AppContext
-    assert package.AppPolicies is context_module.AppPolicies
-    assert package.AppRuntime is context_module.AppRuntime
+    assert package.AppPolicies is runtime_carriers_module.AppPolicies
+    assert package.AppRuntime is runtime_carriers_module.AppRuntime
+    assert context_module.AppPolicies is runtime_carriers_module.AppPolicies
+    assert context_module.AppRuntime is runtime_carriers_module.AppRuntime
     assert package.PDF_PIPELINE_CONFIG_PATH == contracts_module.PDF_PIPELINE_CONFIG_PATH
     assert package.PipelineContractLoadResult is contracts_module.PipelineContractLoadResult
     assert package.PipelineContractSnapshot is contracts_module.PipelineContractSnapshot
@@ -262,7 +265,8 @@ def test_package_modules_import() -> None:
     assert package.POWER_ATLAS_ENTITY_TYPE_NORMALIZATION_POLICY is contracts_module.POWER_ATLAS_ENTITY_TYPE_NORMALIZATION_POLICY
     assert package.RETRIEVAL_METADATA_SURFACE_POLICY is contracts_module.RETRIEVAL_METADATA_SURFACE_POLICY
     assert package.RequestContext is context_module.RequestContext
-    assert package.RequestRuntime is context_module.RequestRuntime
+    assert package.RequestRuntime is runtime_carriers_module.RequestRuntime
+    assert context_module.RequestRuntime is runtime_carriers_module.RequestRuntime
     assert package.RetrievalMetadataSurface is contracts_module.RetrievalMetadataSurface
     assert package.RetrievalOntology is contracts_module.RetrievalOntology
     assert package.RetrievalPolicy is contracts_module.RetrievalPolicy
@@ -353,7 +357,8 @@ def test_package_modules_import() -> None:
     assert package.build_settings is bootstrap_module.build_settings
     assert package.build_app_context is bootstrap_module.build_app_context
     assert package.build_request_context is bootstrap_module.build_request_context
-    assert package.build_default_app_policies is context_module.build_default_app_policies
+    assert package.build_default_app_policies is runtime_carriers_module.build_default_app_policies
+    assert context_module.build_default_app_policies is runtime_carriers_module.build_default_app_policies
     assert package.build_openai_llm is llm_utils_module.build_openai_llm
     assert package.DEFAULT_APP_BASELINE is bootstrap_module.DEFAULT_APP_BASELINE
     assert package.DEFAULT_APP_SETTINGS_ENV_NAMES is settings_module.DEFAULT_APP_SETTINGS_ENV_NAMES
@@ -465,6 +470,7 @@ def test_package_modules_import() -> None:
     assert callable(claim_participation_edges_module.build_participation_edges)
     assert callable(claim_participation_edges_module.build_participation_edges_with_metrics)
     assert callable(claim_participation_runner_module.neo4j_settings_from_config)
+    assert callable(claim_participation_runner_module.run_claim_participation_runtime)
     assert callable(claim_participation_runner_module.write_participation_edges)
     assert callable(claim_participation_runner_module.run_claim_participation_request_context)
     assert callable(entity_resolution_alignment_module.align_clusters_to_canonical)
@@ -1257,6 +1263,42 @@ def test_structured_ingest_runtime_uses_runtime_owned_config_runner() -> None:
         structured_graph_shape=None,
         structured_schema=None,
     )
+
+
+def test_claim_participation_runtime_uses_request_runtime_state() -> None:
+    from power_atlas.bootstrap import bootstrap_app, build_request_context
+    from power_atlas.claim_participation_runner import run_claim_participation_runtime
+
+    app = bootstrap_app(
+        {
+            "NEO4J_URI": "bolt://example.test:7687",
+            "NEO4J_USERNAME": "atlas",
+            "NEO4J_PASSWORD": "secret",
+            "NEO4J_DATABASE": "analytics",
+            "OPENAI_MODEL": "gpt-5.4",
+            "POWER_ATLAS_DATASET": "demo_dataset_v1",
+        }
+    )
+    request_context = build_request_context(
+        app.app_context,
+        command="claim-participation",
+        dry_run=True,
+        run_id="runtime-participation-run",
+        source_uri="file:///runtime/claim-source.pdf",
+    )
+
+    result = run_claim_participation_runtime(request_context.runtime)
+
+    assert result == {
+        "status": "dry_run",
+        "run_id": "runtime-participation-run",
+        "source_uri": "file:///runtime/claim-source.pdf",
+        "edges_written": 0,
+        "subject_edges": 0,
+        "object_edges": 0,
+        "match_metrics": None,
+        "warnings": ["claim participation skipped in dry_run mode"],
+    }
 
 
 def test_write_structured_ingest_graph_accepts_custom_graph_shape_contract() -> None:

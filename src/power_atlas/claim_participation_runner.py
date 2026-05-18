@@ -16,6 +16,7 @@ from power_atlas.backend_run_catalog import resolve_run_root
 from power_atlas.claim_participation_runtime import run_claim_participation_live
 from power_atlas.claim_participation_writes import write_claim_participation_edges
 from power_atlas.context import RequestContext
+from power_atlas.runtime_carriers import RequestRuntime
 from power_atlas.settings import Neo4jSettings
 
 
@@ -68,9 +69,13 @@ def write_participation_edges(
 
 
 def run_claim_participation_request_context(request_context: RequestContext) -> dict[str, Any]:
-    config = request_context.config
-    run_id = request_context.run_id
-    source_uri = request_context.source_uri
+    return run_claim_participation_runtime(request_context.runtime)
+
+
+def run_claim_participation_runtime(request_runtime: RequestRuntime) -> dict[str, Any]:
+    config = request_runtime.config
+    run_id = request_runtime.run_id
+    source_uri = request_runtime.source_uri
 
     run_root = resolve_run_root(config.output_dir, run_id)
 
@@ -130,6 +135,7 @@ def run_claim_participation_request_context(request_context: RequestContext) -> 
 
 __all__ = [
     "neo4j_settings_from_config",
+    "run_claim_participation_runtime",
     "run_claim_participation_request_context",
     "write_participation_edges",
 ]

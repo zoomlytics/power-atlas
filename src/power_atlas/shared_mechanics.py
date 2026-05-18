@@ -105,11 +105,11 @@ SHARED_MECHANICS_PILOT = SharedMechanicsPilotSurface(
             status="deferred",
             rationale=(
                 "Request-context adapters remain above the mechanics boundary because they still "
-                "depend on runtime carriers from the app-owned power_atlas.context surface, even "
+                "depend on runtime carriers from app-owned wrapper surfaces, even "
                 "though the lower-level execution binding now lives in power_atlas.retrieval_runtime_bindings."
             ),
             hidden_assumptions=(
-                "The adapter surface can now accept RequestRuntime, but that carrier still comes from power_atlas.context.",
+                "The adapter surface can now accept RequestRuntime, but RequestContext compatibility wrappers still own that binding boundary.",
                 "RequestContext compatibility wrappers remain app-owned bridges above the lower-level execution binding.",
             ),
         ),

@@ -3,11 +3,12 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Callable
 
-from power_atlas.context import RequestContext, RequestRuntime
+from power_atlas.context import RequestContext
 from power_atlas.contracts import (
     StructuredGraphShapeContract,
     StructuredSchemaContract,
 )
+from power_atlas.runtime_carriers import RequestRuntime
 from power_atlas.settings import Neo4jSettings
 
 

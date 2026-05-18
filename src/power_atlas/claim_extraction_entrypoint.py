@@ -2,12 +2,13 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
-from power_atlas.context import RequestContext, RequestRuntime
+from power_atlas.context import RequestContext
 from power_atlas.contracts import ClaimExtractionPolicy, get_default_claim_extraction_policy
 from power_atlas.contracts.pipeline import (
     PipelineContractSnapshot,
     is_pipeline_contract_snapshot,
 )
+from power_atlas.runtime_carriers import RequestRuntime
 from power_atlas.settings import Neo4jSettings
 
 

@@ -3,7 +3,8 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from power_atlas.context import RequestContext, RequestRuntime
+from power_atlas.context import RequestContext
+from power_atlas.runtime_carriers import RequestRuntime
 from power_atlas.retrieval_runtime_bindings import (
     run_interactive_retrieval_with_runtime_inputs,
     run_retrieval_with_runtime_inputs,

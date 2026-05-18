@@ -7,7 +7,7 @@ from typing import Iterator, Mapping, MutableMapping
 import os
 
 from power_atlas.adapters.graphrag_types import RagTemplate
-from power_atlas.context import AppContext, AppPolicies, RequestContext, build_default_app_policies
+from power_atlas.context import AppContext, RequestContext
 from power_atlas.contracts.claim_extraction_policy import (
     ClaimExtractionPolicy,
     get_default_claim_extraction_policy,
@@ -28,6 +28,7 @@ from power_atlas.contracts.pipeline import (
 )
 from power_atlas.contracts.runtime import Config
 from power_atlas.contracts.retrieval_policy import RetrievalPolicy, get_default_retrieval_policy
+from power_atlas.runtime_carriers import AppPolicies, build_default_app_policies
 from power_atlas.settings import (
     AppSettings,
     AppSettingsEnvNames,

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
-from power_atlas.context import RequestContext, RequestRuntime
+from power_atlas.context import RequestContext
 from power_atlas.contracts import (
     EntityResolutionAlignmentContract,
     EntityResolutionCanonicalLookupContract,
@@ -10,6 +10,7 @@ from power_atlas.contracts import (
     EntityResolutionGraphContract,
     get_default_entity_resolution_dataset_selection_contract,
 )
+from power_atlas.runtime_carriers import RequestRuntime
 from power_atlas.settings import Neo4jSettings
 
 

@@ -88,7 +88,8 @@ naming, and similar defaults as if they are universal runtime behavior.
 - `interfaces/cli/run_demo_support.py` now follows the same baseline-owned
   env-name and preserved-settings pattern for run-demo common parser defaults
   and request-context/config settings construction,
-- `context.py` now exposes thin `AppRuntime` / `RequestRuntime` carriers, and
+- `runtime_carriers.py` now owns thin `AppRuntime` / `RequestRuntime`
+  carriers, while `context.py` remains the app-owned wrapper surface and
   `retrieval_request_context_adapters.py` can bind through `RequestRuntime`
   while keeping `RequestContext` as a shell-side compatibility wrapper,
 - `claim_extraction_entrypoint.py` now also has a `RequestRuntime` binding
@@ -101,6 +102,9 @@ naming, and similar defaults as if they are universal runtime behavior.
   while preserving its `RequestContext` wrapper as a shell-side compatibility
   bridge,
 - `structured_ingest_entrypoint.py` now also has a `RequestRuntime` binding
+  surface while preserving its `RequestContext` wrapper as a shell-side
+  compatibility bridge,
+- `claim_participation_runner.py` now also has a `RequestRuntime` binding
   surface while preserving its `RequestContext` wrapper as a shell-side
   compatibility bridge,
 - the market-trade retrieval consumer proof now uses baseline-owned retrieval

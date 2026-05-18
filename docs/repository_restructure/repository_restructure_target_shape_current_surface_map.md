@@ -129,26 +129,33 @@ These are the important boundaries that still blend roles.
 - `src/power_atlas/bootstrap/app.py`
   - composition is kernel-worthy, but the current baseline still carries repo
     paths, environment names, and host-app default authority.
+- `src/power_atlas/runtime_carriers.py`
+  - now owns the thin runtime carriers and default app-policy construction,
+    but those carriers still use Power Atlas policy/runtime shapes.
 - `src/power_atlas/retrieval_request_context_adapters.py`
   - now thinner, and can bind through `RequestRuntime`, but still remains
-    app-owned because that runtime carrier still comes from `context.py` and
-    the `RequestContext` wrappers remain shell-side bridges.
+    app-owned because `RequestContext` wrappers still remain shell-side
+    bridges above the lower-level runtime binding.
 - `src/power_atlas/claim_extraction_entrypoint.py`
   - now has the same initial `RequestRuntime` bridge shape, but still remains
-    app-owned because policy/runtime ownership still comes from
-    `context.py`-owned carriers and `RequestContext` compatibility wrappers.
+    app-owned because policy/runtime ownership still comes from Power Atlas
+    carriers and `RequestContext` compatibility wrappers.
 - `src/power_atlas/entity_resolution_entrypoint.py`
   - now has the same initial `RequestRuntime` bridge shape, but still remains
-    app-owned because dataset/policy/runtime ownership still comes from
-    `context.py`-owned carriers and `RequestContext` compatibility wrappers.
+    app-owned because dataset/policy/runtime ownership still comes from Power
+    Atlas carriers and `RequestContext` compatibility wrappers.
 - `src/power_atlas/pdf_ingest_entrypoint.py`
   - now has the same initial `RequestRuntime` bridge shape, but still remains
-    app-owned because pipeline/runtime ownership still comes from
-    `context.py`-owned carriers and `RequestContext` compatibility wrappers.
+    app-owned because pipeline/runtime ownership still comes from Power Atlas
+    carriers and `RequestContext` compatibility wrappers.
 - `src/power_atlas/structured_ingest_entrypoint.py`
   - now has the same initial `RequestRuntime` bridge shape, but still remains
-    app-owned because dataset/runtime ownership still comes from
-    `context.py`-owned carriers and `RequestContext` compatibility wrappers.
+    app-owned because dataset/runtime ownership still comes from Power Atlas
+    carriers and `RequestContext` compatibility wrappers.
+- `src/power_atlas/claim_participation_runner.py`
+  - now has the same initial `RequestRuntime` bridge shape, but still remains
+    app-owned because claim-role/runtime ownership still comes from Power
+    Atlas carriers and `RequestContext` compatibility wrappers.
 - `src/power_atlas/adapters/neo4j/*.py`
   - some modules are clean mechanics, others remain stage-specific runtime
     surfaces.
