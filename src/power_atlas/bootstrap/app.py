@@ -218,6 +218,31 @@ def build_settings(
     return AppSettings.from_env(environ=environ, env_names=resolved_baseline.env_names)
 
 
+def _resolve_app_settings(
+    settings: AppSettings | None,
+    *,
+    environ: Mapping[str, str] | None = None,
+    app_baseline: AppBaseline,
+) -> AppSettings:
+    if settings is not None:
+        return settings
+    return AppSettings.from_env(environ=environ, env_names=app_baseline.env_names)
+
+
+def _resolve_app_policies(
+    policies: AppPolicies | None,
+    *,
+    app_baseline: AppBaseline,
+) -> AppPolicies:
+    if policies is not None:
+        return policies
+    return build_default_app_policies(
+        retrieval=app_baseline.retrieval_policy,
+        claim_extraction=app_baseline.claim_extraction_policy,
+        entity_type_normalization=app_baseline.entity_type_normalization_policy,
+    )
+
+
 def build_app_context(
     *,
     settings: AppSettings | None = None,
@@ -227,10 +252,10 @@ def build_app_context(
     app_baseline: AppBaseline | None = None,
 ) -> AppContext:
     resolved_baseline = _effective_app_baseline(app_baseline, env_names=env_names)
-    resolved_settings = (
-        build_settings(environ=environ, app_baseline=resolved_baseline)
-        if settings is None
-        else settings
+    resolved_settings = _resolve_app_settings(
+        settings,
+        environ=environ,
+        app_baseline=resolved_baseline,
     )
     resolved_pipeline_contract, resolved_pipeline_contract_config_data = (
         _resolve_pipeline_contract_state(app_baseline)
@@ -239,15 +264,7 @@ def build_app_context(
         settings=resolved_settings,
         pipeline_contract=resolved_pipeline_contract,
         pipeline_contract_config_data=resolved_pipeline_contract_config_data,
-        policies=(
-            build_default_app_policies(
-                retrieval=resolved_baseline.retrieval_policy,
-                claim_extraction=resolved_baseline.claim_extraction_policy,
-                entity_type_normalization=resolved_baseline.entity_type_normalization_policy,
-            )
-            if policies is None
-            else policies
-        ),
+        policies=_resolve_app_policies(policies, app_baseline=resolved_baseline),
     )
 
 

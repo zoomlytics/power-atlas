@@ -868,7 +868,76 @@ text_splitter:
     assert baseline.prompt_defaults.retrieval_rag_template is custom_rag_template
     assert app_context.policies.retrieval.qa_prompt_id == "host_app_qa_v1"
     assert app_context.policies.retrieval.rag_template is custom_rag_template
-    assert app_context.policies.claim_extraction.prompt_id == "host_app_claim_extraction_v1"
+
+
+def test_build_app_context_preserves_explicit_policies_over_baseline_defaults(
+    tmp_path: Path,
+) -> None:
+    from power_atlas.bootstrap import build_app_context, resolve_app_baseline
+    from power_atlas.contracts import (
+        ClaimExtractionOntology,
+        ClaimExtractionPolicy,
+        EntityTypeNormalizationPolicy,
+        RepoPaths,
+    )
+    from power_atlas.policy_packs import MARKET_TRADE_RETRIEVAL_POLICY
+    from power_atlas.runtime_carriers import AppPolicies
+
+    pipeline_config_path = tmp_path / "host_app" / "config" / "pipeline.yaml"
+    pipeline_config_path.parent.mkdir(parents=True)
+    pipeline_config_path.write_text(
+        """
+contract:
+  chunk_embedding:
+    index_name: research_chunk_index
+    label: ResearchChunk
+    embedding_property: research_embedding
+    dimensions: 3072
+embedder_config:
+  params_:
+    model: text-embedding-3-large
+text_splitter:
+  params_:
+    chunk_size: 1200
+    chunk_overlap: 200
+""".strip(),
+        encoding="utf-8",
+    )
+    repo_paths = RepoPaths(
+        base_dir=tmp_path / "host_app",
+        fixtures_dir=tmp_path / "host_app" / "fixtures",
+        artifacts_dir=tmp_path / "host_app" / "artifacts",
+        config_dir=tmp_path / "host_app" / "config",
+        pdf_pipeline_config_path=pipeline_config_path,
+        datasets_container_dir=tmp_path / "host_app" / "fixtures" / "datasets",
+    )
+    baseline = resolve_app_baseline(repo_paths=repo_paths)
+    explicit_claim_extraction_policy = ClaimExtractionPolicy(
+        ontology=ClaimExtractionOntology(claim_label="ExplicitClaim"),
+        prompt_id="explicit_claim_extraction_v1",
+    )
+    explicit_entity_type_normalization_policy = EntityTypeNormalizationPolicy(
+        synonyms={"Issuer": "Company"},
+        null_sentinel="__explicit_null__",
+    )
+    explicit_policies = AppPolicies(
+        retrieval=MARKET_TRADE_RETRIEVAL_POLICY,
+        claim_extraction=explicit_claim_extraction_policy,
+        entity_type_normalization=explicit_entity_type_normalization_policy,
+    )
+
+    app_context = build_app_context(
+        environ={},
+        app_baseline=baseline,
+        policies=explicit_policies,
+    )
+
+    assert app_context.policies is explicit_policies
+    assert app_context.policies.claim_extraction is explicit_claim_extraction_policy
+    assert (
+        app_context.policies.entity_type_normalization
+        is explicit_entity_type_normalization_policy
+    )
 
 
 def test_build_settings_from_overrides_ignores_ambient_dataset_defaults() -> None:

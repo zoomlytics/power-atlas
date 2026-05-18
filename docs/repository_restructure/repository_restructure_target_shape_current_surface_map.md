@@ -128,8 +128,9 @@ These are the important boundaries that still blend roles.
     defaults still reflect the Power Atlas app shell.
 - `src/power_atlas/bootstrap/app.py`
   - composition is kernel-worthy, and pipeline-contract state resolution is
-    now centralized there, but the current baseline still carries repo paths,
-    environment names, and host-app default authority.
+    now centralized there, with settings/policy assembly also made more
+    explicit, but the current baseline still carries repo paths, environment
+    names, and host-app default authority.
 - `src/power_atlas/runtime_carriers.py`
   - now owns the thin runtime carriers and default app-policy construction,
     but those carriers still use Power Atlas policy/runtime shapes.
