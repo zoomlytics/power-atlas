@@ -3,7 +3,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterator, Mapping, MutableMapping
+from typing import Any, Iterator, Mapping, MutableMapping
 import os
 
 from power_atlas.adapters.graphrag_types import RagTemplate
@@ -180,6 +180,34 @@ def _load_pipeline_contract_for_baseline(
     return load_pipeline_contract(source=app_baseline.pipeline_contract_source)
 
 
+def _resolve_pipeline_contract_state(
+    app_baseline: AppBaseline | None,
+    *,
+    pipeline_contract=None,
+    pipeline_contract_config_data: Mapping[str, Any] | None = None,
+) -> tuple[object, dict[str, Any]]:
+    pipeline_contract_result = _load_pipeline_contract_for_baseline(app_baseline)
+    resolved_pipeline_contract = (
+        get_pipeline_contract_snapshot()
+        if pipeline_contract is None and pipeline_contract_result is None
+        else (
+            pipeline_contract_result.snapshot
+            if pipeline_contract is None
+            else pipeline_contract
+        )
+    )
+    resolved_pipeline_contract_config_data = (
+        get_pipeline_contract_config_data()
+        if pipeline_contract_config_data is None and pipeline_contract_result is None
+        else (
+            dict(pipeline_contract_result.config_data)
+            if pipeline_contract_config_data is None
+            else dict(pipeline_contract_config_data)
+        )
+    )
+    return resolved_pipeline_contract, resolved_pipeline_contract_config_data
+
+
 def build_settings(
     environ: Mapping[str, str] | None = None,
     *,
@@ -204,19 +232,13 @@ def build_app_context(
         if settings is None
         else settings
     )
-    pipeline_contract_result = _load_pipeline_contract_for_baseline(app_baseline)
+    resolved_pipeline_contract, resolved_pipeline_contract_config_data = (
+        _resolve_pipeline_contract_state(app_baseline)
+    )
     return AppContext(
         settings=resolved_settings,
-        pipeline_contract=(
-            get_pipeline_contract_snapshot()
-            if pipeline_contract_result is None
-            else pipeline_contract_result.snapshot
-        ),
-        pipeline_contract_config_data=(
-            get_pipeline_contract_config_data()
-            if pipeline_contract_result is None
-            else dict(pipeline_contract_result.config_data)
-        ),
+        pipeline_contract=resolved_pipeline_contract,
+        pipeline_contract_config_data=resolved_pipeline_contract_config_data,
         policies=(
             build_default_app_policies(
                 retrieval=resolved_baseline.retrieval_policy,
@@ -287,7 +309,11 @@ def build_runtime_config(
     pipeline_contract_config_data=None,
     app_baseline: AppBaseline | None = None,
 ) -> Config:
-    pipeline_contract_result = _load_pipeline_contract_for_baseline(app_baseline)
+    resolved_pipeline_contract, resolved_pipeline_contract_config = _resolve_pipeline_contract_state(
+        app_baseline,
+        pipeline_contract=pipeline_contract,
+        pipeline_contract_config_data=pipeline_contract_config_data,
+    )
     return Config(
         dry_run=dry_run,
         output_dir=settings.output_dir if output_dir is None else output_dir,
@@ -295,24 +321,8 @@ def build_runtime_config(
         question=question,
         resolution_mode=resolution_mode,
         dataset_name=settings.dataset_name,
-        pipeline_contract=(
-            get_pipeline_contract_snapshot()
-            if pipeline_contract is None and pipeline_contract_result is None
-            else (
-                pipeline_contract_result.snapshot
-                if pipeline_contract is None
-                else pipeline_contract
-            )
-        ),
-        pipeline_contract_config_data=(
-            get_pipeline_contract_config_data()
-            if pipeline_contract_config_data is None and pipeline_contract_result is None
-            else (
-                dict(pipeline_contract_result.config_data)
-                if pipeline_contract_config_data is None
-                else dict(pipeline_contract_config_data)
-            )
-        ),
+        pipeline_contract=resolved_pipeline_contract,
+        pipeline_contract_config_data=resolved_pipeline_contract_config,
     )
 
 

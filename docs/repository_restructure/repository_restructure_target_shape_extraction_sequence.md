@@ -107,6 +107,10 @@ naming, and similar defaults as if they are universal runtime behavior.
 - `claim_participation_runner.py` now also has a `RequestRuntime` binding
   surface while preserving its `RequestContext` wrapper as a shell-side
   compatibility bridge,
+- `bootstrap/app.py` now centralizes pipeline-contract state resolution for
+  both app-context and runtime-config construction, reducing duplicated
+  shell-side contract-loading logic while keeping host-app authority in the
+  bootstrap layer,
 - the market-trade retrieval consumer proof now uses baseline-owned retrieval
   policy selection rather than mutating `app_context.policies` after the fact,
 - prompt/default authority and env-naming authority still remain active follow-

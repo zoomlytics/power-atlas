@@ -2816,6 +2816,87 @@ def test_build_runtime_config_from_settings() -> None:
     assert config.dataset_name == "demo_dataset_v1"
 
 
+def test_build_runtime_config_preserves_explicit_pipeline_contract_overrides_with_app_baseline(
+    tmp_path: Path,
+) -> None:
+    from power_atlas.bootstrap import build_runtime_config, resolve_app_baseline
+    from power_atlas.contracts import RepoPaths
+    from power_atlas.contracts.pipeline import PipelineContractSnapshot
+    from power_atlas.settings import AppSettings, Neo4jSettings
+
+    settings = AppSettings(
+        neo4j=Neo4jSettings(
+            uri="bolt://example.test:7687",
+            username="atlas",
+            password="secret",
+            database="analytics",
+        ),
+        openai_model="gpt-5.4",
+        embedder_model="text-embedding-3-large",
+        output_dir=Path("build/power-atlas"),
+        dataset_name="demo_dataset_v1",
+    )
+
+    pipeline_config_path = tmp_path / "host_app" / "config" / "pipeline.yaml"
+    pipeline_config_path.parent.mkdir(parents=True)
+    pipeline_config_path.write_text(
+        """
+contract:
+  chunk_embedding:
+    index_name: baseline_chunk_index
+    label: BaselineChunk
+    embedding_property: baseline_embedding
+    dimensions: 3072
+embedder_config:
+  params_:
+    model: text-embedding-3-large
+text_splitter:
+  params_:
+    chunk_size: 1200
+    chunk_overlap: 200
+""".strip(),
+        encoding="utf-8",
+    )
+    repo_paths = RepoPaths(
+        base_dir=tmp_path / "host_app",
+        fixtures_dir=tmp_path / "host_app" / "fixtures",
+        artifacts_dir=tmp_path / "host_app" / "artifacts",
+        config_dir=tmp_path / "host_app" / "config",
+        pdf_pipeline_config_path=pipeline_config_path,
+        datasets_container_dir=tmp_path / "host_app" / "fixtures" / "datasets",
+    )
+    baseline = resolve_app_baseline(repo_paths=repo_paths)
+    explicit_pipeline_contract = PipelineContractSnapshot(
+        chunk_embedding_index_name="explicit_chunk_index",
+        chunk_embedding_label="ExplicitChunk",
+        chunk_embedding_property="explicit_embedding",
+        chunk_embedding_dimensions=1536,
+        embedder_model_name="text-embedding-3-small",
+        chunk_fallback_stride=600,
+    )
+    explicit_pipeline_contract_config_data = {
+        "contract": {
+            "chunk_embedding": {
+                "index_name": "explicit_chunk_index",
+            }
+        }
+    }
+
+    config = build_runtime_config(
+        settings,
+        dry_run=False,
+        pipeline_contract=explicit_pipeline_contract,
+        pipeline_contract_config_data=explicit_pipeline_contract_config_data,
+        app_baseline=baseline,
+    )
+
+    assert config.pipeline_contract is explicit_pipeline_contract
+    assert config.pipeline_contract_config_data == explicit_pipeline_contract_config_data
+    assert config.pipeline_contract_config_data is not explicit_pipeline_contract_config_data
+    assert config.openai_model == "gpt-5.4"
+    assert config.dataset_name == "demo_dataset_v1"
+
+
 def test_bootstrap_app_exposes_app_context_and_request_context() -> None:
     from power_atlas.bootstrap import bootstrap_app, build_request_context
 
